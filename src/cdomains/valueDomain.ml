@@ -79,6 +79,7 @@ module rec Compound: S with type t = [
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `Thread of Threads.t
+    | `Mutex
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
 struct
@@ -92,6 +93,7 @@ struct
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `Thread of Threads.t
+    | `Mutex
     | `Bot
   ] [@@deriving eq, ord, hash]
 
@@ -108,6 +110,7 @@ struct
 
   let rec bot_value (t: typ): t =
     match t with
+    | _ when is_mutex_type t -> `Mutex
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TFloat _ -> `Bot
     | TPtr _ -> `Address (AD.bot ())
@@ -132,12 +135,13 @@ struct
     | `Array x -> CArrays.is_bot x
     | `Blob x -> Blobs.is_bot x
     | `Thread x -> Threads.is_bot x
+    | `Mutex -> true
     | `Bot -> true
     | `Top -> false
 
   let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
-    | t when is_mutex_type t -> `Top
+    | t when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -154,6 +158,7 @@ struct
 
   let rec top_value (t: typ): t =
     match t with
+    | _ when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -177,11 +182,13 @@ struct
     | `Array x -> CArrays.is_top x
     | `Blob x -> Blobs.is_top x
     | `Thread x -> Threads.is_top x
+    | `Mutex -> true
     | `Top -> true
     | `Bot -> false
 
     let rec zero_init_value (t:typ): t =
       match t with
+      | _ when is_mutex_type t -> `Mutex
       | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
       | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
       | TPtr _ -> `Address AD.null_ptr
@@ -206,7 +213,7 @@ struct
       | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -231,6 +238,7 @@ struct
     | `Array n ->  CArrays.pretty () n
     | `Blob n ->  Blobs.pretty () n
     | `Thread n -> Threads.pretty () n
+    | `Mutex -> text "mutex"
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -244,6 +252,7 @@ struct
     | `Array n ->  CArrays.show n
     | `Blob n ->  Blobs.show n
     | `Thread n -> Threads.show n
+    | `Mutex -> "mutex"
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -363,7 +372,8 @@ struct
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
     match v with
     | `Bot
-    | `Thread _ ->
+    | `Thread _
+    | `Mutex ->
       v
     | _ ->
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
@@ -473,6 +483,7 @@ struct
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
+    | (`Mutex, `Mutex) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -504,6 +515,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
+    | (`Mutex, `Mutex) -> `Mutex
     | _ ->
       warn_type "join" x y;
       `Top
@@ -539,6 +551,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
+    | (`Mutex, `Mutex) -> `Mutex
     | _ ->
       warn_type "join" x y;
       `Top
@@ -571,6 +584,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
+    | (`Mutex, `Mutex) -> `Mutex
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -598,6 +612,7 @@ struct
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
+    | (`Mutex, `Mutex) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
@@ -622,6 +637,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Address x (* TODO: ignores thread! *)
+    | (`Mutex, `Mutex) -> `Mutex
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -653,6 +669,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
+    | (`Mutex, `Mutex) -> `Mutex
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -675,6 +692,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Address x (* TODO: ignores thread! *)
+    | (`Mutex, `Mutex) -> `Mutex
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
@@ -895,6 +913,8 @@ struct
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
+      | `Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
+        `Mutex
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
@@ -1111,6 +1131,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `Thread n -> Threads.printXml f n
+    | `Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 
@@ -1123,6 +1144,7 @@ struct
     | `Array n -> CArrays.to_yojson n
     | `Blob n -> Blobs.to_yojson n
     | `Thread n -> Threads.to_yojson n
+    | `Mutex -> `String "mutex"
     | `Bot -> `String "⊥"
     | `Top -> `String "⊤"
 
@@ -1139,6 +1161,7 @@ struct
     | `Array n -> `Array (project_arr p n)
     | `Blob (v, s, z) -> `Blob (project p v, ID.project p s, z)
     | `Thread n -> `Thread n
+    | `Mutex -> `Mutex
     | `Bot -> `Bot
     | `Top -> `Top
   and project_addr p a =

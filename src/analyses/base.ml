@@ -462,6 +462,7 @@ struct
     | `Int _ -> empty
     | `Float _ -> empty
     | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
+    | `Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
@@ -601,6 +602,7 @@ struct
         | `Int _ -> (empty, TS.bot (), false)
         | `Float _ -> (empty, TS.bot (), false)
         | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
+        | `Mutex -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
     in
