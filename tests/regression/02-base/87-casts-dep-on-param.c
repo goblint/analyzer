@@ -1,15 +1,15 @@
 // PARAM: --set ana.activated "['base', 'mallocWrapper']" --set ana.ctx_insens[+] 'base'  --set ana.base.privatization none
-
+#include<stdlib.h>
 int f(int, void*);
 
 int g () {
   int i;
-  char const *j;
   int a[10];
 
-  int k = f(1, &i);
+  f(1, &i);
   // check that i is an integer and can be used for array indexing without Goblint crashing
-  j = a[i];
+  int r = a[i];
+  a[i] = r;
 
   int* p = &i;
   int j = f(0, &p);
@@ -18,12 +18,13 @@ int g () {
 }
 
 int f(int op, void *pArg){
-  int op;
-  int *fd;
   if (op == 0) {
+    // If op is 0, make *pArg point to a new chunk of memory
+    int *fd = malloc(sizeof(int));
     *(int**)pArg = fd;
   } else {
-    *(int*)pArg = fd;
+    // If op is 0, set *pArg to 0
+    *(int*)pArg = 0;
   }
   return 0;
 }
