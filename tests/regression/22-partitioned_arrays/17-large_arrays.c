@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stddef.h>
 
-// Test to check whether partitioned arrays can have an index expression evaluating to values largers than the max value of int64
+// Test to check whether partitioned arrays can have an index expression evaluating to values larger than the max value of int64
 
 #define LENGTH (LONG_MAX - 600)
 #define STOP (LENGTH - 1)

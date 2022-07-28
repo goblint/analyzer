@@ -2,6 +2,7 @@
 // Example from Amato-Scozzari, SAS 2013
 // Localized narrowing should be able to prove that i >= 0 in the outer
 // loop.
+#include <assert.h>
 
 void main()
 {

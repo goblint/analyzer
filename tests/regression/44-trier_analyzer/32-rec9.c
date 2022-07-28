@@ -1,3 +1,5 @@
+#include <assert.h>
+
 void p (int *x) {
   int y;
   int *z;

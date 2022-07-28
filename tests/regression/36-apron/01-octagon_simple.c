@@ -1,5 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
+#include <assert.h>
+
 void main(void) {
   int X = 0;
   int N = rand();

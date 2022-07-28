@@ -10,6 +10,7 @@
 
 #include<stdlib.h>
 #include<pthread.h>
+#include<assert.h>
 #define ZSTD_pthread_mutex_t            pthread_mutex_t
 #define ZSTD_pthread_mutex_init(a, b)   pthread_mutex_init((a), (b))
 #define ZSTD_pthread_mutex_destroy(a)   pthread_mutex_destroy((a))

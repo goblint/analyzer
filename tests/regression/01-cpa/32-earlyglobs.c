@@ -1,4 +1,6 @@
 // PARAM: --enable exp.earlyglobs
+#include <assert.h>
+
 int g = 10;
 
 int main(void){

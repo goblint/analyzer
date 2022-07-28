@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <stdio.h>
+#include <assert.h>
 
 int myglobal;
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;

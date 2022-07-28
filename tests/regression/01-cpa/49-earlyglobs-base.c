@@ -2,6 +2,8 @@
 // same as 32-earlyglobs.c but only using the base analysis instead of all default analyses
 // earlyglobs was unsound without the threadflag analysis
 // https://github.com/goblint/analyzer/issues/177
+#include <assert.h>
+
 int g = 10;
 
 int main(void){

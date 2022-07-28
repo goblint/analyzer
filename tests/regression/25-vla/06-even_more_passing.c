@@ -1,4 +1,5 @@
 //PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+#include <assert.h>
 
 void foo2(int n , int (*a)[n] )
 {

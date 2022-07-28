@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int scanf(char *, ...);
 
 /* both backward and forward pointers along the stack to local variables */

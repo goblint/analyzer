@@ -1,4 +1,6 @@
 //PARAM: --enable ana.int.interval
+#include <assert.h>
+
 extern int printf(char *, ...);
 
 main() {

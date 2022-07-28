@@ -156,7 +156,7 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = n
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+        ; control_context = (fun () -> ctx_failwith "No context in witness context.")
         ; context = (fun () -> ctx_failwith "No context in witness context.")
         ; edge    = MyCFG.Skip
         ; local  = local
@@ -245,7 +245,7 @@ struct
 
   module ChainParams =
   struct
-    let n = max_result - 1
+    let n () = max_result - 1
     let names i = show_result (Option.get (result_of_enum i))
   end
   include Lattice.Chain (ChainParams)
@@ -293,7 +293,7 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; control_context = (fun () -> Obj.magic (snd lvar))
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local

@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.congruence
+#include <assert.h>
+
 void unsignedCase() {
     unsigned int top;
     unsigned int i = 0;
