@@ -31,6 +31,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
   GobConfig.building_spec := false;
+  Analyses.control_c := (module S1.C);
   (module S1)
 )
 

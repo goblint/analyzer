@@ -576,3 +576,47 @@ struct
   let threadenter ctx lval f args = [ctx.local]
   let threadspawn ctx lval f args fctx = ctx.local
 end
+
+let control_c: (module Printable.S) ref = ref (module Printable.Unit: Printable.S) (* TODO: some failing printable instead *)
+
+module ControlC: Printable.S =
+struct
+  type t = Obj.t (** represents [(val !control_c).t] *)
+
+  let name () =
+    let module C = (val !control_c) in
+    C.name ()
+
+  let equal x y =
+    let module C = (val !control_c) in
+    C.equal (Obj.obj x) (Obj.obj y)
+  let compare x y =
+    let module C = (val !control_c) in
+    C.compare (Obj.obj x) (Obj.obj y)
+  let hash x =
+    let module C = (val !control_c) in
+    C.hash (Obj.obj x)
+  let tag x =
+    let module C = (val !control_c) in
+    C.tag (Obj.obj x)
+
+  let show x =
+    let module C = (val !control_c) in
+    C.show (Obj.obj x)
+  let pretty () x =
+    let module C = (val !control_c) in
+    C.pretty () (Obj.obj x)
+  let printXml f x =
+    let module C = (val !control_c) in
+    C.printXml f (Obj.obj x)
+  let to_yojson x =
+    let module C = (val !control_c) in
+    C.to_yojson (Obj.obj x)
+
+  let arbitrary () =
+    let module C = (val !control_c) in
+    QCheck.map ~rev:Obj.obj Obj.repr (C.arbitrary ())
+  let relift x =
+    let module C = (val !control_c) in
+    Obj.repr (C.relift (Obj.obj x))
+end
