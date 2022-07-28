@@ -131,7 +131,7 @@ struct
     | `Array x -> CArrays.is_bot x
     | `Blob x -> Blobs.is_bot x
     | `Thread x -> Threads.is_bot x
-    | `Mutex -> false
+    | `Mutex -> true
     | `Bot -> true
     | `Top -> false
 
@@ -175,7 +175,7 @@ struct
     | `Array x -> CArrays.is_top x
     | `Blob x -> Blobs.is_top x
     | `Thread x -> Threads.is_top x
-    | `Mutex -> false
+    | `Mutex -> true
     | `Top -> true
     | `Bot -> false
 
