@@ -40,7 +40,6 @@ int main(void) {
       exit(-1);
   }
 
-  __goblint_check(0); // FAIL
   *u = 40; // NOWARN
   *v = 40; // NOWARN
 

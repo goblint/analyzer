@@ -29,7 +29,7 @@ int main(){
   // filtering out the null pointer possibility
   if (x){
     // __goblint_check(x != 0);
-    __goblint_check(*x = 1);
+    __goblint_check(*x == 1);
     b = 2;
     __goblint_check(*x != 0);
     b = 0;
