@@ -311,6 +311,28 @@ let randomArrays file =
   ignore (visitCilFileSameGlobals visitor file)
 
 
+type option = {
+  value:int;
+  cost:int;
+  activate: unit -> unit
+} 
+
+(*A simple greedy approximation to the knapsack problem: 
+  take options with the highest use/cost ratio that still fit*)
+let chooseFromOptions costTarget options =
+  let ratio o = Float.of_int o.value /. Float.of_int o.cost in
+  let compareRatio o1 o2 = Float.compare (ratio o1) (ratio o2) in
+  let rec takeFitting remainingTarget options =
+    if remainingTarget < 0 then [] else match options with 
+    | o::os ->
+      if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow 5% overshooting *) 
+        o::takeFitting (remainingTarget - o.cost) os
+      else
+        takeFitting (remainingTarget - o.cost) os
+    | [] -> []
+  in
+  takeFitting costTarget @@ List.sort compareRatio options
+
 (*TODO: does calling this at a late point cause any problems?*)
 (*      do not overwrite explicit settings?*)
 (*      how to better display changed/selected settings?*)
@@ -326,7 +348,7 @@ let chooseConfig file =
   if isActivated "noRecursiveIntervals" then 
     disableIntervalContextsInRecursiveFunctions ();
 
-  if isActivated "noRecursiveIntervals" then 
+  if isActivated "mallocWrappers" then 
     findMallocWrappers ();
   
   if isActivated "specification" && get_string "ana.specification" <> "" then 
@@ -337,9 +359,13 @@ let chooseConfig file =
 
   if isActivated "singleThreaded" then 
     reduceThreadAnalyses ();
+
+  let options = [] in 
+
+  List.iter (fun o -> o.activate ()) @@ chooseFromOptions 1000 options;
   
+  set_bool "annotation.array" true;
   set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
-  printFactors @@ collectFactors visitCilFileSameGlobals file(*;
-  ignore (dumpFile plainCilPrinter stdout "?" file)*)
+  printFactors @@ collectFactors visitCilFileSameGlobals file
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps
