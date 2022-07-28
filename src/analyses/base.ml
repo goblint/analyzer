@@ -967,9 +967,9 @@ struct
     | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
-      let exp_rv = eval_rv a gs st exp in
-      match exp_rv with
+      match eval_rv a gs st exp with
       | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
+      | `Address add -> `Index (AD.to_int (module IdxDom) add, convert_offset a gs st ofs)
       | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
       | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
       | _ -> failwith "Index not an integer value"

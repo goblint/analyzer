@@ -332,7 +332,7 @@ let get_fkind t =
   | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
-
+let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
 (** Cil.typeOf, etc reimplemented to raise sensible exceptions
     instead of printing all errors directly... *)
