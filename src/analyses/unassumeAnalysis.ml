@@ -11,11 +11,14 @@ struct
   let name () = "unassume"
 
   module C = Printable.Unit
-  module D = SetDomain.Make (CilType.Exp)
 
-  let startstate _ = D.empty ()
-  let morphstate _ _ = D.empty ()
-  let exitstate _ = D.empty ()
+  module ED = SetDomain.Make (CilType.Exp)
+  module UD = SetDomain.Make (Basetype.RawStrings)
+  module D = Lattice.Prod (ED) (UD)
+
+  let startstate _ = D.bot ()
+  let morphstate _ _ = D.bot ()
+  let exitstate _ = D.bot ()
 
   let context _ _ = ()
   let should_join _ _ = false
@@ -24,10 +27,11 @@ struct
 
   let locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
 
-  let invs: Cil.exp NH.t = NH.create 100
+  type uuid = string
+  let invs: (uuid * Cil.exp) NH.t = NH.create 100
 
   let fun_pres: Cil.exp FH.t = FH.create 100
-  let pre_invs: Cil.exp EH.t NH.t = NH.create 100
+  let pre_invs: (uuid * Cil.exp) EH.t NH.t = NH.create 100
 
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
@@ -86,7 +90,7 @@ struct
               match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
-                NH.add invs n inv_exp
+                NH.add invs n (entry.metadata.uuid, inv_exp)
               | Error e ->
                 M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
                 M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv
@@ -125,7 +129,7 @@ struct
                     M.debug ~category:Witness ~loc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
                       NH.replace pre_invs n (EH.create 10);
-                    EH.add (NH.find pre_invs n) pre_exp inv_exp
+                    EH.add (NH.find pre_invs n) pre_exp (entry.metadata.uuid, inv_exp)
                   | Error e ->
                     M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
                     M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv
@@ -173,21 +177,26 @@ struct
       ) yaml_entries
 
   let emit_unassume ctx =
-    let es = NH.find_all invs ctx.node in
-    let es = D.fold (fun pre acc ->
+    let (pres, used) = ctx.local in
+    let uuid_invs = NH.find_all invs ctx.node in
+    let uuid_invs = ED.fold (fun pre acc ->
         match NH.find_option pre_invs ctx.node with
         | Some eh -> EH.find_all eh pre @ acc
         | None -> acc
-      ) ctx.local es
+      ) pres uuid_invs
     in
-    begin match es with
+    let uuid_invs = List.filter (fun (uuid, _) -> not (UD.mem uuid used)) uuid_invs in
+    let (uuids, invs) = GobList.uncombine uuid_invs in
+    if M.tracing then M.tracel "unassume" "unassuming: %a\n" (Pretty.docList Pretty.text) uuids;
+    begin match invs with
       | x :: xs ->
         let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
         ctx.emit (Unassume e)
       | [] ->
         ()
     end;
-    ctx.local
+    let used' = UD.union used (UD.of_list uuids) in
+    (pres, used')
 
   let assign ctx lv e =
     emit_unassume ctx
@@ -197,16 +206,17 @@ struct
 
   let body ctx fd =
     let pres = FH.find_all fun_pres fd in
-    let st = List.fold_left (fun acc pre ->
+    let pres = List.fold_left (fun acc pre ->
         let v = ctx.ask (EvalInt pre) in
         (* M.debug ~category:Witness "%a precondition %a evaluated to %a" CilType.Fundec.pretty fd CilType.Exp.pretty pre Queries.ID.pretty v; *)
         if Queries.ID.to_bool v = Some true then
-          D.add pre acc
+          ED.add pre acc
         else
           acc
-      ) (D.empty ()) pres
+      ) (ED.empty ()) pres
     in
-
+    let (_, used) = ctx.local in
+    let st = (pres, used) in
     emit_unassume {ctx with local = st} (* doesn't query, so no need to redefine ask *)
 
   let asm ctx =
@@ -219,7 +229,7 @@ struct
     emit_unassume ctx
 
   let enter ctx lv f args =
-    [(ctx.local, D.empty ())]
+    [(ctx.local, D.bot ())]
 
   let combine ctx lv fe f args fc fd =
     emit_unassume ctx

@@ -1,0 +1,28 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 4e078bcd-9e55-4874-a86e-0563927704a5
+    creation_time: 2022-07-26T09:11:03Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g48503c690-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--set'' ''ana.activated[+]'' ''apron'' ''--enable'' ''witness.yaml.enabled''
+        ''15-base-unassume-narrow.c'''
+    task:
+      input_files:
+      - 15-base-unassume-narrow.c
+      input_file_hashes:
+        15-base-unassume-narrow.c: 71e40ed99b5217343d0831e293e7207e5bd30ce53f6ab73f0c1ef6ced1afcc60
+      data_model: LP64
+      language: C
+  location:
+    file_name: 15-base-unassume-narrow.c
+    file_hash: 71e40ed99b5217343d0831e293e7207e5bd30ce53f6ab73f0c1ef6ced1afcc60
+    line: 6
+    column: 2
+    function: main
+  loop_invariant:
+    string: (long long )i >= 0LL
+    type: assertion
+    format: C

@@ -5,6 +5,12 @@ let rec combine_short l1 l2 = match l1, l2 with
   | x1 :: l1, x2 :: l2 -> (x1, x2) :: combine_short l1 l2
   | _, _ -> []
 
+(* TODO: direct (tail-recursive?) implementation? *)
+let uncombine l =
+  List.enum l
+  |> Enum.uncombine
+  |> Tuple2.map List.of_enum List.of_enum
+
 let assoc_eq_opt (eq: 'a -> 'a -> bool) (x: 'a) (ys: ('a * 'b) list) : ('b option) =
   Option.map Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
 
