@@ -1834,7 +1834,9 @@ struct
            if is_some_bot v then raise Deadcode
            else (
              if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
-             set' (Var var,NoOffset) v st
+             let r = set' (Var var,NoOffset) v st in
+             if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
+             r
            )
          | Mem _, _ ->
            (* For accesses via pointers, not yet *)
@@ -2599,13 +2601,20 @@ struct
             Queries.Result.top q (* query cycle *)
           else (
             let asked' = Queries.Set.add anyq asked in
-            query (ctx' asked') q
+            match q with
+            | MayEscape _ -> false (* HACK: avoids get_var in inv_exp thinking non-first var is global *)
+            | _ ->
+              query (ctx' asked') q
           )
         in
         let ctx = ctx' Queries.Set.empty in
-        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
+        if M.tracing then M.traceli "unassume" "base unassuming\n";
+        let r = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
+        if M.tracing then M.traceu "unassume" "base unassumed\n";
+        r
       in
       M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
+      M.debug ~category:Witness "base unassumed state: %a" D.pretty e_d;
       D.join ctx.local e_d
     )
     else (
