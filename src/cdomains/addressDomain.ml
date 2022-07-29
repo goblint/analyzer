@@ -23,12 +23,49 @@ module AddressSet (Idx: IntDomain.Z) =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
 
-  module Addr = Lval.NormalLat (Idx)
-  include HoareDomain.HoarePO (Addr)
+  module Addr =
+  struct
+    include Lval.NormalLat (Idx)
+    let top () = failwith "top"
+    let bot () = failwith "bot"
+    let is_top _ = false
+    let is_bot _ = false
+  end
+  module R =
+  struct
+    include Addr
+    type elt = Addr.t
+
+    let rec of_elt_offset: Offs.t -> Offs.t =
+      (* function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o)
+      | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
+      | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *) *)
+      (* function
+      | `NoOffset -> `NoOffset
+      | `Index (_, o') as o when Offs.cmp_zero_offset o <> `MustNonzero ->
+        of_elt_offset o'
+      | `Index (i, o') -> `Index (Idx.top (), of_elt_offset o')
+      | `Field (_, o') as o when Offs.cmp_zero_offset o <> `MustNonzero ->
+        of_elt_offset o'
+      | `Field (f, o') -> `Field (f, of_elt_offset o') *)
+      function _ -> `NoOffset (* very crude *)
+    let of_elt = function
+      | Addr (v, o) -> Addr (v, of_elt_offset o)
+      | a -> a
+  end
+  include HoareDomain.Projective (Addr) (R)
+  (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
     let r = widen x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
+  let join x y =
+    if M.tracing then M.traceli "ad" "join %a %a\n" pretty x pretty y;
+    let r = join x y in
     if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
     r
 

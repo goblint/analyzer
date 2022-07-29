@@ -338,3 +338,79 @@ struct
         (cardinal s2)
     end
 end
+
+
+module type Representative =
+sig
+  include Printable.S
+  type elt
+  val of_elt: elt -> t
+end
+
+module Projective (E: Lattice.S) (R: Representative with type elt = E.t):
+sig
+  include Lattice.S
+  val singleton: E.t -> t
+  val of_list: E.t list -> t
+  val exists: (E.t -> bool) -> t -> bool
+  val for_all: (E.t -> bool) -> t -> bool
+  val is_element: E.t -> t -> bool
+  val mem: E.t -> t -> bool
+  val choose: t -> E.t
+  val elements: t -> E.t list
+  val remove: E.t -> t -> t
+  val map: (E.t -> E.t) -> t -> t
+  val fold: (E.t -> 'a -> 'a) -> t -> 'a -> 'a
+  val empty: unit -> t
+  val add: E.t -> t -> t
+  val is_empty: t -> bool
+  val union: t -> t -> t
+  val diff: t -> t -> t
+  val iter: (E.t -> unit) -> t -> unit
+  val cardinal: t -> int
+end =
+struct
+  module R =
+  struct
+    include Printable.Std (* for Groupable *)
+    include R
+  end
+
+  module B = E
+
+  module M = MapDomain.MapBot (R) (B)
+  include M
+  (* TODO: need to override anything? *)
+
+  let singleton e = M.singleton (R.of_elt e) e
+  let of_list es = List.fold_left (fun acc e ->
+      M.join acc (singleton e) (* TODO: more efficient *)
+    ) (M.empty ()) es
+  let exists p m = M.exists (fun _ e -> p e) m
+  let for_all p m = M.for_all (fun _ e -> p e) m
+  let is_element e m = M.equal m (singleton e) (* TODO: more efficient *)
+  let mem e m = exists (E.leq e) m (* TODO: more efficient from right bucket *)
+  let choose m = snd (M.choose m)
+  let elements m = M.bindings m |> List.map snd
+  let remove e m =
+    M.filter (fun _ e' -> not (E.leq e' e)) m (* TODO: is this right? more efficient from right bucket? *)
+  let map f m = elements m |> List.map f |> of_list (* TODO: more efficient? *)
+  let fold f m a = M.fold (fun _ e a -> f e a) m a
+  let empty () = M.empty ()
+  let add e m = M.join m (singleton e) (* TODO: more efficient *)
+  let is_empty m = M.is_empty m
+  let union = join
+  let diff m1 m2 = M.filter (fun _ e -> not (mem e m2)) m1
+  let iter f m = M.iter (fun _ e -> f e) m
+  let cardinal = M.cardinal
+
+  let widen m1 m2 =
+    M.merge (fun _ e1 e2 ->
+        match e1, e2 with
+        | Some e1, Some e2 ->
+          let r = E.widen e1 e2 in
+          Some r
+        | None, Some e2 -> Some e2
+        | _, None -> None
+      ) m1 m2
+end
