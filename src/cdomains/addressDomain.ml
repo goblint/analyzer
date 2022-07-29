@@ -55,6 +55,12 @@ struct
       | Addr (v, o) -> Addr (v, of_elt_offset o)
       | a -> a
   end
+  module R2 =
+  struct
+    include IntDomain.Integers (IntOps.NIntOps)
+    type elt = Addr.t
+    let of_elt = Addr.hash
+  end
   module Q =
   struct
     type elt = Addr.t
