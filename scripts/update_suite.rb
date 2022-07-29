@@ -489,8 +489,8 @@ class ProjectWitness < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.debug --set printstats true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}2 --set ana.activated[+] unassume --enable dbg.debug --set printstats true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}2"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable dbg.debug --set printstats true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable dbg.debug --set printstats true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     starttime = Time.now
