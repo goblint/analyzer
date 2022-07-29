@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
+// PARAM: --enable ana.int.interval
 void callee(int j) {
   j++;
 }

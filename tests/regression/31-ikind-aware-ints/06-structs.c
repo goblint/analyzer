@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
+// PARAM: --enable ana.int.interval
 struct rtl8169_private {
    unsigned int features ;
 };
