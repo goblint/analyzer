@@ -37,11 +37,11 @@ struct
     type elt = Addr.t
 
     let rec of_elt_offset: Offs.t -> Offs.t =
-      (* function
+      function
       | `NoOffset -> `NoOffset
       | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o)
       | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
-      | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *) *)
+      | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *)
       (* function
       | `NoOffset -> `NoOffset
       | `Index (_, o') as o when Offs.cmp_zero_offset o <> `MustNonzero ->
@@ -49,8 +49,8 @@ struct
       | `Index (i, o') -> `Index (Idx.top (), of_elt_offset o')
       | `Field (_, o') as o when Offs.cmp_zero_offset o <> `MustNonzero ->
         of_elt_offset o'
-      | `Field (f, o') -> `Field (f, of_elt_offset o') *)
-      function _ -> `NoOffset (* very crude *)
+      | `Field (f, o') -> `Field (f, of_elt_offset o') (* incorrect *) *)
+      (* function _ -> `NoOffset (* very crude *) *)
     let of_elt = function
       | Addr (v, o) -> Addr (v, of_elt_offset o)
       | a -> a
