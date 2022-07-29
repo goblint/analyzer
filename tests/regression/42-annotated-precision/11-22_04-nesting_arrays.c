@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned --enable annotation.int.enabled --set ana.int.refinement fixpoint
 #include <assert.h>
 
 struct kala {

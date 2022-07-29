@@ -1,4 +1,4 @@
-// PARAM: --set ana.ctx_insens[+] 'base'  --set ana.base.privatization none
+// PARAM: --set ana.ctx_insens[+] 'base'
 #include<stdlib.h>
 int f(int, void*);
 

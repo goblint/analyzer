@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] uninit  --set ana.base.privatization none
+// PARAM: --set ana.activated[+] uninit
 void some_function(int* x){
 	*x = 0;
 }

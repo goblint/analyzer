@@ -1,4 +1,3 @@
-// PARAM: --set ana.base.privatization none
 #include <assert.h>
 
 extern void f_everything_up();

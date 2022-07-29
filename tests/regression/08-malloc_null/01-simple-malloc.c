@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] malloc_null --set ana.base.privatization none
+// PARAM: --set ana.activated[+] malloc_null
 #include <stdlib.h>
 #include <assert.h>
 

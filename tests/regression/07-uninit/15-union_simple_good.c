@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] uninit  --set ana.base.privatization none
+// PARAM: --set ana.activated[+] uninit
 typedef union {
 	int i;
 	int j;

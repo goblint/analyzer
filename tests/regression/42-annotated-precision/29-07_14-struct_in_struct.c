@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] uninit  --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set ana.activated[+] uninit  --enable annotation.int.enabled --set ana.int.refinement fixpoint
 typedef struct {
 	int i;
 } S;

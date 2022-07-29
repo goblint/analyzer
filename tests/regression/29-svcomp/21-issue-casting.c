@@ -1,4 +1,3 @@
-// PARAM: --set ana.base.privatization none
 static long main(void)
 {
   unsigned int cmd;

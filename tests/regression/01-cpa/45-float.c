@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.sv-comp.functions --set ana.activated[+] var_eq --set ana.activated[+] region --set ana.base.privatization none
+// PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.sv-comp.functions --set ana.activated[+] var_eq --set ana.activated[+] region
 #include <assert.h>
 
 int isNan(float arg) {
