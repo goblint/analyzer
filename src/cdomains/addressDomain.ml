@@ -72,8 +72,9 @@ struct
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
-  (* include HoareDomain.Projective (Addr) (R) *)
-  include HoareDomain.Pairwise (Addr) (Q)
+  (* include HoareDomain.Pairwise (Addr) (Q) *)
+  module PW = HoareDomain.Pairwise (Addr) (Q)
+  include HoareDomain.Projective (Addr) (PW) (R)
   (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =
