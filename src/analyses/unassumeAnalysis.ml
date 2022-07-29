@@ -13,8 +13,8 @@ struct
   module C = Printable.Unit
   module D = SetDomain.Make (CilType.Exp)
 
-  module V = Printable.Prod (Node) (ControlC)
-  module G = SetDomain.Make (Basetype.RawStrings)
+  module LvarH = BatHashtbl.Make (Printable.Prod (Node) (ControlC))
+  module UUIDS = SetDomain.Make (Basetype.RawStrings)
 
   let startstate _ = D.empty ()
   let morphstate _ _ = D.empty ()
@@ -32,6 +32,9 @@ struct
 
   let fun_pres: Cil.exp FH.t = FH.create 100
   let pre_invs: (uuid * Cil.exp) EH.t NH.t = NH.create 100
+
+  (* use non-eqsys state for used tracking to not introduce extra dependencies and evals *)
+  let lvar_used: UUIDS.t LvarH.t = LvarH.create 100 (* TODO: marshal *)
 
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
@@ -174,7 +177,9 @@ struct
         match YamlWitnessType.Entry.of_yaml yaml_entry with
         | Ok entry -> unassume_entry entry
         | Error (`Msg e) -> M.info_noloc ~category:Witness "couldn't parse entry: %s" e
-      ) yaml_entries
+      ) yaml_entries;
+
+    LvarH.clear lvar_used (* TODO: unmarshal *)
 
   let emit_unassume ctx =
     let uuid_invs = NH.find_all invs ctx.node in
@@ -185,17 +190,17 @@ struct
       ) ctx.local uuid_invs
     in
     let used =
-      try ctx.global (ctx.node, ctx.control_context ())
-      with Ctx_failure _ -> G.empty ()
+      try LvarH.find lvar_used (ctx.node, ctx.control_context ())
+      with Ctx_failure _ | Not_found -> UUIDS.empty ()
     in
-    let uuid_invs = List.filter (fun (uuid, _) -> not (G.mem uuid used)) uuid_invs in
+    let uuid_invs = List.filter (fun (uuid, _) -> not (UUIDS.mem uuid used)) uuid_invs in
     let (uuids, invs) = GobList.uncombine uuid_invs in
     if M.tracing then M.tracel "unassume" "unassuming: %a\n" (Pretty.docList Pretty.text) uuids;
     begin match invs with
       | x :: xs ->
         let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
         ctx.emit (Unassume e);
-        begin try ctx.sideg (ctx.node, ctx.control_context ()) (G.of_list uuids)
+        begin try LvarH.modify_def (UUIDS.empty ()) (ctx.node, ctx.control_context ()) (UUIDS.union (UUIDS.of_list uuids)) lvar_used
           with Ctx_failure _ -> ()
         end;
       | [] ->
