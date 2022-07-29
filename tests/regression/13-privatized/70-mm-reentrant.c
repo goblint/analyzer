@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --sets ana.base.privatization mutex-meet --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
+// PARAM: --enable ana.int.interval --set ana.base.privatization mutex-meet --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
