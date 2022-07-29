@@ -414,3 +414,125 @@ struct
         | _, None -> None
       ) m1 m2
 end
+
+
+module type Equivalence =
+sig
+  type elt
+  val should_join: elt -> elt -> bool
+end
+
+module Pairwise (E: Lattice.S) (Q: Equivalence with type elt = E.t):
+sig
+  include Lattice.S
+  val singleton: E.t -> t
+  val of_list: E.t list -> t
+  val exists: (E.t -> bool) -> t -> bool
+  val for_all: (E.t -> bool) -> t -> bool
+  val is_element: E.t -> t -> bool
+  val mem: E.t -> t -> bool
+  val choose: t -> E.t
+  val elements: t -> E.t list
+  val remove: E.t -> t -> t
+  val map: (E.t -> E.t) -> t -> t
+  val fold: (E.t -> 'a -> 'a) -> t -> 'a -> 'a
+  val empty: unit -> t
+  val add: E.t -> t -> t
+  val is_empty: t -> bool
+  val union: t -> t -> t
+  val diff: t -> t -> t
+  val iter: (E.t -> unit) -> t -> unit
+  val cardinal: t -> int
+end =
+struct
+  module B = E
+
+  module S = SetDomain.Make (B)
+  include S
+  (* TODO: need to override anything? *)
+
+  (* copied from SetDomain.SensitiveConf *)
+  let leq s1 s2 =
+    (* I want to check that forall e in x, the same key is in y with it's base
+     * domain element being leq of this one *)
+    let p e1 = exists (fun e2 -> Q.should_join e1 e2 && E.leq e1 e2) s2 in
+    S.for_all p s1
+
+  let join s1 s2 =
+    (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
+      * equal user values (there should be at most 1) and we either join with it, or
+      * just add the element to our accumulator res and remove it from s1 *)
+    let f e2 (s1,res) =
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join e1 e2) s1 in
+      let el =
+        try let e1 = S.choose s1_match in E.join e1 e2
+        with Not_found -> e2
+      in
+      (s1_rest, add el res)
+    in
+    let (s1', res) = S.fold f s2 (s1, S.empty ()) in
+    union s1' res
+  let join x y =
+    if Messages.tracing then Messages.traceli "ad" "hoare join %a %a\n" pretty x pretty y;
+    let r = join x y in
+    if Messages.tracing then Messages.traceu "ad" "-> %a\n" pretty r;
+    r
+
+  let add e s = join (S.singleton e) s
+
+  let widen s1 s2 =
+    (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
+      * equal user values (there should be at most 1) and we either join with it, or
+      * just add the element to our accumulator res and remove it from s1 *)
+    let f e2 (s1,res) =
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join e1 e2) s1 in
+      let el =
+        try let e1 = S.choose s1_match in
+          E.widen e1 (E.join e1 e2) (* TODO: why this join for 01/34? *)
+        with Not_found -> e2
+      in
+      (s1, add el res)
+    in
+    let (s1', res) = S.fold f s2 (s1, S.empty ()) in
+    union (union s1' res) s2 (* TODO: extra union s2 needed? *)
+
+
+  (* The meet operation is slightly different from the above, I think this is
+   * the right thing, the intuition is from thinking of this as a MapBot *)
+  let meet s1 s2 =
+    let f e2 (s1,res) =
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join e1 e2) s1 in
+      let res =
+        try
+          let e1 = S.choose s1_match in
+          add (E.meet e1 e2) res
+        with Not_found -> res
+      in
+      (s1_rest, res)
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+
+  let of_list es = List.fold_left (fun acc e ->
+      add e acc (* TODO: more efficient *)
+    ) (S.empty ()) es
+
+  let is_element e s = S.equal s (singleton e) (* TODO: more efficient *)
+  let mem e s = exists (E.leq e) s (* TODO: more efficient from right bucket *)
+  let remove e s =
+    S.filter (fun e' -> not (E.leq e' e)) s (* TODO: is this right? more efficient from right bucket? *)
+  let map f s = elements s |> List.map f |> of_list (* TODO: more efficient? *)
+  let diff s1 s2 = S.filter (fun e -> not (mem e s2)) s1
+
+  let union = join
+  let inter = meet
+
+  (* let widen m1 m2 =
+    M.merge (fun _ e1 e2 ->
+        match e1, e2 with
+        | Some e1, Some e2 ->
+          let r = E.widen e1 e2 in
+          Some r
+        | None, Some e2 -> Some e2
+        | _, None -> None
+      ) m1 m2 *)
+end

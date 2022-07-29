@@ -55,7 +55,25 @@ struct
       | Addr (v, o) -> Addr (v, of_elt_offset o)
       | a -> a
   end
-  include HoareDomain.Projective (Addr) (R)
+  module Q =
+  struct
+    type elt = Addr.t
+    let should_join x y =
+      (* ignore (Pretty.eprintf "should_join %a %a\n" Addr.pretty x Addr.pretty y); *)
+      if M.tracing then M.tracei "ad" "should_join %a %a\n" Addr.pretty x Addr.pretty y;
+      (* begin match Addr.to_var_offset y with
+        | Some (_, `Index (i, `NoOffset)) when Idx.to_int i = Some (Z.of_int 2) -> failwith "THIS"
+        | _ -> ()
+      end; *)
+      let r = match Addr.join x y with
+      | exception Lattice.Uncomparable -> false
+      | _ -> true
+      in
+      if M.tracing then M.traceu "ad" "-> %B\n" r;
+      r
+  end
+  (* include HoareDomain.Projective (Addr) (R) *)
+  include HoareDomain.Pairwise (Addr) (Q)
   (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =
@@ -67,6 +85,11 @@ struct
     if M.tracing then M.traceli "ad" "join %a %a\n" pretty x pretty y;
     let r = join x y in
     if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
+  let leq x y =
+    if M.tracing then M.traceli "ad" "leq %a %a\n" pretty x pretty y;
+    let r = leq x y in
+    if M.tracing then M.traceu "ad" "-> %B\n" r;
     r
 
   type field = Addr.field
