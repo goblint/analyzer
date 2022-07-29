@@ -34,9 +34,11 @@ struct
   let pre_invs: (uuid * Cil.exp) EH.t NH.t = NH.create 100
 
   (* use non-eqsys state for used tracking to not introduce extra dependencies and evals *)
-  let lvar_used: UUIDS.t LvarH.t = LvarH.create 100 (* TODO: marshal *)
+  let lvar_used: UUIDS.t LvarH.t ref = ref (LvarH.create 100)
 
-  let init _ =
+  type marshal = UUIDS.t LvarH.t
+
+  let init marshal =
     locator := Locator.create (); (* TODO: add Locator.clear *)
     let module Cfg = (val !MyCFG.current_cfg) in
 
@@ -179,7 +181,14 @@ struct
         | Error (`Msg e) -> M.info_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries;
 
-    LvarH.clear lvar_used (* TODO: unmarshal *)
+    match marshal with
+    | None ->
+      LvarH.clear !lvar_used
+    | Some lvar_used' ->
+      lvar_used := lvar_used'
+
+  let finalize () =
+    !lvar_used
 
   let emit_unassume ctx =
     let uuid_invs = NH.find_all invs ctx.node in
@@ -190,7 +199,7 @@ struct
       ) ctx.local uuid_invs
     in
     let used =
-      try LvarH.find lvar_used (ctx.node, ctx.control_context ())
+      try LvarH.find !lvar_used (ctx.node, ctx.control_context ())
       with Ctx_failure _ | Not_found -> UUIDS.empty ()
     in
     let uuid_invs = List.filter (fun (uuid, _) -> not (UUIDS.mem uuid used)) uuid_invs in
@@ -200,7 +209,7 @@ struct
       | x :: xs ->
         let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
         ctx.emit (Unassume e);
-        begin try LvarH.modify_def (UUIDS.empty ()) (ctx.node, ctx.control_context ()) (UUIDS.union (UUIDS.of_list uuids)) lvar_used
+        begin try LvarH.modify_def (UUIDS.empty ()) (ctx.node, ctx.control_context ()) (UUIDS.union (UUIDS.of_list uuids)) !lvar_used
           with Ctx_failure _ -> ()
         end;
       | [] ->
