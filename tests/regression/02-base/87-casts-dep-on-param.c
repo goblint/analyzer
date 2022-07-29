@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base', 'mallocWrapper']" --set ana.ctx_insens[+] 'base'  --set ana.base.privatization none
+// PARAM: --set ana.ctx_insens[+] 'base'  --set ana.base.privatization none
 #include<stdlib.h>
 int f(int, void*);
 

@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper','assert']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --set ana.base.arrays.domain partitioned --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
 #include <assert.h>
 
 void example1() __attribute__((goblint_precision("no-def_exc","interval")));

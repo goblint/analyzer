@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval  --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper','assert']" --set ana.base.privatization none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval  --set ana.base.arrays.domain partitioned --set ana.activated[+] apron --set ana.base.privatization none
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
 #include <assert.h>
 

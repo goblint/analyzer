@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['escape', 'base','threadid','threadflag','mallocWrapper','assert']" --set ana.ctx_insens[+] base --set ana.base.privatization none
+// PARAM: --set ana.ctx_insens[+] base --set ana.base.privatization none
 #include <assert.h>
 
 void f(int v, int i){

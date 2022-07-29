@@ -1,4 +1,4 @@
-// SKIP PARAM: --set otherfun "['f']" --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper','mutex','access','assert']"
+// SKIP PARAM: --set otherfun "['f']"
 
 int glob1 = 5;
 

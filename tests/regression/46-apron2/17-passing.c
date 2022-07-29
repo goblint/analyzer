@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','assert','apron','escape']" --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.apron.privatization mutex-meet-tid --set ana.base.arrays.domain partitioned
+// SKIP PARAM: --set solver td3 --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.apron.privatization mutex-meet-tid --set ana.base.arrays.domain partitioned
 #include <pthread.h>
 #include <assert.h>
 #include <stdio.h>
