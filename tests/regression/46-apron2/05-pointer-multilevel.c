@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --set ana.activated[+] apron --set ana.apron.privatization top
+// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
 #include <assert.h>
 
 extern int __VERIFIER_nondet_int();

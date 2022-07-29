@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --set ana.base.arrays.domain partitioned --disable exp.fast_global_inits --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set ana.base.arrays.domain partitioned --disable exp.fast_global_inits --enable annotation.int.enabled --set ana.int.refinement fixpoint
 // This checks that partitioned arrays and fast_global_inits are no longer incompatible
 #include <assert.h>
 

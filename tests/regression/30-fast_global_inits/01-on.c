@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
 // This checks that partitioned arrays and fast_global_inits are no longer incompatible
 #include <assert.h>
 

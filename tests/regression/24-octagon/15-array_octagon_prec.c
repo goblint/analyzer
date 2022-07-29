@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated[+] apron --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
+// SKIP PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated[+] apron --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
 #include <assert.h>
 
 void main(void) __attribute__((goblint_precision("no-interval")));

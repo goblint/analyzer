@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
 #include<stdio.h>
 #include<assert.h>
 

@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --disable exp.fast_global_inits --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last"
+// PARAM: --enable ana.int.interval --disable exp.fast_global_inits --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last"
 
 // This is just to test that the analysis does not cause problems for features that are not explicitly dealt with
 int main(void) {
