@@ -167,6 +167,7 @@ struct
     List.iter (E.printXml f) (elements x);
     BatPrintf.fprintf f "</set>\n</value>\n"
 end
+[@@deprecated]
 
 
 module type SetS =
