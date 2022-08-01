@@ -78,8 +78,9 @@ struct
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
-  (* include HoareDomain.Pairwise (Addr) (Q) *)
-  module PW = HoareDomain.Pairwise (Addr) (Q)
+  module J = HoareDomain.Joined (Addr)
+  (* include HoareDomain.Pairwise (Addr) (J) (Q) *)
+  module PW = HoareDomain.Pairwise (Addr) (J) (Q)
   include HoareDomain.Projective (Addr) (PW) (R)
   (* include HoareDomain.HoarePO (Addr) *)
 

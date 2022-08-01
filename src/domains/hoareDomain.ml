@@ -431,10 +431,10 @@ sig
   val should_join: elt -> elt -> bool
 end
 
-module Pairwise (E: Lattice.S) (Q: Equivalence with type elt = E.t): NewS with module E = E =
+module Pairwise (E: Lattice.S) (B: NewS with module E = E) (Q: Equivalence with type elt = E.t): NewS with module E = E =
 struct
   module E = E
-  module B = E
+  (* module B = E *)
 
   module S = SetDomain.Make (B)
   include S
@@ -444,7 +444,7 @@ struct
   let leq s1 s2 =
     (* I want to check that forall e in x, the same key is in y with it's base
      * domain element being leq of this one *)
-    let p e1 = exists (fun e2 -> Q.should_join e1 e2 && E.leq e1 e2) s2 in
+    let p e1 = exists (fun e2 -> Q.should_join (B.choose e1) (B.choose e2) && B.leq e1 e2) s2 in
     S.for_all p s1
 
   let join s1 s2 =
@@ -452,9 +452,9 @@ struct
       * equal user values (there should be at most 1) and we either join with it, or
       * just add the element to our accumulator res and remove it from s1 *)
     let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join e1 e2) s1 in
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
       let el =
-        try let e1 = S.choose s1_match in E.join e1 e2
+        try let e1 = S.choose s1_match in B.join e1 e2
         with Not_found -> e2
       in
       (s1_rest, add el res)
@@ -467,20 +467,30 @@ struct
     if Messages.tracing then Messages.traceu "ad" "-> %a\n" pretty r;
     r
 
-  let add e s = join (S.singleton e) s
+
+  let singleton e = S.singleton (B.singleton e)
+  let exists p s = S.exists (fun b -> B.exists p b) s
+  let for_all p s = S.for_all (fun b -> B.for_all p b) s
+  let choose s = B.choose (S.choose s)
+  let elements s = S.elements s |> List.map B.elements |> List.flatten
+  let fold f s a = S.fold (fun b a -> B.fold f b a) s a
+  let iter f s = S.iter (fun b -> B.iter f b) s
+
+  let add e s = join (singleton e) s
+  let add_b b s = join (S.singleton b) s
 
   let widen s1 s2 =
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
       * equal user values (there should be at most 1) and we either join with it, or
       * just add the element to our accumulator res and remove it from s1 *)
     let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join e1 e2) s1 in
-      let el =
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
+      let el: B.t =
         try let e1 = S.choose s1_match in
-          E.widen e1 (E.join e1 e2) (* TODO: why this join for 01/34? *)
+          B.widen e1 (B.join e1 e2) (* TODO: why this join for 01/34? *)
         with Not_found -> e2
       in
-      (s1, add el res)
+      (s1, add_b el res)
     in
     let (s1', res) = S.fold f s2 (s1, S.empty ()) in
     union (union s1' res) s2 (* TODO: extra union s2 needed? *)
@@ -490,11 +500,11 @@ struct
    * the right thing, the intuition is from thinking of this as a MapBot *)
   let meet s1 s2 =
     let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join e1 e2) s1 in
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
       let res =
         try
           let e1 = S.choose s1_match in
-          add (E.meet e1 e2) res
+          add_b (B.meet e1 e2) res
         with Not_found -> res
       in
       (s1_rest, res)
@@ -508,9 +518,13 @@ struct
   let is_element e s = S.equal s (singleton e) (* TODO: more efficient *)
   let mem e s = exists (E.leq e) s (* TODO: more efficient from right bucket *)
   let remove e s =
-    S.filter (fun e' -> not (E.leq e' e)) s (* TODO: is this right? more efficient from right bucket? *)
+    S.filter (fun e' -> not (B.leq e' (B.singleton e))) s (* TODO: is this right? more efficient from right bucket? *)
   let map f s = elements s |> List.map f |> of_list (* TODO: more efficient? *)
-  let diff s1 s2 = S.filter (fun e -> not (mem e s2)) s1
+  (* let diff s1 s2 = S.filter (fun e -> not (mem e s2)) s1 *)
+  let diff m1 m2 =
+    fold (fun e acc ->
+        remove e acc
+      ) m2 m1
 
   let union = join
   let inter = meet
@@ -524,4 +538,30 @@ struct
         | None, Some e2 -> Some e2
         | _, None -> None
       ) m1 m2 *)
+end
+
+
+module Joined (E: Lattice.S): NewS with module E = E =
+struct
+  module E = E
+  include E
+
+  let singleton e = e
+  let of_list es = List.fold_left E.join (E.bot ()) es
+  let exists p e = p e
+  let for_all p e = p e
+  let is_element e e' = E.equal e e'
+  let mem e e' = E.leq e e'
+  let choose e = e
+  let elements e = [e]
+  let remove e e' = e' (* TODO: can do any better? *)
+  let map f e = f e
+  let fold f e a = f e a
+  let empty () = E.bot ()
+  let add e e' = E.join e e'
+  let is_empty e = E.is_bot e
+  let union e e' = E.join e e'
+  let diff e e' = e (* TODO: can do any better? *)
+  let iter f e = f e
+  let cardinal e = 1 (* TODO: is this right? *)
 end
