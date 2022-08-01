@@ -341,23 +341,23 @@ end
 module type NewS =
 sig
   include Lattice.S
-  module E: Lattice.S
-  val singleton: E.t -> t
-  val of_list: E.t list -> t
-  val exists: (E.t -> bool) -> t -> bool
-  val for_all: (E.t -> bool) -> t -> bool
-  val mem: E.t -> t -> bool
-  val choose: t -> E.t
-  val elements: t -> E.t list
-  val remove: E.t -> t -> t
-  val map: (E.t -> E.t) -> t -> t
-  val fold: (E.t -> 'a -> 'a) -> t -> 'a -> 'a
+  type elt
+  val singleton: elt -> t
+  val of_list: elt list -> t
+  val exists: (elt -> bool) -> t -> bool
+  val for_all: (elt -> bool) -> t -> bool
+  val mem: elt -> t -> bool
+  val choose: t -> elt
+  val elements: t -> elt list
+  val remove: elt -> t -> t
+  val map: (elt -> elt) -> t -> t
+  val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
   val empty: unit -> t
-  val add: E.t -> t -> t
+  val add: elt -> t -> t
   val is_empty: t -> bool
   val union: t -> t -> t
   val diff: t -> t -> t
-  val iter: (E.t -> unit) -> t -> unit
+  val iter: (elt -> unit) -> t -> unit
   val cardinal: t -> int
 end
 
@@ -369,9 +369,9 @@ sig
   val of_elt: elt -> t
 end
 
-module Projective (E: Lattice.S) (B: NewS with module E = E) (R: Representative with type elt = E.t): NewS with module E = E =
+module Projective (E: Lattice.S) (B: NewS with type elt = E.t) (R: Representative with type elt = E.t): NewS with type elt = E.t =
 struct
-  module E = E
+  type elt = E.t
 
   module R =
   struct
@@ -506,9 +506,9 @@ sig
   val should_join: elt -> elt -> bool
 end
 
-module Pairwise (E: Lattice.S) (B: NewS with module E = E) (Q: Equivalence with type elt = E.t): NewS with module E = E =
+module Pairwise (E: Lattice.S) (B: NewS with type elt = E.t) (Q: Equivalence with type elt = E.t): NewS with type elt = E.t =
 struct
-  module E = E
+  type elt = E.t
 
   module S = SetDomain.Make (B)
 
@@ -686,9 +686,9 @@ struct
 end
 
 
-module Joined (E: Lattice.S): NewS with module E = E =
+module Joined (E: Lattice.S): NewS with type elt = E.t =
 struct
-  module E = E
+  type elt = E.t
   include E
 
   let singleton e = e
@@ -710,9 +710,8 @@ struct
   let cardinal e = 1 (* TODO: is this right? *)
 end
 
-module Set2 (E: Lattice.S): NewS with module E = E =
+module Set2 (E: Lattice.S): NewS with type elt = E.t =
 struct
-  module E = E
   module H = Set (E)
   include H
 
