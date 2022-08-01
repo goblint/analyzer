@@ -193,7 +193,7 @@ struct
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = unsupported "Set.remove"
+  let remove x a = filter (fun y -> not (B.leq y x)) a
   let join a b = union a b |> reduce
   let union _ _ = unsupported "Set.union"
   let inter _ _ = unsupported "Set.inter"
@@ -509,128 +509,180 @@ end
 module Pairwise (E: Lattice.S) (B: NewS with module E = E) (Q: Equivalence with type elt = E.t): NewS with module E = E =
 struct
   module E = E
-  (* module B = E *)
 
   module S = SetDomain.Make (B)
-  include S
-  (* TODO: need to override anything? *)
 
-  (* copied from SetDomain.SensitiveConf *)
-  let leq s1 s2 =
-    (* I want to check that forall e in x, the same key is in y with it's base
-     * domain element being leq of this one *)
-    let p e1 = exists (fun e2 -> Q.should_join (B.choose e1) (B.choose e2) && B.leq e1 e2) s2 in
-    S.for_all p s1
+  (** Invariant: no explicit bot buckets.
+      Required for efficient [is_empty], [cardinal] and [choose]. *)
 
-  let join s1 s2 =
-    (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
-      * equal user values (there should be at most 1) and we either join with it, or
-      * just add the element to our accumulator res and remove it from s1 *)
-    let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
-      assert (S.cardinal s1_match <= 1);
-      let el =
-        try let e1 = S.choose s1_match in B.join e1 e2
-        with Not_found -> e2
-      in
-      (s1_rest, add el res)
-    in
-    let (s1', res) = S.fold f s2 (s1, S.empty ()) in
-    union s1' res
-  let join x y =
-    if Messages.tracing then Messages.traceli "ad" "hoare join %a %a\n" pretty x pretty y;
-    let r = join x y in
-    if Messages.tracing then Messages.traceu "ad" "-> %a\n" pretty r;
-    r
+  let name () = "Pairwise (" ^ B.name () ^ ")"
 
+  (* explicitly delegate, so we don't accidentally delegate too much *)
 
-  let singleton e = S.singleton (B.singleton e)
-  let exists p s = S.exists (fun b -> B.exists p b) s
-  let for_all p s = S.for_all (fun b -> B.for_all p b) s
-  let choose s = B.choose (S.choose s)
-  let elements s = S.elements s |> List.map B.elements |> List.flatten
+  type t = S.t
+  let equal = S.equal
+  let compare = S.compare
+  let hash = S.hash
+  let tag = S.tag
+  let relift = S.relift
+
+  let is_bot = S.is_bot
+  let bot = S.bot
+  let is_top = S.is_top
+  let top = S.top
+
+  let is_empty = S.is_empty
+  let empty = S.empty
+  let cardinal = S.cardinal
+
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
   let iter f s = S.iter (fun b -> B.iter f b) s
+  let exists p s = S.exists (fun b -> B.exists p b) s
+  let for_all p s = S.for_all (fun b -> B.for_all p b) s
 
-  let add e s = join (singleton e) s
-  let add_b b s = join (S.singleton b) s
+  let singleton e = S.singleton (B.singleton e)
+  let choose s = B.choose (S.choose s)
+
+  (* based on SetDomain.SensitiveConf *)
+
+  let mem e s =
+    S.exists (fun b -> Q.should_join (B.choose b) e && B.mem e b) s
+  let add e s =
+    let (s_match, s_rest) = S.partition (fun b -> Q.should_join (B.choose b) e) s in
+    let b' = match S.choose s_match with
+      | b ->
+        assert (S.cardinal s_match <= 1);
+        B.add e b
+      | exception Not_found -> B.singleton e
+    in
+    S.add b' s_rest
+  let remove e s =
+    let (s_match, s_rest) = S.partition (fun b -> Q.should_join (B.choose b) e) s in
+    match S.choose s_match with
+    | b ->
+      assert (S.cardinal s_match <= 1);
+      let b' = B.remove e b in
+      if B.is_bot b' then
+        s_rest (* remove bot bucket to preserve invariant *)
+      else
+        S.add b' s
+    | exception Not_found -> s
+  let diff s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.should_join (B.choose b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match <= 1);
+          let b' = B.diff b1 b2 in
+          if B.is_bot b' then
+            acc (* remove bot bucket to preserve invariant *)
+          else
+            S.add b' acc
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
+  let of_list es = List.fold_left (fun acc e ->
+      add e acc
+    ) (empty ()) es
+  let elements m = fold List.cons m [] (* no intermediate per-bucket lists *)
+  let map f s = fold (fun e acc ->
+      add (f e) acc
+    ) s (empty ()) (* no intermediate lists *)
+
+  let leq s1 s2 =
+    S.for_all (fun b1 ->
+        let e1 = B.choose b1 in
+        S.exists (fun b2 -> Q.should_join (B.choose b2) e1 && B.leq b1 b2) s2
+      ) s1
+
+  let join s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.should_join (B.choose b1) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match <= 1);
+          B.join b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
 
   let widen s1 s2 =
     assert (leq s1 s2);
-    (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
-      * equal user values (there should be at most 1) and we either join with it, or
-      * just add the element to our accumulator res and remove it from s1 *)
-    let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
-      assert (S.cardinal s1_match <= 1);
-      let el: B.t =
-        try let e1 = S.choose s1_match in
-          B.widen e1 (B.join e1 e2) (* TODO: why this join for 01/34? *)
-        with Not_found -> e2
+    let f b2 (s1, acc) =
+      let e2 = B.choose b2 in
+      let (s1_match, s1_rest) = S.partition (fun e1 -> Q.should_join (B.choose e1) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match <= 1);
+          B.widen b1 b2
+        | exception Not_found -> b2
       in
-      (s1, add_b el res)
+      (s1_rest, S.add b' acc)
     in
-    let (s1', res) = S.fold f s2 (s1, S.empty ()) in
-    (* union (union s1' res) s2 (* TODO: extra union s2 needed? *) *)
-    res
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    assert (is_empty s1'); (* since [leq s1 s2], folding over s2 should remove all s1 *)
+    acc (* TODO: extra union s2 needed? *)
 
-
-  (* The meet operation is slightly different from the above, I think this is
-   * the right thing, the intuition is from thinking of this as a MapBot *)
   let meet s1 s2 =
-    let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
-      assert (S.cardinal s1_match <= 1);
-      let res =
-        try
-          let e1 = S.choose s1_match in
-          add_b (B.meet e1 e2) res
-        with Not_found -> res
+    let f b2 (s1, acc) =
+      let e2 = B.choose b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.should_join (B.choose b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match <= 1);
+          let b' = B.meet b1 b2 in
+          if B.is_bot b' then
+            acc (* remove bot bucket to preserve invariant *)
+          else
+            S.add b' acc
+        | exception Not_found -> acc
       in
-      (s1_rest, res)
+      (s1_rest, acc')
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
   let narrow s1 s2 =
-    let f e2 (s1,res) =
-      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
-      assert (S.cardinal s1_match <= 1);
-      let res =
-        try
-          let e1 = S.choose s1_match in
-          add_b (B.narrow e1 e2) res
-        with Not_found -> res
+    let f b2 (s1, acc) =
+      let e2 = B.choose b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.should_join (B.choose b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match <= 1);
+          let b' = B.narrow b1 b2 in
+          if B.is_bot b' then
+            acc (* remove bot bucket to preserve invariant *)
+          else
+            S.add b' acc
+        | exception Not_found -> acc
       in
-      (s1_rest, res)
+      (s1_rest, acc')
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
-  let of_list es = List.fold_left (fun acc e ->
-      add e acc (* TODO: more efficient *)
-    ) (S.empty ()) es
-
-  let mem e s = exists (E.leq e) s (* TODO: more efficient from right bucket *)
-  let remove e s =
-    S.filter (fun e' -> not (B.leq e' (B.singleton e))) s (* TODO: is this right? more efficient from right bucket? *)
-  let map f s = elements s |> List.map f |> of_list (* TODO: more efficient? *)
-  (* let diff s1 s2 = S.filter (fun e -> not (mem e s2)) s1 *)
-  let diff m1 m2 =
-    fold (fun e acc ->
-        remove e acc
-      ) m2 m1
-
   let union = join
-  let inter = meet
 
-  (* let widen m1 m2 =
-    M.merge (fun _ e1 e2 ->
-        match e1, e2 with
-        | Some e1, Some e2 ->
-          let r = E.widen e1 e2 in
-          Some r
-        | None, Some e2 -> Some e2
-        | _, None -> None
-      ) m1 m2 *)
+  let pretty () s =
+    Pretty.(dprintf "{%a}" (d_list ", " E.pretty) (elements s))
+  let show s = Pretty.sprint ~width:max_int (pretty () s) (* TODO: delegate to E.show instead *)
+  let to_yojson s = [%to_yojson: E.t list] (elements s)
+  let printXml f s =
+    (* based on SetDomain *)
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    iter (E.printXml f) s;
+    BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let pretty_diff () _ = failwith "Pairwise.pretty_diff" (* TODO *)
+
+  let arbitrary () = failwith "Pairwise.arbitrary"
 end
 
 
