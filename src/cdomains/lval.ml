@@ -178,12 +178,18 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = OffsetPrintable (Idx)
+
   type t =
     | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | StrPtr of string (** String literal pointer. *)
+    | StrPtr of string option (** String literal pointer. *)
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+
+  let hash x = match x with
+    | StrPtr _ -> 13859
+    | _ -> hash x
+
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -210,9 +216,9 @@ struct
     | _      -> None
 
   (* strings *)
-  let from_string x = StrPtr x
+  let from_string x = StrPtr (Some x)
   let to_string = function
-    | StrPtr x -> Some x
+    | StrPtr (Some x) -> Some x
     | _        -> None
 
   let rec short_offs = function
@@ -228,7 +234,8 @@ struct
 
   let show = function
     | Addr (x, o)-> short_addr (x, o)
-    | StrPtr x   -> "\"" ^ x ^ "\""
+    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
+    | StrPtr None -> "(unknown string)"
     | UnknownPtr -> "?"
     | NullPtr    -> "NULL"
 
@@ -277,7 +284,8 @@ struct
     in
     match x with
     | Addr (v,o) -> AddrOf (Var v, to_cil o)
-    | StrPtr x -> mkString x
+    | StrPtr (Some x) -> mkString x
+    | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
@@ -303,7 +311,7 @@ struct
   module Offs = Offset (Idx)
 
   let is_definite = function
-    | NullPtr | StrPtr _ -> true
+    | NullPtr -> true
     | Addr (v,o) when Offs.is_definite o -> true
     | _ -> false
 
@@ -316,11 +324,28 @@ struct
     | Addr (x, o) -> Addr (x, Offs.drop_ints o)
     | x -> x
 
+  let join_string_ptr x y = match x, y with
+    | None, _
+    | _, None -> None
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) -> None
+
+  let meet_string_ptr x y = match x, y with
+    | None, a -> a
+    | a, None -> a
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) -> raise Lattice.Uncomparable
+
   let merge cop x y =
     match x, y with
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | StrPtr a  , StrPtr b when a=b -> StrPtr a
+    | StrPtr a, StrPtr b ->
+      StrPtr
+        begin match cop with
+          |`Join | `Widen -> join_string_ptr a b
+          |`Meet | `Narrow -> meet_string_ptr a b
+        end
     | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
