@@ -496,14 +496,14 @@ struct
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     let cpa = st.cpa in
-    let cpa_side = CPA.filter (fun k v -> k.vglob) cpa in
+    let cpa_side = CPA.filter (fun x _ -> is_global ask x) cpa in
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid cpa_side in
     sideg V.mutex_inits (G.create_mutex sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
-    let cpa_local = CPA.filter (fun k v -> not k.vglob) cpa in
+    let cpa_local = CPA.filter (fun x _ -> not @@ is_global ask x) cpa in
     {st with cpa= cpa_local }
 end
 
