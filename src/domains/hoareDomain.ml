@@ -493,7 +493,8 @@ struct
       (s1, add_b el res)
     in
     let (s1', res) = S.fold f s2 (s1, S.empty ()) in
-    union (union s1' res) s2 (* TODO: extra union s2 needed? *)
+    (* union (union s1' res) s2 (* TODO: extra union s2 needed? *) *)
+    res
 
 
   (* The meet operation is slightly different from the above, I think this is
@@ -564,4 +565,37 @@ struct
   let diff e e' = e (* TODO: can do any better? *)
   let iter f e = f e
   let cardinal e = 1 (* TODO: is this right? *)
+end
+
+module Set2 (E: Lattice.S): NewS with module E = E =
+struct
+  module E = E
+  module H = Set (E)
+  include H
+
+  let is_element e h = H.equal h (H.singleton e)
+
+  (* version of widen which doesn't use E.bot *)
+  let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
+  let xs,ys = elements a, elements b in
+  List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
+  let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
+
+  (* widen is actually extrapolation operator, so define connector-based widening instead *)
+  let leq_em s1 s2 =
+    is_bot s1 || leq s1 s2 && for_all (fun e2 -> exists (fun e1 -> E.leq e1 e2) s1) s2
+  let join_em s1 s2 =
+    join s1 s2
+    |> elements
+    |> BatList.reduce E.join
+    |> singleton
+
+  let widen s1 s2 =
+    let s2' =
+      if leq_em s1 s2 then
+        s2
+      else
+        join_em s1 s2
+    in
+    widen s1 s2'
 end
