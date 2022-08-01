@@ -455,6 +455,7 @@ struct
       * just add the element to our accumulator res and remove it from s1 *)
     let f e2 (s1,res) =
       let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
+      assert (S.cardinal s1_match <= 1);
       let el =
         try let e1 = S.choose s1_match in B.join e1 e2
         with Not_found -> e2
@@ -488,6 +489,7 @@ struct
       * just add the element to our accumulator res and remove it from s1 *)
     let f e2 (s1,res) =
       let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
+      assert (S.cardinal s1_match <= 1);
       let el: B.t =
         try let e1 = S.choose s1_match in
           B.widen e1 (B.join e1 e2) (* TODO: why this join for 01/34? *)
@@ -505,6 +507,7 @@ struct
   let meet s1 s2 =
     let f e2 (s1,res) =
       let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
+      assert (S.cardinal s1_match <= 1);
       let res =
         try
           let e1 = S.choose s1_match in
@@ -518,6 +521,7 @@ struct
   let narrow s1 s2 =
     let f e2 (s1,res) =
       let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
+      assert (S.cardinal s1_match <= 1);
       let res =
         try
           let e1 = S.choose s1_match in
