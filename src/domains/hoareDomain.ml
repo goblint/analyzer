@@ -414,6 +414,7 @@ struct
   let cardinal = M.cardinal
 
   let widen m1 m2 =
+    assert (leq m1 m2);
     M.merge (fun _ e1 e2 ->
         match e1, e2 with
         | Some e1, Some e2 ->
@@ -422,6 +423,7 @@ struct
         | None, Some e2 -> Some e2
         | _, None -> None
       ) m1 m2
+  (* TODO: narrow? *)
 end
 
 
@@ -480,6 +482,7 @@ struct
   let add_b b s = join (S.singleton b) s
 
   let widen s1 s2 =
+    assert (leq s1 s2);
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
       * equal user values (there should be at most 1) and we either join with it, or
       * just add the element to our accumulator res and remove it from s1 *)
@@ -506,6 +509,19 @@ struct
         try
           let e1 = S.choose s1_match in
           add_b (B.meet e1 e2) res
+        with Not_found -> res
+      in
+      (s1_rest, res)
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+
+  let narrow s1 s2 =
+    let f e2 (s1,res) =
+      let (s1_match, s1_rest) = partition (fun e1 -> Q.should_join (B.choose e1) (B.choose e2)) s1 in
+      let res =
+        try
+          let e1 = S.choose s1_match in
+          add_b (B.narrow e1 e2) res
         with Not_found -> res
       in
       (s1_rest, res)
@@ -591,6 +607,7 @@ struct
     |> singleton
 
   let widen s1 s2 =
+    assert (leq s1 s2);
     let s2' =
       if leq_em s1 s2 then
         s2
