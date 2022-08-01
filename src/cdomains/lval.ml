@@ -183,7 +183,7 @@ struct
     | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | StrPtr of string option (** String literal pointer. *)
+    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
   let hash x = match x with
@@ -331,7 +331,7 @@ struct
     | Some a, Some b (* when a <> b *) -> None
 
   let meet_string_ptr x y = match x, y with
-    | None, a -> a
+    | None, a
     | a, None -> a
     | Some a, Some b when a = b -> Some a
     | Some a, Some b (* when a <> b *) -> raise Lattice.Uncomparable
