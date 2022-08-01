@@ -64,9 +64,9 @@ struct
   module Q =
   struct
     type elt = Addr.t
-    let should_join x y =
-      (* ignore (Pretty.eprintf "should_join %a %a\n" Addr.pretty x Addr.pretty y); *)
-      if M.tracing then M.tracei "ad" "should_join %a %a\n" Addr.pretty x Addr.pretty y;
+    let cong x y =
+      (* ignore (Pretty.eprintf "cong %a %a\n" Addr.pretty x Addr.pretty y); *)
+      if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;
       (* begin match Addr.to_var_offset y with
         | Some (_, `Index (i, `NoOffset)) when Idx.to_int i = Some (Z.of_int 2) -> failwith "THIS"
         | _ -> ()

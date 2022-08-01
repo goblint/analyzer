@@ -889,7 +889,7 @@ struct
     module Q =
     struct
       type elt = Spec.D.t
-      let should_join = Spec.should_join
+      let cong = Spec.should_join
     end
 
     (* include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *) *)
