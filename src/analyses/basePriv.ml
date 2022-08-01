@@ -421,7 +421,10 @@ struct
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
       let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
-      let meet = long_meet st.cpa get_m in
+      let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
+      let is_in_Gm x _ = is_protected_by ask m x in
+      let local_m = CPA.filter is_in_Gm local_m in
+      let meet = long_meet st.cpa (CPA.join get_m local_m) in
       {st with cpa = meet}
     )
     else
