@@ -26,6 +26,10 @@ int main(){
     // This is unknwon due to only keeping one string pointer in abstract address sets
     __goblint_check(*ptr == *str4); //UNKNOWN
 
+    char *ptr2 = unknown_function(); 
+
+    __goblint_check(ptr == ptr2); //UNKNOWN
+    __goblint_check(ptr2 == str); //UNKNOWN
 
     return 0;
 }
