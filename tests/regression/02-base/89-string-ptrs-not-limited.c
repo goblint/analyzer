@@ -1,5 +1,7 @@
-#include <assert.h>
+//PARAM: --disable ana.base.limit-string-addresses
 #include <stdlib.h>
+
+char *unknown_function();
 
 int main(){
     char* str = "Hello";
@@ -21,15 +23,14 @@ int main(){
     } else {
         ptr = str3;
     }
-    __goblint_check(*ptr == *str); //UNKNOWN
+    __goblint_check(ptr == str); //UNKNOWN!
 
-    // This is unknwon due to only keeping one string pointer in abstract address sets
-    __goblint_check(*ptr == *str4); //UNKNOWN
+    __goblint_check(ptr != str4);
 
-    char *ptr2 = unknown_function(); 
+    char *ptr2 = unknown_function();
 
-    __goblint_check(ptr == ptr2); //UNKNOWN
-    __goblint_check(ptr2 == str); //UNKNOWN
+    __goblint_check(ptr2 == str); //UNKNOWN!
+    __goblint_check(ptr2 == ptr); //UNKNOWN!
 
     return 0;
 }

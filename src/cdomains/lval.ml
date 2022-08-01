@@ -328,7 +328,11 @@ struct
     | None, _
     | _, None -> None
     | Some a, Some b when a = b -> Some a
-    | Some a, Some b (* when a <> b *) -> None
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        None
+      else
+        raise Lattice.Uncomparable
 
   let meet_string_ptr x y = match x, y with
     | None, a

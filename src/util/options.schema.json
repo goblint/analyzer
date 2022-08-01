@@ -606,6 +606,11 @@
               },
               "additionalProperties": false
             },
+            "limit-string-addresses": {
+              "title": "ana.base.limit-string-addresses",
+              "type": "boolean",
+              "default": true
+            },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",
               "type": "object",
