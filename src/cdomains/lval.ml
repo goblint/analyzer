@@ -187,7 +187,11 @@ struct
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
   let hash x = match x with
-    | StrPtr _ -> 13859
+    | StrPtr _ ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        13859
+      else
+        hash x
     | _ -> hash x
 
   include Printable.Std
