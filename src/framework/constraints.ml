@@ -878,15 +878,22 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = HoareDomain.Set(Spec.D).t
-     and module G = Spec.G
+    with module G = Spec.G
      and module C = Spec.C
      and module V = Spec.V
 =
 struct
   module D =
   struct
-    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    module J = HoareDomain.Joined (Spec.D)
+    module Q =
+    struct
+      type elt = Spec.D.t
+      let should_join = Spec.should_join
+    end
+
+    (* include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *) *)
+    include HoareDomain.Pairwise (Spec.D) (J) (Q)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -896,7 +903,7 @@ struct
       iter print_one x
 
     (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
+    (* let join_reduce a =
       let rec loop js = function
         | [] -> js
         | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
@@ -914,7 +921,7 @@ struct
     let join = binop join
     let meet = binop meet
     let widen = binop widen
-    let narrow = binop narrow
+    let narrow = binop narrow *)
   end
 
   module G = Spec.G
