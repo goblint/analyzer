@@ -371,55 +371,132 @@ end
 
 module Projective (E: Lattice.S) (B: NewS with module E = E) (R: Representative with type elt = E.t): NewS with module E = E =
 struct
+  module E = E
+
   module R =
   struct
     include Printable.Std (* for Groupable *)
     include R
   end
-
-  module E = E
-  (* module B = E *)
-
   module M = MapDomain.MapBot (R) (B)
-  include M
-  (* TODO: need to override anything? *)
 
-  let singleton e = M.singleton (R.of_elt e) (B.singleton e)
-  let of_list es = List.fold_left (fun acc e ->
-      M.join acc (singleton e) (* TODO: more efficient *)
-    ) (M.empty ()) es
+  (** Invariant: no explicit bot buckets.
+      Required for efficient [is_empty], [cardinal] and [choose]. *)
+
+  let name () = "Projective (" ^ B.name () ^ ")"
+
+  (* explicitly delegate, so we don't accidentally delegate too much *)
+
+  type t = M.t
+  let equal = M.equal
+  let compare = M.compare
+  let hash = M.hash
+  let tag = M.tag
+  let relift = M.relift
+
+  let is_bot = M.is_bot
+  let bot = M.bot
+  let is_top = M.is_top
+  let top = M.top
+
+  let is_empty = M.is_empty
+  let empty = M.empty
+  let cardinal = M.cardinal
+
+  let leq = M.leq
+  let join = M.join
+  let pretty_diff = M.pretty_diff
+
+  let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
+  let iter f m = M.iter (fun _ e -> B.iter f e) m
   let exists p m = M.exists (fun _ e -> B.exists p e) m
   let for_all p m = M.for_all (fun _ e -> B.for_all p e) m
-  let mem e m = exists (E.leq e) m (* TODO: more efficient from right bucket *)
+
+  let singleton e = M.singleton (R.of_elt e) (B.singleton e)
   let choose m = B.choose (snd (M.choose m))
-  let elements m = M.bindings m |> List.map snd |> List.map B.elements |> List.flatten
+
+  let mem e m =
+    match M.find_opt (R.of_elt e) m with
+    | Some b -> B.mem e b
+    | None -> false
+  let add e m =
+    let r = R.of_elt e in
+    let b' = match M.find_opt r m with
+      | Some b -> B.add e b
+      | None -> B.singleton e
+    in
+    M.add r b' m
   let remove e m =
-    M.filter (fun _ e' -> not (B.leq e' (B.singleton e))) m (* TODO: is this right? more efficient from right bucket? *)
-  let map f m = elements m |> List.map f |> of_list (* TODO: more efficient? *)
-  let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
-  let empty () = M.empty ()
-  let add e m = M.join m (singleton e) (* TODO: more efficient *)
-  let is_empty m = M.is_empty m
-  let union = join
-  (* let diff m1 m2 = M.filter (fun _ e -> not (mem e m2)) m1 *)
+    let r = R.of_elt e in
+    match M.find_opt r m with
+    | Some b ->
+      let b' = B.remove e b in
+      if B.is_bot b' then
+        M.remove r m (* remove bot bucket to preserve invariant *)
+      else
+        M.add r b' m
+    | None -> m
   let diff m1 m2 =
-    fold (fun e acc ->
-        remove e acc
-      ) m2 m1
-  let iter f m = M.iter (fun _ e -> B.iter f e) m
-  let cardinal = M.cardinal
+    M.merge (fun _ b1 b2 ->
+        match b1, b2 with
+        | Some b1, Some b2 ->
+          let b' = B.diff b1 b2 in
+          if B.is_bot b' then
+            None (* remove bot bucket to preserve invariant *)
+          else
+            Some b'
+        | Some _, None -> b1
+        | None, _ -> None
+      ) m1 m2
+
+  let of_list es = List.fold_left (fun acc e ->
+      add e acc
+    ) (empty ()) es
+  let elements m = fold List.cons m [] (* no intermediate per-bucket lists *)
+  let map f m = fold (fun e acc ->
+      add (f e) acc
+    ) m (empty ()) (* no intermediate lists *)
 
   let widen m1 m2 =
     assert (leq m1 m2);
-    M.merge (fun _ e1 e2 ->
-        match e1, e2 with
-        | Some e1, Some e2 ->
-          let r = B.widen e1 e2 in
-          Some r
-        | None, Some e2 -> Some e2
-        | _, None -> None
+    M.widen m1 m2
+
+  let meet m1 m2 =
+    M.merge (fun _ b1 b2 ->
+        match b1, b2 with
+        | Some b1, Some b2 ->
+          let b' = B.meet b1 b2 in
+          if B.is_bot b' then
+            None (* remove bot bucket to preserve invariant *)
+          else
+            Some b'
+        | _, _ -> None
       ) m1 m2
-  (* TODO: narrow? *)
+  let narrow m1 m2 =
+    M.merge (fun _ b1 b2 ->
+        match b1, b2 with
+        | Some b1, Some b2 ->
+          let b' = B.narrow b1 b2 in
+          if B.is_bot b' then
+            None (* remove bot bucket to preserve invariant *)
+          else
+            Some b'
+        | _, _ -> None
+      ) m1 m2
+
+  let union = join
+
+  let pretty () m =
+    Pretty.(dprintf "{%a}" (d_list ", " E.pretty) (elements m))
+  let show m = Pretty.sprint ~width:max_int (pretty () m) (* TODO: delegate to E.show instead *)
+  let to_yojson m = [%to_yojson: E.t list] (elements m)
+  let printXml f m =
+    (* based on SetDomain *)
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    iter (E.printXml f) m;
+    BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let arbitrary () = failwith "Projective.arbitrary"
 end
 
 
