@@ -14,5 +14,5 @@ int main(void) {
         i++;
     }
 
-    assert(i == 0);
+    __goblint_check(i == 0);
 }

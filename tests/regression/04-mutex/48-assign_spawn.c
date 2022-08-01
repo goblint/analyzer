@@ -2,12 +2,13 @@
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/device.h>
+#include <assert.h>
 
 static struct class *misc_class;
 
 static char *misc_devnode(struct device *dev, umode_t *mode)
 {
-  assert(false); // FAIL
+  __goblint_check(false); // FAIL
   return NULL;
 }
 

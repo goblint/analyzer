@@ -1,4 +1,6 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --set ana.base.privatization none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper','assert']" --set ana.base.privatization none
+#include <assert.h>
+
 int main(void) {
     f1();
 }
@@ -11,14 +13,14 @@ int f1() {
 
     one = two;
 
-    assert(one - two == 0);
+    __goblint_check(one - two == 0);
     x = f2(one,two);
-    assert(one - two == 0);
-    assert(x == 48);
+    __goblint_check(one - two == 0);
+    __goblint_check(x == 48);
 }
 
 int f2(int a, int b) {
-    assert(a-b == 0);
+    __goblint_check(a-b == 0);
 
     return 48;
 }

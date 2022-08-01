@@ -2,6 +2,7 @@ open OUnit2
 
 let all_tests = ("" >:::
   [ IntDomainTest.test ();
+    FloatDomainTest.test ();
     MapDomainTest.test ();
     SolverTest.test ();
     LvalTest.test ();

@@ -11,5 +11,5 @@ void f() {
   while (g) {
     // should be unreachable
   }
-  assert(g == 0); // should be reachable
+  __goblint_check(g == 0); // should be reachable
 }

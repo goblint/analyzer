@@ -30,7 +30,6 @@
     (zarith (>= 1.8))
     (yojson (>= 2.0.0))
     qcheck-core
-    (ppx_distr_guards (>= 0.2))
     ppx_deriving
     ppx_deriving_hash
     ppx_deriving_yojson
@@ -55,5 +54,5 @@
     apron
     z3
   )
-  (sites (share includes))
+  (sites (share includes) (share conf))
 )

@@ -4,20 +4,20 @@
  void foo() {
 -    int fooOne = 1;
 -    fooOne++;
--    assert(fooOne == 2);
+-    __goblint_check(fooOne == 2);
 +    int fooTwo = 1;
 +    fooTwo++;
-+    assert(fooTwo == 2);
++    __goblint_check(fooTwo == 2);
  }
- 
+
  void bar() {
 -    int barOne = 10;
 -    if (barOne < 11) barOne = 20;
--    assert(barOne == 20);
+-    __goblint_check(barOne == 20);
 +    int barTwo = 10;
 +    int x = 3;
 +    if (x < 11) barTwo = 13;
-+    assert(x > 1);
++    __goblint_check(x > 1);
  }
- 
+
  int main() {

@@ -11,6 +11,6 @@ int f(int x) {
 
 int main () {
   int a = f(1);
-  assert(!a);
+  __goblint_check(!a);
   return 0;
 }

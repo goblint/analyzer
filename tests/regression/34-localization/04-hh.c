@@ -2,6 +2,7 @@
 // Example from Amato-Scozzari, SAS 2013
 // Localized widening or restart policy should be able to prove that i <= j+3
 // if the abstract domain is powerful enough.
+#include <assert.h>
 
 void main()
 {
@@ -13,7 +14,7 @@ void main()
          j=j+1;
       }
       i = i-j+1;
-      assert(i <= j+3); // UNKNOWN
+      __goblint_check(i <= j+3); // UNKNOWN
    }
    return ;
 }

@@ -36,6 +36,7 @@ let print_help ch =
   fprintf ch " are used instead of double-quotes (\").\n\n";
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
+  fprintf ch "Some common configurations to start from can be found in conf/examples/*\n";
   exit 0
 
 (** [Arg] option specification *)
@@ -219,6 +220,7 @@ let preprocess_files () =
   get_string_list "pre.includes" |> List.map Fpath.v |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
+  include_files := find_custom_include (Fpath.v "goblint.h") :: !include_files;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
@@ -415,7 +417,8 @@ let do_analyze change_info merged_AST =
         with e ->
           let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
           let loc = !Tracing.current_loc in
-          Messages.error ~category:Analyzer ~loc "About to crash!"; (* TODO: move severity coloring to Messages *)
+          Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
+          Messages.error ~category:Analyzer ~loc "About to crash!";
           (* trigger Generic.SolverStats...print_stats *)
           Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
           do_stats ();

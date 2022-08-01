@@ -5,6 +5,6 @@ int main(){
   if ((unsigned long )b == (unsigned long )((void *)0)) {
     b = b + 1;
   }
-  assert(b == 1); //
+  __goblint_check(b == 1); //
   return 0;
 }

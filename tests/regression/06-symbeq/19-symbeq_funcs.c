@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set dbg.debug true --set ana.activated[+] "'var_eq'" 
+// PARAM: --disable ana.mutex.disjoint_types --set dbg.debug true --set ana.activated[+] "'var_eq'"
 #include <assert.h>
 
 void inc(int * a){
@@ -16,34 +16,34 @@ void test1(int *q, int *p){
 
 int main () {
   int x, y, z, uk;
-  
+
   x = y = z;
 
-  assert(x == y); 
-  assert(z == y); 
-  assert(x == z); 
-  
+  __goblint_check(x == y);
+  __goblint_check(z == y);
+  __goblint_check(x == z);
+
   test1(&x, &x);
-//  assert(x == y); wontfix?  i think?
-  assert(z == y); 
-//  assert(x == z); 
+//  __goblint_check(x == y); wontfix?  i think?
+  __goblint_check(z == y);
+//  __goblint_check(x == z);
 
   x = y = z;
 
   test1(&x, &y);
-  assert(x == y); 
-//  assert(z == y); 
-//  assert(x == z); 
+  __goblint_check(x == y);
+//  __goblint_check(z == y);
+//  __goblint_check(x == z);
 
   x = y = z;
 
   inc(&x);
-  assert(x == y); // UNKNOWN
-  assert(z == y); 
-  
+  __goblint_check(x == y); // UNKNOWN
+  __goblint_check(z == y);
+
   y = four();
-  assert(z == y); // UNKNOWN
-  assert(x == y); // UNKNOWN
-  
+  __goblint_check(z == y); // UNKNOWN
+  __goblint_check(x == y); // UNKNOWN
+
   return 0;
 }

@@ -463,7 +463,7 @@ struct
 end
 
 module type ChainParams = sig
-  val n: int
+  val n: unit -> int
   val names: int -> string
 end
 
@@ -477,7 +477,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
-  let arbitrary () = QCheck.int_range 0 (P.n - 1)
+  let arbitrary () = QCheck.int_range 0 (P.n () - 1)
   let relift x = x
 end
 

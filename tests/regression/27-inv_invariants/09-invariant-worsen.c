@@ -12,12 +12,12 @@ int main() {
   else
     x = &b;
 
-  assert(*x == 1);
+  __goblint_check(*x == 1);
   b = 2;
 
-  assert(a == 1);
+  __goblint_check(a == 1);
   if (*x != 0) { // invariant shouldn't make less precise!
-    assert(a == 1);
+    __goblint_check(a == 1);
   }
   return 0;
 }

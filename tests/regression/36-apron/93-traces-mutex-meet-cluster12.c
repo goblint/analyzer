@@ -36,8 +36,8 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h);
-  assert(h == i);
+  __goblint_check(g == h);
+  __goblint_check(h == i);
   pthread_mutex_unlock(&A);
   return 0;
 }

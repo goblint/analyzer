@@ -10,6 +10,6 @@ void main() {
     if (2 * x == 3) { // apron excludes true branch
       a = 1;
     }
-    assert(a == 0);
+    __goblint_check(a == 0);
   }
 }
