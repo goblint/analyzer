@@ -119,8 +119,6 @@ struct
   let union x y = join x y
   let iter f m = Map.iter (fun _ -> List.iter f) m
 
-  let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
-
   (* Lattice *)
   let bot () = Map.empty
   let is_bot = Map.is_empty
@@ -348,7 +346,6 @@ sig
   val of_list: E.t list -> t
   val exists: (E.t -> bool) -> t -> bool
   val for_all: (E.t -> bool) -> t -> bool
-  val is_element: E.t -> t -> bool
   val mem: E.t -> t -> bool
   val choose: t -> E.t
   val elements: t -> E.t list
@@ -393,7 +390,6 @@ struct
     ) (M.empty ()) es
   let exists p m = M.exists (fun _ e -> B.exists p e) m
   let for_all p m = M.for_all (fun _ e -> B.for_all p e) m
-  let is_element e m = M.equal m (singleton e) (* TODO: more efficient *)
   let mem e m = exists (E.leq e) m (* TODO: more efficient from right bucket *)
   let choose m = B.choose (snd (M.choose m))
   let elements m = M.bindings m |> List.map snd |> List.map B.elements |> List.flatten
@@ -536,7 +532,6 @@ struct
       add e acc (* TODO: more efficient *)
     ) (S.empty ()) es
 
-  let is_element e s = S.equal s (singleton e) (* TODO: more efficient *)
   let mem e s = exists (E.leq e) s (* TODO: more efficient from right bucket *)
   let remove e s =
     S.filter (fun e' -> not (B.leq e' (B.singleton e))) s (* TODO: is this right? more efficient from right bucket? *)
@@ -571,7 +566,6 @@ struct
   let of_list es = List.fold_left E.join (E.bot ()) es
   let exists p e = p e
   let for_all p e = p e
-  let is_element e e' = E.equal e e'
   let mem e e' = E.leq e e'
   let choose e = e
   let elements e = [e]
@@ -593,7 +587,6 @@ struct
   module H = Set (E)
   include H
 
-  let is_element e h = H.equal h (H.singleton e)
 
   (* version of widen which doesn't use E.bot *)
   let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)

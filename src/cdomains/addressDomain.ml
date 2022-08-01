@@ -110,6 +110,7 @@ struct
   let not_null       = unknown_ptr
   let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
+  let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
   let may_be_null x = exists (fun e -> e = Addr.NullPtr) x
