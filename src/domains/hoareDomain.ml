@@ -551,7 +551,7 @@ struct
     let (s_match, s_rest) = S.partition (fun b -> Q.cong (B.choose b) e) s in
     let b' = match S.choose s_match with
       | b ->
-        assert (S.cardinal s_match <= 1);
+        assert (S.cardinal s_match = 1);
         B.add e b
       | exception Not_found -> B.singleton e
     in
@@ -560,7 +560,7 @@ struct
     let (s_match, s_rest) = S.partition (fun b -> Q.cong (B.choose b) e) s in
     match S.choose s_match with
     | b ->
-      assert (S.cardinal s_match <= 1);
+      assert (S.cardinal s_match = 1);
       let b' = B.remove e b in
       if B.is_bot b' then
         s_rest (* remove bot bucket to preserve invariant *)
@@ -573,7 +573,7 @@ struct
       let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
-          assert (S.cardinal s1_match <= 1);
+          assert (S.cardinal s1_match = 1);
           let b' = B.diff b1 b2 in
           if B.is_bot b' then
             acc (* remove bot bucket to preserve invariant *)
@@ -606,7 +606,7 @@ struct
       let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
-          assert (S.cardinal s1_match <= 1);
+          assert (S.cardinal s1_match = 1);
           B.join b1 b2
         | exception Not_found -> b2
       in
@@ -622,7 +622,7 @@ struct
       let (s1_match, s1_rest) = S.partition (fun e1 -> Q.cong (B.choose e1) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
-          assert (S.cardinal s1_match <= 1);
+          assert (S.cardinal s1_match = 1);
           B.widen b1 b2
         | exception Not_found -> b2
       in
@@ -638,7 +638,7 @@ struct
       let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
-          assert (S.cardinal s1_match <= 1);
+          assert (S.cardinal s1_match = 1);
           let b' = B.meet b1 b2 in
           if B.is_bot b' then
             acc (* remove bot bucket to preserve invariant *)
@@ -656,7 +656,7 @@ struct
       let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
-          assert (S.cardinal s1_match <= 1);
+          assert (S.cardinal s1_match = 1);
           let b' = B.narrow b1 b2 in
           if B.is_bot b' then
             acc (* remove bot bucket to preserve invariant *)
