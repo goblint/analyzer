@@ -25,7 +25,7 @@ int main(){
     }
     __goblint_check(ptr == str); //UNKNOWN!
 
-    // This is unknwon due to only keeping one string pointer in abstract address sets
+    // This is unknown due to only keeping one string pointer in abstract address sets
     __goblint_check(ptr != str4); //UNKNOWN
 
     char *ptr2 = unknown_function();
