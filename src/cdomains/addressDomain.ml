@@ -56,7 +56,7 @@ struct
   end
   module C =
   struct
-    type t = Addr.t
+    type elt = Addr.t
     let cong x y =
       (* ignore (Pretty.eprintf "cong %a %a\n" Addr.pretty x Addr.pretty y); *)
       if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;

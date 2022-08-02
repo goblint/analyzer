@@ -888,7 +888,7 @@ struct
     module J = SetDomain.Joined (Spec.D)
     module C =
     struct
-      type t = Spec.D.t
+      type elt = Spec.D.t
       let cong = Spec.should_join
     end
 
