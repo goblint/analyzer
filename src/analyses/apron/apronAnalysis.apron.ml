@@ -32,11 +32,7 @@ struct
   (* Result map used for comparison of results *)
   let results = RH.create 103
 
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = Priv.should_join
-  end
+  module PS = Priv.PS
 
   let context fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.apron.context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then

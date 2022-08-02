@@ -18,9 +18,10 @@ module type S =
     module V: Printable.S
 
     type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
+    module PS: SensitiveDomain.RepresentativeCongruence with type elt := apron_components_t (** Path-sensitivity. *)
+
     val name: unit -> string
     val startstate: unit -> D.t
-    val should_join: apron_components_t -> apron_components_t -> bool
 
     val read_global: Q.ask -> (V.t -> G.t) -> apron_components_t -> varinfo -> varinfo -> AD.t
 
@@ -57,7 +58,7 @@ struct
 
   let name () = "top"
   let startstate () = ()
-  let should_join _ _ = true
+  module PS = UnitPS
 
   let read_global ask getg (st: apron_components_t) g x =
     let apr = st.apr in
@@ -207,14 +208,19 @@ struct
 
   let startstate () = (P.empty (), W.empty ())
 
-  let should_join (st1: apron_components_t) (st2: apron_components_t) =
-    if Param.path_sensitive then (
-      let (p1, _) = st1.priv in
-      let (p2, _) = st2.priv in
-      P.equal p1 p2
-    )
-    else
-      true
+  module PS =
+  struct
+    include UnitPS
+    (* TODO: static module choice? difficult because elt type depends on AD via apron_components_t *)
+    let cong (st1: apron_components_t) (st2: apron_components_t) =
+      if Param.path_sensitive then (
+        let (p1, _) = st1.priv in
+        let (p2, _) = st2.priv in
+        P.equal p1 p2
+      )
+      else
+        true
+  end
 
   let read_global ask getg (st: apron_components_t) g x =
     let apr = st.apr in
@@ -442,7 +448,7 @@ struct
 
   let startstate () = ()
 
-  let should_join _ _ = true
+  module PS = UnitPS
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
@@ -926,7 +932,7 @@ struct
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 
-  let should_join _ _ = true
+  module PS = UnitPS
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
