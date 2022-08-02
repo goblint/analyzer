@@ -378,16 +378,24 @@ struct
   let mem e e' = E.leq e e'
   let choose e = e
   let elements e = [e]
-  let remove e e' = e' (* TODO: can do any better? *)
+  let remove e e' =
+    if E.leq e' e then
+      E.bot ()
+    else
+      e'
   let map f e = f e
   let fold f e a = f e a
   let empty () = E.bot ()
   let add e e' = E.join e e'
   let is_empty e = E.is_bot e
   let union e e' = E.join e e'
-  let diff e e' = e (* TODO: can do any better? *)
+  let diff e e' = remove e' e
   let iter f e = f e
-  let cardinal e = 1 (* TODO: is this right? *)
+  let cardinal e =
+    if is_empty e then
+      0
+    else
+      1
   let inter e e' = E.meet e e'
   let subset e e' = E.leq e e'
   let filter p e = unsupported "Joined.filter"
