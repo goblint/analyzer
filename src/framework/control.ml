@@ -266,7 +266,6 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = getg
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = sideg
@@ -366,7 +365,6 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = getg
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
@@ -399,7 +397,6 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = getg
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
@@ -600,7 +597,6 @@ struct
                 ; edge    = MyCFG.Skip
                 ; local  = local
                 ; global = GHT.find gh
-                ; presub = (fun _ -> raise Not_found)
                 ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
                 ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
                 ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -654,7 +650,6 @@ struct
         ; edge    = MyCFG.Skip
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
         ; global = (fun v -> try GHT.find gh v with Not_found -> EQSys.G.bot ())
-        ; presub = (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")

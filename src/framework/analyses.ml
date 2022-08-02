@@ -289,7 +289,6 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
