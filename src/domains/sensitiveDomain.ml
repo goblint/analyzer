@@ -157,7 +157,7 @@ sig
   val cong: t -> t -> bool
 end
 
-module Pairwise (E: Printable.S) (B: S with type elt = E.t) (Q: Congruence with type t = E.t): S with type elt = E.t =
+module Pairwise (E: Printable.S) (B: S with type elt = E.t) (C: Congruence with type t = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -197,9 +197,9 @@ struct
   (* based on SetDomain.SensitiveConf *)
 
   let mem e s =
-    S.exists (fun b -> Q.cong (B.choose b) e && B.mem e b) s
+    S.exists (fun b -> C.cong (B.choose b) e && B.mem e b) s
   let add e s =
-    let (s_match, s_rest) = S.partition (fun b -> Q.cong (B.choose b) e) s in
+    let (s_match, s_rest) = S.partition (fun b -> C.cong (B.choose b) e) s in
     let b' = match S.choose s_match with
       | b ->
         assert (S.cardinal s_match = 1);
@@ -208,7 +208,7 @@ struct
     in
     S.add b' s_rest
   let remove e s =
-    let (s_match, s_rest) = S.partition (fun b -> Q.cong (B.choose b) e) s in
+    let (s_match, s_rest) = S.partition (fun b -> C.cong (B.choose b) e) s in
     match S.choose s_match with
     | b ->
       assert (S.cardinal s_match = 1);
@@ -221,7 +221,7 @@ struct
   let diff s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
@@ -248,13 +248,13 @@ struct
   let leq s1 s2 =
     S.for_all (fun b1 ->
         let e1 = B.choose b1 in
-        S.exists (fun b2 -> Q.cong (B.choose b2) e1 && B.leq b1 b2) s2
+        S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2
       ) s1
 
   let join s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
@@ -270,7 +270,7 @@ struct
     assert (leq s1 s2);
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun e1 -> Q.cong (B.choose e1) e2) s1 in
+      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose e1) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
@@ -286,7 +286,7 @@ struct
   let meet s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
@@ -304,7 +304,7 @@ struct
   let narrow s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> Q.cong (B.choose b1) e2) s1 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
