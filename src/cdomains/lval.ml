@@ -327,6 +327,8 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
+  include Lattice.NoBotTop
+
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 

@@ -23,14 +23,7 @@ module AddressSet (Idx: IntDomain.Z) =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
 
-  module Addr =
-  struct
-    include Lval.NormalLat (Idx)
-    let top () = failwith "top"
-    let bot () = failwith "bot"
-    let is_top _ = false
-    let is_bot _ = false
-  end
+  module Addr = Lval.NormalLat (Idx)
   module R =
   struct
     include Addr

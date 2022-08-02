@@ -12,7 +12,7 @@ sig
   val of_elt: elt -> t
 end
 
-module Projective (E: Lattice.S) (B: S with type elt = E.t) (R: Representative with type elt = E.t): S with type elt = E.t =
+module Projective (E: Printable.S) (B: S with type elt = E.t) (R: Representative with type elt = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -157,7 +157,7 @@ sig
   val cong: t -> t -> bool
 end
 
-module Pairwise (E: Lattice.S) (B: S with type elt = E.t) (Q: Congruence with type t = E.t): S with type elt = E.t =
+module Pairwise (E: Printable.S) (B: S with type elt = E.t) (Q: Congruence with type t = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -351,5 +351,5 @@ sig
   include Congruence with type t := t
 end
 
-module Combined (E: Lattice.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type t = E.t and type elt = E.t) =
+module Combined (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type t = E.t and type elt = E.t) =
   Projective (E) (Pairwise (E) (B) (RC)) (RC)

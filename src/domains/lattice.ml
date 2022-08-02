@@ -60,6 +60,15 @@ end
 module Unit = UnitConf (struct let name = "()" end)
 
 
+module NoBotTop =
+struct
+  let top () = raise TopValue
+  let is_top _ = false
+  let bot () = raise BotValue
+  let is_bot _ = false
+end
+
+
 module Fake (Base: Printable.S) =
 struct
   include Base
@@ -70,10 +79,7 @@ struct
   let meet x y =
     if equal x y then x else raise (Unsupported "fake meet")
   let narrow = meet
-  let top () = raise (Unsupported "fake top")
-  let is_top _ = false
-  let bot () = raise (Unsupported "fake bot")
-  let is_bot _ = false
+  include NoBotTop
 
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not equal %a" (Base.name ()) pretty x pretty y
