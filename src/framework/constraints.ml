@@ -32,8 +32,6 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join x y = S.should_join (D.unlift x) (D.unlift y)
-
   let startstate v = D.lift (S.startstate v)
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
@@ -107,8 +105,6 @@ struct
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
-
-  let should_join = S.should_join
 
   let startstate = S.startstate
   let exitstate  = S.exitstate
@@ -204,8 +200,6 @@ struct
     S.init marshal
 
   let finalize = S.finalize
-
-  let should_join (x,_) (y,_) = S.should_join x y
 
   let startstate v = (S.startstate v, !start_level)
   let exitstate  v = (S.exitstate  v, !start_level)
@@ -345,8 +339,6 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join (x,_) (y,_) = S.should_join x y
-
   let inj f x = f x, M.bot ()
 
   let startstate = inj S.startstate
@@ -424,11 +416,6 @@ struct
   type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
-
-  let should_join x y =
-    match x, y with
-    | `Lifted a, `Lifted b -> S.should_join a b
-    | _ -> true
 
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
@@ -920,7 +907,7 @@ struct
     module C =
     struct
       type t = Spec.D.t
-      let cong = Spec.should_join
+      let cong = Spec.PS.cong
     end
     module PS =
     struct
@@ -970,8 +957,6 @@ struct
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)

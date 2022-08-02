@@ -29,11 +29,10 @@ struct
   let create_tid v =
     Flag.get_multi ()
 
-  let should_join = D.equal
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = D.equal
   end
 
   let body ctx f = ctx.local

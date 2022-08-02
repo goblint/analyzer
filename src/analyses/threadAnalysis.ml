@@ -16,11 +16,10 @@ struct
   module G = ConcDomain.ThreadCreation
   module V = T
 
-  let should_join = D.equal
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = D.equal
   end
 
   (* transfer functions *)

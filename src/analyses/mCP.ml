@@ -112,22 +112,6 @@ struct
           Some (n, repr @@ S.context fd (obj d))
       ) x
 
-  let should_join x y =
-    (* TODO: GobList.for_all3 *)
-    let rec zip3 lst1 lst2 lst3 = match lst1,lst2,lst3 with
-      | [],_, _ -> []
-      | _,[], _ -> []
-      | _,_ , []-> []
-      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
-    in
-    let should_join ((_,(module S:Analyses.MCPSpec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
-    (* obtain all analyses specs that are path sensitive and their values both in x and y *)
-    let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
-    let xs = filter (fun (x,_) -> mem x !path_sens) x in
-    let ys = filter (fun (x,_) -> mem x !path_sens) y in
-    let zipped = zip3 specs xs ys in
-    List.for_all should_join zipped
-
   let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)

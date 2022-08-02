@@ -16,11 +16,10 @@ struct
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
 
-  let should_join x y = D.equal x y
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = D.equal
   end
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain

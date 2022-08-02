@@ -32,11 +32,10 @@ struct
   (* Result map used for comparison of results *)
   let results = RH.create 103
 
-  let should_join = Priv.should_join
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = Priv.should_join
   end
 
   let context fd x =

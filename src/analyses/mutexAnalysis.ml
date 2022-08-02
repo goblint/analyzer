@@ -41,11 +41,10 @@ struct
   let name () = "mutex"
 
   module D = Arg.D (* help type checker using explicit constraint *)
-  let should_join x y = D.equal x y
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = D.equal
   end
 
   (** Global data is collected using dirty side-effecting. *)

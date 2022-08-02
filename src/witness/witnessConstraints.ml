@@ -120,7 +120,7 @@ struct
       let rec loop js = function
         | [] -> js
         | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
-            if Spec.should_join x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
+            if Spec.PS.cong x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
           ) ((x, xr),[]) xs in
           loop ((j, jr)::js) r
       in
@@ -159,8 +159,6 @@ struct
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())

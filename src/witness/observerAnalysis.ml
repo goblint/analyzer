@@ -30,11 +30,10 @@ struct
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
   module C = D
 
-  let should_join x y = D.equal x y (* fully path-sensitive *)
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = D.equal (* fully path-sensitive *)
   end
 
   let step d prev_node node =

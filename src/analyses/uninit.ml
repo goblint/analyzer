@@ -23,11 +23,10 @@ struct
 
   let name () = "uninit"
 
-  let should_join x y = D.equal x y
   module PS =
   struct
     include DefaultSpec.PS
-    let cong = should_join
+    let cong = D.equal
   end
 
   let startstate v : D.t = D.empty ()
