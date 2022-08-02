@@ -61,9 +61,9 @@ struct
     type elt = Addr.t
     let of_elt = Addr.hash
   end
-  module Q =
+  module C =
   struct
-    type elt = Addr.t
+    type t = Addr.t
     let cong x y =
       (* ignore (Pretty.eprintf "cong %a %a\n" Addr.pretty x Addr.pretty y); *)
       if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;
@@ -80,8 +80,8 @@ struct
   end
   module J = SetDomain.Joined (Addr)
   module H = HoareDomain.Set2 (Addr)
-  (* include SensitiveDomain.Pairwise (Addr) (H) (Q) *)
-  module PW = SensitiveDomain.Pairwise (Addr) (H) (Q)
+  (* include SensitiveDomain.Pairwise (Addr) (H) (C) *)
+  module PW = SensitiveDomain.Pairwise (Addr) (H) (C)
   include SensitiveDomain.Projective (Addr) (PW) (R)
   (* include HoareDomain.HoarePO (Addr) *)
 

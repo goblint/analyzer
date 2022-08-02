@@ -151,13 +151,13 @@ struct
 end
 
 
-module type Equivalence =
+module type Congruence =
 sig
-  type elt
-  val cong: elt -> elt -> bool
+  type t
+  val cong: t -> t -> bool
 end
 
-module Pairwise (E: Lattice.S) (B: S with type elt = E.t) (Q: Equivalence with type elt = E.t): S with type elt = E.t =
+module Pairwise (E: Lattice.S) (B: S with type elt = E.t) (Q: Congruence with type t = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
