@@ -393,7 +393,11 @@ struct
     let lm = LLock.global x in
     let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg x in
     let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
-    CPA.find x (long_meet st.cpa (CPA.join tmp local_m))
+    if is_unprotected ask x then
+      (* We can not rely upon the old value here, it may be too small due to reuse at widening points (and or nice bot/top confusion) in Base *)
+      CPA.find x (CPA.join tmp local_m)
+    else
+      CPA.find x (long_meet st.cpa (CPA.join tmp local_m))
 
   let read_global ask getg st x =
     let v = read_global ask getg st x in
