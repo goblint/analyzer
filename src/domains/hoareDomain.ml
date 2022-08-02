@@ -339,7 +339,7 @@ struct
 end
 
 
-module Set2 (E: Lattice.S): SensitiveDomain.NewS with type elt = E.t =
+module Set2 (E: Lattice.S): SetDomain.S with type elt = E.t =
 struct
   module H = Set (E)
   include H

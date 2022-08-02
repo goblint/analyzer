@@ -3,29 +3,7 @@
     Elements are grouped into disjoint buckets by "sensitivity",
     which is defined by a congruence or/and a projection. *)
 
-module type NewS =
-sig
-  include Lattice.S
-  type elt
-  val singleton: elt -> t
-  val of_list: elt list -> t
-  val exists: (elt -> bool) -> t -> bool
-  val for_all: (elt -> bool) -> t -> bool
-  val mem: elt -> t -> bool
-  val choose: t -> elt
-  val elements: t -> elt list
-  val remove: elt -> t -> t
-  val map: (elt -> elt) -> t -> t
-  val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
-  val empty: unit -> t
-  val add: elt -> t -> t
-  val is_empty: t -> bool
-  val union: t -> t -> t
-  val diff: t -> t -> t
-  val iter: (elt -> unit) -> t -> unit
-  val cardinal: t -> int
-end
-
+module type S = SetDomain.S
 
 module type Representative =
 sig
@@ -34,7 +12,7 @@ sig
   val of_elt: elt -> t
 end
 
-module Projective (E: Lattice.S) (B: NewS with type elt = E.t) (R: Representative with type elt = E.t): NewS with type elt = E.t =
+module Projective (E: Lattice.S) (B: S with type elt = E.t) (R: Representative with type elt = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -150,6 +128,8 @@ struct
       ) m1 m2
 
   let union = join
+  let inter = meet
+  let subset = leq
 
   let pretty () m =
     Pretty.(dprintf "{%a}" (d_list ", " E.pretty) (elements m))
@@ -162,6 +142,12 @@ struct
     BatPrintf.fprintf f "</set>\n</value>\n"
 
   let arbitrary () = failwith "Projective.arbitrary"
+
+  let filter p m = SetDomain.unsupported "Projective.filter"
+  let partition p m = SetDomain.unsupported "Projective.partition"
+  let min_elt m = SetDomain.unsupported "Projective.min_elt"
+  let max_elt m = SetDomain.unsupported "Projective.max_elt"
+  let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
 end
 
 
@@ -171,7 +157,7 @@ sig
   val cong: elt -> elt -> bool
 end
 
-module Pairwise (E: Lattice.S) (B: NewS with type elt = E.t) (Q: Equivalence with type elt = E.t): NewS with type elt = E.t =
+module Pairwise (E: Lattice.S) (B: S with type elt = E.t) (Q: Equivalence with type elt = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -334,6 +320,8 @@ struct
     snd (S.fold f s2 (s1, S.empty ()))
 
   let union = join
+  let inter = meet
+  let subset = leq
 
   let pretty () s =
     Pretty.(dprintf "{%a}" (d_list ", " E.pretty) (elements s))
@@ -348,4 +336,10 @@ struct
   let pretty_diff () _ = failwith "Pairwise.pretty_diff" (* TODO *)
 
   let arbitrary () = failwith "Pairwise.arbitrary"
+
+  let filter p s = SetDomain.unsupported "Pairwise.filter"
+  let partition p s = SetDomain.unsupported "Pairwise.partition"
+  let min_elt s = SetDomain.unsupported "Pairwise.min_elt"
+  let max_elt s = SetDomain.unsupported "Pairwise.max_elt"
+  let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *)
 end
