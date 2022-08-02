@@ -23,14 +23,7 @@ module AddressSet (Idx: IntDomain.Z) =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
 
-  module Addr =
-  struct
-    include Lval.NormalLat (Idx)
-    let top () = failwith "top"
-    let bot () = failwith "bot"
-    let is_top _ = false
-    let is_bot _ = false
-  end
+  module Addr = Lval.NormalLat (Idx)
   module R =
   struct
     include Addr
@@ -61,9 +54,9 @@ struct
     type elt = Addr.t
     let of_elt = Addr.hash
   end
-  module Q =
+  module C =
   struct
-    type elt = Addr.t
+    type t = Addr.t
     let cong x y =
       (* ignore (Pretty.eprintf "cong %a %a\n" Addr.pretty x Addr.pretty y); *)
       if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;
@@ -78,11 +71,15 @@ struct
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
-  module J = HoareDomain.Joined (Addr)
+  module RC =
+  struct
+    include R
+    include C
+  end
+  module J = SetDomain.Joined (Addr)
   module H = HoareDomain.Set2 (Addr)
-  (* include HoareDomain.Pairwise (Addr) (H) (Q) *)
-  module PW = HoareDomain.Pairwise (Addr) (H) (Q)
-  include HoareDomain.Projective (Addr) (PW) (R)
+  (* include SensitiveDomain.Pairwise (Addr) (H) (C) *)
+  include SensitiveDomain.Combined (Addr) (H) (RC)
   (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =

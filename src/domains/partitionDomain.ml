@@ -15,29 +15,20 @@ struct
     include Lattice.Fake (S)
     include S
     let widen = join
-    let is_bot x = equal x (bot ())
   end
-  module Q =
+  module C =
   struct
-    type elt = E.t
+    type t = E.t
     let cong = S.collapse
   end
 
-  include HoareDomain.Pairwise (E) (HoareDomain.Joined (E)) (Q)
+  include SensitiveDomain.Pairwise (E) (SetDomain.Joined (E)) (C)
 
   let collapse (s1:t) (s2:t): bool =
     let f vf2 res =
       res || exists (fun vf1 -> S.collapse vf1 vf2) s1
     in
     fold f s2 false
-
-  let inter = meet
-  let subset = leq
-  let disjoint _ _ = failwith "TODO"
-  let filter _ _ = failwith "TODO"
-  let partition _ _ = failwith "TODO"
-  let min_elt _ = failwith "TODO"
-  let max_elt _ = failwith "TODO"
 end
 
 module type CollapseSet = sig

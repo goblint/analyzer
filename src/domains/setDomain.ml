@@ -365,3 +365,42 @@ struct
   let top () = of_list Elems.elems
   let is_top x = equal x (top ())
 end
+
+module Joined (E: Lattice.S): S with type elt = E.t =
+struct
+  type elt = E.t
+  include E
+
+  let singleton e = e
+  let of_list es = List.fold_left E.join (E.bot ()) es
+  let exists p e = p e
+  let for_all p e = p e
+  let mem e e' = E.leq e e'
+  let choose e = e
+  let elements e = [e]
+  let remove e e' =
+    if E.leq e' e then
+      E.bot ()
+    else
+      e'
+  let map f e = f e
+  let fold f e a = f e a
+  let empty () = E.bot ()
+  let add e e' = E.join e e'
+  let is_empty e = E.is_bot e
+  let union e e' = E.join e e'
+  let diff e e' = remove e' e
+  let iter f e = f e
+  let cardinal e =
+    if is_empty e then
+      0
+    else
+      1
+  let inter e e' = E.meet e e'
+  let subset e e' = E.leq e e'
+  let filter p e = unsupported "Joined.filter"
+  let partition p e = unsupported "Joined.partition"
+  let min_elt e = unsupported "Joined.min_elt"
+  let max_elt e = unsupported "Joined.max_elt"
+  let disjoint e e' = is_empty (inter e e')
+end
