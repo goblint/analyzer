@@ -29,11 +29,7 @@ struct
   let create_tid v =
     Flag.get_multi ()
 
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = D.equal
-  end
+  module PS = IdentityPS (D)
 
   let body ctx f = ctx.local
 

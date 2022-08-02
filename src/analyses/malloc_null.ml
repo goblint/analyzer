@@ -16,11 +16,7 @@ struct
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
 
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = D.equal
-  end
+  module PS = IdentityPS (D)
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)

@@ -30,11 +30,7 @@ struct
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
   module C = D
 
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = D.equal (* fully path-sensitive *)
-  end
+  module PS = IdentityPS (D) (* fully path-sensitive *)
 
   let step d prev_node node =
     match d with

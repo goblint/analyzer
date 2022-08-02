@@ -41,11 +41,7 @@ struct
   let name () = "mutex"
 
   module D = Arg.D (* help type checker using explicit constraint *)
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = D.equal
-  end
+  module PS = IdentityPS (D)
 
   (** Global data is collected using dirty side-effecting. *)
   module G = P.G

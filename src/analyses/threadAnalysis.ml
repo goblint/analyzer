@@ -16,11 +16,7 @@ struct
   module G = ConcDomain.ThreadCreation
   module V = T
 
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = D.equal
-  end
+  module PS = IdentityPS (D)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local

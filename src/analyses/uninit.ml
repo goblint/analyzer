@@ -23,11 +23,7 @@ struct
 
   let name () = "uninit"
 
-  module PS =
-  struct
-    include DefaultSpec.PS
-    let cong = D.equal
-  end
+  module PS = IdentityPS (D)
 
   let startstate v : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]

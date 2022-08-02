@@ -494,6 +494,21 @@ end
 module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
 module EmptyV = Printable.Empty
 
+module UnitPS =
+struct
+  include Printable.Unit
+  let of_elt _ = ()
+  let cong _ _ = true
+end
+
+module IdentityPS (D: Lattice.S) =
+struct
+  include D
+  type elt = D.t
+  let of_elt d = d
+  let cong = D.equal
+end
+
 module UnitA =
 struct
   include Printable.Unit
@@ -507,12 +522,7 @@ module DefaultSpec =
 struct
   module G = Lattice.Unit
   module V = EmptyV
-  module PS =
-  struct
-    include Printable.Unit
-    let of_elt _ = ()
-    let cong _ _ = true
-  end
+  module PS = UnitPS
 
   type marshal = unit
   let init _ = ()
