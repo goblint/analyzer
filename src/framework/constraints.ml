@@ -885,7 +885,7 @@ module PathSensitive2 (Spec:Spec)
 struct
   module D =
   struct
-    module J = HoareDomain.Joined (Spec.D)
+    module J = SetDomain.Joined (Spec.D)
     module Q =
     struct
       type elt = Spec.D.t

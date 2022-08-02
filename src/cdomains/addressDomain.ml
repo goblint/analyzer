@@ -78,7 +78,7 @@ struct
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
-  module J = HoareDomain.Joined (Addr)
+  module J = SetDomain.Joined (Addr)
   module H = HoareDomain.Set2 (Addr)
   (* include SensitiveDomain.Pairwise (Addr) (H) (Q) *)
   module PW = SensitiveDomain.Pairwise (Addr) (H) (Q)

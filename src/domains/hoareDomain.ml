@@ -339,30 +339,6 @@ struct
 end
 
 
-module Joined (E: Lattice.S): SensitiveDomain.NewS with type elt = E.t =
-struct
-  type elt = E.t
-  include E
-
-  let singleton e = e
-  let of_list es = List.fold_left E.join (E.bot ()) es
-  let exists p e = p e
-  let for_all p e = p e
-  let mem e e' = E.leq e e'
-  let choose e = e
-  let elements e = [e]
-  let remove e e' = e' (* TODO: can do any better? *)
-  let map f e = f e
-  let fold f e a = f e a
-  let empty () = E.bot ()
-  let add e e' = E.join e e'
-  let is_empty e = E.is_bot e
-  let union e e' = E.join e e'
-  let diff e e' = e (* TODO: can do any better? *)
-  let iter f e = f e
-  let cardinal e = 1 (* TODO: is this right? *)
-end
-
 module Set2 (E: Lattice.S): SensitiveDomain.NewS with type elt = E.t =
 struct
   module H = Set (E)
