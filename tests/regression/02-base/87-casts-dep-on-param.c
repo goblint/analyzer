@@ -1,4 +1,5 @@
-// PARAM: --set ana.ctx_insens[+] 'base'
+// PARAM: --set ana.activated "['base', 'mallocWrapper']" --set ana.ctx_insens[+] 'base' --set ana.ctx_insens[+] 'mallocWrapper'
+// should be fully context-insensitive to activate minimal analyses
 #include<stdlib.h>
 int f(int, void*);
 
