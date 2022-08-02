@@ -505,6 +505,15 @@ struct
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
     let cpa_local = CPA.filter (fun x _ -> not @@ is_global ask x) cpa in
     {st with cpa= cpa_local }
+
+  let threadenter ask (st: BaseComponents (D).t): BaseComponents (D).t =
+    (* Copy-paste from Base make_entry *)
+    let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
+    (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+    let new_cpa = globals in
+    let _,lmust,l = st.priv in
+    {st with cpa = new_cpa; priv = (W.bot (),lmust,l)}
+
 end
 
 
