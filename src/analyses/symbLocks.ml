@@ -8,7 +8,10 @@ module Exp = SymbLocksDomain.Exp
 module ILock = SymbLocksDomain.ILock
 module VarEq = VarEq.Spec
 
-module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
+module PSOpen =
+struct
+  module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
+end
 
 open Prelude.Ana
 open Analyses
@@ -18,6 +21,8 @@ open Analyses
 module Spec =
 struct
   include Analyses.DefaultSpec
+
+  open PSOpen (* workaround to avoid conflict with DefaultSpec.PS *)
 
   exception Top
 

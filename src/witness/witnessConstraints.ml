@@ -152,6 +152,7 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module PS = DefaultSpec.PS
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 

@@ -8,7 +8,8 @@ type spec_modules = { name : string
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
                     ; var  : (module Printable.S)
-                    ; acc  : (module MCPA) }
+                    ; acc  : (module MCPA)
+                    ; ps   : (module SensitiveDomain.RepresentativeCongruence) }
 
 let activated  : (int * spec_modules) list ref = ref []
 let activated_ctx_sens: (int * spec_modules) list ref = ref []
@@ -19,6 +20,12 @@ let register_analysis =
   let count = ref 0 in
   fun ?(dep=[]) (module S:MCPSpec) ->
     let n = S.name () in
+    let module PS =
+    struct
+      include S.PS
+      type elt = S.D.t
+    end
+    in
     let s = { name = n
             ; dep
             ; spec = (module S : MCPSpec)
@@ -27,6 +34,7 @@ let register_analysis =
             ; cont = (module S.C : Printable.S)
             ; var  = (module S.V : Printable.S)
             ; acc  = (module S.A : MCPA)
+            ; ps   = (module PS : SensitiveDomain.RepresentativeCongruence)
             }
     in
     Hashtbl.replace registered !count s;
@@ -49,6 +57,12 @@ module type DomainListMCPASpec =
 sig
   val assoc_dom : int -> (module MCPA)
   val domain_list : unit -> (int * (module MCPA)) list
+end
+
+module type DomainListPSSpec =
+sig
+  val assoc_dom : int -> (module SensitiveDomain.RepresentativeCongruence)
+  val domain_list : unit -> (int * (module SensitiveDomain.RepresentativeCongruence)) list
 end
 
 module type DomainListLatticeSpec =
@@ -78,6 +92,18 @@ struct
 
   let domain_list () =
     let f (module L:MCPA) = (module L : Printable.S) in
+    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+end
+
+module PrintableOfPSASpec (D:DomainListPSSpec) : DomainListPrintableSpec =
+struct
+  let assoc_dom n =
+    let f (module L:SensitiveDomain.RepresentativeCongruence) = (module L : Printable.S)
+    in
+    f (D.assoc_dom n)
+
+  let domain_list () =
+    let f (module L:SensitiveDomain.RepresentativeCongruence) = (module L : Printable.S) in
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
@@ -341,4 +367,32 @@ module AccListSpec : DomainListMCPASpec =
 struct
   let assoc_dom n = (find_spec n).acc
   let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
+end
+
+module PSListSpec : DomainListPSSpec =
+struct
+  let assoc_dom n = (find_spec n).ps
+  let domain_list () = List.map (fun (n,p) -> n, p.ps) !activated
+end
+
+module DomListPS =
+struct
+  open PSListSpec
+  open List
+  open Obj
+
+  include DomListPrintable (PrintableOfPSASpec (PSListSpec))
+
+  let unop_fold f a (x:t) =
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+
+  let unop_map (f: (module SensitiveDomain.RepresentativeCongruence) -> Obj.t -> Obj.t) x =
+    List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
+
+  let binop_for_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+
+  (* TODO: consider ana.path_sens *)
+  let of_elt = unop_map (fun (module S: SensitiveDomain.RepresentativeCongruence) x -> repr @@ S.of_elt (obj x))
+  let cong = binop_for_all (fun n (module S : SensitiveDomain.RepresentativeCongruence) x y -> S.cong (obj x) (obj y))
 end

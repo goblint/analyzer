@@ -311,6 +311,8 @@ sig
   module C : Printable.S
   module V: Printable.S (** Global constraint variables. *)
 
+  module PS: SensitiveDomain.RepresentativeCongruence with type elt := D.t (** Path-sensitivity. *)
+
   val name : unit -> string
 
   (** Auxiliary data (outside of solution domains) that needs to be marshaled and unmarshaled.
@@ -506,6 +508,12 @@ module DefaultSpec =
 struct
   module G = Lattice.Unit
   module V = EmptyV
+  module PS =
+  struct
+    include Printable.Unit
+    let of_elt _ = ()
+    let cong () () = true
+  end
 
   type marshal = unit
   let init _ = ()

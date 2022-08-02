@@ -16,6 +16,7 @@ struct
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
   module V = DomVariantPrintable (VarListSpec)
+  module PS = DomListPS
 
   open List open Obj
   let v_of n v = (n, repr v)

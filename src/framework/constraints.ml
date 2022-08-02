@@ -19,6 +19,11 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module PS =
+  struct
+    include S.PS
+    let of_elt d = S.PS.of_elt (D.unlift d)
+  end
 
   let name () = S.name () ^" hashconsed"
 
@@ -94,6 +99,7 @@ struct
   module G = S.G
   module C = Printable.HConsed (S.C)
   module V = S.V
+  module PS = S.PS
 
   let name () = S.name () ^" context hashconsed"
 
@@ -179,6 +185,11 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module PS =
+  struct
+    include S.PS
+    let of_elt (d, _) = S.PS.of_elt d
+  end
 
   let name () = S.name ()^" level sliced"
 
@@ -318,6 +329,11 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module PS =
+  struct
+    include S.PS
+    let of_elt (d, _) = S.PS.of_elt d
+  end
 
 
   let name () = S.name ()^" with widened contexts"
@@ -387,6 +403,13 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module PS =
+  struct
+    include S.PS
+    let of_elt = function
+      | `Lifted d -> S.PS.of_elt d
+      | `Bot | `Top -> assert false
+  end
 
   let name () = S.name ()^" lifted"
 
@@ -927,6 +950,7 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module PS = DefaultSpec.PS
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
