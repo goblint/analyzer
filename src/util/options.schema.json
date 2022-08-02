@@ -461,48 +461,6 @@
           },
           "additionalProperties": false
         },
-        "arinc": {
-          "title": "ana.arinc",
-          "type": "object",
-          "properties": {
-            "assume_success": {
-              "title": "ana.arinc.assume_success",
-              "description":
-                "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it).",
-              "type": "boolean",
-              "default": true
-            },
-            "simplify": {
-              "title": "ana.arinc.simplify",
-              "description":
-                "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call.",
-              "type": "boolean",
-              "default": true
-            },
-            "validate": {
-              "title": "ana.arinc.validate",
-              "description":
-                "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables.",
-              "type": "boolean",
-              "default": true
-            },
-            "export": {
-              "title": "ana.arinc.export",
-              "description":
-                "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way.",
-              "type": "boolean",
-              "default": true
-            },
-            "merge_globals": {
-              "title": "ana.arinc.merge_globals",
-              "description":
-                "Merge all global return code variables into one.",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "additionalProperties": false
-        },
         "opt": {
           "title": "ana.opt",
           "type": "object",
