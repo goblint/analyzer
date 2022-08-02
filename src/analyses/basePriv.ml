@@ -264,13 +264,8 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then (
       let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
-      (* None is VD.top () *)
-      match CPA.find_opt x st.cpa, get_mutex_global_x with
-      | Some v1, Some v2 -> VD.meet v1 v2
-      | Some v, None
-      | None, Some v -> v
-      | None, None -> VD.bot () (* Except if both None, needed for 09/07 kernel_list_rc *)
-      (* get_mutex_global_x |? VD.bot () *)
+      (* If the global is unprotected, all appropriate information should come via the appropriate globals, local value may be too small due to stale values surviving widening *)
+      get_mutex_global_x |? VD.bot ()
     )
     else
       CPA.find x st.cpa
