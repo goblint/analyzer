@@ -31,6 +31,11 @@ struct
   module C = D
 
   let should_join x y = D.equal x y (* fully path-sensitive *)
+  module PS =
+  struct
+    include DefaultSpec.PS
+    let cong = should_join
+  end
 
   let step d prev_node node =
     match d with

@@ -922,9 +922,14 @@ struct
       type t = Spec.D.t
       let cong = Spec.should_join
     end
+    module PS =
+    struct
+      include Spec.PS
+      type elt = Spec.D.t
+    end
 
     (* include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *) *)
-    include SensitiveDomain.Pairwise (Spec.D) (J) (C)
+    include SensitiveDomain.Combined (Spec.D) (J) (PS)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =

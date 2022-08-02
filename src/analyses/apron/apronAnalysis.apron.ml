@@ -33,6 +33,11 @@ struct
   let results = RH.create 103
 
   let should_join = Priv.should_join
+  module PS =
+  struct
+    include DefaultSpec.PS
+    let cong = should_join
+  end
 
   let context fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.apron.context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then

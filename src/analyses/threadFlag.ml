@@ -30,6 +30,11 @@ struct
     Flag.get_multi ()
 
   let should_join = D.equal
+  module PS =
+  struct
+    include DefaultSpec.PS
+    let cong = should_join
+  end
 
   let body ctx f = ctx.local
 

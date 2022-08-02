@@ -17,6 +17,11 @@ struct
   module V = T
 
   let should_join = D.equal
+  module PS =
+  struct
+    include DefaultSpec.PS
+    let cong = should_join
+  end
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local

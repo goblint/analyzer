@@ -17,6 +17,11 @@ struct
   module C = ValueDomain.AddrSetDomain
 
   let should_join x y = D.equal x y
+  module PS =
+  struct
+    include DefaultSpec.PS
+    let cong = should_join
+  end
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
