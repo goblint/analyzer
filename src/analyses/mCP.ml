@@ -33,7 +33,7 @@ struct
 
   let name () = "MCP2"
 
-  let path_sens = ref []
+  let path_sens = MCPRegistry.path_sens
   let cont_inse = ref []
   let base_id   = ref (-1)
 
@@ -82,6 +82,7 @@ struct
     check_deps !activated;
     activated := topo_sort_an !activated;
     activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
+    activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
       iter2 (fun (_,{spec=(module S:MCPSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal

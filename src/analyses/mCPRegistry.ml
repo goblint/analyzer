@@ -13,6 +13,8 @@ type spec_modules = { name : string
 
 let activated  : (int * spec_modules) list ref = ref []
 let activated_ctx_sens: (int * spec_modules) list ref = ref []
+let path_sens = ref []
+let activated_path_sens: (int * spec_modules) list ref = ref []
 let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
 let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
 
@@ -369,10 +371,11 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
 end
 
-module PSListSpec : DomainListPSSpec =
+module PSListSpec =
 struct
   let assoc_dom n = (find_spec n).ps
-  let domain_list () = List.map (fun (n,p) -> n, p.ps) !activated
+  let domain_list_all () = List.map (fun (n,p) -> n, p.ps) !activated
+  let domain_list () = List.map (fun (n,p) -> n, p.ps) !activated_path_sens
 end
 
 module DomListPS =
@@ -383,16 +386,16 @@ struct
 
   include DomListPrintable (PrintableOfPSASpec (PSListSpec))
 
-  let unop_fold f a (x:t) =
-    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+  let unop_fold_all f a (x:t) =
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list_all ())
 
-  let unop_map (f: (module SensitiveDomain.RepresentativeCongruence) -> Obj.t -> Obj.t) x =
-    List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
+  let unop_filter_map_all (f: int -> (module SensitiveDomain.RepresentativeCongruence) -> Obj.t -> Obj.t option) x =
+    List.rev @@ unop_fold_all (fun a n s d -> match f n s d with Some r -> (n, r) :: a | None -> a) [] x
 
-  let binop_for_all f (x:t) (y:t) =
-    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+  let binop_for_all_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list_all ())
 
-  (* TODO: consider ana.path_sens *)
-  let of_elt = unop_map (fun (module S: SensitiveDomain.RepresentativeCongruence) x -> repr @@ S.of_elt (obj x))
-  let cong = binop_for_all (fun n (module S : SensitiveDomain.RepresentativeCongruence) x y -> S.cong (obj x) (obj y))
+  let of_elt = unop_filter_map_all (fun n (module S: SensitiveDomain.RepresentativeCongruence) x -> if mem n !path_sens then Some (repr @@ S.of_elt (obj x)) else None)
+  let cong = binop_for_all_all (fun n (module S : SensitiveDomain.RepresentativeCongruence) x y -> not (mem n !path_sens) || S.cong (obj x) (obj y))
+  (* implication: if path_sens then check cong *)
 end
