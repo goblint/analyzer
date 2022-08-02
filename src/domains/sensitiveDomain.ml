@@ -343,3 +343,13 @@ struct
   let max_elt s = SetDomain.unsupported "Pairwise.max_elt"
   let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *)
 end
+
+
+module type RepresentativeCongruence =
+sig
+  include Representative
+  include Congruence with type t := t
+end
+
+module Combined (E: Lattice.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type t = E.t and type elt = E.t) =
+  Projective (E) (Pairwise (E) (B) (RC)) (RC)

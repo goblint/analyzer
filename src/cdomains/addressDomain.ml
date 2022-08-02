@@ -78,11 +78,15 @@ struct
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
+  module RC =
+  struct
+    include R
+    include C
+  end
   module J = SetDomain.Joined (Addr)
   module H = HoareDomain.Set2 (Addr)
   (* include SensitiveDomain.Pairwise (Addr) (H) (C) *)
-  module PW = SensitiveDomain.Pairwise (Addr) (H) (C)
-  include SensitiveDomain.Projective (Addr) (PW) (R)
+  include SensitiveDomain.Combined (Addr) (H) (RC)
   (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =
