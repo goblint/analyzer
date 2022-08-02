@@ -153,11 +153,11 @@ end
 
 module type Congruence =
 sig
-  type t
-  val cong: t -> t -> bool
+  type elt
+  val cong: elt -> elt -> bool
 end
 
-module Pairwise (E: Printable.S) (B: S with type elt = E.t) (Q: Congruence with type t = E.t): S with type elt = E.t =
+module Pairwise (E: Printable.S) (B: S with type elt = E.t) (Q: Congruence with type elt = E.t): S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -348,8 +348,8 @@ end
 module type RepresentativeCongruence =
 sig
   include Representative
-  include Congruence with type t := t
+  include Congruence with type elt := elt
 end
 
-module Combined (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type t = E.t and type elt = E.t) =
+module Combined (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type elt = E.t) =
   Projective (E) (Pairwise (E) (B) (RC)) (RC)

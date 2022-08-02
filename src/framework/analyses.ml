@@ -512,7 +512,7 @@ struct
   struct
     include Printable.Unit
     let of_elt _ = ()
-    let cong () () = true
+    let cong _ _ = true
   end
 
   type marshal = unit

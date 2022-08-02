@@ -23,6 +23,7 @@ struct
   struct
     include S.PS
     let of_elt d = S.PS.of_elt (D.unlift d)
+    let cong x y = S.PS.cong (D.unlift x) (D.unlift y)
   end
 
   let name () = S.name () ^" hashconsed"
@@ -189,6 +190,7 @@ struct
   struct
     include S.PS
     let of_elt (d, _) = S.PS.of_elt d
+    let cong (x,_) (y,_) = S.PS.cong x y
   end
 
   let name () = S.name ()^" level sliced"
@@ -333,6 +335,7 @@ struct
   struct
     include S.PS
     let of_elt (d, _) = S.PS.of_elt d
+    let cong (x,_) (y,_) = S.PS.cong x y
   end
 
 
@@ -409,6 +412,11 @@ struct
     let of_elt = function
       | `Lifted d -> S.PS.of_elt d
       | `Bot | `Top -> assert false
+
+    let cong x y =
+      match x, y with
+      | `Lifted a, `Lifted b -> S.PS.cong a b
+      | _ -> true
   end
 
   let name () = S.name ()^" lifted"
