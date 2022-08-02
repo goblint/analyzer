@@ -21,10 +21,8 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
   module Addr = Lval.NormalLat (Idx)
-  module R =
+  module RC =
   struct
     include Addr
     type elt = Addr.t
@@ -32,55 +30,25 @@ struct
     let rec of_elt_offset: Offs.t -> Offs.t =
       function
       | `NoOffset -> `NoOffset
-      | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o)
+      | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o) (* TODO: is this still right? is_first_field isn't used in join any more *)
       | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
       | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *)
-      (* function
-      | `NoOffset -> `NoOffset
-      | `Index (_, o') as o when Offs.cmp_zero_offset o <> `MustNonzero ->
-        of_elt_offset o'
-      | `Index (i, o') -> `Index (Idx.top (), of_elt_offset o')
-      | `Field (_, o') as o when Offs.cmp_zero_offset o <> `MustNonzero ->
-        of_elt_offset o'
-      | `Field (f, o') -> `Field (f, of_elt_offset o') (* incorrect *) *)
-      (* function _ -> `NoOffset (* very crude *) *)
     let of_elt = function
-      | Addr (v, o) -> Addr (v, of_elt_offset o)
-      | a -> a
-  end
-  module R2 =
-  struct
-    include IntDomain.Integers (IntOps.NIntOps)
-    type elt = Addr.t
-    let of_elt = Addr.hash
-  end
-  module C =
-  struct
-    type elt = Addr.t
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | a -> a (* everything else is kept separate *)
+
     let cong x y =
-      (* ignore (Pretty.eprintf "cong %a %a\n" Addr.pretty x Addr.pretty y); *)
       if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;
-      (* begin match Addr.to_var_offset y with
-        | Some (_, `Index (i, `NoOffset)) when Idx.to_int i = Some (Z.of_int 2) -> failwith "THIS"
-        | _ -> ()
-      end; *)
-      let r = match Addr.join x y with
-      | exception Lattice.Uncomparable -> false
-      | _ -> true
+      let r = match Addr.join x y with (* using join for congruence, but all operations must be the same *)
+        | exception Lattice.Uncomparable -> false
+        | _ -> true
       in
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
-  module RC =
-  struct
-    include R
-    include C
-  end
-  module J = SetDomain.Joined (Addr)
+  (* module J = SetDomain.Joined (Addr) *)
   module H = HoareDomain.Set2 (Addr)
-  (* include SensitiveDomain.Pairwise (Addr) (H) (C) *)
   include SensitiveDomain.Combined (Addr) (H) (RC)
-  (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
