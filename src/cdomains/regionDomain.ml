@@ -68,6 +68,10 @@ struct
   let real_region (x:t): bool = match x with
     | `Left (v,fd) -> F.real_region fd (v.vtype)
     | `Right () -> false
+
+  (* TODO: remove special bot var hack *)
+  let botvar = Goblintutil.create_var (Cil.makeGlobalVar "bot" Cil.voidType)
+  let bot () = of_vf (botvar, [])
 end
 
 module RS = struct

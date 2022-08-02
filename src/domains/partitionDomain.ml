@@ -5,27 +5,25 @@ module type Collapse = sig
   val collapse: t -> t -> bool
   val leq: t -> t -> bool
   val join: t -> t -> t
+  val bot: unit -> t
 end
 
 module Set (S: Collapse) =
 struct
-  include SetDomain.Make (S)
+  module E =
+  struct
+    include Lattice.Fake (S)
+    include S
+    let widen = join
+    let is_bot x = equal x (bot ())
+  end
+  module Q =
+  struct
+    type elt = E.t
+    let cong = S.collapse
+  end
 
-  let leq s1 s2 =
-    let p vf1 = exists (fun vf2 -> S.leq vf1 vf2) s2 in
-    for_all p s1
-
-  let join (s1:t) (s2:t) =
-    if equal s1 s2 then s1 else
-      (* Ok, so for each element vf2 in s2, we check in s1 for elements that
-       * collapse with it and join with them. These are put in res and removed
-       * from s1 as we don't need to compare with them anymore. *)
-      let f vf2 (s1,res) =
-        let (s1_match, s1_rest) = partition (fun vf1 -> S.collapse vf1 vf2) s1 in
-        (s1_rest, add (fold S.join s1_match vf2) res)
-      in
-      let (s1', res) = fold f s2 (s1, empty ()) in
-      union s1' res
+  include HoareDomain.Pairwise (E) (HoareDomain.Joined (E)) (Q)
 
   let collapse (s1:t) (s2:t): bool =
     let f vf2 res =
@@ -33,9 +31,13 @@ struct
     in
     fold f s2 false
 
-  let add e s = join s (singleton e)
-
-  let widen = join
+  let inter = meet
+  let subset = leq
+  let disjoint _ _ = failwith "TODO"
+  let filter _ _ = failwith "TODO"
+  let partition _ _ = failwith "TODO"
+  let min_elt _ = failwith "TODO"
+  let max_elt _ = failwith "TODO"
 end
 
 module type CollapseSet = sig
