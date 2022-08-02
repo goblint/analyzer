@@ -320,7 +320,8 @@ struct
     | _ -> false
 
   let leq x y = match x, y with
-    | StrPtr a  , StrPtr b   -> a = b
+    | StrPtr _, StrPtr None -> true
+    | StrPtr a, StrPtr b   -> a = b
     | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
     | _                      -> x = y
 
