@@ -80,9 +80,9 @@ struct
   end
   module J = HoareDomain.Joined (Addr)
   module H = HoareDomain.Set2 (Addr)
-  (* include HoareDomain.Pairwise (Addr) (H) (Q) *)
-  module PW = HoareDomain.Pairwise (Addr) (H) (Q)
-  include HoareDomain.Projective (Addr) (PW) (R)
+  (* include SensitiveDomain.Pairwise (Addr) (H) (Q) *)
+  module PW = SensitiveDomain.Pairwise (Addr) (H) (Q)
+  include SensitiveDomain.Projective (Addr) (PW) (R)
   (* include HoareDomain.HoarePO (Addr) *)
 
   let widen x y =

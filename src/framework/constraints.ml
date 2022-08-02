@@ -893,7 +893,7 @@ struct
     end
 
     (* include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *) *)
-    include HoareDomain.Pairwise (Spec.D) (J) (Q)
+    include SensitiveDomain.Pairwise (Spec.D) (J) (Q)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
