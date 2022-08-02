@@ -73,21 +73,27 @@ struct
     let r = R.of_elt e in
     match M.find_opt r m with
     | Some b ->
-      let b' = B.remove e b in
-      if B.is_bot b' then
-        M.remove r m (* remove bot bucket to preserve invariant *)
-      else
-        M.add r b' m
+      begin match B.remove e b with
+        | b' when B.is_bot b' ->
+          M.remove r m (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          M.remove r m (* remove bot bucket to preserve invariant *)
+        | b' ->
+          M.add r b' m
+      end
     | None -> m
   let diff m1 m2 =
     M.merge (fun _ b1 b2 ->
         match b1, b2 with
         | Some b1, Some b2 ->
-          let b' = B.diff b1 b2 in
-          if B.is_bot b' then
-            None (* remove bot bucket to preserve invariant *)
-          else
-            Some b'
+          begin match B.diff b1 b2 with
+            | b' when B.is_bot b' ->
+              None (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              None (* remove bot bucket to preserve invariant *)
+            | b' ->
+              Some b'
+          end
         | Some _, None -> b1
         | None, _ -> None
       ) m1 m2
@@ -108,22 +114,28 @@ struct
     M.merge (fun _ b1 b2 ->
         match b1, b2 with
         | Some b1, Some b2 ->
-          let b' = B.meet b1 b2 in
-          if B.is_bot b' then
-            None (* remove bot bucket to preserve invariant *)
-          else
-            Some b'
+          begin match B.meet b1 b2 with
+            | b' when B.is_bot b' ->
+              None (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              None (* remove bot bucket to preserve invariant *)
+            | b' ->
+              Some b'
+          end
         | _, _ -> None
       ) m1 m2
   let narrow m1 m2 =
     M.merge (fun _ b1 b2 ->
         match b1, b2 with
         | Some b1, Some b2 ->
-          let b' = B.narrow b1 b2 in
-          if B.is_bot b' then
-            None (* remove bot bucket to preserve invariant *)
-          else
-            Some b'
+          begin match B.narrow b1 b2 with
+            | b' when B.is_bot b' ->
+              None (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              None (* remove bot bucket to preserve invariant *)
+            | b' ->
+              Some b'
+          end
         | _, _ -> None
       ) m1 m2
 
@@ -212,11 +224,14 @@ struct
     match S.choose s_match with
     | b ->
       assert (S.cardinal s_match = 1);
-      let b' = B.remove e b in
-      if B.is_bot b' then
-        s_rest (* remove bot bucket to preserve invariant *)
-      else
-        S.add b' s
+      begin match B.remove e b with
+        | b' when B.is_bot b' ->
+          s_rest (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          s_rest (* remove bot bucket to preserve invariant *)
+        | b' ->
+          S.add b' s
+      end
     | exception Not_found -> s
   let diff s1 s2 =
     let f b2 (s1, acc) =
@@ -225,11 +240,14 @@ struct
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          let b' = B.diff b1 b2 in
-          if B.is_bot b' then
-            acc (* remove bot bucket to preserve invariant *)
-          else
-            S.add b' acc
+          begin match B.diff b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
         | exception Not_found -> acc
       in
       (s1_rest, acc')
@@ -290,11 +308,14 @@ struct
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          let b' = B.meet b1 b2 in
-          if B.is_bot b' then
-            acc (* remove bot bucket to preserve invariant *)
-          else
-            S.add b' acc
+          begin match B.meet b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
         | exception Not_found -> acc
       in
       (s1_rest, acc')
@@ -308,11 +329,14 @@ struct
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          let b' = B.narrow b1 b2 in
-          if B.is_bot b' then
-            acc (* remove bot bucket to preserve invariant *)
-          else
-            S.add b' acc
+          begin match B.narrow b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
         | exception Not_found -> acc
       in
       (s1_rest, acc')

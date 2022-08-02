@@ -5,7 +5,6 @@ module type Collapse = sig
   val collapse: t -> t -> bool
   val leq: t -> t -> bool
   val join: t -> t -> t
-  val bot: unit -> t
 end
 
 module Set (S: Collapse) =
