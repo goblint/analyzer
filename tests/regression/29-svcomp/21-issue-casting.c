@@ -1,3 +1,5 @@
+// PARAM: --set ana.activated ["'base'","'mallocWrapper'"]
+// minimal analyses to reveal bug
 static long main(void)
 {
   unsigned int cmd;
