@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','assert','apron','escape']" --set ana.base.privatization none --set ana.apron.privatization top
+// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
 // Copy of 01/52 for Apron
 #include <assert.h>
 
