@@ -1,4 +1,3 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutexEvents','mutex','access','mallocWrapper','assert']"
 #include <assert.h>
 
 /**

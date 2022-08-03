@@ -1,4 +1,4 @@
-// PARAM: --set ana.int.interval true --set solver "'td3'"
+// PARAM: --set ana.int.interval true
 extern int __VERIFIER_nondet_int();
 
 #include<pthread.h>

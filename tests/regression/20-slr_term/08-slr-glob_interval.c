@@ -1,4 +1,5 @@
-// PARAM: --set ana.int.interval true
+// PARAM: --set ana.int.interval true --set solver new
+// https://github.com/goblint/analyzer/pull/805#discussion_r933232518
 #include<pthread.h>
 #include<assert.h>
 

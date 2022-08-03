@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] "var_eq"
+// PARAM: --set ana.activated[+] "var_eq"
 #include <assert.h>
 
 int rec(int i,int* ptr) {

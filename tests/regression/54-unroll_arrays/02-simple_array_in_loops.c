@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
 #include <assert.h>
 int global;
 
