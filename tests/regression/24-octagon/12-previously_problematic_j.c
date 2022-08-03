@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','apron','mallocWrapper','assert']" --set ana.base.privatization none
+// SKIP PARAM: --set ana.activated[+] apron
 void main(void) {
   int i = 0;
   int j = i;

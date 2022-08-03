@@ -606,6 +606,12 @@
               },
               "additionalProperties": false
             },
+            "limit-string-addresses": {
+              "title": "ana.base.limit-string-addresses",
+              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
+              "type": "boolean",
+              "default": true
+            },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",
               "type": "object",

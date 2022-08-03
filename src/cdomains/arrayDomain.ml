@@ -89,49 +89,45 @@ struct
     (show_list xl) ^ Val.show xr ^ ")"
   let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let extract x = match x with
+  let extract x default = match x with
     | Some c -> c
-    | None -> failwith "arrayDomain: that should not happen"
+    | None -> default
   let get (ask: Q.ask) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
-      let mi = Z.to_int min_i in
-      let ma = Z.to_int max_i in
       let rec subjoin l i = match l with
         | [] -> Val.bot ()
         | hd::tl ->
           begin
-            match i>ma,i<mi with
-            | false,true -> subjoin tl (i+1)
-            | false,false -> Val.join hd (subjoin tl (i+1))
+            match Z.gt i max_i, Z.lt i min_i with
+            | false,true -> subjoin tl (Z.add i Z.one)
+            | false,false -> Val.join hd (subjoin tl (Z.add i Z.one))
             | _,_ -> Val.bot ()
           end in
-      subjoin xl 0 in
+      subjoin xl Z.zero in
     let f = Z.of_int (factor ()) in
-    let min_i = extract (Idx.minimal i) in
-    let max_i = extract (Idx.maximal i) in
+    let min_i = extract (Idx.minimal i) Z.zero in
+    let max_i = extract (Idx.maximal i) f in
     if Z.geq min_i f then xr
     else if Z.lt max_i f then search_unrolled_values min_i max_i
     else Val.join xr (search_unrolled_values min_i (Z.of_int ((factor ())-1)))
   let set (ask: Q.ask) (xl,xr) (_,i) v =
     let update_unrolled_values min_i max_i =
-      let mi = Z.to_int min_i in
-      let ma = Z.to_int max_i in
       let rec weak_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if i<mi then hd::(weak_update tl (i+1))
-          else if i>ma then (hd::tl)
-          else (Val.join hd v)::(weak_update tl (i+1)) in
+          if Z.lt i min_i then hd::(weak_update tl (Z.add i Z.one))
+          else if Z.gt i max_i then (hd::tl)
+          else (Val.join hd v)::(weak_update tl (Z.add i Z.one)) in
       let rec full_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if i<mi then hd::(full_update tl (i+1))
+          if Z.lt i min_i then hd::(full_update tl (Z.add i Z.one))
           else v::tl in
-      if mi=ma then full_update xl 0
-      else weak_update xl 0 in
+      if Z.equal min_i max_i then full_update xl Z.zero
+      else weak_update xl Z.zero in
     let f = Z.of_int (factor ()) in
-    let min_i = extract(Idx.minimal i) in
-    let max_i = extract(Idx.maximal i) in
+    let min_i = extract(Idx.minimal i) Z.zero in
+    let max_i = extract(Idx.maximal i) f in
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))

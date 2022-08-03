@@ -35,6 +35,7 @@ struct
       | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *)
     let of_elt = function
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None
       | a -> a (* everything else is kept separate *)
 
     let cong x y =

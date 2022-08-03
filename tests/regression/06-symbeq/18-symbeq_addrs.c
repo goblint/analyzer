@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set dbg.debug true --set ana.activated[+] "'var_eq'"
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"
 #include<stdlib.h>
 #include <assert.h>
 

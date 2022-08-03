@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper','assert']"  --set ana.base.privatization none
+// PARAM: --set ana.activated[+] uninit
 #include <stdio.h>
 
 void f() {};

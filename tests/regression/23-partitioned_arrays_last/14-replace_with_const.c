@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.base.partition-arrays.keep-expr "last" --enable ana.base.partition-arrays.partition-by-const-on-return --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper','assert']" --set ana.base.privatization none
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.base.partition-arrays.keep-expr "last" --enable ana.base.partition-arrays.partition-by-const-on-return
 #include <assert.h>
 
 int main(void) {
