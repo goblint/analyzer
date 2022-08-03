@@ -17,9 +17,9 @@ int main() {
   res = magic();
 
   if (res == (struct resource *)0)
-    assert(1); // reachable
+    __goblint_check(1); // reachable
   else
-    assert(1); // reachable
+    __goblint_check(1); // reachable
 
   return 0;
 }

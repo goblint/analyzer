@@ -8,7 +8,7 @@ int main() {
   int minus_one = -1;
 
   if(plus_one < minus_one) {
-    assert(1); // reachable
+    __goblint_check(1); // reachable
   }
 
   return (0);

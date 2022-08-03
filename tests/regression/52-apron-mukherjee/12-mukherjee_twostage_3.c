@@ -40,8 +40,8 @@ void* iRThread_1(void* arg){
 	pthread_mutex_unlock(&lock);
 
 	if(t1 != 0) {
-		assert(t2 != (t1+1)); //UNKNOWN!
-		assert(t2 == (t1+1)); //UNKNOWN!
+		__goblint_check(t2 != (t1+1)); //UNKNOWN!
+		__goblint_check(t2 == (t1+1)); //UNKNOWN!
 	}
 	return 0;
 }

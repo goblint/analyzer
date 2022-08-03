@@ -9,7 +9,7 @@ struct kala {
 int main () {
   int i = 4;
   scanf("%d", &i);
-  assert(i == 4); // UNKNOWN
+  __goblint_check(i == 4); // UNKNOWN
 
   struct kala k;
   int x;
@@ -17,23 +17,23 @@ int main () {
   k.x = 4;
   k.y = 7;
   scanf("%d\n",&k.x);
-  assert(k.x == 4); // UNKNOWN
-  assert(k.y == 7);
+  __goblint_check(k.x == 4); // UNKNOWN
+  __goblint_check(k.y == 7);
 
   k.x = 4;
   k.y = 7;
-  if (x) 
+  if (x)
     ip = &k.x;
-  else 
+  else
     ip = &k.y;
   scanf("%d\n",ip);
-  assert(k.x == 4); // UNKNOWN
-  assert(k.y == 7); // UNKNOWN
+  __goblint_check(k.x == 4); // UNKNOWN
+  __goblint_check(k.y == 7); // UNKNOWN
 
   k.x = 4;
   k.y = 7;
   scanf("%d%d\n", &k.x, &k.y);
-  assert(k.x == 4); // UNKNOWN
-  assert(k.y == 7); // UNKNOWN
+  __goblint_check(k.x == 4); // UNKNOWN
+  __goblint_check(k.y == 7); // UNKNOWN
   return 0;
 }

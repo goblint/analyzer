@@ -27,7 +27,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
@@ -36,7 +36,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); // t_fun always has the invariant it only is violated in main temporarily
+  __goblint_check(g == h); // t_fun always has the invariant it only is violated in main temporarily
   pthread_mutex_unlock(&A);
 
   return 0;

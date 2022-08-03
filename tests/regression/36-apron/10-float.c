@@ -13,15 +13,15 @@ int main(){
 
     float top;
     // float may be NaN here, therefore the comaprison should be unknown
-    assert(top == top); //UNKNOWN!
-    assert(s.f == s.f); //UNKNOWN!
-    assert(fs[1] == fs[1]); //UNKNOWN!
+    __goblint_check(top == top); //UNKNOWN!
+    __goblint_check(s.f == s.f); //UNKNOWN!
+    __goblint_check(fs[1] == fs[1]); //UNKNOWN!
 
     int r = isNan(top);
 
     if(r) {
-        assert(1);
+        __goblint_check(1);
     } else {
-        assert(1);
+        __goblint_check(1);
     }
  }

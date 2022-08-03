@@ -24,10 +24,10 @@ int main(void)
     pthread_t t;
     pthread_create(&t, ((void *)0), t_fun, ((void *)0));
 
-    assert(global == 0); //UNKNOWN!
+    __goblint_check(global == 0); //UNKNOWN!
 
     pthread_mutex_lock(&mutex);
-    assert(global == 0);
+    __goblint_check(global == 0);
     pthread_mutex_unlock(&mutex);
     return 0;
 }

@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper','assert']" --set ana.base.privatization none
+#include <assert.h>
+
 struct kala {
   int i;
   int a[5];
@@ -44,23 +46,23 @@ void example1() {
       i++;
 
       // Check assertion that should only hold later does not already hold here
-      assert(l.a[4] == 42); //UNKNOWN
+      __goblint_check(l.a[4] == 42); //UNKNOWN
   }
 
   // Check the array is correctly initialized
-  assert(l.a[1] == 42);
-  assert(l.a[2] == 42);
-  assert(l.a[3] == 42);
-  assert(l.a[4] == 42);
+  __goblint_check(l.a[1] == 42);
+  __goblint_check(l.a[2] == 42);
+  __goblint_check(l.a[3] == 42);
+  __goblint_check(l.a[4] == 42);
 
   // Destructively assign to i
   i = top;
 
   // Check the array is still known to be completly initialized
-  assert(l.a[1] == 42);
-  assert(l.a[2] == 42);
-  assert(l.a[3] == 42);
-  assert(l.a[4] == 42);
+  __goblint_check(l.a[1] == 42);
+  __goblint_check(l.a[2] == 42);
+  __goblint_check(l.a[3] == 42);
+  __goblint_check(l.a[4] == 42);
 }
 
 void example2() {
@@ -78,8 +80,8 @@ void example2() {
   }
 
   // Initialization has not proceeded this far
-  assert(kalas[4].a[0] == 8); //UNKNOWN
-  assert(kalas[0].a[0] == 8);
+  __goblint_check(kalas[4].a[0] == 8); //UNKNOWN
+  __goblint_check(kalas[0].a[0] == 8);
 }
 
 void example3() {
@@ -88,7 +90,7 @@ void example3() {
       xnn.a[l] = 42;
   }
 
-  assert(xnn.a[3] == 42);
+  __goblint_check(xnn.a[3] == 42);
 }
 
 void example4() {
@@ -103,7 +105,7 @@ void example4() {
     }
   }
 
-  assert(xs[3].a[0] == 7);
+  __goblint_check(xs[3].a[0] == 7);
 }
 
 void example5() {
@@ -121,10 +123,10 @@ void example5() {
     i3++;
   }
 
-  assert(ua.a[i3 - 1] == 42);
+  __goblint_check(ua.a[i3 - 1] == 42);
 
   ua.b[0] = 3;
-  assert(ua.b[0] == 3);
+  __goblint_check(ua.b[0] == 3);
 
   // -------------------------------
   union uStruct us;
@@ -132,17 +134,17 @@ void example5() {
 
   us.b = 4;
   us.k.a[i4] = 0;
-  assert(us.b == 4); // UNKNOWN
-  assert(us.k.a[0] == 0);
-  assert(us.k.a[3] == 0); // UNKNOWN
+  __goblint_check(us.b == 4); // UNKNOWN
+  __goblint_check(us.k.a[0] == 0);
+  __goblint_check(us.k.a[3] == 0); // UNKNOWN
 
   while (i4 < 5) {
       us.k.a[i4] = 42;
       i4++;
   }
 
-  assert(us.k.a[1] == 42);
-  assert(us.k.a[0] == 0); // FAIL
+  __goblint_check(us.k.a[1] == 42);
+  __goblint_check(us.k.a[0] == 0); // FAIL
 }
 
 void example6() {
@@ -162,7 +164,7 @@ void example6() {
   a[k.v] = 2;
   k.v = k.v+1;
 
-  assert(a[k.v] != 3);
+  __goblint_check(a[k.v] != 3);
 }
 
 void example7() {
@@ -194,5 +196,5 @@ void example8() {
 
   a[ua.a[*ip]] = 42;
   ip++;
-  assert(a[ua.a[*ip]] == 42); //UNKNOWN
+  __goblint_check(a[ua.a[*ip]] == 42); //UNKNOWN
 }

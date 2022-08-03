@@ -351,9 +351,22 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
-    merge v;
-    if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
+    let cwd = Fpath.v (Sys.getcwd ()) in
+    let config_dirs = cwd :: (List.map Fpath.v Goblint_sites.conf)  in
+    let file = List.find_map_opt (fun custom_include_dir ->
+        let path = Fpath.append custom_include_dir fn in
+        if Sys.file_exists (Fpath.to_string path) then
+          Some path
+        else
+          None
+      ) config_dirs
+    in
+    match file with
+    | Some fn ->
+      let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
+      merge v;
+      if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
+    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
 end
 
 include Impl

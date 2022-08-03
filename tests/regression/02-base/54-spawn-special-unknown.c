@@ -9,6 +9,6 @@ int main() {
   pthread_t id;
   pthread_create(&id, NULL, unknown, NULL);
 
-  assert(g == 0); // UNKNOWN! (unknown thread may invalidate)
+  __goblint_check(g == 0); // UNKNOWN! (unknown thread may invalidate)
   return 0;
 }

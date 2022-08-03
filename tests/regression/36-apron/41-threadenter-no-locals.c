@@ -6,7 +6,7 @@ extern int __VERIFIER_nondet_int();
 
 void *t_fun(void *arg) {
   int x = __VERIFIER_nondet_int(); // threadenter shouldn't pass value for x here
-  assert(x == 3); // UNKNOWN!
+  __goblint_check(x == 3); // UNKNOWN!
   return NULL;
 }
 

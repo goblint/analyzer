@@ -1,0 +1,2 @@
+local var used in assert is renamed.
+No semantic changes.

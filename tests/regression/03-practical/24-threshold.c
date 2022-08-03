@@ -28,7 +28,7 @@ int main() {
 
     pthread_join(t1, 0);
 
-    assert(g <= 100);
+    __goblint_check(g <= 100);
 
 	return 0;
 }

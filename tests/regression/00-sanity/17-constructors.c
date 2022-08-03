@@ -1,3 +1,5 @@
+#include <assert.h>
+
 int g=0;
 
 void c()  __attribute__((__constructor__)) ;
@@ -6,6 +8,6 @@ void c(){
 }
 
 int main(){
-	assert(g==10);
+	__goblint_check(g==10);
 	return 0;
 }

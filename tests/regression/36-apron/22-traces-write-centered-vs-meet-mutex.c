@@ -20,13 +20,13 @@ void *t_fun(void *arg) {
     pthread_mutex_lock(&A);
     x = g;
     y = h;
-    assert(y <= x);
+    __goblint_check(y <= x);
     pthread_mutex_lock(&B);
-    assert(x == y); // TODO (mutex-meet succeeds, write unknown)
+    __goblint_check(x == y); // TODO (mutex-meet succeeds, write unknown)
     pthread_mutex_unlock(&B);
     i = x + 31;
     z = i;
-    assert(z >= x); // TODO (write succeeds, mutex-meet unknown)
+    __goblint_check(z >= x); // TODO (write succeeds, mutex-meet unknown)
     pthread_mutex_unlock(&A);
     pthread_mutex_unlock(&C);
   }

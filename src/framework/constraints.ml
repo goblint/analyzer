@@ -643,7 +643,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn "Using special for defined function %s" f.vname;
+        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg

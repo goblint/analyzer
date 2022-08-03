@@ -194,7 +194,7 @@ struct
 
   module ChainParams =
   struct
-    let n = max_result - 1
+    let n () = max_result - 1
     let names i = show_result (Option.get (result_of_enum i))
   end
   include Lattice.Chain (ChainParams)

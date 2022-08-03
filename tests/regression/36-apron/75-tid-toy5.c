@@ -31,7 +31,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //FAIL
+  __goblint_check(g == h); //FAIL
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
@@ -40,14 +40,14 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   return 0;

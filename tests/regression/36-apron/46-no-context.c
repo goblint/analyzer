@@ -18,7 +18,7 @@ void main() {
   int res;
   if (x <= y) {
     res = oct(x, y);
-    assert(res == 1); // UNKNOWN (indended by disabled context)
+    __goblint_check(res == 1); // UNKNOWN (indended by disabled context)
   }
 
   res = oct(x, y);

@@ -1,10 +1,10 @@
-extern void __goblint_check(int);
-extern void __goblint_commit(int);
+extern void __goblint_check(int); // NOWARN
+extern void __goblint_assume(int);
 extern void __goblint_assert(int);      // NOWARN
 extern void __goblint_unknown(void*);
 
-#define check(x)   __goblint_check(x)
-#define commit(x)  __goblint_commit(x)
+#define check(x)   __goblint_check(x) // NOWARN
+#define assume(x)  __goblint_assume(x)
 #define assert(x)  __goblint_assert(x)  // NOWARN
 #define unknown(x) __goblint_unknown(x)
 
@@ -15,7 +15,7 @@ int main(){
   assert(n==0); // SUCCESS
 
   unknown(&i);
-  assert(i==8); // UNKNOWN
+  assert(i==8); // UNKNOWN (refines)
   assert(i==8); // SUCCESS
 
   j=3;
@@ -26,13 +26,13 @@ int main(){
   check(j==6); // assert UNKNOWN
 
   unknown(&k);
-  commit(k==4); // TODO? assert SUCCESS
+  assume(k==4); // TODO? assert SUCCESS
   check(k==4);  // assert SUCCESS
 
   unknown(&k);
-  commit(k+1==n); // TODO? FAIL
+  assume(k+1==n); // TODO? FAIL
 
-  commit(n==5);  // TODO? NOWARN
+  assume(n==5);  // TODO? NOWARN
   assert(0);     // NOWARN
 
   return 0;

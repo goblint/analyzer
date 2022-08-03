@@ -1,4 +1,4 @@
-// NOMARSHAL PARAM: --set ana.activated[+] extract_arinc --set ana.activated[+] thread --set solver slr3t --disable ana.arinc.export
+// NOMARSHAL PARAM: --set ana.activated[+] arinc --set ana.activated[+] thread --set solver slr3t --disable ana.arinc.export
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef int    SEMAPHORE_ID_TYPE;

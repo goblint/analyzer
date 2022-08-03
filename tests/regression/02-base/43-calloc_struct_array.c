@@ -16,5 +16,5 @@ int main(void) {
     struct h *b = a+1;
     a->a[1] = 3;
     int* ptr = &(b->a[1]);
-    assert(*ptr == 3); //UNKNOWN
+    __goblint_check(*ptr == 3); //UNKNOWN
 }

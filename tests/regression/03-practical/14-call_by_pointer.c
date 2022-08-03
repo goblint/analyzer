@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutexEvents','mutex','access','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutexEvents','mutex','access','mallocWrapper','assert']"
 #include <assert.h>
 
 /**
@@ -18,6 +18,6 @@ int main()
 {
   glob = 0;
   foo(reset_glob);
-  assert(glob == 0); // UNKNOWN
+  __goblint_check(glob == 0); // UNKNOWN
   return 0;
 }

@@ -175,7 +175,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
         }
     }  /* for (;;) */
-    assert(0);  //NOWARN (unreachable)
+    __goblint_check(0);  //NOWARN (unreachable)
 }
 
 POOL_ctx* POOL_create(size_t numThreads, size_t queueSize) {

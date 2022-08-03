@@ -7,7 +7,7 @@ int g;
 int h;
 
 void f(int x, int y) {
-  assert(x < y);
+  __goblint_check(x < y);
 }
 
 int main(void) {
