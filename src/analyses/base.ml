@@ -2502,26 +2502,14 @@ struct
     | Unknown, "strcpy"
     | Unknown, "strncpy"
     | Unknown, "memcpy"
-      ->
-      begin match args with
-        | [dst; src]
-        | [dst; src; _] ->
-          (* let dst_val = eval_rv ctx.ask ctx.global ctx.local dst in *)
-          (* let src_val = eval_rv ctx.ask ctx.global ctx.local src in *)
-          (* begin match dst_val with *)
-          (* | `Address ls -> set_savetop ctx.ask ctx.global ctx.local ls src_val *)
-          (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
-          (*     ctx.local *)
-          (* end *)
-          let rec get_lval exp = match stripCasts exp with
-            | Lval x | AddrOf x | StartOf x -> x
-            | BinOp (PlusPI, e, i, _)
-            | BinOp (MinusPI, e, i, _) -> get_lval e
-            | x ->
-              ignore @@ Pretty.printf "strcpy: dst is %a!\n" d_plainexp dst;
-              failwith "strcpy: expecting first argument to be a pointer!"
-          in
-          assign ctx (get_lval dst) src
+    | Unknown, "__builtin___memcpy_chk" ->
+      begin match f.vname, args with
+        | _, [dst; src]
+        | _, [dst; src; _]
+        | "__builtin___memcpy_chk", [dst; src; _; _] ->
+          let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+          let src_a =  mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+          assign ctx dst_lval (Lval src_a)
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
     | Unknown, "memset" ->
