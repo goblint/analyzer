@@ -178,7 +178,7 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = OffsetPrintable (Idx)
-
+      
   type t =
     | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
