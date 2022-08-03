@@ -344,7 +344,10 @@ end
 module PerMutexMeetTIDPriv: S =
 struct
   include PerMutexPrivBase
-  include PerMutexTidG(CPA)
+  include PerMutexTidG(struct
+      let exclude_not_started () = GobConfig.get_bool "ana.apron.priv.not-started"
+      let exclude_must_joined () = GobConfig.get_bool "ana.apron.priv.must-joined"
+    end)(CPA)
 
   let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2
 

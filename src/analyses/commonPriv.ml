@@ -185,7 +185,12 @@ struct
   end
 end
 
-module PerMutexTidG (LAD:Lattice.S) =
+module type PerMutexTidGArg = sig
+  val exclude_not_started: unit -> bool
+  val exclude_must_joined: unit -> bool
+end
+
+module PerMutexTidG (Conf:PerMutexTidGArg) (LD:Lattice.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -214,14 +219,15 @@ struct
     let global x = `Right x
   end
 
+  (** Mutexes / globals to which values have been published, i.e. for which the initializers need not be read **)
   module LMust = struct
     include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
     let name () = "LMust"
   end
 
   (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop (LLock) (LAD)
-  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LAD)
+  module L = MapDomain.MapBot_LiftTop (LLock) (LD)
+  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LD)
   module GThread = Lattice.Prod (LMust) (L)
 
   module G =
@@ -248,9 +254,9 @@ struct
     | `Lifted current, `Lifted other ->
       if (TID.is_unique current) && (TID.equal current other) then
         false (* self-read *)
-      else if GobConfig.get_bool "ana.apron.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
+      else if Conf.exclude_not_started () && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
         false (* other is not started yet *)
-      else if GobConfig.get_bool "ana.apron.priv.must-joined" && MHP.must_be_joined other must_joined then
+      else if Conf.exclude_must_joined () && MHP.must_be_joined other must_joined then
         false (* accounted for in local information *)
       else
         true
@@ -261,13 +267,13 @@ struct
     let must_joined = ask.f Queries.MustJoinedThreads in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
-          LAD.join acc v
+          LD.join acc v
         else
           acc
-      ) v (LAD.bot ())
+      ) v (LD.bot ())
 
   let merge_all v =
-    GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
+    GMutex.fold (fun _ v acc -> LD.join acc v) v (LD.bot ())
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end
