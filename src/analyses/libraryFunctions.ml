@@ -163,7 +163,6 @@ let classify fn exps: categories =
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
-  | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
@@ -175,7 +174,6 @@ let classify fn exps: categories =
   | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
   | "down_read"
     -> `Lock (get_bool "sem.lock.fail", false, true)
-  | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
   | "mutex_unlock" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
@@ -576,10 +574,6 @@ let invalidate_actions = [
     (* no args, declare invalidate actions to prevent invalidating globals *)
     "__VERIFIER_atomic_begin", readsAll;
     "__VERIFIER_atomic_end", readsAll;
-    (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
-    (* "LAP_Se_SetPartitionMode", writes [2]; *)
-    "LAP_Se_CreateProcess", writes [2; 3];
-    "LAP_Se_CreateErrorHandler", writes [2; 3];
     "isatty", readsAll;
     "setpriority", readsAll;
     "getpriority", readsAll;

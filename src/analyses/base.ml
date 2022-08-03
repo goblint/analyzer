@@ -2499,37 +2499,18 @@ struct
       let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, "F59" (* strcpy *)
-    | Unknown, "F60" (* strncpy *)
-    | Unknown, "F63" (* memcpy *)
-      ->
-      begin match args with
-        | [dst; src]
-        | [dst; src; _] ->
-          (* let dst_val = eval_rv ctx.ask ctx.global ctx.local dst in *)
-          (* let src_val = eval_rv ctx.ask ctx.global ctx.local src in *)
-          (* begin match dst_val with *)
-          (* | `Address ls -> set_savetop ctx.ask ctx.global ctx.local ls src_val *)
-          (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
-          (*     ctx.local *)
-          (* end *)
-          let rec get_lval exp = match stripCasts exp with
-            | Lval x | AddrOf x | StartOf x -> x
-            | BinOp (PlusPI, e, i, _)
-            | BinOp (MinusPI, e, i, _) -> get_lval e
-            | x ->
-              ignore @@ Pretty.printf "strcpy: dst is %a!\n" d_plainexp dst;
-              failwith "strcpy: expecting first argument to be a pointer!"
-          in
-          assign ctx (get_lval dst) src
+    | Unknown, "strcpy"
+    | Unknown, "strncpy"
+    | Unknown, "memcpy"
+    | Unknown, "__builtin___memcpy_chk" ->
+      begin match f.vname, args with
+        | _, [dst; src]
+        | _, [dst; src; _]
+        | "__builtin___memcpy_chk", [dst; src; _; _] ->
+          let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+          let src_a =  mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+          assign ctx dst_lval (Lval src_a)
         | _ -> failwith "strcpy arguments are strange/complicated."
-      end
-    | Unknown, "F1" ->
-      begin match args with
-        | [dst; data; len] -> (* memset: write char to dst len times *)
-          let dst_lval = mkMem ~addr:dst ~off:NoOffset in
-          assign ctx dst_lval data (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
-        | _ -> failwith "memset arguments are strange/complicated."
       end
     | Unknown, "__builtin" ->
       begin match args with
