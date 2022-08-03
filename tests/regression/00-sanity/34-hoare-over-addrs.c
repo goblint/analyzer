@@ -16,5 +16,6 @@ int main() {
   // and lattice operations are on offsets
   // neither p is leq of another, so Hoare should keep both
   // but address domain actually joins them nevertheless
+  assert(p == &arr[1] || p == &arr[2]);
   return 0;
 }
