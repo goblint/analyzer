@@ -2499,9 +2499,9 @@ struct
       let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, "F59" (* strcpy *)
-    | Unknown, "F60" (* strncpy *)
-    | Unknown, "F63" (* memcpy *)
+    | Unknown, "strcpy"
+    | Unknown, "strncpy"
+    | Unknown, "memcpy"
       ->
       begin match args with
         | [dst; src]
@@ -2524,7 +2524,7 @@ struct
           assign ctx (get_lval dst) src
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
-    | Unknown, "F1" ->
+    | Unknown, "memset" ->
       begin match args with
         | [dst; data; len] -> (* memset: write char to dst len times *)
           let dst_lval = mkMem ~addr:dst ~off:NoOffset in

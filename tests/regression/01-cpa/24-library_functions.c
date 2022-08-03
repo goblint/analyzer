@@ -55,7 +55,7 @@ void test_memcpy() {
 
   memcpy(&dest, &src, sizeof(int));
 
-  __goblint_check(dest == 0); // UNKNOWN!
+  __goblint_check(dest == 0); //FAIL
   __goblint_check(src == 1);
 }
 
