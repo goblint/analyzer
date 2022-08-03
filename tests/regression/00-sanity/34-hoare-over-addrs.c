@@ -28,6 +28,8 @@ int main() {
   // correctly keeps both as maximal elements
 
   // automatic check of new behavior
-  assert(p == &arr[1] || p == &arr[2]);
+  assert(p == &arr[1] || p == &arr[2]); // TODO
+  // disabled with TODO because Hoare set for bucket doesn't play well with StrPtr limiting:
+  // https://github.com/goblint/analyzer/pull/808
   return 0;
 }
