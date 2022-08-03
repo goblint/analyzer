@@ -56,6 +56,8 @@ struct
       else (
         (* elements throws if the thread set is top *)
         let threads = TIDs.elements threads in
+        if List.compare_length_with threads 1 > 0 then
+          M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
         List.fold_left (fun acc tid ->
             let joined = ctx.global tid in
             D.union (D.add tid acc) joined
