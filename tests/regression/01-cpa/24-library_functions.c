@@ -59,6 +59,19 @@ void test_memcpy() {
   __goblint_check(src == 1);
 }
 
+void test_memcpy_two() {
+  int dest = 0;
+  int src = 1;
+
+  int* destp = &dest;
+  int* srcp = &src;
+
+  memcpy(destp, srcp, sizeof(int));
+
+  __goblint_check(dest == 0); //FAIL
+  __goblint_check(src == 1);
+}
+
 void test_fopen() {
 
 }
@@ -191,6 +204,7 @@ int main () {
   test_getopt();
   test_localtime();
   test_memcpy();
+  test_memcpy_two();
   test_memset();
   test_printf();
   test_read();
