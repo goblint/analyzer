@@ -1880,12 +1880,6 @@
               "type": "boolean",
               "default": true
             },
-            "narrow-reuse-verify": {
-              "title": "solvers.td3.narrow-reuse-verify",
-              "description": "Instead of reusing value when switching from widening to narrowing phase, just verify that the reuse would be correct by re-evaluating.",
-              "type": "boolean",
-              "default": false
-            },
             "restart": {
               "title": "solvers.td3.restart",
               "type": "object",

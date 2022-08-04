@@ -99,7 +99,6 @@ module WP =
       let stable = data.stable in
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
-      let narrow_reuse_verify = GobConfig.get_bool "solvers.td3.narrow-reuse-verify" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -172,7 +171,7 @@ module WP =
           let l = HM.create 10 in
           let tmp =
             match reuse_eq with
-            | Some d when narrow_reuse && not narrow_reuse_verify ->
+            | Some d when narrow_reuse ->
               (* Do not reset deps for reuse of eq *)
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
               incr Goblintutil.narrow_reuses;
@@ -182,13 +181,6 @@ module WP =
               HM.replace dep x VS.empty;
               eq x (eval l x) (side ~x)
           in
-          begin match reuse_eq with
-            | Some reuse_eq when narrow_reuse_verify && not (S.Dom.equal tmp reuse_eq) ->
-              if M.tracing then trace "sol2" "reuse eq neq %a: %a %a\n" S.Var.pretty_trace x S.Dom.pretty reuse_eq S.Dom.pretty tmp;
-              failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "TD3 narrow reuse verify: should not reuse %a" S.Var.pretty_trace x))
-            | _ ->
-              ()
-          end;
           let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
