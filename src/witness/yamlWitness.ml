@@ -109,6 +109,54 @@ let yaml_entries_to_file yaml_entries file =
   let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048 + 2048) yaml in
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
+module Query
+    (Spec : Spec)
+    (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
+                            and module GVar = GVarF (Spec.V)
+                            and module D = Spec.D
+                            and module G = Spec.G)
+    (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+struct
+  let ask_local (gh: Spec.G.t GHT.t) (lvar:EQSys.LVar.t) local =
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+      ; node   = fst lvar
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = Obj.repr (fun () -> snd lvar)
+      ; context = (fun () -> snd lvar)
+      ; edge    = MyCFG.Skip
+      ; local  = local
+      ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+      ; presub = (fun _ -> raise Not_found)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+      }
+    in
+    Spec.query ctx
+
+  let ask_local_node (gh: Spec.G.t GHT.t) (n: Node.t) local =
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+      ; node   = n
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+      ; context = (fun () -> ctx_failwith "No context in witness context.")
+      ; edge    = MyCFG.Skip
+      ; local  = local
+      ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+      ; presub = (fun _ -> raise Not_found)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+      }
+    in
+    Spec.query ctx
+end
 
 module Make
     (File: WitnessUtil.File)
@@ -124,6 +172,11 @@ struct
 
   module NH = BatHashtbl.Make (Node)
   module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
+  module FMap = BatHashtbl.Make (CilType.Fundec)
+  module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
+  module Query = Query (Spec) (EQSys) (GHT)
+
+  type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
 
   (* copied from Constraints.CompareNode *)
   let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
@@ -149,32 +202,20 @@ struct
 
     let nh = join_contexts lh in
 
-    let ask_local_node (n: Node.t) local =
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = n
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
-        ; context = (fun () -> ctx_failwith "No context in witness context.")
-        ; edge    = MyCFG.Skip
-        ; local  = local
-        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
-        ; presub = (fun _ -> raise Not_found)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        }
-      in
-      Spec.query ctx
+    let is_invariant_node (n : Node.t) =
+      let loc = Node.location n in
+      match n with
+      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n -> true
+      | _ ->
+        (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
+        false
     in
 
+    (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
-        match n with
-        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
-          begin match ask_local_node n local (Invariant Invariant.default_context) with
+        if is_invariant_node n then begin
+          begin match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
             | `Lifted inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
@@ -187,39 +228,109 @@ struct
             | `Bot | `Top -> (* TODO: 0 for bot? *)
               acc
           end
-        | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+        end else begin
           acc
+        end
       ) nh []
     in
 
-    (* TODO: deduplicate *)
-    let entries = LHT.fold (fun (n, c) local acc ->
-        let loc = Node.location n in
-        match n with
-        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
+
+    (* Generate precondition invariants.
+       We do this in three steps:
+       1. Collect contexts for each function
+       2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
+       3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states. *)
+
+    (* 1. Collect contexts for each function *)
+    (* TODO: Use [IterSysVars] for this when #391 is merged. *)
+    let fun_contexts : con_inv list FMap.t = FMap.create 103 in
+    LHT.iter (fun ((n, c) as lvar) local ->
+        begin match n with
+          | FunctionEntry f ->
+            let invariant = Query.ask_local gh lvar local (Invariant Invariant.default_context) in
+            FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
+          | _ -> ()
+        end
+      ) lh;
+
+    (* 2. For all contexts and their invariants, find all contexts such that their start state may satisfy the invariant. *)
+    let fc_map : con_inv list FCMap.t = FCMap.create 103 in
+    FMap.iter (fun f con_invs ->
+        List.iter (fun current_c ->
+            begin match current_c.invariant with
+              | `Lifted c_inv ->
+                (* Collect all start states that may satisfy the invariant of current_c *)
+                List.iter (fun c ->
+                    let x = Query.ask_local gh (c.node, c.context) c.state (Queries.EvalInt c_inv) in
+                    if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                      failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
+                    else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
+                    else begin
+                      (* Insert c into the list of weaker contexts of f *)
+                      FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
+                    end
+                  ) con_invs;
+              | `Bot | `Top ->
+                (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
+                ()
+            end
+          ) con_invs;
+      ) fun_contexts;
+
+    (** Given [(n,c)] retrieves all [(n,c')], with [c'] such that [(f, c')] may satisfy the precondition generated for [c].*)
+    let find_matching_states ((n, c) : LHT.key) =
+      let f = Node.find_fundec n in
+      let contexts =  FCMap.find fc_map (f, c) in
+      List.filter_map (fun c -> LHT.find_option lh (n, c.context)) contexts
+    in
+
+    (* 3. Generate precondition invariants *)
+    let entries = LHT.fold (fun ((n, c) as lvar) local acc ->
+        if is_invariant_node n then begin
           let fundec = Node.find_fundec n in
-          let pre_node = Node.FunctionEntry fundec in
-          let pre_local = LHT.find lh (pre_node, c) in
+          let pre_lvar = (Node.FunctionEntry fundec, c) in
+          let pre_local = LHT.find lh pre_lvar in
           let query = Queries.Invariant Invariant.default_context in
-          begin match ask_local_node pre_node pre_local query, ask_local_node n local query with
-            | `Lifted c_inv, `Lifted inv ->
+          begin match Query.ask_local gh pre_lvar pre_local query with
+            | `Lifted c_inv ->
               let loc = Node.location n in
-              (* TODO: group by precondition *)
-              let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-              let invs = WitnessUtil.InvariantExp.process_exp inv in
-              List.fold_left (fun acc inv ->
-                  let location_function = (Node.find_fundec n).svar.vname in
-                  let location = Entry.location ~location:loc ~location_function in
-                  let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                  let invariant = Entry.invariant (CilType.Exp.show inv) in
-                  let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                  entry :: acc
-                ) acc invs
-            | _, _ -> (* TODO: handle some other combination? *)
+              (* Find unknowns for which the preceding start state satisfies the precondtion *)
+              let xs = find_matching_states lvar in
+
+              (* Generate invariants. Give up in case one invariant could not be generated. *)
+              let invs = GobList.fold_while_some
+                  (fun acc local ->
+                     match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
+                     | `Lifted c -> Some ((`Lifted c)::acc)
+                     | `Bot | `Top -> None)
+                  [] xs
+              in
+              begin match invs with
+                | None
+                | Some [] -> acc
+                | Some (x::xs) ->
+                  begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                    | `Lifted inv ->
+                      let invs = WitnessUtil.InvariantExp.process_exp inv in
+                      let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                      List.fold_left (fun acc inv ->
+                          let location_function = (Node.find_fundec n).svar.vname in
+                          let location = Entry.location ~location:loc ~location_function in
+                          let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                          let invariant = Entry.invariant (CilType.Exp.show inv) in
+                          let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                          entry :: acc
+                        ) acc invs
+                    | `Bot | `Top -> acc
+                  end
+              end
+            | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
               acc
           end
-        | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+        end else begin
+          (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
+        end
       ) lh entries
     in
 
@@ -264,6 +375,7 @@ struct
   module LvarS = Locator.ES
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
+  module Query = Query (Spec) (EQSys) (GHT)
 
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
@@ -286,26 +398,7 @@ struct
 
     let inv_parser = InvariantParser.create file in
 
-    let ask_local (lvar:EQSys.LVar.t) local =
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = fst lvar
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
-        ; context = (fun () -> snd lvar)
-        ; edge    = MyCFG.Skip
-        ; local  = local
-        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
-        ; presub = (fun _ -> raise Not_found)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        }
-      in
-      Spec.query ctx
-    in
+    let ask_local = Query.ask_local gh in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
