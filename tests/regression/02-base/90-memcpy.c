@@ -17,7 +17,18 @@ static int sqlite3IsNaN(double x){
   return rc;
 }
 
+int foo(){
+    int x = 23;
+    int y;
+
+    memcpy(&y, &x, sizeof(int));
+
+    __goblint_check(y == 23);
+    return 0;
+}
+
 int main(){
     sqlite3IsNaN(23.0);
+    foo();
     return 0;
 }

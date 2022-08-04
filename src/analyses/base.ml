@@ -2507,9 +2507,22 @@ struct
         | _, [dst; src]
         | _, [dst; src; _]
         | "__builtin___memcpy_chk", [dst; src; _; _] ->
+          let dest_typ = typeOf (Cil.stripCasts dst) in
+          let src_typ = typeOf (Cil.stripCasts src) in
           let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
-          let src_a =  mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-          assign ctx dst_lval (Lval src_a)
+
+          (* When src and destination type coincide, we can assign, otherwise we assign top *)
+          if typeSig dest_typ = typeSig src_typ then begin
+            let src_a = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+            assign ctx dst_lval (Lval src_a)
+          end else begin
+            let value = match unrollType dest_typ with
+              | TPtr (t, _) -> VD.top_value t
+              | _ -> failwith "memcpy to non-ptr type."
+            in
+            let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+            set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          end
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
     | Unknown, "__builtin" ->
