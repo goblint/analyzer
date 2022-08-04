@@ -48,7 +48,7 @@ end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
   (* Copy-paste from Base make_entry *)
-  let globals = CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+  let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
   (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
   let new_cpa = globals in
   {st with cpa = new_cpa}

@@ -119,22 +119,6 @@ let print_gc_quick_stat chn =
     gc.Gc.compactions;
   gc
 
-let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
-(* typedef struct {
-   PROCESS_NAME_TYPE      NAME;
-   SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
-   STACK_SIZE_TYPE        STACK_SIZE;
-   PRIORITY_TYPE          BASE_PRIORITY;
-   SYSTEM_TIME_TYPE       PERIOD;
-   SYSTEM_TIME_TYPE       TIME_CAPACITY;
-   DEADLINE_TYPE          DEADLINE;
-   }                        PROCESS_ATTRIBUTE_TYPE; *)
-let arinc_name          = if scrambled then "M161" else "NAME"
-let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
-let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
-let arinc_period        = if scrambled then "M165" else "PERIOD"
-let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
-
 let exe_dir = Fpath.(parent (v Sys.executable_name))
 let command_line = match Array.to_list Sys.argv with
   | command :: arguments -> Filename.quote_command command arguments

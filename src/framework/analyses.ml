@@ -322,6 +322,63 @@ struct
 end
 
 
+(** Reference to top-level Control Spec context first-class module. *)
+let control_spec_c: (module Printable.S) ref =
+  let module Failwith = Printable.Failwith (
+    struct
+      let message = "uninitialized control_spec_c"
+    end
+    )
+  in
+  ref (module Failwith: Printable.S)
+
+(** Top-level Control Spec context as static module, which delegates to {!control_spec_c}.
+    This allows using top-level context values inside individual analyses. *)
+module ControlSpecC: Printable.S =
+struct
+  type t = Obj.t (** represents [(val !control_spec_c).t] *)
+
+  (* The extra level of indirection allows calls to this static module to go to a dynamic first-class module. *)
+
+  let name () =
+    let module C = (val !control_spec_c) in
+    C.name ()
+
+  let equal x y =
+    let module C = (val !control_spec_c) in
+    C.equal (Obj.obj x) (Obj.obj y)
+  let compare x y =
+    let module C = (val !control_spec_c) in
+    C.compare (Obj.obj x) (Obj.obj y)
+  let hash x =
+    let module C = (val !control_spec_c) in
+    C.hash (Obj.obj x)
+  let tag x =
+    let module C = (val !control_spec_c) in
+    C.tag (Obj.obj x)
+
+  let show x =
+    let module C = (val !control_spec_c) in
+    C.show (Obj.obj x)
+  let pretty () x =
+    let module C = (val !control_spec_c) in
+    C.pretty () (Obj.obj x)
+  let printXml f x =
+    let module C = (val !control_spec_c) in
+    C.printXml f (Obj.obj x)
+  let to_yojson x =
+    let module C = (val !control_spec_c) in
+    C.to_yojson (Obj.obj x)
+
+  let arbitrary () =
+    let module C = (val !control_spec_c) in
+    QCheck.map ~rev:Obj.obj Obj.repr (C.arbitrary ())
+  let relift x =
+    let module C = (val !control_spec_c) in
+    Obj.repr (C.relift (Obj.obj x))
+end
+
+
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
    the same order as written in the dependencies list (in MCP).
@@ -337,12 +394,11 @@ type ('d,'g,'c,'v) ctx =
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
-  ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
-  ; context  : unit -> 'c (** current Spec context *)
+  ; control_context : unit -> ControlSpecC.t (** top-level Control Spec context, raises [Ctx_failure] if missing *)
+  ; context  : unit -> 'c (** current Spec context, raises [Ctx_failure] if missing *)
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit

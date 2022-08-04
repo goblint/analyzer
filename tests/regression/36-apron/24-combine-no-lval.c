@@ -21,12 +21,12 @@ int main(void) {
     y = 6;
   }
 
-  assert(x < y);
-  assert(y - x == 2);
+  __goblint_check(x < y);
+  __goblint_check(y - x == 2);
 
   foo(); // combine without lval shouldn't ruin local state
 
-  assert(x < y);
-  assert(y - x == 2);
+  __goblint_check(x < y);
+  __goblint_check(y - x == 2);
   return 0;
 }

@@ -26,7 +26,7 @@ struct
       let ev = Reg.eval_exp exp in
       let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
       List.map to_exp (Reg.related_globals ev (part,reg))
-    | `Top -> Messages.warn "Region state is broken :("; []
+    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
   let is_bullet exp part st : bool =

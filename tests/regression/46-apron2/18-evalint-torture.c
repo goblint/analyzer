@@ -22,7 +22,7 @@ int main() {
   z = 3;
   w = 4;
 
-#define A1 assert(x + y + z + w == 10); // NOWARN (macro)
+#define A1 __goblint_check(x + y + z + w == 10); // NOWARN (macro)
 #define A2 A1 A1
 #define A4 A2 A2
 #define A8 A4 A4

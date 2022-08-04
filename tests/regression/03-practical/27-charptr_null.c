@@ -17,7 +17,7 @@ int get_ip_range(int *iprange)
     while (*r++)
     {
         *r = '\0';
-        assert(1);
+        __goblint_check(1);
     }
 
     return (0);

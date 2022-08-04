@@ -4,18 +4,18 @@ index 8a93caabe..521322dd0 100644
 +++ tests/incremental/04-manual-restart/02-read_write_global.c
 @@ -1,12 +1,12 @@
  int g = 0;
- 
+
  void foo(){
 -    g = 1;
 +    g = 2;
  }
- 
+
  void bar(){
      int x = g;
--    assert(x % 2 == 0); // UNKNOWN (imprecision caused by earlyglobs)
-+    assert(x % 2 == 0);
+-    __goblint_check(x % 2 == 0); // UNKNOWN (imprecision caused by earlyglobs)
++    __goblint_check(x % 2 == 0);
  }
- 
+
  int main(){
 diff --git tests/incremental/04-manual-restart/02-read_write_global.json tests/incremental/04-manual-restart/02-read_write_global.json
 index 33dd19da4..0820029df 100644

@@ -318,7 +318,6 @@ struct
     { ctx with
       ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
     ; emit
-    ; presub = assoc_sub ctx.local
     ; spawn
     ; sideg
     }

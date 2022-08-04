@@ -486,12 +486,11 @@ struct
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
-      ; control_context = snd var
+      ; control_context = snd var |> Obj.obj
       ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
@@ -643,7 +642,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn "Using special for defined function %s" f.vname;
+        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg
@@ -743,12 +742,11 @@ struct
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
       ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
       ; prev_node = MyCFG.dummy_node
-      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+      ; control_context = (fun () -> ctx_failwith "No context in query context.")
       ; context = (fun () -> ctx_failwith "No context in query context.")
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = (fun _ -> raise Not_found)
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -1126,7 +1124,9 @@ struct
           EM.iter (fun exp tv ->
               match tv with
               | `Lifted tv ->
-                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
+                let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+                let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
               | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()

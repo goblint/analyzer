@@ -4,8 +4,8 @@
 
  void foo() {
    int x = 2;
--  assert(x == 3); //FAIL
-+  assert(x == 3); //TODO (considered rechable without cheap from scratch re-analysis)
+-  __goblint_check(x == 3); //FAIL
++  __goblint_check(x == 3); //TODO (considered rechable without cheap from scratch re-analysis)
  }
 
  int main() {

@@ -32,7 +32,7 @@ int main(void) {
   __goblint_assume_join(id2[2]);
   // t_benign and t_fun should be in here
 
-  assert(g==h); //FAIL
+  __goblint_check(g==h); //FAIL
 
   return 0;
 }

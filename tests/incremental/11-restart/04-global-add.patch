@@ -13,8 +13,8 @@
      pthread_t id;
      pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
 
--    assert(g == 1); // SUCCESS before, unknown after
-+    assert(g == 1); // success before, UNKNOWN after
+-    __goblint_check(g == 1); // SUCCESS before, unknown after
++    __goblint_check(g == 1); // success before, UNKNOWN after
      return 0;
  }
 \ No newline at end of file

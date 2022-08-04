@@ -2,7 +2,7 @@
 
 void foo() {
   int x = 2;
-  assert(x == 3); //FAIL
+  __goblint_check(x == 3); //FAIL
 }
 
 int main() {

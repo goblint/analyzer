@@ -1,5 +1,6 @@
 // PARAM: --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 // extracted from ddverify pcwd
+#include <assert.h>
 
 // header declarations
 
@@ -48,7 +49,7 @@ void call_cdev_functions()
 // concrete program
 
 void pcwd_ioctl() {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
 }
 
 static const struct file_operations pcwd_fops = {

@@ -24,7 +24,7 @@ struct
   module ChainParams =
   struct
     (* let n = List.length Arg.path *)
-    let n = -1
+    let n () = -1
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)

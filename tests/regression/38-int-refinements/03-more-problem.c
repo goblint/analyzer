@@ -1,4 +1,5 @@
 //PARAM: --set ana.int.refinement once --enable ana.int.interval --enable ana.int.congruence --disable ana.int.def_exc
+#include <assert.h>
 
 int main(void)
 {
@@ -13,5 +14,5 @@ int main(void)
     ret = 1;
   }
 
-  assert(ret == 0); //UNKNOWN!
+  __goblint_check(ret == 0); //UNKNOWN!
 }
