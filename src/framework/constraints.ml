@@ -478,12 +478,11 @@ struct
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
-      ; control_context = snd var
+      ; control_context = snd var |> Obj.obj
       ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
       ; global  = getg
-      ; presub  = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg

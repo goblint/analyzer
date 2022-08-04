@@ -27,9 +27,9 @@ int pqueue_get()
   int got = 0;
   pthread_mutex_lock(&A);
   while (g <= 0) {
-    assert(g == 0);
+    __goblint_check(g == 0);
   }
-  assert(g != 0);
+  __goblint_check(g != 0);
   if (g > 0) {
     g--;
     got = 1;

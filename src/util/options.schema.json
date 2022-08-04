@@ -326,7 +326,8 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+            "assert"
           ]
         },
         "path_sens": {
@@ -406,6 +407,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "ana.float",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "title": "ana.float.interval",
+              "description":
+                "Use FloatDomain: (float * float) option.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "file": {
           "title": "ana.file",
           "type": "object",
@@ -442,48 +457,6 @@
                 "Insert extra assertions into Promela code for debugging.",
               "type": "boolean",
               "default": true
-            }
-          },
-          "additionalProperties": false
-        },
-        "arinc": {
-          "title": "ana.arinc",
-          "type": "object",
-          "properties": {
-            "assume_success": {
-              "title": "ana.arinc.assume_success",
-              "description":
-                "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it).",
-              "type": "boolean",
-              "default": true
-            },
-            "simplify": {
-              "title": "ana.arinc.simplify",
-              "description":
-                "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call.",
-              "type": "boolean",
-              "default": true
-            },
-            "validate": {
-              "title": "ana.arinc.validate",
-              "description":
-                "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables.",
-              "type": "boolean",
-              "default": true
-            },
-            "export": {
-              "title": "ana.arinc.export",
-              "description":
-                "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way.",
-              "type": "boolean",
-              "default": true
-            },
-            "merge_globals": {
-              "title": "ana.arinc.merge_globals",
-              "description":
-                "Merge all global return code variables into one.",
-              "type": "boolean",
-              "default": false
             }
           },
           "additionalProperties": false
@@ -590,6 +563,12 @@
                 }
               },
               "additionalProperties": false
+            },
+            "limit-string-addresses": {
+              "title": "ana.base.limit-string-addresses",
+              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
+              "type": "boolean",
+              "default": true
             },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",
@@ -735,6 +714,12 @@
                 "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                 "kzalloc"
               ]
+            },
+            "unique_address_count": {
+                "title": "ana.malloc.unique_address_count",
+                "description": "Number of unique memory addresses allocated for each malloc node.",
+                "type": "integer",
+                "default": 0
             }
           },
           "additionalProperties": false
@@ -1105,6 +1090,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "assert": {
+          "title": "sem.assert",
+          "type": "object",
+          "properties": {
+            "refine": {
+              "title": "sem.assert.refine",
+              "description": "Standard assert refines state",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1167,6 +1165,20 @@
                 "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true.",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "float": {
+          "title": "annotation.float",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.float.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1364,6 +1376,12 @@
             "Sets the unrolling factor for the loopUnrollingVisitor.",
           "type": "integer",
           "default": 0
+        },
+        "hide-std-globals": {
+          "title": "exp.hide-std-globals",
+          "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false
@@ -1605,6 +1623,12 @@
         "integer": {
           "title": "warn.integer",
           "description": "integer (Overflow, Div_by_zero) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "float": {
+          "title": "warn.float",
+          "description": "float warnings",
           "type": "boolean",
           "default": true
         },

@@ -1,9 +1,11 @@
+#include <assert.h>
+
 extern int scanf(char *, ...);
 
 int *rec(int i) {
   int *p;
   if (!i) {
-    assert(i == 0);
+    __goblint_check(i == 0);
     p = rec(i + 1);
   }
   return &i;

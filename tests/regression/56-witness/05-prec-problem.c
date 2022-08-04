@@ -17,6 +17,6 @@ int main(){
     int five2 = 5;
     int y = foo(&five, &five);
     int z = foo(&five, &five2);
-    assert(y != z);
+    __goblint_check(y != z);
     return 0;
 }

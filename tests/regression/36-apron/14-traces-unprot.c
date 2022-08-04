@@ -21,6 +21,6 @@ int main(void) {
   x = g;
   y = g;
   // unlock(m_g)-s must forget relation with unprotected
-  assert(x == y); // UNKNOWN!
+  __goblint_check(x == y); // UNKNOWN!
   return 0;
 }

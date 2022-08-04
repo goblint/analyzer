@@ -55,7 +55,8 @@
       },
       "structs" : {
         "domain" : "combined-sk"
-      }
+      },
+      "limit-string-addresses": false
     }
   },
   "exp": {

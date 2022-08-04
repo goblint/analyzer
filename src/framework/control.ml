@@ -31,6 +31,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
   GobConfig.building_spec := false;
+  Analyses.control_spec_c := (module S1.C);
   (module S1)
 )
 
@@ -228,8 +229,15 @@ struct
       let set_bad v st =
         Spec.assign {ctx with local = st} (var v) MyCFG.unknown_exp
       in
+      let is_std = function
+        | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
+        | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+          true
+        | _ -> false
+      in
       let add_externs s = function
-        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
+        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) && not (get_bool "exp.hide-std-globals" && is_std v) -> set_bad v s
         | _ -> s
       in
       foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
@@ -254,12 +262,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
+        ; control_context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = getg
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = sideg
@@ -354,12 +361,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = getg
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
@@ -387,12 +393,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = getg
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
@@ -588,12 +593,11 @@ struct
                 ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
                 ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
                 ; prev_node = MyCFG.dummy_node
-                ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+                ; control_context = (fun () -> ctx_failwith "No context in query context.")
                 ; context = (fun () -> ctx_failwith "No context in query context.")
                 ; edge    = MyCFG.Skip
                 ; local  = local
                 ; global = GHT.find gh
-                ; presub = (fun _ -> raise Not_found)
                 ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
                 ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
                 ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -642,12 +646,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
         ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+        ; control_context = (fun () -> ctx_failwith "No context in query context.")
         ; context = (fun () -> ctx_failwith "No context in query context.")
         ; edge    = MyCFG.Skip
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
         ; global = (fun v -> try GHT.find gh v with Not_found -> EQSys.G.bot ())
-        ; presub = (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -711,4 +714,5 @@ let compute_cfg file =
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let (module CFG) = compute_cfg file in
+  MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info

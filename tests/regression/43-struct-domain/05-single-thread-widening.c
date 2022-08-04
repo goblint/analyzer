@@ -65,19 +65,19 @@ int main() {
     typedef int (*fun)(int);
     if (functionToRun.id == 1) {
         fun f = functionToRun.ptr;
-        assert(f == factorial || (void*)f == exit);
-        assert((void*)f == exit); // TODO
+        __goblint_check(f == factorial || (void*)f == exit);
+        __goblint_check((void*)f == exit); // TODO
         int result = f(n);
         printf("Factorial of %d is %d\n", n, result);
     } else if (functionToRun.id == 2) {
         fun f = functionToRun.ptr;
-        assert(f == inverseFactorial || (void*)f == exit);
-        assert((void*)f == exit); // TODO
+        __goblint_check(f == inverseFactorial || (void*)f == exit);
+        __goblint_check((void*)f == exit); // TODO
         int result = f(n);
         printf("Factorial of %d is %d\n", result, n);
     } else {
         fun f = functionToRun.ptr;
-        assert((void*)f == exit);
+        __goblint_check((void*)f == exit);
         printf("Exiting with code %d...\n", n);
         int result = f(n);
     }

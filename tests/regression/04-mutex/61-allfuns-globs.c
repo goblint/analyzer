@@ -12,7 +12,7 @@ void t1() {
   myglobal++; //RACE!
   pthread_mutex_unlock(&A_mutex);
 
-  assert(three == 3);
+  __goblint_check(three == 3);
 }
 
 void t2() {
@@ -20,5 +20,5 @@ void t2() {
   myglobal++; //RACE!
   pthread_mutex_unlock(&B_mutex);
 
-  assert(three == 3);
+  __goblint_check(three == 3);
 }

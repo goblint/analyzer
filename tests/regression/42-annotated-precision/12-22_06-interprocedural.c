@@ -1,4 +1,5 @@
-// PARAM: --set solver td3 --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set ana.base.arrays.domain partitioned --enable annotation.int.enabled --set ana.int.refinement fixpoint
+#include <assert.h>
 
 void example1() __attribute__((goblint_precision("no-def_exc","interval")));
 void init_array(int* arr, int val) __attribute__((goblint_precision("no-def_exc","interval")));
@@ -17,15 +18,15 @@ void example1() {
 
   init_array(a, 42);
 
-  assert(a[2] == 42);
-  assert(a[10] == 42);
+  __goblint_check(a[2] == 42);
+  __goblint_check(a[10] == 42);
 
   do_first(a);
-  assert(a[0] == 3);
+  __goblint_check(a[0] == 3);
 
   init_array(b,12);
-  assert(b[2] == 12);
-  assert(b[10] == 12);
+  __goblint_check(b[2] == 12);
+  __goblint_check(b[10] == 12);
 }
 
 void do_first(int* arr) {
@@ -39,8 +40,8 @@ void init_array(int* arr, int val) {
   }
   arr[0] = val;
 
-  assert(arr[2] == val);
-  assert(arr[10] == val);
+  __goblint_check(arr[2] == val);
+  __goblint_check(arr[10] == val);
 }
 
 // ----------------------------------- Example 2 ------------------------------------------------------------------------------
@@ -51,21 +52,21 @@ void example2(void) {
   for(int i = 0; i < 20; i++)
   {
     arr[i] = 42;
-    assert(arr[i] == 42);
+    __goblint_check(arr[i] == 42);
     callee(arr);
   }
 
-  assert(arr[0] == 100); //FAIL
-  assert(arr[0] == 7); //UNKNOWN
-  assert(arr[0] == 42); //UNKNOWN
+  __goblint_check(arr[0] == 100); //FAIL
+  __goblint_check(arr[0] == 7); //UNKNOWN
+  __goblint_check(arr[0] == 42); //UNKNOWN
 
-  assert(arr[7] == 100); //FAIL
-  assert(arr[7] == 7); //UNKNOWN
-  assert(arr[7] == 42); //UNKNOWN
+  __goblint_check(arr[7] == 100); //FAIL
+  __goblint_check(arr[7] == 7); //UNKNOWN
+  __goblint_check(arr[7] == 42); //UNKNOWN
 
-  assert(arr[20] == 100); //FAIL
-  assert(arr[20] == 7); //UNKNOWN
-  assert(arr[20] == 42); //UNKNOWN
+  __goblint_check(arr[20] == 100); //FAIL
+  __goblint_check(arr[20] == 7); //UNKNOWN
+  __goblint_check(arr[20] == 42); //UNKNOWN
 }
 
 void callee(int* arr) {

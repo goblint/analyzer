@@ -26,7 +26,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   x = g; // may read 10!
-  assert(g <= 5); // UNKNOWN!
+  __goblint_check(g <= 5); // UNKNOWN!
   pthread_mutex_unlock(&A);
   return 0;
 }
