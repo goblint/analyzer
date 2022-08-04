@@ -1,6 +1,7 @@
 
 // Test case taken from sqlite3.c
 #include <string.h>
+#include <stdlib.h>
 
 typedef unsigned long u64;
 
@@ -45,9 +46,80 @@ int bar(){
     return 0;
 }
 
+int foo_heap(){
+    int *m = malloc(sizeof(int));
+    void *n = malloc(sizeof(int));
+
+    *(int*) n = 23;
+    memcpy(m,n,sizeof(int));
+
+    __goblint_check(m == 23); //UNKNOWN
+
+    return 0;
+}
+
+int foo_heap2(){
+    void *m = malloc(sizeof(int));
+    int *n = malloc(sizeof(int));
+
+    *n = 23;
+    memcpy(m,n,sizeof(int));
+
+    __goblint_check(*(int*) m == 23); //UNKNOWN
+
+    return 0;
+}
+
+int foo_heap3(){
+    int *m = malloc(sizeof(int));
+    int *n = malloc(sizeof(int));
+
+    *n = 23;
+    memcpy(m,n,sizeof(int));
+
+    __goblint_check(*m == 23);
+
+    return 0;
+}
+
+int foo_heap4(){
+    int *m = malloc(sizeof(int));
+    int *n = malloc(sizeof(int));
+
+    *m = 0;
+    *n = 23;
+    void *pd = m;
+    void *ps = n;
+
+    memcpy(pd, ps, sizeof(int));
+
+    __goblint_check(*m == 23); //UNKNOWN
+
+    return 0;
+}
+
+int locals_via_void_ptr(){
+    int d = 4;
+    int s = 23;
+
+    void *pd = &d;
+    void *ps = &s;
+
+    memcpy(pd, ps, sizeof(int));
+
+    __goblint_check( d == 23);
+
+    return 0;
+}
+
 int main(){
     sqlite3IsNaN(23.0);
     foo();
     bar();
+    foo_heap();
+    foo_heap2();
+    foo_heap3();
+    foo_heap4();
+    locals_via_void_ptr();
     return 0;
 }
