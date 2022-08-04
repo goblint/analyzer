@@ -60,7 +60,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
     let emptyRenameMapping = (StringMap.empty, VarinfoMap.empty) in
 
     (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal,
-    * and as a second a rename_mapping, holding the rename assumptions *)
+       and as a second a rename_mapping, holding the rename assumptions *)
     let rec rename_mapping_aware_compare (alocals: varinfo list) (blocals: varinfo list) (rename_mapping: string StringMap.t) = match alocals, blocals with
       | [], [] -> true, rename_mapping
       | origLocal :: als, nowLocal :: bls ->

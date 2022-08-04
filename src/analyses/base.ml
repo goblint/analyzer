@@ -2516,8 +2516,8 @@ struct
         | "__builtin___memcpy_chk", [dst; src; _; _] ->
           (* invalidating from interactive *)
           (* let dest_a, dest_typ = addr_type_of_exp dst in
-          let value = VD.top_value dest_typ in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
+             let value = VD.top_value dest_typ in
+             set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
           (* assigning from master *)
           let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
           let src_a =  mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
