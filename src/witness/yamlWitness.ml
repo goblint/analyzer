@@ -56,19 +56,19 @@ struct
 
   let loop_invariant ~task ~location ~(invariant): Entry.t = {
     entry_type = LoopInvariant {
-      location;
-      loop_invariant = invariant;
-    };
+        location;
+        loop_invariant = invariant;
+      };
     metadata = metadata ~task ();
   }
 
   (* non-standard extension *)
   let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
     entry_type = PreconditionLoopInvariant {
-      location;
-      loop_invariant = invariant;
-      precondition;
-    };
+        location;
+        loop_invariant = invariant;
+        precondition;
+      };
     metadata = metadata ~task ();
   }
 
@@ -86,9 +86,9 @@ struct
 
   let loop_invariant_certificate ~target ~(certification): Entry.t = {
     entry_type = LoopInvariantCertificate {
-      target;
-      certification;
-    };
+        target;
+        certification;
+      };
     metadata = metadata ();
   }
 

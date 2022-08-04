@@ -178,8 +178,8 @@ struct
 
   let add (file_loc_es: t) (loc: Cil.location) (e: E.t): unit =
     FileH.modify_def LocM.empty loc.file (
-        LocM.modify_def ES.empty loc (ES.add e)
-      ) file_loc_es
+      LocM.modify_def ES.empty loc (ES.add e)
+    ) file_loc_es
 
   let find_opt (file_loc_es: t) (loc: Cil.location): ES.t option =
     let (let*) = Option.bind in (* TODO: move to general library *)
