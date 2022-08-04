@@ -1007,17 +1007,12 @@
                   "type": "boolean",
                   "default": false
                 },
-                "only-global": {
-                  "title": "incremental.restart.sided.only-global",
-                  "description": "Restart only constraint system globals (not function entry nodes).",
-                  "type": "boolean",
-                  "default": false
-                },
-                "only-access" : {
-                  "title" : "incremental.restart.sided.only-access",
-                  "description" : "Restart only write-only variables.",
-                  "type" : "boolean",
-                  "default" : false
+                "vars": {
+                  "title": "incremental.restart.sided.vars",
+                  "description": "Side-effected variables to restart. Globals are non-function entry nodes. Write-only is a subset of globals.",
+                  "type": "string",
+                  "enum": ["all", "global", "write-only"],
+                  "default": "all"
                 },
                 "fuel": {
                   "title": "incremental.restart.sided.fuel",

@@ -103,8 +103,7 @@ module WP =
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
       let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
-      let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
-      let restart_only_access = GobConfig.get_bool "incremental.restart.sided.only-access" in
+      let restart_vars = GobConfig.get_string "incremental.restart.sided.vars" in
 
       let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
       let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
@@ -391,10 +390,14 @@ module WP =
           HM.remove side_dep x;
 
           let should_restart =
-            if restart_only_access then
-              S.Var.is_write_only x
-            else
-              (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && (not (S.Var.is_write_only x) || not restart_write_only)
+            match restart_write_only, S.Var.is_write_only x with
+            | true, true -> false (* prefer efficient write-only restarting during postsolving *)
+            | _, is_write_only ->
+              match restart_vars with
+              | "all" -> true
+              | "global" -> Node.equal (S.Var.node x) (Function Cil.dummyFunDec) (* non-function entry node *)
+              | "write-only" -> is_write_only
+              | _ -> assert false
           in
 
           if not (VS.is_empty w) && should_restart then (
@@ -634,10 +637,13 @@ module WP =
           destabilize x
         in
 
+        let should_restart_start = restart_sided && restart_vars <> "write-only" in (* assuming start vars are not write-only *)
+        (* TODO: should this distinguish non-global (function entry) and global (earlyglobs) start vars? *)
+
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
-            if restart_sided && not restart_only_access then (
+            if should_restart_start then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
                 ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
@@ -651,7 +657,7 @@ module WP =
             side v d
           ) st;
 
-        if restart_sided && not restart_only_access then (
+        if should_restart_start then (
           List.iter (fun (v, _) ->
               match GobList.assoc_eq_opt S.Var.equal v st with
               | None ->
