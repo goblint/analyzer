@@ -1,5 +1,6 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']"
+// PARAM: --set ana.activated[+] malloc_null
 #include <stdlib.h>
+#include <assert.h>
 
 void *smalloc(size_t x){
         void * p = malloc(x);
@@ -24,9 +25,9 @@ int main(void) {
 
         v = (int*)malloc(sizeof(*v));
         if (v == 0){
-                assert(0); // FAIL
+                __goblint_check(0); // FAIL
   } else {
-                assert(0); // FAIL
+                __goblint_check(0); // FAIL
                 *v != 0; // NOWARN
         }
 
@@ -36,7 +37,7 @@ int main(void) {
         if (v == 0)
                 exit(0);
 
-        assert(0); // NOWARN
+        __goblint_check(0); // NOWARN
 
   return 0;
 }

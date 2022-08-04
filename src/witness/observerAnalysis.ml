@@ -24,11 +24,10 @@ struct
   module ChainParams =
   struct
     (* let n = List.length Arg.path *)
-    let n = -1
+    let n () = -1
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
-  module G = Lattice.Unit
   module C = D
 
   let should_join x y = D.equal x y (* fully path-sensitive *)
@@ -62,11 +61,11 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     step_ctx ctx
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* ctx.local doesn't matter here? *)
     [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f)]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     step au (Function f) ctx.node
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -88,8 +87,7 @@ module MakePathSpec (Arg: PathArg) : Analyses.MCPSpec =
 struct
   module KMP = ObserverAutomaton.KMP (
     struct
-      type t = node * node
-      let equal (p1, n1) (p2, n2) = Node.equal p1 p2 && Node.equal n1 n2
+      type t = Node.t * Node.t [@@deriving eq]
       let pattern = Array.of_list Arg.path
     end
   )

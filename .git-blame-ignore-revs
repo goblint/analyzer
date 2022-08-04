@@ -22,3 +22,9 @@ dd220cf089efd7dfb022e6dbc9a00749a5f72cb2
 
 # Reorder so correct query function is used
 78eb0601b5f680d8789366b725cfc6df48137a31
+
+# Fix recent indentation problems in messages, JSON, Z3
+ec8611a3a72ae0d95ec82ffee16c5c4785111aa1
+
+# Set up end-of-line normalization.
+78fd79e7f4d15c4412221b155971fac2e0616b90

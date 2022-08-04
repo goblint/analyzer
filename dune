@@ -4,5 +4,12 @@
   (target goblint)
   (deps src/goblint.exe)
   (action (copy src/goblint.exe goblint))
-  (mode (promote (until-clean))) ; replace existing file in source tree
+  (mode (promote (until-clean) (only goblint))) ; replace existing file in source tree, even if releasing (only overrides)
+)
+
+(rule
+  (target goblint.byte)
+  (deps src/goblint.bc)
+  (action (copy src/goblint.bc goblint.byte))
+  (mode (promote (until-clean) (only goblint.byte))) ; replace existing file in source tree, even if releasing (only overrides)
 )

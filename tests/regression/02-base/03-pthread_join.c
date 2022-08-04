@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] threadreturn
+// PARAM: --set ana.activated[+] threadreturn
 #include<pthread.h>
 #include<assert.h>
 #include<stdio.h>
@@ -34,14 +34,14 @@ int glob2 = 7;
 int main() {
   int i = 3;
   pthread_t id;
-  assert(i == 3);
+  __goblint_check(i == 3);
 
   // Create the thread
   pthread_create(&id, NULL, t_fun, NULL);
 
   // Join the thread
   pthread_join(id, (void**) &i);
-  assert(i == 7);
+  __goblint_check(i == 7);
   printf("%d\n", i);
 
   // Create the thread 2
@@ -49,7 +49,7 @@ int main() {
 
   // Join the thread 2
   pthread_join(id, (void**) &i);
-  assert(i == 9);
+  __goblint_check(i == 9);
   printf("%d\n", i);
 
   // Create the thread 3
@@ -57,7 +57,7 @@ int main() {
 
   // Join the thread 3
   pthread_join(id, (void**) &i);
-  assert(i == 11);
+  __goblint_check(i == 11);
   printf("%d\n", i);
 
   // Create the thread 4
@@ -65,7 +65,7 @@ int main() {
 
   // Join the thread 4
   pthread_join(id, (void**) &i);
-  assert(i == 13);
+  __goblint_check(i == 13);
   printf("%d\n", i);
 
   // Another test

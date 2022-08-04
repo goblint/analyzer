@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open Cil
-open Deriving.Cil
 open BatteriesExceptionless
 open Option.Infix
 
@@ -16,9 +15,9 @@ class uniqueVarPrinterClass =
 
     method! pExp () =
       function
-      | Const (CInt64 (i, _, _)) ->
+      | Const (CInt (i, _, _)) ->
           (* Fix the constants with long/unsigned suffixes, e.g. 1LL *)
-          text @@ string_of_int @@ Int64.to_int i
+          text @@ string_of_int @@ Z.to_int i
       | x ->
           super#pExp () x
   end
@@ -283,7 +282,7 @@ module Tbls = struct
       let line = -5 - all_keys_count table in
       let loc = { !Tracing.current_loc with line } in
       MyCFG.Statement
-        { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with
+        { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc, loc)) with
           sid = new_sid ()
         }
   end)
@@ -306,11 +305,10 @@ let fun_ctx ctx f =
 
 
 module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (PthreadDomain.D))
-
 module rec Env : sig
   type t
 
-  val get : (PthreadDomain.D.t, Tasks.t, PthreadDomain.D.t) ctx -> t
+  val get : (PthreadDomain.D.t, Tasks.t, PthreadDomain.D.t, _) ctx -> t
 
   val d : t -> PthreadDomain.D.t
 
@@ -327,7 +325,7 @@ end = struct
   let get ctx =
     let d : PthreadDomain.D.t = ctx.local in
     let node = Option.get !MyCFG.current_node in
-    let fundec = MyCFG.getFun node in
+    let fundec = Node.find_fundec node in
     let thread_name =
       let cur_tid =
         Int64.to_int @@ Option.get @@ PthreadDomain.Tid.to_int d.tid
@@ -338,7 +336,7 @@ end = struct
       let is_main_fun =
         promela_main
         |> GobConfig.get_list
-        |> List.map Json.string
+        |> List.map Yojson.Safe.to_string
         |> List.mem fundec.svar.vname
       in
       let is_thread_fun =
@@ -363,7 +361,7 @@ end
 and Edges : sig
   val table : (Resource.t, edge Set.t) Hashtbl.t
 
-  val add : ?dst:Node.node -> ?d:PthreadDomain.D.t -> Env.t -> Action.t -> unit
+  val add : ?dst:Node.t -> ?d:PthreadDomain.D.t -> Env.t -> Action.t -> unit
 
   val get : Resource.t -> edge Set.t
 
@@ -387,7 +385,7 @@ end = struct
     let add_edge_for_node node =
       let env_node = Env.node env in
       let env_res = Env.resource env in
-      let action_edge = (node, action, MyCFG.getLoc (dst |? env_node)) in
+      let action_edge = (node, action, Node.location (dst |? env_node)) in
       Hashtbl.modify_def Set.empty env_res (Set.add action_edge) table
     in
     Pred.iter add_edge_for_node preds
@@ -585,7 +583,7 @@ module Codegen = struct
       HashtblN.filter (Set.mem node % Set.map get_b) a2bs
       |> HashtblN.values
       |> List.of_enum
-      |> flat_map Set.elements
+      |> List.concat_map Set.elements
 
 
     let out_edges a2bs node =
@@ -632,11 +630,12 @@ module Codegen = struct
           ""
   end
 
+
   module Writer = struct
     let write desc ext content =
-      let dir = Goblintutil.create_dir "result" in
-      let path = dir ^ "/pthread." ^ ext in
-      output_file path content ;
+      let dir = Goblintutil.create_dir (Fpath.v "result") in
+      let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("/pthread." ^ ext)) in
+      output_file ~filename:path ~text:content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path
   end
 
@@ -744,7 +743,7 @@ module Codegen = struct
             end_label ^ ": " ^ end_stmt
           in
           goto_start_node
-          :: (flat_map walk_edges @@ AdjacencyMatrix.items a2bs)
+          :: (List.concat_map walk_edges @@ AdjacencyMatrix.items a2bs)
           @ [ return ]
         in
         let head =
@@ -778,7 +777,7 @@ module Codegen = struct
         let called_fun_ids =
           List.map (fun fname -> (Resource.Function, fname)) !called_funs
         in
-        let funs = flat_map process_def called_fun_ids in
+        let funs = List.concat_map process_def called_fun_ids in
         ("" :: head :: List.map tabulate body)
         @ funs
         @ [ (if is_thread then "}" else "") ]
@@ -808,7 +807,7 @@ module Codegen = struct
       |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
       |> List.unique
       |> List.sort (compareBy PmlResTbl.get)
-      |> flat_map process_def
+      |> List.concat_map process_def
     in
     let fun_ret_defs =
       let fun_map fun_calls =
@@ -828,7 +827,7 @@ module Codegen = struct
       in
       Tbls.FunCallTbl.to_list ()
       |> List.group (compareBy (fst % fst))
-      |> flat_map fun_map
+      |> List.concat_map fun_map
     in
     let globals = List.map Variable.show_def @@ Variables.get_globals () in
     let promela =
@@ -914,12 +913,14 @@ module Codegen = struct
        pthread.pml && cc -o pan pan.c && ./pan"
 end
 
-module Spec : Analyses.MCPSpec = struct
-  module M = Messages
-  module List = BatList
 
+module Spec : Analyses.MCPSpec = struct
   (* Spec implementation *)
   include Analyses.DefaultSpec
+
+  module M = Messages
+  module List = BatList
+  module V = VarinfoV
 
   (** Domains *)
   include PthreadDomain
@@ -938,9 +939,8 @@ module Spec : Analyses.MCPSpec = struct
   module ExprEval = struct
     let eval_ptr ctx exp =
       let mayPointTo ctx exp =
-        match ctx.ask (Queries.MayPointTo exp) with
-        | `LvalSet a
-          when (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0 ->
+        let a = ctx.ask (Queries.MayPointTo exp) in
+        if (not (Queries.LS.is_top a)) && Queries.LS.cardinal a > 0 then
             let top_elt = (dummyFunDec.svar, `NoOffset) in
             let a' =
               if Queries.LS.mem top_elt a
@@ -949,9 +949,7 @@ module Spec : Analyses.MCPSpec = struct
               else a
             in
             Queries.LS.elements a'
-        | `Bot ->
-            []
-        | v ->
+        else
             []
       in
       List.map fst @@ mayPointTo ctx exp
@@ -1035,7 +1033,7 @@ module Spec : Analyses.MCPSpec = struct
 
       let add_action pred_str =
         match Env.node env with
-        | MyCFG.Statement { skind = If (e, bt, bf, loc); _ } ->
+        | MyCFG.Statement { skind = If (e, bt, bf, loc, _); _ } ->
             let intermediate_node =
               let then_stmt =
                 List.hd
@@ -1065,10 +1063,10 @@ module Spec : Analyses.MCPSpec = struct
 
       let handle_binop op lhs rhs =
         match (lhs, rhs) with
-        | Lval (lhost, _), Const (CInt64 (i, _, _))
-        | Const (CInt64 (i, _, _)), Lval (lhost, _)
+        | Lval (lhost, _), Const (CInt (i, _, _))
+        | Const (CInt (i, _, _)), Lval (lhost, _)
           when is_valid_var lhost ->
-            add_action @@ pred_str op (var_str lhost) (Int64.to_string i)
+            add_action @@ pred_str op (var_str lhost) (Z.to_string i)
         | Lval (lhostA, _), Lval (lhostB, _)
           when is_valid_var lhostA && is_valid_var lhostB ->
             add_action @@ pred_str op (var_str lhostA) (var_str lhostB)
@@ -1088,7 +1086,7 @@ module Spec : Analyses.MCPSpec = struct
           handle_binop op (stripCasts a) (stripCasts b)
       | UnOp (LNot, a, _) ->
           handle_unop a (not tv)
-      | Const (CInt64 (i, _, _)) ->
+      | Const (CInt _) ->
           handle_unop exp tv
       | _ ->
           ctx.local
@@ -1098,17 +1096,17 @@ module Spec : Analyses.MCPSpec = struct
     (* enter is not called for spawned threads -> initialize them here *)
     let module BaseMain = (val Base.get_main ()) in
     let context_hash =
-      let base_context =
+      (* let base_context =
         BaseMain.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub
-      in
-      Int64.of_int @@ Hashtbl.hash (base_context, ctx.local.tid)
+      in *)
+      Int64.of_int @@ Hashtbl.hash ("TODO", ctx.local.tid)
     in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 
   let return ctx (exp : exp option) (f : fundec) : D.t = ctx.local
 
-  let enter ctx (lval : lval option) (f : varinfo) (args : exp list) :
+  let enter ctx (lval : lval option) (f : fundec) (args : exp list) :
       (D.t * D.t) list =
     (* on function calls (also for main); not called for spawned threads *)
     let d_caller = ctx.local in
@@ -1129,7 +1127,7 @@ module Spec : Analyses.MCPSpec = struct
       ctx
       (lval : lval option)
       fexp
-      (f : varinfo)
+      (f : fundec)
       (args : exp list)
       fc
       (au : D.t) : D.t =
@@ -1152,7 +1150,7 @@ module Spec : Analyses.MCPSpec = struct
         ( if Ctx.is_int d_callee.ctx
         then
           let last_pred = d_caller.pred in
-          let action = Action.Call (fun_ctx d_callee.ctx f) in
+          let action = Action.Call (fun_ctx d_callee.ctx f.svar) in
           Edges.add ~d:{ d_caller with pred = last_pred } env action ) ;
         (* set current node as new predecessor, since something interesting happend during the call *)
         { d_callee with
@@ -1201,10 +1199,7 @@ module Spec : Analyses.MCPSpec = struct
           add_action (Action.Call "exit")
       | ThreadCreate, [ thread; thread_attr; func; fun_arg ] ->
           let funs_ls =
-            let ls =
-              let start_routine = ctx.ask (Queries.ReachableFrom func) in
-              match start_routine with `LvalSet ls -> ls | _ -> failwith ""
-            in
+            let ls = ctx.ask (Queries.ReachableFrom func) in
             Queries.LS.filter
               (fun (v, o) ->
                 let lval = (Var v, Lval.CilLval.to_ciloffs o) in
@@ -1223,7 +1218,7 @@ module Spec : Analyses.MCPSpec = struct
             let tasks =
               let f_d =
                 { tid = Tid.of_int @@ Int64.of_int tid
-                ; pred = Pred.of_node (MyCFG.Function f)
+                ; pred = Pred.of_node (MyCFG.Function (Cilfacade.find_varinfo_fundec f))
                 ; ctx = Ctx.top ()
                 }
               in
@@ -1332,7 +1327,7 @@ module Spec : Analyses.MCPSpec = struct
     let open D in
     make
       (Tid.of_int 0L)
-      (Pred.of_node (MyCFG.Function (emptyFunction "main").svar))
+      (Pred.of_node (MyCFG.Function (emptyFunction "main")))
       (Ctx.top ())
 
 
@@ -1354,6 +1349,8 @@ module Spec : Analyses.MCPSpec = struct
   let exitstate v = D.bot ()
 
   let finalize = Codegen.save_promela_model
+
+  let init _ = ()
 end
 
 let _ = MCP.register_analysis ~dep:[ "base" ] (module Spec : MCPSpec)

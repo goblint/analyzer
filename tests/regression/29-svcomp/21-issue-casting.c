@@ -1,4 +1,6 @@
-// PARAM: --set ana.activated ["'base'","'mallocWrapper'"]
+// PARAM: --set ana.activated ["'base'","'mallocWrapper'"] --set ana.base.privatization none
+// minimal analyses to reveal bug
+// none privatization because mutex deactivated
 static long main(void)
 {
   unsigned int cmd;

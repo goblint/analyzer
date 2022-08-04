@@ -15,7 +15,7 @@ int pqueue_init()
 int pqueue_put()
 {
   pthread_mutex_lock(&A);
-  g++;
+  g++; // overflow gives < 0 values!
   pthread_mutex_unlock(&A);
   return (1);
 }
@@ -26,10 +26,11 @@ int pqueue_get()
   pthread_mutex_lock(&A);
   while (g <= 0) {
     // g should not be just 0, unsoundness in old
-    assert(g == 0); // UNKNOWN!
+    __goblint_check(g == 0); // UNKNOWN (no interval, with overflow)
+    // this assert should not refine!
   }
   // g should not be Error int, unsoundness in global
-  assert(g != 0);
+  __goblint_check(g != 0);
   if (g > 0) {
     g--;
     got = 1;

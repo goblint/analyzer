@@ -18,8 +18,12 @@ sig
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
-  val widen: t -> t -> t
+  val widen: t -> t -> t (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
+
   val narrow: t -> t -> t
+
+  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
+  val pretty_diff: unit -> (t * t) -> Pretty.doc
 end
 
 (* complete lattice *)
@@ -50,6 +54,8 @@ struct
   let is_top _ = true
   let bot () = ()
   let is_bot _ = true
+
+  let pretty_diff () _ = Pretty.text "UnitConf: impossible"
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -68,6 +74,9 @@ struct
   let is_top _ = false
   let bot () = raise (Unsupported "fake bot")
   let is_bot _ = false
+
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not equal %a" (Base.name ()) pretty x pretty y
 end
 
 module type PD =
@@ -88,6 +97,8 @@ struct
   let bot () = Base.dummy
   let is_top _ = true
   let is_bot _ = true
+
+  let pretty_diff () _ = Pretty.text "FakeSingleton: impossible"
 end
 
 module Reverse (Base: S) =
@@ -125,6 +136,8 @@ struct
   let is_bot = lift_f Base.is_bot
   let top () = lift (Base.top ())
   let bot () = lift (Base.bot ())
+
+  let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
 end
 
 module HashCached (M: S) =
@@ -140,6 +153,8 @@ struct
   let is_bot = lift_f M.is_bot
   let top () = lift @@ M.top ()
   let is_top = lift_f M.is_top
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = M.pretty_diff () (unlift x, unlift y)
 end
 
 module Flat (Base: Printable.S) (N: Printable.LiftingNames) =
@@ -315,8 +330,11 @@ struct
     | _ -> false
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    if leq x y then Pretty.text "No Changes" else
-      Pretty.dprintf "%a instead of %a" pretty x pretty y
+    match x, y with
+    | `Lifted1 x, `Lifted1 y -> Base1.pretty_diff () (x, y)
+    | `Lifted2 x, `Lifted2 y -> Base2.pretty_diff () (x, y)
+    | _ when leq x y -> Pretty.text "No Changes"
+    | _ -> Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let join x y =
     match (x,y) with
@@ -393,37 +411,6 @@ end
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
 module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
-module LexProd (Base1: S) (Base2: S) =
-struct
-  include Prod (Base1) (Base2)
-
-  let leq (x1,x2) (y1,y2) =
-    if Base1.equal x1 y1 then
-      Base2.leq x2 y2
-    else
-      Base1.leq x1 y1
-
-  let join (x1, y1) (x2, y2) =
-    if Base1.equal x1 x2 then
-      (x1, Base2.join y1 y2)
-    else if Base1.leq x1 x2 then
-      (x2, y2)
-    else if Base1.leq x2 x1 then
-      (x1, y1)
-    else
-      (Base1.join x1 x2, Base2.bot ())
-
-  let meet (x1, y1) (x2, y2) =
-    if Base1.equal x1 x2 then
-      (x1, Base2.meet y1 y2)
-    else if Base1.leq x1 x2 then
-      (x2, y2)
-    else if Base1.leq x2 x1 then
-      (x1, y1)
-    else
-      (Base1.meet x1 x2, Base2.top ())
-end
-
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
   include Printable.Prod3 (Base1) (Base2) (Base3)
@@ -469,8 +456,9 @@ struct
     | (`Lifted x, `Lifted y) -> Base.leq x y
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    if leq x y then Pretty.text "No Changes" else
-      Pretty.dprintf "%a instead of %a" pretty x pretty y
+    match x, y with
+    | `Lifted x, `Lifted y -> Base.pretty_diff () (x, y)
+    | _ -> Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let join x y =
     match (x,y) with
@@ -534,52 +522,12 @@ struct
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
     | _ -> x
-end
 
-module Either (B1: S) (B2: S) =
-struct
-  include Printable.Either (B1) (B2)
-  let top () = `Left (B1.top ())
-  let bot () = `Right (B2.bot ())
-  let is_top = function
-    | `Left x -> B1.is_top x
-    | `Right x -> false
-  let is_bot = function
-    | `Left x -> false
-    | `Right x -> B2.is_bot x
-  let leq x y =
-    match x, y with
-    | `Left  x, `Left  y -> B1.leq x y
-    | `Right x, `Right y -> B2.leq x y
-    | `Left  _, `Right _ -> false
-    | `Right _, `Left  _ -> true
-  let join x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left (B1.join x y)
-    | `Right x, `Right y -> `Right (B2.join x y)
-    | `Left  _, `Right _ -> x
-    | `Right _, `Left  _ -> y
-  let meet x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left (B1.meet x y)
-    | `Right x, `Right y -> `Right (B2.meet x y)
-    | `Left  _, `Right _ -> y
-    | `Right _, `Left  _ -> x
-  let widen x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left  (B1.widen x y)
-    | `Right x, `Right y -> `Right (B2.widen x y)
-    | `Left  x, `Right y -> `Left x
-    | `Right  x, `Left y -> `Left y
-  let narrow x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left  (B1.narrow x y)
-    | `Right x, `Right y -> `Right (B2.narrow x y)
-    | `Left  x, `Right y -> `Right y
-    | `Right  x, `Left y -> `Right x
+  let pretty_diff () (x,y) =
+    match (x,y) with
+    | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
+    | _ -> Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
-
-module Option (Base: S) (N: Printable.Name) = Either (Base) (UnitConf (N))
 
 module Liszt (Base: S) =
 struct
@@ -597,6 +545,32 @@ struct
   let widen = join
   let meet = List.map2 Base.meet
   let narrow = meet
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
+end
+
+module type Num = sig val x : unit -> int end
+module ProdList (Base: S) (N: Num) =
+struct
+  include Printable.Liszt (Base)
+
+  let bot () = BatList.make (N.x ()) (Base.bot ())
+  let is_bot = List.for_all Base.is_bot
+  let top () = BatList.make (N.x ()) (Base.top ())
+  let is_top = List.for_all Base.is_top
+
+  let leq =
+    let f acc x y = Base.leq x y && acc in
+    List.fold_left2 f true
+
+  let join = List.map2 Base.join
+  let widen = List.map2 Base.widen
+  let meet = List.map2 Base.meet
+  let narrow = List.map2 Base.narrow
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
 module Chain (P: Printable.ChainParams) =
@@ -606,12 +580,15 @@ struct
 
   let bot () = 0
   let is_bot x = x = 0
-  let top () = P.n - 1
-  let is_top x = x = P.n - 1
+  let top () = P.n () - 1
+  let is_top x = x = P.n () - 1
 
   let leq x y = x <= y
   let join x y = max x y
   let widen = join
   let meet x y = min x y
   let narrow = meet
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 end

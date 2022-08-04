@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] thread --sets ana.path_sens[+] threadflag --sets ana.path_sens[+] thread
+// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag --set ana.path_sens[+] thread
 #include <pthread.h>
 #include <stdio.h>
 

@@ -15,7 +15,6 @@ struct
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   let should_join x y = D.equal x y
 
@@ -24,7 +23,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -39,26 +38,26 @@ struct
       | (`Field (f1, o1), `Field (f2,o2)) -> f1 == f2 && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
-    (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
+    CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
 
   (* We just had to dereference an lval --- warn if it was null *)
   let warn_lval (st:D.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
     try
-      if D.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
+      if D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
         let var = Addr.from_var_offset v in
-        Messages.report ("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.")
+        Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
-  let rec warn_deref_exp a (st:D.t) (e:exp): unit =
+  let rec warn_deref_exp (a: Queries.ask) (st:D.t) (e:exp): unit =
     let warn_lval_mem e offs =
       (*      begin try List.iter (warn_lval st) (AD.to_var_offset (BS.eval_lv gl s (Mem e, offs)))
               with SetDomain.Unsupported _ -> () end;*)
       match e with
       | Lval (Var v, offs) ->
-        begin match a (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
-          | `LvalSet a when not (Queries.LS.is_top a)
+        begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
+          | a when not (Queries.LS.is_top a)
                          && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
             Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
           | _ -> ()
@@ -66,7 +65,12 @@ struct
       | _ -> ()
     in
     match e with
-    | Lval (Var v, offs) -> ()
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _
+    | Lval (Var _, _) -> ()
     | AddrOf (Var _, _)
     | StartOf (Var _, _) ->  warn_lval_mem e NoOffset
     | AddrOf (Mem e, offs)
@@ -78,9 +82,16 @@ struct
       warn_deref_exp a st e1;
       warn_deref_exp a st e2
     | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e
     | CastE  (_,e) ->
       warn_deref_exp a st e
-    | _ -> ()
+    | Question (b, t, f, _) ->
+      warn_deref_exp a st b;
+      warn_deref_exp a st t;
+      warn_deref_exp a st f
 
   let may (f: 'a -> 'b) (x: 'a option) : unit =
     match x with
@@ -103,30 +114,30 @@ struct
     | _ -> [Addr.from_var v]
 
   (* Remove null values from state that are unreachable from exp.*)
-  let remove_unreachable ask (args: exp list) (st: D.t) : D.t =
+  let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
       let do_exp e =
-        match ask (Queries.ReachableFrom e) with
-        | `LvalSet a when not (Queries.LS.is_top a)  ->
+        match ask.f (Queries.ReachableFrom e) with
+        | a when not (Queries.LS.is_top a)  ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
-          Queries.LS.fold to_extra a []
+          Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
-      List.concat (List.map do_exp args)
+      List.concat_map do_exp args
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
+      List.fold_right AD.add (List.concat_map to_addrs vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st
     then D.top ()
     else D.filter (fun x -> AD.mem x vars) st
 
-  let get_concrete_lval ask (lval:lval) =
-    match ask (Queries.MayPointTo (mkAddrOf lval)) with
-    | `LvalSet a when Queries.LS.cardinal a = 1
+  let get_concrete_lval (ask: Queries.ask) (lval:lval) =
+    match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
+    | a when Queries.LS.cardinal a = 1
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let v, o = Queries.LS.choose a in
       Some (Var v, conv_offset o)
@@ -138,11 +149,11 @@ struct
     | Lval (Var v, offs) -> Some (Var v,offs)
     | _ -> None
 
-  let might_be_null ask lv gl st =
-    match ask (Queries.MayPointTo (mkAddrOf lv)) with
-    | `LvalSet a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+  let might_be_null (ask: Queries.ask) lv gl st =
+    match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
+    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let one_addr_might (v,o) =
-        D.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
+        D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
       in
       Queries.LS.exists one_addr_might a
     | _ -> false
@@ -153,15 +164,15 @@ struct
 
   (* One step tf-s *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    warn_deref_exp ctx.ask ctx.local (Lval lval) ;
-    warn_deref_exp ctx.ask ctx.local rval;
-    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval ctx.ask lval with
-    | Some rv , Some (Var vt,ot) when might_be_null ctx.ask rv ctx.global ctx.local ->
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval lval) ;
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local rval;
+    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
+    | Some rv , Some (Var vt,ot) when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
       D.add (Addr.from_var_offset (vt,ot)) ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    warn_deref_exp ctx.ask ctx.local exp;
+    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp;
     ctx.local
 
   let body ctx (f:fundec) : D.t =
@@ -175,32 +186,28 @@ struct
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
     | Some ret ->
-      warn_deref_exp ctx.ask ctx.local ret;
+      warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local ret;
       begin match get_concrete_exp ret ctx.global ctx.local with
-        | Some ev when might_be_null ctx.ask ev ctx.global ctx.local ->
+        | Some ev when might_be_null (Analyses.ask_of_ctx ctx) ev ctx.global ctx.local ->
           D.add (return_addr ()) nst
         | _ -> nst  end
     | None -> nst
 
   (* Function calls *)
 
-  let eval_funvar ctx (fv:exp) : varinfo list =
-    warn_deref_exp ctx.ask ctx.local fv;
-    []
-
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable ctx.ask args ctx.local in
-    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
-    List.iter (warn_deref_exp ctx.ask ctx.local) args;
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
+    may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
     [ctx.local,nst]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    let cal_st = remove_unreachable ctx.ask args ctx.local in
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     let new_u =
       match lval, D.mem (return_addr ()) ret_st with
       | Some lv, true ->
-        begin match get_concrete_lval ctx.ask lv with
+        begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
           | Some (Var v,ofs) -> D.remove (return_addr ()) (D.add (Addr.from_var_offset (v,ofs)) ret_st)
           | _ -> ret_st end
       | _ -> ret_st
@@ -208,12 +215,12 @@ struct
     new_u
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
-    List.iter (warn_deref_exp ctx.ask ctx.local) arglist;
+    may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
     match f.vname, lval with
     | "malloc", Some lv ->
       begin
-        match get_concrete_lval ctx.ask lv with
+        match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some (Var v, offs) ->
           ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
           ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) [Events.SplitBranch ((Lval lv), false)];
@@ -229,8 +236,8 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.empty ()
 
-  let init () =
-    set_bool "exp.malloc.fail" true;
+  let init marshal =
+    set_bool "sem.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 

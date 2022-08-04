@@ -1,4 +1,4 @@
-// PARAM: --set ana.int.interval true --set solver "'td3'"
+// PARAM: --set ana.int.interval true
 
 #include<pthread.h>
 #include<assert.h>
@@ -11,14 +11,13 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 // They are given in the paper. Should it be as large as possible?
 
 void *t_fun(void *arg) {
-  int t;
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&mutex2);
   glob1 = 5;
   pthread_mutex_unlock(&mutex2);
   // But if s[g] = {mutex1,mutex2}, we publish here.
   pthread_mutex_lock(&mutex2);
-  assert(glob1 == 5);
+  __goblint_check(glob1 == 5);
   glob1 = 0;
   pthread_mutex_unlock(&mutex1);
   pthread_mutex_unlock(&mutex2);
@@ -27,10 +26,10 @@ void *t_fun(void *arg) {
 
 int main(void) {
   pthread_t id;
-  assert(glob1 == 0);
+  __goblint_check(glob1 == 0);
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex1);
-  assert(glob1 == 0);
+  __goblint_check(glob1 == 0);
   pthread_mutex_unlock(&mutex1);
   pthread_join (id, NULL);
   return 0;

@@ -3,40 +3,19 @@
 open Cil
 open GobConfig
 
-open Json
 
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** prints the CFG on [getCFG] *)
-let cfg_print = ref false
-
-(** Json files that are given as arguments *)
-let jsonFiles : string list ref = ref []
-
-(** has user specified other thread functions *)
-let has_otherfuns = ref false
-
 (** If this is true we output messages and collect accesses.
-    This is set to true in control.ml before we verify the result (or already before solving if dbg.earlywarn) *)
+    This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
-let did_overflow = ref false
-
-(** hack to use a special integer to denote synchronized array-based locking *)
-let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
-
-(** number of times that globals change !CAUTION: This is only set in contain.ml and is not what one would think it is! *)
-let globals_changed = ref 0
-
-(** use the old accesses vs. the new pairwise accesses *)
-let old_accesses = ref true
+(** Whether signed overflow or underflow happened *)
+let svcomp_may_overflow = ref false
 
 (** The file where everything is output *)
 let out = ref stdout
-
-(** Temp directory, set in maingoblint.ml, but used by the OSEK analysis. *)
-let tempDirName = ref "goblint_temp"
 
 (** Command for assigning an id to a varinfo. All varinfos directly created by Goblint should be modified by this method *)
 let create_var (var: varinfo) =
@@ -56,14 +35,11 @@ let type_inv (c:compinfo) : varinfo =
     i
 
 let is_blessed (t:typ): varinfo option =
-  let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in
+  let me_gusta x = List.mem x (get_string_list "exp.unique") in
   match unrollType t with
   | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
   | _ -> (None : varinfo option)
 
-
-(** Length of summary description in XML output *)
-let summary_length = 80
 
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
@@ -71,300 +47,53 @@ let global_initialization = ref false
 (** Another hack to see if earlyglobs is enabled *)
 let earlyglobs = ref false
 
-(** true if in verifying stage *)
-let in_verifying_stage = ref false
+(** Whether currently in postsolver evaluations (e.g. verify, warn) *)
+let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
-let escape (x:string):string =
-  (* Safe to escape all these everywhere in XML: https://stackoverflow.com/a/1091953/854540 *)
-  Str.global_replace (Str.regexp "&") "&amp;" x |>
-  Str.global_replace (Str.regexp "<") "&lt;" |>
-  Str.global_replace (Str.regexp ">") "&gt;" |>
-  Str.global_replace (Str.regexp "\"") "&quot;" |>
-  Str.global_replace (Str.regexp "'") "&apos;" |>
-  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e]") "" (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
-
-let trim (x:string): string =
-  let len = String.length x in
-  if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
+let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 
 (** Creates a directory and returns the absolute path **)
 let create_dir name =
-  let dirName = if Filename.is_relative name then Filename.concat (Unix.getcwd ()) name else name in
-  (* The directory should be writable to group and user *)
-  let dirPerm = 0o770 in
-  let _ =
-    try
-      Unix.mkdir dirName dirPerm
-    with Unix.Unix_error(err, ctx1, ctx) as ex ->
-      (* We can discared the EEXIST, we are happy to use the existing directory *)
-      if err != Unix.EEXIST then begin
-        (* Hopefully will be friendly enough :) *)
-        print_endline ("Error, " ^ (Unix.error_message err));
-        raise ex
-      end
-  in
+  let dirName = GobFpath.cwd_append name in
+  GobSys.mkdir_or_exists dirName;
   dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)
 let rm_rf path =
   let rec f path =
-    if Sys.is_directory path then begin
-      let files = Array.map (Filename.concat path) (Sys.readdir path) in
+    let path_str = Fpath.to_string path in
+    if Sys.is_directory path_str then begin
+      let files = Array.map (Fpath.add_seg path) (Sys.readdir path_str) in
       Array.iter f files;
-      Unix.rmdir path
+      Unix.rmdir path_str
     end else
-      Sys.remove path
+      Sys.remove path_str
   in
   f path
 
-type name =
-  | Cons
-  | Dest
-  | Name     of string
-  | Unknown  of string
-  | Template of name
-  | Nested   of name * name
-  | PtrTo    of name
-  | TypeFun  of string * name
-
-let rec name_to_string_hlp = function
-  | Cons -> "constructor"
-  | Dest -> "destructor"
-  | Name x -> x
-  | Unknown x -> "?"^x^"?"
-  | Template a -> "("^name_to_string_hlp a^")"
-  | Nested (Template x,y) -> "("^name_to_string_hlp x^ ")::" ^ name_to_string_hlp y
-  | Nested (x,Cons) -> let c = name_to_string_hlp x in c ^ "::" ^ c
-  | Nested (x,Dest) -> let c = name_to_string_hlp x in c ^ "::~" ^ c
-  | Nested (x,Name "") -> name_to_string_hlp x
-  | Nested (x,y) -> name_to_string_hlp x ^ "::" ^ name_to_string_hlp y
-  | PtrTo x -> name_to_string_hlp x ^ "*"
-  | TypeFun (f,x) -> f ^ "(" ^ name_to_string_hlp x ^ ")"
-
-let prefix = Str.regexp "^::.*"
-
-let name_to_string x =
-  name_to_string_hlp x
-
-let rec show = function
-  | Cons -> "Cons"
-  | Dest -> "Dest"
-  | Name x -> "Name \""^x^"\""
-  | Unknown x -> "Unknown \""^x^"\""
-  | Template (a) -> "Template ("^show a^")"
-  | Nested (x,y) -> "Nested ("^show x^","^show y^")"
-  | PtrTo x -> "PtrTo ("^show x^")"
-  | TypeFun (f,x) -> "TypeFun ("^f^","^ name_to_string x ^ ")"
-
-
-let special    = Str.regexp "nw\\|na\\|dl\\|da\\|ps\\|ng\\|ad\\|de\\|co\\|pl\\|mi\\|ml\\|dv\\|rm\\|an\\|or\\|eo\\|aS\\|pL\\|mI\\|mL\\|dV\\|rM\\|aN \\|oR\\|eO\\|ls\\|rs\\|lS\\|rS\\|eq\\|ne\\|lt\\|gt\\|le\\|ge\\|nt\\|aa\\|oo\\|pp\\|mm\\|cm\\|pm\\|pt\\|cl\\|ix\\|qu\\|st\\|sz"
-let dem_prefix = Str.regexp "^_Z\\(.+\\)"
-let num_prefix = Str.regexp "^\\([0-9]+\\)\\(.+\\)"
-let ti_prefix  = Str.regexp "^TI\\(.+\\)"
-let tv_prefix  = Str.regexp "^TV\\(.+\\)"
-let ts_prefix  = Str.regexp "^TS\\(.+\\)"
-let tt_prefix  = Str.regexp "^TT\\(.+\\)"
-let tt_prefix  = Str.regexp "^TT\\(.+\\)"
-let nested     = Str.regexp "^N\\(.+\\)E"
-let nested_std_t  = Str.regexp "^NSt\\(.+\\)E"
-let nested_std_a  = Str.regexp "^NSa\\(.+\\)E"
-let nested_std_s  = Str.regexp "^NSs\\(.+\\)E"
-let strlift    = Str.regexp "^_OC_str\\([0-9]*\\)$"
-let templ      = Str.regexp "^I\\(.+\\)E"
-let const      = Str.regexp "^K"
-let ptr_to     = Str.regexp "^P\\(.+\\)"
-let constructor= Str.regexp "^C[1-3]"
-let destructor = Str.regexp "^D[0-2]"
-let varlift    = Str.regexp "^llvm_cbe_\\(.+\\)$"
-let take n x = String.sub x 0 n
-let drop n x = String.sub x n (String.length x - n)
-let appp f (x,y) = f x, y
-
-let op_name x =
-  let op_name = function
-    | "nw"  -> "new" (* new   *)
-    | "na"  -> "new[]" (* new[] *)
-    | "dl"  -> "delete" (* delete         *)
-    | "da"  -> "delete[]" (* delete[]       *)
-    | "ps"  -> "+" (* + (unary) *)
-    | "ng"  -> "-" (* - (unary)      *)
-    | "ad"  -> "&" (* & (unary)      *)
-    | "de"  -> "*" (* * (unary)      *)
-    | "co"  -> "~" (* ~              *)
-    | "pl"  -> "+" (* +              *)
-    | "mi"  -> "-" (* -              *)
-    | "ml"  -> "*" (* *              *)
-    | "dv"  -> "/" (* /              *)
-    | "rm"  -> "%" (* %              *)
-    | "an"  -> "&" (* &              *)
-    | "or"  -> "|" (* |              *)
-    | "eo"  -> "^" (* ^              *)
-    | "aS"  -> "=" (* =              *)
-    | "pL"  -> "+=" (* +=             *)
-    | "mI"  -> "-=" (* -=             *)
-    | "mL"  -> "*=" (* *=             *)
-    | "dV"  -> "/=" (* /=             *)
-    | "rM"  -> "%=" (* %=             *)
-    | "aN"  -> "&=" (* &=             *)
-    | "oR"  -> "|=" (* |=             *)
-    | "eO"  -> "^=" (* ^=             *)
-    | "ls"  -> "<<" (* <<             *)
-    | "rs"  -> ">>" (* >>             *)
-    | "lS"  -> "<<=" (* <<=            *)
-    | "rS"  -> ">>=" (* >>=            *)
-    | "eq"  -> "==" (* ==             *)
-    | "ne"  -> "!=" (* !=             *)
-    | "lt"  -> "<" (* <              *)
-    | "gt"  -> ">" (* >              *)
-    | "le"  -> "<=" (* <=             *)
-    | "ge"  -> ">=" (* >=             *)
-    | "nt"  -> "!" (* !              *)
-    | "aa"  -> "&&" (* &&             *)
-    | "oo"  -> "||" (* ||             *)
-    | "pp"  -> "++" (* ++             *)
-    | "mm"  -> "--" (* --             *)
-    | "cm"  -> "," (* ,              *)
-    | "pm"  -> "->*" (* ->*            *)
-    | "pt"  -> "->" (* ->             *)
-    | "cl"  -> "()" (* ()             *)
-    | "ix"  -> "[]" (* []             *)
-    | "qu"  -> "?" (* ?              *)
-    | "st"  -> "sizeof" (* sizeof (a type) *)
-    | "sz"  -> "sizeof" (* sizeof (an expression) *)
-    | "at"  -> "alignof" (* alignof (a type) *)
-    | "az"  -> "alignof" (* alignof (an expression) *)
-    | x -> x
-    (*   | "cv" <type> -> "(cast)" (* (cast)         *)
-         | "v" <digit> <source-name> -> "vendor" (* vendor extended operator *)
-    *)
-  in
-  let on = op_name x in
-  if on = x then x else "operator" ^ on
-
-let rec num_p x : name list * string =
-  if Str.string_match num_prefix x 0
-  then let n = int_of_string (Str.matched_group 1 x) in
-    let t = Str.matched_group 2 x in
-    let r = drop n t in
-    let xs, r = num_p r in
-    (Name (take n t) :: xs), r
-  else if Str.string_match templ x 0
-  then let nn = Str.string_after x (Str.match_end ()) in
-    let t,_ = conv (Str.matched_group 1 x) in
-    let xs, r = num_p nn in
-    (Template t::xs), r
-  else if Str.string_match const x 0
-  then num_p (Str.string_after x (Str.match_end ()))
-  else if Str.string_match constructor x 0
-  then [Cons],Str.string_after x (Str.match_end ())
-  else if Str.string_match destructor x 0
-  then [Dest],Str.string_after x (Str.match_end ())
-  else if Str.string_match special x 0
-  then [Name (op_name x)],Str.string_after x (Str.match_end ())
-  else ([],x)
-
-and conv x : name * string =
-  if Str.string_match num_prefix x 0
-  then let n = int_of_string (Str.matched_group 1 x) in
-    Name (take n (Str.matched_group 2 x)), drop n (Str.matched_group 2 x)
-  else if Str.string_match ti_prefix x 0
-  then appp (fun x -> TypeFun ("typeinfo", x)) (conv (Str.matched_group 1 x))
-  else if Str.string_match tv_prefix x 0
-  then appp (fun x -> TypeFun ("v_table", x)) (conv (Str.matched_group 1 x))
-  else if Str.string_match ts_prefix x 0
-  then appp (fun x -> TypeFun ("typeinfo_name", x)) (conv (Str.matched_group 1 x))
-  else if Str.string_match tt_prefix x 0
-  then appp (fun x -> TypeFun ("VTT", x)) (conv (Str.matched_group 1 x))
-  else if Str.string_match templ x 0
-  then let x,y = conv (Str.matched_group 1 x) in
-    appp (fun z -> Nested (Template x, z)) (conv (drop 1 y))
-
-  else if Str.string_match nested_std_a x 0 then
-    let ps, r = num_p ("9allocator"^(Str.matched_group 1 x)) in
-    match List.rev ps with
-    | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-      Nested (Name "std",fst r),snd r
-    | _ -> Unknown x, r
-  else if Str.string_match nested_std_s x 0
-  then let ps, r = num_p ("6string"^(Str.matched_group 1 x)) in
-    match List.rev ps with
-    | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-      Nested (Name "std",fst r),snd r
-    | _ -> Unknown x, r
-  else if Str.string_match nested_std_t x 0
-  then let ps, r = num_p (Str.matched_group 1 x) in
-    match List.rev ps with
-    | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-      Nested (Name "std",fst r),snd r
-    | _ -> Unknown x, r
-
-  else if Str.string_match nested x 0
-  then let ps, r = num_p (Str.matched_group 1 x) in
-    match List.rev ps with
-    | p::ps -> List.fold_left (fun xs x -> Nested (x,xs)) p ps, r
-    | _ -> Unknown x, r
-  else if Str.string_match ptr_to x 0
-  then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
-  else if Str.string_match constructor x 0
-  then Cons,""
-  else if Str.string_match destructor x 0
-  then Dest,""
-  else if Str.string_match special x 0
-  then Name x,""
-  else Unknown x, ""
-
-
-let to_name x =
-  if Str.string_match dem_prefix x 0
-  then fst (conv (Str.matched_group 1 x))
-  else if Str.string_match strlift x 0
-  then Name ("str" ^ Str.matched_group 1 x)
-  else if Str.string_match varlift x 0
-  then Name (Str.matched_group 1 x)
-  else Name x
-
-let get_class x : string option =
-  let rec git tf : name -> string option = function
-    | Cons | Dest | Unknown _ | PtrTo _ | Template _ -> None
-    | Name x when tf -> Some x
-    | Name _ -> None
-    | TypeFun (x,y) -> git true y (*vtables don't have a function name*)
-    | Nested (x,y) ->
-      begin match git tf y with
-        | None ->
-          if not tf then begin match x with Name x -> Some x | _ -> None  end
-          else begin match y with | Name s -> Some s | _ -> None end
-        | x -> x
-      end
-  in
-  git false (to_name x)
-
-let get_class_and_name x : (string * string) option =
-  let rec git = function
-    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ | Template _ -> None
-    | Nested (Name x,Cons) -> Some (x,x)
-    | Nested (Name x,Dest) -> Some (x,"~"^x)
-    | Nested (x,y) ->
-      begin match git y with
-        | None -> begin match x, y with Name x, Name y -> Some (x,y) | _ -> None  end
-        | x -> x
-      end
-  in
-  git (to_name x)
-
-let demangle x =
-  let y = to_name x in
-  (*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
-  let res=name_to_string y in
-  if res="??" then x else res
 
 exception Timeout
 
 let timeout = Timeout.timeout
+
+let seconds_of_duration_string =
+  let unit = function
+    | "" | "s" -> 1
+    | "m" -> 60
+    | "h" -> 60 * 60
+    | s -> failwith ("Unkown duration unit " ^ s ^ ". Supported units are h, m, s.")
+  in
+  let int_rest f s = Scanf.sscanf s "%u%s" f in
+  let split s = BatString.(head s 1, tail s 1) in
+  let rec f i s =
+    let u, r = split s in (* unit, rest *)
+    i * (unit u) + if r = "" then 0 else int_rest f r
+  in
+  int_rest f
 
 let vars = ref 0
 let evals = ref 0
@@ -379,53 +108,49 @@ let print_gc_quick_stat chn =
   Printf.fprintf chn
     "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
     (printM (gc.Gc.minor_words +. gc.Gc.major_words
-              -. gc.Gc.promoted_words))
+             -. gc.Gc.promoted_words))
     (printM (float_of_int gc.Gc.top_heap_words))
     (printM gc.Gc.minor_words)
     (printM gc.Gc.major_words)
     (printM gc.Gc.promoted_words)
     gc.Gc.minor_collections
     gc.Gc.major_collections
-    gc.Gc.compactions
+    gc.Gc.compactions;
+  gc
 
-let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
-(* typedef struct {
-   PROCESS_NAME_TYPE      NAME;
-   SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
-   STACK_SIZE_TYPE        STACK_SIZE;
-   PRIORITY_TYPE          BASE_PRIORITY;
-   SYSTEM_TIME_TYPE       PERIOD;
-   SYSTEM_TIME_TYPE       TIME_CAPACITY;
-   DEADLINE_TYPE          DEADLINE;
-   }                        PROCESS_ATTRIBUTE_TYPE; *)
-let arinc_name          = if scrambled then "M161" else "NAME"
-let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
-let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
-let arinc_period        = if scrambled then "M165" else "PERIOD"
-let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
-
-let exe_dir = Filename.dirname Sys.executable_name
-let command = String.concat " " (Array.to_list Sys.argv)
-
-let opt_predicate (f : 'a -> bool) = function
-  | Some x -> f x
-  | None -> false
+let exe_dir = Fpath.(parent (v Sys.executable_name))
+let command_line = match Array.to_list Sys.argv with
+  | command :: arguments -> Filename.quote_command command arguments
+  | [] -> assert false
 
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)
 let signal_of_string = let open Sys in function
-  | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
-  | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
-  | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
-  | "sigalrm" -> sigalrm (* Timeout *)
-  | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
-  | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
-  | "sigterm" -> sigterm (* Termination *)
-  | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
-  | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
-  | "sigstop" -> sigstop (* Stop *)
-  | "sigprof" -> sigprof (* Profiling interrupt *)
-  | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
-  | s -> failwith ("Unhandled signal " ^ s)
+    | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
+    | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
+    | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
+    | "sigalrm" -> sigalrm (* Timeout *)
+    | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
+    | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
+    | "sigterm" -> sigterm (* Termination *)
+    | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
+    | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
+    | "sigstop" -> sigstop (* Stop *)
+    | "sigprof" -> sigprof (* Profiling interrupt *)
+    | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
+    | s -> failwith ("Unhandled signal " ^ s)
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
+
+let rec for_all_in_range (a, b) f =
+  let module BI = IntOps.BigIntOps in
+  if BI.compare a b > 0
+  then true
+  else f a && (for_all_in_range (BI.add a (BI.one), b) f)
+
+let dummy_obj = Obj.repr ()
+
+let jobs () =
+  match get_int "jobs" with
+  | 0 -> Cpu.numcores ()
+  | n -> n

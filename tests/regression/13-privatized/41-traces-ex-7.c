@@ -21,6 +21,6 @@ int main(void) {
   pthread_mutex_lock(&D);
   pthread_mutex_lock(&A);
   pthread_mutex_unlock(&D);
-  assert(g == 0); // UNKNOWN!
+  __goblint_check(g == 0); // UNKNOWN!
   return 0;
 }

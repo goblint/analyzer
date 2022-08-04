@@ -1,0 +1,12 @@
+; goblint.sites implementation which properly uses dune-site
+(library
+  (name goblint_sites_dune)
+  (public_name goblint.sites.dune)
+  (implements goblint.sites)
+  (modules goblint_sites dunesite)
+  (private_modules dunesite) ; must also be in modules
+  (libraries dune-site))
+
+(generate_sites_module
+  (module dunesite)
+  (sites goblint))

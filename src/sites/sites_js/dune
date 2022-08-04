@@ -1,0 +1,6 @@
+; goblint.sites implementation which works with js_of_ocaml and doesn't use dune-site
+(library
+  (name goblint_sites_js)
+  (public_name goblint.sites.js)
+  (implements goblint.sites)
+  (modules goblint_sites))

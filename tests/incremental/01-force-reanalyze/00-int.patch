@@ -1,0 +1,31 @@
+--- tests/incremental/01-force-reanalyze/00-int.c
++++ tests/incremental/01-force-reanalyze/00-int.c
+@@ -4,7 +4,7 @@ int f(int in){
+   while(in < 17) {
+     in++;
+   }
+-  __goblint_check(in == 17); //UNKNOWN
++  __goblint_check(in == 17);
+   return in;
+ }
+
+@@ -12,6 +12,6 @@ int main() {
+   int a = 0;
+   __goblint_check(a); // FAIL!
+   a = f(a);
+-  __goblint_check(a == 17); //UNKNOWN
++  __goblint_check(a == 17);
+   return 0;
+ }
+--- tests/incremental/01-force-reanalyze/00-int.json
++++ tests/incremental/01-force-reanalyze/00-int.json
+@@ -2,6 +2,9 @@
+     "annotation" : {
+         "int" : {
+             "enabled" : true
++        },
++        "goblint_precision": {
++            "f" : ["interval"]
+         }
+     },
+     "ana" : {

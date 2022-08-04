@@ -51,7 +51,9 @@ Other tracing functions are available:
 
 To build a Goblint executable with debug information, run the following command within the `analyzer` directory.
 
-`make debug`
+```console
+make byte
+```
 
 This will create a file called `goblint.byte`.
 
@@ -66,14 +68,11 @@ debug Goblint.
 
 Install the [`hackwaly.ocamlearlybird` extension](https://marketplace.visualstudio.com/items?itemName=hackwaly.ocamlearlybird) in your installation of Visual Studio Code.
 To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint.
-Running:
+To do so, run the following command in the `analyzer` directory:
 
-`make dev`
-
-will install `ocamlearlybird` along with some other useful development tools.
-In case you do not want to install all of these and only want to install `ocamlearlybird` by itself, run the following command in the `analyzer` directory:
-
-`opam install earlybird`
+```console
+opam install earlybird
+```
 
 ### Providing a Launch Configuration
 
@@ -104,10 +103,38 @@ Note that the individual arguments to Goblint should be passed here as separate 
 
 To make sure that VS Code can find `ocamlearlybird`, run the following commands in the `analyzer` directory:
 
-```
+```console
 eval $(opam env) // Sets up envrionment variables
 code .           // Starts VS Code in the current directory
 ```
 
 After VS Code has started, you can set breakpoints in the Goblint code. You can start debugging using the VS Code command palette with the command `"Debug: Start Debugging"`, or alternatively by pressing `F5`. Note that the Goblint execution is considerably slowed down in the debugger, so you have to be somewhat patient.
 Of course, don't forget to rebuild the debuggable executable if you make changes to the code!
+
+## Debugging Issues with Larger Programs
+
+Sometimes during development one may encounter instances where, e.g., the verifying phase reports that the fixpoint is not reached. This is usually due to bugs in `join`, `widen` or `leq`. For small programs, one can find the cause by inspecting the program and the output carefully. If the issue happens only with large programs it is hard to understand.
+
+To work on such cases, it makes sense to reduce the program to a small example program that still triggers the same issue. This can either be done by hand or using `creduce`. `creduce` takes two inputs: a script that terminates with status `0` if the reduced program is still interesting, and the original program.
+
+In the case of looking for issues with fixpoints not being found, such a script may e.g. be given by:
+
+```bash
+#!/bin/bash
+~/path/to/goblint input.c -v &> out.txt
+if [ $? -eq 3 ]; then
+    grep Fixpoint out.txt >/dev/null 2>&1
+else
+    exit 5
+fi
+```
+
+Note that Goblint exits with status `3` if the verifier fails.
+
+Some more sophisticated scripts can be found in the folder `./scripts/creduce`.
+
+```console
+creduce --timeout 900 reduce.sh input.c
+```
+where timeout is set to a reasonable time in which Goblint terminates on the input program. This may run for several hours/days, so it makes sense to start it on
+a server. It may also be helpful to set `--n <N>` where `N` is the number of cores to use to get a considerable speedup.

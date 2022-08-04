@@ -1,0 +1,79 @@
+name: docker
+
+on:
+  schedule:
+    # nightly
+    - cron: '31 1 * * *' # 01:31 UTC, 02:31/03:31 Munich, 03:31/04:31 Tartu
+    # GitHub Actions load is high at minute 0, so avoid that
+
+  push:
+    # not on push branch
+    tags:
+      - '**'
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Docker tag
+        required: true
+        default: nightly
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: docker # prevent multiple simultaneous jobs publishing (e.g. out of order)
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2 # needed for GitHub Actions Cache in build-push-action
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=schedule
+            type=semver,pattern={{version}}
+            type=raw,enable=${{ github.event_name == 'workflow_dispatch' }},value=${{ github.event.inputs.tag }}
+
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          load: true # load into docker instead of immediately pushing
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
+
+      - name: Check Docker image
+        run: docker run --rm -v $(pwd):/data ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} /data/tests/regression/04-mutex/01-simple_rc.c # run image by version in case multiple tags
+
+      - name: Push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}

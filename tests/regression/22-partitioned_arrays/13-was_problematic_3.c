@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
+// PARAM: --enable ana.int.interval  --set ana.base.arrays.domain partitioned
 struct some_struct
 {
     int dir[7];

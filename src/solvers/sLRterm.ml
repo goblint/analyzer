@@ -7,7 +7,7 @@ open SLR
 (** the terminating SLR3 box solver *)
 module SLR3term =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -15,9 +15,7 @@ module SLR3term =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t
-      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
-      let hash  (x1,x2)         = (S.Var.hash x1 - 800) * S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -52,9 +50,9 @@ module SLR3term =
       let () = print_solver_stats := fun () ->
         Printf.printf "wpoint: %d, rho: %d, rho': %d, q: %d, count: %d, count_side: %d\n" (HM.length wpoint) (HM.length rho) (HPM.length rho') (H.size !q) (Int.neg !count) (max_int - !count_side);
         let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
-        HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k, S.Var.line_nr k) ((+)1) histo) rho;
-        let (vid,vln),n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
-        ignore @@ Pretty.printf "max #contexts: %d for var_id %s on line %d\n" n vid vln
+        HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k) ((+)1) histo) rho;
+        let vid,n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
+        ignore @@ Pretty.printf "max #contexts: %d for var_id %s\n" n vid
       in
 
       let init ?(side=false) x =
@@ -205,24 +203,13 @@ module SLR3term =
 
       List.iter solve vs;
       iterate false max_int;
-
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then begin
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          end
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
-      in
-      reachability vs;
       stop_event ();
+
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
 
       HM.clear key   ;
       HM.clear wpoint;
@@ -234,5 +221,4 @@ module SLR3term =
   end
 
 let _ =
-  let module S3t = GlobSolverFromIneqSolver (JoinContr (SLR3term)) in
-  Selector.add_solver ("slr3t", (module S3t : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink + terminating? *)
+  Selector.add_solver ("slr3t", (module EqIncrSolverFromEqSolver (SLR3term))); (* same as S2 but number of W-points may also shrink + terminating? *)

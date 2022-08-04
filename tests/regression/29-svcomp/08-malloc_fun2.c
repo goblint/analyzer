@@ -1,4 +1,4 @@
-// PARAM: --set exp.malloc.wrappers "['myalloc','myalloc2']"
+// PARAM: --set ana.malloc.wrappers "['myalloc','myalloc2']"
 
 // Copied & modified from 02/20.
 #include <stdlib.h>
@@ -20,12 +20,12 @@ int main() {
   *x = 0;
   *y = 1;
 
-  assert(*x == 0);
-  assert(*y == 1);
+  __goblint_check(*x == 0);
+  __goblint_check(*y == 1);
 
   p = x; x = y; y = p;
-  assert(*x == 1);
-  assert(*y == 0);
+  __goblint_check(*x == 1);
+  __goblint_check(*y == 0);
 
   return 0;
 }

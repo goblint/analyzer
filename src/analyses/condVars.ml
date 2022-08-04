@@ -1,4 +1,5 @@
 (** Must equality between variables and logical expressions. *)
+(* TODO: unused, what is this analysis? *)
 
 open Prelude.Ana
 open Analyses
@@ -54,17 +55,16 @@ struct
   let name () = "condvars"
   module D = Domain
   module C = Domain
-  module G = Lattice.Unit
 
   (* >? is >>=, |? is >> *)
   let (>?) = Option.bind
 
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
+    | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
+          M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
@@ -77,22 +77,25 @@ struct
     | _ -> None
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
-    let d = ctx.local in
-    let of_q = function Queries.CondVars e -> Some e | _ -> None in
-    let rec of_expr tv = function
-      | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
-      | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
-      | BinOp (Eq, e1, e2, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
-      | BinOp (Eq, e2, e1, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
-      | Lval lval -> Some (tv, lval)
-      | _ -> None
-    in
-    let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
-    let t tv e = if tv then e else UnOp (LNot, e, intType) in
-    let f tv v = D.V.map (t tv) v |> fun v -> Some (`ExprSet v) in
-    let of_clval (tv,k) = D.get k d >? f tv in
-    of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top ()
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.CondVars e ->
+      let d = ctx.local in
+      let rec of_expr tv = function
+        | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
+        | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
+        | BinOp (Eq, e1, e2, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
+        | BinOp (Eq, e2, e1, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
+        | Lval lval -> Some (tv, lval)
+        | _ -> None
+      in
+      let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
+      let t tv e = if tv then e else UnOp (LNot, e, intType) in
+      (* TODO: remove option? *)
+      let f tv v = D.V.map (t tv) v |> fun v -> Some v in
+      let of_clval (tv,k) = D.get k d >? f tv in
+      of_expr true e >? of_lval >? of_clval |? Queries.Result.top q
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -101,7 +104,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        M.debug_each @@ "CondVars: saving " ^ sprint Lval.CilLval.pretty clval ^ " = " ^ sprint d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a" Lval.CilLval.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
@@ -130,10 +133,10 @@ struct
     (* D.only_globals ctx.local *)
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)

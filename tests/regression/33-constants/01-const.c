@@ -1,4 +1,5 @@
-//PARAM: --sets ana.activated[+] constants
+//PARAM: --set ana.activated '["constants"]'
+// intentional explicit ana.activated to do tutorial in isolation
 int f(int a, int b){
     int d = 3;
     int z = a + d;

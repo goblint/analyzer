@@ -1,5 +1,7 @@
-// PARAM: --sets ana.activated[-] escape
+// PARAM: --set ana.activated[-] escape
 #include <pthread.h>
+#include <assert.h>
+
 int g = 10;
 
 void* t(void *v) {
@@ -15,6 +17,6 @@ int main(void){
   pthread_create(&tid, NULL, t, (void *)&l);
   pthread_join(tid, NULL);
 
-  assert(l==42); //UNKNOWN!
+  __goblint_check(l==42); //UNKNOWN!
   return 0;
 }

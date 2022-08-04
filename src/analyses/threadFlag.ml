@@ -8,20 +8,16 @@ open Analyses
 
 let is_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
-  match ask Queries.MustBeSingleThreaded with
-  | `MustBool x -> not x
-  | `Top -> true
-  | _ -> failwith "ThreadFlag.is_multi"
+  not (ask.f Queries.MustBeSingleThreaded)
 
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Flag = ConcDomain.Simple
+  module Flag = ThreadFlagDomain.Simple
   module D = Flag
   module C = Flag
-  module G = Lattice.Unit
 
   let name () = "threadflag"
 
@@ -44,9 +40,6 @@ struct
     | "__goblint_dummy_init" ->
       (* TODO: is this necessary? *)
       Flag.join ctx.local (Flag.get_main ())
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      Flag.get_multi ()
     | _ ->
       ctx.local
 
@@ -61,31 +54,31 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let part_access ctx e v w =
-    let es = Access.LSSet.empty () in
-    if is_multi ctx.ask then
-      (Access.LSSSet.singleton es, es)
-    else
-      (* kill access when single threaded *)
-      (Access.LSSSet.empty (), es)
-
-  let query ctx x =
+  let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
-    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
+    | Queries.MustBeSingleThreaded -> not (Flag.is_multi ctx.local)
+    | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
     (* This used to be in base but also commented out. *)
-    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
-    | Queries.PartAccess {exp; var_opt; write} ->
-      `PartAccessResult (part_access ctx exp var_opt write)
-    | _ -> `Top
+    (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
+    | _ -> Queries.Result.top x
+
+  module A =
+  struct
+    include BoolDomain.Bool
+    let name () = "multi"
+    let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
+    let should_print m = not m
+  end
+  let access ctx _ =
+    is_multi (Analyses.ask_of_ctx ctx)
 
   let threadenter ctx lval f args =
-    if not (is_multi ctx.ask) then
+    if not (is_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    if not (is_multi ctx.ask) then
+    if not (is_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     D.join ctx.local (Flag.get_main ())
 end

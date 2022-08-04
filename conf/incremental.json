@@ -1,27 +1,27 @@
 {
   "ana": {
     "activated": [
-      "base"
+      "base", "mallocWrapper"
     ],
     "int": {
       "interval": true,
-      "trier ": false
+      "def_exc": false
     },
-    "hashcons": true
+    "opt": {
+      "hashcons": false
+    },
+    "base": {
+      "privatization": "none"
+    }
+  },
+  "incremental": {
+    "load": true,
+    "save": true,
+    "wpoint": false,
+    "stable": true
   },
   "exp": {
-    "earlyglobs": true,
-    "solver": {
-      "td3": {
-        "term": true,
-        "space": false,
-        "space_cache": true,
-        "space_restore": true
-      }
-    },
-    "incremental": {
-      "mode": "incremental"
-    }
+    "earlyglobs": true
   },
   "dbg": {
     "verbose": true,
@@ -33,5 +33,13 @@
   "printstats": true,
   "result": "none",
   "solver": "td3",
-  "noverify": true
+  "solvers": {
+    "td3": {
+      "term": true,
+      "space": false,
+      "space_cache": true,
+      "space_restore": true
+    }
+  },
+  "verify": false
 }

@@ -7,5 +7,5 @@ int main() {
     unsigned char* y = &x;
     *y = a;
 
-    assert(x == -56);
+    __goblint_check(x == -56);
 }

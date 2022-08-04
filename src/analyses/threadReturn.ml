@@ -4,10 +4,7 @@ open Prelude.Ana
 open Analyses
 
 let is_current (ask: Queries.ask): bool =
-  match ask Queries.MayBeThreadReturn with
-  | `MayBool b -> b
-  | `Top -> true
-  | _ -> failwith "ThreadReturn.is_current"
+  ask.f Queries.MayBeThreadReturn
 
 
 module Spec : Analyses.MCPSpec =
@@ -16,7 +13,6 @@ struct
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
-  module G = Lattice.Unit
   module C = D
 
   (* transfer functions *)
@@ -32,10 +28,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, false]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -46,10 +42,10 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let query ctx x =
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MayBeThreadReturn -> `MayBool ctx.local
-    | _ -> `Top
+    | Queries.MayBeThreadReturn -> ctx.local
+    | _ -> Queries.Result.top x
 end
 
 let _ =

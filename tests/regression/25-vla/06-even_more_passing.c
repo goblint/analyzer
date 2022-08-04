@@ -1,4 +1,5 @@
-//PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']"
+//PARAM: --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned
+#include <assert.h>
 
 void foo2(int n , int (*a)[n] )
 {
@@ -6,13 +7,13 @@ void foo2(int n , int (*a)[n] )
   int y ;
 
   int *ptr = *(a+7);
-  assert(ptr[13] == 23);
+  __goblint_check(ptr[13] == 23);
 
   x = (*(a + 29))[7];
-  assert(x == 23); //FAIL
+  __goblint_check(x == 23); //FAIL
 
   y = (*(a + 7))[13];
-  assert(y == 23);
+  __goblint_check(y == 23);
 
   return;
 }

@@ -1,4 +1,3 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','mallocWrapper']"
 #include <stdlib.h>
 #include <pthread.h>
 #include <assert.h>
@@ -20,13 +19,13 @@ int main() {
   *x = 0;
   *y = 1;
 
-  assert(*x == 0);
-  assert(*y == 1);
+  __goblint_check(*x == 0);
+  __goblint_check(*y == 1);
 
   pthread_create(&id, NULL, t_fun, NULL);
 
-  assert(*x == 0); // UNKNOWN
-  assert(*y == 1);
+  __goblint_check(*x == 0); // UNKNOWN
+  __goblint_check(*y == 1);
 
   return 0;
 }

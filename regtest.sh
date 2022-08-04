@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#MacOS: needs brew install grep
 if [ $# -lt 2 ]; then
     echo "Usage: $0 group-nr test-nr [extra options]"
     exit 1
@@ -8,9 +9,12 @@ if [ ! -e $file ]; then
   echo "No file found!"
   exit 1
 fi
-params="`grep -oP "PARAM: \K.*" $file`"
-cmd="./goblint --enable dbg.debug --sets warnstyle \"legacy\" --enable dbg.showtemps --enable dbg.regression --html $params ${@:3} $file" #  --enable dbg.verbose --enable printstats
-cmd=`echo "$cmd" | sed "s:ana.osek.oil :ana.osek.oil $(dirname $file)/:"` # regression tests are run inside the test's directory which is why we either also need to cd there or instead prepend the path to the test directory for file parameters like these .oil files
+grep="grep"
+if [[ $OSTYPE == 'darwin'* ]]; then
+  grep="ggrep"
+fi
+params="`$grep -oP "PARAM: \K.*" $file`"
+cmd="./goblint --enable dbg.debug --enable dbg.regression --html $params ${@:3} $file" # -v
 echo "$cmd"
 eval $cmd
 echo "See result/index.xml"

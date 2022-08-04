@@ -7,7 +7,7 @@ open SLR
 (** the two-phased terminating SLR3 box solver *)
 module Make =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -15,9 +15,7 @@ module Make =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t
-      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
-      let hash  (x1,x2)         = (S.Var.hash x1 - 800) * S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -137,10 +135,10 @@ module Make =
           HM.replace rho0 x d;
           HM.replace infl x VS.empty;
           if side then (
-            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " ("^ string_of_int (S.Var.line_nr x) ^") to " ^ string_of_int !count_side;
+            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
             HM.replace key  x !count_side; decr count_side
           ) else (
-            print_endline @@ "Variable " ^ S.Var.var_id x ^ " ("^ string_of_int (S.Var.line_nr x) ^") to " ^ string_of_int !count;
+            print_endline @@ "Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int !count;
             HM.replace key  x !count; decr count
           );
           do_var false x;
@@ -187,24 +185,13 @@ module Make =
       iterate false max_int;
       List.iter (solve1 max_int) vs;
       iterate true max_int; (* TODO remove? *)
-
-      let reachability rho xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then begin
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          end
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; HM.find rho x) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho1
-      in
-      reachability rho1 vs;
       stop_event ();
+
+      if GobConfig.get_bool "dbg.print_wpoints" then (
+        Printf.printf "\nWidening points:\n";
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        print_newline ();
+      );
 
       HM.clear key   ;
       HM.clear wpoint;
@@ -216,5 +203,4 @@ module Make =
   end
 
 let _ =
-  let module S3tp = GlobSolverFromIneqSolver (JoinContr (Make)) in
-  Selector.add_solver ("slr3tp", (module S3tp : GenericGlobSolver)); (* two-phased slr3t *)
+  Selector.add_solver ("slr3tp", (module EqIncrSolverFromEqSolver (Make))); (* two-phased slr3t *)

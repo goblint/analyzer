@@ -123,6 +123,7 @@ struct
       true
     with
       | Failure _ (* raised by IntDomain *)
+      | SetDomain.Unsupported _ (* raised by SetDomain *)
       | Lattice.Unsupported _ (* raised by MapDomain *) ->
         false
 

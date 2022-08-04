@@ -4,12 +4,12 @@
 
 open Prelude.Ana
 open Analyses
+open Cilint
 
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   module D = Lattice.Unit
-  module G = Lattice.Unit
   module C = Lattice.Unit
 
   let name () = "expRelation"
@@ -47,45 +47,42 @@ struct
       | x -> x
 
   let isFloat e =
-    match Cil.unrollTypeDeep (Cil.typeOf e) with
+    match Cil.unrollTypeDeep (Cilfacade.typeOf e) with
     | TFloat _ -> true
     | _ -> false
 
-  let query ctx (q:Queries.t) : Queries.Result.t =
-    let lvalsEq l1 l2 = Basetype.CilExp.compareExp (Lval l1) (Lval l2) = 0 in (* == would be wrong here *)
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    let lvalsEq l1 l2 = CilType.Lval.equal l1 l2 in (* == would be wrong here *)
     match q with
-    | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) && Basetype.CilExp.equal (canonize e1) (canonize e2) ->
+      Queries.ID.of_bool (Cilfacade.get_ikind t) true
+    | Queries.EvalInt (BinOp (Lt, e1, e2, t)) when not (isFloat e1) ->
       begin
-        if Basetype.CilExp.compareExp (canonize e1) (canonize e2) = 0 then
-          `MustBool true
-        else
-          `MustBool false
-      end
-    | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
-      begin
+        (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)
         match e1, e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            `MayBool false  (* c > 0 => (! x+c < x) *)
-        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            `MayBool false  (* c < 0 => (! x < x+c )*)
-        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            `MayBool false  (* c < 0 => (! x-c < x) *)
-        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            `MayBool false  (* c < 0 => (! x < x-c) *)
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x+c < x) *)
+        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x < x+c )*)
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x-c < x) *)
+        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x < x-c) *)
         | _ ->
-            `MayBool true
+          Queries.ID.top ()
       end
-    | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) ->
       begin
         match e1,e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _)
-        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2) && Int64.compare i Int64.zero <> 0  ->
-            `MayBool false
-        | _ -> `MayBool true
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _)
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false
+        | _ ->
+          Queries.ID.top ()
       end
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
 
   (* below here is all the usual stuff an analysis requires, we don't do anything here *)
@@ -102,10 +99,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

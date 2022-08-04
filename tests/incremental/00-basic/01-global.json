@@ -1,0 +1,10 @@
+{
+    "ana":{
+        "opt":{
+            "hashcons": true
+        }
+    },
+    "exp":{
+        "earlyglobs": true
+    }
+}

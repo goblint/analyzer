@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval --enable exp.priv-distr-init
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <assert.h>
 
@@ -22,7 +24,7 @@ int put() {
   while (g >= limit) { // problematic widen
 
   }
-  assert(g >= 0); // TODO
+  __goblint_check(g >= 0); // precise privatization fails
   g++;
   pthread_mutex_unlock(&A);
 }
@@ -32,7 +34,7 @@ int main(int argc , char **argv )
   pthread_t tid;
   pthread_create(& tid, NULL, & worker, NULL);
 
-  int r;
+  int r = __VERIFIER_nondet_int();
   limit = r; // only problematic if limit unknown
 
   while (1) {

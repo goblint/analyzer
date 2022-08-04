@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.widen-context
+// PARAM: --enable ana.int.interval --enable ana.context.widen
 #include <assert.h>
 
 int f(int x) {
@@ -10,6 +10,6 @@ int f(int x) {
 
 int main () {
   int a = f(1);
-  assert(!a);
+  __goblint_check(!a);
   return 0;
 }
