@@ -1191,7 +1191,7 @@ module Spec : Analyses.MCPSpec = struct
 
         let add_task tid =
           let tasks =
-            let f_d =
+            let f_d:PthreadDomain.D.t =
               { tid = Tid.of_int @@ Int64.of_int tid
               ; pred = Pred.of_node (ctx.prev_node)
               ; ctx = Ctx.top ()

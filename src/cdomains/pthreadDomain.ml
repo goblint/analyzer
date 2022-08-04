@@ -20,15 +20,9 @@ module Pred = struct
     f loc.line ^ "b" ^ f loc.byte
 end
 
-type domain =
-  { tid : Tid.t
-  ; pred : Pred.t
-  ; ctx : Ctx.t
-  }
-[@@deriving to_yojson]
-
 module D = struct
-  type t = domain [@@deriving to_yojson]
+  type domain = { tid : Tid.t; pred : Pred.t; ctx : Ctx.t } [@@deriving to_yojson]
+  type t = domain
 
   (** printing *)
   let show x =
