@@ -310,8 +310,7 @@ end = struct
     let resource =
       let is_main_fun =
         promela_main
-        |> GobConfig.get_list
-        |> List.map Yojson.Safe.to_string
+        |> GobConfig.get_string_list
         |> List.mem fundec.svar.vname
       in
       let is_thread_fun =
