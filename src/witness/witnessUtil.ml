@@ -112,3 +112,84 @@ struct
     else
       [inv']
 end
+
+module InvariantParser =
+struct
+  type t = {
+    global_vars: Cil.varinfo list;
+  }
+
+  let create (file: Cil.file): t =
+    let global_vars = List.filter_map (function
+        | Cil.GVar (v, _, _)
+        | Cil.GFun ({svar=v; _}, _) -> Some v
+        | _ -> None
+      ) file.globals
+    in
+    {global_vars}
+
+  let parse_cabs (inv: string): (Cabs.expression, string) result =
+    match Frontc.parse_standalone_exp inv with
+    | inv_cabs -> Ok inv_cabs
+    | exception (Frontc.ParseError e) ->
+      Errormsg.log "\n"; (* CIL prints garbage without \n before *)
+      Error e
+
+  let parse_cil {global_vars} ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
+    let genv = Cabs2cil.genvironment in
+    let env = Hashtbl.copy genv in
+    List.iter (fun (v: Cil.varinfo) ->
+        Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
+      ) (fundec.sformals @ fundec.slocals);
+
+    let inv_exp_opt =
+      Cil.currentLoc := loc;
+      Cil.currentExpLoc := loc;
+      Cabs2cil.currentFunctionFDEC := fundec;
+      let old_locals = fundec.slocals in
+      let old_useLogicalOperators = !Cil.useLogicalOperators in
+      Fun.protect ~finally:(fun () ->
+          fundec.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+          Cil.useLogicalOperators := old_useLogicalOperators
+        ) (fun () ->
+          Cil.useLogicalOperators := true;
+          Cabs2cil.convStandaloneExp ~genv ~env inv_cabs
+        )
+    in
+
+    let vars = fundec.sformals @ fundec.slocals @ global_vars in
+    match inv_exp_opt with
+    | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
+      Ok inv_exp
+    | _ ->
+      Error "parse_cil"
+end
+
+module Locator (E: Set.OrderedType) =
+struct
+  module FileH = BatHashtbl.Make (Basetype.RawStrings)
+  module LocM = BatMap.Make (CilType.Location)
+  module ES = BatSet.Make (E)
+
+  (* for each file, locations have total order, so LocM essentially does binary search *)
+  type t = ES.t LocM.t FileH.t
+
+  let create () = FileH.create 100
+
+  let add (file_loc_es: t) (loc: Cil.location) (e: E.t): unit =
+    FileH.modify_def LocM.empty loc.file (
+        LocM.modify_def ES.empty loc (ES.add e)
+      ) file_loc_es
+
+  let find_opt (file_loc_es: t) (loc: Cil.location): ES.t option =
+    let (let*) = Option.bind in (* TODO: move to general library *)
+    let* loc_es = FileH.find_option file_loc_es loc.file in
+    let* (_, es) = LocM.find_first_opt (fun loc' ->
+        CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
+      ) loc_es
+    in
+    if ES.is_empty es then
+      None
+    else
+      Some es
+end
