@@ -196,6 +196,9 @@ inline __MutexLock(thread_id, x) {
   }
 }
 
+// This makes a strong assumption! If other threads are waiting for the mutex, they get it before we can attempt to
+// relock the mutex.
+// This is not really what happens for pthreads!
 inline MutexUnlock(x) {
   atomic {
     if
