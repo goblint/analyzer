@@ -1073,8 +1073,7 @@ module Spec : Analyses.MCPSpec = struct
 
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
-    let module BaseMain = (val Base.get_main ()) in
-    let context_hash = Int64.of_int (ControlSpecC.hash (ctx.control_context ())) in
+    let context_hash = Int64.of_int (if not !Goblintutil.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 
@@ -1195,17 +1194,13 @@ module Spec : Analyses.MCPSpec = struct
           let tasks =
             let f_d =
               { tid = Tid.of_int @@ Int64.of_int tid
-              ; pred = Pred.of_node (MyCFG.Function (Cilfacade.find_varinfo_fundec f))
+              ; pred = Pred.of_node (ctx.prev_node)
               ; ctx = Ctx.top ()
               }
             in
-            Tasks.add (funs_ls, f_d) (ctx.global tasks_var)
+            Tasks.singleton (funs_ls, f_d)
           in
           ctx.sideg tasks_var tasks ;
-          Tasks.iter
-            (fun (fs, f_d) ->
-               Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs)
-            tasks
         in
         let thread_create tid =
           let fun_name = Variable.show thread_fun in
@@ -1321,9 +1316,9 @@ module Spec : Analyses.MCPSpec = struct
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 
-  let exitstate v = D.bot ()
+  let exitstate v = D.top ()
 
   let finalize = Codegen.save_promela_model
 
