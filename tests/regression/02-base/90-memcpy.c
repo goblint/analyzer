@@ -27,8 +27,27 @@ int foo(){
     return 0;
 }
 
+int bar(){
+    int arr[10];
+    double y;
+
+    for(int i = 0; i < 10; i++){
+        arr[i] = 0;
+    }
+    __goblint_check(arr[0] == 0);
+    __goblint_check(arr[3] == 0);
+
+    memcpy(&arr, &y, sizeof(double));
+
+    __goblint_check(arr[0] == 0); //UNKNOWN!
+    __goblint_check(arr[3] == 0); //UNKNOWN
+
+    return 0;
+}
+
 int main(){
     sqlite3IsNaN(23.0);
     foo();
+    bar();
     return 0;
 }
