@@ -119,8 +119,6 @@ struct
   let union x y = join x y
   let iter f m = Map.iter (fun _ -> List.iter f) m
 
-  let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
-
   (* Lattice *)
   let bot () = Map.empty
   let is_bot = Map.is_empty
@@ -167,6 +165,7 @@ struct
     List.iter (E.printXml f) (elements x);
     BatPrintf.fprintf f "</set>\n</value>\n"
 end
+[@@deprecated]
 
 
 module type SetS =
@@ -194,7 +193,7 @@ struct
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = unsupported "Set.remove"
+  let remove x a = filter (fun y -> not (B.leq y x)) a
   let join a b = union a b |> reduce
   let union _ _ = unsupported "Set.union"
   let inter _ _ = unsupported "Set.inter"
@@ -337,4 +336,37 @@ struct
         (cardinal s1)
         (cardinal s2)
     end
+end
+
+
+module Set2 (E: Lattice.S): SetDomain.S with type elt = E.t =
+struct
+  module H = Set (E)
+  include H
+
+
+  (* version of widen which doesn't use E.bot *)
+  let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
+  let xs,ys = elements a, elements b in
+  List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
+  let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
+
+  (* widen is actually extrapolation operator, so define connector-based widening instead *)
+  let leq_em s1 s2 =
+    is_bot s1 || leq s1 s2 && for_all (fun e2 -> exists (fun e1 -> E.leq e1 e2) s1) s2
+  let join_em s1 s2 =
+    join s1 s2
+    |> elements
+    |> BatList.reduce E.join
+    |> singleton
+
+  let widen s1 s2 =
+    assert (leq s1 s2);
+    let s2' =
+      if leq_em s1 s2 then
+        s2
+      else
+        join_em s1 s2
+    in
+    widen s1 s2'
 end

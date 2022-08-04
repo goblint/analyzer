@@ -21,15 +21,49 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
   module Addr = Lval.NormalLat (Idx)
-  include HoareDomain.HoarePO (Addr)
+  module RC =
+  struct
+    include Addr
+    type elt = Addr.t
+
+    let rec of_elt_offset: Offs.t -> Offs.t =
+      function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o) (* TODO: is this still right? is_first_field isn't used in join any more *)
+      | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
+      | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *)
+    let of_elt = function
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | a -> a (* everything else is kept separate *)
+
+    let cong x y =
+      if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;
+      let r = match Addr.join x y with (* using join for congruence, but all operations must be the same *)
+        | exception Lattice.Uncomparable -> false
+        | _ -> true
+      in
+      if M.tracing then M.traceu "ad" "-> %B\n" r;
+      r
+  end
+  (* module J = SetDomain.Joined (Addr) *)
+  module H = HoareDomain.Set2 (Addr)
+  include SensitiveDomain.Combined (Addr) (H) (RC)
 
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
     let r = widen x y in
     if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
+  let join x y =
+    if M.tracing then M.traceli "ad" "join %a %a\n" pretty x pretty y;
+    let r = join x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
+  let leq x y =
+    if M.tracing then M.traceli "ad" "leq %a %a\n" pretty x pretty y;
+    let r = leq x y in
+    if M.tracing then M.traceu "ad" "-> %B\n" r;
     r
 
   type field = Addr.field
@@ -41,6 +75,7 @@ struct
   let not_null       = unknown_ptr
   let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
+  let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
   let may_be_null x = exists (fun e -> e = Addr.NullPtr) x
@@ -140,4 +175,10 @@ struct
 
   let meet x y   = merge join meet x y
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+
+  let narrow x y =
+    if M.tracing then M.traceli "ad" "narrow %a %a\n" pretty x pretty y;
+    let r = narrow x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
 end
