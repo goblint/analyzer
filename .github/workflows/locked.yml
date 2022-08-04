@@ -84,6 +84,12 @@ jobs:
       - name: Install spin
         run: sudo apt-get -y install spin
 
+      - name: Install dependencies
+        run: opam install . --deps-only --locked --with-test
+
+      - name: Build
+        run: ./make.sh nat
+
       - name: Test extraction
         run: ruby scripts/update_suite.rb -i
 
