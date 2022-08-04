@@ -608,8 +608,8 @@ module Codegen = struct
 
   module Writer = struct
     let write desc ext content =
-      let dir = Goblintutil.create_dir (Fpath.v "result") in
-      let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("/pthread." ^ ext)) in
+      let dir = Goblintutil.create_dir (Fpath.v "pml-result") in
+      let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path
   end
