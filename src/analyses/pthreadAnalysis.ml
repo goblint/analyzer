@@ -5,6 +5,7 @@ open Analyses
 open Cil
 open BatteriesExceptionless
 open Option.Infix
+open PthreadDomain
 
 class uniqueVarPrinterClass =
   object (self)
@@ -23,32 +24,6 @@ class uniqueVarPrinterClass =
   end
 
 let printer = new uniqueVarPrinterClass
-
-module Flags = struct
-  type t =
-    | AssumeSuccess
-    | IgnoreAssigns
-
-  let all = [ AssumeSuccess; IgnoreAssigns ]
-
-  let default_value = function AssumeSuccess -> true | IgnoreAssigns -> true
-
-  let description = function
-    | AssumeSuccess ->
-        "Assume that all POSIX pthread functions succeed."
-    | IgnoreAssigns ->
-        "Ignors any assigns in POSIX programs"
-
-
-  let show = function
-    | AssumeSuccess ->
-        "ana.pthread.assume_success"
-    | IgnoreAssigns ->
-        "ana.pthread.ignore_assign"
-
-
-  let eval = GobConfig.get_bool % show
-end
 
 (** [Function] module represents the supported pthread functions for the analysis *)
 module Function = struct
@@ -923,7 +898,7 @@ module Spec : Analyses.MCPSpec = struct
   module V = VarinfoV
 
   (** Domains *)
-  include PthreadDomain
+  module D = PthreadDomain.D
 
   module C = D
 
@@ -978,7 +953,8 @@ module Spec : Analyses.MCPSpec = struct
   let init () = LibraryFunctions.add_lib_funs Function.supported
 
   let assign ctx (lval : lval) (rval : exp) : D.t =
-    if PthreadDomain.D.is_bot ctx.local || Flags.eval Flags.IgnoreAssigns
+    let should_ignore_assigns = GobConfig.get_bool "ana.pthread.ignore_assign" in
+    if PthreadDomain.D.is_bot ctx.local || should_ignore_assigns
     then ctx.local
     else if Option.is_none !MyCFG.current_node
     then (
@@ -1183,7 +1159,10 @@ module Spec : Analyses.MCPSpec = struct
 
         List.iter (Edges.add env) actions ;
 
-        if not @@ Flags.eval Flags.AssumeSuccess
+        let should_assume_success =
+          GobConfig.get_bool "ana.pthread.assume_success"
+        in
+        if not should_assume_success
         then Option.may (Edges.add env) @@ add_failed_assign_action () ;
 
         if List.is_empty actions
@@ -1341,7 +1320,7 @@ module Spec : Analyses.MCPSpec = struct
         tasks
     in
     let f_d = snd (Tasks.choose tasks_f) in
-    [{ f_d with pred = d.pred }]
+    [ { f_d with pred = d.pred } ]
 
 
   let threadspawn ctx lval f args fctx = D.bot ()

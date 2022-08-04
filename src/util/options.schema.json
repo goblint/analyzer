@@ -891,6 +891,25 @@
             }
           },
           "additionalProperties": false
+        },
+        "pthread" : {
+          "title": "ana.pthread",
+          "type": "object",
+          "properties": {
+            "assume_success": {
+              "title": "ana.pthread.assume_success",
+              "description": "Assume that all POSIX pthread functions succeed.",
+              "type": "boolean",
+              "default": true
+            },
+            "ignore_assign": {
+              "title": "ana.pthread.ignore_assign",
+              "description": "Ignores any assigns in POSIX programs.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

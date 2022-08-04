@@ -33,7 +33,7 @@ module D = struct
     Printf.sprintf
       "{ Tid=%s; pred=%s; ctx=%s }"
       (Tid.show x.tid)
-      (Pretty.sprint ~width:200 (Pred.pretty () x.pred))
+      (Pred.show x.pred)
       (Ctx.show x.ctx)
 
   include Printable.SimpleShow(struct type  t = domain let show = show end)
