@@ -31,7 +31,7 @@ struct
   (* explicitly delegate, so we don't accidentally delegate too much *)
 
   type t = M.t
-  let equal = M.equal
+  let equal a b = a == b || M.equal a b
   let compare = M.compare
   let hash = M.hash
   let tag = M.tag
