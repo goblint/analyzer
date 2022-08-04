@@ -253,7 +253,7 @@ module Tbls = struct
 
       (* function for creating a new intermediate node (will generate a new sid every time!) *)
       let make_new_val table k =
-        (* TODO: all same key occurences instead *)
+        (* TODO: all same key occurrences instead *)
         let line = -5 - all_keys_count table in
         let loc = { !Tracing.current_loc with line } in
         MyCFG.Statement
