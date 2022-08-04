@@ -2519,7 +2519,7 @@ struct
 
           (* When src and destination type coincide, take value from the source, otherwise use top *)
           let value = if typeSig dest_typ = typeSig src_typ then
-              let src_cast_lval = mkMem ~addr:(Cil.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+              let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
               eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
             else
               VD.top_value (unrollType dest_typ)
