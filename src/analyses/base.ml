@@ -2507,22 +2507,25 @@ struct
         | _, [dst; src]
         | _, [dst; src; _]
         | "__builtin___memcpy_chk", [dst; src; _; _] ->
-          let dest_typ = typeOf (Cil.stripCasts dst) in
-          let src_typ = typeOf (Cil.stripCasts src) in
+          let get_type lval =
+            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+            AD.get_type address
+          in
           let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+          let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
 
-          (* When src and destination type coincide, we can assign, otherwise we assign top *)
-          if typeSig dest_typ = typeSig src_typ then begin
-            let src_a = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-            assign ctx dst_lval (Lval src_a)
-          end else begin
-            let value = match unrollType dest_typ with
-              | TPtr (t, _) -> VD.top_value t
-              | _ -> failwith "memcpy to non-ptr type."
-            in
-            let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
-            set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-          end
+          let dest_typ = get_type dst_lval in
+          let src_typ = get_type src_lval in
+
+          (* When src and destination type coincide, take value from the source, otherwise use top *)
+          let value = if typeSig dest_typ = typeSig src_typ then
+              let src_cast_lval = mkMem ~addr:(Cil.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+              eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+            else
+              VD.top_value (unrollType dest_typ)
+          in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
     | Unknown, "__builtin" ->
