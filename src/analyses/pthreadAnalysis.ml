@@ -1071,12 +1071,7 @@ module Spec : Analyses.MCPSpec = struct
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
     let module BaseMain = (val Base.get_main ()) in
-    let context_hash =
-      (* let base_context =
-        BaseMain.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub
-      in *)
-      Int64.of_int @@ Hashtbl.hash ("TODO", ctx.local.tid)
-    in
+    let context_hash = Int64.of_int (ControlSpecC.hash (ctx.control_context ())) in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 

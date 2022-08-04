@@ -137,7 +137,7 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = n
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+        ; control_context = (fun () -> ctx_failwith "No context in witness context.")
         ; context = (fun () -> ctx_failwith "No context in witness context.")
         ; edge    = MyCFG.Skip
         ; local  = local
@@ -239,7 +239,7 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
