@@ -141,7 +141,7 @@ struct
         ; context = (fun () -> ctx_failwith "No context in witness context.")
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = (fun v -> try (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g))) v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+        ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
