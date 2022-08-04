@@ -701,7 +701,10 @@ module Codegen = struct
         in
         let walk_edges (node, out_edges) =
           let edges = Set.map str_edge out_edges |> Set.elements in
-          let body = if List.length edges > 1 then if_clause edges else edges in
+          let body = match edges with
+            | _::_::_ -> if_clause edges
+            | _ -> edges
+          in
           (label node ^ ":") :: body
         in
         let body =
