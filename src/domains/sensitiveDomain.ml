@@ -369,6 +369,281 @@ struct
 end
 
 
+module type MapS =
+sig
+  include MapDomain.PS
+  include Lattice.S with type t := t
+end
+
+module PairwiseMap (E: Printable.S) (B: MapS with type key = E.t) (C: Congruence with type elt = E.t): MapS with type key = E.t and type value = B.value =
+struct
+  type key = E.t
+  type value = B.value
+
+  module B =
+  struct
+    include Printable.Std (* for Groupable *)
+    include B
+  end
+
+  module S = SetDomain.Make (B)
+
+  (** Invariant: no explicit bot buckets.
+      Required for efficient [is_empty], [cardinal] and [choose]. *)
+
+  let name () = "PairwiseMap (" ^ B.name () ^ ")"
+
+  (* explicitly delegate, so we don't accidentally delegate too much *)
+
+  type t = S.t
+  let equal = S.equal
+  let compare = S.compare
+  let hash = S.hash
+  let tag = S.tag
+  let relift = S.relift
+
+  let is_bot = S.is_bot
+  let bot = S.bot
+  let is_top = S.is_top
+  let top = S.top
+
+  let is_empty = S.is_empty
+  let empty = S.empty
+  let cardinal = S.cardinal
+
+  let fold f s a = S.fold (fun b a -> B.fold f b a) s a
+  let iter f s = S.iter (fun b -> B.iter f b) s
+  let exists p s = S.exists (fun b -> B.exists p b) s
+  let for_all p s = S.for_all (fun b -> B.for_all p b) s
+
+  let singleton e r = S.singleton (B.singleton e r)
+  let choose s = B.choose (S.choose s)
+
+  (* based on SetDomain.SensitiveConf *)
+
+  let mem e s =
+    S.exists (fun b -> C.cong (fst (B.choose b)) e && B.mem e b) s
+  let find e s =
+    let (s_match, s_rest) = S.partition (fun b -> C.cong (fst (B.choose b)) e) s in
+    let b = S.choose s_match in (* raises Not_found *)
+    assert (S.cardinal s_match = 1);
+    B.find e b (* raises Not_found *)
+  let find_opt e s =
+    let (s_match, s_rest) = S.partition (fun b -> C.cong (fst (B.choose b)) e) s in
+    match S.choose s_match with
+    | b ->
+      assert (S.cardinal s_match = 1);
+      B.find_opt e b
+    | exception Not_found -> None
+  let add e r s =
+    let (s_match, s_rest) = S.partition (fun b -> C.cong (fst (B.choose b)) e) s in
+    let b' = match S.choose s_match with
+      | b ->
+        assert (S.cardinal s_match = 1);
+        B.add e r b
+      | exception Not_found -> B.singleton e r
+    in
+    S.add b' s_rest
+  let remove e s =
+    let (s_match, s_rest) = S.partition (fun b -> C.cong (fst (B.choose b)) e) s in
+    match S.choose s_match with
+    | b ->
+      assert (S.cardinal s_match = 1);
+      begin match B.remove e b with
+        | b' when B.is_bot b' ->
+          s_rest (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          s_rest (* remove bot bucket to preserve invariant *)
+        | b' ->
+          S.add b' s
+      end
+    | exception Not_found -> s
+  (* let diff s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match B.diff b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc *)
+
+  (* let of_list es = List.fold_left (fun acc e ->
+      add e acc
+    ) (empty ()) es *)
+  let add_list ers m = List.fold_left (fun acc (e, r) ->
+      add e r acc
+    ) m ers
+  let add_list_set es r m = List.fold_left (fun acc e ->
+      add e r acc
+    ) m es
+  let add_list_fun es f m = List.fold_left (fun acc e ->
+      add e (f e) acc
+    ) m es
+  let bindings m = fold (fun e r acc -> (e, r) :: acc) m [] (* no intermediate per-bucket lists *)
+  (* let map f s = fold (fun e acc ->
+      add (f e) acc
+    ) s (empty ()) (* no intermediate lists *) *)
+  let map f m = S.map (fun b ->
+      B.map f b
+    ) m
+  let mapi f m = S.map (fun b ->
+      B.mapi f b
+    ) m
+  let long_map2 f s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = fst (B.choose b2) in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          B.long_map2 f b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+  let map2 f s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = fst (B.choose b2) in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match B.map2 f b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+  let merge f m1 m2 = failwith "PairwiseMap.merge" (* TODO: ? *)
+
+  let leq s1 s2 =
+    S.for_all (fun b1 ->
+        let e1 = fst (B.choose b1) in
+        S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2
+      ) s1
+
+  let join s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = fst (B.choose b2) in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          B.join b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
+  let widen s1 s2 =
+    assert (leq s1 s2);
+    let f b2 (s1, acc) =
+      let e2 = fst (B.choose b2) in
+      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (fst (B.choose e1)) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          B.widen b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    assert (is_empty s1'); (* since [leq s1 s2], folding over s2 should remove all s1 *)
+    acc (* TODO: extra union s2 needed? *)
+
+  let meet s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = fst (B.choose b2) in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match B.meet b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+
+  let narrow s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = fst (B.choose b2) in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match B.narrow b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+
+  (* let union = join
+  let inter = meet
+  let subset = leq *)
+
+  let pretty () s =
+    Pretty.(dprintf "{%a}" (d_list ", " (fun () (e, r) -> dprintf "%a -> ?" E.pretty e)) (bindings s)) (* TODO: show value *)
+  let show s = Pretty.sprint ~width:max_int (pretty () s) (* TODO: delegate to E.show instead *)
+  let to_yojson s = `Assoc (List.map (fun (e, r) -> (E.show e, `Null)) (bindings s)) (* TODO: show value *)
+  let printXml f s =
+    (* based on MapDomain *)
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    iter (fun e r -> E.printXml f e) s; (* show value *)
+    BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let pretty_diff () _ = failwith "PairwiseMap.pretty_diff" (* TODO *)
+
+  let arbitrary () = failwith "PairwiseMap.arbitrary"
+
+  let filter p s = SetDomain.unsupported "PairwiseMap.filter"
+  let partition p s = SetDomain.unsupported "PairwiseMap.partition"
+  (* let min_elt s = SetDomain.unsupported "Pairwise.min_elt"
+  let max_elt s = SetDomain.unsupported "Pairwise.max_elt"
+  let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *) *)
+end
+
+
 module type RepresentativeCongruence =
 sig
   include Representative

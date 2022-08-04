@@ -692,3 +692,72 @@ struct
   module M = MapTop (Domain) (Range)
   include LiftBot (Range) (M)
 end
+
+module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type value = R.t =
+struct
+  type key = E.t
+  type value = R.t
+  include Lattice.Prod (E) (R)
+
+  let singleton e r = (e, r)
+  (* let of_list es = List.fold_left E.join (E.bot ()) es *)
+  let exists p (e, r) = p e r
+  let for_all p (e, r) = p e r
+  let mem e (e', _) = E.leq e e'
+  let choose er = er
+  (* let elements e = [e] *)
+  let bindings er = [er]
+  let remove e ((e', _) as er) =
+    if E.leq e' e then
+      (E.bot (), R.bot ())
+    else
+      er
+  let map f (e, r) = (e, f r)
+  let mapi f (e, r) = (e, f e r)
+  let map2 f (e, r) (e', r') = (E.meet e e', f r r')
+  let long_map2 f (e, r) (e', r') = (E.join e e', f r r')
+  let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
+  let fold f (e, r) a = f e r a
+  let empty () = (E.bot (), R.bot ())
+  let add e r (e', r') = (E.join e e', R.join r r')
+  let is_empty (e, _) = E.is_bot e
+  (* let union e e' = E.join e e' *)
+  (* let diff e e' = remove e' e *)
+  let iter f (e, r) = f e r
+  let cardinal er =
+    if is_empty er then
+      0
+    else
+      1
+  (* let inter e e' = E.meet e e'
+  let subset e e' = E.leq e e'
+  let filter p e = unsupported "Joined.filter"
+  let partition p e = unsupported "Joined.partition"
+  let min_elt e = unsupported "Joined.min_elt"
+  let max_elt e = unsupported "Joined.max_elt"
+  let disjoint e e' = is_empty (inter e e') *)
+  let find e (e', r) =
+    if E.leq e e' then
+      r
+    else
+      raise Not_found
+  let find_opt e (e', r) =
+    if E.leq e e' then
+      Some r
+    else
+      None
+  let filter p s = failwith "MapDomain.Joined.filter"
+  let add_list ers m = List.fold_left (fun acc (e, r) ->
+      add e r acc
+    ) m ers
+  let add_list_set es r m = List.fold_left (fun acc e ->
+      add e r acc
+    ) m es
+  let add_list_fun es f m = List.fold_left (fun acc e ->
+      add e (f e) acc
+    ) m es
+
+  let leq_with_fct _ _ _ = failwith "MapDomain.Joined.leq_with_fct"
+  let join_with_fct _ _ _ = failwith "MapDomain.Joined.join_with_fct"
+  let widen_with_fct _ _ _ = failwith "MapDomain.Joined.widen_with_fct"
+end

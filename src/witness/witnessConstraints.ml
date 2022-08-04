@@ -104,7 +104,14 @@ struct
 
   module Dom =
   struct
-    include HoareDomain.MapBot (Spec.D) (R)
+    module C =
+    struct
+      type elt = Spec.D.t
+      let cong = Spec.should_join
+    end
+    module J = MapDomain.Joined (Spec.D) (R)
+    include SensitiveDomain.PairwiseMap (Spec.D) (J) (C)
+    (* include HoareDomain.MapBot (Spec.D) (R) *)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
@@ -113,10 +120,10 @@ struct
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
         BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
       in
-      iter' print_one x
+      iter print_one x
 
     (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
+    (* let join_reduce a =
       let rec loop js = function
         | [] -> js
         | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
@@ -134,7 +141,14 @@ struct
     let join = binop join
     let meet = binop meet
     let widen = binop widen
-    let narrow = binop narrow
+    let narrow = binop narrow *)
+
+    let map_keys f m =
+      fold (fun e r acc ->
+          add (f e) r acc
+        ) m (empty ())
+    let choose_key m = fst (choose m)
+    let fold_keys f m a = fold (fun e _ acc -> f e acc) m a
   end
 
   (* Additional dependencies component between values before and after sync.
@@ -163,7 +177,7 @@ struct
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot ())
+  let morphstate v (d, _) = (Dom.map_keys (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 
@@ -171,7 +185,7 @@ struct
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
     else
-      Spec.context fd @@ Dom.choose l
+      Spec.context fd @@ Dom.choose_key l
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
@@ -198,7 +212,7 @@ struct
       try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
-    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
+    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let fold' ctx f g h a =
@@ -206,14 +220,14 @@ struct
       try h a x @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    Dom.fold k (fst ctx.local) a
+    Dom.fold_keys k (fst ctx.local) a
 
   let fold'' ctx f g h a =
     let k x r a =
       try h a x r @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    Dom.fold' k (fst ctx.local) a
+    Dom.fold k (fst ctx.local) a
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
   let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
@@ -238,7 +252,7 @@ struct
     in
     fold' ctx Spec.threadenter (fun h -> h lval f args) g []
   let threadspawn ctx lval f args fctx =
-    let fd1 = Dom.choose (fst fctx.local) in
+    let fd1 = Dom.choose_key (fst fctx.local) in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let sync ctx reason =
@@ -249,7 +263,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
-      Dom.iter' (fun x r ->
+      Dom.iter (fun x r ->
           R.iter (function
               | `Lifted ((n, c, j), e) ->
                 f (I.to_int x) (n, Obj.repr c, I.to_int j) e
@@ -264,14 +278,14 @@ struct
       end;
       ()
     | Queries.IterVars f ->
-      Dom.iter' (fun x r ->
+      Dom.iter (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
       ()
     | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.elements (fst ctx.local)) in
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
       Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
@@ -304,7 +318,7 @@ struct
 
   let combine ctx l fe f a fc d =
     assert (Dom.cardinal (fst ctx.local) = 1);
-    let cd = Dom.choose (fst ctx.local) in
+    let cd = Dom.choose_key (fst ctx.local) in
     let k x y =
       let r =
         if should_inline f then
@@ -317,6 +331,6 @@ struct
       try Dom.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
       with Deadcode -> y
     in
-    let d = Dom.fold k (fst d) (Dom.bot ()) in
+    let d = Dom.fold_keys k (fst d) (Dom.bot ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 end
