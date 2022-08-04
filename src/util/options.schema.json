@@ -1019,12 +1019,6 @@
                   "type" : "boolean",
                   "default" : false
                 },
-                "destab-with-sides": {
-                  "title" : "incremental.restart.sided.destab-with-sides",
-                  "description" : "TODO BROKEN",
-                  "type" : "boolean",
-                  "default" : true
-                },
                 "fuel": {
                   "title": "incremental.restart.sided.fuel",
                   "description": "Initial fuel for bounding transitive restarting, which uses one fuel each time when following side_fuel to restart. Zero fuel never restarts. Negative fuel doesn't bound (infinite fuel).",

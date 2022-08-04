@@ -105,7 +105,6 @@ module WP =
       let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
       let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
       let restart_only_access = GobConfig.get_bool "incremental.restart.sided.only-access" in
-      let restart_destab_with_sides = GobConfig.get_bool "incremental.restart.sided.destab-with-sides" in
 
       let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
       let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
@@ -408,10 +407,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                if restart_destab_with_sides then
-                  destabilize_with_side ~side_fuel y
-                else
-                  destabilize_normal y
+                destabilize_with_side ~side_fuel y
               ) w
           );
 

@@ -10,8 +10,7 @@
     "restart": {
       "sided": {
         "enabled": true,
-        "only-access": true,
-        "destab-with-sides": true
+        "only-access": true
       }
     }
   }
