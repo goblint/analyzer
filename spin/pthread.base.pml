@@ -73,7 +73,7 @@ ltl not_starving  { allTasks(notStarving) }
    threads[thread_id].waitingOnResource.type == resource_type &&              \
    threads[thread_id].waitingOnResource.id == resource_id)
 
-#pragma mark - waiting/signaling
+//pragma mark - waiting signaling
 
 inline setWaiting(thread_id, resource_type, resource_id) {
   printf("setWaiting: thread %d will wait for %e %d\n", thread_id, resource_type,
@@ -97,11 +97,11 @@ inline setReady(thread_id) {
   threads[thread_id].state = READY;
 }
 
-#pragma mark - Helper globals
+//pragma mark - Helper globals
 byte ___i;
 byte ___rand_num;
 
-#pragma mark - Thread logic
+//pragma mark - Thread logic
 
 inline ThreadCreate(thread_id) {
   atomic {
@@ -149,7 +149,7 @@ inline ThreadExit() {
   }
 }
 
-#pragma mark - Mutex logic
+//pragma mark - Mutex logic
 
 inline MutexInit(mid) {
   atomic {
@@ -222,7 +222,7 @@ inline MutexUnlock(x) {
   }
 }
 
-#pragma mark - conditional vars
+//pragma mark - conditional vars
 
 inline CondVarInit(cond_var_id) {
   atomic {
@@ -297,6 +297,6 @@ inline CondVarBroadcast(cond_var_id) {
       :: empty(cond_vars[cond_var_id].waitQueue) -> break
     od
 
-    // All waititng processes/threads are now waiting for the mutex to be released
+    // All waiting processes/threads are now waiting for the mutex to be released
   }
 }
