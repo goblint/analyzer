@@ -102,7 +102,7 @@ struct
 
   module R = VIES
 
-  module Dom =
+  module SpecDMap (R: Lattice.S) =
   struct
     module C =
     struct
@@ -111,7 +111,11 @@ struct
     end
     module J = MapDomain.Joined (Spec.D) (R)
     include SensitiveDomain.PairwiseMap (Spec.D) (J) (C)
-    (* include HoareDomain.MapBot (Spec.D) (R) *)
+  end
+
+  module Dom =
+  struct
+    include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
@@ -155,7 +159,7 @@ struct
    * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
   module SyncSet = HoareDomain.Set (Spec.D)
-  module Sync = HoareDomain.MapBot (Spec.D) (SyncSet)
+  module Sync = SpecDMap (SyncSet)
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)
