@@ -567,6 +567,31 @@ struct
 end
 
 
+module type FailwithMessage =
+sig
+  val message: string
+end
+
+module Failwith (Message: FailwithMessage): S =
+struct
+  type t = |
+
+  let name () = "failwith"
+  let equal _ _ = failwith Message.message
+  let compare _ _ = failwith Message.message
+  let hash _ = failwith Message.message
+  let tag _ = failwith Message.message
+
+  let show _ = failwith Message.message
+  let pretty _ _ = failwith Message.message
+  let printXml _ _ = failwith Message.message
+  let to_yojson _ = failwith Message.message
+
+  let arbitrary _ = failwith Message.message
+  let relift _ = failwith Message.message
+end
+
+
 (** Concatenates a list of strings that
     fit in the given character constraint *)
 let get_short_list begin_str end_str list =
