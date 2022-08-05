@@ -369,13 +369,7 @@ struct
 end
 
 
-module type MapS =
-sig
-  include MapDomain.PS
-  include Lattice.S with type t := t
-end
-
-module PairwiseMap (E: Printable.S) (R: Printable.S) (B: MapS with type key = E.t and type value = R.t) (C: Congruence with type elt = E.t): MapS with type key = E.t and type value = B.value =
+module PairwiseMap (E: Printable.S) (R: Printable.S) (B: MapDomain.S with type key = E.t and type value = R.t) (C: Congruence with type elt = E.t): MapDomain.S with type key = E.t and type value = B.value =
 struct
   type key = E.t
   type value = B.value
@@ -608,8 +602,11 @@ struct
 
   let arbitrary () = failwith "PairwiseMap.arbitrary"
 
-  let filter p s = SetDomain.unsupported "PairwiseMap.filter"
-  let partition p s = SetDomain.unsupported "PairwiseMap.partition"
+  let filter p s = failwith "PairwiseMap.filter"
+
+  let leq_with_fct _ _ _ = failwith "PairwiseMap.leq_with_fct"
+  let join_with_fct _ _ _ = failwith "PairwiseMap.join_with_fct"
+  let widen_with_fct _ _ _ = failwith "PairwiseMap.widen_with_fct"
 end
 
 
