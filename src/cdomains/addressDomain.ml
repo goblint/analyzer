@@ -53,6 +53,10 @@ struct
      https://github.com/goblint/analyzer/pull/808 *)
   include SensitiveDomain.Combined (Addr) (J) (RC)
 
+  (* short-circuit with physical equality,
+     makes a different at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
+  let equal x y = x == y || equal x y
+
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
     let r = widen x y in
