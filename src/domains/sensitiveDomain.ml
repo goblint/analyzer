@@ -141,15 +141,14 @@ struct
   let inter = meet
   let subset = leq
 
-  let pretty () m =
-    Pretty.(dprintf "{%a}" (d_list ", " E.pretty) (elements m))
-  let show m = Pretty.sprint ~width:max_int (pretty () m) (* TODO: delegate to E.show instead *)
-  let to_yojson m = [%to_yojson: E.t list] (elements m)
-  let printXml f m =
-    (* based on SetDomain *)
-    BatPrintf.fprintf f "<value>\n<set>\n";
-    iter (E.printXml f) m;
-    BatPrintf.fprintf f "</set>\n</value>\n"
+  include SetDomain.Print (E) (
+    struct
+      type nonrec t = t
+      type nonrec elt = elt
+      let elements = elements
+      let iter = iter
+    end
+    )
 
   let arbitrary () = failwith "Projective.arbitrary"
 
@@ -345,15 +344,14 @@ struct
   let inter = meet
   let subset = leq
 
-  let pretty () s =
-    Pretty.(dprintf "{%a}" (d_list ", " E.pretty) (elements s))
-  let show s = Pretty.sprint ~width:max_int (pretty () s) (* TODO: delegate to E.show instead *)
-  let to_yojson s = [%to_yojson: E.t list] (elements s)
-  let printXml f s =
-    (* based on SetDomain *)
-    BatPrintf.fprintf f "<value>\n<set>\n";
-    iter (E.printXml f) s;
-    BatPrintf.fprintf f "</set>\n</value>\n"
+  include SetDomain.Print (E) (
+    struct
+      type nonrec t = t
+      type nonrec elt = elt
+      let elements = elements
+      let iter = iter
+    end
+    )
 
   let pretty_diff () _ = failwith "Pairwise.pretty_diff" (* TODO *)
 
@@ -382,12 +380,6 @@ module PairwiseMap (E: Printable.S) (R: Printable.S) (B: MapDomain.S with type k
 struct
   type key = E.t
   type value = B.value
-
-  module B =
-  struct
-    include Printable.Std (* for Groupable *)
-    include B
-  end
 
   module S = SetDomain.Make (B)
 
@@ -595,17 +587,20 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
-  let pretty () s =
-    Pretty.(dprintf "{%a}" (d_list ", " (fun () (e, r) -> dprintf "%a -> %a" E.pretty e R.pretty r)) (bindings s))
-  let show s = Pretty.sprint ~width:max_int (pretty () s) (* TODO: delegate to E.show instead *)
-  let to_yojson s = `Assoc (List.map (fun (e, r) -> (E.show e, R.to_yojson r)) (bindings s))
-  let printXml f s =
-    (* based on MapDomain *)
-    BatPrintf.fprintf f "<value>\n<map>\n";
-    iter (fun e r ->
-        BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (E.show e)) R.printXml r
-      ) s; (* show value *)
-    BatPrintf.fprintf f "</map>\n</value>\n"
+  module GroupableE =
+  struct
+    include Printable.Std (* for Groupable *)
+    include E
+  end
+  include MapDomain.Print (GroupableE) (R) (
+    struct
+      type nonrec t = t
+      type nonrec key = key
+      type nonrec value = value
+      let bindings = bindings
+      let iter = iter
+    end
+    )
 
   let pretty_diff () _ = failwith "PairwiseMap.pretty_diff" (* TODO *)
 

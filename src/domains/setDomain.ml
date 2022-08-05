@@ -39,6 +39,42 @@ sig
   val choose: t -> elt
 end
 
+module type Elements =
+sig
+  type t
+  type elt
+  val elements: t -> elt list
+  val iter: (elt -> unit) -> t -> unit
+end
+
+module Print (E: Printable.S) (S: Elements with type elt = E.t) =
+struct
+  let pretty () x =
+    let elts = S.elements x in
+    let content = List.map (E.pretty ()) elts in
+    let rec separate x =
+      match x with
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ (text ", ") :: separate xs
+    in
+    let separated = separate content in
+    let content = List.fold_left (++) nil separated in
+    (text "{") ++ content ++ (text "}")
+
+  (** Short summary for sets. *)
+  let show x : string =
+    let all_elems : string list = List.map E.show (S.elements x) in
+    Printable.get_short_list "{" "}" all_elems
+
+  let to_yojson x = [%to_yojson: E.t list] (S.elements x)
+
+  let printXml f xs =
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    S.iter (E.printXml f) xs;
+    BatPrintf.fprintf f "</set>\n</value>\n"
+end
+
 
 (** A functor for creating a simple set domain, there is no top element, and
   * calling [top ()] will raise an exception *)
@@ -64,25 +100,14 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty () x =
-    let elts = elements x in
-    let content = List.map (Base.pretty ()) elts in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
-
-  (** Short summary for sets. *)
-  let show x : string =
-    let all_elems : string list = List.map Base.show (elements x) in
-    Printable.get_short_list "{" "}" all_elems
-
-  let to_yojson x = [%to_yojson: Base.t list] (elements x)
+  include Print (Base) (
+    struct
+      type nonrec t = t
+      type nonrec elt = elt
+      let elements = elements
+      let iter = iter
+    end
+    )
 
   let equal x y =
     cardinal x = cardinal y
@@ -96,10 +121,6 @@ struct
       let evil = choose (diff x y) in
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
-  let printXml f xs =
-    BatPrintf.fprintf f "<value>\n<set>\n";
-    iter (Base.printXml f) xs;
-    BatPrintf.fprintf f "</set>\n</value>\n"
 
   let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (Base.arbitrary ())
 end

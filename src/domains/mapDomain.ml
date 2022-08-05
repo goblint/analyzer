@@ -64,6 +64,60 @@ sig
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
+module type Bindings =
+sig
+  type t
+  type key
+  type value
+  val bindings: t -> (key * value) list
+  val iter: (key -> value -> unit) -> t -> unit
+end
+
+module Print (D: Groupable) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
+struct
+  let show x = "mapping" (* TODO: WTF? *)
+
+  let pretty () mapping =
+    let module MM = Map.Make (D) in
+    let groups =
+      let h = Hashtbl.create 13 in
+      M.iter (fun k v -> BatHashtbl.modify_def MM.empty (D.to_group k) (MM.add k v) h) mapping;
+      let cmpBy f a b = Stdlib.compare (f a) (f b) in
+      (* sort groups (order of constructors in type group)  *)
+      BatHashtbl.to_list h |> List.sort (cmpBy fst)
+    in
+    let f key st dok =
+      if ME.tracing && D.trace_enabled && !ME.tracevars <> [] &&
+        not (List.mem (D.show key) !ME.tracevars) then
+        dok
+      else
+        dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
+    in
+    let group_name a () = text (D.show_group a) in
+    let pretty_group map () = MM.fold f map nil in
+    let pretty_groups rest (group, map) =
+      match group with
+      | None ->  rest ++ pretty_group map ()
+      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
+    let content () = List.fold_left pretty_groups nil groups in
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+
+  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
+  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
+
+  let printXml f xs =
+    let print_one k v =
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    M.iter print_one xs;
+    BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let to_yojson xs =
+    let f (k, v) = (D.show k, R.to_yojson v) in
+    `Assoc (xs |> M.bindings |> List.map f)
+end
+
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
@@ -116,46 +170,15 @@ struct
     in
     M.merge f
 
-  let show x = "mapping"
-
-  let pretty () mapping =
-    let groups =
-      let h = Hashtbl.create 13 in
-      iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
-      let cmpBy f a b = Stdlib.compare (f a) (f b) in
-      (* sort groups (order of constructors in type group)  *)
-      BatHashtbl.to_list h |> List.sort (cmpBy fst)
-    in
-    let f key st dok =
-      if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (Domain.show key) !ME.tracevars) then
-        dok
-      else
-        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
-    in
-    let group_name a () = text (Domain.show_group a) in
-    let pretty_group map () = fold f map nil in
-    let pretty_groups rest (group, map) =
-      match group with
-      | None ->  rest ++ pretty_group map ()
-      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
-    let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
-
-  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
-  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
-
-  let printXml f xs =
-    let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v
-    in
-    BatPrintf.fprintf f "<value>\n<map>\n";
-    iter print_one xs;
-    BatPrintf.fprintf f "</map>\n</value>\n"
-
-  let to_yojson xs =
-    let f (k, v) = (Domain.show k, Range.to_yojson v) in
-    `Assoc (xs |> M.bindings |> List.map f)
+  include Print (Domain) (Range) (
+    struct
+      type nonrec t = t
+      type nonrec key = key
+      type nonrec value = value
+      let bindings = bindings
+      let iter = iter
+    end
+    )
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end
