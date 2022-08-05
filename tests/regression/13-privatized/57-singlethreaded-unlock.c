@@ -20,6 +20,6 @@ int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
-  assert(g == 2);
+  __goblint_check(g == 2);
   return 0;
 }

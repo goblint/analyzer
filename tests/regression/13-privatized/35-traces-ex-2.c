@@ -23,7 +23,7 @@ int main(void) {
 
   pthread_mutex_lock(&B);
   pthread_mutex_lock(&A);
-  assert(g == 0);
+  __goblint_check(g == 0);
   pthread_mutex_unlock(&A);
   pthread_mutex_unlock(&B);
   return 0;

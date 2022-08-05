@@ -45,6 +45,19 @@ module ParamParser (R : Request) = struct
       | _ -> Error err
 end
 
+module Function = struct
+  type t = {
+    funName: string;
+    location: CilType.Location.t;
+  } [@@deriving eq, ord, hash, yojson]
+
+  let filterFunctions = function
+    | Cil.GFun (fd, loc) -> Some {funName = fd.svar.vname; location = loc}
+    | _ -> None
+
+  let getFunctionsList files = List.filter_map filterFunctions files
+end
+
 let handle_request (serv: t) (request: Request.t): Response.t =
   match Hashtbl.find_option registry request.method_ with
   | Some (module R) ->
@@ -227,6 +240,26 @@ let () =
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () _ = Preprocessor.dependencies_to_yojson ()
   end);
+
+  register (module struct
+    let name = "functions"
+    type params = unit [@@deriving of_yojson]
+    type response = Function.t list [@@deriving to_yojson]
+    let process () serv = Function.getFunctionsList serv.file.globals
+  end);
+
+  register (module struct
+    let name = "cfg"
+    type params = { fname: string }  [@@deriving of_yojson]
+    type response = { cfg : string } [@@deriving to_yojson]
+    let process { fname } serv = 
+      let fundec = Cilfacade.find_name_fundec fname in
+      let live _ = true in (* TODO: fix this *)
+      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
+      { cfg }
+      (* TODO: also filter and include states info (as json) in the response for the requested function *)
+  end);
+
 
   register (module struct
     let name = "exp_eval"

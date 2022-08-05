@@ -1,4 +1,5 @@
 //PARAM: --set ana.activated '["constants"]'
+// intentional explicit ana.activated to do tutorial in isolation
 
 int main(){
     int x = 3;

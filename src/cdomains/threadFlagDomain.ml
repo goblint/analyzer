@@ -30,7 +30,7 @@ module Simple: S =
 struct
   module SimpleNames =
   struct
-    let n = 3
+    let n () = 3
     let names = function
       | 0 -> "Singlethreaded"
       | 1 -> "Multithreaded (main)"

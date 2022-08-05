@@ -45,6 +45,14 @@ module NodeH = BatHashtbl.Make (Node)
 
 
 let current_node : node option ref = ref None
+let current_cfg : (module CfgBidir) ref =
+  let module Cfg =
+  struct
+    let next _ = raise Not_found
+    let prev _ = raise Not_found
+  end
+  in
+  ref (module Cfg: CfgBidir)
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)

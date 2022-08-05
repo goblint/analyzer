@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int printf();
 
 int abi1(int x) {
@@ -17,6 +19,6 @@ int main() {
   int b = abi2(0);
   char c = 'A';
   char res = b - a - 16;
-  assert(res == 0);
+  __goblint_check(res == 0);
   return res;
 }

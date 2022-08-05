@@ -1,4 +1,6 @@
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.base.privatization none --set ana.apron.privatization top
+// SKIP PARAM: --set ana.activated[+] apron --set ana.base.privatization none --set ana.apron.privatization top
+#include <assert.h>
+
 extern int __VERIFIER_nondet_int();
 
 void change(int *p) {
@@ -6,7 +8,7 @@ void change(int *p) {
     int a;
     (*p)++;
     a++;
-    assert(a == 7); //UNKNOWN!
+    __goblint_check(a == 7); //UNKNOWN!
 }
 
 int g;
@@ -15,7 +17,7 @@ int main() {
     int a = 5;
     int *p = &a;
     change(p);
-    assert(a == 5); //FAIL
-    assert(a - 6 == 0); // Apron used to find \bot here (!)
+    __goblint_check(a == 5); //FAIL
+    __goblint_check(a - 6 == 0); // Apron used to find \bot here (!)
     return 0;
 }

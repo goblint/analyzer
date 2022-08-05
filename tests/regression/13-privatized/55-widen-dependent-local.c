@@ -24,7 +24,7 @@ int put() {
   while (g >= limit) { // problematic widen
 
   }
-  assert(g >= 0); // precise privatization fails
+  __goblint_check(g >= 0); // precise privatization fails
   g++;
   pthread_mutex_unlock(&A);
 }

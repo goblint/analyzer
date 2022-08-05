@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int printf();
 extern int scanf();
 int g;
@@ -26,5 +28,5 @@ int main() {
   int i;
   scanf("%d",&i);
   printf("%d\n",proov(i));
-  assert(g == 0); //FAIL
+  __goblint_check(g == 0); //FAIL
 }

@@ -16,9 +16,9 @@ int main() {
 
   pthread_mutex_lock(&A);
   if (g) // protected globals should be refined
-    assert(g);
+    __goblint_check(g);
   else
-    assert(!g);
+    __goblint_check(!g);
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);

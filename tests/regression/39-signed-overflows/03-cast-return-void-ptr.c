@@ -7,9 +7,9 @@ int empty() {
 
 int main(void) {
   if (!empty()==-1) { // if -1 is cast to void*, it makes both branches dead!
-    assert(1); // NOWARN (unreachable)
+    __goblint_check(1); // NOWARN (unreachable)
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }

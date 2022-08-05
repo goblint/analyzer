@@ -581,8 +581,8 @@ struct
 
   let bot () = 0
   let is_bot x = x = 0
-  let top () = P.n - 1
-  let is_top x = x = P.n - 1
+  let top () = P.n () - 1
+  let is_top x = x = P.n () - 1
 
   let leq x y = x <= y
   let join x y = max x y

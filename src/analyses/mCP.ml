@@ -157,10 +157,6 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let assoc_sub xs name =
-    let n' = find_id name in
-    assoc n' xs
-
   let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
     let spawn_one v d =
       List.iter (fun (lval, args) -> ctx.spawn lval v args) d
@@ -311,7 +307,6 @@ struct
     { ctx with
       ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
     ; emit
-    ; presub = assoc_sub ctx.local
     ; spawn
     ; sideg
     }

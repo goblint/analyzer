@@ -137,7 +137,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     with
       Not_found -> map
   in
-
+  
   let changes = empty_change_info () in
   global_typ_acc := [];
   let findChanges map global global_rename_mapping =

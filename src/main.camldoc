@@ -78,7 +78,6 @@ ShapeDomain
 ListDomain
 
 BaseDomain
-ArincDomain
 ConcDomain
 ContainDomain
 EscapeDomain
@@ -109,7 +108,6 @@ MCP
 Base
 Spec
 
-Arinc
 CondVars
 Contain
 Deadlock

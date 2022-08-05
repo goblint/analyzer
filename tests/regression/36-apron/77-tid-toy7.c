@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --sets ana.apron.privatization mutex-meet-tid
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.apron.privatization mutex-meet-tid
 #include <pthread.h>
 #include <assert.h>
 
@@ -13,7 +13,7 @@ void *t_benign(void *arg) {
 void *t_more(void *arg) {
   // t_more is started multiple times, assert does not need to hold
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
@@ -26,7 +26,7 @@ void *t_more(void *arg) {
 void *t_fun(void *arg) {
   // t_more has not been started yet
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
 
   pthread_t more[10];
@@ -34,12 +34,12 @@ void *t_fun(void *arg) {
   for(int i = 0; i <10;i++) {
     pthread_create(&more[i], NULL, t_more, NULL);
     pthread_mutex_lock(&A);
-    assert(g == h); //UNKNOWN!
+    __goblint_check(g == h); //UNKNOWN!
     pthread_mutex_unlock(&A);
   }
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
@@ -62,14 +62,14 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   return 0;
