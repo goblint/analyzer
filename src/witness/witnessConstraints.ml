@@ -3,44 +3,6 @@
 open Prelude.Ana
 open Analyses
 
-module Node: Printable.S with type t = MyCFG.node =
-struct
-  include Var
-  let to_yojson = Node.to_yojson
-
-  (* let short n x = Pretty.sprint n (pretty () x) *)
-  (* let short _ x = var_id x *)
-  let show = Node.show_cfg
-  let pretty = Node.pretty_trace
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let name () = "var"
-  let tag _ = failwith "PrintableVar: no tag"
-  let arbitrary () = failwith "PrintableVar: no arbitrary"
-end
-
-module Edge: Printable.S with type t = MyARG.inline_edge =
-struct
-  type t = MyARG.inline_edge [@@deriving to_yojson] (* TODO: deriving gets overridden *)
-
-  let equal = Util.equals
-  let compare = Stdlib.compare
-  let hash = Hashtbl.hash
-
-  let name () = "edge"
-
-  let pretty = MyARG.pretty_inline_edge
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
-
-  let tag _ = failwith "Edge: no tag"
-  let arbitrary () = failwith "Edge: no arbitrary"
-  let relift x = x
-end
-
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive3 (Spec:Spec)
@@ -66,45 +28,26 @@ struct
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
   end
   module VI = Printable.Prod3 (Node) (CC) (I)
-  module VIE =
-  struct
-    include Printable.Prod (VI) (Edge)
-
-    let leq ((v, c, x'), e) ((w, d, y'), f) =
-      Node.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
-
-    (* TODO: join and meet can be implemented, but are they necessary at all? *)
-    let join _ _ = failwith "VIE join"
-    let meet _ _ = failwith "VIE meet"
-    (* widen and narrow are needed for Hoare widen and narrow *)
-    (* TODO: use I ops for these if HoareMap gets proper widen *)
-    let widen x y = y
-    let narrow x y = x
-    let top () = failwith "VIE top"
-    let is_top _ = failwith "VIE is_top"
-    let bot () = failwith "VIE bot"
-    let is_bot _ = failwith "VIE is_bot"
-
-    let pretty_diff () (((v, c, x'), e), ((w, d, y'), f)) =
-      if not (Node.equal v w) then
-        Pretty.dprintf "%a not equal %a" Node.pretty v Node.pretty w
-      else if not (Spec.C.equal c d) then
-        Pretty.dprintf "%a not equal %a" Spec.C.pretty c Spec.C.pretty d
-      else if not (Edge.equal e f) then
-        Pretty.dprintf "%a not equal %a" Edge.pretty e Edge.pretty f
-      else
-        I.pretty_diff () (x', y')
-  end
-  (* Bot is needed for Hoare widen *)
-  (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
-  module VIEB = Lattice.LiftBot (VIE)
-  module VIES = HoareDomain.Set (VIEB)
-
+  module VIE = Printable.Prod (VI) (MyARG.InlineEdgePrintable)
+  module VIES = SetDomain.Make (VIE)
+  (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
+     instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
   module R = VIES
+
+  module SpecDMap (R: Lattice.S) =
+  struct
+    module C =
+    struct
+      type elt = Spec.D.t
+      let cong = Spec.should_join
+    end
+    module J = MapDomain.Joined (Spec.D) (R)
+    include SensitiveDomain.PairwiseMap (Spec.D) (R) (J) (C)
+  end
 
   module Dom =
   struct
-    include HoareDomain.MapBot (Spec.D) (R)
+    include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
@@ -113,35 +56,21 @@ struct
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
         BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
       in
-      iter' print_one x
+      iter print_one x
 
-    (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
-      let rec loop js = function
-        | [] -> js
-        | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
-            if Spec.should_join x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
-          ) ((x, xr),[]) xs in
-          loop ((j, jr)::js) r
-      in
-      apply_list (loop []) a
-
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
-
-    let binop op a b = op a b |> join_reduce
-
-    let join = binop join
-    let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow
+    let map_keys f m =
+      fold (fun e r acc ->
+          add (f e) r acc
+        ) m (empty ())
+    let choose_key m = fst (choose m)
+    let fold_keys f m a = fold (fun e _ acc -> f e acc) m a
   end
 
   (* Additional dependencies component between values before and after sync.
    * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
-  module SyncSet = HoareDomain.Set (Spec.D)
-  module Sync = HoareDomain.MapBot (Spec.D) (SyncSet)
+  module SyncSet = SetDomain.Make (Spec.D)
+  module Sync = SpecDMap (SyncSet)
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)
@@ -163,7 +92,7 @@ struct
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot ())
+  let morphstate v (d, _) = (Dom.map_keys (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 
@@ -171,7 +100,7 @@ struct
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
     else
-      Spec.context fd @@ Dom.choose l
+      Spec.context fd @@ Dom.choose_key l
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
@@ -181,7 +110,7 @@ struct
     in
     ctx'
 
-  let step n c i e = R.singleton (`Lifted ((n, c, i), e))
+  let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
     SyncSet.fold (fun xsync acc ->
         R.join acc (step n c xsync e)
@@ -198,7 +127,7 @@ struct
       try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
-    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
+    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let fold' ctx f g h a =
@@ -206,14 +135,14 @@ struct
       try h a x @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    Dom.fold k (fst ctx.local) a
+    Dom.fold_keys k (fst ctx.local) a
 
   let fold'' ctx f g h a =
     let k x r a =
       try h a x r @@ g @@ f @@ conv ctx x
       with Deadcode -> a
     in
-    Dom.fold' k (fst ctx.local) a
+    Dom.fold k (fst ctx.local) a
 
   let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
   let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
@@ -238,7 +167,7 @@ struct
     in
     fold' ctx Spec.threadenter (fun h -> h lval f args) g []
   let threadspawn ctx lval f args fctx =
-    let fd1 = Dom.choose (fst fctx.local) in
+    let fd1 = Dom.choose_key (fst fctx.local) in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
   let sync ctx reason =
@@ -249,12 +178,9 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
-      Dom.iter' (fun x r ->
-          R.iter (function
-              | `Lifted ((n, c, j), e) ->
-                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-              | `Bot ->
-                failwith "PathSensitive3.query: range contains bot"
+      Dom.iter (fun x r ->
+          R.iter (function ((n, c, j), e) ->
+              f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
@@ -264,14 +190,14 @@ struct
       end;
       ()
     | Queries.IterVars f ->
-      Dom.iter' (fun x r ->
+      Dom.iter (fun x r ->
           f (I.to_int x)
         ) (fst ctx.local);
       ()
     | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.elements (fst ctx.local)) in
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
       Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
@@ -304,7 +230,7 @@ struct
 
   let combine ctx l fe f a fc d =
     assert (Dom.cardinal (fst ctx.local) = 1);
-    let cd = Dom.choose (fst ctx.local) in
+    let cd = Dom.choose_key (fst ctx.local) in
     let k x y =
       let r =
         if should_inline f then
@@ -317,6 +243,6 @@ struct
       try Dom.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
       with Deadcode -> y
     in
-    let d = Dom.fold k (fst d) (Dom.bot ()) in
+    let d = Dom.fold_keys k (fst d) (Dom.bot ()) in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 end
