@@ -353,7 +353,25 @@ struct
     end
     )
 
-  let pretty_diff () _ = failwith "Pairwise.pretty_diff" (* TODO *)
+  let pretty_diff () (s1, s2) =
+    (* based on HoareDomain.Set *)
+    let s1_not_leq = S.filter (fun b1 ->
+        let e1 = B.choose b1 in
+        not (S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2)
+      ) s1
+    in
+    let b1_not_leq = S.choose s1_not_leq in
+    let e1_not_leq = B.choose b1_not_leq in
+    Pretty.(
+      dprintf "%a:\n" B.pretty b1_not_leq
+      ++
+      S.fold (fun b2 acc ->
+          if C.cong (B.choose b2) e1_not_leq then
+            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
+          else
+            dprintf "not cong %a\n" B.pretty b2 ++ acc
+        ) s2 nil
+    )
 
   let arbitrary () = failwith "Pairwise.arbitrary"
 
@@ -602,7 +620,25 @@ struct
     end
     )
 
-  let pretty_diff () _ = failwith "PairwiseMap.pretty_diff" (* TODO *)
+  let pretty_diff () (s1, s2) =
+    (* based on PairwiseSet *)
+    let s1_not_leq = S.filter (fun b1 ->
+        let e1 = fst (B.choose b1) in
+        not (S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2)
+      ) s1
+    in
+    let b1_not_leq = S.choose s1_not_leq in
+    let e1_not_leq = fst (B.choose b1_not_leq) in
+    Pretty.(
+      dprintf "%a:\n" B.pretty b1_not_leq
+      ++
+      S.fold (fun b2 acc ->
+          if C.cong (fst (B.choose b2)) e1_not_leq then
+            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
+          else
+            dprintf "not cong %a\n" B.pretty b2 ++ acc
+        ) s2 nil
+    )
 
   let arbitrary () = failwith "PairwiseMap.arbitrary"
 
