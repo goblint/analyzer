@@ -176,12 +176,7 @@ struct
     in
     snd (fold f s2 (s1, empty ()))
 end
-
-(* TODO: unused *)
-module Sensitive = SensitiveConf (struct
-    let expand_fst = true
-    let expand_snd = true
-  end)
+[@@deprecated]
 
 (** Auxiliary signature for naming the top element *)
 module type ToppedSetNames =

@@ -337,6 +337,7 @@ struct
         (cardinal s2)
     end
 end
+[@@deprecated]
 
 
 module Set2 (E: Lattice.S): SetDomain.S with type elt = E.t =
