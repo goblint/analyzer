@@ -375,7 +375,7 @@ sig
   include Lattice.S with type t := t
 end
 
-module PairwiseMap (E: Printable.S) (B: MapS with type key = E.t) (C: Congruence with type elt = E.t): MapS with type key = E.t and type value = B.value =
+module PairwiseMap (E: Printable.S) (R: Printable.S) (B: MapS with type key = E.t and type value = R.t) (C: Congruence with type elt = E.t): MapS with type key = E.t and type value = B.value =
 struct
   type key = E.t
   type value = B.value
@@ -623,14 +623,16 @@ struct
   let subset = leq *)
 
   let pretty () s =
-    Pretty.(dprintf "{%a}" (d_list ", " (fun () (e, r) -> dprintf "%a -> ?" E.pretty e)) (bindings s)) (* TODO: show value *)
+    Pretty.(dprintf "{%a}" (d_list ", " (fun () (e, r) -> dprintf "%a -> %a" E.pretty e R.pretty r)) (bindings s))
   let show s = Pretty.sprint ~width:max_int (pretty () s) (* TODO: delegate to E.show instead *)
-  let to_yojson s = `Assoc (List.map (fun (e, r) -> (E.show e, `Null)) (bindings s)) (* TODO: show value *)
+  let to_yojson s = `Assoc (List.map (fun (e, r) -> (E.show e, R.to_yojson r)) (bindings s))
   let printXml f s =
     (* based on MapDomain *)
-    BatPrintf.fprintf f "<value>\n<set>\n";
-    iter (fun e r -> E.printXml f e) s; (* show value *)
-    BatPrintf.fprintf f "</set>\n</value>\n"
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    iter (fun e r ->
+        BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (E.show e)) R.printXml r
+      ) s; (* show value *)
+    BatPrintf.fprintf f "</map>\n</value>\n"
 
   let pretty_diff () _ = failwith "PairwiseMap.pretty_diff" (* TODO *)
 

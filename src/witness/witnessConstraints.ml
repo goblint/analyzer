@@ -110,7 +110,7 @@ struct
       let cong = Spec.should_join
     end
     module J = MapDomain.Joined (Spec.D) (R)
-    include SensitiveDomain.PairwiseMap (Spec.D) (J) (C)
+    include SensitiveDomain.PairwiseMap (Spec.D) (R) (J) (C)
   end
 
   module Dom =
