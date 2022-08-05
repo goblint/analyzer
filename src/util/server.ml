@@ -227,6 +227,17 @@ let () =
   end);
 
   register (module struct
+    let name = "read_config"
+    type params = { fname: string } [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
+    let process { fname } _ =
+      try
+        GobConfig.merge_file (Fpath.v fname);
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
+  end);
+
+  register (module struct
     let name = "messages"
     type params = unit [@@deriving of_yojson]
     type response = Messages.Message.t list [@@deriving to_yojson]
