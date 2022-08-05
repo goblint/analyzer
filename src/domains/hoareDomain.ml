@@ -174,7 +174,13 @@ sig
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
-(** Set of [Lattice] elements with Hoare ordering. *)
+(** Set of [Lattice.S] elements with Hoare ordering.
+    This abstracts a set by its {e maximal} elements.
+
+    This has {e extrapolation heuristics} instead of a true [widen],
+    i.e. convergence is only guaranteed if the number of maximal
+    elements converges.
+    Otherwise use {!Set2}. *)
 module Set (B : Lattice.S): SetS with type elt = B.t =
 struct
   include SetDomain.Make (B)
@@ -339,7 +345,13 @@ struct
 end
 [@@deprecated]
 
+(** Set of [Lattice.S] elements with Hoare ordering.
+    This abstracts a set by its {e maximal} elements.
 
+    This has a true [widen] using the trivial Egli-Milner connector,
+    i.e. convergence is even guaranteed if the number of maximal
+    elements does not converge.
+    Otherwise {!Set} is sufficient. *)
 module Set2 (E: Lattice.S): SetDomain.S with type elt = E.t =
 struct
   module H = Set (E)

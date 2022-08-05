@@ -64,6 +64,7 @@ sig
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
+(** Subsignature of {!S}, which is sufficient for {!Print}. *)
 module type Bindings =
 sig
   type t
@@ -73,6 +74,7 @@ sig
   val iter: (key -> value -> unit) -> t -> unit
 end
 
+(** Reusable output definitions for maps. *)
 module Print (D: Groupable) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
 struct
   let show x = "mapping" (* TODO: WTF? *)
@@ -716,6 +718,7 @@ struct
   include LiftBot (Range) (M)
 end
 
+(** Map abstracted by a single (joined) key. *)
 module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type value = R.t =
 struct
   type key = E.t

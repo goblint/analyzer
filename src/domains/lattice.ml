@@ -37,7 +37,13 @@ sig
 end
 
 exception TopValue
+(** Exception raised by a topless lattice in place of a top value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception BotValue
+(** Exception raised by a bottomless lattice in place of a bottom value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
 

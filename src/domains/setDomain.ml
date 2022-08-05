@@ -39,6 +39,7 @@ sig
   val choose: t -> elt
 end
 
+(** Subsignature of {!S}, which is sufficient for {!Print}. *)
 module type Elements =
 sig
   type t
@@ -47,6 +48,7 @@ sig
   val iter: (elt -> unit) -> t -> unit
 end
 
+(** Reusable output definitions for sets. *)
 module Print (E: Printable.S) (S: Elements with type elt = E.t) =
 struct
   let pretty () x =
@@ -382,6 +384,7 @@ struct
   let is_top x = equal x (top ())
 end
 
+(** Set abstracted by a single (joined) element. *)
 module Joined (E: Lattice.S): S with type elt = E.t =
 struct
   type elt = E.t

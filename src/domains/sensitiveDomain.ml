@@ -1,15 +1,28 @@
 (** Abstract domains for "sensitive" sets, e.g. path-sensitive.
 
     Elements are grouped into disjoint buckets by "sensitivity",
-    which is defined by a congruence or/and a projection. *)
+    which is defined by a congruence or/and a projection.
+    All operations on elements must be bucket-closed. *)
 
+(** {1 Sets} *)
+
+(** {2 By projection} *)
+
+(** Sensitivity defined by projection.
+    The module is the image (representative) of the projection function {!of_elt}. *)
 module type Representative =
 sig
-  include Printable.S
-  type elt
-  val of_elt: elt -> t
+  include Printable.S (** @closed *)
+
+  type elt (** Type of elements, i.e. the domain of the projection function {!of_elt}. *)
+
+  val of_elt: elt -> t (** Projection function. *)
 end
 
+(** Set of elements [E.t] grouped into buckets by [R],
+    where each bucket is described by the set [B].
+
+    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.Set2}. *)
 module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t =
 struct
   type elt = E.t
@@ -159,13 +172,20 @@ struct
   let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
 end
 
+(** {2 By congruence} *)
 
+(** Sensitivity defined by congruence. *)
 module type Congruence =
 sig
-  type elt
-  val cong: elt -> elt -> bool
+  type elt (** Type of elements. *)
+
+  val cong: elt -> elt -> bool (** Congruence relation on elements. *)
 end
 
+(** Set of elements [E.t] grouped into buckets by [C],
+    where each bucket is described by the set [B].
+
+    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.Set2}. *)
 module PairwiseSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (C: Congruence with type elt = E.t): SetDomain.S with type elt = E.t =
 struct
   type elt = E.t
@@ -393,7 +413,14 @@ module CombinedSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: Re
   ProjectiveSet (E) (PairwiseSet (E) (B) (RC)) (RC)
 
 
+(** {1 Maps} *)
 
+(** {2 By congruence} *)
+
+(** Map of keys [E.t] grouped into buckets by [C],
+    where each bucket is described by the map [B] with values [R.t].
+
+    Common choice for [B] is {!MapDomain.Joined}. *)
 module PairwiseMap (E: Printable.S) (R: Printable.S) (B: MapDomain.S with type key = E.t and type value = R.t) (C: Congruence with type elt = E.t): MapDomain.S with type key = E.t and type value = B.value =
 struct
   type key = E.t
