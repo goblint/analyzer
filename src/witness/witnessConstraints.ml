@@ -96,27 +96,6 @@ struct
       in
       iter print_one x
 
-    (* join elements in the same partition (specified by should_join) *)
-    (* let join_reduce a =
-      let rec loop js = function
-        | [] -> js
-        | (x, xr)::xs -> let ((j, jr),r) = List.fold_left (fun ((j, jr),r) (x,xr) ->
-            if Spec.should_join x j then (Spec.D.join x j, R.join xr jr), r else (j, jr), (x, xr)::r
-          ) ((x, xr),[]) xs in
-          loop ((j, jr)::js) r
-      in
-      apply_list (loop []) a
-
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
-
-    let binop op a b = op a b |> join_reduce
-
-    let join = binop join
-    let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow *)
-
     let map_keys f m =
       fold (fun e r acc ->
           add (f e) r acc

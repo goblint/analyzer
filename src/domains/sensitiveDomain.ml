@@ -458,31 +458,7 @@ struct
           S.add b' s
       end
     | exception Not_found -> s
-  (* let diff s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.diff b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc *)
 
-  (* let of_list es = List.fold_left (fun acc e ->
-      add e acc
-    ) (empty ()) es *)
   let add_list ers m = List.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
@@ -493,9 +469,7 @@ struct
       add e (f e) acc
     ) m es
   let bindings m = fold (fun e r acc -> (e, r) :: acc) m [] (* no intermediate per-bucket lists *)
-  (* let map f s = fold (fun e acc ->
-      add (f e) acc
-    ) s (empty ()) (* no intermediate lists *) *)
+
   let map f m = S.map (fun b ->
       B.map f b
     ) m
@@ -618,10 +592,6 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
-  (* let union = join
-  let inter = meet
-  let subset = leq *)
-
   let pretty () s =
     Pretty.(dprintf "{%a}" (d_list ", " (fun () (e, r) -> dprintf "%a -> %a" E.pretty e R.pretty r)) (bindings s))
   let show s = Pretty.sprint ~width:max_int (pretty () s) (* TODO: delegate to E.show instead *)
@@ -640,9 +610,6 @@ struct
 
   let filter p s = SetDomain.unsupported "PairwiseMap.filter"
   let partition p s = SetDomain.unsupported "PairwiseMap.partition"
-  (* let min_elt s = SetDomain.unsupported "Pairwise.min_elt"
-  let max_elt s = SetDomain.unsupported "Pairwise.max_elt"
-  let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *) *)
 end
 
 

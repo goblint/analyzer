@@ -700,12 +700,10 @@ struct
   include Lattice.Prod (E) (R)
 
   let singleton e r = (e, r)
-  (* let of_list es = List.fold_left E.join (E.bot ()) es *)
   let exists p (e, r) = p e r
   let for_all p (e, r) = p e r
   let mem e (e', _) = E.leq e e'
   let choose er = er
-  (* let elements e = [e] *)
   let bindings er = [er]
   let remove e ((e', _) as er) =
     if E.leq e' e then
@@ -721,21 +719,12 @@ struct
   let empty () = (E.bot (), R.bot ())
   let add e r (e', r') = (E.join e e', R.join r r')
   let is_empty (e, _) = E.is_bot e
-  (* let union e e' = E.join e e' *)
-  (* let diff e e' = remove e' e *)
   let iter f (e, r) = f e r
   let cardinal er =
     if is_empty er then
       0
     else
       1
-  (* let inter e e' = E.meet e e'
-  let subset e e' = E.leq e e'
-  let filter p e = unsupported "Joined.filter"
-  let partition p e = unsupported "Joined.partition"
-  let min_elt e = unsupported "Joined.min_elt"
-  let max_elt e = unsupported "Joined.max_elt"
-  let disjoint e e' = is_empty (inter e e') *)
   let find e (e', r) =
     if E.leq e e' then
       r
