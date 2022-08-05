@@ -27,6 +27,8 @@ struct
     | [] -> false
     | f :: _ -> CilType.Fieldinfo.equal f x
 
+  let is_zero_index x = Idx.equal_to (IntOps.BigIntOps.zero) x
+
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
     | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
@@ -44,6 +46,9 @@ struct
     | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case *)
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
+    | (`Index (i, o1) as x), (`Field (f, o2) as y)
+    | (`Field (f, o2) as y), (`Index (i, o1) as x) ->
+      cmp_zero_offset x = `MustZero && cmp_zero_offset y = `MustZero
     | _ -> false
 
   let rec show = function
@@ -93,6 +98,9 @@ struct
     | `Index (i1,o1), `Index (i2,o2) ->
       let c = Idx.compare i1 i2 in
       if c=0 then compare o1 o2 else c
+    | (`Index (i, o1) as x), (`Field (f, o2) as y)
+    | (`Field (f, o2) as y), (`Index (i, o1) as x) when cmp_zero_offset x = `MustZero && cmp_zero_offset y = `MustZero ->
+      0
     | `NoOffset, _ -> -1
     | _, `NoOffset -> 1
     | `Field _, `Index _ -> -1
@@ -112,21 +120,36 @@ struct
   let rec leq x y =
     match x, y with
     | `NoOffset, `NoOffset -> true
-    | `NoOffset, x -> true
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero (* TODO: should recurse? *)
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* TODO: should recurse? *)
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
+    | `Index (i, o1), `Field (f, o2) ->
+      is_zero_index i = `Eq && is_first_field f && leq o1 o2
+    | `Field (f, o1), `Index (i, o2) ->
+      is_first_field f && is_zero_index i <> `Neq && leq o1 o2
     | _ -> false
 
   let rec merge cop x y =
     let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
     | `NoOffset, `NoOffset -> `NoOffset
+    | `NoOffset, (`Index (i, o) as x)
+    | (`Index (i, o) as x), `NoOffset ->
+      if is_zero_index i = `Eq then
+        x (* TODO: should recurse? *)
+      else
+        `Index (op (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) i, merge cop `NoOffset o)
     | `NoOffset, x
-    | x, `NoOffset -> (match cop with
-      | `Join | `Widen -> x
-      | `Meet | `Narrow -> `NoOffset)
+    | x, `NoOffset -> (match cop, cmp_zero_offset x with
+      | (`Join | `Widen), (`MustZero | `MayZero) -> x (* TODO: should recurse? *)
+      | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset (* TODO: should recurse? *)
+      | _, _ -> raise Lattice.Uncomparable)
     | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
+    | `Index (i, o1), `Field (f, o2)
+    | `Field (f, o2), `Index (i, o1) when is_first_field f ->
+      `Index (op (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) i, merge cop o1 o2)
     | _ -> raise Lattice.Uncomparable
 
   let join x y = merge `Join x y
