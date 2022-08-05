@@ -66,40 +66,10 @@ struct
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
   end
   module VI = Printable.Prod3 (Node) (CC) (I)
-  module VIE =
-  struct
-    include Printable.Prod (VI) (Edge)
-
-    let leq ((v, c, x'), e) ((w, d, y'), f) =
-      Node.equal v w && Spec.C.equal c d && I.leq x' y' && Edge.equal e f
-
-    (* TODO: join and meet can be implemented, but are they necessary at all? *)
-    let join _ _ = failwith "VIE join"
-    let meet _ _ = failwith "VIE meet"
-    (* widen and narrow are needed for Hoare widen and narrow *)
-    (* TODO: use I ops for these if HoareMap gets proper widen *)
-    let widen x y = y
-    let narrow x y = x
-    let top () = failwith "VIE top"
-    let is_top _ = failwith "VIE is_top"
-    let bot () = failwith "VIE bot"
-    let is_bot _ = failwith "VIE is_bot"
-
-    let pretty_diff () (((v, c, x'), e), ((w, d, y'), f)) =
-      if not (Node.equal v w) then
-        Pretty.dprintf "%a not equal %a" Node.pretty v Node.pretty w
-      else if not (Spec.C.equal c d) then
-        Pretty.dprintf "%a not equal %a" Spec.C.pretty c Spec.C.pretty d
-      else if not (Edge.equal e f) then
-        Pretty.dprintf "%a not equal %a" Edge.pretty e Edge.pretty f
-      else
-        I.pretty_diff () (x', y')
-  end
-  (* Bot is needed for Hoare widen *)
-  (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
-  module VIEB = Lattice.LiftBot (VIE)
-  module VIES = HoareDomain.Set (VIEB)
-
+  module VIE = Printable.Prod (VI) (Edge)
+  module VIES = SetDomain.Make (VIE)
+  (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
+     instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
   module R = VIES
 
   module SpecDMap (R: Lattice.S) =
@@ -158,7 +128,7 @@ struct
   (* Additional dependencies component between values before and after sync.
    * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
    * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
-  module SyncSet = HoareDomain.Set (Spec.D)
+  module SyncSet = SetDomain.Make (Spec.D)
   module Sync = SpecDMap (SyncSet)
   module D =
   struct
@@ -199,7 +169,7 @@ struct
     in
     ctx'
 
-  let step n c i e = R.singleton (`Lifted ((n, c, i), e))
+  let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
     SyncSet.fold (fun xsync acc ->
         R.join acc (step n c xsync e)
@@ -268,11 +238,8 @@ struct
     match q with
     | Queries.IterPrevVars f ->
       Dom.iter (fun x r ->
-          R.iter (function
-              | `Lifted ((n, c, j), e) ->
-                f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-              | `Bot ->
-                failwith "PathSensitive3.query: range contains bot"
+          R.iter (function ((n, c, j), e) ->
+              f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
