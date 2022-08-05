@@ -892,7 +892,7 @@ struct
       let cong = Spec.should_join
     end
     module J = SetDomain.Joined (Spec.D)
-    include SensitiveDomain.Pairwise (Spec.D) (J) (C)
+    include SensitiveDomain.PairwiseSet (Spec.D) (J) (C)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =

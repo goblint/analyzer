@@ -51,7 +51,7 @@ struct
   (* module H = HoareDomain.Set2 (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include SensitiveDomain.Combined (Addr) (J) (RC)
+  include SensitiveDomain.CombinedSet (Addr) (J) (RC)
 
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;

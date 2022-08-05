@@ -3,8 +3,6 @@
     Elements are grouped into disjoint buckets by "sensitivity",
     which is defined by a congruence or/and a projection. *)
 
-module type S = SetDomain.S
-
 module type Representative =
 sig
   include Printable.S
@@ -12,7 +10,7 @@ sig
   val of_elt: elt -> t
 end
 
-module Projective (E: Printable.S) (B: S with type elt = E.t) (R: Representative with type elt = E.t): S with type elt = E.t =
+module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -169,7 +167,7 @@ sig
   val cong: elt -> elt -> bool
 end
 
-module Pairwise (E: Printable.S) (B: S with type elt = E.t) (C: Congruence with type elt = E.t): S with type elt = E.t =
+module PairwiseSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (C: Congruence with type elt = E.t): SetDomain.S with type elt = E.t =
 struct
   type elt = E.t
 
@@ -367,6 +365,17 @@ struct
   let max_elt s = SetDomain.unsupported "Pairwise.max_elt"
   let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *)
 end
+
+
+module type RepresentativeCongruence =
+sig
+  include Representative
+  include Congruence with type elt := elt
+end
+
+module CombinedSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type elt = E.t) =
+  ProjectiveSet (E) (PairwiseSet (E) (B) (RC)) (RC)
+
 
 
 module PairwiseMap (E: Printable.S) (R: Printable.S) (B: MapDomain.S with type key = E.t and type value = R.t) (C: Congruence with type elt = E.t): MapDomain.S with type key = E.t and type value = B.value =
@@ -608,13 +617,3 @@ struct
   let join_with_fct _ _ _ = failwith "PairwiseMap.join_with_fct"
   let widen_with_fct _ _ _ = failwith "PairwiseMap.widen_with_fct"
 end
-
-
-module type RepresentativeCongruence =
-sig
-  include Representative
-  include Congruence with type elt := elt
-end
-
-module Combined (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type elt = E.t) =
-  Projective (E) (Pairwise (E) (B) (RC)) (RC)
