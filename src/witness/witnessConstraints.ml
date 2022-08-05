@@ -3,44 +3,6 @@
 open Prelude.Ana
 open Analyses
 
-module Node: Printable.S with type t = MyCFG.node =
-struct
-  include Var
-  let to_yojson = Node.to_yojson
-
-  (* let short n x = Pretty.sprint n (pretty () x) *)
-  (* let short _ x = var_id x *)
-  let show = Node.show_cfg
-  let pretty = Node.pretty_trace
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let name () = "var"
-  let tag _ = failwith "PrintableVar: no tag"
-  let arbitrary () = failwith "PrintableVar: no arbitrary"
-end
-
-module Edge: Printable.S with type t = MyARG.inline_edge =
-struct
-  type t = MyARG.inline_edge [@@deriving to_yojson] (* TODO: deriving gets overridden *)
-
-  let equal = Util.equals
-  let compare = Stdlib.compare
-  let hash = Hashtbl.hash
-
-  let name () = "edge"
-
-  let pretty = MyARG.pretty_inline_edge
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
-
-  let tag _ = failwith "Edge: no tag"
-  let arbitrary () = failwith "Edge: no arbitrary"
-  let relift x = x
-end
-
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive3 (Spec:Spec)
@@ -66,7 +28,7 @@ struct
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
   end
   module VI = Printable.Prod3 (Node) (CC) (I)
-  module VIE = Printable.Prod (VI) (Edge)
+  module VIE = Printable.Prod (VI) (MyARG.InlineEdgePrintable)
   module VIES = SetDomain.Make (VIE)
   (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
      instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
