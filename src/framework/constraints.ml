@@ -33,7 +33,6 @@ struct
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
   let context fd = S.context fd % D.unlift
-  let call_descr = S.call_descr
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
@@ -108,7 +107,6 @@ struct
   let morphstate = S.morphstate
 
   let context fd = C.lift % S.context fd
-  let call_descr f = S.call_descr f % C.unlift
 
   let conv ctx =
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
@@ -199,7 +197,6 @@ struct
   let morphstate v (d,l) = (S.morphstate v d, l)
 
   let context fd (d,_) = S.context fd d
-  let call_descr f = S.call_descr f
 
   let conv ctx =
     { ctx with local = fst ctx.local
@@ -335,7 +332,6 @@ struct
   let morphstate v (d,m) = S.morphstate v d, m
 
   let context fd (d,m) = S.context fd d (* just the child analysis' context *)
-  let call_descr = S.call_descr
 
   let conv ctx =
     { ctx with local = fst ctx.local
@@ -404,7 +400,6 @@ struct
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
   let context fd = S.context fd % D.unlift
-  let call_descr f = S.call_descr f
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
@@ -931,8 +926,6 @@ struct
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d
-
-  let call_descr = Spec.call_descr
 
   let context fd l =
     if D.cardinal l <> 1 then

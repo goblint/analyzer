@@ -2739,21 +2739,6 @@ struct
     in
     combine_one ctx.local after
 
-  let call_descr f (st: store) =
-    let short_fun x =
-      match x.vtype, CPA.find x st.cpa with
-      | TPtr (t, attr), `Address a
-        when (not (AD.is_top a))
-          && List.compare_length_with (AD.to_var_may a) 1 = 0
-          && not (VD.is_immediate_type t)
-        ->
-        let cv = List.hd (AD.to_var_may a) in
-        "ref " ^ VD.show (CPA.find cv st.cpa)
-      | _, v -> VD.show v
-    in
-    let args_short = List.map short_fun f.sformals in
-    Printable.get_short_list (f.svar.vname ^ "(") ")" args_short
-
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
