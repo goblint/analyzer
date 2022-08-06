@@ -46,6 +46,7 @@ let main () =
     exit 124
 
 let main () =
+  Landmark.start_profiling ~profiling_options:{Landmark.default_options with sys_time = true} ();
   Catapult_file.enable ();
   Catapult_file.with_setup main
 
