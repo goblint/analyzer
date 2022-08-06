@@ -260,7 +260,7 @@ class addConstructors cons = object
 end
 
 let getMergedAST fileASTs =
-  let merged = Stats.time "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
+  let merged = Stats2.time "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
   merged

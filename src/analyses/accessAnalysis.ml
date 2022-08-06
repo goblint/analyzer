@@ -216,7 +216,7 @@ struct
       let g: V.t = Obj.obj g in
       (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
       let accs = ctx.global g in
-      Stats.time "access" (Access.warn_global safe vulnerable unsafe g) accs
+      Stats2.time "access" (Access.warn_global safe vulnerable unsafe g) accs
     | _ -> Queries.Result.top q
 
   let finalize () =

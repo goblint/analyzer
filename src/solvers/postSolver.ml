@@ -211,7 +211,7 @@ struct
     Goblintutil.postsolving := false
 
   let post xs vs vh =
-    Stats.time "postsolver" (post xs vs) vh
+    Stats2.time "postsolver" (post xs vs) vh
 end
 
 (** List of postsolvers. *)

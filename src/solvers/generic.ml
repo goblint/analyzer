@@ -68,6 +68,7 @@ struct
 
   let new_var_event x =
     incr Goblintutil.vars;
+    Catapult.Tracing.counter "solver" ~cs:[("vars", !Goblintutil.vars)];
     if tracing then trace "sol" "New %a\n" Var.pretty_trace x
 
   let get_var_event x =
@@ -76,6 +77,7 @@ struct
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
     incr Goblintutil.evals;
+    Catapult.Tracing.counter "solver" ~cs:[("evals", !Goblintutil.evals)];
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =

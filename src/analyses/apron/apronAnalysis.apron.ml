@@ -594,7 +594,7 @@ struct
       RH.map (fun _ -> AD.to_oct) m
     in
     let post_process m =
-      let m = Stats.time "convert" convert m in
+      let m = Stats2.time "convert" convert m in
       RH.map (fun _ v -> OctApron.marshal v) m
     in
     let results = post_process results in
@@ -606,7 +606,7 @@ struct
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
       Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
-      Stats.time "apron.prec-dump" store_data (Fpath.v file)
+      Stats2.time "apron.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
 end

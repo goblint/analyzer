@@ -439,7 +439,7 @@ let do_analyze change_info merged_AST =
     in
 
     (* Analyze with the new experimental framework. *)
-    Stats.time "analysis" (do_all_phases merged_AST) funs
+    Stats2.time "analysis" (do_all_phases merged_AST) funs
   )
 
 let do_html_output () =

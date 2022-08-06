@@ -1203,7 +1203,7 @@ struct
   module G = Priv.G
   module V = Priv.V
 
-  let time str f arg = Stats.time "priv" (Stats.time str f) arg
+  let time str f arg = Stats2.time "priv" (Stats2.time str f) arg
 
   let startstate = Priv.startstate
   let read_global ask getg st x = time "read_global" (Priv.read_global ask getg st) x

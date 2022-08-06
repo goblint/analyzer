@@ -45,5 +45,9 @@ let main () =
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     exit 124
 
+let main () =
+  Catapult_file.enable ();
+  Catapult_file.with_setup main
+
 (* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)
 let () = at_exit main

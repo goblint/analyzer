@@ -263,7 +263,7 @@ module Timed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  let time str f arg = Stats.time (M.name ()) (Stats.time str f) arg
+  let time str f arg = Stats2.time (M.name ()) (Stats2.time str f) arg
 
   (* Printable.S *)
   type t = M.t
