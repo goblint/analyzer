@@ -1,0 +1,52 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: dc8526c7-69d5-4ec2-b90c-670bd19c6f1a
+    creation_time: 2022-08-08T11:19:10Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g1007f57eb-dirty
+      command_line: '''./goblint'' ''--enable'' ''witness.yaml.enabled'' ''unassume.c'''
+    task:
+      input_files:
+      - 15-base-unassume-query.c
+      input_file_hashes:
+        unassume.c: 8bad487944a1627a53420a3ea2c079197fc5313416ed1f3e77e9d4c68f236bdd
+      data_model: LP64
+      language: C
+  location:
+    file_name: 15-base-unassume-query.c
+    file_hash: 8bad487944a1627a53420a3ea2c079197fc5313416ed1f3e77e9d4c68f236bdd
+    line: 16
+    column: 2
+    function: main
+  loop_invariant:
+    string: i == 2
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 48ab49c6-c030-446d-9b31-673979f1cbd0
+    creation_time: 2022-08-08T11:19:10Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g1007f57eb-dirty
+      command_line: '''./goblint'' ''--enable'' ''witness.yaml.enabled'' ''unassume.c'''
+    task:
+      input_files:
+      - 15-base-unassume-query.c
+      input_file_hashes:
+        unassume.c: 8bad487944a1627a53420a3ea2c079197fc5313416ed1f3e77e9d4c68f236bdd
+      data_model: LP64
+      language: C
+  location:
+    file_name: 15-base-unassume-query.c
+    file_hash: 8bad487944a1627a53420a3ea2c079197fc5313416ed1f3e77e9d4c68f236bdd
+    line: 16
+    column: 2
+    function: main
+  loop_invariant:
+    string: j == 3
+    type: assertion
+    format: C
