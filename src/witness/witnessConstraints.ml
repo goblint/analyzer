@@ -67,8 +67,9 @@ struct
   end
 
   (* Additional dependencies component between values before and after sync.
-   * This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
-   * sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed). *)
+     This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
+     sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed).
+     We now use Sync for every tf such that threadspawn after tf could look up state before tf. *)
   module SyncSet = SetDomain.Make (Spec.D)
   module Sync = SpecDMap (SyncSet)
   module D =
@@ -128,12 +129,14 @@ struct
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
 
   let map ctx f g =
-    let h x xs =
-      try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
-      with Deadcode -> xs
+    (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
+    let h x (xs, sync) =
+      let x' = g (f (conv ctx x)) in
+      try (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+      with Deadcode -> (xs, sync)
     in
-    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty ()) in
-    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
+    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
 
   let fold' ctx f g h a =
     let k x a =
@@ -189,10 +192,12 @@ struct
             ) r
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
-      begin match ctx.node with
+      (* TODO: disabled because we now use and leave Sync for every tf,
+         such that threadspawn after tf could look up state before tf *)
+      (* begin match ctx.node with
         | Function _ -> () (* returns post-sync in FromSpec *)
         | _ -> assert (Sync.is_bot (snd ctx.local));
-      end;
+      end; *)
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->
@@ -236,7 +241,7 @@ struct
   let combine ctx l fe f a fc d =
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
-    let k x y =
+    let k x (y, sync) =
       let r =
         if should_inline f then
           let nosync = (Sync.singleton x (SyncSet.singleton x)) in
@@ -245,9 +250,10 @@ struct
         else
           step_ctx_edge ctx cd
       in
-      try Dom.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
-      with Deadcode -> y
+      let x' = Spec.combine (conv ctx cd) l fe f a fc x in
+      try (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
+      with Deadcode -> (y, sync)
     in
-    let d = Dom.fold_keys k (fst d) (Dom.bot ()) in
-    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
+    let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
 end
