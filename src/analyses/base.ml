@@ -2418,7 +2418,11 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | _, _ ->
+    | _, _ when get_bool "sem.unknown_function.spawn" ->
+      (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
+         But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
+         definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
+         Need this to not have memmove spawn in SV-COMP. *)
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
@@ -2427,6 +2431,7 @@ struct
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
       List.filter_map (create_thread None None) addrs
+    | _, _ -> []
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
