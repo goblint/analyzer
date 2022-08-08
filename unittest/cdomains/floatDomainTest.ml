@@ -52,7 +52,8 @@ struct
       FI.top () + FI.top () = FI.top ();
       (FI.of_const fmin) + (FI.of_const fmax) = fi_zero;
       (FI.of_const fsmall) + (FI.of_const fsmall) = FI.of_const (fsmall +. fsmall);
-      (FI.of_const fsmall) + (FI.of_const 1.) = FI.of_interval (1., (1. +. fsmall));
+      let one_plus_fsmall = Option.get (to_float (Float_t.add Up (Float_t.of_float Up 1.) Float_t.smallest)) in
+      (FI.of_const fsmall) + (FI.of_const 1.) = FI.of_interval (1., one_plus_fsmall);
       (FI.of_interval (1., 2.)) + (FI.of_interval (2., 3.)) = FI.of_interval (3., 5.);
       (FI.of_interval (-. 2., 3.)) + (FI.of_interval (-. 100., 20.)) = FI.of_interval (-. 102., 23.);
     end
