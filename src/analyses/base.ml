@@ -2602,8 +2602,31 @@ struct
           else (
             let asked' = Queries.Set.add anyq asked in
             match q with
-            | MayEscape _ -> false (* HACK: avoids get_var in inv_exp thinking non-first var is global *)
+            | MayEscape _
+            | MayBePublic _
+            | MayBePublicWithout _
+            | MustBeProtectedBy _
+            | MustLockset
+            | MustBeAtomic
+            | MustBeSingleThreaded
+            | MustBeUniqueThread
+            | CurrentThreadId
+            | MayBeThreadReturn
+            | PartAccess _
+            | IsHeapVar _
+            | IsMultiple _
+            | CreatedThreads
+            | MustJoinedThreads ->
+              (* These queries are safe to ask from outside,
+                 where base doesn't have the partial top local state.
+                 They are also needed for sensible eval behavior via [inv_exp]
+                 such that everything wouldn't be may escaped. *)
+              ctx.ask q
             | _ ->
+              (* Other queries are not safe, because they would
+                 query the local value state instead of top.
+                 Therefore, these are answered only by base on the
+                 partial top local state. *)
               query (ctx' asked') q
           )
         in
