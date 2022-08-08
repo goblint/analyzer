@@ -112,9 +112,14 @@ struct
 
   let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
-    SyncSet.fold (fun xsync acc ->
-        R.join acc (step n c xsync e)
-      ) (Sync.find i sync) (R.bot ())
+    match Sync.find i sync with
+    | syncs ->
+      SyncSet.fold (fun xsync acc ->
+          R.join acc (step n c xsync e)
+        ) syncs (R.bot ())
+    | exception Not_found ->
+      M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
+      R.bot ()
   let step_ctx ctx x e =
     try
       step ctx.prev_node (ctx.context ()) x e (snd ctx.local)
