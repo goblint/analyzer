@@ -32,7 +32,13 @@ struct
   module VIES = SetDomain.Make (VIE)
   (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
      instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
-  module R = VIES
+  module R =
+  struct
+    include VIES
+    (* new predecessors are always the right ones for the latest evaluation *)
+    let widen x y = y
+    let narrow x y = y
+  end
 
   module SpecDMap (R: Lattice.S) =
   struct
@@ -70,7 +76,13 @@ struct
      This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
      sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed).
      We now use Sync for every tf such that threadspawn after tf could look up state before tf. *)
-  module SyncSet = SetDomain.Make (Spec.D)
+  module SyncSet =
+  struct
+    include SetDomain.Make (Spec.D)
+    (* new predecessors are always the right ones for the latest evaluation *)
+    let widen x y = y
+    let narrow x y = y
+  end
   module Sync = SpecDMap (SyncSet)
   module D =
   struct
