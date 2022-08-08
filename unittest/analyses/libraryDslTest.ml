@@ -1,3 +1,4 @@
+open Goblint_lib
 open OUnit2
 
 let memset_desc: LibraryDesc.t = LibraryDsl.(

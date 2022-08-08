@@ -1,3 +1,4 @@
+open Goblint_lib
 open OUnit2
 
 module GroupableDriver : MapDomain.Groupable with type t = string  =

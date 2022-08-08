@@ -1,3 +1,4 @@
+open Goblint_lib
 open OUnit2
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
