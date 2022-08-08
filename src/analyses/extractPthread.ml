@@ -25,43 +25,6 @@ class uniqueVarPrinterClass =
 
 let printer = new uniqueVarPrinterClass
 
-(** [Function] module represents the supported pthread functions for the analysis *)
-module Function = struct
-  type t =
-    | Exit
-    | ThreadCreate
-    | ThreadJoin
-    | ThreadExit
-    | MutexInit
-    | MutexLock
-    | MutexUnlock
-    | CondVarInit
-    | CondVarBroadcast
-    | CondVarSignal
-    | CondVarWait
-
-  let funs =
-    [ ("exit", Exit)
-    ; ("pthread_create", ThreadCreate)
-    ; ("pthread_join", ThreadJoin)
-    ; ("pthread_exit", ThreadExit)
-    ; ("pthread_mutex_init", MutexInit)
-    ; ("pthread_mutex_lock", MutexLock)
-    ; ("pthread_mutex_unlock", MutexUnlock)
-    ; ("pthread_cond_init", CondVarInit)
-    ; ("pthread_cond_broadcast", CondVarBroadcast)
-    ; ("pthread_cond_signal", CondVarSignal)
-    ; ("pthread_cond_wait", CondVarWait)
-    ]
-
-
-  let error_code = -1
-
-  let supported = List.map fst funs
-
-  let from_string s = Option.map snd @@ List.find (( = ) s % fst) funs
-end
-
 (* Typealiases for better readability *)
 
 type thread_id = int
@@ -895,7 +858,6 @@ module Spec : Analyses.MCPSpec = struct
   (* Spec implementation *)
   include Analyses.DefaultSpec
 
-  module M = Messages
   module List = BatList
   module V = VarinfoV
 
@@ -951,8 +913,6 @@ module Spec : Analyses.MCPSpec = struct
   end
 
   let name () = "extract-pthread"
-
-  let init () = LibraryFunctions.add_lib_funs Function.supported
 
   let assign ctx (lval : lval) (rval : exp) : D.t =
     let should_ignore_assigns = GobConfig.get_bool "ana.extract-pthread.ignore_assign" in
@@ -1131,12 +1091,9 @@ module Spec : Analyses.MCPSpec = struct
         }
 
 
-  let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) : D.t
-    =
-    let fun_name = f.vname in
-    let pthread_fun = Function.from_string fun_name in
-    if D.any_is_bot ctx.local || Option.is_none pthread_fun
-    then ctx.local
+  let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) : D.t =
+    if D.any_is_bot ctx.local then
+      ctx.local
     else
       let env = Env.get ctx in
       let d = Env.d env in
@@ -1150,7 +1107,7 @@ module Spec : Analyses.MCPSpec = struct
           Variables.add tid var ;
 
           Option.some
-          @@ Action.Assign (Variable.show var, string_of_int Function.error_code)
+          @@ Action.Assign (Variable.show var, "-1")
         in
 
         List.iter (Edges.add env) actions ;
@@ -1167,12 +1124,9 @@ module Spec : Analyses.MCPSpec = struct
       in
       let add_action action = add_actions [ action ] in
 
-      let arglist = List.map (stripCasts % constFold false) arglist in
-      let open Function in
-      match (Option.get pthread_fun, arglist) with
-      | Exit, _ ->
-        add_action (Action.Call "exit")
-      | ThreadCreate, [ thread; thread_attr; func; fun_arg ] ->
+      let arglist' = List.map (stripCasts % constFold false) arglist in
+      match (LibraryFunctions.find f).special arglist', f.vname, arglist with
+      | ThreadCreate _ , _, [ thread; thread_attr; func; fun_arg ] ->
         let funs_ls =
           let ls = ctx.ask (Queries.ReachableFrom func) in
           Queries.LS.filter
@@ -1246,38 +1200,41 @@ module Spec : Analyses.MCPSpec = struct
         add_actions
         @@ List.map thread_create
         @@ ExprEval.eval_ptr_id ctx thread Tbls.ThreadTidTbl.get
-      | ThreadJoin, [ thread; thread_ret ] ->
+
+      | ThreadJoin  _, _, [ thread; thread_ret ] ->
         add_actions
         @@ List.map (fun tid -> Action.ThreadJoin tid)
         @@ ExprEval.eval_var_id ctx thread Tbls.ThreadTidTbl.get
-      | ThreadExit, [ status ] ->
+      | Lock _, _, [ mutex ] ->
+        add_actions
+        @@ List.map (fun mid -> Action.MutexLock mid)
+        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
+      | Unlock _, _, [mutex] ->
+        add_actions
+        @@ List.map (fun mid -> Action.MutexUnlock mid)
+        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
+      | ThreadExit _, _ , [status] ->
         add_action Action.ThreadExit
-      | MutexInit, [ mutex; mutex_attr ] ->
+      | Abort, _, _ ->
+        add_action (Action.Call "exit")
+      | Unknown, "pthread_mutex_init", [ mutex; mutex_attr ] ->
         (* TODO: reentrant mutex handling *)
         add_actions
         @@ List.map (fun mid -> Action.MutexInit mid)
         @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
-      | MutexLock, [ mutex ] ->
-        add_actions
-        @@ List.map (fun mid -> Action.MutexLock mid)
-        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
-      | MutexUnlock, [ mutex ] ->
-        add_actions
-        @@ List.map (fun mid -> Action.MutexUnlock mid)
-        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
-      | CondVarInit, [ cond_var; cond_var_attr ] ->
+      | Unknown, "pthread_cond_init", [ cond_var; cond_var_attr ] ->
         add_actions
         @@ List.map (fun id -> Action.CondVarInit id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | CondVarBroadcast, [ cond_var ] ->
+      | Unknown, "pthread_cond_broadcast", [ cond_var ] ->
         add_actions
         @@ List.map (fun id -> Action.CondVarBroadcast id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | CondVarSignal, [ cond_var ] ->
+      | Unknown, "pthread_cond_signal", [ cond_var ] ->
         add_actions
         @@ List.map (fun id -> Action.CondVarSignal id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | CondVarWait, [ cond_var; mutex ] ->
+      | Unknown, "pthread_cond_wait", [ cond_var; mutex ] ->
         let cond_vars = ExprEval.eval_ptr ctx cond_var in
         let mutex_vars = ExprEval.eval_ptr ctx mutex in
         let cond_var_action (v, m) =
@@ -1290,9 +1247,7 @@ module Spec : Analyses.MCPSpec = struct
         add_actions
         @@ List.map cond_var_action
         @@ List.cartesian_product cond_vars mutex_vars
-      | _ ->
-        add_action Nop
-
+      | _ -> ctx.local
 
   let startstate v =
     let open D in
@@ -1321,7 +1276,6 @@ module Spec : Analyses.MCPSpec = struct
 
   let finalize = Codegen.save_promela_model
 
-  let init _ = ()
 end
 
 let _ = MCP.register_analysis ~dep:[ "base" ] (module Spec : MCPSpec)
