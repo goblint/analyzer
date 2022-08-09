@@ -313,8 +313,8 @@ let preprocess_files () =
   );
   preprocessed
 
-(** Possibly merge all postprocessed files *)
-let merge_preprocessed preprocessed =
+(** Parse preprocessed files *)
+let parse_preprocessed preprocessed =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
 
@@ -339,8 +339,10 @@ let merge_preprocessed preprocessed =
 
     Cilfacade.getAST preprocessed_file
   in
-  let files_AST = List.map (get_ast_and_record_deps) preprocessed in
+  List.map get_ast_and_record_deps preprocessed
 
+(** Merge parsed files *)
+let merge_parsed parsed =
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
@@ -349,7 +351,7 @@ let merge_preprocessed preprocessed =
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
-    match files_AST with
+    match parsed with
     | [one] -> Cilfacade.callConstructors one
     | [] ->
       prerr_endline "No files to analyze!";
@@ -364,7 +366,10 @@ let merge_preprocessed preprocessed =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
-let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
+let preprocess_parse_merge () =
+  preprocess_files ()
+  |> parse_preprocessed
+  |> merge_parsed
 
 let do_stats () =
   if get_bool "printstats" then (
