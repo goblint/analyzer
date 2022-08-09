@@ -1,5 +1,6 @@
 (** Abstract domains with Hoare ordering. *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 exception Unsupported of string

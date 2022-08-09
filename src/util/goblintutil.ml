@@ -1,6 +1,6 @@
 (** Globally accessible flags and utility functions. *)
 
-open Cil
+open GoblintCil
 open GobConfig
 
 

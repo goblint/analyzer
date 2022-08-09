@@ -1,7 +1,7 @@
+open GoblintCil
 open Pretty
 open PrecisionUtil
 open FloatOps
-open Cil
 
 exception ArithmeticOnFloatBot of string
 

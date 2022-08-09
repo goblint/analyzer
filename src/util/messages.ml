@@ -1,3 +1,5 @@
+module Pretty = GoblintCil.Pretty
+
 open GobConfig
 module GU = Goblintutil
 
@@ -172,7 +174,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
     Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
   in
-  let pp_quote ppf (loc: Cil.location) =
+  let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
     BatEnum.drop (loc.line - 1) lines;
     let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in

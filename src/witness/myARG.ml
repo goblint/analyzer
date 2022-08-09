@@ -1,4 +1,5 @@
 open MyCFG
+open GoblintCil
 
 module type Node =
 sig

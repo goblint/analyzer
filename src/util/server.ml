@@ -1,5 +1,6 @@
 open Batteries
 open Jsonrpc
+open GoblintCil
 
 type t = {
   mutable file: Cil.file;

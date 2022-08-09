@@ -1,5 +1,6 @@
 open Goblint_lib
 open OUnit2
+open GoblintCil
 open Z
 
 module IntTest (I:IntDomainProperties.OldS) =

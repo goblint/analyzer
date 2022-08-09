@@ -1,5 +1,6 @@
 open Goblint_lib
 (* open! Defaults (* Enums / ... need initialized conf *) *)
+open GoblintCil
 
 module PrintableChar =
 struct
