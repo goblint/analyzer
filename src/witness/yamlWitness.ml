@@ -1,4 +1,5 @@
 open Analyses
+open GoblintCil
 
 let uuid_random_state = Random.State.make_self_init ()
 

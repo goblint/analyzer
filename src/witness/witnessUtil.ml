@@ -1,4 +1,5 @@
 open MyCFG
+open GoblintCil
 
 module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
@@ -63,10 +64,14 @@ struct
         List.exists (fun (_, edge) ->
             match edge with
             | Proc (_, Lval (Var fv, NoOffset), args) ->
-              let desc = LibraryFunctions.find fv in
-              begin match desc.special args with
-                | Lock _ -> true
-                | _ -> false
+              begin match Cilfacade.find_varinfo_fundec fv with
+                | _ -> false (* normal, not special *)
+                | exception Not_found ->
+                  let desc = LibraryFunctions.find fv in
+                  begin match desc.special args with
+                    | Lock _ -> true
+                    | _ -> false
+                  end
               end
             | _ -> false
           ) edges

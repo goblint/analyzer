@@ -1,6 +1,7 @@
 open Prelude
 open Analyses
 open GobConfig
+module Pretty = GoblintCil.Pretty
 
 (** Postsolver with hooks. *)
 module type S =
@@ -211,13 +212,13 @@ struct
       if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
-    (Stats.time "postsolver_iter" (List.iter one_var)) vs;
+    (GoblintCil.Stats.time "postsolver_iter" (List.iter one_var)) vs;
 
     PS.finalize ~vh ~reachable;
     Goblintutil.postsolving := false
 
   let post xs vs vh =
-    Stats.time "postsolver" (post xs vs) vh
+    GoblintCil.Stats.time "postsolver" (post xs vs) vh
 end
 
 (** List of postsolvers. *)

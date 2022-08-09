@@ -2518,10 +2518,27 @@ struct
           (* let dest_a, dest_typ = addr_type_of_exp dst in
              let value = VD.top_value dest_typ in
              set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
+          (* TODO: reuse addr_type_of_exp for master *)
           (* assigning from master *)
+          let get_type lval =
+            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+            AD.get_type address
+          in
           let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
-          let src_a =  mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-          assign ctx dst_lval (Lval src_a)
+          let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+
+          let dest_typ = get_type dst_lval in
+          let src_typ = get_type src_lval in
+
+          (* When src and destination type coincide, take value from the source, otherwise use top *)
+          let value = if typeSig dest_typ = typeSig src_typ then
+              let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+              eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+            else
+              VD.top_value (unrollType dest_typ)
+          in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
     | Unknown, "__builtin" ->
@@ -2734,21 +2751,6 @@ struct
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
     in
     combine_one ctx.local after
-
-  let call_descr f (st: store) =
-    let short_fun x =
-      match x.vtype, CPA.find x st.cpa with
-      | TPtr (t, attr), `Address a
-        when (not (AD.is_top a))
-          && List.compare_length_with (AD.to_var_may a) 1 = 0
-          && not (VD.is_immediate_type t)
-        ->
-        let cv = List.hd (AD.to_var_may a) in
-        "ref " ^ VD.show (CPA.find cv st.cpa)
-      | _, v -> VD.show v
-    in
-    let args_short = List.map short_fun f.sformals in
-    Printable.get_short_list (f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with

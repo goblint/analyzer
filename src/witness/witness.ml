@@ -3,6 +3,8 @@ open Graphml
 open Svcomp
 open GobConfig
 
+module Stats = GoblintCil.Stats
+
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =

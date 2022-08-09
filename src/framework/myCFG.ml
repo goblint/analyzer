@@ -1,6 +1,6 @@
 (** Our Control-flow graph implementation. *)
 
-open Cil
+open GoblintCil
 
 (** Re-exported [Node.t] with constructors. See [Node.t] for documentation. *)
 type node = Node.t =

@@ -1,3 +1,5 @@
+open GoblintCil
+
 type t =
   | Global of Cil.varinfo
   | Node of {node: Node.t; fundec : Cil.fundec option} (** Optional [fundec] override to allow querying old state in incremental. *)

@@ -130,10 +130,6 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
-  let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
-
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"

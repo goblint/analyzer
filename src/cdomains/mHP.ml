@@ -1,6 +1,7 @@
 include Printable.Std
 
 module TID = ThreadIdDomain.FlagConfiguredTID
+module Pretty = GoblintCil.Pretty
 
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;

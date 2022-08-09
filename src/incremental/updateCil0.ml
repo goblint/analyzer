@@ -1,4 +1,5 @@
 (** UpdateCil functions to avoid dependency cycles.*)
+open GoblintCil
 
 module NodeMap = Hashtbl.Make(Node0)
 

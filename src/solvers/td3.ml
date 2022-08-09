@@ -14,7 +14,7 @@ open Analyses
 open Constraints
 open Messages
 open CompareCIL
-open Cil
+open GoblintCil
 
 module WP =
   functor (Arg: IncrSolverArg) ->

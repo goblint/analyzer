@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 type max_ids = {
   max_sid: int;
