@@ -15,6 +15,7 @@ let isCharType = function
 
 let init () =
   initCIL ();
+  removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
@@ -27,15 +28,8 @@ let current_file = ref dummyFile
 let parse fileName =
   Frontc.parse (Fpath.to_string fileName) ()
 
-let print_to_file (fileName: string) (fileAST: file) =
-  let oc = Stdlib.open_out fileName in
-  dumpFile defaultCilPrinter oc fileName fileAST
-
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
-
-let printDebug fileAST =
-  dumpFile Printer.debugCilPrinter stdout "stdout" fileAST
 
 let rmTemps fileAST =
   Rmtmps.removeUnusedTemps fileAST
@@ -282,7 +276,6 @@ let getFuns fileAST : startfuns =
   let f acc glob =
     match glob with
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") -> add_main def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
@@ -291,7 +284,6 @@ let getFuns fileAST : startfuns =
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
-    | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
@@ -299,24 +291,24 @@ let getFuns fileAST : startfuns =
 
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
-let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
-let p_expr exp = Pretty.printf "%a\n" (printExp defaultCilPrinter) exp
-let d_expr exp = Pretty.printf "%a\n" (printExp plainCilPrinter) exp
-
-(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put in and return IInt *)
+(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. *)
 let rec get_ikind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
   | TInt (ik,_)
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
-  | _ ->
-    Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";
-    Cil.IInt
+  | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
+
+let get_fkind t =
+  (* important to unroll the type here, otherwise problems with typedefs *)
+  match Cil.unrollType t with
+  | TFloat (fk,_) -> fk
+  | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
-
+let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
 (** Cil.typeOf, etc reimplemented to raise sensible exceptions
     instead of printing all errors directly... *)
@@ -433,8 +425,25 @@ and typeOffset basetyp =
     | _ -> raise (TypeOfError Field_NonCompound)
 
 
-let get_ikind_exp e = get_ikind (typeOf e)
+(** {!Cil.mkCast} using our {!typeOf}. *)
+let mkCast ~(e: exp) ~(newt: typ) =
+  let oldt =
+    try
+      typeOf e
+    with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
+      Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
+  in
+  Cil.mkCastT ~e ~oldt ~newt
 
+let get_ikind_exp e = get_ikind (typeOf e)
+let get_fkind_exp e = get_fkind (typeOf e)
+
+(** Make {!Cil.BinOp} with correct implicit casts inserted. *)
+let makeBinOp binop e1 e2 =
+  let t1 = typeOf e1 in
+  let t2 = typeOf e2 in
+  let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
+  e
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
@@ -541,6 +550,7 @@ let name_fundecs: fundec StringH.t ResettableLazy.t =
   )
 
 (** Find [fundec] by the function's name. *)
+(* TODO: why unused? *)
 let find_name_fundec name = StringH.find (ResettableLazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
 
 

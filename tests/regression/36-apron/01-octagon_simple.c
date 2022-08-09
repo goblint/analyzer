@@ -1,5 +1,7 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval  --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','apron']" --set ana.base.privatization none --set ana.apron.privatization dummy
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
+#include <assert.h>
+
 void main(void) {
   int X = 0;
   int N = rand();
@@ -9,8 +11,8 @@ void main(void) {
     X++;
   }
 
-  assert(X-N == 0);
-  assert(X == N);
+  __goblint_check(X-N == 0);
+  __goblint_check(X == N);
 
   if(X == N) {
     N = 8;
@@ -19,7 +21,7 @@ void main(void) {
     N = 42;
   }
 
-  assert(N == 8);
+  __goblint_check(N == 8);
   two();
 }
 
@@ -37,7 +39,7 @@ void two() {
     N = 0;
   }
 
-  assert(X <= N);
+  __goblint_check(X <= N);
 
   while (1) {
     while_continue: /* CIL Label */ ;
@@ -48,6 +50,6 @@ void two() {
   }
   while_break: /* CIL Label */ ;
 
-  assert(X - N == 0);
-  assert(X == N);
+  __goblint_check(X - N == 0);
+  __goblint_check(X == N);
 }

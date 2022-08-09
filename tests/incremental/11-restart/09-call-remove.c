@@ -13,7 +13,7 @@ void* t_fun(void *arg) {
 }
 
 void* t_fun2(void *arg) {
-    assert(g == 1); // UNKNOWN before, success after
+    __goblint_check(g == 1); // UNKNOWN before, success after
     return NULL;
 }
 

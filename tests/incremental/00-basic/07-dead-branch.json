@@ -1,5 +1,7 @@
 {
-    "dbg": {
-        "print_dead_code": true
+    "ana": {
+        "dead-code": {
+            "branches": true
+        }
     }
 }

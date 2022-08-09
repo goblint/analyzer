@@ -18,4 +18,4 @@ let pretty () = function
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv
   | AssignSpawnedThread (lval, tid) -> dprintf "AssignSpawnedThread (%a, %a)" d_lval lval ThreadIdDomain.Thread.pretty tid
   | Access {var_opt; kind} -> dprintf "Access {var_opt=%a, kind=%a}" (docOpt (CilType.Varinfo.pretty ())) var_opt AccessKind.pretty kind
-  | Assign {lval; exp} -> dprintf "Assugn {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
+  | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp

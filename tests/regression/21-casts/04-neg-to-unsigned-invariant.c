@@ -6,9 +6,9 @@ int main() {
   int debug_value = -1;
 
   if ((unsigned int)debug_value > 31U)
-    assert(1); // reachable
+    __goblint_check(1); // reachable
   else
-    assert(1); // NOWARN (unreachable)
+    __goblint_check(1); // NOWARN (unreachable)
 
   return 0;
 }

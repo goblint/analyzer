@@ -4,7 +4,7 @@
 int main() {
   int x = 42;
   // Should fail with: Expected unknown, but registered success
-  assert(x == 42); // UNKNOWN
+  __goblint_check(x == 42); // UNKNOWN
 
   return 0;
 }

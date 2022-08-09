@@ -19,12 +19,12 @@ int main(void) {
   pthread_join(id,NULL);
 
   g = h;
-  assert(g == h);
+  __goblint_check(g == h);
 
   // __goblint_assume_join for something Goblint knows is joined should not worsen precision
   __goblint_assume_join(id);
 
-  assert(g == h);
+  __goblint_check(g == h);
 
   return 0;
 }

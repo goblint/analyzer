@@ -3,9 +3,10 @@
         "restart": {
             "sided": {
                 "enabled": true,
-                "only-access": true,
-                "destab-with-sides": false
-            }
+                "vars": "write-only",
+                "fuel": 1
+            },
+            "write-only": false
         }
     }
 }

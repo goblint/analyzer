@@ -19,6 +19,6 @@ int main() {
     pthread_create(&id, NULL, t_fun, NULL);
 
     int x = g;
-    assert(x <= 10);
+    __goblint_check(x <= 10);
     return 0;
 }

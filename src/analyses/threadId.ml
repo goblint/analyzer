@@ -56,13 +56,7 @@ struct
 
   let branch ctx exp tv = ctx.local
 
-  let return ctx exp fundec  =
-    match fundec.svar.vname with
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      (ThreadLifted.top (), TD.bot ()) (* TODO: what should TD be? *)
-    | _ ->
-      ctx.local
+  let return ctx exp fundec = ctx.local
 
   let assign ctx (lval:lval) (rval:exp) : D.t  =
     ctx.local

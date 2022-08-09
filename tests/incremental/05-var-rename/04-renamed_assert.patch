@@ -1,0 +1,13 @@
+--- tests/incremental/05-var-rename/04-renamed_assert.c
++++ tests/incremental/05-var-rename/04-renamed_assert.c
+@@ -1,7 +1,7 @@
+ int main() {
+-    int myVar = 0;
++    int myRenamedVar = 0;
+
+-    __goblint_check(myVar < 11);
++    __goblint_check(myRenamedVar < 11);
+
+     return 0;
+ }
+\ Kein Zeilenumbruch am Dateiende.

@@ -11,6 +11,6 @@ int main(void) {
   y = f(y);
   // combine should forget callee's y after substituting arg vars with args to avoid bottom in #ret substitute
 
-  assert(y);
+  __goblint_check(y);
   return 0;
 }

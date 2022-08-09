@@ -130,16 +130,12 @@ let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   |> List.of_enum
 
 let to_yojson messages =
-  let commandLine = match Array.to_list Sys.argv with
-    | command :: arguments -> Filename.quote_command command arguments
-    | [] -> assert false
-  in
   SarifLog.to_yojson {
     version = "2.1.0";
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
     runs = [{
         invocations = [{
-            commandLine;
+            commandLine = Goblintutil.command_line;
             executionSuccessful = true;
           }];
         artifacts = artifacts_of_messages messages;

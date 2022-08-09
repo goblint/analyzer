@@ -5,7 +5,7 @@
 #include <pthread.h>
 
 void test1_f() {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
 }
 
 void test1() {
@@ -21,7 +21,7 @@ void test1() {
 
 void* test2_f(void *arg) {
   int *p = arg;
-  *p = 1; // NORACE
+  *p = 1; // RACE!
   return NULL;
 }
 
@@ -29,7 +29,7 @@ void test2() {
   int *p = malloc(sizeof(int));
   pthread_t id;
   pthread_create(&id, NULL, test2_f, p);
-  realloc(p, sizeof(int)); // NORACE
+  realloc(p, sizeof(int)); // RACE!
 }
 
 void* test3_f(void *arg) {

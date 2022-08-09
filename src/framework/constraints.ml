@@ -61,9 +61,6 @@ struct
   let return ctx r f =
     D.lift @@ S.return (conv ctx) r f
 
-  let intrpt ctx =
-    D.lift @@ S.intrpt (conv ctx)
-
   let asm ctx =
     D.lift @@ S.asm (conv ctx)
 
@@ -140,9 +137,6 @@ struct
 
   let return ctx r f =
     S.return (conv ctx) r f
-
-  let intrpt ctx =
-    S.intrpt (conv ctx)
 
   let asm ctx =
     S.asm (conv ctx)
@@ -230,7 +224,6 @@ struct
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
@@ -357,7 +350,6 @@ struct
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx S.intrpt identity
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
@@ -436,7 +428,6 @@ struct
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
-  let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
@@ -458,7 +449,6 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = GVarG (S.G) (S.C)
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -496,13 +486,11 @@ struct
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
-      ; control_context = snd var
+      ; control_context = snd var |> Obj.obj
       ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = (fun _ -> raise Not_found)
-      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
@@ -560,10 +548,6 @@ struct
 
   let common_joins ctx ds splits spawns = common_join ctx (bigsqcup ds) splits spawns
 
-  let tf_loop var edge prev_node getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.intrpt ctx) !r !spawns
-
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.assign ctx lv e) !r !spawns
@@ -588,7 +572,7 @@ struct
     let d =
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
-         (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+         get_bool "kernel"
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in
@@ -658,7 +642,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn "Using special for defined function %s" f.vname;
+        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg
@@ -689,7 +673,6 @@ struct
       | Test (p,b)     -> tf_test var edge prev_node p b
       | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> tf_skip var edge prev_node
-      | SelfLoop       -> tf_loop var edge prev_node
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
@@ -759,13 +742,11 @@ struct
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
       ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
       ; prev_node = MyCFG.dummy_node
-      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+      ; control_context = (fun () -> ctx_failwith "No context in query context.")
       ; context = (fun () -> ctx_failwith "No context in query context.")
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = (fun _ -> raise Not_found)
-      ; postsub = (fun _ -> raise Not_found)
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -989,10 +970,6 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
-
-    let invariant c s = fold (fun x a ->
-        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
-      ) s Invariant.none
   end
 
   module G = Spec.G
@@ -1046,7 +1023,6 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
@@ -1061,6 +1037,7 @@ struct
     let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
+    (* TODO: handle Invariant path like PathSensitive3? *)
     (* join results so that they are sound for all paths *)
     let module Result = (val Queries.Result.lattice q) in
     fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
@@ -1147,7 +1124,9 @@ struct
           EM.iter (fun exp tv ->
               match tv with
               | `Lifted tv ->
-                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
+                let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+                let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
               | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()
@@ -1200,7 +1179,6 @@ struct
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
   let asm ctx = S.asm (conv ctx)
-  let intrpt ctx = S.intrpt (conv ctx)
 end
 
 module CompareGlobSys

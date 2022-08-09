@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
 #include <assert.h>
 int global;
 
@@ -18,15 +18,15 @@ void example1(void)
 
     while (i < 42) {
         a[i] = 0;
-        assert(a[i] == 0); // UNKNOWN
-        assert(a[0] == 0); // UNKNOWN
-        assert(a[17] == 0);
+        __goblint_check(a[i] == 0); // UNKNOWN
+        __goblint_check(a[0] == 0); // UNKNOWN
+        __goblint_check(a[17] == 0);
         i++;
     }
 
-    assert(a[0] == 0); // UNKNOWN
-    assert(a[7] == 0);
-    assert(a[41] == 0);
+    __goblint_check(a[0] == 0); // UNKNOWN
+    __goblint_check(a[7] == 0);
+    __goblint_check(a[41] == 0);
 }
 
 
@@ -34,15 +34,16 @@ void example1(void)
 void example2() {
     char a[10];
     int n;
-    assert(a[3] == 800); // UNKNOWN
+    __goblint_check(a[3] == 800); // FAIL (char cannot be 800)
+    __goblint_check(a[3] == 127); // UNKNOWN!
 
     for(int i=0;i < 10; i++) {
         a[i] = 7;
     }
 
     a[3] = (char) n;
-    assert(a[3] == 800); //FAIL
-    assert(a[3] == 127); //UNKNOWN
-    assert(a[3] == -128); //UNKNOWN
-    assert(a[3] == -129); //FAIL
+    __goblint_check(a[3] == 800); //FAIL
+    __goblint_check(a[3] == 127); //UNKNOWN
+    __goblint_check(a[3] == -128); //UNKNOWN
+    __goblint_check(a[3] == -129); //FAIL
 }

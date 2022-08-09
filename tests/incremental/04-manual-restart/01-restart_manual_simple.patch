@@ -4,14 +4,14 @@ index cbfb0ba70..aa83393ac 100644
 +++ tests/incremental/04-manual-restart/01-restart_manual_simple.c
 @@ -1,9 +1,9 @@
  #include <assert.h>
- 
+
 -int g = 4;
 +int g = 5;
- 
+
  int main() {
      int x = g;
--    assert(x == 4);
-+    assert(x == 4); //FAIL
+-    __goblint_check(x == 4);
++    __goblint_check(x == 4); //FAIL
      return 0;
  }
 diff --git tests/incremental/04-manual-restart/01-restart_manual_simple.json tests/incremental/04-manual-restart/01-restart_manual_simple.json

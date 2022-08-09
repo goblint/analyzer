@@ -6,11 +6,11 @@ extern int __VERIFIER_nondet_int();
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void fun1() {
-  assert(0); // FAIL
+  __goblint_check(0); // FAIL
 }
 
 void fun2() {
-  assert(0); // FAIL
+  __goblint_check(0); // FAIL
 }
 
 int main() {

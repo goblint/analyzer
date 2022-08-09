@@ -99,14 +99,11 @@ module WP =
       let stable = data.stable in
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
-      let narrow_reuse_verify = GobConfig.get_bool "solvers.td3.narrow-reuse-verify" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
       let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
-      let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
-      let restart_only_access = GobConfig.get_bool "incremental.restart.sided.only-access" in
-      let restart_destab_with_sides = GobConfig.get_bool "incremental.restart.sided.destab-with-sides" in
+      let restart_vars = GobConfig.get_string "incremental.restart.sided.vars" in
 
       let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
       let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
@@ -172,7 +169,7 @@ module WP =
           let l = HM.create 10 in
           let tmp =
             match reuse_eq with
-            | Some d when narrow_reuse && not narrow_reuse_verify ->
+            | Some d when narrow_reuse ->
               (* Do not reset deps for reuse of eq *)
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
               incr Goblintutil.narrow_reuses;
@@ -182,13 +179,6 @@ module WP =
               HM.replace dep x VS.empty;
               eq x (eval l x) (side ~x)
           in
-          begin match reuse_eq with
-            | Some reuse_eq when narrow_reuse_verify && not (S.Dom.equal tmp reuse_eq) ->
-              if M.tracing then trace "sol2" "reuse eq neq %a: %a %a\n" S.Var.pretty_trace x S.Dom.pretty reuse_eq S.Dom.pretty tmp;
-              failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "TD3 narrow reuse verify: should not reuse %a" S.Var.pretty_trace x))
-            | _ ->
-              ()
-          end;
           let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
@@ -366,6 +356,8 @@ module WP =
       (* reluctantly unchanged return nodes to additionally query for postsolving to get warnings, etc. *)
       let reluctant_vs: S.Var.t list ref = ref [] in
 
+      let restart_write_only = GobConfig.get_bool "incremental.restart.write-only" in
+
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
@@ -386,19 +378,26 @@ module WP =
             ()
         in
 
+        let restart_fuel_only_globals = GobConfig.get_bool "incremental.restart.sided.fuel-only-global" in
+
         (* destabilize which restarts side-effected vars *)
-        let rec destabilize_with_side x =
-          if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
+        (* side_fuel specifies how many times (in recursion depth) to destabilize side_infl, None means infinite *)
+        let rec destabilize_with_side ~side_fuel x =
+          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pretty_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
 
           (* is side-effected var (global/function entry)? *)
           let w = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
 
           let should_restart =
-            if restart_only_access then
-              S.Var.is_write_only x
-            else
-              (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && (not (S.Var.is_write_only x))
+            match restart_write_only, S.Var.is_write_only x with
+            | true, true -> false (* prefer efficient write-only restarting during postsolving *)
+            | _, is_write_only ->
+              match restart_vars with
+              | "all" -> true
+              | "global" -> Node.equal (S.Var.node x) (Function Cil.dummyFunDec) (* non-function entry node *)
+              | "write-only" -> is_write_only
+              | _ -> assert false
           in
 
           if not (VS.is_empty w) && should_restart then (
@@ -411,10 +410,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                if restart_destab_with_sides then
-                  destabilize_with_side y
-                else
-                  destabilize_normal y
+                destabilize_with_side ~side_fuel y
               ) w
           );
 
@@ -426,25 +422,40 @@ module WP =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              destabilize_with_side y
+              destabilize_with_side ~side_fuel y
             ) w;
 
           (* destabilize side infl *)
           let w = HM.find_default side_infl x VS.empty in
           HM.remove side_infl x;
-          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
-          VS.iter (fun y ->
-              if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
-              HM.remove stable y;
-              HM.remove superstable y;
-              destabilize_with_side y
-            ) w
+
+          if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
+            let side_fuel' =
+              if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then
+                Option.map Int.pred side_fuel
+              else
+                side_fuel (* don't decrease fuel for function entry side effect *)
+            in
+            (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                HM.remove stable y;
+                HM.remove superstable y;
+                destabilize_with_side ~side_fuel:side_fuel' y
+              ) w
+          )
         in
 
         destabilize_ref :=
-          if restart_sided then
-            destabilize_with_side
+          if restart_sided then (
+            let side_fuel =
+              match GobConfig.get_int "incremental.restart.sided.fuel" with
+              | fuel when fuel >= 0 -> Some fuel
+              | _ -> None (* infinite *)
+            in
+            destabilize_with_side ~side_fuel
+          )
           else
             destabilize_normal;
 
@@ -626,10 +637,13 @@ module WP =
           destabilize x
         in
 
+        let should_restart_start = restart_sided && restart_vars <> "write-only" in (* assuming start vars are not write-only *)
+        (* TODO: should this distinguish non-global (function entry) and global (earlyglobs) start vars? *)
+
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
-            if restart_sided && not restart_only_access then (
+            if should_restart_start then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
                 ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
@@ -643,7 +657,7 @@ module WP =
             side v d
           ) st;
 
-        if restart_sided && not restart_only_access then (
+        if should_restart_start then (
           List.iter (fun (v, _) ->
               match GobList.assoc_eq_opt S.Var.equal v st with
               | None ->
@@ -856,12 +870,15 @@ module WP =
           HM.create 0 (* doesn't matter, not used *)
       in
 
-      (* restart write-only *)
-      HM.iter (fun x w ->
-          HM.iter (fun y d ->
-              HM.replace rho y (S.Dom.bot ());
-            ) w
-        ) rho_write;
+      if restart_write_only then (
+        (* restart write-only *)
+        HM.iter (fun x w ->
+            HM.iter (fun y d ->
+                ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
+                HM.replace rho y (S.Dom.bot ());
+              ) w
+          ) rho_write
+      );
 
       if incr_verify then (
         HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) var_messages;

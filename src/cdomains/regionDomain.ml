@@ -23,7 +23,6 @@ struct
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
   (* Joins the fields, assuming the vars are equal. *)
   let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let is_glob (v,f) = v.vglob
   let kill x (v,f) = v, F.kill x f
   let replace x exp (v,fd) = v, F.replace x exp fd
 end
@@ -256,7 +255,7 @@ struct
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []
-    | None -> Messages.warn "Access to unknown address could be global"; []
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
 
 (* TODO: remove Lift *)

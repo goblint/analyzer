@@ -1,0 +1,2 @@
+Function param is renamed.
+No semantic changes.

@@ -7,30 +7,6 @@ module H = NodeH
 module NH = NodeH
 
 
-(* TODO: refactor duplication with find_loop_heads *)
-module NS = Set.Make (Node)
-let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
-  let loop_heads = NH.create 100 in
-  let global_visited_nodes = NH.create 100 in
-
-  (* DFS *)
-  let rec iter_node path_visited_nodes node =
-    if NS.mem node path_visited_nodes then
-      NH.replace loop_heads node ()
-    else if not (NH.mem global_visited_nodes node) then begin
-      NH.replace global_visited_nodes node ();
-      let new_path_visited_nodes = NS.add node path_visited_nodes in
-      List.iter (fun (_, to_node) ->
-          iter_node new_path_visited_nodes to_node
-        ) (Cfg.next node)
-    end
-  in
-
-  let entry_node = FunctionEntry fd in
-  iter_node NS.empty entry_node;
-
-  loop_heads
-
 let find_backwards_reachable ~initial_size (module Cfg:CfgBackward) (node:node): unit NH.t =
   let reachable = NH.create initial_size in
 
@@ -512,8 +488,8 @@ let minimizeCFG (fw,bw) =
 module type CfgPrinters =
 sig
   val defaultNodeStyles: string list
-  val printNodeStyle: out_channel -> node -> unit
-  val printEdgeStyle: out_channel -> node -> (edges * node) -> unit
+  val printNodeStyle: Format.formatter -> node -> unit
+  val printEdgeStyle: Format.formatter -> node -> (edges * node) -> unit
 end
 
 module type NodeStyles =
@@ -526,18 +502,18 @@ module CfgPrinters (NodeStyles: NodeStyles) =
 struct
   include NodeStyles
 
-  let p_node () n = text (Node.show_id n)
+  let p_node out n = Format.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
+  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
 
-  let rec p_edges () = function
-    | [] -> Pretty.dprintf ""
-    | [(_, x)] -> p_edge () x
-    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  let rec p_edges out = function
+    | [] -> Format.fprintf out ""
+    | [(_, x)] -> Format.fprintf out "%a" p_edge x
+    | (_,x)::xs -> Format.fprintf out "%a\n%a" p_edge x p_edges xs
 
   let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
+    Format.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges
 
   let printNodeStyle out (n:node) =
     let label = match n with
@@ -551,13 +527,13 @@ struct
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
-    ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
+    Format.fprintf out ("\t%a [%s];\n") p_node n styles
 end
 
 let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   let node_table = NH.create 113 in
-  Printf.fprintf out "digraph cfg {\n";
-  Printf.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
+  Format.fprintf out "digraph cfg {\n";
+  Format.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.replace node_table toNode ();
@@ -572,20 +548,18 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
         if not (NH.mem node_scc_done node) then (
           match NH.find_option node_scc_global node with
           | Some scc when NH.length scc.nodes > 1 ->
-            Printf.fprintf out "\tsubgraph cluster {\n\t\t";
+            Format.fprintf out "\tsubgraph cluster {\n\t\t";
             NH.iter (fun node _ ->
                 NH.replace node_scc_done node ();
-                Printf.fprintf out ("%s; ") (Node.show_id node)
+                Format.fprintf out ("%s; ") (Node.show_id node)
               ) scc.nodes;
-            Printf.fprintf out "\n\t}\n";
+            Format.fprintf out "\n\t}\n";
           | _ -> ()
         )
       ) node_table
   );
 
-  Printf.fprintf out "}\n";
-  flush out;
-  close_out_noerr out
+  Format.fprintf out "}\n"
 
 let fprint_hash_dot cfg  =
   let module NoExtraNodeStyles =
@@ -596,7 +570,10 @@ let fprint_hash_dot cfg  =
   in
   let out = open_out "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
-  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
+  let ppf = Format.formatter_of_out_channel out in
+  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
+  Format.pp_print_flush ppf ();
+  close_out out
 
 
 let getCFG (file: file) : cfg * cfg =
@@ -609,16 +586,6 @@ let getCFG (file: file) : cfg * cfg =
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
-
-
-(* TODO: unused *)
-let generate_irpt_edges cfg =
-  let make_irpt_edge toNode (_, fromNode) =
-    match toNode with
-    | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
-    | _ -> H.add cfg toNode (SelfLoop, toNode)
-  in
-  H.iter make_irpt_edge cfg
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
@@ -636,8 +603,7 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
 let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
-    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* \N is graphviz special for node ID *)
-
+    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* The \N is graphviz special for node ID. *)
     let extraNodeStyles n =
       if live n then
         []
@@ -647,6 +613,10 @@ let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   in
   let iter_edges = iter_fd_edges (module Cfg) fd in
   fprint_dot (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
+
+let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
+  fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
+  Format.flush_str_formatter ()
 
 let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
   iterGlobals file (fun glob ->
@@ -658,7 +628,11 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (open_out (Fpath.to_string fname))
+        let out = open_out (Fpath.to_string fname) in
+        let ppf = Format.formatter_of_out_channel out in
+        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd ppf;
+        Format.pp_print_flush ppf ();
+        close_out out
       | _ -> ()
     )
 
@@ -710,7 +684,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1;}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
 
 
 let numGlobals file =

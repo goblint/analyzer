@@ -6,6 +6,6 @@ int foo(int x){
 int main(){
     int x = 12;
     int y = foo(x);
-    assert(x == y);
+    __goblint_check(x == y);
     return 0;
 }

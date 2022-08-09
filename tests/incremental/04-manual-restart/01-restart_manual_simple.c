@@ -4,6 +4,6 @@ int g = 4;
 
 int main() {
     int x = g;
-    assert(x == 4);
+    __goblint_check(x == 4);
     return 0;
 }

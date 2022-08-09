@@ -16,7 +16,7 @@ int main() {
     x = g;
     while (1) {
         g = x;
-        assert(x == 1); // UNKNOWN before, success after
+        __goblint_check(x == 1); // UNKNOWN before, success after
         x = g;
     }
 

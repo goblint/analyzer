@@ -21,6 +21,6 @@ struct node* min(struct node *root) {
 int main() {
   struct node *root;
   struct node *m = min(root);
-  assert(m == NULL);
+  __goblint_check(m == NULL);
   return 0;
 }

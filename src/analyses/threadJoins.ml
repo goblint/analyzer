@@ -24,14 +24,20 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (
       match ctx.ask CurrentThreadId with
-      | `Lifted tid -> ctx.sideg tid ctx.local
+      | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> ctx.sideg tid ctx.local
       | _ -> () (* correct? *)
     );
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, f.vname with
+    | ThreadExit _, _ -> (match ctx.ask CurrentThreadId with
+        | `Lifted tid -> ctx.sideg tid ctx.local
+        | _ -> () (* correct? *)
+      );
+      ctx.local
+    | ThreadJoin { thread = id; ret_var }, _ ->
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
         ctx.local
@@ -45,7 +51,7 @@ struct
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
-    | `Unknown "__goblint_assume_join" ->
+    | Unknown, "__goblint_assume_join" ->
       let id = List.hd arglist in
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then (
@@ -55,12 +61,14 @@ struct
       else (
         (* elements throws if the thread set is top *)
         let threads = TIDs.elements threads in
+        if List.compare_length_with threads 1 > 0 then
+          M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
         List.fold_left (fun acc tid ->
             let joined = ctx.global tid in
             D.union (D.add tid acc) joined
           ) ctx.local threads
       )
-    | _ -> ctx.local
+    | _, _ -> ctx.local
 
   let threadspawn ctx lval f args fctx =
     if D.is_bot ctx.local then ( (* bot is All threads *)

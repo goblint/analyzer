@@ -7,6 +7,6 @@ int main(){
   strh = &str;
   c1 = (*strh)[1];
   str[2] = '3';
-  assert(c1 == '1'); // UNKNOWN
+  __goblint_check(c1 == '1'); // UNKNOWN
   return 0;
 }

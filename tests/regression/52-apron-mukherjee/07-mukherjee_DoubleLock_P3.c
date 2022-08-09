@@ -22,7 +22,7 @@ void* T1_DLP3(void* arg){
 
 void* T2_DLP3(void* arg){
     pthread_mutex_lock(&lock);
-    assert(count >= -1);
+    __goblint_check(count >= -1);
     pthread_mutex_unlock(&lock);
     return NULL;
 }

@@ -25,7 +25,6 @@ sig
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
-  val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
   val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
@@ -60,7 +59,6 @@ struct
   let get_vars_in_e _ = []
   let map f x = f x
   let fold_left f a x = f a x
-  let fold_left2 f a x y = f a x y
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
   let smart_join _ _ = join
@@ -91,49 +89,45 @@ struct
     (show_list xl) ^ Val.show xr ^ ")"
   let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let extract x = match x with
+  let extract x default = match x with
     | Some c -> c
-    | None -> failwith "arrayDomain: that should not happen"
+    | None -> default
   let get (ask: Q.ask) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
-      let mi = Z.to_int min_i in
-      let ma = Z.to_int max_i in
       let rec subjoin l i = match l with
         | [] -> Val.bot ()
         | hd::tl ->
           begin
-            match i>ma,i<mi with
-            | false,true -> subjoin tl (i+1)
-            | false,false -> Val.join hd (subjoin tl (i+1))
+            match Z.gt i max_i, Z.lt i min_i with
+            | false,true -> subjoin tl (Z.add i Z.one)
+            | false,false -> Val.join hd (subjoin tl (Z.add i Z.one))
             | _,_ -> Val.bot ()
           end in
-      subjoin xl 0 in
+      subjoin xl Z.zero in
     let f = Z.of_int (factor ()) in
-    let min_i = extract (Idx.minimal i) in
-    let max_i = extract (Idx.maximal i) in
+    let min_i = extract (Idx.minimal i) Z.zero in
+    let max_i = extract (Idx.maximal i) f in
     if Z.geq min_i f then xr
     else if Z.lt max_i f then search_unrolled_values min_i max_i
     else Val.join xr (search_unrolled_values min_i (Z.of_int ((factor ())-1)))
   let set (ask: Q.ask) (xl,xr) (_,i) v =
     let update_unrolled_values min_i max_i =
-      let mi = Z.to_int min_i in
-      let ma = Z.to_int max_i in
       let rec weak_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if i<mi then hd::(weak_update tl (i+1))
-          else if i>ma then (hd::tl)
-          else (Val.join hd v)::(weak_update tl (i+1)) in
+          if Z.lt i min_i then hd::(weak_update tl (Z.add i Z.one))
+          else if Z.gt i max_i then (hd::tl)
+          else (Val.join hd v)::(weak_update tl (Z.add i Z.one)) in
       let rec full_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if i<mi then hd::(full_update tl (i+1))
+          if Z.lt i min_i then hd::(full_update tl (Z.add i Z.one))
           else v::tl in
-      if mi=ma then full_update xl 0
-      else weak_update xl 0 in
+      if Z.equal min_i max_i then full_update xl Z.zero
+      else weak_update xl Z.zero in
     let f = Z.of_int (factor ()) in
-    let min_i = extract(Idx.minimal i) in
-    let max_i = extract(Idx.maximal i) in
+    let min_i = extract(Idx.minimal i) Z.zero in
+    let max_i = extract(Idx.maximal i) f in
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
@@ -145,7 +139,6 @@ struct
   let get_vars_in_e _ = []
   let map f (xl, xr) = ((List.map f xl), f xr)
   let fold_left f a x = f a (join_of_all_parts x)
-  let fold_left2 f a x y = f a (join_of_all_parts x) (join_of_all_parts y)
   let printXml f (xl,xr) = BatPrintf.fprintf f "<value>\n<map>\n
   <key>unrolled array</key>\n
   <key>xl</key>\n%a\n\n
@@ -243,16 +236,16 @@ struct
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
-        if ask.f (Q.MustBeEqual (e',i')) then xm
+        if Q.must_be_equal ask e' i' then xm
         else
           begin
-            let contributionLess = match ask.f (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+            let contributionLess = match Q.may_be_less ask i' e' with        (* (may i < e) ? xl : bot *)
             | false -> Val.bot ()
             | _ -> xl in
-            let contributionEqual = match ask.f (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+            let contributionEqual = match Q.may_be_equal ask i' e' with      (* (may i = e) ? xm : bot *)
             | false -> Val.bot ()
             | _ -> xm in
-            let contributionGreater =  match ask.f (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+            let contributionGreater =  match Q.may_be_less ask e' i' with    (* (may i > e) ? xr : bot *)
             | false -> Val.bot ()
             | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
@@ -309,9 +302,6 @@ struct
   let fold_left f a (_, ((xl:value), (xm:value), (xr:value))) =
     f (f (f a xl) xm) xr
 
-  let fold_left2 f a (_, ((xl:value), (xm:value), (xr:value))) (_, ((yl:value), (ym:value), (yr:value))) =
-    f (f (f a xl yl) xm ym) xr yr
-
   let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
     normalize @@
     let move (i:int option) =
@@ -359,15 +349,14 @@ struct
                 begin
                   match Idx.to_int l with
                   | Some i ->
-                    let b = ask.f (Q.MayBeLess (exp, Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i)) in
+                    let b = Q.may_be_less ask exp (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
                     not b (* !(e <_{may} length) => e >=_{must} length *)
                   | None -> false
                 end
               | _ -> false
             in
             let e_must_less_zero =
-              let b = ask.f (Q.MayBeLess (Cil.mone, exp)) in
-              not b (* !(-1 <_{may} e) => e <=_{must} -1 *)
+              Q.eval_int_binop (module Q.MustBool) Lt ask exp Cil.zero (* TODO: untested *)
             in
             if e_must_bigger_max_index then
               (* Entire array is covered by left part, dropping partitioning. *)
@@ -381,7 +370,7 @@ struct
           end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
-  let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
+  let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
@@ -421,20 +410,20 @@ struct
           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
           (i, (l, a, r))
       else
-        let isEqual e' i' = ask.f (Q.MustBeEqual (e',i')) in
+        let isEqual = Q.must_be_equal ask in
         match e, i with
         | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
             let default =
               let left =
-                match ask.f (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
+                match Q.may_be_less ask i' e' with     (* (may i < e) ? xl : bot *) (* TODO: untested *)
                 | false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
-                match ask.f (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                match Q.may_be_equal ask i' e' with    (* (may i = e) ? xm : bot *)
                 | false -> xm
                 | _ -> Val.join xm a in
               let right =
-                match ask.f (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
+                match Q.may_be_less ask e' i' with     (* (may i > e) ? xr : bot *) (* TODO: untested *)
                 | false -> xr
                 | _ -> lubIfNotBot xr in
               (e, (left, middle, right))
@@ -465,35 +454,35 @@ struct
             (e,(xl,a,xr))
           else
             let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-              (match ask.f (Q.MayBeEqual (e', i')) with
-              | false -> Val.bot()
-              | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
+                  (match Q.may_be_equal ask e' i' with (* TODO: untested *)
+                   | false -> Val.bot()
+                   | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
                 let t = Cilfacade.typeOf e' in
                 let ik = Cilfacade.get_ikind t in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, t),i')) with
+                match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik 1, t)) i' with
                 | true -> xm
                 | _ ->
                   begin
-                    match ask.f (Q.MayBeLess (e', i')) with
+                    match Q.may_be_less ask e' i' with (* TODO: untested *)
                     | false-> Val.bot()
                     | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
                   end
               )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-              (match ask.f (Q.MayBeEqual (e', i')) with
-              | false -> Val.bot()
-              | _ -> xm)
+                  (match Q.may_be_equal ask e' i' with (* TODO: untested *)
+                   | false -> Val.bot()
+                   | _ -> xm)
 
               (
                 let t = Cilfacade.typeOf e' in
                 let ik = Cilfacade.get_ikind t in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), t),i')) with
+                match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
                 | true -> xm
                 | _ ->
                   begin
-                    match ask.f (Q.MayBeLess (i', e')) with
+                    match Q.may_be_less ask i' e' with (* TODO: untested *)
                     | false -> Val.bot()
                     | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
                   end
@@ -707,7 +696,6 @@ struct
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
-  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e _ = []
 
   let smart_join _ _ = join
@@ -743,12 +731,11 @@ struct
   let make l x = Base.make l x, l
   let length (_,l) = Some l
 
-  let move_if_affected ?(replace_with_const=false) ask (x,l) v i =
-    (Base.move_if_affected_with_length ~replace_with_const:replace_with_const (Some l) ask x v i), l
+  let move_if_affected ?replace_with_const ask (x,l) v i =
+    (Base.move_if_affected_with_length ?replace_with_const (Some l) ask x v i), l
 
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
-  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
   let smart_join x_eval_int y_eval_int (x,xl) (y,yl) =
@@ -794,7 +781,6 @@ struct
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
-  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
   let get_vars_in_e _ = []
 
   let smart_join _ _ = join
@@ -855,7 +841,6 @@ struct
   let length = unop' P.length T.length U.length
   let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
   let fold_left f s = unop' (P.fold_left f s) (T.fold_left f s) (U.fold_left f s)
-  let fold_left2 f s = binop' (P.fold_left2 f s) (T.fold_left2 f s) (U.fold_left2 f s)
 
   let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
   let get_vars_in_e = unop' P.get_vars_in_e T.get_vars_in_e U.get_vars_in_e
