@@ -1,4 +1,5 @@
 (** Abstract domains representing sets. *)
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 (* Exception raised when the set domain can not support the requested operation.

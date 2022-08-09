@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 open Formatcil
 
 (** Instruments a program by inserting asserts either:

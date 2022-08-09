@@ -1,4 +1,5 @@
 open OUnit2
+open GoblintCil
 open Z
 
 module IntTest (I:IntDomainProperties.OldS) =

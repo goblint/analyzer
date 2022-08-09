@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 val is_global: Queries.ask -> varinfo -> bool
 val is_static: varinfo -> bool

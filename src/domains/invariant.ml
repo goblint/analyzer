@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 (** Symbolic (and fully syntactic) expression "lattice". *)
 module ExpLat =
