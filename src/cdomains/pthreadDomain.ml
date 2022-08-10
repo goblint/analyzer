@@ -56,7 +56,7 @@ module D = struct
   let hash x = Hashtbl.hash (Tid.hash x.tid, Pred.hash x.pred, Ctx.hash x.ctx)
   let make tid pred ctx = { tid; pred; ctx }
   let bot () = { tid = Tid.bot (); pred = Pred.bot (); ctx = Ctx.bot () }
-  let is_bot x = x = bot ()
+  let is_bot x = Tid.is_bot x.tid && Pred.is_bot x.pred && Ctx.is_bot x.ctx
   let any_is_bot x = Tid.is_bot x.tid || Pred.is_bot x.pred
   let top () = { tid = Tid.top (); pred = Pred.top (); ctx = Ctx.top () }
   let is_top x = Tid.is_top x.tid && Pred.is_top x.pred && Ctx.is_top x.ctx
