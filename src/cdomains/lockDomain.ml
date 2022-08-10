@@ -4,7 +4,7 @@ module Equ = MusteqDomain.Equ
 module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
 
-open Cil
+open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
 module Simple = Lattice.Reverse (Mutexes)

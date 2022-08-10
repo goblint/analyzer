@@ -75,7 +75,7 @@ module D = struct
   let tag x = failwith "no tag"
   let relift x = x
 
-  let pretty_diff () (x,y): Pretty.doc =
+  let pretty_diff () (x,y) =
     if not (Tid.leq x.tid y.tid) then
       Tid.pretty_diff () (x.tid,y.tid)
     else if not (Pred.leq x.pred y.pred) then

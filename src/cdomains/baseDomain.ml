@@ -1,6 +1,6 @@
 (** domain of the base analysis *)
 
-open Cil
+open GoblintCil
 module VD = ValueDomain.Compound
 module BI = IntOps.BigIntOps
 

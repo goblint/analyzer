@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open MyCFG
 open CilMaps
 include CompareAST

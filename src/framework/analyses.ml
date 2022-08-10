@@ -1,7 +1,7 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
 open Prelude
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 
@@ -389,7 +389,6 @@ sig
 
   val should_join : D.t -> D.t -> bool
   val context : fundec -> D.t -> C.t
-  val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
@@ -540,7 +539,7 @@ module ResultType2 (S:Spec) =
 struct
   open S
   include Printable.Prod3 (C) (D) (CilType.Fundec)
-  let show (es,x,f:t) = call_descr f es
+  let show (es,x,f:t) = D.show x
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
@@ -573,10 +572,6 @@ struct
   (* hint for path sensitivity --- MCP no longer overrides this so if you want
     your analysis to be path sensitive, do override this. To obtain a behavior
     where all paths are kept apart, set this to D.equal x y                    *)
-
-  let call_descr f _ = f.svar.vname
-  (* prettier name for equation variables --- currently base can do this and
-     MCP just forwards it to Base.*)
 
   let vdecl ctx _ = ctx.local
 

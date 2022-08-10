@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 
 module M = Messages
 

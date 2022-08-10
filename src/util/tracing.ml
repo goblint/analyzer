@@ -2,8 +2,8 @@
  * large domains we output. The original code generated the document object
  * even when the subsystem is not activated. *)
 
+open GoblintCil
 open Pretty
-open Cil
 
 module Strs = Set.Make (String)
 

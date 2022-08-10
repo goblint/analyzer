@@ -1,4 +1,5 @@
 (** Library function descriptor DSL. *)
+open GoblintCil
 
 (** See {!LibraryFunctions} implementation for example usage. *)
 

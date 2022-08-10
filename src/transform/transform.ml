@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 
 module type S = sig
   val transform : (Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)

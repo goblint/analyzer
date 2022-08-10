@@ -1,6 +1,6 @@
 (** Abstract domains representing structs. *)
 
-open Cil
+open GoblintCil
 
 module type Arg =
 sig

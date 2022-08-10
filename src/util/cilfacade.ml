@@ -1,7 +1,7 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Cil
+open GoblintCil
 module E = Errormsg
 module GU = Goblintutil
 
