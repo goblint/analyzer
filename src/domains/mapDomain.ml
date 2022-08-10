@@ -1,5 +1,6 @@
 (** Specification and functors for maps. *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 module ME = Messages
 module GU = Goblintutil
@@ -288,7 +289,7 @@ module Timed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  let time str f arg = Stats.time (M.name ()) (Stats.time str f) arg
+  let time str f arg = GoblintCil.Stats.time (M.name ()) (GoblintCil.Stats.time str f) arg
 
   (* Printable.S *)
   type t = M.t

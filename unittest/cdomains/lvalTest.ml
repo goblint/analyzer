@@ -1,4 +1,6 @@
+open Goblint_lib
 open OUnit2
+open GoblintCil
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
 module LV = Lval.NormalLat (ID)

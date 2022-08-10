@@ -4,6 +4,7 @@ open Prelude
 open GobConfig
 open Printf
 open Goblintutil
+open GoblintCil
 
 let writeconffile = ref None
 

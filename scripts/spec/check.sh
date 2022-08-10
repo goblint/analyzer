@@ -7,9 +7,6 @@ debug=${debug-"true"}
 if [ $ana == "file" ]; then
     ana="file"
     opt="--set ana.file.optimistic true"
-elif [ $ana == "arinc" ]; then
-    ana="arinc"
-    opt="--enable ana.arinc.export --trace arinc"
 else
     spec=$ana
     ana="spec"

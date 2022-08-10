@@ -382,7 +382,7 @@ struct
     in
     let b1_not_leq = S.choose s1_not_leq in
     let e1_not_leq = B.choose b1_not_leq in
-    Pretty.(
+    GoblintCil.Pretty.(
       dprintf "%a:\n" B.pretty b1_not_leq
       ++
       S.fold (fun b2 acc ->
@@ -656,7 +656,7 @@ struct
     in
     let b1_not_leq = S.choose s1_not_leq in
     let e1_not_leq = fst (B.choose b1_not_leq) in
-    Pretty.(
+    GoblintCil.Pretty.(
       dprintf "%a:\n" B.pretty b1_not_leq
       ++
       S.fold (fun b2 acc ->

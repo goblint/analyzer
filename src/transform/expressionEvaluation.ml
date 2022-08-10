@@ -1,4 +1,6 @@
 open Batteries
+open GoblintCil
+open Syntacticsearch
 
 let transformation_identifier = "expeval"
 let transformation_query_file_name_identifier = "trans." ^ transformation_identifier ^ ".query_file_name"

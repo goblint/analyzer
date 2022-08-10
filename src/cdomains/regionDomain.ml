@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open GobConfig
 
 module GU = Goblintutil

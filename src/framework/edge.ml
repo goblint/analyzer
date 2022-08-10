@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 
 type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, ord, hash, to_yojson]

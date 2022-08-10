@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open ApronDomain
-open GobConfig
 
 module M = Messages
 

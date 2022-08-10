@@ -1,3 +1,4 @@
+open GoblintCil
 module BI = IntOps.BigIntOps
 
 (* TODO: deduplicate with IntDomain *)

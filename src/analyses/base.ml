@@ -2504,37 +2504,34 @@ struct
       let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, "F59" (* strcpy *)
-    | Unknown, "F60" (* strncpy *)
-    | Unknown, "F63" (* memcpy *)
-      ->
-      begin match args with
-        | [dst; src]
-        | [dst; src; _] ->
-          (* let dst_val = eval_rv ctx.ask ctx.global ctx.local dst in *)
-          (* let src_val = eval_rv ctx.ask ctx.global ctx.local src in *)
-          (* begin match dst_val with *)
-          (* | `Address ls -> set_savetop ctx.ask ctx.global ctx.local ls src_val *)
-          (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
-          (*     ctx.local *)
-          (* end *)
-          let rec get_lval exp = match stripCasts exp with
-            | Lval x | AddrOf x | StartOf x -> x
-            | BinOp (PlusPI, e, i, _)
-            | BinOp (MinusPI, e, i, _) -> get_lval e
-            | x ->
-              ignore @@ Pretty.printf "strcpy: dst is %a!\n" d_plainexp dst;
-              failwith "strcpy: expecting first argument to be a pointer!"
+    | Unknown, "strcpy"
+    | Unknown, "strncpy"
+    | Unknown, "memcpy"
+    | Unknown, "__builtin___memcpy_chk" ->
+      begin match f.vname, args with
+        | _, [dst; src]
+        | _, [dst; src; _]
+        | "__builtin___memcpy_chk", [dst; src; _; _] ->
+          let get_type lval =
+            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+            AD.get_type address
           in
-          assign ctx (get_lval dst) src
+          let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+          let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+
+          let dest_typ = get_type dst_lval in
+          let src_typ = get_type src_lval in
+
+          (* When src and destination type coincide, take value from the source, otherwise use top *)
+          let value = if typeSig dest_typ = typeSig src_typ then
+              let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+              eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+            else
+              VD.top_value (unrollType dest_typ)
+          in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _ -> failwith "strcpy arguments are strange/complicated."
-      end
-    | Unknown, "F1" ->
-      begin match args with
-        | [dst; data; len] -> (* memset: write char to dst len times *)
-          let dst_lval = mkMem ~addr:dst ~off:NoOffset in
-          assign ctx dst_lval data (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
-        | _ -> failwith "memset arguments are strange/complicated."
       end
     | Unknown, "__builtin" ->
       begin match args with
@@ -2746,21 +2743,6 @@ struct
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
     in
     combine_one ctx.local after
-
-  let call_descr f (st: store) =
-    let short_fun x =
-      match x.vtype, CPA.find x st.cpa with
-      | TPtr (t, attr), `Address a
-        when (not (AD.is_top a))
-          && List.compare_length_with (AD.to_var_may a) 1 = 0
-          && not (VD.is_immediate_type t)
-        ->
-        let cv = List.hd (AD.to_var_may a) in
-        "ref " ^ VD.show (CPA.find cv st.cpa)
-      | _, v -> VD.show v
-    in
-    let args_short = List.map short_fun f.sformals in
-    Printable.get_short_list (f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with

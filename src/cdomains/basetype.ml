@@ -1,5 +1,5 @@
 module GU = Goblintutil
-open Cil
+open GoblintCil
 
 
 (** Location with special alphanumeric output for extraction. *)

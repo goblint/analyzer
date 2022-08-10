@@ -1,5 +1,6 @@
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
+open GoblintCil
 
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool

@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open CompareCIL
 open MaxIdUtil
 open MyCFG
