@@ -24,10 +24,6 @@ open Printf
 
 exception ConfigError of string
 
-
-(* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
-let phase = ref 0
-
 let building_spec = ref false
 
 
@@ -265,11 +261,7 @@ struct
   let get_path_string f st =
     try
       let st = String.trim st in
-      let st, x =
-        let g st = st, get_value !json_conf (parse_path st) in
-        try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
-        with ConfTypeError -> g st (* do global lookup if undefined *)
-      in
+      let x = get_value !json_conf (parse_path st) in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
