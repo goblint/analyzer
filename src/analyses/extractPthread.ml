@@ -415,14 +415,15 @@ module Variables = struct
 
 
   let is_top tid var =
+    let contains_top_of s = Set.exists (function Top x -> x.vid = var.vid | _ -> false) s in
     if Variable.is_global var
     then
       !table
       |> Hashtbl.values
       |> List.of_enum
-      |> List.exists (Set.exists (( = ) (Top var)))
+      |> List.exists contains_top_of
     else
-      Set.exists (( = ) (Top var)) @@ Hashtbl.find_default !table tid Set.empty
+      contains_top_of @@ Hashtbl.find_default !table tid Set.empty
 
 
   let add tid var =
@@ -438,14 +439,15 @@ module Variables = struct
   (* is a local var for thread tid or a global
    * var must not be set to top *)
   let valid_var tid var =
+    let contains_var_of s = Set.exists (function Var x -> x.vid = var.vid | _ -> false) s in
     if Variable.is_global var
     then
       !table
       |> Hashtbl.values
       |> List.of_enum
-      |> List.exists (Set.exists (( = ) (Var var)))
+      |> List.exists contains_var_of
     else
-      Set.exists (( = ) (Var var)) @@ Hashtbl.find_default !table tid Set.empty
+      contains_var_of @@ Hashtbl.find_default !table tid Set.empty
 
 
   (* all vars on rhs should be already registered, otherwise -> do not add this var *)
