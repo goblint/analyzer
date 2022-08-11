@@ -112,7 +112,8 @@ struct
   let rec leq x y =
     match x, y with
     | `NoOffset, `NoOffset -> true
-    | `NoOffset, x -> true
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
@@ -122,9 +123,10 @@ struct
     match x, y with
     | `NoOffset, `NoOffset -> `NoOffset
     | `NoOffset, x
-    | x, `NoOffset -> (match cop with
-      | `Join | `Widen -> x
-      | `Meet | `Narrow -> `NoOffset)
+    | x, `NoOffset -> (match cop, cmp_zero_offset x with
+      | (`Join | `Widen), (`MustZero | `MayZero) -> x
+      | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
+      | _ -> raise Lattice.Uncomparable)
     | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
     | _ -> raise Lattice.Uncomparable
