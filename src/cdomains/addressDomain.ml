@@ -47,11 +47,23 @@ struct
       if M.tracing then M.traceu "ad" "-> %B\n" r;
       r
   end
-  module J = SetDomain.Joined (Addr)
-  (* module H = HoareDomain.Set2 (Addr) *)
-  (* Hoare set for bucket doesn't play well with StrPtr limiting:
-     https://github.com/goblint/analyzer/pull/808 *)
-  include SensitiveDomain.CombinedSet (Addr) (J) (RC)
+  module J = SetDomain.LiftBot (SetDomain.Joined (Addr)) (struct let topname = "bot" end)
+  module H = HoareDomain.Set2 (Addr)
+  module B =
+  struct
+    module BR =
+    struct
+      include BoolDomain.Bool
+      type elt = Addr.t
+      let of_elt = function
+        | Addr.StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> true
+        | _ -> false
+        (* | _ -> true *)
+    end
+
+    include SensitiveDomain.ProjectiveSet2 (Addr) (H) (J) (BR)
+  end
+  include SensitiveDomain.CombinedSet (Addr) (B) (RC)
 
   (* short-circuit with physical equality,
      makes a different at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)

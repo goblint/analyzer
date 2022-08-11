@@ -413,6 +413,67 @@ module CombinedSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: Re
   ProjectiveSet (E) (PairwiseSet (E) (B) (RC)) (RC)
 
 
+module ProjectiveSet2 (E: Printable.S) (S1: SetDomain.S with type elt = E.t) (S2: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t and type t = bool): SetDomain.S with type elt = E.t =
+struct
+  type elt = E.t
+
+  include Lattice.Prod (S1) (S2)
+
+  let is_empty (s1, s2) = S1.is_empty s1 && S2.is_empty s2
+  let empty () = (S1.empty (), S2.empty ())
+  let cardinal (s1, s2) = S1.cardinal s1 + S2.cardinal s2
+
+  let fold f (s1, s2) a = S2.fold f s2 (S1.fold f s1 a)
+  let iter f (s1, s2) = S1.iter f s1; S2.iter f s2
+  let exists p (s1, s2) = S1.exists p s1 || S2.exists p s2
+  let for_all p (s1, s2) = S1.for_all p s1 && S2.for_all p s2
+
+  let singleton e =
+    if R.of_elt e then
+      (S1.empty (), S2.singleton e)
+    else
+      (S1.singleton e, S2.empty ())
+  let choose (s1, s2) =
+    if S1.is_empty s1 then
+      S2.choose s2
+    else
+      S1.choose s1
+
+  let mem e (s1, s2) =
+    if R.of_elt e then
+      S2.mem e s2
+    else
+      S1.mem e s1
+  let add e (s1, s2) =
+    if R.of_elt e then
+      (s1, S2.add e s2)
+    else
+      (S1.add e s1, s2)
+  let remove e (s1, s2) =
+    if R.of_elt e then
+      (s1, S2.remove e s2)
+    else
+      (S1.remove e s1, s2)
+  let diff (s1, s2) (s1', s2') = (S1.diff s1 s1', S2.diff s2 s2')
+
+  let of_list es =
+    let (es2, es1) = List.partition R.of_elt es in (* switched pattern match order is right *)
+    (S1.of_list es1, S2.of_list es2)
+  let elements s = fold List.cons s [] (* no intermediate lists *)
+  let map f (s1, s2) = (S1.map f s1, S2.map f s2)
+
+  let union (s1, s2) (s1', s2') = (S1.union s1 s1', S2.union s2 s2')
+  let inter (s1, s2) (s1', s2') = (S1.inter s1 s1', S2.inter s2 s2')
+  let subset (s1, s2) (s1', s2') = S1.subset s1 s1' && S2.subset s2 s2'
+
+  let filter p s = SetDomain.unsupported "filter"
+  let partition p s = SetDomain.unsupported "partition"
+  let min_elt s = SetDomain.unsupported "min_elt"
+  let max_elt s = SetDomain.unsupported "max_elt"
+  let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *)
+end
+
+
 (** {1 Maps} *)
 
 (** {2 By congruence} *)

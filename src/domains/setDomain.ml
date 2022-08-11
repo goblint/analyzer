@@ -323,6 +323,119 @@ struct
   let arbitrary () = QCheck.set_print show (arbitrary ())
 end
 
+module LiftBot (S: S) (N: ToppedSetNames): S with
+  type elt = S.elt and
+  type t = [`Bot | `Lifted of S.t] =
+struct
+  include Printable.Std
+
+  include Lattice.LiftBot (S)
+
+  type elt = S.elt
+
+  let empty () = `Bot
+  let is_empty x =
+    match x with
+    | `Bot -> true
+    | `Lifted x -> S.is_empty x
+  let mem x s =
+    match s with
+    | `Bot -> false
+    | `Lifted s -> S.mem x s
+  let add x s =
+    match s with
+    | `Bot -> `Lifted (S.singleton x)
+    | `Lifted s -> `Lifted (S.add x s)
+  let singleton x = `Lifted (S.singleton x)
+  let remove x s =
+    match s with
+    | `Bot -> `Bot   (* NB! NB! NB! *)
+    | `Lifted s ->
+      match S.remove x s with
+      | s' -> `Lifted s'
+      | exception Lattice.BotValue -> `Bot
+  let inter x y =
+    match x, y with
+    | `Bot, _ -> `Bot
+    | _, `Bot -> `Bot
+    | `Lifted x, `Lifted y ->
+      match S.inter x y with
+      | s' -> `Lifted s'
+      | exception Lattice.BotValue -> `Bot
+  let union x y =
+    match x, y with
+    | `Bot, y -> y
+    | x, `Bot -> x
+    | `Lifted x, `Lifted y -> `Lifted (S.union x y)
+  let diff x y =
+    match x, y with
+    | x, `Bot -> x
+    | `Bot, y -> `Bot (* NB! NB! NB! *)
+    | `Lifted x, `Lifted y ->
+      match S.diff x y with
+      | s' -> `Lifted s'
+      | exception Lattice.BotValue -> `Bot
+  let subset x y =
+    match x, y with
+    | `Bot, _ -> true
+    | _, `Bot -> false
+    | `Lifted x, `Lifted y -> S.subset x y
+  let disjoint x y =
+    match x, y with
+    | _, `Bot
+    | `Bot, _ -> true
+    | `Lifted x, `Lifted y -> S.disjoint x y
+
+  let schema normal abnormal x =
+    match x with
+    | `Bot -> unsupported abnormal
+    | `Lifted t -> normal t
+  let schema_default v f = function
+    | `Bot -> v
+    | `Lifted x -> f x
+  (* HACK! Map is an exception in that it doesn't throw an exception! *)
+  let map f x =
+    match x with
+    | `Bot -> `Bot
+    | `Lifted t -> `Lifted (S.map f t)
+
+  let iter f = schema_default () (S.iter f)
+  (*  let map f = schema (fun t -> `Lifted (S.map f t)) "map"*)
+  let fold f x e = schema_default e (fun t -> S.fold f t e) x
+  let for_all f = schema_default true (S.for_all f)
+  let exists f = schema_default false (S.exists f)
+  let filter f = schema (fun t -> `Lifted (S.filter f t)) "filter on `Bot"
+  let elements = schema_default [] S.elements
+  let of_list xs =
+    match S.of_list xs with
+    | s' -> `Lifted s'
+    | exception Lattice.BotValue -> `Bot
+  let cardinal = schema_default 0 S.cardinal
+  let min_elt = schema S.min_elt "min_elt on `Bot"
+  let max_elt = schema S.max_elt "max_elt on `Bot"
+  let choose = function
+    | `Bot -> raise Not_found
+    | `Lifted s -> S.choose s
+  let partition f = schema (fun t -> match S.partition f t
+                             with (a,b) -> (`Lifted a, `Lifted b)) "filter on `Bot"
+
+
+  (* The printable implementation *)
+  (* Overrides `Bot text *)
+
+  let pretty () x =
+    match x with
+    | `Bot -> text N.topname
+    | `Lifted t -> S.pretty () t
+
+  let show x : string =
+    match x with
+    | `Bot -> N.topname
+    | `Lifted t -> S.show t
+
+  let arbitrary () = QCheck.set_print show (arbitrary ())
+end
+
 (** Functor for creating artificially topped set domains. *)
 module ToppedSet (Base: Printable.S) (N: ToppedSetNames): S with
   type elt = Base.t and
@@ -392,7 +505,10 @@ struct
   include E
 
   let singleton e = e
-  let of_list es = List.fold_left E.join (E.bot ()) es
+  let of_list es =
+    match es with
+    | [] -> E.bot ()
+    | e :: es -> List.fold_left E.join e es (* avoid using E.bot *)
   let exists p e = p e
   let for_all p e = p e
   let mem e e' = E.leq e e'
