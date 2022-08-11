@@ -47,5 +47,8 @@ jobs:
       - name: Download Zenodo schema
         run: wget https://zenodo.org/schemas/deposits/records/legacyrecord.json
 
+      - name: Migrate Zenodo schema # https://github.com/ajv-validator/ajv-cli/issues/199
+        run: ajv migrate -s legacyrecord.json
+
       - name: Validate .zenodo.json
         run: ajv validate -s legacyrecord.json -d .zenodo.json
