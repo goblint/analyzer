@@ -1,14 +1,16 @@
-(** Abstract domains for "sensitive" sets, e.g. path-sensitive.
+(** Abstract domains for collections of elements from disjoint unions of domains.
+    Formally, the elements form a cofibered domain from a discrete category.
 
-    Elements are grouped into disjoint buckets by "sensitivity",
-    which is defined by a congruence or/and a projection.
-    All operations on elements must be bucket-closed. *)
+    Elements are grouped into disjoint buckets by a congruence or/and a projection.
+    All operations on elements are performed bucket-wise and must be bucket-closed.
+
+    Examples of such domains are path-sensitivity and address sets. *)
 
 (** {1 Sets} *)
 
 (** {2 By projection} *)
 
-(** Sensitivity defined by projection.
+(** Buckets defined by projection.
     The module is the image (representative) of the projection function {!of_elt}. *)
 module type Representative =
 sig
@@ -174,7 +176,7 @@ end
 
 (** {2 By congruence} *)
 
-(** Sensitivity defined by congruence. *)
+(** Buckets defined by congruence. *)
 module type Congruence =
 sig
   type elt (** Type of elements. *)
@@ -402,18 +404,24 @@ struct
   let disjoint s1 s2 = is_empty (inter s1 s2) (* TODO: optimize? *)
 end
 
-
+(** Buckets defined by a coarse projection and a fine congruence.
+    Congruent elements must have the same representative, but not vice versa ({!Representative} would then suffice). *)
 module type RepresentativeCongruence =
 sig
   include Representative
   include Congruence with type elt := elt
 end
 
+(** Set of elements [E.t] grouped into buckets by [RC],
+    where each bucket is described by the set [B]. *)
 module CombinedSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: RepresentativeCongruence with type elt = E.t) =
   ProjectiveSet (E) (PairwiseSet (E) (B) (RC)) (RC)
 
 
-(** {1 Maps} *)
+(** {1 Maps}
+
+    Generalization of above sets into maps, whose key set behaves like above sets,
+    but each element can also be associated with a value. *)
 
 (** {2 By congruence} *)
 

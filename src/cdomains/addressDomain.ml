@@ -41,7 +41,7 @@ struct
   (* module H = HoareDomain.Set2 (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include SensitiveDomain.ProjectiveSet (Addr) (J) (R)
+  include DisjointDomain.ProjectiveSet (Addr) (J) (R)
 
   (* short-circuit with physical equality,
      makes a different at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
