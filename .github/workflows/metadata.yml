@@ -5,9 +5,11 @@ on:
   push:
     paths:
       - 'CITATION.cff'
+      - '.zenodo.json'
   pull_request:
     paths:
       - 'CITATION.cff'
+      - '.zenodo.json'
 
 jobs:
   cff-validate:
@@ -21,3 +23,29 @@ jobs:
         uses: docker://citationcff/cffconvert:latest
         with:
           args: --validate
+
+  zenodo-validate:
+    strategy:
+      matrix:
+        node-version:
+          - 14
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install ajv
+        run: npm install -g ajv-cli ajv-draft-04
+
+      - name: Download Zenodo schema
+        run: wget https://zenodo.org/schemas/deposits/records/legacyrecord.json
+
+      - name: Validate .zenodo.json
+        run: ajv validate -s legacyrecord.json -d .zenodo.json
