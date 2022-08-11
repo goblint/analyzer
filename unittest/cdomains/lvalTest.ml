@@ -39,7 +39,7 @@ let test_hash_0 _ =
 
 let test_leq_0 _ =
   assert_leq a_lv a_lv_0;
-  assert_not_leq a_lv_0 a_lv
+  assert_leq a_lv_0 a_lv
 
 let test_join_0 _ =
   assert_equal a_lv_top (LV.join a_lv_0 a_lv_1);
@@ -50,7 +50,7 @@ let test_leq_not_0 _ =
   assert_leq a_lv_1 a_lv_not_0;
   OUnit.assert_equal ~printer:[%show: [`Eq | `Neq | `Top]] `Neq (ID.equal_to (Z.of_int 0) i_not_0);
   OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (LV.Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));
-  assert_leq a_lv a_lv_not_0;
+  assert_not_leq a_lv a_lv_not_0;
   assert_not_leq a_lv_0 a_lv_not_0
 
 let test () =
