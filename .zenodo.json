@@ -1,0 +1,42 @@
+{
+  "creators": [
+    {
+      "affiliation": "University of Tartu",
+      "name": "Vojdani, Vesal"
+    },
+    {
+      "affiliation": "University of Tartu",
+      "name": "Apinis, Kalmer"
+    },
+    {
+      "affiliation": "Technische Universität München",
+      "name": "Schwarz, Martin D."
+    },
+    {
+      "affiliation": "Technische Universität München",
+      "name": "Herz, Alexander"
+    },
+    {
+      "affiliation": "Technische Universität München",
+      "name": "Vogler, Ralf"
+    },
+    {
+      "affiliation": "Technische Universität München",
+      "name": "Schwarz, Michael"
+    },
+    {
+      "affiliation": "Technische Universität München",
+      "name": "Erhard, Julian"
+    },
+    {
+      "affiliation": "University of Tartu",
+      "name": "Saan, Simmo",
+      "orcid": "0000-0003-4553-1350"
+    }
+  ],
+  "description": "Static analysis framework for C",
+  "license": {
+    "id": "MIT"
+  },
+  "title": "Goblint"
+}
