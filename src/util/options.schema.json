@@ -129,14 +129,6 @@
       "type": "boolean",
       "default": false
     },
-    "phases": {
-      "title": "phases",
-      "description":
-        "List of phases. Per-phase settings overwrite global ones.",
-      "type": "array",
-      "items": { "$ref": "#" },
-      "default": []
-    },
     "save_run": {
       "title": "save_run",
       "description":
@@ -321,7 +313,7 @@
       "properties": {
         "activated": {
           "title": "ana.activated",
-          "description": "Lists of activated analyses in this phase.",
+          "description": "Lists of activated analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": [
@@ -891,6 +883,25 @@
             }
           },
           "additionalProperties": false
+        },
+        "extract-pthread" : {
+          "title": "ana.extract-pthread",
+          "type": "object",
+          "properties": {
+            "assume_success": {
+              "title": "ana.extract-pthread.assume_success",
+              "description": "Assume that all POSIX pthread functions succeed.",
+              "type": "boolean",
+              "default": true
+            },
+            "ignore_assign": {
+              "title": "ana.extract-pthread.ignore_assign",
+              "description": "Ignores any assigns in POSIX programs.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1204,7 +1215,7 @@
         "activated": {
           "title": "trans.activated",
           "description":
-            "Lists of activated transformations in this phase. Transformations happen after analyses.",
+            "Lists of activated transformations. Transformations happen after analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": []

@@ -408,41 +408,27 @@ let do_analyze change_info merged_AST =
                                              L.pretty stf L.pretty exf L.pretty otf);
     (* and here we run the analysis! *)
 
-    let do_all_phases ast funs =
-      let do_one_phase ast p =
-        phase := p;
-        if get_bool "dbg.verbose" then (
-          let aa = String.concat ", " @@ get_string_list "ana.activated" in
-          let at = String.concat ", " @@ get_string_list "trans.activated" in
-          print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
-          print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
-        );
-        try Control.analyze change_info ast funs
-        with e ->
-          let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
-          Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
-          Messages.error ~category:Analyzer "About to crash!";
-          (* trigger Generic.SolverStats...print_stats *)
-          Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
-          do_stats ();
-          print_newline ();
-          Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
-          (* Cilfacade.current_file := ast'; *)
-      in
-      (* new style is phases[i].ana.activated = [ana_1, ...]
-         phases[i].ana.x overwrites setting ana.x *)
-      let num_phases =
-        let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
-        (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
-        if get_bool "dbg.verbose" then print_endline @@ "Using new format for phases!";
-        if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
-        max np 1
-      in
-      ignore @@ Enum.iter (do_one_phase ast) (0 -- (num_phases - 1))
+    let control_analyze ast funs =
+      if get_bool "dbg.verbose" then (
+        let aa = String.concat ", " @@ get_string_list "ana.activated" in
+        let at = String.concat ", " @@ get_string_list "trans.activated" in
+        print_endline @@ "Activated analyses: " ^ aa;
+        print_endline @@ "Activated transformations: " ^ at
+      );
+      try Control.analyze change_info ast funs
+      with e ->
+        let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
+        Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
+        Messages.error ~category:Analyzer "About to crash!";
+        (* trigger Generic.SolverStats...print_stats *)
+        Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+        do_stats ();
+        print_newline ();
+        Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
+        (* Cilfacade.current_file := ast'; *)
     in
 
-    (* Analyze with the new experimental framework. *)
-    Stats.time "analysis" (do_all_phases merged_AST) funs
+    Stats.time "analysis" (control_analyze merged_AST) funs
   )
 
 let do_html_output () =

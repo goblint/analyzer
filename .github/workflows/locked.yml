@@ -57,6 +57,44 @@ jobs:
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
 
+  extraction:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.14.0 # matches opam lock file
+          # don't add any other because they won't be used
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install spin
+        run: sudo apt-get -y install spin
+
+      - name: Install dependencies
+        run: opam install . --deps-only --locked --with-test
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Test extraction
+        run: cd tests/extraction && ./test.sh
+
+
   gobview:
     strategy:
       fail-fast: false
