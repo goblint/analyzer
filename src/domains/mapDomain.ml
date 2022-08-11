@@ -133,8 +133,6 @@ struct
   type value = Range.t
   type t = Range.t M.t (* key -> value  mapping *)
 
-  let trace_enabled = Domain.trace_enabled
-
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal x y = x == y || for_all2 Range.equal x y
