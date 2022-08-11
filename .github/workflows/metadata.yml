@@ -44,7 +44,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install ajv
-        run: npm install -g ajv-cli ajv-draft-04
+        run: npm install -g ajv-cli
 
       - name: Download Zenodo schema
         run: wget https://zenodo.org/schemas/deposits/records/legacyrecord.json

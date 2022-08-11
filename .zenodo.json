@@ -35,8 +35,6 @@
     }
   ],
   "description": "Static analysis framework for C",
-  "license": {
-    "id": "MIT"
-  },
+  "license": "MIT",
   "title": "Goblint"
 }
