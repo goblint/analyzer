@@ -161,13 +161,13 @@ let classify fn exps: categories =
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
   | "down_trylock"
     -> `Lock(true, true, true)
-  | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
+  | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock" | "pthread_spin_trylock"
     -> `Lock (true, true, false)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
-  | "spin_lock_irqsave" | "spin_lock"
+  | "spin_lock_irqsave" | "spin_lock" | "pthread_spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -178,7 +178,7 @@ let classify fn exps: categories =
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
   | "mutex_unlock" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
-  | "up"
+  | "up" | "pthread_spin_unlock"
     -> `Unlock
   | x -> `Unknown x
 
@@ -313,6 +313,9 @@ let invalidate_actions = [
     "pthread_mutex_lock", readsAll;(*safe*)
     "pthread_mutex_trylock", readsAll;
     "pthread_mutex_unlock", readsAll;(*safe*)
+    "pthread_spin_lock", readsAll;(*safe*)
+    "pthread_spin_trylock", readsAll;
+    "pthread_spin_unlock", readsAll;(*safe*)
     "__pthread_mutex_lock", readsAll;(*safe*)
     "__pthread_mutex_trylock", readsAll;
     "__pthread_mutex_unlock", readsAll;(*safe*)
@@ -329,6 +332,8 @@ let invalidate_actions = [
     "pthread_mutex_destroy", readsAll;(*safe*)
     "pthread_mutexattr_settype", readsAll;(*safe*)
     "pthread_mutexattr_init", readsAll;(*safe*)
+    "pthread_spin_init", readsAll;(*safe*)
+    "pthread_spin_destroy", readsAll;(*safe*)
     "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
