@@ -30,28 +30,18 @@ struct
     let rec of_elt_offset: Offs.t -> Offs.t =
       function
       | `NoOffset -> `NoOffset
-      | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o) (* TODO: is this still right? is_first_field isn't used in join any more *)
-      | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
-      | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *)
+      | `Field (f,o) -> `Field (f, of_elt_offset o)
+      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* call indices to same bucket *)
     let of_elt = function
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None
       | a -> a (* everything else is kept separate *)
-
-    let cong x y =
-      if M.tracing then M.tracei "ad" "cong %a %a\n" Addr.pretty x Addr.pretty y;
-      let r = match Addr.join x y with (* using join for congruence, but all operations must be the same *)
-        | exception Lattice.Uncomparable -> false
-        | _ -> true
-      in
-      if M.tracing then M.traceu "ad" "-> %B\n" r;
-      r
   end
   module J = SetDomain.Joined (Addr)
   (* module H = HoareDomain.Set2 (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include SensitiveDomain.CombinedSet (Addr) (J) (RC)
+  include SensitiveDomain.ProjectiveSet (Addr) (J) (RC)
 
   (* short-circuit with physical equality,
      makes a different at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
