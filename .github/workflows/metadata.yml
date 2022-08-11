@@ -6,10 +6,12 @@ on:
     paths:
       - 'CITATION.cff'
       - '.zenodo.json'
+      - '.github/workflows/metadata.yml' # meta
   pull_request:
     paths:
       - 'CITATION.cff'
       - '.zenodo.json'
+      - '.github/workflows/metadata.yml' # meta
 
 jobs:
   cff-validate:
