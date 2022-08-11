@@ -1,5 +1,5 @@
---- tests/incremental/05-var-rename/08-2_incremental_runs_1.c
-+++ tests/incremental/05-var-rename/08-2_incremental_runs_1.c
+--- tests/incremental/04-var-rename/08-2_incremental_runs_1.c
++++ tests/incremental/04-var-rename/08-2_incremental_runs_1.c
 @@ -1,8 +1,8 @@
  int main() {
 -    int varFirstIteration = 0;

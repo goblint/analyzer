@@ -1,5 +1,5 @@
---- tests/incremental/05-var-rename/04-renamed_assert.c
-+++ tests/incremental/05-var-rename/04-renamed_assert.c
+--- tests/incremental/04-var-rename/04-renamed_assert.c
++++ tests/incremental/04-var-rename/04-renamed_assert.c
 @@ -1,7 +1,7 @@
  int main() {
 -    int myVar = 0;
