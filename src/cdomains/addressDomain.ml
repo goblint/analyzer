@@ -30,9 +30,8 @@ struct
     let rec of_elt_offset: Offs.t -> Offs.t =
       function
       | `NoOffset -> `NoOffset
-      | `Field (f,o) when not (Offs.is_first_field f) -> `Field (f, of_elt_offset o) (* TODO: is this still right? is_first_field isn't used in join any more *)
-      | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
-      | `Index (_,o) -> of_elt_offset o (* index might become top during fp -> might be zero offset *)
+      | `Field (f,o) -> `Field (f, of_elt_offset o)
+      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* call indices to same bucket *)
     let of_elt = function
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None
