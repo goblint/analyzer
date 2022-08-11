@@ -313,6 +313,9 @@ let invalidate_actions = [
     "pthread_mutex_lock", readsAll;(*safe*)
     "pthread_mutex_trylock", readsAll;
     "pthread_mutex_unlock", readsAll;(*safe*)
+    "pthread_spin_lock", readsAll;(*safe*)
+    "pthread_spin_trylock", readsAll;
+    "pthread_spin_unlock", readsAll;(*safe*)
     "__pthread_mutex_lock", readsAll;(*safe*)
     "__pthread_mutex_trylock", readsAll;
     "__pthread_mutex_unlock", readsAll;(*safe*)
@@ -329,6 +332,8 @@ let invalidate_actions = [
     "pthread_mutex_destroy", readsAll;(*safe*)
     "pthread_mutexattr_settype", readsAll;(*safe*)
     "pthread_mutexattr_init", readsAll;(*safe*)
+    "pthread_spin_init", readsAll;(*safe*)
+    "pthread_spin_destroy", readsAll;(*safe*)
     "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
