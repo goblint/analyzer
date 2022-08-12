@@ -45,6 +45,7 @@ depends: [
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}
+  "conf-gcc"
 ]
 depopts: ["apron" "z3"]
 build: [
