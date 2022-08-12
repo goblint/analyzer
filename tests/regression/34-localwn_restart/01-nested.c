@@ -1,5 +1,6 @@
-// PARAM: --enable ana.int.interval --set solver slr3
-// Example from Amato-Scozzari, SAS 2013
+// PARAM: --enable ana.int.interval --set solver td3
+// ALSO: --enable ana.int.interval --set solver slr3
+// Example from Halbwachs-Henry, SAS 2012
 // Localized widening should be able to prove that i=10 at the end
 // of the nested loops.
 #include <assert.h>

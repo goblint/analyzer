@@ -5,5 +5,12 @@
         "int": false
       }
     }
+  },
+  "incremental": {
+    "restart": {
+      "sided": {
+        "enabled": true
+      }
+    }
   }
 }

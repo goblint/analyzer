@@ -161,6 +161,7 @@ class Tests
                     when /invariant refuted/         then "fail"
                     when /^\[Warning\]/              then "warn"
                     when /^\[Error\]/                then "warn"
+                    when /^\[Info\]/                 then "warn"
                     when /^\[Success\]/              then "success"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
@@ -416,8 +417,13 @@ class ProjectIncr < Project
     super(lines)
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
+    status = $?.exitstatus
     lines_incr = IO.readlines(path)
     `patch -p0 -b -R <#{patch_path}`
+    if status != 0
+      puts "Failed to apply patch: #{patch_path}"
+      exit 1
+    end
     @testset_incr = parse_tests(lines_incr)
     @testset_incr.p = self
     @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")

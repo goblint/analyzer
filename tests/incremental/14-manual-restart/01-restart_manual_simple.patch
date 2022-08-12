@@ -1,0 +1,29 @@
+diff --git tests/incremental/14-manual-restart/01-restart_manual_simple.c tests/incremental/14-manual-restart/01-restart_manual_simple.c
+index cbfb0ba70..aa83393ac 100644
+--- tests/incremental/14-manual-restart/01-restart_manual_simple.c
++++ tests/incremental/14-manual-restart/01-restart_manual_simple.c
+@@ -1,9 +1,9 @@
+ #include <assert.h>
+
+-int g = 4;
++int g = 5;
+
+ int main() {
+     int x = g;
+-    __goblint_check(x == 4);
++    __goblint_check(x == 4); //FAIL
+     return 0;
+ }
+diff --git tests/incremental/14-manual-restart/01-restart_manual_simple.json tests/incremental/14-manual-restart/01-restart_manual_simple.json
+index dbdb1d651..d66a6cf36 100644
+--- tests/incremental/14-manual-restart/01-restart_manual_simple.json
++++ tests/incremental/14-manual-restart/01-restart_manual_simple.json
+@@ -7,7 +7,7 @@
+             "sided": {
+                 "enabled": false
+             },
+-            "list": []
++            "list": ["g"]
+         }
+     }
+ }

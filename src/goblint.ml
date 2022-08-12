@@ -24,14 +24,30 @@ let main () =
       print_endline (localtime ());
       print_endline Goblintutil.command_line;
     );
-    let file = Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge in
-    if get_bool "server.enabled" then Server.start file else (
-      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data () in
-      file|> do_analyze changeInfo;
+    let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
+    if get_bool "server.enabled" then (
+      let file =
+        if get_bool "server.reparse" then
+          None
+        else
+          Some (Lazy.force file)
+      in
+      Server.start file
+    )
+    else (
+      let file = Lazy.force file in
+      let changeInfo =
+        if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then
+          diff_and_rename file
+        else
+          Analyses.empty_increment_data ()
+      in
+      file |> do_analyze changeInfo;
       do_stats ();
       do_html_output ();
       do_gobview ();
-      if !verified = Some false then exit 3)  (* verifier failed! *)
+      if !verified = Some false then exit 3 (* verifier failed! *)
+    )
   with
   | Exit ->
     do_stats ();

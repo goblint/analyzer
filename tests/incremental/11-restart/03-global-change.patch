@@ -1,0 +1,24 @@
+--- tests/incremental/11-restart/03-global-change.c
++++ tests/incremental/11-restart/03-global-change.c
+@@ -4,7 +4,7 @@
+ int g = 1;
+
+ void* t_fun(void *arg) {
+-    g = 2;
++    g = 0;
+     return NULL;
+ }
+
+@@ -12,8 +12,8 @@ int main() {
+     pthread_t id;
+     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
+
+-    __goblint_check(g == 1); // UNKNOWN before, unknown after
+-    __goblint_check(g == 2); // UNKNOWN before, fail after
+-    __goblint_check(g == 0); // FAIL before, unknown after
++    __goblint_check(g == 1); // unknown before, UNKNOWN after
++    __goblint_check(g == 2); // unknown before, FAIL after
++    __goblint_check(g == 0); // fail before, UNKNOWN after
+     return 0;
+ }
+\ No newline at end of file

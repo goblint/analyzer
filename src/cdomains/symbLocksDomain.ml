@@ -1,6 +1,8 @@
 open GoblintCil
 open Pretty
 
+module M = Messages
+
 module Exp =
 struct
   include CilType.Exp
@@ -203,6 +205,7 @@ struct
     in
     let rec helper exp =
       match exp with
+      (* TODO: handle IndexPI like var_eq eq_set_clos? *)
       | SizeOf _
       | SizeOfE _
       | SizeOfStr _
@@ -210,7 +213,6 @@ struct
       | AlignOfE _
       | UnOp _
       | BinOp _
-      | StartOf _
       | Const _
       | Question _
       | Real _
@@ -220,6 +222,8 @@ struct
       | Lval (Mem e, os) -> helper e @ [EDeref] @ conv_o os
       | AddrOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
+      | StartOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
+      | StartOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | CastE (_,e) -> helper e
     in
     try helper exp
@@ -236,6 +240,7 @@ struct
     | _            ,             _ -> raise (Invalid_argument "")
 
   let from_exps a l : t option =
+    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)\n" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
     let a, l = toEl a, toEl l in
     (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =

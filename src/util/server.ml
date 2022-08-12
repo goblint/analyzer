@@ -3,7 +3,7 @@ open Jsonrpc
 open GoblintCil
 
 type t = {
-  mutable file: Cil.file;
+  mutable file: Cil.file option;
   mutable max_ids: MaxIdUtil.max_ids;
   input: IO.input;
   output: unit IO.output;
@@ -107,7 +107,11 @@ let serve serv =
   |> Seq.iter (handle_packet serv)
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let max_ids = MaxIdUtil.get_file_max_ids file in
+  let max_ids =
+    match file with
+    | Some file -> MaxIdUtil.get_file_max_ids file
+    | None -> MaxIdUtil.get_file_max_ids Cil.dummyFile (* TODO: avoid this altogether *)
+  in
   {
     file;
     max_ids;
@@ -138,27 +142,40 @@ let start file =
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     GoblintDir.init ();
-    Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge, true)
-  else s.file, false
+    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_parse_merge in
+    begin match s.file with
+      | None ->
+        let max_ids = MaxIdUtil.get_file_max_ids file in
+        s.max_ids <- max_ids
+      | Some _ ->
+        ()
+    end;
+    (file, true)
+  )
+  else
+    (Option.get s.file, false)
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
   let eq (glob: Cil.global) _ _ _ = match glob with
-    | GFun (fdec, _) -> not (CompareCIL.should_reanalyze fdec), false, None
-    | _ -> true, false, None
+    | GFun (fdec, _) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
+    | _ -> Unchanged, None
   in
   CompareCIL.compareCilFiles ~eq file file
 
 let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data SolverData with
   | Some solver_data when reparsed ->
-    let changes = CompareCIL.compareCilFiles s.file file in
+    let s_file = Option.get s.file in
+    let changes = CompareCIL.compareCilFiles s_file file in
     let old_data = Some { Analyses.solver_data } in
-    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file changes;
-    { server = true; Analyses.changes; old_data }, false
+    s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
+    (* TODO: get globals for restarting from config *)
+    { server = true; Analyses.changes; old_data; restarting = [] }, false
   | Some solver_data ->
     let changes = virtual_changes file in
     let old_data = Some { Analyses.solver_data } in
-    { server = true; Analyses.changes; old_data }, false
+    (* TODO: get globals for restarting from config *)
+    { server = true; Analyses.changes; old_data; restarting = [] }, false
   | _ -> Analyses.empty_increment_data ~server:true (), true
 
 let analyze ?(reset=false) (s: t) =
@@ -176,12 +193,12 @@ let analyze ?(reset=false) (s: t) =
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
   Access.reset ();
-  s.file <- file;
+  s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      Maingoblint.do_analyze increment_data s.file
+      Maingoblint.do_analyze increment_data (Option.get s.file)
     )
 
 let () =
@@ -242,17 +259,31 @@ let () =
   end);
 
   register (module struct
+    let name = "pre_files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () s =
+      if GobConfig.get_bool "server.reparse" then (
+        GoblintDir.init ();
+        Fun.protect ~finally:GoblintDir.finalize (fun () ->
+            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+          )
+      );
+      Preprocessor.dependencies_to_yojson ()
+  end);
+
+  register (module struct
     let name = "functions"
     type params = unit [@@deriving of_yojson]
     type response = Function.t list [@@deriving to_yojson]
-    let process () serv = Function.getFunctionsList serv.file.globals
+    let process () serv = Function.getFunctionsList (Option.get serv.file).globals
   end);
 
   register (module struct
     let name = "cfg"
     type params = { fname: string }  [@@deriving of_yojson]
     type response = { cfg : string } [@@deriving to_yojson]
-    let process { fname } serv = 
+    let process { fname } serv =
       let fundec = Cilfacade.find_name_fundec fname in
       let live _ = true in (* TODO: fix this *)
       let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in

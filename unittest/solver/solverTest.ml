@@ -15,6 +15,7 @@ struct
   let var_id x = x
   let node _ = failwith "no node"
   let relift x = x
+  let is_write_only _ = false
 end
 
 (* domain is (reversed) integers *)
@@ -42,6 +43,8 @@ module ConstrSys = struct
     | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
     | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
     | _   -> None
+
+  let iter_vars _ _ _ _ _ = ()
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)

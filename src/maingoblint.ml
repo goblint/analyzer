@@ -314,8 +314,8 @@ let preprocess_files () =
   );
   preprocessed
 
-(** Possibly merge all postprocessed files *)
-let merge_preprocessed preprocessed =
+(** Parse preprocessed files *)
+let parse_preprocessed preprocessed =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
 
@@ -340,8 +340,10 @@ let merge_preprocessed preprocessed =
 
     Cilfacade.getAST preprocessed_file
   in
-  let files_AST = List.map (get_ast_and_record_deps) preprocessed in
+  List.map get_ast_and_record_deps preprocessed
 
+(** Merge parsed files *)
+let merge_parsed parsed =
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
@@ -350,7 +352,7 @@ let merge_preprocessed preprocessed =
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
-    match files_AST with
+    match parsed with
     | [one] -> Cilfacade.callConstructors one
     | [] ->
       prerr_endline "No files to analyze!";
@@ -365,12 +367,15 @@ let merge_preprocessed preprocessed =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
-let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
+let preprocess_parse_merge () =
+  preprocess_files ()
+  |> parse_preprocessed
+  |> merge_parsed
 
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
@@ -379,9 +384,7 @@ let do_stats () =
 let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
-  (* TODO: uncomment on interactive *)
-  (* Goblintutil.narrow_reuses := 0; *)
-  (* Goblintutil.aborts := 0; *)
+  Goblintutil.narrow_reuses := 0;
   Stats.reset SoftwareTimer
 
 (** Perform the analysis over the merged AST.  *)
@@ -415,9 +418,8 @@ let do_analyze change_info merged_AST =
       try Control.analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
-        let loc = !Tracing.current_loc in
         Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
-        Messages.error ~category:Analyzer ~loc "About to crash!";
+        Messages.error ~category:Analyzer "About to crash!";
         (* trigger Generic.SolverStats...print_stats *)
         Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
         do_stats ();
@@ -484,7 +486,8 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
+  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated."
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
@@ -494,21 +497,31 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
+    let warn m = eprint_color ("{yellow}Warning: "^m) in
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
-      let warn m = eprint_color ("{yellow}Warning: "^m) in
       warn "incremental.load is activated but no data exists that can be loaded."
     end;
-    let (changes, old_file, max_ids) =
+    let (changes, restarting, old_file, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         Serialize.Cache.load_data ();
         let old_file = Serialize.Cache.(get_data CilFile) in
         let changes = CompareCIL.compareCilFiles old_file current_file in
         let max_ids = Serialize.Cache.(get_data VersionData) in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
-        (changes, Some old_file, max_ids)
+
+        let restarting = GobConfig.get_string_list "incremental.restart.list" in
+        let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
+        if not (List.is_empty not_found) then begin
+          List.iter
+            (fun s ->
+              warn @@ "Should restart " ^ s ^ " but no such global could not be found in the CIL-file.")
+            not_found;
+          flush stderr
+        end;
+        (changes, restarting, Some old_file, max_ids)
       end else begin
         let max_ids = MaxIdUtil.get_file_max_ids current_file in
-        (CompareCIL.empty_change_info (), None, max_ids)
+        (CompareCIL.empty_change_info (), [], None, max_ids)
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
@@ -523,7 +536,7 @@ let diff_and_rename current_file =
       | Some cil_file, Some solver_data -> Some ({solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {server = false; Analyses.changes = changes; old_data}
+    {server = false; Analyses.changes = changes; restarting; old_data}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

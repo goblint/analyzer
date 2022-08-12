@@ -348,6 +348,7 @@ let invalidate_actions = [
     "strlen", readsAll;(*safe*)
     "strncmp", readsAll;(*safe*)
     "strncpy", writes [1];(*keep [1]*)
+    "strncat", writes [1];(*keep [1]*)
     "strstr", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
     "toupper", readsAll;(*safe*)
@@ -391,6 +392,9 @@ let invalidate_actions = [
     "pthread_attr_setdetachstate", writesAll;(*unsafe*)
     "pthread_attr_setstacksize", writesAll;(*unsafe*)
     "pthread_attr_setscope", writesAll;(*unsafe*)
+    "pthread_attr_getdetachstate", readsAll;(*safe*)
+    "pthread_attr_getstacksize", readsAll;(*safe*)
+    "pthread_attr_getscope", readsAll;(*safe*)
     "pthread_cond_init", readsAll; (*safe*)
     "pthread_cond_wait", readsAll; (*safe*)
     "pthread_cond_signal", readsAll;(*safe*)
@@ -418,7 +422,8 @@ let invalidate_actions = [
     "strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy_chk", writes [1];(*keep [1]*)
-    "strcat", writes [2];(*keep [2]*)
+    "strcat", writes [1];(*keep [1]*)
+    "strtok", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
@@ -453,6 +458,7 @@ let invalidate_actions = [
     "fputs", readsAll;(*safe*)
     "fputc", readsAll;(*safe*)
     "fseek", writes[1];
+    "rewind", writesAll;
     "fileno", readsAll;
     "ferror", readsAll;
     "ftell", readsAll;
@@ -768,6 +774,7 @@ let invalidate_actions = [
     "y0", readsAll;
     "y1", readsAll;
     "yn", readsAll;
+    "__goblint_assume_join", readsAll;
   ]
 
 
@@ -809,7 +816,8 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
   let old_accesses (kind: AccessKind.t) args = match kind with
     | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
     | Write -> []
-    | Read -> args
+    | Read when GobConfig.get_bool "sem.unknown_function.read.args" -> args
+    | Read -> []
     | Free -> []
     | Spawn when get_bool "sem.unknown_function.spawn" -> args
     | Spawn -> []

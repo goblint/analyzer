@@ -91,6 +91,8 @@ struct
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
+  let relift x = map Base.relift x
+
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     if leq x y then dprintf "%s: These are fine!" (name ()) else
     if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin

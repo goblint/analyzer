@@ -35,6 +35,7 @@ sig
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
+  val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -74,6 +75,11 @@ struct
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
   let threadenter = old_threadenter
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf g
+    | _ -> ()
 
 
   let read_global ask getg (st: BaseComponents (D).t) x =
@@ -462,6 +468,13 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf (V.unprotected g);
+      vf (V.protected g);
+    | _ -> ()
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -1214,6 +1227,7 @@ struct
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
+  let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
