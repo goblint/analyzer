@@ -829,7 +829,7 @@ module WP =
                 false
             ) rho_write
 
-          (* TODO: prune other data structures? *)
+        (* TODO: prune other data structures? *)
       end
       in
 
@@ -907,10 +907,10 @@ module WP =
 
           (* hook to collect new messages *)
           Messages.Table.add_hook := (fun m ->
-            match !CurrentVarS.current_var with
-            | Some x -> HM.add var_messages x m
-            | None -> ()
-          )
+              match !CurrentVarS.current_var with
+              | Some x -> HM.add var_messages x m
+              | None -> ()
+            )
 
         let finalize ~vh ~reachable =
           finalize ~vh ~reachable; (* disable warning like standard Warn *)
@@ -1023,36 +1023,36 @@ module WP =
         else if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
-            (* call hashcons on contexts and abstract values; results in new tags *)
-            let k' = S.Var.relift k in
-            let v' = S.Dom.relift v in
-            HM.replace rho' k' v';
-          ) data.rho;
+              (* call hashcons on contexts and abstract values; results in new tags *)
+              let k' = S.Var.relift k in
+              let v' = S.Dom.relift v in
+              HM.replace rho' k' v';
+            ) data.rho;
           data.rho <- rho';
           let stable' = HM.create (HM.length data.stable) in
           HM.iter (fun k v ->
-            HM.replace stable' (S.Var.relift k) v
-          ) data.stable;
+              HM.replace stable' (S.Var.relift k) v
+            ) data.stable;
           data.stable <- stable';
           let wpoint' = HM.create (HM.length data.wpoint) in
           HM.iter (fun k v ->
-            HM.replace wpoint' (S.Var.relift k) v
-          ) data.wpoint;
+              HM.replace wpoint' (S.Var.relift k) v
+            ) data.wpoint;
           data.wpoint <- wpoint';
           let infl' = HM.create (HM.length data.infl) in
           HM.iter (fun k v ->
-            HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
-          ) data.infl;
+              HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
+            ) data.infl;
           data.infl <- infl';
           let side_infl' = HM.create (HM.length data.side_infl) in
           HM.iter (fun k v ->
-            HM.replace side_infl' (S.Var.relift k) (VS.map S.Var.relift v)
-          ) data.side_infl;
+              HM.replace side_infl' (S.Var.relift k) (VS.map S.Var.relift v)
+            ) data.side_infl;
           data.side_infl <- side_infl';
           let side_dep' = HM.create (HM.length data.side_dep) in
           HM.iter (fun k v ->
-            HM.replace side_dep' (S.Var.relift k) (VS.map S.Var.relift v)
-          ) data.side_dep;
+              HM.replace side_dep' (S.Var.relift k) (VS.map S.Var.relift v)
+            ) data.side_dep;
           data.side_dep <- side_dep';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
           let var_messages' = HM.create (HM.length data.var_messages) in

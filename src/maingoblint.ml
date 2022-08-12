@@ -514,7 +514,7 @@ let diff_and_rename current_file =
         if not (List.is_empty not_found) then begin
           List.iter
             (fun s ->
-              warn @@ "Should restart " ^ s ^ " but no such global could not be found in the CIL-file.")
+               warn @@ "Should restart " ^ s ^ " but no such global could not be found in the CIL-file.")
             not_found;
           flush stderr
         end;
