@@ -1,40 +1,41 @@
 {
+  "upload_type": "software",
+  "title": "Goblint",
+  "description": "Static analysis framework for C",
   "creators": [
     {
-      "affiliation": "University of Tartu",
-      "name": "Vojdani, Vesal"
+      "name": "Vojdani, Vesal",
+      "affiliation": "University of Tartu"
     },
     {
-      "affiliation": "University of Tartu",
-      "name": "Apinis, Kalmer"
+      "name": "Apinis, Kalmer",
+      "affiliation": "University of Tartu"
     },
     {
-      "affiliation": "Technische Universität München",
-      "name": "Schwarz, Martin D."
+      "name": "Schwarz, Martin D.",
+      "affiliation": "Technische Universität München"
     },
     {
-      "affiliation": "Technische Universität München",
-      "name": "Herz, Alexander"
+      "name": "Herz, Alexander",
+      "affiliation": "Technische Universität München"
     },
     {
-      "affiliation": "Technische Universität München",
-      "name": "Vogler, Ralf"
+      "name": "Vogler, Ralf",
+      "affiliation": "Technische Universität München"
     },
     {
-      "affiliation": "Technische Universität München",
-      "name": "Schwarz, Michael"
+      "name": "Schwarz, Michael",
+      "affiliation": "Technische Universität München"
     },
     {
-      "affiliation": "Technische Universität München",
-      "name": "Erhard, Julian"
+      "name": "Erhard, Julian",
+      "affiliation": "Technische Universität München"
     },
     {
-      "affiliation": "University of Tartu",
       "name": "Saan, Simmo",
+      "affiliation": "University of Tartu",
       "orcid": "0000-0003-4553-1350"
     }
   ],
-  "description": "Static analysis framework for C",
-  "license": "MIT",
-  "title": "Goblint"
+  "license": "MIT"
 }
