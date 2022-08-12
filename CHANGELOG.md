@@ -1,4 +1,6 @@
 ## v2.0.0
+Goblint "lean" release after a lot of cleanup.
+
 * Remove unmaintained analyses: OSEK, ARINC, shapes, containment, deadlocksByRaces (#460, #736, #812, #474).
 * Add interactive analysis (#391).
 * Add server mode (#522).
