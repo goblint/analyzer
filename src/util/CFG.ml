@@ -182,7 +182,7 @@ let hasAssignmentTo var block = try
     false
   with | Found -> true
 
-class findAssignmentConstDiff((diff: int option ref), var) = object
+class findAssignmentConstDiff((diff: Z.t option ref), var) = object
   inherit nopCilVisitor
 
   method! vstmt stmt = match stmt.skind with 
@@ -204,12 +204,12 @@ class findAssignmentConstDiff((diff: int option ref), var) = object
     | Set ((Var v, NoOffset), BinOp (PlusA, Lval (Var v2, NoOffset), Const (CInt (cint,_,_)), _ ),_,_) when v.vid = var.vid && v2.vid = var.vid ->
       ( match !diff with 
         | Some _ -> raise WrongOrMultiple 
-        | _ -> diff := Some (cilint_to_int cint); SkipChildren
+        | _ -> diff := Some (Cilint.big_int_of_cilint cint); SkipChildren
       )
     | Set ((Var v, NoOffset), BinOp (MinusA, Lval (Var v2, NoOffset), Const (CInt (cint,_,_)), _ ),_,_) when v.vid = var.vid && v2.vid = var.vid ->
       ( match !diff with 
         | Some _ -> raise WrongOrMultiple 
-        | _ -> diff := Some (- (cilint_to_int cint)); SkipChildren
+        | _ -> diff := Some (Z.neg (Cilint.big_int_of_cilint cint)); SkipChildren
       )
     | Set ((Var v, NoOffset), _,_,_) when v.vid = var.vid  -> raise WrongOrMultiple 
     | _ -> SkipChildren
@@ -228,11 +228,11 @@ let loopLocation loopStatement = match loopStatement.skind with
 
 type assignment = 
   | NoAssign
-  | Const of int
+  | Const of Z.t
   | Other
 
 let classifyInstruction var = function
-  | Set (((Var info), NoOffset), Const(CInt (i,_,_)), _,_) when info.vid = var.vid -> Const (cilint_to_int i)
+  | Set (((Var info), NoOffset), Const(CInt (i,_,_)), _,_) when info.vid = var.vid -> Const (Cilint.big_int_of_cilint i)
   | Set (((Var info), NoOffset), _                       , _,_) when info.vid = var.vid -> Other
   | _ -> NoAssign
 
@@ -248,7 +248,7 @@ let lastAssignToVar var insList =
 (*return it if it is a constant and not inside a conditional branch*)
 let constBefore var loop f = 
   let targetLocation = loopLocation loop
-  in let rec lastAssignmentToVarBeforeLoop (current: (int option)) (statements: stmt list) = match statements with
+  in let rec lastAssignmentToVarBeforeLoop (current: (Z.t option)) (statements: stmt list) = match statements with
       | st::stmts -> (
           let current' = if st.labels <> [] then (print_endline "has Label"; (None)) else current in
           match st.skind with
@@ -304,7 +304,7 @@ let constBefore var loop f =
         )
       | [] -> (current, false) (*we did not have the loop inside these statements*)
   in
-  fst @@ lastAssignmentToVarBeforeLoop (Some 0) f.sbody.bstmts (*the top level call should never return false*)
+  fst @@ lastAssignmentToVarBeforeLoop (Some Z.zero) f.sbody.bstmts (*the top level call should never return false*)
 
 let rec loopIterations start diff comp = 
   let flip = function
@@ -314,27 +314,27 @@ let rec loopIterations start diff comp =
     | Le -> Ge
     | s -> s
   in let loopIterations' goal shouldBeExact =
-       let range = goal - start in 
-       if diff = 0 || range = 0 || (diff > 0 && range < 0) ||  (diff < 0 && range > 0) then 
+       let range = Z.sub goal start in 
+       if Z.equal diff Z.zero || Z.equal range Z.zero || (Z.gt diff Z.zero && Z.lt range Z.zero) ||  (Z.lt diff Z.zero && Z.gt range Z.zero) then 
          None (*unfitting parameters*)
        else (  
-         let roundedDown = range / diff in
-         let isExact = roundedDown * diff = range in
+         let roundedDown = Z.div range diff in
+         let isExact = Z.equal (Z.mul roundedDown diff) range in
          if isExact then
            Some roundedDown
          else if shouldBeExact then 
            None
          else
-           Some (roundedDown +1)
+           Some (Z.add roundedDown Z.one)
        )
   in 
   match comp with 
   | BinOp (op, (Const _ as c), var, t) -> loopIterations start diff (BinOp (flip op, var, c, t))
-  | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if diff < 0 then None else loopIterations' (cilint_to_int cint) false
-  | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if diff > 0 then None else loopIterations' (cilint_to_int cint) false
-  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if diff < 0 then None else loopIterations' (cilint_to_int cint + 1) false
-  | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if diff > 0 then None else loopIterations' (cilint_to_int cint - 1) false
-  | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (cilint_to_int cint) true
+  | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Cilint.big_int_of_cilint cint) false
+  | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Cilint.big_int_of_cilint cint) false
+  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.add Z.one @@ Cilint.big_int_of_cilint cint) false
+  | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Z.pred @@ Cilint.big_int_of_cilint cint ) false
+  | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (Cilint.big_int_of_cilint cint) true
   | _ -> failwith "unexpected comparison in loopIterations"
 
 let ( >>= ) = Option.bind
@@ -377,17 +377,20 @@ let fixedLoopSize loopStatement func =
     print_endline "variable: ";
     print_endline var.vname;
     print_endline "start:";
-    print_endline @@ string_of_int start;
+    print_endline @@ Z.to_string start;
     print_endline "diff:";
-    print_endline @@ string_of_int diff;
+    print_endline @@ Z.to_string diff;
     let iterations = loopIterations start diff comparison in
-    (match iterations with 
-     |None -> print_endline "iterations failed";
-     | Some s ->  
-       print_endline "iterations:";
-       print_endline @@ string_of_int s
-    );
-    iterations
+    match iterations with 
+    | None -> print_endline "iterations failed"; None
+    | Some s -> 
+      try 
+        let s' = Z.to_int s in
+        print_endline "iterations:";
+        print_endline @@ string_of_int s';
+        Some s'
+      with  _ -> print_endline "iterations too big for integer"; None
+
 
 (*unroll loops that handle locks, threads and mallocs*)
 class loopUnrollingCallVisitor = object
@@ -425,7 +428,7 @@ let loop_unrolling_factor loopStatement func =
   let loopStats = AutoTune.collectFactors visitCilStmt loopStatement in
   let targetFactor = if loopStats.instructions > 0 then targetInstructions / loopStats.instructions else 0 in (* Don't unroll empty (= while(1){}) loops*)
   let fixedLoop = fixedLoopSize loopStatement func in
-  if not @@ List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated" then 
+  if not (get_bool "ana.autotune.enabled" && List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated") then 
     configFactor 
   else 
     match fixedLoop with 
