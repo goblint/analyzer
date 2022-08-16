@@ -507,7 +507,7 @@ let createCFG (fileAST: file) =
       match glob with
       | GFun(fd,_) ->
         (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 || List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated" then loop_unrolling fd;
+        if (get_int "exp.unrolling-factor")>0 || (get_bool "ana.autotune.enabled" && List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated") then loop_unrolling fd;
         prepareCFG fd;
         computeCFGInfo fd true
       | _ -> ()
