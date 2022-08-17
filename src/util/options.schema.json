@@ -1780,6 +1780,12 @@
           "type": "boolean",
           "default": true
         },
+        "program": {
+          "title": "warn.program",
+          "description": "Program messages",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
