@@ -2,17 +2,17 @@
 opam-version: "2.0"
 synopsis: "Static analysis framework for C"
 maintainer: [
-  "Michael Schwarz <michael.schwarz93@gmail.com>"
   "Simmo Saan <simmo.saan@gmail.com>"
-  "Ralf Vogler <ralf.vogler@gmail.com>"
+  "Michael Schwarz <michael.schwarz93@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani"
-  "Kalmer Apinis"
-  "Ralf Vogler"
+  "Simmo Saan"
   "Michael Schwarz"
   "Julian Erhard"
-  "Simmo Saan"
+  "Sarah Tilscher"
+  "Ralf Vogler"
+  "Kalmer Apinis"
+  "Vesal Vojdani"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
