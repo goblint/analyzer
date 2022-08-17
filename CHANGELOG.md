@@ -17,7 +17,7 @@ Goblint "lean" release after a lot of cleanup.
 * Add JSON schema for configuration (#476, #499).
 * Refactor option names (#28, #192, #516, #675).
 * Add bash completion (#669).
-* Add OCaml 4.13 and 4.14 support (#503, #672).
+* Add OCaml 4.13 and 4.14 support, remove OCaml 4.09 support (#503, #672).
 
 ## v1.1.1
 * Added lower bounds to dependencies (zarith, ocaml-monadic, sha, conf-gmp).
