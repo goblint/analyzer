@@ -179,6 +179,7 @@ let should_warn e =
     | Imprecise -> "imprecise"
     | Witness -> "witness"
     | Program -> "program"
+    (* Don't forget to add option to schema! *)
   in get_bool ("warn." ^ (to_string e))
 
 let path_show e =
