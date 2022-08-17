@@ -4,8 +4,6 @@ pin-depends: [
   [ "goblint-cil.1.8.2" "git+https://github.com/goblint/cil.git#1faa2355fd350c503b150e43c4577873928c30d9" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
-  # quoter workaround reverted for release, so no pin needed
-  # [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
   # TODO: add back after release, only pinned for CI stability
   [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
 ]
