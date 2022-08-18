@@ -28,10 +28,25 @@
 
 9. Tag the release: `dune-release tag`.
 10. Create the distribution archive: `dune-release distrib`.
-11. Create a GitHub release with the git tag: `DUNE_RELEASE_DELEGATE=github-dune-release-delegate dune-release publish distrib`.
+
+11. Check created _distribution archive_ (in `_build`) in a clean environment:
+
+    1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
+    2. Extract distribution archive.
+    3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
+    4. Navigate to distribution archive inside Docker container: `cd /goblint`.
+    5. Pin package from distribution archive: `opam pin add --no-action .`.
+    6. Install depexts: `opam depext goblint`.
+    7. Install and test package: `opam install --with-test goblint`.
+    8. Activate opam environment: `eval $(opam env)`.
+    9. Check version: `goblint --version`.
+    10. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
+    11. Exit Docker container.
+
+12. Create a GitHub release with the git tag: `DUNE_RELEASE_DELEGATE=github-dune-release-delegate dune-release publish distrib`.
 
     Explicitly specify `distrib` because we don't want to publish OCaml API docs.
     Environment variable workaround for the package having a Read the Docs `doc` URL (see <https://github.com/ocamllabs/dune-release/issues/154>).
 
-12. Create an opam package: `dune-release opam pkg`.
-13. Submit the opam package to opam-repository: `dune-release opam submit`.
+13. Create an opam package: `dune-release opam pkg`.
+14. Submit the opam package to opam-repository: `dune-release opam submit`.
