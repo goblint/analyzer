@@ -85,7 +85,7 @@
   (target configVersion.ml)
   (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
   (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
 
 (rule
   (target configProfile.ml)
