@@ -10,7 +10,7 @@ def relpath(file)
   return Pathname(file).relative_path_from Pathname(Dir.getwd) # Pathname for arg required for ruby 2.5, 2.6 accepts string as well
 end
 require 'set'
-$timeout = 10 # seconds
+$timeout = 20 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
