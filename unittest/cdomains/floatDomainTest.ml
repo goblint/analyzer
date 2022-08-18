@@ -138,8 +138,9 @@ struct
       cast (IT.top_of IBool) (FI.of_interval (0., 1.));
       cast (IT.of_int IInt Big_int_Z.zero_big_int) fi_zero;
       cast (IT.of_int IInt Big_int_Z.unit_big_int) fi_one;
+      (* no IChar because char has unknown signedness (particularly, unsigned on arm64) *)
       cast (IT.of_interval IUChar (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 128)) (FI.of_interval (0., 128.));
-      cast (IT.of_interval IChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int (-1))) (FI.of_interval (-. 8., - 1.));
+      cast (IT.of_interval ISChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int (-1))) (FI.of_interval (-. 8., - 1.));
       cast (IT.of_interval IUInt (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100)) (FI.of_interval (2., 100.));
       cast (IT.of_interval IInt (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
       cast (IT.of_interval IUShort (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100)) (FI.of_interval (2., 100.));
@@ -169,8 +170,9 @@ struct
       cast IBool fi_one (IT.of_bool IBool true);
       cast IBool fi_zero (IT.of_bool IBool false);
 
+      (* no IChar because char has unknown signedness (particularly, unsigned on arm64) *)
       cast IUChar (FI.of_interval (0.123, 128.999)) (IT.of_interval IUChar (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 128));
-      cast IChar (FI.of_interval (-. 8.0000000, 127.)) (IT.of_interval IChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int 127));
+      cast ISChar (FI.of_interval (-. 8.0000000, 127.)) (IT.of_interval ISChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int 127));
       cast IUInt (FI.of_interval (2., 100.)) (IT.of_interval IUInt (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100));
       cast IInt (FI.of_interval (-. 100.2, 100.1)) (IT.of_interval IInt (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
       cast IUShort (FI.of_interval (2., 100.)) (IT.of_interval IUShort (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100));
