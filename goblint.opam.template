@@ -1,5 +1,6 @@
 # on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
 # also remember to generate/adjust goblint.opam.locked!
+available: arch != "arm64"
 # pin-depends: [
   # published goblint-cil 2.0.0 is currently up-to-date, so no pin needed
   # [ "goblint-cil.2.0.0" "git+https://github.com/goblint/cil.git#85ca8cf757580c67c53b5db76bce5be048ce5541" ]
