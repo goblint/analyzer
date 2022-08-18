@@ -272,11 +272,11 @@ struct
         itb_xor (FI.lt arg1 arg2) (FI.ge arg1 arg2))
 
   let test_FI_gt_xor_le =
-    QCheck.Test.make ~name:"test_FI_lt_xor_ge" (QCheck.pair (FI.arbitrary ()) (FI.arbitrary ())) (fun (arg1, arg2) ->
+    QCheck.Test.make ~name:"test_FI_gt_xor_le" (QCheck.pair (FI.arbitrary ()) (FI.arbitrary ())) (fun (arg1, arg2) ->
         itb_xor (FI.gt arg1 arg2) (FI.le arg1 arg2))
 
   let test_FI_eq_xor_ne =
-    QCheck.Test.make ~name:"test_FI_lt_xor_ge" (QCheck.pair (FI.arbitrary ()) (FI.arbitrary ())) (fun (arg1, arg2) ->
+    QCheck.Test.make ~name:"test_FI_eq_xor_ne" (QCheck.pair (FI.arbitrary ()) (FI.arbitrary ())) (fun (arg1, arg2) ->
         itb_xor (FI.eq arg1 arg2) (FI.ne arg1 arg2))
 
   let test_FI_add =
