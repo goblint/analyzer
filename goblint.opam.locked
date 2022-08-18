@@ -117,4 +117,4 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
-available: arch != "arm64"
+available: os-distribution != "alpine" & arch != "arm64"
