@@ -186,9 +186,9 @@ class findAssignmentConstDiff((diff: Z.t option ref), var) = object
   inherit nopCilVisitor
 
   method! vstmt stmt = match stmt.skind with 
-    | Loop _ 
     | Instr _ 
     | Block _ -> DoChildren
+    | Loop (b,_,_,_,_) -> if hasAssignmentTo var b then raise WrongOrMultiple else SkipChildren
     | If (_, t, e, _, _) -> 
       if hasAssignmentTo var t || hasAssignmentTo var t then 
         raise WrongOrMultiple
@@ -361,7 +361,6 @@ let fixedLoopSize loopStatement func =
          ignore @@ visitCilStmt visitor loop;
          !diff
        with | WrongOrMultiple ->  None
-  in let ( >>= ) = Option.bind
   in
 
   findBreakComparison >>= fun comparison ->
@@ -392,7 +391,17 @@ let fixedLoopSize loopStatement func =
       with  _ -> print_endline "iterations too big for integer"; None
 
 
-(*unroll loops that handle locks, threads and mallocs*)
+class arrayVisitor = object
+  inherit nopCilVisitor
+
+  method! vvrbl info =
+    if not @@ (hasAttribute "goblint_array_domain" info.vattr || AutoTune.is_large_array info.vtype) then
+      info.vattr <- addAttribute (Attr ("goblint_array_domain", [AStr "unroll"]) ) info.vattr;
+    DoChildren
+end
+let annotateArrays loopBody = ignore @@ visitCilBlock (new arrayVisitor) loopBody
+
+(*unroll loops that handle locks, threads and mallocs, asserts and reach_error*)
 class loopUnrollingCallVisitor = object
   inherit nopCilVisitor
 
@@ -406,10 +415,17 @@ class loopUnrollingCallVisitor = object
         | Lock _
         | Unlock _
         | ThreadCreate _
+        | Assert _
         | ThreadJoin _ -> 
           raise Found;
-        | _ -> ();
-          DoChildren;)
+        | _ -> 
+          if List.mem "specification" @@ get_string_list "ana.autotune.activated" && get_string "ana.specification" <> "" then (
+            match Svcomp.Specification.of_option () with 
+            | UnreachCall s -> if info.vname = s then raise Found
+            | _ -> ()
+          );
+          DoChildren
+      )
     | _ -> DoChildren
 
 end
@@ -428,12 +444,13 @@ let loop_unrolling_factor loopStatement func =
   let loopStats = AutoTune.collectFactors visitCilStmt loopStatement in
   let targetFactor = if loopStats.instructions > 0 then targetInstructions / loopStats.instructions else 0 in (* Don't unroll empty (= while(1){}) loops*)
   let fixedLoop = fixedLoopSize loopStatement func in
-  if not (get_bool "ana.autotune.enabled" && List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated") then 
-    configFactor 
-  else 
+  if  get_bool "ana.autotune.enabled" && List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated" then 
     match fixedLoop with 
-    | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else targetFactor
+    | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else 100 / loopStats.instructions
     | _ -> targetFactor
+  else 
+    configFactor
+
 
 class loopUnrollingVisitor(func) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
@@ -446,6 +463,7 @@ class loopUnrollingVisitor(func) = object
         let factor = loop_unrolling_factor s func in
         if(factor > 0) then (
           print_endline @@ "unrolling loop at " ^ CilType.Location.show loc ^" with factor " ^ string_of_int factor;
+          annotateArrays b;
           match s.skind with
           | Loop (b,loc, loc2, break , continue) ->
             (* We copy the statement to later be able to modify it without worrying about invariants *)
