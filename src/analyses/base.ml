@@ -81,6 +81,37 @@ struct
 
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
+  (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
+  (*We have to prevent different domains to be used at the same time for the same array*)
+  (*After a function call, the domain has to be the same as before and we can not depend on the pointers staying the same*)
+  (*-> we determine the arrays a pointer can point to once at the beginning of a function*)
+  (*There surely is a better way, because this means that often the wrong one gets choosen*)
+  module VarMap = Map.Make(CilType.Varinfo)
+  let array_map = ref VarMap.empty
+
+  let add_to_array_map fundec arguments =
+    let rec pointedArrayMap = function 
+      | [] -> VarMap.empty 
+      | (info,value)::xs -> (
+        match value with
+          | `Address t when hasAttribute "goblint_array_domain" info.vattr -> (
+            let possibleVars = PreValueDomain.AD.to_var_may t in
+            List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars 
+          )
+          | _ -> pointedArrayMap xs
+      )
+  in
+    match VarMap.find_opt fundec.svar !array_map with 
+      (*We already have something -> do not change it*)
+      | Some _ -> ()
+      | None -> array_map := VarMap.add fundec.svar (pointedArrayMap arguments) !array_map
+
+  let attibutes_varinfo info fundec = 
+    let map = VarMap.find fundec.svar !array_map in
+    match VarMap.find_opt info map with 
+      | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+      | None -> Some (info.vattr, typeAttrs (info.vtype))
+
   let project_val ask array_attr p_opt value is_glob =
     let p = if GobConfig.get_bool "annotation.int.enabled" then (
         if is_glob then 
@@ -88,11 +119,13 @@ struct
         else p_opt
       ) else None
     in 
-    let a = if GobConfig.get_bool "annotation.array" then Some array_attr else None in
+    let a = if GobConfig.get_bool "annotation.array" then array_attr else None in
     VD.project ask p a value
 
-  let project ask p_opt cpa =
-    CPA.mapi (fun varinfo value -> project_val ask (varinfo.vattr, typeAttrs (varinfo.vtype)) p_opt value (is_privglob varinfo)) cpa
+  let project ask p_opt cpa fundec =
+    CPA.mapi (fun varinfo value -> 
+      project_val ask (attibutes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) 
+    cpa
 
 
   (**************************************************************************
@@ -1188,7 +1221,7 @@ struct
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top_value typ) cpa
+      CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
     else
       CPA.add variable value cpa
 
@@ -1246,7 +1279,7 @@ struct
       in
       let update_offset old_value =
         (* Projection to highest Precision *)
-        let projected_value = project_val a ([],[])(Some PU.max_precision) value (is_global a x) in
+        let projected_value = project_val a None (Some PU.max_precision) value (is_global a x) in
         let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
@@ -2050,6 +2083,7 @@ struct
     in
     (* Assign parameters to arguments *)
     let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
+    add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat_map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st) in
@@ -2058,7 +2092,7 @@ struct
 
     (* Projection to Precision of the Callee *)
     let p = PU.precision_from_fundec fundec in
-    let new_cpa = project (Analyses.ask_of_ctx ctx) (Some p) new_cpa in
+    let new_cpa = project (Analyses.ask_of_ctx ctx) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2433,8 +2467,12 @@ struct
 
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let return_val = project_val (Analyses.ask_of_ctx ctx) ((return_varinfo ()).vattr, typeAttrs ((return_varinfo ()).vtype)) (Some p) return_val (is_privglob (return_varinfo ())) in
-      let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa in
+      let callerFundec = match !MyCFG.current_node with
+      | Some n -> Node.find_fundec n
+      | None -> failwith "callerfundec not found"
+      in
+      let return_val = project_val (Analyses.ask_of_ctx ctx) (attibutes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+      let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
