@@ -16,7 +16,7 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
-  let t = if GobConfig.get_bool "ana.autotune.enabled" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
+  let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
   let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
   Array.of_list r
 )
@@ -676,7 +676,8 @@ struct
 
   let varinfo_tracked vi =
     (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype && not vi.vaddrof
+    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_apron_track") in 
+    type_tracked vi.vtype && not vi.vaddrof && (not @@ GobConfig.get_bool "annotation.track_apron" || hasTrackAttribute vi.vattr)
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =

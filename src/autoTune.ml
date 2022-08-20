@@ -260,7 +260,7 @@ let reduceThreadAnalyses () =
 
 let focusOnSpecification () = 
   match Svcomp.Specification.of_option () with 
-  | UnreachCall s -> () (*TODO?*)
+  | UnreachCall s -> () 
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
@@ -288,6 +288,40 @@ let hasEnums file =
     false;
   with EnumFound -> true
 
+
+let is_important_type (t: typ): bool = match t with
+  | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
+  | TInt (IInt, attr) -> hasAttribute "mutex" attr
+  | _ -> false
+
+let is_large_array = function
+  | TArray (_,Some (Const (CInt (i,_,_))),_) -> i > Z.of_int @@ 10 * get_int "ana.base.arrays.unrolling-factor"
+  | _ -> false
+
+class addTypeAttributeVisitor = object
+  inherit nopCilVisitor
+
+  (*large arrays -> partitioned*)
+  (*because unroll only is usefull if most values are actually unrolled*)
+  method! vvdec info =
+    (if is_large_array info.vtype && not @@ hasAttribute "goblint_array_domain" (typeAttrs info.vtype) then
+       info.vattr <- addAttribute (Attr ("goblint_array_domain", [AStr "partitioned"])) info.vattr);
+    DoChildren
+
+  (*Set arrays with important types to unroll*)
+  method! vtype typ = 
+    if is_important_type typ && not @@ hasAttribute "goblint_array_domain" (typeAttrs typ) then 
+      ChangeTo (typeAddAttributes [Attr ("goblint_array_domain", [AStr "unroll"])] typ)
+    else SkipChildren
+end
+
+let selectArrayDomains file =
+  (*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
+  set_bool "annotation.array" true;
+  let thisVisitor = new addTypeAttributeVisitor in
+  ignore (visitCilFileSameGlobals thisVisitor file)
+
+(*
 (*For testing: choose random domains for all arrays *)
 let choose l = 
   let rand = Random.int (List.length l) in 
@@ -309,34 +343,185 @@ let randomArrays file =
   set_bool "annotation.array" true;
   let visitor = new arrayVisitor in
   ignore (visitCilFileSameGlobals visitor file)
+*)
 
-
+(*option that can be selected based on value/cost*)
 type option = {
   value:int;
   cost:int;
   activate: unit -> unit
 } 
 
+(*Option for activating the octagon apron domain on selected vars*)
+module VariableMap = Map.Make(CilType.Varinfo)
+module VariableSet = Set.Make(CilType.Varinfo)
+
+
+let isComparison = function
+  | Lt | Gt |	Le | Ge | Ne | Eq -> true
+  | _ -> false
+
+let rec extractVar = function
+  | UnOp (Neg, e, _) -> extractVar e
+  | Lval ((Var info),_) -> Some info
+  | _ -> None
+
+let extractOctagonVars = function
+  | BinOp (PlusA, e1,e2, (TInt _))
+  | BinOp (MinusA, e1,e2, (TInt _)) -> (
+      match extractVar e1, extractVar e2 with 
+      | Some a, Some b -> Some (Either.Left (a,b))
+      | Some a, None 
+      | None, Some a -> if isConstant e1 then Some (Either.Right a) else None
+      | _,_ -> None
+    )
+  | _ -> None
+
+let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap := 
+      if VariableMap.mem key !varMap then
+        let old = VariableMap.find key !varMap in
+        VariableMap.add key (old + v) !varMap 
+      else
+        VariableMap.add key v !varMap
+
+let handle varMap v globals = function
+  | Some (Either.Left (a,b)) -> 
+    addOrCreateVarMapping varMap a v globals;
+    addOrCreateVarMapping varMap b v globals; 
+  | Some (Either.Right a) ->  addOrCreateVarMapping varMap a v globals;
+  | None -> ()
+
+class octagonVariableVisitor(varMap, globals) = object 
+  inherit nopCilVisitor
+
+  method! vexpr = function
+    (*an expression of type +/- a +/- b where a,b are either variables or constants*)
+    | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
+        handle varMap 5 globals (extractOctagonVars e1) ;
+        handle varMap 5 globals (extractOctagonVars e2) ;
+        DoChildren
+      )
+    | Lval ((Var info),_) -> handle varMap 1 globals (Some (Either.Right info)) ; SkipChildren
+    (*Traverse down only operations fitting for linear equations*)
+    | UnOp (Neg, _,_)
+    | BinOp (PlusA,_,_,_)
+    | BinOp (MinusA,_,_,_)
+    | BinOp (Mult,_,_,_)
+    | BinOp (LAnd,_,_,_)
+    | BinOp (LOr,_,_,_) -> DoChildren
+    | _ -> SkipChildren
+end
+
+
+let topVars n varMap= 
+  let rec take n l = 
+    if n <= 0 then 
+      []
+    else 
+      match l with 
+      | x :: xs -> x :: take (n-1) xs  
+      | [] -> [] 
+  in
+  let compareValueDesc = (fun (_,v1) (_,v2) -> - (compare v1 v2)) in
+  varMap
+  |> VariableMap.bindings
+  |> List.sort compareValueDesc
+  |> take n 
+  |> List.map fst
+
+class octagonFunctionVisitor(list, amount) = object
+  inherit nopCilVisitor
+
+  method! vfunc f = 
+    let varMap = ref VariableMap.empty in
+    let visitor = new octagonVariableVisitor(varMap, false) in
+    ignore (visitCilFunction visitor f);
+
+    list := topVars amount !varMap ::!list;
+    SkipChildren
+
+end
+
+let apronOctagonOption factors file =
+  let locals = 
+    if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then 
+      match Svcomp.Specification.of_option () with 
+      | NoOverflow -> 12
+      | _ -> 8
+    else 8
+  in let globals = 2 in
+  let selectedLocals = 
+    let list = ref [] in
+    let visitor = new octagonFunctionVisitor(list, locals) in
+    visitCilFileSameGlobals visitor file;
+    List.concat !list
+  in
+  let selectedGlobals = 
+    let varMap = ref VariableMap.empty in
+    let visitor = new octagonVariableVisitor(varMap, true) in
+    visitCilFileSameGlobals visitor file;
+    topVars globals !varMap
+  in
+  let allVars = (selectedGlobals @ selectedLocals) in
+  let activateVars () = 
+    print_endline @@ "Octagon: " ^ string_of_int @@ (Batteries.Int.pow (locals + globals) 3) * 3;
+    set_bool "annotation.track_apron" true;
+    set_string "ana.apron.domain" "octagon";
+    set_auto "ana.activated[+]" "apron";
+    set_bool "ana.apron.threshold_widening" true;
+    set_string "ana.apron.threshold_widening_constants" "comparisons";
+    print_endline "octagon activated";
+    print_endline @@ String.concat "," @@ List.map (fun info -> info.vname) allVars;
+    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_apron_track",[])) info.vattr) allVars
+  in
+  {
+    value = 50 * (List.length allVars) ;
+    cost = (Batteries.Int.pow (locals + globals) 3) * 3;
+    activate = activateVars;
+  }
+
+
+let wideningOption factors file =
+  let amountConsts = List.length @@ WideningThresholds.upper_thresholds () in
+  let cost = amountConsts * (factors.loops * 5 + factors.controlFlowStatements) in
+  {
+    value = amountConsts * (factors.loops * 5 + factors.controlFlowStatements);
+    cost = cost;
+    activate = fun () ->
+      print_endline @@ "Widening: " ^ string_of_int cost;
+      set_bool "ana.int.interval_threshold_widening" true;
+      set_string "ana.int.interval_threshold_widening_constants" "comparisons";
+      print_endline "Enabled widening thresholds";
+  }
+
+
+let estimateComplexity factors file = 
+  let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
+  let operationEstimate = factors.instructions + (factors.expressions / 60) in
+  let callsEstimate = factors.functionCalls * factors.loops / factors.functions / 10 in
+  let globalVars = fst factors.pointerVars * 2 + fst factors.arrayVars * 4 + fst factors.integralVars in
+  let localVars = snd factors.pointerVars * 2 + snd factors.arrayVars * 4 + snd factors.integralVars in
+  let varEstimates = globalVars + localVars / factors.functions in
+  pathsEstimate * operationEstimate * callsEstimate + varEstimates / 10
+
+
+let totalTarget = 30000
 (*A simple greedy approximation to the knapsack problem: 
   take options with the highest use/cost ratio that still fit*)
 let chooseFromOptions costTarget options =
   let ratio o = Float.of_int o.value /. Float.of_int o.cost in
   let compareRatio o1 o2 = Float.compare (ratio o1) (ratio o2) in
   let rec takeFitting remainingTarget options =
-    if remainingTarget < 0 then [] else match options with 
+    if remainingTarget < 0 then (print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); [] ) else match options with 
       | o::os ->
         if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow 5% overshooting *) 
           o::takeFitting (remainingTarget - o.cost) os
         else
           takeFitting (remainingTarget - o.cost) os
-      | [] -> []
+      | [] -> print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); []
   in
   takeFitting costTarget @@ List.sort compareRatio options
 
-(*TODO: does calling this at a late point cause any problems?*)
-(*      do not overwrite explicit settings?*)
-(*      how to better display changed/selected settings?*)
-(*      tune all constants*)
 let chooseConfig file = 
   let isActivated a = List.mem a @@ get_string_list "ana.autotune.activated" in
 
@@ -360,12 +545,21 @@ let chooseConfig file =
   if isActivated "singleThreaded" then 
     reduceThreadAnalyses ();
 
-  let options = [] in 
 
-  List.iter (fun o -> o.activate ()) @@ chooseFromOptions 1000 options;
+  let factors = collectFactors visitCilFileSameGlobals file in
+  printFactors factors;
+  let fileCompplexity = estimateComplexity factors file in
 
-  set_bool "annotation.array" true;
-  set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
-  printFactors @@ collectFactors visitCilFileSameGlobals file
+  print_endline "Estimated complexities:";
+  print_endline @@ "File: " ^ string_of_int fileCompplexity;
+
+  let options = [] in
+  let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
+  let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
+
+  List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options;
+
+  if isActivated "arrayDomain" then
+    selectArrayDomains file  
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps

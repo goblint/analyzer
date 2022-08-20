@@ -402,6 +402,14 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "interval_threshold_widening_constants": {
+              "title": "ana.int.interval_threshold_widening_constants",
+              "description":
+                "Which constants in the programm should be considered as threshold constants",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
             }
           },
           "additionalProperties": false
@@ -535,11 +543,11 @@
             },
             "activated": {
               "title": "ana.autotune.activated",
-              "description": "Lists of activated tuning options",
+              "description": "Lists of activated tuning options. By default all are activated",
               "type": "array",
               "items": { "type": "string" },
               "default": [
-                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic"
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
               ]
             }
           },
@@ -765,6 +773,14 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "threshold_widening_constants": {
+              "title": "ana.apron.threshold_widening_constants",
+              "description":
+                "Which constants in the programm should be considered as threshold constants",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
             },
             "privatization": {
               "title": "ana.apron.privatization",
@@ -1151,6 +1167,12 @@
         "array": {
           "title": "annotation.array",
           "description": "Enable manual annotaion of arrays with desired domain",
+          "type": "boolean",
+          "default": false
+        },
+        "track_apron": {
+          "title": "annotation.track_apron",
+          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
           "type": "boolean",
           "default": false
         }

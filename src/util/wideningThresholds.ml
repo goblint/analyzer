@@ -3,7 +3,6 @@ open Batteries
 module Thresholds = Set.Make(Z)
 
 (*Collect only constants that are used in comparisons*)
-(*TODO limit the amount of constants, because too many lead to too many iterations*)
 (*differentiating between upper and lower bounds, because e.g. expr > 10 is definitely true for an interval [11, x] and definitely false for an interval [x, 10]*)
 (*apron octagons use thresholds for c in inequalities +/- x +/- y <= c*)
 (* x + y <= 10 -> definitely right if c=10 *)
