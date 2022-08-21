@@ -25,10 +25,17 @@ jobs:
         apron:
           - false
           - true
+        z3:
+          - false
+
+        include:
+          - os: ubuntu-latest
+            ocaml-compiler: 4.14.x
+            z3: true
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
-    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }})
+    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }}${{ matrix.apron && ', z3' || '' }})
 
     runs-on: ${{ matrix.os }}
 
@@ -49,6 +56,12 @@ jobs:
         run: |
           opam depext apron
           opam install apron
+
+      - name: Install Z3 dependencies
+        if: ${{ matrix.z3 }}
+        run: |
+          opam depext z3
+          opam install z3
 
       - name: Build
         run: ./make.sh nat
