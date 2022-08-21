@@ -35,7 +35,7 @@ jobs:
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
-    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }}${{ matrix.apron && ', z3' || '' }})
+    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }}${{ matrix.z3 && ', z3' || '' }})
 
     runs-on: ${{ matrix.os }}
 
