@@ -5,7 +5,7 @@ struct
   module Node = Node
 
   open Z3
-  open Cil
+  open GoblintCil
 
   let cfg = [
     ("model", "true");
@@ -51,8 +51,8 @@ struct
     Boolean.mk_distinct ctx [expr; Arithmetic.Integer.mk_numeral_i ctx 0]
 
   let rec exp_to_expr env = function
-    | Const (CInt64 (i, _, _)) ->
-      Arithmetic.Integer.mk_numeral_s ctx (Int64.to_string i)
+    | Const (CInt (i, _, _)) ->
+      Arithmetic.Integer.mk_numeral_s ctx (Z.to_string i)
     | Lval (Var v, NoOffset) ->
       Env.get_const env v
     | BinOp (PlusA, e1, e2, TInt _) ->
