@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+  workflow_dispatch:
+
+  schedule:
+    # nightly
+    - cron: '31 1 * * *' # 01:31 UTC, 02:31/03:31 Munich, 03:31/04:31 Tartu
+    # GitHub Actions load is high at minute 0, so avoid that
+
 jobs:
   regression:
     strategy:
@@ -58,6 +65,8 @@ jobs:
         run: ruby scripts/update_suite.rb -i
 
   extraction:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+
     strategy:
       fail-fast: false
       matrix:
