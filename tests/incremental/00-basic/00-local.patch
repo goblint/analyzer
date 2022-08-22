@@ -5,9 +5,9 @@
 
  int main() {
 -    int x = 1;
--    assert(x == 1); // success before, success after
+-    __goblint_check(x == 1); // success before, success after
 +    int x = 2;
-+    assert(x == 2); // success before, success after
++    __goblint_check(x == 2); // success before, success after
      return 0;
  }
 \ No newline at end of file

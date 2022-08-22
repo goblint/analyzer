@@ -318,8 +318,8 @@ struct
 
   let to_yaml {entry_type; metadata} =
     `O ([
-      ("entry_type", `String (EntryType.entry_type entry_type));
-      ("metadata", Metadata.to_yaml metadata);
+        ("entry_type", `String (EntryType.entry_type entry_type));
+        ("metadata", Metadata.to_yaml metadata);
       ] @ EntryType.to_yaml' entry_type)
 
   let of_yaml y =

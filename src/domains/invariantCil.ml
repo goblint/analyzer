@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 
 let var_replace_original_name vi =

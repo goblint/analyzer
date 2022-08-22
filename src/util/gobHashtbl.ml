@@ -1,3 +1,5 @@
+module Pretty = GoblintCil.Pretty
+
 let magic_stats h =
   let h: _ Hashtbl.t = Obj.magic h in (* Batteries Hashtables don't expose stats yet...: https://github.com/ocaml-batteries-team/batteries-included/pull/1079 *)
   Hashtbl.stats h

@@ -34,20 +34,20 @@ int main(void) {
 
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&__global_lock);
-  assert(g1 == 0);
+  __goblint_check(g1 == 0);
   pthread_mutex_unlock(&__global_lock);
 
   pthread_mutex_lock(&mutex2);
   pthread_mutex_lock(&__global_lock);
-  assert(g1 == 0);
+  __goblint_check(g1 == 0);
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_lock(&__global_lock);
-  assert(g2 == 0);
+  __goblint_check(g2 == 0);
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_unlock(&mutex2);
 
   pthread_mutex_lock(&__global_lock);
-  assert(g1 == 0);
+  __goblint_check(g1 == 0);
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_unlock(&mutex1);
 

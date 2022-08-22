@@ -10,7 +10,7 @@ def relpath(file)
   return Pathname(file).relative_path_from Pathname(Dir.getwd) # Pathname for arg required for ruby 2.5, 2.6 accepts string as well
 end
 require 'set'
-$timeout = 10 # seconds
+$timeout = 20 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
@@ -162,6 +162,7 @@ class Tests
                     when /invariant refuted/         then "fail"
                     when /^\[Warning\]/              then "warn"
                     when /^\[Error\]/                then "warn"
+                    when /^\[Info\]/                 then "warn"
                     when /^\[Success\]/              then "success"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
@@ -296,7 +297,7 @@ class Project
         tests[i] = "fail"
       elsif obj =~ /UNKNOWN/ then
         tests[i] = "unknown"
-      elsif obj =~ /assert.*\(/ then
+      elsif obj =~ /(assert|__goblint_check).*\(/ then
         if obj =~ /FAIL/ then
           tests[i] = "fail"
         elsif obj =~ /UNKNOWN/ then
@@ -417,8 +418,13 @@ class ProjectIncr < Project
     super(lines)
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
+    status = $?.exitstatus
     lines_incr = IO.readlines(path)
     `patch -p0 -b -R <#{patch_path}`
+    if status != 0
+      puts "Failed to apply patch: #{patch_path}"
+      exit 1
+    end
     @testset_incr = parse_tests(lines_incr)
     @testset_incr.p = self
     @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")

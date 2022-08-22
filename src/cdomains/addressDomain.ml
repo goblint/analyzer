@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 open IntOps
 
@@ -54,6 +54,15 @@ struct
     | _ -> match ID.to_excl_list i with
       | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
+
+  let to_int (type a) (module ID : IntDomain.Z with type t = a) x =
+    let ik = Cilfacade.ptr_ikind () in
+    if equal x null_ptr then
+      ID.of_int ik Z.zero
+    else if is_not_null x then
+      ID.of_excl_list ik [Z.zero]
+    else
+      ID.top_of ik
 
   let get_type xs =
     try Addr.get_type (choose xs)

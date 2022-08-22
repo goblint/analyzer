@@ -1,0 +1,10 @@
+{
+    "dbg": {
+        "debug": true
+    },
+    "incremental" : {
+        "postsolver": {
+            "enabled":  true
+        }
+    }
+}

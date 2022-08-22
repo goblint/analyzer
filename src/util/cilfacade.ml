@@ -1,35 +1,11 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Cil
+open GoblintCil
 module E = Errormsg
 module GU = Goblintutil
 
-
-let get_labelLoc = function
-  | Label (_, loc, _) -> loc
-  | Case (_, loc, _) -> loc
-  | CaseRange (_, _, loc, _) -> loc
-  | Default (loc, _) -> loc
-
-let rec get_labelsLoc = function
-  | [] -> Cil.locUnknown
-  | label :: labels ->
-    let loc = get_labelLoc label in
-    if CilType.Location.equal loc Cil.locUnknown then
-      get_labelsLoc labels (* maybe another label has known location *)
-    else
-      loc
-
-let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
-
-let get_stmtLoc stmt =
-  match stmt.skind with
-  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
-  | Instr []
-  | Block {bstmts = []; _} ->
-    get_labelsLoc stmt.labels
-  | _ -> get_stmtkindLoc stmt.skind
+include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
 let isCharType = function
@@ -325,8 +301,14 @@ let rec get_ikind t =
   | TPtr _ -> get_ikind !Cil.upointType
   | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
 
-let ptrdiff_ikind () = get_ikind !ptrdiffType
+let get_fkind t =
+  (* important to unroll the type here, otherwise problems with typedefs *)
+  match Cil.unrollType t with
+  | TFloat (fk,_) -> fk
+  | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
 
+let ptrdiff_ikind () = get_ikind !ptrdiffType
+let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
 (** Cil.typeOf, etc reimplemented to raise sensible exceptions
     instead of printing all errors directly... *)
@@ -454,6 +436,7 @@ let mkCast ~(e: exp) ~(newt: typ) =
   Cil.mkCastT ~e ~oldt ~newt
 
 let get_ikind_exp e = get_ikind (typeOf e)
+let get_fkind_exp e = get_fkind (typeOf e)
 
 (** Make {!Cil.BinOp} with correct implicit casts inserted. *)
 let makeBinOp binop e1 e2 =
@@ -638,6 +621,7 @@ let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_nam
 
 
 let reset_lazy () =
+  StmtH.clear pseudo_return_to_fun;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;

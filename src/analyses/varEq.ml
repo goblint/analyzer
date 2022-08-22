@@ -112,6 +112,8 @@ struct
   (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
+    | AddrOf (Mem (BinOp (IndexPI, a, _i, _)), _os) ->
+      interesting a
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
@@ -333,7 +335,8 @@ struct
            | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
-      if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
+      if Cil.isConstant b then false
+      else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
       then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
@@ -341,7 +344,9 @@ struct
           then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
-    *)    r
+    *)
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    r
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp ask (e:exp) (st:D.t) : D.t =
@@ -391,6 +396,12 @@ struct
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
     let lvt = unrollType @@ Cilfacade.typeOfLval lv in
+    if M.tracing then (
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
+      M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (interesting rv);
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt);
+    );
     if is_global_var ask (Lval lv) = Some false
     && interesting rv
     && is_global_var ask rv = Some false
@@ -533,37 +544,54 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    match e with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | Const _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _
-    | Question _
-    | AddrOfLabel _
-    | Real _
-    | Imag _
-    | AddrOf  (Var _,_)
-    | StartOf (Var _,_)
-    | Lval    (Var _,_) -> eq_set e s
-    | AddrOf  (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | StartOf (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | Lval    (Mem e,ofs) ->
-      Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | CastE (t,e) ->
-      Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
+    let r = match e with
+      | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
+        (* convert IndexPI to Index offset *)
+        (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
+        Queries.ES.fold (fun e acc -> (* filter_map *)
+            match e with
+            | CastE (_, StartOf a') -> (* eq_set adds casts *)
+              let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+              Queries.ES.add e' acc
+            | _ -> acc
+          ) (eq_set_clos a s) (Queries.ES.empty ())
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | Const _
+      | AlignOfE _
+      | UnOp _
+      | BinOp _
+      | Question _
+      | AddrOfLabel _
+      | Real _
+      | Imag _
+      | AddrOf  (Var _,_)
+      | StartOf (Var _,_)
+      | Lval    (Var _,_) -> eq_set e s
+      | AddrOf  (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | StartOf (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | Lval    (Mem e,ofs) ->
+        Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | CastE (t,e) ->
+        Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+    in
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    r
 
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
-    | Queries.EqualSet e -> eq_set_clos e ctx.local
+    | Queries.EqualSet e ->
+      let r = eq_set_clos e ctx.local in
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
+      r
     | Queries.Invariant context ->
       let scope = Node.find_fundec ctx.node in
       D.invariant ~scope ctx.local

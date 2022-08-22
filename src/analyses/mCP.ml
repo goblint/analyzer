@@ -10,12 +10,12 @@ module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
-   and module V = DomVariantPrintable (VarListSpec) =
+   and module V = DomVariantSysVar (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
-  module V = DomVariantPrintable (VarListSpec)
+  module V = DomVariantSysVar (VarListSpec)
 
   open List open Obj
   let v_of n v = (n, repr v)
@@ -130,10 +130,6 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
-  let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
-
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -156,10 +152,6 @@ struct
         let a', b = assoc_split_eq eq k xs in
         f ((k,v::a')::a) b
     in f [] xs
-
-  let assoc_sub xs name =
-    let n' = find_id name in
-    assoc n' xs
 
   let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
     let spawn_one v d =
@@ -271,6 +263,13 @@ struct
           f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
         | Queries.PartAccess a ->
           Obj.repr (access ctx a)
+        | Queries.IterSysVars (vq, fi) ->
+          (* IterSysVars is special: argument function is lifted for each analysis *)
+          iter (fun ((n,(module S:MCPSpec),d) as t) ->
+              let fi' x = fi (Obj.repr (v_of n x)) in
+              let q' = Queries.IterSysVars (vq, fi') in
+              f ~q:q' () t
+            ) @@ spec_list ctx.local
         (* | EvalInt e ->
            (* TODO: only query others that actually respond to EvalInt *)
            (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
@@ -311,7 +310,6 @@ struct
     { ctx with
       ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
     ; emit
-    ; presub = assoc_sub ctx.local
     ; spawn
     ; sideg
     }

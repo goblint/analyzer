@@ -12,6 +12,6 @@ struct s {
 int main(void) {
   int *p = s.p;
   __goblint_unknown(&s);
-  assert(*p == 0);
+  __goblint_check(*p == 0);
   return 0;
 }

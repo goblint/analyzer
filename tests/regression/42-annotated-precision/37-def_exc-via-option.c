@@ -8,8 +8,8 @@ int f(int in) {
 
 int main() {
   int a = 0;
-  assert(a); // FAIL!
+  __goblint_check(a); // FAIL!
   a = f(a);
-  assert(a);
+  __goblint_check(a);
   return 0;
 }

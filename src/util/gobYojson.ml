@@ -29,4 +29,4 @@ let print (ch: 'a BatIO.output) json =
   Yojson.Safe.to_output oo json
 
 let pretty () json =
-  Pretty.text (Yojson.Safe.to_string json)
+  GoblintCil.Pretty.text (Yojson.Safe.to_string json)

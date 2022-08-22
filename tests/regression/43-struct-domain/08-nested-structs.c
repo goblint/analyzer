@@ -80,13 +80,13 @@ int example1() {
     typedef int (*fun)(int);
     // if (task.f.id == 1) {
     //     fun f = task.f.ptr;
-    //     assert(f == factorial);
+    //     __goblint_check(f == factorial);
     //     if (task.taskId == 0) {
-    //         assert(task.arg == 3);
+    //         __goblint_check(task.arg == 3);
     //     } else if (task.taskId == 1) {
-    //         assert(task.arg == 5);
+    //         __goblint_check(task.arg == 5);
     //     } else if (task.taskId == 2) {
-    //         assert(task.arg == 10);
+    //         __goblint_check(task.arg == 10);
     //     }
     //     int result = f(task.arg);
     //     printf("Factorial of %d is %d\n", task.arg, result);
@@ -94,25 +94,25 @@ int example1() {
 
     if (task.f.id == 1) {
         fun f = task.f.ptr;
-        assert(f == factorial);
+        __goblint_check(f == factorial);
         if (task.taskId == 0) {
-            assert(task.arg == 3);
+            __goblint_check(task.arg == 3);
         } else if (task.taskId == 1) {
-            assert(task.arg == 5);
+            __goblint_check(task.arg == 5);
         } else if (task.taskId == 2) {
-            assert(task.arg == 10);
+            __goblint_check(task.arg == 10);
         }
         int result = f(task.arg);
         printf("Factorial of %d is %d\n", task.arg, result);
     } else if (task.f.id == 2) {
         fun f = task.f.ptr;
-        assert(f == inverseFactorial);
+        __goblint_check(f == inverseFactorial);
         if (task.taskId == 0) {
-            assert(task.arg == 6);
+            __goblint_check(task.arg == 6);
         } else if (task.taskId == 1) {
-            assert(task.arg == 120);
+            __goblint_check(task.arg == 120);
         } else if (task.taskId == 2) {
-            assert(task.arg == 3628800);
+            __goblint_check(task.arg == 3628800);
         }
         int result = f(task.arg);
         printf("Factorial of %d is %d\n", result, task.arg);
@@ -177,25 +177,25 @@ int example2() {
     typedef int (*fun)(int);
     if (task.f.id == 1) {
         fun f = task.f.ptr;
-        assert(f == factorial);
+        __goblint_check(f == factorial);
         if (task.taskId == 0) {
-            assert(task.arg == 3); // UNKNOWN
+            __goblint_check(task.arg == 3); // UNKNOWN
         } else if (task.taskId == 1) {
-            assert(task.arg == 5); // UNKNOWN
+            __goblint_check(task.arg == 5); // UNKNOWN
         } else if (task.taskId == 2) {
-            assert(task.arg == 10); // UNKNOWN
+            __goblint_check(task.arg == 10); // UNKNOWN
         }
         int result = f(task.arg);
         printf("Factorial of %d is %d\n", task.arg, result);
     } else if (task.f.id == 2) {
         fun f = task.f.ptr;
-        assert(f == inverseFactorial);
+        __goblint_check(f == inverseFactorial);
         if (task.taskId == 0) {
-            assert(task.arg == 6); // UNKNOWN
+            __goblint_check(task.arg == 6); // UNKNOWN
         } else if (task.taskId == 1) {
-            assert(task.arg == 120); // UNKNOWN
+            __goblint_check(task.arg == 120); // UNKNOWN
         } else if (task.taskId == 2) {
-            assert(task.arg == 3628800); // UNKNOWN
+            __goblint_check(task.arg == 3628800); // UNKNOWN
         }
         int result = f(task.arg);
         printf("Factorial of %d is %d\n", result, task.arg);

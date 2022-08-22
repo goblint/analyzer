@@ -1,6 +1,8 @@
 (** Unassume analysis. *)
 open Analyses
 
+module Cil = GoblintCil.Cil
+
 module NH = CfgTools.NH
 module FH = Hashtbl.Make (CilType.Fundec)
 module EH = Hashtbl.Make (CilType.Exp)
@@ -77,6 +79,7 @@ struct
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
 
       let unassume_nodes_invariant ~loc ~nodes inv =
+        let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
 
@@ -85,30 +88,32 @@ struct
 
               match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
-                M.debug ~category:Witness ~loc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
+                M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                 NH.add invs n inv_exp
               | Error e ->
-                M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
-                M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv
+                M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
+                M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
             ) nodes;
 
         | Error e ->
-          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
-          M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv
+          M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
+          M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
       let unassume_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
+        let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt !locator loc with
         | Some nodes ->
           unassume_nodes_invariant ~loc ~nodes inv
         | None ->
-          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
       in
 
       let unassume_precondition_nodes_invariant ~loc ~nodes pre inv =
+        let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs pre, InvariantParser.parse_cabs inv with
         | Ok pre_cabs, Ok inv_cabs ->
 
@@ -117,44 +122,45 @@ struct
 
               match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
               | Ok pre_exp ->
-                M.debug ~category:Witness ~loc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
+                M.debug ~category:Witness ~loc:msgLoc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
                 FH.add fun_pres fundec pre_exp;
 
                 begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                   | Ok inv_exp ->
-                    M.debug ~category:Witness ~loc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
+                    M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
                       NH.replace pre_invs n (EH.create 10);
                     EH.add (NH.find pre_invs n) pre_exp inv_exp
                   | Error e ->
-                    M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
-                    M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv
+                    M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
+                    M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
                 end
 
               | Error e ->
-                M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" pre;
-                M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" pre
+                M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse precondition: %s" pre;
+                M.info ~category:Witness ~loc:msgLoc "precondition has undefined variables or side effects: %s" pre
             ) nodes;
 
         | Error e, _ ->
-          M.error ~category:Witness ~loc "Frontc couldn't parse precondition: %s" pre;
-          M.info ~category:Witness ~loc "precondition has invalid syntax: %s" pre
+          M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse precondition: %s" pre;
+          M.info ~category:Witness ~loc:msgLoc "precondition has invalid syntax: %s" pre
 
         | _, Error e ->
-          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
-          M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv
+          M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
+          M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
       let unassume_precondition_loop_invariant (precondition_loop_invariant: YamlWitnessType.PreconditionLoopInvariant.t) =
         let loc = loc_of_location precondition_loop_invariant.location in
         let pre = precondition_loop_invariant.precondition.string in
         let inv = precondition_loop_invariant.loop_invariant.string in
+        let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt !locator loc with
         | Some nodes ->
           unassume_precondition_nodes_invariant ~loc ~nodes pre inv
         | None ->
-          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
       in
 
       match entry.entry_type with

@@ -14,6 +14,6 @@ main () {
   c.re = 1;
   d = c;
   x = d.im;
-  assert(d.re == 1); //TODO (float)
+  __goblint_check(d.re == 1); //TODO (float)
   printf("%d\n",x);
 }

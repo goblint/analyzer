@@ -1,3 +1,5 @@
+module Pretty = GoblintCil.Pretty
+
 open GobConfig
 module GU = Goblintutil
 
@@ -37,10 +39,27 @@ struct
     | _ -> Result.Error "Messages.Severity.of_yojson"
 end
 
+module Location =
+struct
+  type t =
+    | Node of Node0.t (** Location identified by a node. Strongly preferred, because output location updates incrementally. *)
+    | CilLocation of CilType.Location.t (** Location identified by a literal CIL location. Strongly discouraged, because not updated incrementally. *)
+  [@@deriving eq, ord, hash]
+
+  let to_cil = function
+    | Node node -> UpdateCil0.getLoc node (* use incrementally updated location *)
+    | CilLocation loc -> loc
+
+  let to_yojson x = CilType.Location.to_yojson (to_cil x)
+  let of_yojson x =
+    CilType.Location.of_yojson x
+    |> BatResult.map (fun loc -> CilLocation loc)
+end
+
 module Piece =
 struct
   type t = {
-    loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
+    loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq, ord, hash, yojson]
@@ -133,9 +152,12 @@ struct
 
   let mem = MH.mem messages_table
 
+  let add_hook: (Message.t -> unit) ref = ref (fun _ -> ())
+
   let add m =
     MH.replace messages_table m ();
-    messages_list := m :: !messages_list
+    messages_list := m :: !messages_list;
+    !add_hook m
 
   let to_list () =
     List.rev !messages_list (* reverse to get in addition order *)
@@ -170,9 +192,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_piece ppf piece =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
-    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.loc)
   in
-  let pp_quote ppf (loc: Cil.location) =
+  let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
     BatEnum.drop (loc.line - 1) lines;
     let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
@@ -198,7 +220,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_piece ppf piece =
     if get_bool "warn.quote-code" then (
       let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
-      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote piece.loc
+      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote (Option.map Location.to_cil piece.loc)
     )
     else
       pp_piece ppf piece
@@ -230,10 +252,14 @@ let msg_context () =
   else
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let msg severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = msg_context ()}}
+    let loc = match loc with
+      | Some node -> Some node
+      | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
+    in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 

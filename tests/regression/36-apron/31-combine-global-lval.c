@@ -16,8 +16,8 @@ int main(void) {
     g = f(r);
     h = r;
 
-    assert(g < h);
-    assert(h - g == 2);
+    __goblint_check(g < h);
+    __goblint_check(h - g == 2);
   }
   return 0;
 }

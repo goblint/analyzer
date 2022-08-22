@@ -1,4 +1,5 @@
 open Prelude
+open GoblintCil
 open PrecCompareUtil
 
 module LV =

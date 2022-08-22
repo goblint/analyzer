@@ -22,7 +22,11 @@ struct
   module D = ApronComponents (AD) (Priv.D)
   module G = Priv.G
   module C = D
-  module V = Priv.V
+  module V =
+  struct
+    include Priv.V
+    include StdV
+  end
 
   open AD
   open (ApronDomain: (sig module V: (module type of ApronDomain.V) end)) (* open only V from ApronDomain (to shadow V of Spec), but don't open D (to not shadow D here) *)
@@ -400,16 +404,26 @@ struct
         invalidate_one ask ctx st lval
       ) st rs
 
+  let assert_fn ctx e refine =
+    if not refine then
+      ctx.local
+    else
+      (* copied from branch *)
+      let st = ctx.local in
+      let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
+          (* not an assign, but must remove g#in-s still *)
+          AD.assert_inv apr' e' false
+        )
+      in
+      if AD.is_bot_env res then raise Deadcode;
+      {st with apr = res}
+
   let special ctx r f args =
     let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Assert expression, _ -> st
-    | Unknown, "__goblint_check" -> st
-    | Unknown, "__goblint_commit" -> st
-    | Unknown, "__goblint_assert" -> st
+    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)
@@ -419,6 +433,19 @@ struct
         | Some lv -> invalidate_one ask ctx st' lv
         | None -> st'
       )
+    | ThreadExit _, _ ->
+      begin match ThreadId.get_current ask with
+        | `Lifted tid ->
+          (* value returned from the thread is not used in thread_join or any Priv.thread_join, *)
+          (* thus no handling like for returning from functions required *)
+          ignore @@ Priv.thread_return ask ctx.global ctx.sideg tid st;
+          raise Deadcode
+        | _ ->
+          raise Deadcode
+      end
+    | Unknown, "__goblint_assume_join" ->
+      let id = List.hd args in
+      Priv.thread_join ~force:true ask ctx.global id st
     | _, _ ->
       let lvallist e =
         let s = ask.f (Queries.MayPointTo e) in
@@ -495,6 +522,9 @@ struct
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
+    | Queries.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr x) in
+      Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context ->
       query_invariant ctx context
     | _ -> Result.top q

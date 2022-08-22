@@ -7,7 +7,7 @@ int main()
   int* pn = &n;
   int* t = pn;
   f(&pn);
-  assert(n); // UNKNOWN!
-  assert(pn == t);
+  __goblint_check(n); // UNKNOWN!
+  __goblint_check(pn == t);
   return 0;
 }
