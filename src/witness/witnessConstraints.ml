@@ -141,8 +141,9 @@ struct
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
     let h x (xs, sync) =
-      let x' = g (f (conv ctx x)) in
-      try (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+      try
+        let x' = g (f (conv ctx x)) in
+        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (xs, sync)
     in
     let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
@@ -260,8 +261,9 @@ struct
         else
           step_ctx_edge ctx cd
       in
-      let x' = Spec.combine (conv ctx cd) l fe f a fc x in
-      try (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
+      try
+        let x' = Spec.combine (conv ctx cd) l fe f a fc x in
+        (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
