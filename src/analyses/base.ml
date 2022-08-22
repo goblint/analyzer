@@ -2080,8 +2080,10 @@ struct
     in
     if eval_bool exp st = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
     else
+      (* C11 6.5.13, 6.5.14, 6.5.3.3: LAnd, LOr and LNot also return 0 or 1 *)
       let is_cmp = function
-        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
+        | UnOp (LNot, _, _)
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
         | _ -> false
       in
       try
