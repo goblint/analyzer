@@ -18,8 +18,8 @@ void foo() {
     h = 4;
   }
 
-  assert(h < g);
-  assert(g - h == 2);
+  __goblint_check(h < g);
+  __goblint_check(g - h == 2);
   // return state should contain globals
 }
 
@@ -35,12 +35,12 @@ int main(void) {
     h = 6;
   }
 
-  assert(g < h);
-  assert(h - g == 2);
+  __goblint_check(g < h);
+  __goblint_check(h - g == 2);
 
   foo(); // combine should use globals from function, not go to bottom due to contradiction with local
 
-  assert(h < g);
-  assert(g - h == 2);
+  __goblint_check(h < g);
+  __goblint_check(g - h == 2);
   return 0;
 }

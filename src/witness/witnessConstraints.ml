@@ -165,8 +165,6 @@ struct
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
   let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot ())
 
-  let call_descr = Spec.call_descr
-
   let context fd (l, _) =
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."

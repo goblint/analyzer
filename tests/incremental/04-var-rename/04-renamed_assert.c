@@ -2,8 +2,8 @@
 
 int main() {
     int myVar = 0;
-    
-    assert(myVar < 11);
+
+    __goblint_check(myVar < 11);
 
     return 0;
 }

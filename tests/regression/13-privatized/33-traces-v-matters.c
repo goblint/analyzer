@@ -26,6 +26,6 @@ int main(void) {
   g = 2;
   pthread_mutex_unlock(&C);
   pthread_mutex_lock(&E);
-  assert(g == 2); // TODO
+  __goblint_check(g == 2); // TODO
   return 0;
 }

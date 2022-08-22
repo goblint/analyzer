@@ -13,37 +13,37 @@ int main () {
 
   // check that function calls don't destroy the local state
   f();
-  assert(i == 3);
+  __goblint_check(i == 3);
 
   //check parameter passing
   i = add1(5);
-  assert(i == 6);
+  __goblint_check(i == 6);
 
   i = add1(17);
-  assert(i == 18);
+  __goblint_check(i == 18);
 
   // Check some more...
   // How many different states are analyzed?
   i = add(6,4);
-  assert(i == 10);
+  __goblint_check(i == 10);
 
   i = add(3,8);
-  assert(i == 11);
+  __goblint_check(i == 11);
 
   i = add(6,4);
-  assert(i == 10);
+  __goblint_check(i == 10);
 
   i = add(3,8);
-  assert(i == 11);
+  __goblint_check(i == 11);
 
   // Check on global variables
   g_inc();
-  assert(glob == 1);
+  __goblint_check(glob == 1);
   g_inc();
-  assert(glob == 2);
+  __goblint_check(glob == 2);
   glob=0;
   g_inc();
-  assert(glob == 1);
+  __goblint_check(glob == 1);
 
   return 0;
 }

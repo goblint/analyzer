@@ -8,7 +8,7 @@ int main() {
     *y = a;
 
     signed char *z = y;
-    assert(*z == -56);
+    __goblint_check(*z == -56);
 
     // Two
     signed char* s = malloc(10*sizeof(signed char));

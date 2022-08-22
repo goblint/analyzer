@@ -12,7 +12,7 @@ int main() {
     }
     else {
         // realnode finds this as immediate successor of entry, so problem is avoided
-        assert(1); // must be reachable
+        __goblint_check(1); // must be reachable
     }
     return 0;
 }

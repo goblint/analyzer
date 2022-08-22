@@ -4,11 +4,11 @@
  int main() {
 -    int varSecondIteration = 0;
 +    int varThirdIteration = 0;
-     
+
 -    varSecondIteration++;
 +    varThirdIteration++;
-     
--    assert(varSecondIteration < 10);
-+    assert(varThirdIteration < 10);
+
+-    __goblint_check(varSecondIteration < 10);
++    __goblint_check(varThirdIteration < 10);
      return 0;
  }

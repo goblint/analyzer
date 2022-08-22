@@ -1,0 +1,6 @@
+--- tests/incremental/11-restart/00-justglob.c
++++ tests/incremental/11-restart/00-justglob.c
+@@ -1,2 +1,2 @@
+-int max_domains = 0;
++int max_domains = 4;
+ int main() {}

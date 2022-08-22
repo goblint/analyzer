@@ -1,3 +1,7 @@
 #ifndef GOBLINT_NO_ASSERT
-    void assert(int expression);
+
+void __goblint_assert(int expression);
+#undef assert
+#define assert(expression) __goblint_assert(expression)
+
 #endif

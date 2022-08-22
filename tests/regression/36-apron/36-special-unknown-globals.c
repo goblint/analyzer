@@ -16,9 +16,9 @@ void main() {
     g = r;
     h = r + 1;
 
-    assert(g < h);
+    __goblint_check(g < h);
     magic(); // invalidates (forgets) globals
-    assert(g < h); // UNKNOWN!
-    assert(x == r); // shouldn't forget locals
+    __goblint_check(g < h); // UNKNOWN!
+    __goblint_check(x == r); // shouldn't forget locals
   }
 }

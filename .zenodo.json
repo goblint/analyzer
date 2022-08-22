@@ -1,0 +1,59 @@
+{
+  "upload_type": "software",
+  "title": "Goblint",
+  "description": "Static analysis framework for C",
+  "creators": [
+    {
+      "name": "Saan, Simmo",
+      "affiliation": "University of Tartu",
+      "orcid": "0000-0003-4553-1350"
+    },
+    {
+      "name": "Schwarz, Michael",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Erhard, Julian",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Tilscher, Sarah",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Vogler, Ralf",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Apinis, Kalmer",
+      "affiliation": "University of Tartu"
+    },
+    {
+      "name": "Vojdani, Vesal",
+      "affiliation": "University of Tartu"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Seidl, Helmut",
+      "type": "ProjectLeader",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Schwarz, Martin D.",
+      "type": "ProjectMember",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Herz, Alexander",
+      "type": "ProjectMember",
+      "affiliation": "Technische Universität München"
+    },
+    {
+      "name": "Zuzic, Ivana",
+      "type": "ProjectMember",
+      "affiliation": "Technische Universität München"
+    }
+  ],
+  "license": "MIT"
+}

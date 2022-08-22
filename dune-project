@@ -16,8 +16,8 @@
 (source (github goblint/analyzer))
 (homepage "https://goblint.in.tum.de")
 (documentation "https://goblint.readthedocs.io/en/latest/")
-(authors "Vesal Vojdani" "Kalmer Apinis" "Ralf Vogler" "Michael Schwarz" "Julian Erhard" "Simmo Saan") ; TODO: same authors as in CITATION.cff (for future releases)
-(maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
+(authors "Simmo Saan" "Michael Schwarz" "Julian Erhard" "Sarah Tilscher" "Ralf Vogler" "Kalmer Apinis" "Vesal Vojdani" ) ; same authors as in .zenodo.json and CITATION.cff
+(maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>")
 (license MIT)
 
 (package
@@ -26,17 +26,15 @@
   (depends
     (ocaml (>= 4.10))
     (dune (>= 2.9.1)) ; explicit lower bound needed for opam install (https://github.com/ocaml/dune/pull/4806), (lang dune 2.9.1) doesn't do this
-    (goblint-cil (>= 1.8.2)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
+    (goblint-cil (>= 2.0.0)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
     (batteries (>= 3.4.0))
     (zarith (>= 1.8))
     (yojson (>= 2.0.0))
     qcheck-core
-    (ppx_distr_guards (>= 0.2))
     ppx_deriving
     ppx_deriving_hash
-    ppx_deriving_yojson
+    (ppx_deriving_yojson (>= 3.7.0))
     (ppx_blob (>= 0.6.0))
-    (ocaml-monadic (>= 0.5))
     (ounit2 :with-test)
     (qcheck-ounit :with-test)
     (odoc :with-doc)
@@ -52,10 +50,14 @@
     (conf-gmp (>= 3)) ; only needed transitively, but they don't have lower bound, which is needed on MacOS
     (conf-ruby :with-test)
     (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
+    conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
   )
   (depopts
     apron
     z3
   )
-  (sites (share includes))
+  (conflicts
+    (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
+  )
+  (sites (share includes) (share conf))
 )
