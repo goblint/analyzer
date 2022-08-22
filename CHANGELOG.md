@@ -1,3 +1,6 @@
+## v2.0.1
+* Fix compilation with z3.
+
 ## v2.0.0
 Goblint "lean" release after a lot of cleanup.
 
