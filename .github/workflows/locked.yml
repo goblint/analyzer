@@ -101,7 +101,7 @@ jobs:
         run: ./make.sh nat
 
       - name: Test extraction
-        run: cd tests/extraction && ./test.sh
+        run: opam exec -- dune runtest tests/extraction
 
 
   gobview:
