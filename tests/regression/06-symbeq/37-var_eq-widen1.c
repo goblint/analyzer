@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] var_eq
+// PARAM: --set ana.activated[+] var_eq
 // manually minimized from sv-benchmarks/c/ldv-linux-3.16-rc1/205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--usb--cx82310_eth.ko-entry_point.cil.out.i
 // used to call widen incorrectly
 typedef _Bool bool;
