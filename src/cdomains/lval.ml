@@ -309,6 +309,15 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
+(** Lvalue lattice.
+
+    Actually a disjoint union of lattices without top or bottom.
+    Lvalues are grouped as follows:
+
+    - Each {!Addr}, modulo precise index expressions in offset, is a sublattice with ordering induced by {!Offset}.
+    - {!NullPtr} is a singleton sublattice.
+    - {!UnknownPtr} is a singleton sublattice.
+    - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
 module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
@@ -370,6 +379,29 @@ struct
   include Lattice.NoBotTop
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IntDomain.Z) =
+struct
+  include NormalLat (Idx)
+
+  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    include Normal (Idx)
+    type elt = t
+
+    let rec of_elt_offset: Offs.t -> Offs.t =
+      function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) -> `Field (f, of_elt_offset o)
+      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* all indices to same bucket *)
+    let of_elt = function
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
+      | a -> a (* everything else is kept separate, including strings if not limited *)
+  end
 end
 
 module Fields =

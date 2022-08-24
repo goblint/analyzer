@@ -21,27 +21,12 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
-  module Addr = Lval.NormalLat (Idx)
-  module R =
-  struct
-    include Addr
-    type elt = Addr.t
-
-    let rec of_elt_offset: Offs.t -> Offs.t =
-      function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* all indices to same bucket *)
-    let of_elt = function
-      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
-      | a -> a (* everything else is kept separate, including strings if not limited *)
-  end
+  module Addr = Lval.NormalLatRepr (Idx)
   module J = SetDomain.Joined (Addr)
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include DisjointDomain.ProjectiveSet (Addr) (J) (R)
+  include DisjointDomain.ProjectiveSet (Addr) (J) (Addr.R)
 
   (* short-circuit with physical equality,
      makes a different at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
