@@ -211,37 +211,40 @@ struct
     in
 
     let local_lvals n local =
-      (* TODO: make MayAccessed optional *)
-      match Query.ask_local_node gh n local MayAccessed with
-      | `Top ->
-        CilLval.Set.top ()
-      | (`Lifted _) as es ->
-        let lvals = AccessDomain.EventSet.fold (fun e lvals ->
-            match e with
-            | {var_opt = Some var; kind = Write} ->
-              CilLval.Set.add (Cil.var var) lvals
-            | _ ->
-              lvals
-          ) es (CilLval.Set.empty ())
-        in
-        let lvals =
-          Cfg.next n
-          |> BatList.enum
-          |> BatEnum.filter_map (fun (_, next_n) ->
-              let next_local = NH.find nh next_n in
-              match Query.ask_local_node gh next_n next_local MayAccessed with
-              | `Top -> None
-              | `Lifted _ as es -> Some es)
-          |> BatEnum.reduce AccessDomain.EventSet.union
-          |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
+      if GobConfig.get_bool "witness.invariant.accessed" then (
+        match Query.ask_local_node gh n local MayAccessed with
+        | `Top ->
+          CilLval.Set.top ()
+        | (`Lifted _) as es ->
+          let lvals = AccessDomain.EventSet.fold (fun e lvals ->
               match e with
-              | {var_opt = Some var; kind = Read} ->
+              | {var_opt = Some var; kind = Write} ->
                 CilLval.Set.add (Cil.var var) lvals
               | _ ->
                 lvals
-            ) es lvals
-        in
-        lvals
+            ) es (CilLval.Set.empty ())
+          in
+          let lvals =
+            Cfg.next n
+            |> BatList.enum
+            |> BatEnum.filter_map (fun (_, next_n) ->
+                let next_local = NH.find nh next_n in
+                match Query.ask_local_node gh next_n next_local MayAccessed with
+                | `Top -> None
+                | `Lifted _ as es -> Some es)
+            |> BatEnum.reduce AccessDomain.EventSet.union
+            |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
+                match e with
+                | {var_opt = Some var; kind = Read} ->
+                  CilLval.Set.add (Cil.var var) lvals
+                | _ ->
+                  lvals
+              ) es lvals
+          in
+          lvals
+      )
+      else
+        CilLval.Set.top ()
     in
 
     (* Generate location invariants (wihtout precondition) *)

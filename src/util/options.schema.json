@@ -1992,6 +1992,12 @@
               "type": "boolean",
               "default": true
             },
+            "accessed": {
+              "title": "witness.invariant.accessed",
+              "description": "Only emit invariants for locally accessed variables",
+              "type": "boolean",
+              "default": true
+            },
             "full": {
               "title": "witness.invariant.full",
               "description":
