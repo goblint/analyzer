@@ -33,10 +33,8 @@ struct
   let test_bool _ =
     assert_equal (Some true ) (I.to_bool ione);
     assert_equal (Some false) (I.to_bool izero);
-    assert_bool "0 isn't bool" (I.is_bool izero);
-    assert_bool "1 isn't bool" (I.is_bool ione);
-    assert_bool "true isn't bool" (I.is_bool itrue);
-    assert_bool "false isn't bool" (I.is_bool ifalse);
+    assert_equal (Some true ) (I.to_bool itrue);
+    assert_equal (Some false) (I.to_bool ifalse);
     assert_equal ~printer:I.show itrue  (I.lt ione  itwo);
     assert_equal ~printer:I.show ifalse (I.gt ione  itwo);
     assert_equal ~printer:I.show itrue  (I.le ione  ione);
