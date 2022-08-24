@@ -213,48 +213,22 @@ struct
     (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
-        if is_invariant_node n then begin
-          (* TODO: deduplicate *)
+        if is_invariant_node n then (
           (* TODO: make MayAccessed optional *)
           (* TODO: also for precondition invariants *)
-          begin match Query.ask_local_node gh n local MayAccessed with
+          let lvals = match Query.ask_local_node gh n local MayAccessed with
             | `Top ->
-              begin match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
-                | `Lifted inv ->
-                  let invs = WitnessUtil.InvariantExp.process_exp inv in
-                  List.fold_left (fun acc inv ->
-                      let location_function = (Node.find_fundec n).svar.vname in
-                      let location = Entry.location ~location:loc ~location_function in
-                      let invariant = Entry.invariant (CilType.Exp.show inv) in
-                      let entry = Entry.loop_invariant ~task ~location ~invariant in
-                      entry :: acc
-                    ) acc invs
-                | `Bot | `Top -> (* TODO: 0 for bot? *)
-                  acc
-              end
+              CilLval.Set.top ()
             | (`Lifted _) as es ->
-              let acc = AccessDomain.EventSet.fold (fun e acc ->
+              let lvals = AccessDomain.EventSet.fold (fun e lvals ->
                   match e with
                   | {var_opt = Some var; kind = Write} ->
-                    let context = {Invariant.default_context with lvals = CilLval.Set.singleton (Cil.var var)} in
-                    begin match Query.ask_local_node gh n local (Invariant context) with
-                      | `Lifted inv ->
-                        let invs = WitnessUtil.InvariantExp.process_exp inv in
-                        List.fold_left (fun acc inv ->
-                            let location_function = (Node.find_fundec n).svar.vname in
-                            let location = Entry.location ~location:loc ~location_function in
-                            let invariant = Entry.invariant (CilType.Exp.show inv) in
-                            let entry = Entry.loop_invariant ~task ~location ~invariant in
-                            entry :: acc
-                          ) acc invs
-                      | `Bot | `Top -> (* TODO: 0 for bot? *)
-                        acc
-                    end
+                    CilLval.Set.add (Cil.var var) lvals
                   | _ ->
-                    acc
-                ) es acc
+                    lvals
+                ) es (CilLval.Set.empty ())
               in
-              let acc =
+              let lvals =
                 Cfg.next n
                 |> BatList.enum
                 |> BatEnum.filter_map (fun (_, next_n) ->
@@ -263,32 +237,31 @@ struct
                     | `Top -> None
                     | `Lifted _ as es -> Some es)
                 |> BatEnum.reduce AccessDomain.EventSet.union
-                |> fun es -> AccessDomain.EventSet.fold (fun e acc ->
+                |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                     match e with
                     | {var_opt = Some var; kind = Read} ->
-                      let context = {Invariant.default_context with lvals = CilLval.Set.singleton (Cil.var var)} in
-                      begin match Query.ask_local_node gh n local (Invariant context) with
-                        | `Lifted inv ->
-                          let invs = WitnessUtil.InvariantExp.process_exp inv in
-                          List.fold_left (fun acc inv ->
-                              let location_function = (Node.find_fundec n).svar.vname in
-                              let location = Entry.location ~location:loc ~location_function in
-                              let invariant = Entry.invariant (CilType.Exp.show inv) in
-                              let entry = Entry.loop_invariant ~task ~location ~invariant in
-                              entry :: acc
-                            ) acc invs
-                        | `Bot | `Top -> (* TODO: 0 for bot? *)
-                          acc
-                      end
+                      CilLval.Set.add (Cil.var var) lvals
                     | _ ->
-                      acc
-                  ) es acc
+                      lvals
+                  ) es lvals
               in
-              acc
-          end
-        end else begin
+              lvals
+          in
+          match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+          | `Lifted inv ->
+            let invs = WitnessUtil.InvariantExp.process_exp inv in
+            List.fold_left (fun acc inv ->
+                let location_function = (Node.find_fundec n).svar.vname in
+                let location = Entry.location ~location:loc ~location_function in
+                let invariant = Entry.invariant (CilType.Exp.show inv) in
+                let entry = Entry.loop_invariant ~task ~location ~invariant in
+                entry :: acc
+              ) acc invs
+          | `Bot | `Top -> (* TODO: 0 for bot? *)
+            acc
+        )
+        else
           acc
-        end
       ) nh []
     in
 
