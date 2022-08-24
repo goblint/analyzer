@@ -210,43 +210,45 @@ struct
         false
     in
 
+    let local_lvals n local =
+      (* TODO: make MayAccessed optional *)
+      match Query.ask_local_node gh n local MayAccessed with
+      | `Top ->
+        CilLval.Set.top ()
+      | (`Lifted _) as es ->
+        let lvals = AccessDomain.EventSet.fold (fun e lvals ->
+            match e with
+            | {var_opt = Some var; kind = Write} ->
+              CilLval.Set.add (Cil.var var) lvals
+            | _ ->
+              lvals
+          ) es (CilLval.Set.empty ())
+        in
+        let lvals =
+          Cfg.next n
+          |> BatList.enum
+          |> BatEnum.filter_map (fun (_, next_n) ->
+              let next_local = NH.find nh next_n in
+              match Query.ask_local_node gh next_n next_local MayAccessed with
+              | `Top -> None
+              | `Lifted _ as es -> Some es)
+          |> BatEnum.reduce AccessDomain.EventSet.union
+          |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
+              match e with
+              | {var_opt = Some var; kind = Read} ->
+                CilLval.Set.add (Cil.var var) lvals
+              | _ ->
+                lvals
+            ) es lvals
+        in
+        lvals
+    in
+
     (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         if is_invariant_node n then (
-          (* TODO: make MayAccessed optional *)
-          (* TODO: also for precondition invariants *)
-          let lvals = match Query.ask_local_node gh n local MayAccessed with
-            | `Top ->
-              CilLval.Set.top ()
-            | (`Lifted _) as es ->
-              let lvals = AccessDomain.EventSet.fold (fun e lvals ->
-                  match e with
-                  | {var_opt = Some var; kind = Write} ->
-                    CilLval.Set.add (Cil.var var) lvals
-                  | _ ->
-                    lvals
-                ) es (CilLval.Set.empty ())
-              in
-              let lvals =
-                Cfg.next n
-                |> BatList.enum
-                |> BatEnum.filter_map (fun (_, next_n) ->
-                    let next_local = NH.find nh next_n in
-                    match Query.ask_local_node gh next_n next_local MayAccessed with
-                    | `Top -> None
-                    | `Lifted _ as es -> Some es)
-                |> BatEnum.reduce AccessDomain.EventSet.union
-                |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
-                    match e with
-                    | {var_opt = Some var; kind = Read} ->
-                      CilLval.Set.add (Cil.var var) lvals
-                    | _ ->
-                      lvals
-                  ) es lvals
-              in
-              lvals
-          in
+          let lvals = local_lvals n local in
           match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
           | `Lifted inv ->
             let invs = WitnessUtil.InvariantExp.process_exp inv in
@@ -317,51 +319,49 @@ struct
 
     (* 3. Generate precondition invariants *)
     let entries = LHT.fold (fun ((n, c) as lvar) local acc ->
-        if is_invariant_node n then begin
+        if is_invariant_node n then (
           let fundec = Node.find_fundec n in
           let pre_lvar = (Node.FunctionEntry fundec, c) in
           let pre_local = LHT.find lh pre_lvar in
           let query = Queries.Invariant Invariant.default_context in
-          begin match Query.ask_local gh pre_lvar pre_local query with
-            | `Lifted c_inv ->
-              let loc = Node.location n in
-              (* Find unknowns for which the preceding start state satisfies the precondtion *)
-              let xs = find_matching_states lvar in
+          match Query.ask_local gh pre_lvar pre_local query with
+          | `Lifted c_inv ->
+            let loc = Node.location n in
+            (* Find unknowns for which the preceding start state satisfies the precondtion *)
+            let xs = find_matching_states lvar in
 
-              (* Generate invariants. Give up in case one invariant could not be generated. *)
-              let invs = GobList.fold_while_some
-                  (fun acc local ->
-                     match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
-                     | `Lifted c -> Some ((`Lifted c)::acc)
-                     | `Bot | `Top -> None)
-                  [] xs
-              in
-              begin match invs with
-                | None
-                | Some [] -> acc
-                | Some (x::xs) ->
-                  begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
-                    | `Lifted inv ->
-                      let invs = WitnessUtil.InvariantExp.process_exp inv in
-                      let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-                      List.fold_left (fun acc inv ->
-                          let location_function = (Node.find_fundec n).svar.vname in
-                          let location = Entry.location ~location:loc ~location_function in
-                          let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                          let invariant = Entry.invariant (CilType.Exp.show inv) in
-                          let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                          entry :: acc
-                        ) acc invs
-                    | `Bot | `Top -> acc
-                  end
-              end
-            | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
-              acc
-          end
-        end else begin
-          (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+            (* Generate invariants. Give up in case one invariant could not be generated. *)
+            let invs = GobList.fold_while_some (fun acc local ->
+                let lvals = local_lvals n local in
+                match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+                | `Lifted c -> Some ((`Lifted c)::acc)
+                | `Bot | `Top -> None
+              ) [] xs
+            in
+            begin match invs with
+              | None
+              | Some [] -> acc
+              | Some (x::xs) ->
+                begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                  | `Lifted inv ->
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                    List.fold_left (fun acc inv ->
+                        let location_function = (Node.find_fundec n).svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                        let invariant = Entry.invariant (CilType.Exp.show inv) in
+                        let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                        entry :: acc
+                      ) acc invs
+                  | `Bot | `Top -> acc
+                end
+            end
+          | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
+            acc
+        )
+        else
           acc
-        end
       ) lh entries
     in
 
