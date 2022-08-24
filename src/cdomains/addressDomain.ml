@@ -100,30 +100,26 @@ struct
   let to_string x = List.filter_map Addr.to_string (elements x)
 
   (* add an & in front of real addresses *)
-  let short_addr a =
-    match Addr.to_var a with
-    | Some _ -> "&" ^ Addr.show a
-    | None -> Addr.show a
+  module ShortAddr =
+  struct
+    include Addr
 
-  let pretty () x =
-    try
-      let content = List.map (fun a -> text (short_addr a)) (elements x) in
-      let rec separate x =
-        match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ (text ", ") :: separate xs
-      in
-      let separated = separate content in
-      let content = List.fold_left (++) nil separated in
-      (text "{") ++ content ++ (text "}")
-    with SetDomain.Unsupported _ -> pretty () x
+    let show a =
+      match Addr.to_var a with
+      | Some _ -> "&" ^ Addr.show a
+      | None -> Addr.show a
 
-  let show x : string =
-    try
-      let all_elems : string list = List.map short_addr (elements x) in
-      Printable.get_short_list "{" "}" all_elems
-    with SetDomain.Unsupported _ -> show x
+    let pretty () a = Pretty.text (show a)
+  end
+
+  include SetDomain.Print (ShortAddr) (
+    struct
+      type nonrec t = t
+      type nonrec elt = elt
+      let elements = elements
+      let iter = iter
+    end
+    )
 
   (*
   let leq = if not fast_addr_sets then leq else fun x y ->
