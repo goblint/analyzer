@@ -427,15 +427,12 @@ struct
                   let x = ask_local lvar d (Queries.EvalInt inv_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     Option.get (VR.result_of_enum (VR.bot ()))
-                  else if Queries.ID.is_bool x then (
-                    let verdict = Option.get (Queries.ID.to_bool x) in
-                    if verdict then
-                      Confirmed
-                    else
-                      Refuted
+                  else (
+                    match Queries.ID.to_bool x with
+                    | Some true -> Confirmed
+                    | Some false -> Refuted
+                    | None -> Unconfirmed
                   )
-                  else
-                    Unconfirmed
                 | Error e ->
                   ParseError
               in
@@ -510,10 +507,11 @@ struct
                   let x = ask_local lvar pre_d (Queries.EvalInt pre_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     true
-                  else if Queries.ID.is_bool x then
-                    Option.get (Queries.ID.to_bool x)
-                  else
-                    false
+                  else (
+                    match Queries.ID.to_bool x with
+                    | Some b -> b
+                    | None -> false
+                  )
                 | Error e ->
                   M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse precondition: %s" inv;
                   M.info ~category:Witness ~loc:msgLoc "precondition has undefined variables or side effects: %s" inv;
