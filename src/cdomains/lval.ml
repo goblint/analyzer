@@ -15,7 +15,7 @@ module type IdxDomain =
 sig
   include Printable.S
   val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
-  val is_int: t -> bool
+  val to_int: t -> IntOps.BigIntOps.t option
 end
 
 module OffsetPrintable (Idx: IdxDomain) =
@@ -73,7 +73,7 @@ struct
   let rec is_definite = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
-    | `Index (i,o) ->  Idx.is_int i && is_definite o
+    | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
 
   (* append offset o2 to o1 *)
   (* TODO: unused *)

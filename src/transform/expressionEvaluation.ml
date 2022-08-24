@@ -130,7 +130,7 @@ struct
         try
           (match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
            (* Evaluable: Definite *)
-           | Some ((`Lifted x') as x) when Queries.ID.is_int x -> Some (Some (not(IntOps.BigIntOps.equal (Option.get @@ Queries.ID.to_int x) IntOps.BigIntOps.zero)))
+           | Some ((`Lifted x') as x) when Queries.ID.to_int x <> None -> Some (Some (not(IntOps.BigIntOps.equal (Option.get @@ Queries.ID.to_int x) IntOps.BigIntOps.zero))) (* TODO: single to_int *)
            (* Inapplicable: Unreachable *)
            | Some x when Queries.ID.is_bot_ikind x -> None
            (* Evaluable: Inconclusive *)

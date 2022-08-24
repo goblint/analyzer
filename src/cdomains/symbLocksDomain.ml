@@ -300,7 +300,7 @@ struct
       )
 
     let equal_to _ _ = `Top
-    let is_int _ = false
+    let to_int _ = None
   end
 
   include Lval.Normal (Idx)

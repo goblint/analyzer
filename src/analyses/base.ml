@@ -887,9 +887,11 @@ struct
             (* get definite ints from vs *)
             let rec to_int_set = function
               | [] -> BISet.empty ()
-              | `Int i :: vs when ID.is_int i ->
-                let i' = Option.get (ID.to_int i) in
-                BISet.add i' (to_int_set vs)
+              | `Int i :: vs ->
+                begin match ID.to_int i with
+                  | Some i' -> BISet.add i' (to_int_set vs)
+                  | None -> to_int_set vs
+                end
               | _ :: vs ->
                 to_int_set vs
             in
@@ -1772,11 +1774,12 @@ struct
         in
         let a''' =
           (* if both b and c are definite, we can get a precise value in the congruence domain *)
-          if ID.is_int b && ID.is_int c then
+          match ID.to_int b, ID.to_int c with
+          | Some b, Some c ->
             (* a%b == c  -> a: c+bℤ *)
-            let t = ID.of_congruence ikind ((BatOption.get @@ ID.to_int c), (BatOption.get @@ ID.to_int b)) in
+            let t = ID.of_congruence ikind (c, b) in
             ID.meet a'' t
-          else a''
+          | _, _ -> a''
         in
         meet_bin a''' b'
       | Eq | Ne as op ->
