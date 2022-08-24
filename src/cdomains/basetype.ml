@@ -1,5 +1,5 @@
 module GU = Goblintutil
-open Cil
+open GoblintCil
 
 
 (** Location with special alphanumeric output for extraction. *)
@@ -77,6 +77,7 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
+  include Printable.Std (* for Groupable *)
   include CilType.Exp
 
   let name () = "expressions"

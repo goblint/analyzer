@@ -11,8 +11,8 @@ void *foo(void* p){
     int* ip = *((int**) p);
     printf("ip is %d\n", *ip);
     // To check that in (01) even without modification both &x and &x2 are possible here
-    assert(*ip == 0); //UNKNOWN!
-    assert(*ip == 35); //UNKNOWN!
+    __goblint_check(*ip == 0); //UNKNOWN!
+    __goblint_check(*ip == 35); //UNKNOWN!
     return NULL;
 }
 

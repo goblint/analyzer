@@ -12,6 +12,6 @@ int main(){
       counter++;
       tmp = 2;
     }
-    assert(counter == 10);
+    __goblint_check(counter == 10);
     counter = (unsigned char)216;
 }

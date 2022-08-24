@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --disable ana.context.widen
+// PARAM: --enable ana.int.interval --disable ana.context.widen
 #include <assert.h>
 
 int f(int x) __attribute__((goblint_context("widen"))); // attributes are not permitted in a function definition
@@ -11,6 +11,6 @@ int f(int x) {
 
 int main () {
   int a = f(1);
-  assert(!a);
+  __goblint_check(!a);
   return 0;
 }

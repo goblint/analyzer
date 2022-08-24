@@ -1,4 +1,6 @@
 //PARAM: --enable ana.int.interval
+#include <assert.h>
+
 extern int printf();
 
 void add (int *a, int *b) {
@@ -23,6 +25,6 @@ main () {
   while (i < 11)
     a(&sum, &i);
 
-  assert(i == 11);
+  __goblint_check(i == 11);
   printf("%d\n", sum);
 }

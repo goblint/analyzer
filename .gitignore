@@ -22,6 +22,7 @@ doclist.odocl
 autom4te.cache
 mytests
 result/*
+pml-result/*
 tests/regression/*/goblint_temp
 linux-headers
 
@@ -82,3 +83,7 @@ dune-workspace
 # gobview
 run/
 gobview_out/*
+
+# witnesses
+witness.yml
+witness.certificate.yml

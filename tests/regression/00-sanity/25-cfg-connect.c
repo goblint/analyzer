@@ -1,3 +1,5 @@
+#include <assert.h>
+
 int main()
 {
   // non-deterministically make all variants live
@@ -39,7 +41,7 @@ int main()
 void single()
 {
   while (1)
-    assert(1);
+    __goblint_check(1);
 }
 
 void sequential_last()
@@ -49,16 +51,16 @@ void sequential_last()
     i++;
 
   while (1)
-    assert(1);
+    __goblint_check(1);
 }
 
 void sequential_both()
 {
   while (1)
-    assert(1);
+    __goblint_check(1);
 
   while (1)
-    assert(1); // NOWARN (unreachable)
+    __goblint_check(1); // NOWARN (unreachable)
 }
 
 void branch_one()
@@ -73,7 +75,7 @@ void branch_one()
   else
   {
     while (1)
-      assert(1);
+      __goblint_check(1);
   }
 }
 
@@ -83,12 +85,12 @@ void branch_both()
   if (r)
   {
     while (1)
-      assert(1);
+      __goblint_check(1);
   }
   else
   {
     while (1)
-      assert(1);
+      __goblint_check(1);
   }
 }
 
@@ -108,7 +110,7 @@ void nested_inner()
   while (i < 10)
   {
     while (1)
-      assert(1);
+      __goblint_check(1);
     i++;
   }
 }
@@ -118,7 +120,7 @@ void nested_both()
   while (1)
   {
     while (1)
-      assert(1);
+      __goblint_check(1);
   }
 }
 
@@ -131,7 +133,7 @@ void nested_both_switch()
     {
     case 0:
       while (1)
-        assert(1);
+        __goblint_check(1);
     }
   }
 }

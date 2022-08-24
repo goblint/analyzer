@@ -144,7 +144,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let m = if f.svar.vname <> "main" then
         (* push current location onto stack *)
-        D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
+        D.edit_callstack (BatList.cons (Option.get !Node.current_node)) ctx.local
       else ctx.local in
     (* we need to remove all variables that are neither globals nor special variables from the domain for f *)
     (* problem: we need to be able to check aliases of globals in check_overwrite_open -> keep those in too :/ *)
@@ -192,7 +192,7 @@ struct
     (* is f a pointer to a function we look out for? *)
     let f = eval_fv (Analyses.ask_of_ctx ctx) (Lval (Var f, NoOffset)) |? f in
     let m = ctx.local in
-    let loc = !Tracing.current_loc::(D.callstack m) in
+    let loc = (Option.get !Node.current_node)::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let split_err_branch lval dom =
       (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType -> no difference *)

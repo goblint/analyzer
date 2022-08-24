@@ -1,4 +1,4 @@
-open Pretty
+open GoblintCil.Pretty
 
 module Event =
 struct

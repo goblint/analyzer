@@ -28,6 +28,7 @@ type category =
   | Assert
   | Behavior of behavior
   | Integer of integer
+  | Float
   | Race
   | Deadlock
   | Cast of cast
@@ -167,6 +168,7 @@ let should_warn e =
     | Assert -> "assert"
     | Behavior _ -> "behavior"
     | Integer _ -> "integer"
+    | Float -> "float"
     | Race -> "race"
     | Deadlock -> "deadlock"
     | Cast _ -> "cast"
@@ -177,6 +179,7 @@ let should_warn e =
     | Imprecise -> "imprecise"
     | Witness -> "witness"
     | Program -> "program"
+    (* Don't forget to add option to schema! *)
   in get_bool ("warn." ^ (to_string e))
 
 let path_show e =
@@ -184,6 +187,7 @@ let path_show e =
   | Assert -> ["Assert"]
   | Behavior x -> "Behavior" :: Behavior.path_show x
   | Integer x -> "Integer" :: Integer.path_show x
+  | Float -> ["Float"]
   | Race -> ["Race"]
   | Deadlock -> ["Deadlock"]
   | Cast x -> "Cast" :: Cast.path_show x
@@ -223,9 +227,10 @@ let categoryName = function
   | Program -> "Program"
 
   | Behavior x -> behaviorName x
-  | Integer x -> match x with
+  | Integer x -> (match x with
     | Overflow -> "Overflow";
-    | DivByZero -> "DivByZero"
+    | DivByZero -> "DivByZero")
+  | Float -> "Float"
 
 
 let from_string_list (s: string list) =

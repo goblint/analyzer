@@ -1,5 +1,6 @@
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
+open GoblintCil
 
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
@@ -275,7 +276,7 @@ sig
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
@@ -304,7 +305,7 @@ sig
 
   val is_top_of: Cil.ikind -> t -> bool
 
-  val project: PrecisionUtil.precision -> t -> t
+  val project: PrecisionUtil.int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
 end
 (** The signature of integral value domains keeping track of ikind information *)

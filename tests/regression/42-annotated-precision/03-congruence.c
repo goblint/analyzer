@@ -12,9 +12,9 @@ int f(int in) {
 int main() {
   int a = 0;
   int b = f(a);
-  assert(b);
+  __goblint_check(b);
   a = b % 2;
   b = f(a);
-  assert(b == 2);
+  __goblint_check(b == 2);
   return 0;
 }

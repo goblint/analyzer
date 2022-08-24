@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 open Pretty
 (* A binding to a selection of Apron-Domains *)
 open Apron

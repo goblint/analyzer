@@ -1,7 +1,7 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
 open Prelude
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 
@@ -12,9 +12,16 @@ module M  = Messages
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
 
+module type SysVar =
+sig
+  type t
+  val is_write_only: t -> bool
+end
+
 module type VarType =
 sig
   include Hashtbl.HashedType
+  include SysVar with type t := t
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
 
@@ -46,6 +53,7 @@ struct
 
   let pretty_trace () ((n,c) as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
     else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
@@ -56,15 +64,59 @@ struct
 
   let var_id (n,_) = Var.var_id n
   let node (n,_) = n
+  let is_write_only _ = false
 end
 
-module GVarF (V: Printable.S) =
+module type SpecSysVar =
+sig
+  include Printable.S
+  include SysVar with type t := t
+end
+
+module GVarF (V: SpecSysVar) =
 struct
-  include V
+  include Printable.Either (V) (CilType.Fundec)
+  let spec x = `Left x
+  let contexts x = `Right x
+
   (* from Basetype.Variables *)
-  let var_id _ = "globals"
+  let var_id = show
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
+end
+
+module GVarG (G: Lattice.S) (C: Printable.S) =
+struct
+  module CSet =
+  struct
+    include SetDomain.Make (
+      struct
+        include C
+        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+      end
+      )
+  end
+
+  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVarG.spec"
+  let contexts = function
+    | `Bot -> CSet.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVarG.contexts"
+  let create_spec spec = `Lifted1 spec
+  let create_contexts contexts = `Lifted2 contexts
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
 
@@ -157,7 +209,8 @@ struct
   let printXmlWarning f () =
     let one_text f Messages.Piece.{loc; text = m; _} =
       match loc with
-      | Some l ->
+      | Some loc ->
+        let l = Messages.Location.to_cil loc in
         BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
       | None ->
         () (* TODO: not outputting warning without location *)
@@ -269,6 +322,63 @@ struct
 end
 
 
+(** Reference to top-level Control Spec context first-class module. *)
+let control_spec_c: (module Printable.S) ref =
+  let module Failwith = Printable.Failwith (
+    struct
+      let message = "uninitialized control_spec_c"
+    end
+    )
+  in
+  ref (module Failwith: Printable.S)
+
+(** Top-level Control Spec context as static module, which delegates to {!control_spec_c}.
+    This allows using top-level context values inside individual analyses. *)
+module ControlSpecC: Printable.S =
+struct
+  type t = Obj.t (** represents [(val !control_spec_c).t] *)
+
+  (* The extra level of indirection allows calls to this static module to go to a dynamic first-class module. *)
+
+  let name () =
+    let module C = (val !control_spec_c) in
+    C.name ()
+
+  let equal x y =
+    let module C = (val !control_spec_c) in
+    C.equal (Obj.obj x) (Obj.obj y)
+  let compare x y =
+    let module C = (val !control_spec_c) in
+    C.compare (Obj.obj x) (Obj.obj y)
+  let hash x =
+    let module C = (val !control_spec_c) in
+    C.hash (Obj.obj x)
+  let tag x =
+    let module C = (val !control_spec_c) in
+    C.tag (Obj.obj x)
+
+  let show x =
+    let module C = (val !control_spec_c) in
+    C.show (Obj.obj x)
+  let pretty () x =
+    let module C = (val !control_spec_c) in
+    C.pretty () (Obj.obj x)
+  let printXml f x =
+    let module C = (val !control_spec_c) in
+    C.printXml f (Obj.obj x)
+  let to_yojson x =
+    let module C = (val !control_spec_c) in
+    C.to_yojson (Obj.obj x)
+
+  let arbitrary () =
+    let module C = (val !control_spec_c) in
+    QCheck.map ~rev:Obj.obj Obj.repr (C.arbitrary ())
+  let relift x =
+    let module C = (val !control_spec_c) in
+    Obj.repr (C.relift (Obj.obj x))
+end
+
+
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
    the same order as written in the dependencies list (in MCP).
@@ -284,12 +394,11 @@ type ('d,'g,'c,'v) ctx =
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
-  ; control_context : Obj.t (** (Control.get_spec ()) context, represented type: unit -> (Control.get_spec ()).C.t *)
-  ; context  : unit -> 'c (** current Spec context *)
+  ; control_context : unit -> ControlSpecC.t (** top-level Control Spec context, raises [Ctx_failure] if missing *)
+  ; context  : unit -> 'c (** current Spec context, raises [Ctx_failure] if missing *)
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
@@ -309,7 +418,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
-  module V: Printable.S (** Global constraint variables. *)
+  module V: SpecSysVar (** Global constraint variables. *)
 
   val name : unit -> string
 
@@ -333,7 +442,6 @@ sig
 
   val should_join : D.t -> D.t -> bool
   val context : fundec -> D.t -> C.t
-  val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
@@ -381,13 +489,18 @@ type increment_data = {
   server: bool;
 
   old_data: analyzed_data option;
-  changes: CompareCIL.change_info
+  changes: CompareCIL.change_info;
+
+  (* Globals for which the constraint
+     system unknowns should be restarted *)
+  restarting: VarQuery.t list;
 }
 
 let empty_increment_data ?(server=false) () = {
   server;
   old_data = None;
-  changes = CompareCIL.empty_change_info ()
+  changes = CompareCIL.empty_change_info ();
+  restarting = []
 }
 
 (** A side-effecting system. *)
@@ -411,6 +524,8 @@ sig
 
   (** Data used for incremental analysis *)
   val increment : increment_data
+
+  val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
 end
 
 (** Any system of side-effecting equations over lattices. *)
@@ -426,6 +541,7 @@ sig
   module G : Lattice.S
   val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
 end
 
 (** A solver is something that can translate a system into a solution (hash-table).
@@ -484,14 +600,28 @@ module ResultType2 (S:Spec) =
 struct
   open S
   include Printable.Prod3 (C) (D) (CilType.Fundec)
-  let show (es,x,f:t) = call_descr f es
+  let show (es,x,f:t) = D.show x
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
 
-module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
-module EmptyV = Printable.Empty
+module StdV =
+struct
+  let is_write_only _ = false
+end
+
+module VarinfoV =
+struct
+  include CilType.Varinfo (* TODO: or Basetype.Variables? *)
+  include StdV
+end
+
+module EmptyV =
+struct
+  include Printable.Empty
+  include StdV
+end
 
 module UnitA =
 struct
@@ -517,10 +647,6 @@ struct
   (* hint for path sensitivity --- MCP no longer overrides this so if you want
     your analysis to be path sensitive, do override this. To obtain a behavior
     where all paths are kept apart, set this to D.equal x y                    *)
-
-  let call_descr f _ = f.svar.vname
-  (* prettier name for equation variables --- currently base can do this and
-     MCP just forwards it to Base.*)
 
   let vdecl ctx _ = ctx.local
 

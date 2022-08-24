@@ -11,6 +11,6 @@ int main(void) {
   y = f(42);
   // combine should forget caller's y before unifying with y == 43 to avoid bottom
 
-  assert(y);
+  __goblint_check(y);
   return 0;
 }

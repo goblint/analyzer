@@ -60,10 +60,10 @@ int example1() {
     }
 
     if (functionToRun.id == 2) {
-        assert(functionToRun.ptr == f1 || functionToRun.ptr == f5);
+        __goblint_check(functionToRun.ptr == f1 || functionToRun.ptr == f5);
     } else if (functionToRun.id > 3 && functionToRun.id < 5) {
-        assert(functionToRun.ptr != f3);
-        assert(functionToRun.ptr == f2 || functionToRun.ptr == f6);
+        __goblint_check(functionToRun.ptr != f3);
+        __goblint_check(functionToRun.ptr == f2 || functionToRun.ptr == f6);
     }
 
     return 0;

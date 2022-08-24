@@ -1,3 +1,4 @@
+open Goblint_lib
 open Prelude (* otherwise open_in would return wrong type for SpecUtil *)
 open SpecUtil
 

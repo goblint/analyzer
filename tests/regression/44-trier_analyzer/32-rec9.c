@@ -1,3 +1,5 @@
+#include <assert.h>
+
 void p (int *x) {
   int y;
   int *z;
@@ -14,5 +16,5 @@ main() {
     ind = 1;
   }
 
-  assert(ind == 0);
+  __goblint_check(ind == 0);
 }
