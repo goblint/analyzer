@@ -40,12 +40,17 @@ let ( || ) = join
 
 
 
-type context = {
+type context1 = {
   path: int option;
   lval: lval option;
 }
 
+type context = {
+  path: int option;
+  lvals: CilLval.Set.t;
+}
+
 let default_context = {
   path = None;
-  lval = None;
+  lvals = CilLval.Set.top ();
 }

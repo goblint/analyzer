@@ -236,7 +236,7 @@ struct
               let acc = AccessDomain.EventSet.fold (fun e acc ->
                   match e with
                   | {var_opt = Some var; kind = Write} ->
-                    let context = {Invariant.default_context with lval = Some (Cil.var var)} in
+                    let context = {Invariant.default_context with lvals = CilLval.Set.singleton (Cil.var var)} in
                     begin match Query.ask_local_node gh n local (Invariant context) with
                       | `Lifted inv ->
                         let invs = WitnessUtil.InvariantExp.process_exp inv in
@@ -266,7 +266,7 @@ struct
                 |> fun es -> AccessDomain.EventSet.fold (fun e acc ->
                     match e with
                     | {var_opt = Some var; kind = Read} ->
-                      let context = {Invariant.default_context with lval = Some (Cil.var var)} in
+                      let context = {Invariant.default_context with lvals = CilLval.Set.singleton (Cil.var var)} in
                       begin match Query.ask_local_node gh n local (Invariant context) with
                         | `Lifted inv ->
                           let invs = WitnessUtil.InvariantExp.process_exp inv in

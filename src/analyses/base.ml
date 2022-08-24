@@ -1176,16 +1176,16 @@ struct
     and key_invariant_lval ~vs c k offset lval v =
       if not (VS.mem k vs) then
         let vs' = VS.add k vs in
-        let key_context: Invariant.context = {c with lval=Some lval} in
+        let key_context: Invariant.context1 = {c with lval=Some lval} in
         vd_invariant ~vs:vs' ~offset key_context v
       else
         Invariant.none
     in
 
     let cpa_invariant =
-      let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v in
-      match context.lval with
-      | None ->
+      let context1: Invariant.context1 = {path = context.Invariant.path; lval = None} in
+      let key_invariant k v = key_invariant_lval ~vs:VS.empty context1 k NoOffset (var k) v in
+      if CilLval.Set.is_top context.lvals then (
         CPA.fold (fun k v a ->
             let i =
               if not (InvariantCil.var_is_heap k) then
@@ -1195,9 +1195,18 @@ struct
             in
             Invariant.(a && i)
           ) cpa Invariant.none
-      | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-        (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
-      | _ -> Invariant.none
+      )
+      else (
+        CilLval.Set.fold (fun k a ->
+            let i =
+              match k with
+              | (Var k, _) when not (InvariantCil.var_is_heap k) ->
+                (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
+              | _ -> Invariant.none
+            in
+            Invariant.(a && i)
+          ) context.lvals Invariant.none
+      )
     in
 
     cpa_invariant

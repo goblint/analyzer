@@ -6,7 +6,7 @@ module type S =
 sig
   include Lattice.S
   type value
-  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context -> t -> Invariant.t
+  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context1 -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context1 -> t -> Invariant.t
 end
 
 module Field =  Lattice.Flat (CilType.Fieldinfo) (struct

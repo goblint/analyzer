@@ -72,7 +72,7 @@ type access =
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
 type invariant_context = Invariant.context = {
   path: int option;
-  lval: CilType.Lval.t option;
+  lvals: CilLval.Set.t;
 }
 [@@deriving ord, hash]
 
