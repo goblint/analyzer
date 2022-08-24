@@ -51,7 +51,7 @@ depends: [
   "dune-configurator" {= "3.0.3"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "1.8.2"}
+  "goblint-cil" {= "2.0.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.11"}
   "jsonrpc" {= "1.12.4"}
@@ -119,8 +119,8 @@ version: "dev"
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
-    "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#1faa2355fd350c503b150e43c4577873928c30d9"
+    "goblint-cil.2.0.0"
+    "git+https://github.com/goblint/cil.git#72d2c7e1a4b574e57fd7b1f65bab58cda51a1ff8"
   ]
   [
     "apron.v0.9.13"
