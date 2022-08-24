@@ -38,7 +38,7 @@ struct
       | a -> a (* everything else is kept separate, including strings if not limited *)
   end
   module J = SetDomain.Joined (Addr)
-  (* module H = HoareDomain.Set2 (Addr) *)
+  (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
   include DisjointDomain.ProjectiveSet (Addr) (J) (R)

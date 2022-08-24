@@ -24,7 +24,7 @@ end
 (** Set of elements [E.t] grouped into buckets by [R],
     where each bucket is described by the set [B].
 
-    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.Set2}.
+    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
 
     Handles {!Lattice.BotValue} from [B]. *)
 module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t =
@@ -189,7 +189,7 @@ end
 (** Set of elements [E.t] grouped into buckets by [C],
     where each bucket is described by the set [B].
 
-    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.Set2}.
+    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
 
     Handles {!Lattice.BotValue} from [B]. *)
 module PairwiseSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (C: Congruence with type elt = E.t): SetDomain.S with type elt = E.t =

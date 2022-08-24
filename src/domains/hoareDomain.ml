@@ -181,7 +181,7 @@ end
     This has {e extrapolation heuristics} instead of a true [widen],
     i.e. convergence is only guaranteed if the number of maximal
     elements converges.
-    Otherwise use {!Set2}.
+    Otherwise use {!SetEM}.
 
     @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
 module Set (B : Lattice.S): SetS with type elt = B.t =
@@ -357,7 +357,7 @@ end
     Otherwise {!Set} is sufficient.
 
     @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
-module Set2 (E: Lattice.S): SetDomain.S with type elt = E.t =
+module SetEM (E: Lattice.S): SetDomain.S with type elt = E.t =
 struct
   module H = Set (E)
   include H
