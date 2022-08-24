@@ -2205,15 +2205,19 @@ struct
     (* First we want to see, if we can determine a dead branch: *)
     match valu with
     (* For a boolean value: *)
-    | `Int value when (ID.is_bool value) ->
+    | `Int value ->
       if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
-      (* to suppress pattern matching warnings: *)
-      let fromJust x = match x with Some x -> x | None -> assert false in
-      let v = fromJust (ID.to_bool value) in
-      (* Eliminate the dead branch and just propagate to the true branch *)
-      if v = tv then refine () else begin
-        if M.tracing then M.tracel "branch" "A The branch %B is dead!\n" tv;
-        raise Deadcode
+      begin match ID.to_bool value with
+        | Some v ->
+          (* Eliminate the dead branch and just propagate to the true branch *)
+          if v = tv then
+            refine ()
+          else (
+            if M.tracing then M.tracel "branch" "A The branch %B is dead!\n" tv;
+            raise Deadcode
+          )
+        | None ->
+          refine () (* like fallback below *)
       end
     (* for some reason refine () can refine these, but not raise Deadcode in struct *)
     | `Address ad when tv && AD.is_null ad ->
