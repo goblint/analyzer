@@ -1113,7 +1113,7 @@ struct
                   | `NoOffset -> NoOffset
                   | `Field (f, offs) -> Field (f, offs_to_offset offs)
                   | `Index (i, offs) ->
-                    (* Addr.Offs.is_definite implies Idx.is_int *)
+                    (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
                     let i_definite = BatOption.get (ValueDomain.IndexDomain.to_int i) in
                     let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
                     Index (i_exp, offs_to_offset offs)
