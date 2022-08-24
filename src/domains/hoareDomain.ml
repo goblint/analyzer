@@ -181,7 +181,9 @@ end
     This has {e extrapolation heuristics} instead of a true [widen],
     i.e. convergence is only guaranteed if the number of maximal
     elements converges.
-    Otherwise use {!Set2}. *)
+    Otherwise use {!Set2}.
+
+    @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
 module Set (B : Lattice.S): SetS with type elt = B.t =
 struct
   include SetDomain.Make (B)
@@ -352,28 +354,39 @@ end
     This has a true [widen] using the trivial Egli-Milner connector,
     i.e. convergence is even guaranteed if the number of maximal
     elements does not converge.
-    Otherwise {!Set} is sufficient. *)
+    Otherwise {!Set} is sufficient.
+
+    @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
 module Set2 (E: Lattice.S): SetDomain.S with type elt = E.t =
 struct
   module H = Set (E)
   include H
 
-
   (* version of widen which doesn't use E.bot *)
+  (* TODO: move to Set above? *)
   let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
   let xs,ys = elements a, elements b in
   List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
   let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
 
-  (* widen is actually extrapolation operator, so define connector-based widening instead *)
+  (* above widen is actually extrapolation operator, so define connector-based widening instead *)
+
+  (** Egli-Milner partial order relation.
+      See Bagnara, Section 3. *)
   let leq_em s1 s2 =
     is_bot s1 || leq s1 s2 && for_all (fun e2 -> exists (fun e1 -> E.leq e1 e2) s1) s2
+
+  (** Egli-Milner connector, i.e. {e any} upper bound operator for {!leq_em}.
+      Trivial connector, which joins all elements to a singleton set.
+      See Bagnara, Section 3. *)
   let join_em s1 s2 =
     join s1 s2
     |> elements
     |> BatList.reduce E.join
     |> singleton
 
+  (** Connector-based widening.
+      See Bagnara, Section 6. *)
   let widen s1 s2 =
     assert (leq s1 s2);
     let s2' =
