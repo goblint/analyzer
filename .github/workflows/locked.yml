@@ -59,7 +59,7 @@ jobs:
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
       - name: Test regression cram
-        run: opam exec -- dune runtest tests/extraction
+        run: opam exec -- dune runtest tests/regression
 
       - name: Test unit
         run: opam exec -- dune runtest unittest
