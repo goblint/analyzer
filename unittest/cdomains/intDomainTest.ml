@@ -23,8 +23,6 @@ struct
     assert_equal ~printer:I.show ione  (I.of_int one);
     assert_equal ~printer:I.show itrue (I.of_bool true);
     assert_equal ~printer:I.show ifalse(I.of_bool false);
-    assert_bool "IntDomain cannot hold 1" (I.is_int ione) ;
-    assert_bool "IntDomain cannot hold 0" (I.is_int izero) ;
     assert_equal (Some one ) (I.to_int ione);
     assert_equal (Some zero) (I.to_int izero);
     assert_equal (Some zero) (I.to_int ifalse)

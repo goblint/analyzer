@@ -179,10 +179,6 @@ sig
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
 
-  val is_int: t -> bool
-  (** Checks if the element is a definite integer value. If this function
-    * returns [true], the above [to_int] should return a real value. *)
-
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
