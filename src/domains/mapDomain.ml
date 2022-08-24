@@ -105,9 +105,6 @@ struct
     let content () = List.fold_left pretty_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 
-  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
-  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
-
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
@@ -180,6 +177,9 @@ struct
       let iter = iter
     end
     )
+
+  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
+  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end
