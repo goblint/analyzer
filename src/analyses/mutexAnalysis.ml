@@ -126,7 +126,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; reach} ->
+    | Events.Access {exp; lvals; kind; reach} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       let ctx = octx in (* must use original (pre-assign, etc) ctx queries *)
       (* TODO: simplify *)
       let old_access var_opt offs_opt (kind: AccessKind.t) =
@@ -191,7 +191,7 @@ struct
         | _ ->
           add_access None None
       end;
-      ctx.local
+      ctx.local (* TODO: don't return octx.local! *)
     | _ ->
       event ctx e octx (* delegate to must lockset analysis *)
 end
