@@ -126,9 +126,12 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {var_opt; kind; _} ->
-      (*privatization*)
-      begin match var_opt with
+    | Events.Access {exp; lvals; kind; reach} ->
+      let ctx = octx in (* must use original (pre-assign, etc) ctx queries *)
+      (* TODO: simplify *)
+      let old_access var_opt offs_opt (kind: AccessKind.t) =
+        (*privatization*)
+        match var_opt with
         | Some v ->
           if not (Lockset.is_bot ctx.local) then
             let ls = Lockset.filter snd ctx.local in
@@ -140,6 +143,53 @@ struct
             let el = P.effect_fun ~write ls in
             ctx.sideg v el
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
+      in
+      let module LS = Queries.LS in
+      let part_access ctx (vo:varinfo option) (oo: offset option) (kind: AccessKind.t) =
+        old_access vo oo kind
+      in
+      let add_access vo oo =
+        part_access ctx vo oo kind
+      in
+      let add_access_struct ci =
+        part_access ctx None None kind
+      in
+      let has_escaped g = ctx.ask (Queries.MayEscape g) in
+      let on_lvals ls includes_uk =
+        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+        let f (var, offs) =
+          let coffs = Lval.CilLval.to_ciloffs offs in
+          if CilType.Varinfo.equal var dummyFunDec.svar then
+            add_access None (Some coffs)
+          else
+            add_access (Some var) (Some coffs)
+        in
+        LS.iter f ls
+      in
+      begin match lvals with
+        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+          (* the case where the points-to set is non top and does not contain unknown values *)
+          on_lvals ls false
+        | ls when not (LS.is_top ls) ->
+          (* the case where the points-to set is non top and contains unknown values *)
+          let includes_uk = ref false in
+          (* now we need to access all fields that might be pointed to: is this correct? *)
+          begin match ctx.ask (ReachableUkTypes exp) with
+            | ts when Queries.TS.is_top ts ->
+              includes_uk := true
+            | ts ->
+              if Queries.TS.is_empty ts = false then
+                includes_uk := true;
+              let f = function
+                | TComp (ci, _) ->
+                  add_access_struct ci
+                | _ -> ()
+              in
+              Queries.TS.iter f ts
+          end;
+          on_lvals ls !includes_uk
+        | _ ->
+          add_access None None
       end;
       ctx.local
     | _ ->

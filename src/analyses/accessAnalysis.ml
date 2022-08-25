@@ -76,63 +76,12 @@ struct
       ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (oo: offset option) (kind: AccessKind.t): MCPAccess.A.t =
-      ctx.emit (Access {var_opt=vo; offs_opt=oo; kind});
-      (*partitions & locks*)
-      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
-    in
-    let add_access conf vo oo =
-      let a = part_access ctx e vo oo kind in
-      Access.add (side_access ctx) e kind conf vo oo a;
-    in
-    let add_access_struct conf ci =
-      let a = part_access ctx e None None kind in
-      Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
-    in
-    let has_escaped g = ctx.ask (Queries.MayEscape g) in
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if CilType.Varinfo.equal var dummyFunDec.svar then
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
     let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask reach_or_mpt with
-    | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | ls when not (LS.is_top ls) ->
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
-        | ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
-            | _ -> ()
-          in
-          Queries.TS.iter f ts
-      end;
-      on_lvals ls !includes_uk
-    | _ ->
-      add_access (conf - 60) None None
+    let ls = ctx.ask reach_or_mpt in
+    ctx.emit (Access {exp=e; lvals=ls; kind; reach})
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
@@ -141,9 +90,8 @@ struct
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
-      let conf = 110 in
-      if deref then do_access ctx kind reach conf exp;
-      Access.distribute_access_exp (do_access ctx Read false conf) exp;
+      if deref then do_access ctx kind reach exp;
+      Access.distribute_access_exp (do_access ctx Read false) exp;
     );
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
@@ -254,6 +202,69 @@ struct
           vf (Obj.repr (V.access v))
         ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
+
+  let event ctx e octx =
+    match e with
+    | Events.Access {exp=e; lvals; kind; reach} ->
+      let ctx = octx in (* must use original (pre-assign, etc) ctx queries *)
+      let conf = 110 in
+      let module LS = Queries.LS in
+      let part_access ctx (e:exp) (vo:varinfo option) (oo: offset option) (kind: AccessKind.t): MCPAccess.A.t =
+        (*partitions & locks*)
+        Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
+      in
+      let add_access conf vo oo =
+        let a = part_access ctx e vo oo kind in
+        Access.add (side_access ctx) e kind conf vo oo a;
+      in
+      let add_access_struct conf ci =
+        let a = part_access ctx e None None kind in
+        Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
+      in
+      let has_escaped g = ctx.ask (Queries.MayEscape g) in
+      (* The following function adds accesses to the lval-set ls
+         -- this is the common case if we have a sound points-to set. *)
+      let on_lvals ls includes_uk =
+        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+        let conf = if reach then conf - 20 else conf in
+        let conf = if includes_uk then conf - 10 else conf in
+        let f (var, offs) =
+          let coffs = Lval.CilLval.to_ciloffs offs in
+          if CilType.Varinfo.equal var dummyFunDec.svar then
+            add_access conf None (Some coffs)
+          else
+            add_access conf (Some var) (Some coffs)
+        in
+        LS.iter f ls
+      in
+      begin match lvals with
+        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+          (* the case where the points-to set is non top and does not contain unknown values *)
+          on_lvals ls false
+        | ls when not (LS.is_top ls) ->
+          (* the case where the points-to set is non top and contains unknown values *)
+          let includes_uk = ref false in
+          (* now we need to access all fields that might be pointed to: is this correct? *)
+          begin match ctx.ask (ReachableUkTypes e) with
+            | ts when Queries.TS.is_top ts ->
+              includes_uk := true
+            | ts ->
+              if Queries.TS.is_empty ts = false then
+                includes_uk := true;
+              let f = function
+                | TComp (ci, _) ->
+                  add_access_struct (conf - 50) ci
+                | _ -> ()
+              in
+              Queries.TS.iter f ts
+          end;
+          on_lvals ls !includes_uk
+        | _ ->
+          add_access (conf - 60) None None
+      end;
+      ctx.local
+    | _ ->
+      ctx.local
 
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in
