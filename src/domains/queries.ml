@@ -318,6 +318,41 @@ struct
     | _ -> 0
 
   let hash x = 31 * order x + hash_arg x
+
+  let pretty () = function
+    | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
+    | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
+    | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
+    | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
+    | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e
+    | Any (MayEscape vi) -> Pretty.dprintf "MayEscape %a" CilType.Varinfo.pretty vi
+    | Any (MayBePublic x) -> Pretty.dprintf "MayBePublic _"
+    | Any (MayBePublicWithout x) -> Pretty.dprintf "MayBePublicWithout _"
+    | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
+    | Any MustLockset -> Pretty.dprintf "MustLockset"
+    | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
+    | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
+    | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
+    | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
+    | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
+    | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
+    | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
+    | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
+    | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
+    | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
+    | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
+    | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
+    | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
+    | Any (IterVars i) -> Pretty.dprintf "IterVars _"
+    | Any HeapVar -> Pretty.dprintf "HeapVar"
+    | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
+    | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
+    | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
+    | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
+    | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
+    | Any (Invariant i) -> Pretty.dprintf "Invariant _"
+    | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
+    | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
 end
 
 
