@@ -38,6 +38,7 @@ type special =
   | Assert of { exp: Cil.exp; check: bool; refine: bool; }
   | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
   | Unlock of Cil.exp
+  | CondWait of { cond: Cil.exp; lock: Cil.exp }
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
@@ -45,6 +46,7 @@ type special =
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Abort
+  | Identity of Cil.exp
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
@@ -103,8 +105,16 @@ let special_of_old classify_name = fun args ->
   | `Malloc e -> Malloc e
   | `Calloc (count, size) -> Calloc { count; size; }
   | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Lock (try_, write, return_on_success) -> Lock { lock = List.hd args; try_; write; return_on_success; }
-  | `Unlock -> Unlock (List.hd args)
+  | `Lock (try_, write, return_on_success) ->
+    begin match args with
+      | [lock] -> Lock { lock ; try_; write; return_on_success; }
+      | _ -> failwith "lock has multiple arguments"
+    end
+  | `Unlock ->
+    begin match args with
+      | [arg] -> Unlock arg
+      | _ -> failwith "unlock has multiple arguments"
+    end
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
   | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
   | `Unknown _ -> Unknown

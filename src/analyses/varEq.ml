@@ -518,9 +518,9 @@ struct
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    | Unknown, "spinlock_check" ->
+    | Identity e, _ ->
       begin match lval with
-        | Some x -> assign ctx x (List.hd args)
+        | Some x -> assign ctx x e
         | None -> unknown_fn ctx lval f args
       end
     | Unknown, x when safe_fn x -> ctx.local

@@ -30,18 +30,33 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+    ("pthread_cond_wait", special [__ "cond" []; __ "lock" []] @@ fun cond lock -> CondWait { cond; lock });
+    ("pthread_cond_timedwait", special [__ "cond" []; __ "lock" []; drop "abstime" [r]] @@ fun cond lock -> CondWait { cond; lock });
   ]
 
 (** GCC builtin functions.
     These are not builtin versions of functions from other lists. *)
 let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
+    ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
   ]
 
-(** Linux kernel functions. *)
-let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
+let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
+let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
 
-]
+(** Linux kernel functions. *)
+(* TODO: conditional on kernel option *)
+let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("spin_lock_irqsave", special [__ "lock" []; drop "flags" []] @@ fun lock -> Lock { lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
+    ("_raw_spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
+    ("spinlock_check", special [__ "lock" []] @@ fun lock -> Identity lock);
+    ("_lock_kernel", special [drop "func" [r]; drop "file" [r]; drop "line" []] @@ Lock { lock = big_kernel_lock; try_ = false; write = true; return_on_success = true });
+    ("_unlock_kernel", special [drop "func" [r]; drop "file" [r]; drop "line" []] @@ Unlock big_kernel_lock);
+    ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
+    ("release_console_sem", special [] @@ Unlock console_sem);
+    ("misc_deregister", unknown [drop "misc" [r_deep]]);
+  ]
 
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -108,6 +123,17 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("tanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FLongDouble, x)) });
   ]
 
+let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
+let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_var))
+
+(** SV-COMP functions.
+    Just the ones that require special handling and cannot be stubbed. *)
+(* TODO: conditional on ana.sv-comp.functions option *)
+let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
+    ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
+  ]
+
 (* TODO: allow selecting which lists to use *)
 let library_descs = Hashtbl.of_list (List.concat [
     c_descs_list;
@@ -118,6 +144,7 @@ let library_descs = Hashtbl.of_list (List.concat [
     goblint_descs_list;
     zstd_descs_list;
     math_descs_list;
+    svcomp_descs_list;
   ])
 
 
@@ -167,7 +194,7 @@ let classify fn exps: categories =
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
-  | "spin_lock_irqsave" | "spin_lock" | "pthread_spin_lock"
+  | "spin_lock" | "pthread_spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -176,8 +203,8 @@ let classify fn exps: categories =
     -> `Lock (get_bool "sem.lock.fail", false, true)
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
-  | "mutex_unlock" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
-  | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+  | "mutex_unlock" | "_write_unlock" | "_read_unlock"
+  | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "up_read" | "up_write"
   | "up" | "pthread_spin_unlock"
     -> `Unlock
   | x -> `Unknown x
@@ -578,7 +605,6 @@ let invalidate_actions = [
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
     "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
@@ -592,8 +618,6 @@ let invalidate_actions = [
     "spin_lock_init", readsAll;
     "spin_lock", readsAll;
     "spin_unlock", readsAll;
-    "spin_unlock_irqrestore", readsAll;
-    "spin_lock_irqsave", readsAll;
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
