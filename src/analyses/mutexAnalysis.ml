@@ -126,72 +126,60 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; reach} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
-      let ctx = octx in (* must use original (pre-assign, etc) ctx queries *)
-      (* TODO: simplify *)
-      let old_access var_opt offs_opt (kind: AccessKind.t) =
+    | Events.Access {exp; lvals; kind; _} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+      (* must use original (pre-assign, etc) ctx queries *)
+      let old_access var_opt offs_opt =
+        (* TODO: this used to use ctx instead of octx, why? *)
         (*privatization*)
         match var_opt with
         | Some v ->
-          if not (Lockset.is_bot ctx.local) then
-            let ls = Lockset.filter snd ctx.local in
+          if not (Lockset.is_bot octx.local) then
+            let ls = Lockset.filter snd octx.local in
             let write = match kind with
               | Write | Free -> true
               | Read -> false
               | Spawn -> false (* TODO: nonsense? *)
             in
             let el = P.effect_fun ~write ls in
-            ctx.sideg v el
-        | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
+            octx.sideg v el
+        | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound." (* TODO: should this be here at all? *)
       in
       let module LS = Queries.LS in
-      let part_access ctx (vo:varinfo option) (oo: offset option) (kind: AccessKind.t) =
-        old_access vo oo kind
-      in
-      let add_access vo oo =
-        part_access ctx vo oo kind
-      in
-      let add_access_struct ci =
-        part_access ctx None None kind
-      in
-      let has_escaped g = ctx.ask (Queries.MayEscape g) in
-      let on_lvals ls includes_uk =
+      let has_escaped g = octx.ask (Queries.MayEscape g) in
+      let on_lvals ls =
         let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
         let f (var, offs) =
           let coffs = Lval.CilLval.to_ciloffs offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
-            add_access None (Some coffs)
+            old_access None (Some coffs)
           else
-            add_access (Some var) (Some coffs)
+            old_access (Some var) (Some coffs)
         in
         LS.iter f ls
       in
       begin match lvals with
         | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
           (* the case where the points-to set is non top and does not contain unknown values *)
-          on_lvals ls false
+          on_lvals ls
         | ls when not (LS.is_top ls) ->
           (* the case where the points-to set is non top and contains unknown values *)
-          let includes_uk = ref false in
           (* now we need to access all fields that might be pointed to: is this correct? *)
-          begin match ctx.ask (ReachableUkTypes exp) with
+          begin match octx.ask (ReachableUkTypes exp) with
             | ts when Queries.TS.is_top ts ->
-              includes_uk := true
+              ()
             | ts ->
-              if Queries.TS.is_empty ts = false then
-                includes_uk := true;
               let f = function
-                | TComp (ci, _) ->
-                  add_access_struct ci
-                | _ -> ()
+                | TComp (_, _) -> true
+                | _ -> false
               in
-              Queries.TS.iter f ts
+              if Queries.TS.exists f ts then
+                old_access None None
           end;
-          on_lvals ls !includes_uk
+          on_lvals ls
         | _ ->
-          add_access None None
+          old_access None None
       end;
-      ctx.local (* TODO: don't return octx.local! *)
+      ctx.local
     | _ ->
       event ctx e octx (* delegate to must lockset analysis *)
 end

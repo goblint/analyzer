@@ -91,22 +91,22 @@ struct
   let event ctx e octx =
     match e with
     | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
-      let ctx = octx in (* must use original (pre-assign, etc) ctx queries *)
+      (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module LS = Queries.LS in
-      let part_access ctx (e:exp) (vo:varinfo option) (oo: offset option) (kind: AccessKind.t): MCPAccess.A.t =
+      let part_access (vo:varinfo option) (oo: offset option): MCPAccess.A.t =
         (*partitions & locks*)
-        Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
+        Obj.obj (octx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
       in
       let add_access conf vo oo =
-        let a = part_access ctx e vo oo kind in
-        Access.add (side_access ctx) e kind conf vo oo a;
+        let a = part_access vo oo in
+        Access.add (side_access octx) e kind conf vo oo a;
       in
       let add_access_struct conf ci =
-        let a = part_access ctx e None None kind in
-        Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
+        let a = part_access None None in
+        Access.add_struct (side_access octx) e kind conf (`Struct (ci,`NoOffset)) None a
       in
-      let has_escaped g = ctx.ask (Queries.MayEscape g) in
+      let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
       let on_lvals ls includes_uk =
@@ -130,7 +130,7 @@ struct
           (* the case where the points-to set is non top and contains unknown values *)
           let includes_uk = ref false in
           (* now we need to access all fields that might be pointed to: is this correct? *)
-          begin match ctx.ask (ReachableUkTypes e) with
+          begin match octx.ask (ReachableUkTypes e) with
             | ts when Queries.TS.is_top ts ->
               includes_uk := true
             | ts ->
@@ -147,7 +147,7 @@ struct
         | _ ->
           add_access (conf - 60) None None
       end;
-      ctx.local (* TODO: don't return octx.local! *)
+      ctx.local
     | _ ->
       ctx.local
 

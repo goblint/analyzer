@@ -18,8 +18,7 @@ struct
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
-    let open Queries in
-    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
+    let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     let ls = ctx.ask reach_or_mpt in
     ctx.emit (Access {exp=e; lvals=ls; kind; reach})
 
@@ -27,10 +26,10 @@ struct
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
-  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
+  let access_one_top ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    (* TODO: remove force argument *)
-    if deref then do_access ctx kind reach exp;
+    if deref then
+      do_access ctx kind reach exp;
     Access.distribute_access_exp (do_access ctx Read false) exp;
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
@@ -121,7 +120,7 @@ struct
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()
-      | Some lval -> access_one_top ~force:true ~deref:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
     end;
     ctx.local
 
@@ -136,7 +135,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; reach} ->
+    | Events.Access {lvals; kind; _} ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
