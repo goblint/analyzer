@@ -13,7 +13,7 @@ struct
 
   let name () = "access"
 
-  module D = Lattice.Unit
+  module D = AccessDomain.EventSet
   module C = Lattice.Unit
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
@@ -35,9 +35,10 @@ struct
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
-  let startstate v = ()
-  let threadenter ctx lval f args = [()]
-  let exitstate  v = ()
+  let startstate v = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let exitstate  v = D.empty ()
+  let context fd d = ()
 
 
   (** Transfer functions: *)
@@ -123,6 +124,37 @@ struct
       | Some lval -> access_one_top ~force:true ~deref:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | MayAccessed ->
+      (ctx.local: D.t)
+    | _ -> Queries.Result.top q
+
+  let sync reason ctx: D.t =
+    D.empty ()
+
+  let event ctx e octx =
+    match e with
+    | Events.Access {exp; lvals; kind; reach} ->
+      begin match lvals with
+        | ls when Queries.LS.is_top ls ->
+          let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
+          D.add access ctx.local
+        | ls ->
+          Queries.LS.fold (fun (var, offs) acc ->
+              let coffs = Lval.CilLval.to_ciloffs offs in
+              let access: AccessDomain.Event.t =
+                if CilType.Varinfo.equal var dummyFunDec.svar then
+                  {var_opt = None; offs_opt = (Some coffs); kind}
+                else
+                  {var_opt = (Some var); offs_opt = (Some coffs); kind}
+              in
+              D.add access acc
+            ) ls ctx.local
+      end
+    | _ ->
+      ctx.local
 end
 
 let _ =
