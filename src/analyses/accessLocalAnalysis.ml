@@ -12,99 +12,28 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "access"
+  let name () = "accessLocal"
 
-  module D = Lattice.Unit
+  module D = AccessDomain.EventSet
   module C = Lattice.Unit
-
-  (* Two global invariants:
-     1. (lval, type) -> accesses  --  used for warnings
-     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
-
-  module V0 = Printable.Prod (Access.LVOpt) (Access.T)
-  module V =
-  struct
-    include Printable.Either (V0) (CilType.Varinfo)
-    let name () = "access"
-    let access x = `Left x
-    let vars x = `Right x
-    let is_write_only _ = true
-  end
-
-  module V0Set = SetDomain.Make (V0)
-  module G =
-  struct
-    include Lattice.Lift2 (Access.AS) (V0Set) (Printable.DefaultNames)
-
-    let access = function
-      | `Bot -> Access.AS.bot ()
-      | `Lifted1 x -> x
-      | _ -> failwith "Access.access"
-    let vars = function
-      | `Bot -> V0Set.bot ()
-      | `Lifted2 x -> x
-      | _ -> failwith "Access.vars"
-    let create_access access = `Lifted1 access
-    let create_vars vars = `Lifted2 vars
-  end
-
-  let safe       = ref 0
-  let vulnerable = ref 0
-  let unsafe     = ref 0
-
-  let init marshal =
-    safe := 0;
-    vulnerable := 0;
-    unsafe := 0
-
-  let side_vars ctx lv_opt ty =
-    match lv_opt with
-    | Some (v, _) ->
-      if !GU.should_warn then
-        ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
-    | None ->
-      ()
-
-  let side_access ctx ty lv_opt (conf, w, loc, e, a) =
-    let ty =
-      if Option.is_some lv_opt then
-        `Type Cil.voidType (* avoid unsound type split for alloc variables *)
-      else
-        ty
-    in
-    if !GU.should_warn then
-      ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
-    side_vars ctx lv_opt ty
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
-      ctx.emit (Access {var_opt=vo; kind});
-      (*partitions & locks*)
-      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
+    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t) =
+      ctx.emit (Access {var_opt=vo; kind})
     in
-    let add_access conf vo oo =
-      let a = part_access ctx e vo kind in
-      Access.add (side_access ctx) e kind conf vo oo a;
-    in
-    let add_access_struct conf ci =
-      let a = part_access ctx e None kind in
-      Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
-    in
-    let has_escaped g = ctx.ask (Queries.MayEscape g) in
+    let add_access vo oo = part_access ctx e vo kind in
+    let add_access_struct ci = part_access ctx e None kind in (* TODO: remove struct stuff *)
     (* The following function adds accesses to the lval-set ls
        -- this is the common case if we have a sound points-to set. *)
     let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
       let f (var, offs) =
         let coffs = Lval.CilLval.to_ciloffs offs in
         if CilType.Varinfo.equal var dummyFunDec.svar then
-          add_access conf None (Some coffs)
+          add_access None (Some coffs)
         else
-          add_access conf (Some var) (Some coffs)
+          add_access (Some var) (Some coffs)
       in
       LS.iter f ls
     in
@@ -125,14 +54,14 @@ struct
             includes_uk := true;
           let f = function
             | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
+              add_access_struct ci
             | _ -> ()
           in
           Queries.TS.iter f ts
       end;
       on_lvals ls !includes_uk
     | _ ->
-      add_access (conf - 60) None None
+      add_access None None
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
@@ -140,17 +69,16 @@ struct
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
-      let conf = 110 in
-      if deref then do_access ctx kind reach conf exp;
-      Access.distribute_access_exp (do_access ctx Read false) conf exp;
-    );
+    let conf = 110 in (* TODO: remove conf from distribute_access_exp *)
+    if deref then do_access ctx kind reach conf exp;
+    Access.distribute_access_exp (do_access ctx Read false) conf exp;
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
-  let startstate v = ()
-  let threadenter ctx lval f args = [()]
-  let exitstate  v = ()
+  let startstate v = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let exitstate  v = D.empty ()
+  let context fd d = ()
 
 
   (** Transfer functions: *)
@@ -239,32 +167,19 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g' -> (* accesses *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let accs = G.access (ctx.global g) in
-          Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs
-        | `Right _ -> (* vars *)
-          ()
-      end
-    | IterSysVars (Global g, vf) ->
-      V0Set.iter (fun v ->
-          vf (Obj.repr (V.access v))
-        ) (G.vars (ctx.global (V.vars g)))
+    | MayAccessed ->
+      (ctx.local: D.t)
     | _ -> Queries.Result.top q
 
-  let finalize () =
-    let total = !safe + !unsafe + !vulnerable in
-    if total > 0 then (
-      ignore (Pretty.printf "\nSummary for all memory locations:\n");
-      ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
-      ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
-      ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
-      ignore (Pretty.printf "\t-------------------\n");
-      ignore (Pretty.printf "\ttotal:       %5d\n" total)
-    )
+  let sync reason ctx: D.t =
+    D.empty ()
+
+  let event ctx e octx =
+    match e with
+    | Events.Access access ->
+      D.add access ctx.local
+    | _ ->
+      ctx.local
 end
 
 let _ =
