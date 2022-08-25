@@ -18,60 +18,28 @@ struct
   module C = Lattice.Unit
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
-    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
-    let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t) =
-      ctx.emit (Access {var_opt=vo; kind})
-    in
-    let add_access vo oo = part_access ctx e vo kind in
-    let add_access_struct ci = part_access ctx e None kind in (* TODO: remove struct stuff *)
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if CilType.Varinfo.equal var dummyFunDec.svar then
-          add_access None (Some coffs)
-        else
-          add_access (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
-    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
+    if M.tracing then M.trace "accessLocal" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
+    let emit_access vo = ctx.emit (AccessLocal {var_opt=vo; kind}) in
+    let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
-    | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | ls when not (LS.is_top ls) ->
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
-        | ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct ci
-            | _ -> ()
-          in
-          Queries.TS.iter f ts
-      end;
-      on_lvals ls !includes_uk
-    | _ ->
-      add_access None None
+    | ls when Queries.LS.is_top ls -> emit_access None
+    | ls ->
+      Queries.LS.iter (fun (var, _) ->
+          if CilType.Varinfo.equal var dummyFunDec.svar then
+            emit_access None
+          else
+            emit_access (Some var)
+        ) ls
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
+    if M.tracing then M.traceli "accessLocal" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if deref then do_access ctx kind reach exp;
     Access.distribute_access_exp (do_access ctx Read false) exp;
-    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
+    if M.tracing then M.traceu "accessLocal" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = D.empty ()
@@ -175,7 +143,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access access ->
+    | Events.AccessLocal access ->
       D.add access ctx.local
     | _ ->
       ctx.local
