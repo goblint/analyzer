@@ -17,7 +17,7 @@ struct
   module D = AccessDomain.EventSet
   module C = Lattice.Unit
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t) =
@@ -69,9 +69,8 @@ struct
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    let conf = 110 in (* TODO: remove conf from distribute_access_exp *)
-    if deref then do_access ctx kind reach conf exp;
-    Access.distribute_access_exp (do_access ctx Read false) conf exp;
+    if deref then do_access ctx kind reach exp;
+    Access.distribute_access_exp (do_access ctx Read false) exp;
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
