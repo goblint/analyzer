@@ -79,17 +79,17 @@ struct
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
-      ctx.emit (Access {var_opt=vo; kind});
+    let part_access ctx (e:exp) (vo:varinfo option) (oo: offset option) (kind: AccessKind.t): MCPAccess.A.t =
+      ctx.emit (Access {var_opt=vo; offs_opt=oo; kind});
       (*partitions & locks*)
       Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
     in
     let add_access conf vo oo =
-      let a = part_access ctx e vo kind in
+      let a = part_access ctx e vo oo kind in
       Access.add (side_access ctx) e kind conf vo oo a;
     in
     let add_access_struct conf ci =
-      let a = part_access ctx e None kind in
+      let a = part_access ctx e None None kind in
       Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in

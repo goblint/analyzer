@@ -218,8 +218,8 @@ struct
         | (`Lifted _) as es ->
           let lvals = AccessDomain.EventSet.fold (fun e lvals ->
               match e with
-              | {var_opt = Some var; kind = Write} ->
-                CilLval.Set.add (Cil.var var) lvals
+              | {var_opt = Some var; offs_opt = Some offs; kind = Write} ->
+                CilLval.Set.add (Var var, offs) lvals
               | _ ->
                 lvals
             ) es (CilLval.Set.empty ())
@@ -235,8 +235,8 @@ struct
             |> BatEnum.fold AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
             |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                 match e with
-                | {var_opt = Some var; kind = Read} ->
-                  CilLval.Set.add (Cil.var var) lvals
+                | {var_opt = Some var; offs_opt = Some offs; kind = Read} ->
+                  CilLval.Set.add (Var var, offs) lvals
                 | _ ->
                   lvals
               ) es lvals

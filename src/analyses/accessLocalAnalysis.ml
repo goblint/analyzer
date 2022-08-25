@@ -19,16 +19,17 @@ struct
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "accessLocal" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
-    let emit_access vo = ctx.emit (AccessLocal {var_opt=vo; kind}) in
+    let emit_access vo oo = ctx.emit (AccessLocal {var_opt=vo; offs_opt=oo; kind}) in
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
-    | ls when Queries.LS.is_top ls -> emit_access None
+    | ls when Queries.LS.is_top ls -> emit_access None None
     | ls ->
-      Queries.LS.iter (fun (var, _) ->
+      Queries.LS.iter (fun (var, offs) ->
+          let coffs = Lval.CilLval.to_ciloffs offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
-            emit_access None
+            emit_access None (Some coffs)
           else
-            emit_access (Some var)
+            emit_access (Some var) (Some coffs)
         ) ls
 
   (** Three access levels:

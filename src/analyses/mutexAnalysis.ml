@@ -126,7 +126,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {var_opt; kind} ->
+    | Events.Access {var_opt; kind; _} ->
       (*privatization*)
       begin match var_opt with
         | Some v ->
