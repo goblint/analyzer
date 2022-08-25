@@ -232,7 +232,7 @@ struct
                 match Query.ask_local_node gh next_n next_local MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
-            |> BatEnum.reduce AccessDomain.EventSet.union
+            |> BatEnum.fold AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
             |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
                 match e with
                 | {var_opt = Some var; kind = Read} ->
