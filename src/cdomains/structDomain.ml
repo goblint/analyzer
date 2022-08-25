@@ -91,7 +91,10 @@ struct
     (* invariant for one field *)
     | Field (f, offset) ->
       let v = get x f in
-      value_invariant ~offset c v
+      let c_lval = BatOption.get c.Invariant.lval in
+      let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
+      let f_c = {c with lval=Some f_lval} in
+      value_invariant ~offset f_c v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none

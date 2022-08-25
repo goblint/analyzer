@@ -1,6 +1,10 @@
 open GoblintCil
 
-module type Arg = Lattice.S
+module type Arg =
+sig
+  include Lattice.S
+  val cast: ?torg:typ -> typ -> t -> t
+end
 
 module type S =
 sig
@@ -35,8 +39,17 @@ struct
       end
     (* invariant for one field *)
     | Field (f, offset) ->
-      (* ignores lift_f and f because all fields are considered to have same value anyway *)
-      value_invariant ~offset c v
+      let c_lval = BatOption.get c.Invariant.lval in
+      begin match lift_f with
+        | `Lifted f' ->
+          let v = Values.cast ~torg:f'.ftype f.ftype v in
+          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
+          let f_c = {c with lval=Some f_lval} in
+          value_invariant ~offset f_c v
+        | `Top
+        | `Bot ->
+          Invariant.none
+      end
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none

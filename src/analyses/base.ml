@@ -1184,7 +1184,7 @@ struct
 
     let cpa_invariant =
       let context1: Invariant.context1 = {path = context.Invariant.path; lval = None} in
-      let key_invariant k v = key_invariant_lval ~vs:VS.empty context1 k NoOffset (var k) v in
+      let key_invariant k ?(offset=NoOffset) v = key_invariant_lval ~vs:VS.empty context1 k offset (var k) v in
       if CilLval.Set.is_top context.lvals then (
         CPA.fold (fun k v a ->
             let i =
@@ -1200,8 +1200,8 @@ struct
         CilLval.Set.fold (fun k a ->
             let i =
               match k with
-              | (Var k, _) when not (InvariantCil.var_is_heap k) ->
-                (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
+              | (Var k, offset) when not (InvariantCil.var_is_heap k) ->
+                (try key_invariant k ~offset (CPA.find k cpa) with Not_found -> Invariant.none)
               | _ -> Invariant.none
             in
             Invariant.(a && i)
