@@ -475,7 +475,6 @@ let apronOctagonOption factors file =
     print_endline @@ String.concat "," @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_apron_track",[])) info.vattr) allVars
   in
-  activateVars ();
   {
     value = 50 * (List.length allVars) ;
     cost = cost;
