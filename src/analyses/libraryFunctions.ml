@@ -11,6 +11,11 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src }); (* using Memcpy! *)
+    ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Memcpy { dest; src }); (* using Memcpy! *)
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
@@ -39,6 +44,10 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
     ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
+    ("__builtin_expect", special [__ "exp" []; drop' []] @@ fun exp -> Identity exp);
+    ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
+    ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
+    ("__builtin_return_address", unknown [drop "level" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -328,10 +337,7 @@ let invalidate_actions = [
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
-    "memcpy", writes [1];(*keep [1]*)
-    "__builtin_memcpy", writes [1];(*keep [1]*)
     "mempcpy", writes [1];(*keep [1]*)
-    "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
@@ -374,7 +380,6 @@ let invalidate_actions = [
     "strftime", writes [1];(*keep [1]*)
     "strlen", readsAll;(*safe*)
     "strncmp", readsAll;(*safe*)
-    "strncpy", writes [1];(*keep [1]*)
     "strncat", writes [1];(*keep [1]*)
     "strstr", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
@@ -446,7 +451,6 @@ let invalidate_actions = [
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
-    "strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy_chk", writes [1];(*keep [1]*)
     "strcat", writes [1];(*keep [1]*)

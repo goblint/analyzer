@@ -1128,7 +1128,7 @@ module Spec : Analyses.MCPSpec = struct
 
       let arglist' = List.map (stripCasts % constFold false) arglist in
       match (LibraryFunctions.find f).special arglist', f.vname, arglist with
-      | ThreadCreate _ , _, [ thread; thread_attr; func; fun_arg ] ->
+      | ThreadCreate { thread; start_routine = func }, _, _ ->
         let funs_ls =
           let ls = ctx.ask (Queries.ReachableFrom func) in
           Queries.LS.filter
@@ -1203,19 +1203,19 @@ module Spec : Analyses.MCPSpec = struct
         @@ List.map thread_create
         @@ ExprEval.eval_ptr_id ctx thread Tbls.ThreadTidTbl.get
 
-      | ThreadJoin  _, _, [ thread; thread_ret ] ->
+      | ThreadJoin { thread; ret_var = thread_ret }, _, _ ->
         add_actions
         @@ List.map (fun tid -> Action.ThreadJoin tid)
         @@ ExprEval.eval_var_id ctx thread Tbls.ThreadTidTbl.get
-      | Lock _, _, [ mutex ] ->
+      | Lock { lock = mutex; _ }, _, _ ->
         add_actions
         @@ List.map (fun mid -> Action.MutexLock mid)
         @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
-      | Unlock _, _, [mutex] ->
+      | Unlock mutex, _, _ ->
         add_actions
         @@ List.map (fun mid -> Action.MutexUnlock mid)
         @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
-      | ThreadExit _, _ , [status] ->
+      | ThreadExit _, _ , _ ->
         add_action Action.ThreadExit
       | Abort, _, _ ->
         add_action (Action.Call "exit")
@@ -1236,7 +1236,7 @@ module Spec : Analyses.MCPSpec = struct
         add_actions
         @@ List.map (fun id -> Action.CondVarSignal id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | Unknown, "pthread_cond_wait", [ cond_var; mutex ] ->
+      | CondWait { cond = cond_var; lock = mutex }, _, _ ->
         let cond_vars = ExprEval.eval_ptr ctx cond_var in
         let mutex_vars = ExprEval.eval_ptr ctx mutex in
         let cond_var_action (v, m) =

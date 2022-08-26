@@ -509,11 +509,6 @@ struct
       |> remove_reachable ~deep:false ask shallow_args
       |> remove_reachable ~deep:true ask deep_args
 
-  let safe_fn = function
-    | "memcpy" -> true
-    | "__builtin_return_address" -> true
-    | _ -> false
-
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
@@ -523,7 +518,6 @@ struct
         | Some x -> assign ctx x e
         | None -> unknown_fn ctx lval f args
       end
-    | Unknown, x when safe_fn x -> ctx.local
     | ThreadCreate { arg; _ }, _ ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode

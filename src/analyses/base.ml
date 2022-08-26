@@ -2506,49 +2506,33 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, "strcpy"
-    | Unknown, "strncpy"
-    | Unknown, "memcpy"
-    | Unknown, "__builtin___memcpy_chk" ->
-      begin match f.vname, args with
-        | _, [dst; src]
-        | _, [dst; src; _]
-        | "__builtin___memcpy_chk", [dst; src; _; _] ->
-          (* invalidating from interactive *)
-          (* let dest_a, dest_typ = addr_type_of_exp dst in
-             let value = VD.top_value dest_typ in
-             set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
-          (* TODO: reuse addr_type_of_exp for master *)
-          (* assigning from master *)
-          let get_type lval =
-            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-            AD.get_type address
-          in
-          let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
-          let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+    | Memcpy { dest = dst; src }, _ ->
+      (* invalidating from interactive *)
+      (* let dest_a, dest_typ = addr_type_of_exp dst in
+          let value = VD.top_value dest_typ in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
+      (* TODO: reuse addr_type_of_exp for master *)
+      (* assigning from master *)
+      let get_type lval =
+        let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+        AD.get_type address
+      in
+      let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
 
-          let dest_typ = get_type dst_lval in
-          let src_typ = get_type src_lval in
+      let dest_typ = get_type dst_lval in
+      let src_typ = get_type src_lval in
 
-          (* When src and destination type coincide, take value from the source, otherwise use top *)
-          let value = if typeSig dest_typ = typeSig src_typ then
-              let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-              eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
-            else
-              VD.top_value (unrollType dest_typ)
-          in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | _ -> failwith "strcpy arguments are strange/complicated."
-      end
-    | Unknown, "__builtin" ->
-      begin match args with
-        | Const (CStr ("invariant",_)) :: ((_ :: _) as args) ->
-          List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
-        | _ -> failwith "Unknown __builtin."
-      end
+      (* When src and destination type coincide, take value from the source, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Abort, _ -> raise Deadcode
-    | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     | ThreadExit { ret_val = exp }, _ ->
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
@@ -2560,11 +2544,6 @@ struct
         | _ -> ()
       end;
       raise Deadcode
-    | Unknown, "__builtin_expect" ->
-      begin match lv with
-        | Some v -> assign ctx v (List.hd args)
-        | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
-      end
     | Identity e, _ ->
       begin match lv with
         | Some x -> assign ctx x e
@@ -2690,8 +2669,6 @@ struct
         | None ->
           st
       end
-    (* Handling the assertions *)
-    | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | _, _ -> begin
         let st =
