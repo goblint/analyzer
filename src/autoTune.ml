@@ -463,8 +463,9 @@ let apronOctagonOption factors file =
     topVars globals !varMap
   in
   let allVars = (selectedGlobals @ selectedLocals) in
+  let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () = 
-    print_endline @@ "Octagon: " ^ string_of_int @@ (Batteries.Int.pow (locals + globals) 3) * 3;
+    print_endline @@ "Octagon: " ^ string_of_int cost;
     set_bool "annotation.track_apron" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
@@ -474,9 +475,10 @@ let apronOctagonOption factors file =
     print_endline @@ String.concat "," @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_apron_track",[])) info.vattr) allVars
   in
+  activateVars ();
   {
     value = 50 * (List.length allVars) ;
-    cost = (Batteries.Int.pow (locals + globals) 3) * 3;
+    cost = cost;
     activate = activateVars;
   }
 

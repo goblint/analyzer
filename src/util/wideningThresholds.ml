@@ -3,67 +3,60 @@ open Batteries
 module Thresholds = Set.Make(Z)
 
 (*Collect only constants that are used in comparisons*)
+(*For widening we want to have the tightest representation that includes the exit condition*)
 (*differentiating between upper and lower bounds, because e.g. expr > 10 is definitely true for an interval [11, x] and definitely false for an interval [x, 10]*)
 (*apron octagons use thresholds for c in inequalities +/- x +/- y <= c*)
-(* x + y <= 10 -> definitely right if c=10 *)
-(*                definitely wrong if c=-11 (because -x -y <= -11 <=> x + y >= 11 <=> x + y > 10)*)
-(* x <= 10 <=> x + x <= 2*10 -> 2 *10 and -2*10-1 are also interesting *)
-
-let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref;;
-let one = Z.of_int 1;;
-let neg_one = Z.of_int (-1);;
+let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref
+let one = Z.of_int 1
 
 class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, octagon_thresholds) = object
   inherit nopCilVisitor
 
   method! vexpr = function
-    (*Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr*)
-    | BinOp (Lt, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
-      addThreshold upper_thresholds @@ i;
-      addThreshold lower_thresholds @@ Z.add one i;
-
-      addThreshold octagon_thresholds @@ i;
-      addThreshold octagon_thresholds @@ Z.sub neg_one i;
-      let doubleI = Z.add i i in
-      addThreshold octagon_thresholds @@ doubleI;
-      addThreshold octagon_thresholds @@ Z.sub neg_one doubleI;
-      DoChildren
     (*Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr*)
     | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
     | BinOp (Ge, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Lt, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Gt, (Const (CInt(i,_,_))), _, (TInt _)) ->
-      addThreshold upper_thresholds @@ Z.add neg_one i;
-      addThreshold lower_thresholds @@ i;
+      addThreshold upper_thresholds @@ i;
+      addThreshold lower_thresholds @@ Z.sub i one;
 
-      addThreshold octagon_thresholds @@ Z.add neg_one i;
-      addThreshold octagon_thresholds @@ Z.neg i;
-      let doubleI = Z.add i i in
-      addThreshold octagon_thresholds @@ Z.add neg_one doubleI;
-      addThreshold octagon_thresholds @@ Z.neg doubleI;
+      let negI = Z.add one @@ Z.neg i in
+      addThreshold octagon_thresholds @@ i; (*upper, just large enough: x + Y <= i*)
+      addThreshold octagon_thresholds @@ negI; (*lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
+      addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i*)
+      addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i*)
       DoChildren
+
+    (*Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr*)
+    | BinOp (Lt, (Const (CInt(i,_,_))), _, (TInt _))
+    | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
+      let i = Z.add i one in (*THe same as above with i+1 because for integers expr <= 10 <=> expr < 11  *)
+      addThreshold upper_thresholds @@ i;
+      addThreshold lower_thresholds @@ Z.sub i one;
+
+      let negI = Z.add one @@ Z.neg i in
+      addThreshold octagon_thresholds @@ i; 
+      addThreshold octagon_thresholds @@ negI; 
+      addThreshold octagon_thresholds @@ Z.add i i; 
+      addThreshold octagon_thresholds @@ Z.add negI negI;
+      DoChildren
+
     (*Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr*)
     | BinOp (Eq, (Const (CInt(i,_,_))), _, (TInt _))
     | BinOp (Eq, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Ne, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Ne, (Const (CInt(i,_,_))), _, (TInt _)) ->
-      addThreshold upper_thresholds @@ Z.add neg_one i;
-      addThreshold lower_thresholds @@ Z.add one i;
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ i;
 
       addThreshold octagon_thresholds @@ i;
       addThreshold octagon_thresholds @@ Z.neg i;
-      addThreshold octagon_thresholds @@ Z.sub i one;
-      addThreshold octagon_thresholds @@ Z.sub neg_one i;
       let doubleI = Z.add i i in
       addThreshold octagon_thresholds @@ doubleI;
       addThreshold octagon_thresholds @@ Z.neg doubleI;
-      addThreshold octagon_thresholds @@ Z.sub doubleI one;
-      addThreshold octagon_thresholds @@ Z.sub neg_one doubleI;
       DoChildren
     | _ -> DoChildren
 end
