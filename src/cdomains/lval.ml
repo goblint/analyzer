@@ -260,12 +260,12 @@ struct
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
         with Not_found ->
-          let s = sprint ~width:0 @@ dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
+          let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
           raise (Type_offset (t, s))
       in type_offset fi.ftype o
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
-      let s = sprint ~width:0 @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
+      let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
       raise (Type_offset (t, s))
 
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t

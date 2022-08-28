@@ -772,7 +772,7 @@ struct
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:80 (fun ppf -> d_const ppf c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = Pretty.sprint ~width:max_int (fun ppf -> d_const ppf c) in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -2145,7 +2145,7 @@ struct
     let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
     let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
-    (* M.debug ~category:Analyzer @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+    (* M.debug ~category:Analyzer @@ sprint ~width:max_int @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
       let not_local x =
         match Addr.to_var_may x with

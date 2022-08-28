@@ -25,7 +25,7 @@ struct
   type t = edge
 
   let embed e = e
-  let to_string e = Pretty.sprint ~width:80 (fun ppf -> Edge.pretty_plain ppf e)
+  let to_string e = Pretty.sprint ~width:max_int (fun ppf -> Edge.pretty_plain ppf e)
 end
 
 type inline_edge =
@@ -46,7 +46,7 @@ struct
 
   let embed e = CFGEdge e
 
-  let to_string e = Pretty.sprint ~width:80 (fun ppf -> pretty_inline_edge ppf e)
+  let to_string e = Pretty.sprint ~width:max_int (fun ppf -> pretty_inline_edge ppf e)
 end
 
 (* Abstract Reachability Graph *)

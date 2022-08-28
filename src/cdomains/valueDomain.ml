@@ -307,7 +307,7 @@ struct
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
-      let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
+      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
@@ -336,7 +336,7 @@ struct
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
-                          ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
+                          ^ Pretty.(sprint ~width:max_int @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
     in
     let one_addr = let open Addr in function
