@@ -629,7 +629,7 @@ let reset_lazy () =
   ResettableLazy.reset original_names
 
 
-let stmt_pretty_short ppf x =
+let stmt_pp_short ppf x =
   match x.skind with
   | Instr (y::ys) -> dn_instr ppf y
   | If (exp,_,_,_,_) -> dn_exp ppf exp

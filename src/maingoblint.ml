@@ -405,7 +405,7 @@ let do_analyze change_info merged_AST =
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then failwith "No suitable function to start from.";
     if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
-                                             L.pretty stf L.pretty exf L.pretty otf);
+                                             L.pp stf L.pp exf L.pp otf);
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =

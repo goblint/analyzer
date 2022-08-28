@@ -64,7 +64,7 @@ module WP =
         (* every variable in (pruned) rho should be stable *)
         HM.iter (fun x _ ->
             if not (HM.mem data.stable x) then (
-              ignore (Pretty.printf "unstable in rho: %a\n" S.Var.pretty_trace x);
+              ignore (Pretty.printf "unstable in rho: %a\n" S.Var.pp_trace x);
               assert false
             )
           ) data.rho
@@ -133,7 +133,7 @@ module WP =
       let cache_sizes = ref [] in
 
       let add_infl y x =
-        if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
+        if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pp_trace y S.Var.pp_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
         HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
@@ -143,7 +143,7 @@ module WP =
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
       let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
-        if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
+        if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pp_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.fold (fun y b ->
@@ -153,11 +153,11 @@ module WP =
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve ?reuse_eq x phase =
-        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pp_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
-          if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace x;
+          if tracing then trace "sol2" "stable add %a\n" S.Var.pp_trace x;
           HM.replace stable x ();
           HM.replace called x ();
           (* Here we cache HM.mem wpoint x before eq. If during eq eval makes x wpoint, then be still don't apply widening the first time, but just overwrite.
@@ -171,7 +171,7 @@ module WP =
             match reuse_eq with
             | Some d when narrow_reuse ->
               (* Do not reset deps for reuse of eq *)
-              if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
+              if tracing then trace "sol2" "eq reused %a\n" S.Var.pp_trace x;
               incr Goblintutil.narrow_reuses;
               d
             | _ ->
@@ -181,8 +181,8 @@ module WP =
           in
           let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a\n" S.Var.pp_trace x ;
+          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pp tmp;
           HM.remove called x;
           let old = HM.find rho x in (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
           let tmp =
@@ -193,9 +193,9 @@ module WP =
               else
                 box x old tmp
           in
-          if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
-          if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
-          if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
+          if tracing then trace "sol" "Old value:%a\n" S.Dom.pp old;
+          if tracing then trace "sol" "New Value:%a\n" S.Dom.pp tmp;
+          if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pp_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             if tracing then trace "sol" "Changed\n";
@@ -206,30 +206,30 @@ module WP =
           ) else (
             (* TODO: why non-equal and non-stable checks in switched order compared to TD3 paper? *)
             if not (HM.mem stable x) then (
-              if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
+              if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pp_trace x;
               (solve[@tailcall]) x Widen
             ) else (
               if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
-                if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
-                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
+                if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pp_trace x;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pp_trace x;
                 HM.remove stable x;
                 HM.remove superstable x;
                 (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-                if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
+                if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pp_trace x (HM.mem wpoint x);
                 HM.remove wpoint x
               )
             )
           )
         )
       and eq x get set =
-        if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
+        if tracing then trace "sol2" "eq %a\n" S.Var.pp_trace x;
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
       and simple_solve l x y =
-        if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
+        if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pp_trace y (S.system y <> None);
         if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
@@ -243,7 +243,7 @@ module WP =
           else (if cache then HM.replace l y tmp; tmp)
         )
       and eval l x y =
-        if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+        if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pp_trace x S.Var.pp_trace y;
         get_var_event y;
         if HM.mem called y then (
           if restart_wpoint && not (HM.mem wpoint y) then (
@@ -251,7 +251,7 @@ module WP =
                The loop body might then side effect the old value, see tests/incremental/06-local-wpoint-read.
                Here we avoid this, by setting it to bottom for the loop body eval. *)
             if not (restart_once && HM.mem restarted_wpoint y) then (
-              if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
+              if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pp_trace y S.Dom.pp (HM.find_default rho y (S.Dom.bot ()));
               HM.replace rho y (S.Dom.bot ());
               if restart_once then (* avoid populating hashtable unnecessarily *)
                 HM.replace restarted_wpoint y ();
@@ -261,27 +261,27 @@ module WP =
         );
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
-        if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty tmp;
+        if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp tmp;
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (fun v ppf -> S.Var.pretty_trace ppf v)) x S.Dom.pretty d;
+        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pp_trace y (HM.mem wpoint y) (Pretty.docOpt (fun v ppf -> S.Var.pp_trace ppf v)) x S.Dom.pp d;
         if S.system y <> None then (
-          ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pp_trace y S.Dom.pp d;
         );
         assert (S.system y = None);
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let op =
           if HM.mem wpoint y then fun a b ->
-            if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+            if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pp a S.Dom.pp b;
             let r = S.Dom.widen a (S.Dom.join a b) in
-            if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+            if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pp r;
             r
           else S.Dom.join
         in
         let old = HM.find rho y in
         let tmp = op old d in
-        if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
+        if tracing then trace "sol2" "stable add %a\n" S.Var.pp_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
@@ -324,7 +324,7 @@ module WP =
           | x -> failwith ("Unknown value '" ^ x ^ "' for option solvers.td3.side_widen!")
         )
       and init x =
-        if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
+        if tracing then trace "sol2" "init %a\n" S.Var.pp_trace x;
         if not (HM.mem rho x) then (
           new_var_event x;
           HM.replace rho x (S.Dom.bot ())
@@ -332,7 +332,7 @@ module WP =
       in
 
       let set_start (x,d) =
-        if tracing then trace "sol2" "set_start %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d;
+        if tracing then trace "sol2" "set_start %a ## %a\n" S.Var.pp_trace x S.Dom.pp d;
         init x;
         HM.replace rho x d;
         HM.replace stable x ();
@@ -340,11 +340,11 @@ module WP =
       in
 
       let rec destabilize_normal x =
-        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
+        if tracing then trace "sol2" "destabilize %a\n" S.Var.pp_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
-            if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+            if tracing then trace "sol2" "stable remove %a\n" S.Var.pp_trace y;
             HM.remove stable y;
             HM.remove superstable y;
             if not (HM.mem called y) then destabilize_normal y
@@ -363,8 +363,8 @@ module WP =
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
         let restart_leaf x =
-          if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
-          ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
+          if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pp_trace x;
+          ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pp_trace x);
           HM.replace rho x (S.Dom.bot ());
           (* HM.remove rho x; *)
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
@@ -383,7 +383,7 @@ module WP =
         (* destabilize which restarts side-effected vars *)
         (* side_fuel specifies how many times (in recursion depth) to destabilize side_infl, None means infinite *)
         let rec destabilize_with_side ~side_fuel x =
-          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pretty_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
+          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pp_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
 
           (* is side-effected var (global/function entry)? *)
           let w = HM.find_default side_dep x VS.empty in
@@ -406,8 +406,8 @@ module WP =
 
             (* destabilize side dep to redo side effects *)
             VS.iter (fun y ->
-                if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pp_trace x S.Var.pp_trace y;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pp_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
                 destabilize_with_side ~side_fuel y
@@ -418,8 +418,8 @@ module WP =
           let w = HM.find_default infl x VS.empty in
           HM.replace infl x VS.empty;
           VS.iter (fun y ->
-              if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+              if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pp_trace x S.Var.pp_trace y;
+              if tracing then trace "sol2" "stable remove %a\n" S.Var.pp_trace y;
               HM.remove stable y;
               HM.remove superstable y;
               destabilize_with_side ~side_fuel y
@@ -438,8 +438,8 @@ module WP =
             in
             (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
             VS.iter (fun y ->
-                if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pp_trace x S.Var.pp_trace y;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pp_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
                 destabilize_with_side ~side_fuel:side_fuel' y
@@ -590,7 +590,7 @@ module WP =
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
           HM.iter (fun k _ ->
               if HM.mem stable k then (
-                ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
+                ignore (Pretty.printf "marked %a\n" S.Var.pp_trace k);
                 destabilize k
               )
             ) marked_for_deletion
@@ -605,8 +605,8 @@ module WP =
               HM.remove side_dep x;
               (* destabilize side dep to redo side effects *)
               VS.iter (fun y ->
-                  if tracing then trace "sol2" "destabilize_leaf %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                  if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                  if tracing then trace "sol2" "destabilize_leaf %a side_dep %a\n" S.Var.pp_trace x S.Var.pp_trace y;
+                  if tracing then trace "sol2" "stable remove %a\n" S.Var.pp_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
                   destabilize_normal y
@@ -626,7 +626,7 @@ module WP =
              S.iter_vars get g
                (fun v ->
                   if S.system v <> None then
-                    ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
+                    ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pp_trace v
                   else if HM.mem stable v then
                     destabilize_leaf v)
           )
@@ -646,7 +646,7 @@ module WP =
             if should_restart_start then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
-                ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
+                ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pp_trace v);
                 restart_and_destabilize v (* restart side effect from start *)
               | _ ->
                 (* don't restart unchanged start global *)
@@ -663,7 +663,7 @@ module WP =
               | None ->
                 (* restart removed start global to allow it to be pruned from incremental solution *)
                 (* this gets rid of its warnings and makes comparing with from scratch sensible *)
-                ignore (Pretty.printf "Destabilizing and restarting removed start var %a\n" S.Var.pretty_trace v);
+                ignore (Pretty.printf "Destabilizing and restarting removed start var %a\n" S.Var.pp_trace v);
                 restart_and_destabilize v
               | _ ->
                 ()
@@ -689,7 +689,7 @@ module WP =
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
           HM.iter (fun x (old_rho, old_infl) ->
-              ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
+              ignore @@ Pretty.printf "test for %a\n" Node.pp_trace (S.Var.node x);
               solve x Widen;
               if not (op (HM.find rho x) old_rho) then (
                 print_endline "Destabilization required...";
@@ -721,7 +721,7 @@ module WP =
           if GobConfig.get_bool "dbg.verbose" then (
             if !i = 1 then print_newline ();
             Printf.printf "Unstable solver start vars in %d. phase:\n" !i;
-            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pretty_trace v) unstable_vs;
+            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pp_trace v) unstable_vs;
             print_newline ();
             flush_all ();
           );
@@ -741,12 +741,12 @@ module WP =
         HM.replace visited y ();
         let mem = HM.mem rho y in
         let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
-        if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
+        if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp d S.Dom.pp d'
       in
       let rec eq check x =
         HM.replace visited x ();
         match S.system x with
-        | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pretty_trace x; S.Dom.bot ())
+        | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pp_trace x; S.Dom.bot ())
         | Some f -> f (get ~check) (check_side x)
       and get ?(check=false) x =
         if HM.mem visited x then (
@@ -755,9 +755,9 @@ module WP =
           let d1 = HM.find rho x in
           let d2 = eq check x in (* just to reach unrestored variables *)
           if check then (
-            if not (HM.mem stable x) && S.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
+            if not (HM.mem stable x) && S.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pp_trace x;
             if not (S.Dom.leq d2 d1) then
-              ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
+              ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pp_trace x S.Dom.pp d1 S.Dom.pp d2 S.Dom.pp_diff (d1,d2);
           );
           d1
         ) else (
@@ -773,7 +773,7 @@ module WP =
         let restore () =
           let get x =
             let d = get ~check:true x in
-            if tracing then trace "sol2" "restored var %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d
+            if tracing then trace "sol2" "restored var %a ## %a\n" S.Var.pp_trace x S.Dom.pp d
           in
           List.iter get vs;
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
@@ -789,7 +789,7 @@ module WP =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 
@@ -874,7 +874,7 @@ module WP =
         (* restart write-only *)
         HM.iter (fun x w ->
             HM.iter (fun y d ->
-                ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
+                ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pp_trace y);
                 HM.replace rho y (S.Dom.bot ());
               ) w
           ) rho_write
@@ -932,7 +932,7 @@ module WP =
             HM.iter (fun x w ->
                 HM.iter (fun y d ->
                     let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
-                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
+                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp old_d S.Dom.pp d); *)
                     HM.replace rho y (S.Dom.join old_d d);
                     HM.replace init_reachable y ();
                     HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
@@ -942,7 +942,7 @@ module WP =
 
         let one_side ~vh ~x ~y ~d =
           if S.Var.is_write_only y then (
-            (* ignore (Pretty.printf "rho_write collect %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d); *)
+            (* ignore (Pretty.printf "rho_write collect %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp d); *)
             HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
             let w =
               try

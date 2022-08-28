@@ -209,7 +209,7 @@ struct
   (*       M.debug @@ *)
   (*         "\nCil-exp: " ^ sprint d_exp e *)
   (*         (*^ "; Goblint-exp: " ^ sprint d_exp exp*) *)
-  (*         ^ "; Goblint: " ^ sprint Queries.Result.pretty (ctx.ask (Queries.EvalInt exp)) *)
+  (*         ^ "; Goblint: " ^ sprint Queries.Result.pp (ctx.ask (Queries.EvalInt exp)) *)
   (*         ^ "\nCurrent block: " ^ (if tv then "Then" else "Else") *)
   (*         ^ "\nThen block (exits " ^ str_exit tb ^ "): " ^ sprint d_block tb *)
   (*         ^ "\nElse block (exits " ^ str_exit fb ^ "): " ^ sprint d_block fb *)

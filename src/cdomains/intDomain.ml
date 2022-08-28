@@ -290,7 +290,7 @@ struct
   type t = { v : I.t; ikind : (ikind [@equal (=)] [@compare Stdlib.compare] [@hash fun x -> Hashtbl.hash x]) } [@@deriving eq, ord, hash]
 
   (* Helper functions *)
-  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
+  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pp x.v ^ " and " ^ Prelude.Ana.sprint I.pp y.v)) else ()
   let lift op x = {x with v = op x.ikind x.v }
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
@@ -313,8 +313,8 @@ struct
   let narrow = lift2 I.narrow
 
   let show x = I.show x.v  (* TODO add ikind to output *)
-  let pretty ppf x = I.pretty ppf x.v (* TODO add ikind to output *)
-  let pretty_diff ppf (x, y) = I.pretty_diff ppf (x.v, y.v) (* TODO check ikinds, add them to output *)
+  let pp ppf x = I.pp ppf x.v (* TODO add ikind to output *)
+  let pp_diff ppf (x, y) = I.pp_diff ppf (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
@@ -416,7 +416,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
-    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pretty to_type (BI.to_string to_min) (BI.to_string to_max);
+    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pp from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pp to_type (BI.to_string to_min) (BI.to_string to_max);
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -497,7 +497,7 @@ module Std (B: sig
       let show = show
     end
     )
-  let pretty_diff ppf (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y ppf
+  let pp_diff ppf (x,y) = dprintf "%s: %a instead of %a" (name ()) pp x pp y ppf
 
   include StdTop (B)
 end
@@ -645,7 +645,7 @@ struct
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pp x pp y pp r;
     assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
@@ -896,7 +896,7 @@ struct
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
-    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pretty x pretty y pretty refn;
+    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a\n" pp x pp y pp refn;
     refn
 
   let refine_with_interval ik a b = meet ik a b
@@ -999,7 +999,7 @@ struct
   let top () = raise Unknown
   let bot () = raise Error
   let leq = equal
-  let pretty_diff ppf (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y ppf
+  let pp_diff ppf (x,y) = Pretty.dprintf "Integer %a instead of %a" pp x pp y ppf
   let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
@@ -2167,7 +2167,7 @@ struct
 
   let leq x y =
     let res = leq x y in
-    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pretty x pretty y pretty (Some(Ints_t.of_int (Bool.to_int res), Ints_t.zero)) ;
+    if M.tracing then M.trace "congruence" "leq %a %a -> %a \n" pp x pp y pp (Some(Ints_t.of_int (Bool.to_int res), Ints_t.zero)) ;
     res
 
   let join ik (x:t) y =
@@ -2179,7 +2179,7 @@ struct
 
   let join ik (x:t) y =
     let res = join ik x y in
-    if M.tracing then M.trace "congruence" "join %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "join %a %a -> %a\n" pp x pp y pp res;
     res
 
 
@@ -2206,7 +2206,7 @@ struct
 
   let meet ik x y =
     let res = meet ik x y in
-    if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pp x pp y pp res;
     res
 
   let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
@@ -2257,16 +2257,16 @@ struct
 
 
   let cast_to ?torg ?no_ov (t : Cil.ikind) x =
-    let pretty_bool _ x = Pretty.text (string_of_bool x) in
+    let pp_bool _ x = Pretty.text (string_of_bool x) in
     let res = cast_to ?torg ?no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pp x Cil.d_ikind t (Pretty.docOpt (pp_bool ())) no_ov pp res;
     res
 
   let widen = join
 
   let widen ik x y =
     let res = widen ik x y in
-    if M.tracing then M.trace "congruence" "widen %a %a -> %a\n" pretty x pretty y pretty res;
+    if M.tracing then M.trace "congruence" "widen %a %a -> %a\n" pp x pp y pp res;
     res
 
   let narrow = meet
@@ -2298,7 +2298,7 @@ struct
 
   let shift_right ik x y =
     let res = shift_right ik x y in
-     if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a \n" pretty x pretty y pretty res;
+     if M.tracing then  M.trace "congruence" "shift_right : %a %a becomes %a \n" pp x pp y pp res;
      res
 
   let shift_left ik x y =
@@ -2328,7 +2328,7 @@ struct
 
   let shift_left ik x y =
     let res = shift_left ik x y in
-    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pp x pp y pp res;
     res
 
   let mul ?(no_ov=false) ik x y =
@@ -2345,7 +2345,7 @@ struct
 
   let mul ?no_ov ik x y =
     let res = mul ?no_ov ik x y in
-    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "mul : %a %a -> %a \n" pp x pp y pp res;
     res
 
   let neg ?(no_ov=false) ik x =
@@ -2369,8 +2369,8 @@ struct
   let add ?no_ov ik x y =
     let res = add ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "add : %a %a -> %a \n" pretty x pretty y
-        pretty res ;
+      M.trace "congruence" "add : %a %a -> %a \n" pp x pp y
+        pp res ;
     res
 
   let sub ?(no_ov=false) ik x y = add ~no_ov ik x (neg ~no_ov ik y)
@@ -2379,8 +2379,8 @@ struct
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "sub : %a %a -> %a \n" pretty x pretty y
-        pretty res ;
+      M.trace "congruence" "sub : %a %a -> %a \n" pp x pp y
+        pp res ;
     res
 
   let bitnot ik x = match x with
@@ -2417,7 +2417,7 @@ struct
         normalize ik (Some(c1, Ints_t.gcd m1 (Ints_t.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
-    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pp x pp y pp res;
     res
 
   let div ?(no_ov=false) ik x y =
@@ -2434,7 +2434,7 @@ struct
   let div ?no_ov ik x y =
     let res = div ?no_ov ik x y in
     if M.tracing then
-      M.trace "congruence" "div : %a %a -> %a \n" pretty x pretty y pretty
+      M.trace "congruence" "div : %a %a -> %a \n" pp x pp y pp
         res ;
     res
 
@@ -2457,14 +2457,14 @@ struct
 
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a \n" pp x pp y pp res;
     res
 
   let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a \n" pp x pp y pp res;
     res
 
   let gt ik x y = comparison ik (>:) x y
@@ -2472,14 +2472,14 @@ struct
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a \n" pp x pp y pp res;
     res
 
   let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pp x pp y pp res;
     res
 
   let invariant_ikind e ik x =
@@ -2517,11 +2517,11 @@ struct
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
-    let pretty_intv ppf i = (match i with
+    let pp_intv ppf i = (match i with
      | Some(l, u) -> let s = "["^Ints_t.to_string l^","^Ints_t.to_string u^"]" in Pretty.text s
      | _ -> Pretty.text ("Display Error")) ppf in
     let refn = refine_with_interval ik cong intv in
-    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
+    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pp cong pp_intv intv pp refn;
     refn
 
   let refine_with_congruence ik a b = meet ik a b
@@ -2705,7 +2705,7 @@ module IntDomTupleImpl = struct
     mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
 
-  let pretty ppf = (fun xs -> ppf |> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) (fun i ppf -> I.pretty ppf i) } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
+  let pp ppf = (fun xs -> ppf |> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) (fun i ppf -> I.pp ppf i) } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
 
   let refine_functions ik : (t -> t) list =
@@ -2730,7 +2730,7 @@ module IntDomTupleImpl = struct
            List.iter (fun f -> dt := f !dt) (refine_functions ik);
            quit_loop := equal old_dt !dt;
            if is_bot !dt then dt := bot_of ik; quit_loop := true;
-           if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
+           if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pp old_dt pp !dt;
          done;
       | _ -> ()
     ); !dt
@@ -2919,7 +2919,7 @@ module IntDomTupleImpl = struct
 
 
   (* printing boilerplate *)
-  let pretty_diff ppf (x,y) = dprintf "%a instead of %a" pretty x pretty y ppf
+  let pp_diff ppf (x,y) = dprintf "%a instead of %a" pp x pp y ppf
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik x =

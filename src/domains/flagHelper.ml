@@ -32,7 +32,7 @@ struct
   let hash = unop L.hash R.hash
   let compare = binop L.compare R.compare
   let show = unop L.show R.show
-  let pretty ppf = unop (L.pretty ppf) (R.pretty ppf)
+  let pp ppf = unop (L.pp ppf) (R.pp ppf)
   let printXml f = unop (L.printXml f) (R.printXml f)
   let to_yojson = unop L.to_yojson R.to_yojson
   let relift = unop_to_t L.relift R.relift
@@ -80,8 +80,8 @@ struct
   let narrow = binop_to_t L.narrow R.narrow
   let is_top = unop L.is_top R.is_top
   let is_bot = unop L.is_bot R.is_bot
-  let pretty_diff ppf ((l1,r1),(l2,r2)) = match (l1, r1),(l2, r2) with
-    | (Some p1, None), (Some p2, None) -> L.pretty_diff ppf (p1, p2)
-    | (None, Some t1), (None, Some t2) -> R.pretty_diff ppf (t1, t2)
+  let pp_diff ppf ((l1,r1),(l2,r2)) = match (l1, r1),(l2, r2) with
+    | (Some p1, None), (Some p2, None) -> L.pp_diff ppf (p1, p2)
+    | (None, Some t1), (None, Some t2) -> R.pp_diff ppf (t1, t2)
     | _ -> failwith Msg.msg
 end

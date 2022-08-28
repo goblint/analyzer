@@ -262,7 +262,7 @@ struct
     try
       let st = String.trim st in
       let x = get_value !json_conf (parse_path st) in
-      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
+      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pp x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
@@ -310,7 +310,7 @@ struct
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
     drop_memo ();
-    if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pp v;
     set_path_string st v
 
   (** Convenience functions for writing values. *)
@@ -357,7 +357,7 @@ struct
     | Some fn ->
       let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
       merge v;
-      if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
+      if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pp fn GobYojson.pp !json_conf
     | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
 end
 

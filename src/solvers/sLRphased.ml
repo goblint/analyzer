@@ -71,7 +71,7 @@ module Make =
         let effects = ref Set.empty in
         let side y d =
           assert (not (S.Dom.is_bot d));
-          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pp_trace y S.Dom.pp d;
           let first = not (Set.mem y !effects) in
           effects := Set.add y !effects;
           if first then (
@@ -82,7 +82,7 @@ module Make =
             if not (HM.mem rho y) then (
               if b then solve1 (HM.find key x - 1) ~side:true y else solve0 ~side:true y
             ) else (
-              (* trace "sol" "SIDE: Var: %a already exists with Prio: %i and Val: %a\n" S.Var.pretty_trace y (HM.find key y) S.Dom.pretty d; *)
+              (* trace "sol" "SIDE: Var: %a already exists with Prio: %i and Val: %a\n" S.Var.pp_trace y (HM.find key y) S.Dom.pp d; *)
               if HM.find key y < 0 then HM.replace key y (Ref.post_decr count_side)
             );
             q := H.add y !q
@@ -100,28 +100,28 @@ module Make =
         let tmp = eq x eval side in
         let tmp = S.Dom.join tmp (sides x) in
         (* if (b && not (S.Dom.leq old tmp)) then ( *)
-        (*   trace "sol" "Var: %a\nOld: %a\nTmp: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp; *)
+        (*   trace "sol" "Var: %a\nOld: %a\nTmp: %a\n" S.Var.pp_trace x S.Dom.pp old S.Dom.pp tmp; *)
         (*   assert false *)
         (* ); *)
         let val_new =
           if wpx then
             if b then
               let nar = narrow old tmp in
-              trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
+              trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pp_trace x S.Dom.pp old S.Dom.pp tmp S.Dom.pp nar;
               nar
             else
               let wid = S.Dom.widen old (S.Dom.join old tmp) in
-              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
+              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pp_trace x S.Dom.pp old S.Dom.pp tmp S.Dom.pp wid;
               wid
           else
             tmp
         in
-        if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-        if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty val_new;
+        if tracing then trace "sol" "Var: %a\n" S.Var.pp_trace x ;
+        if tracing then trace "sol" "Contrib:%a\n" S.Dom.pp val_new;
         if S.Dom.equal old val_new then ()
         else begin
           update_var_event x old val_new;
-          if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty val_new;
+          if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pp val_new;
           HM.replace rho x val_new;
           let w = try HM.find infl x with Not_found -> VS.empty in
           (* let w = if wpx then VS.add x w else w in *)
@@ -161,7 +161,7 @@ module Make =
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-        in trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
+        in trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pp_trace x S.Dom.pp v; v
       and eq x get set =
         eval_rhs_event x;
         match S.system x with
@@ -189,7 +189,7 @@ module Make =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 

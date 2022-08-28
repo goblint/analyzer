@@ -150,7 +150,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         (* begin match cfgnode with
           | Statement s ->
-            [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
+            [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pp () s))] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
         end; *)
         (* violation actually only allowed in violation witness *)

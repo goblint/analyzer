@@ -54,11 +54,11 @@ struct
     in
     let diff ppf =
       ppf |>
-      (if D.leq v1 v2 then nil else dprintf "diff: %a\n" D.pretty_diff (v1, v2))
+      (if D.leq v1 v2 then nil else dprintf "diff: %a\n" D.pp_diff (v1, v2))
       ++
-      (if D.leq v2 v1 then nil else dprintf "reverse diff: %a\n" D.pretty_diff (v2, v1))
+      (if D.leq v2 v1 then nil else dprintf "reverse diff: %a\n" D.pp_diff (v2, v1))
     in
-    let msg = if verbose then Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pretty v1 (Comparison.to_string_infix c) name2 D.pretty v2 diff
+    let msg = if verbose then Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pp v1 (Comparison.to_string_infix c) name2 D.pp v2 diff
       else Pretty.nil in
     (c, msg)
 end
@@ -80,7 +80,7 @@ struct
         match c with
         | {Comparison.more_precise = 0; less_precise = 0; incomparable = 0; _} -> ()
         | _ ->
-          if verbose then ignore (Pretty.printf "%a: %t\n" K.pretty k msg)
+          if verbose then ignore (Pretty.printf "%a: %t\n" K.pp k msg)
       ) compared;
     let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.empty in
     let msg = Pretty.dprintf "%s %s %s    (%s)" name1 (Comparison.to_string_infix c) name2 (Comparison.to_string_counts c) in

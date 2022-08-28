@@ -124,7 +124,7 @@ struct
       (env', [Boolean.mk_eq ctx (Env.get_const env v) (Env.get_const env' return_vname)])
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
-      failwith @@ Pretty.sprint ~width:max_int @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
+      failwith @@ Pretty.sprint ~width:max_int @@ Pretty.dprintf "wp_assert: %a" MyARG.pp_inline_edge edge
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
     assert (Expr.is_const expr);

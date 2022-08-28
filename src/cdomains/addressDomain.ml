@@ -27,9 +27,9 @@ struct
   include HoareDomain.HoarePO (Addr)
 
   let widen x y =
-    if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "ad" "widen %a %a\n" pp x pp y;
     let r = widen x y in
-    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    if M.tracing then M.traceu "ad" "-> %a\n" pp r;
     r
 
   type field = Addr.field
@@ -88,7 +88,7 @@ struct
     | Some _ -> "&" ^ Addr.show a
     | None -> Addr.show a
 
-  let pretty ppf x =
+  let pp ppf x =
     try
       let content = List.map (fun a -> text (short_addr a)) (elements x) in
       let rec separate x =
@@ -100,7 +100,7 @@ struct
       let separated = separate content in
       let content = List.fold_left (++) nil separated in
       ppf |> (text "{") ++ content ++ (text "}")
-    with SetDomain.Unsupported _ -> pretty ppf x
+    with SetDomain.Unsupported _ -> pp ppf x
 
   let show x : string =
     try

@@ -115,10 +115,10 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
 
 let computeSCCs x = Stats.time "computeSCCs" (computeSCCs x)
 
-let rec pretty_edges ppf = function
+let rec pp_edges ppf = function
   | [] -> Pretty.dprintf "" ppf
-  | [_,x] -> Edge.pretty_plain ppf x
-  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs ppf
+  | [_,x] -> Edge.pp_plain ppf x
+  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pp_plain x pp_edges xs ppf
 
 let get_pseudo_return_id fd =
   let start_id = 10_000_000_000 in (* TODO get max_sid? *)
@@ -145,9 +145,9 @@ let createCFG (file: file) =
   let addEdges fromNode edges toNode =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
-        pretty_edges edges
-        Node.pretty_trace fromNode
-        Node.pretty_trace toNode;
+        pp_edges edges
+        Node.pp_trace fromNode
+        Node.pp_trace toNode;
     NH.replace fd_nodes fromNode ();
     NH.replace fd_nodes toNode ();
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
@@ -447,7 +447,7 @@ let createCFG (file: file) =
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   if get_bool "dbg.verbose" then
-    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
+    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pp_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pp_statistics (GobHashtbl.magic_stats cfgB));
   cfgF, cfgB
 
 let createCFG = Stats.time "createCFG" createCFG
@@ -505,7 +505,7 @@ struct
   let p_node out n = Format.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (fun ppf -> Edge.pretty ppf x)))
+  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (fun ppf -> Edge.pp ppf x)))
 
   let rec p_edges out = function
     | [] -> Format.fprintf out ""

@@ -262,7 +262,7 @@ struct
     in
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    let pretty_key k = Pretty.text (string_of_key k) in
-    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
+    let pp_key k = Pretty.text (string_of_key k) in
+    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pp_key) xs;
     xs
 end

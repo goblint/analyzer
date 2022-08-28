@@ -50,7 +50,7 @@ struct
   let increase (v:Var.t) =
     let set v c =
       if not full_trace && (c > start_c && c > !max_c && (Option.is_none !max_var || not (Var.equal (Option.get !max_var) v))) then begin
-        if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
+        if tracing then trace "sol" "Switched tracing to %a\n" Var.pp_trace v;
         max_c := c;
         max_var := Some v
       end
@@ -68,21 +68,21 @@ struct
 
   let new_var_event x =
     incr Goblintutil.vars;
-    if tracing then trace "sol" "New %a\n" Var.pretty_trace x
+    if tracing then trace "sol" "New %a\n" Var.pp_trace x
 
   let get_var_event x =
-    if full_trace then trace "sol" "Querying %a\n" Var.pretty_trace x
+    if full_trace then trace "sol" "Querying %a\n" Var.pp_trace x
 
   let eval_rhs_event x =
-    if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
+    if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pp_trace x;
     incr Goblintutil.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && Option.is_some !max_var && Var.equal (Option.get !max_var) x) then begin
-      if tracing then tracei "sol_max" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
-      if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
+      if tracing then tracei "sol_max" "(%d) Update to %a.\n" !max_c Var.pp_trace x;
+      if tracing then traceu "sol_max" "%a\n\n" Dom.pp_diff (n, o)
     end
 
   (* solvers can assign this to print solver specific statistics using their data structures *)
@@ -92,7 +92,7 @@ struct
   let ncontexts = ref 0
   let print_context_stats rho =
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
-    let str k = (fun ppf -> S.Var.pretty_trace ppf k) |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
+    let str k = (fun ppf -> S.Var.pp_trace ppf k) |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
     let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
     HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 0 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
@@ -120,7 +120,7 @@ struct
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (string_of_time ());
     Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
-    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
+    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pp_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();

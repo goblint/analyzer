@@ -77,7 +77,7 @@ struct
     side_vars ctx lv_opt ty
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
-    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
+    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pp kind reach;
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
       ctx.emit (Access {var_opt=vo; kind});
@@ -139,13 +139,13 @@ struct
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
+    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pp kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
       if deref then do_access ctx kind reach conf exp;
       Access.distribute_access_exp (do_access ctx Read false) conf exp;
     );
-    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
+    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pp kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
@@ -243,7 +243,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* accesses *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pp g); *)
           let accs = G.access (ctx.global g) in
           Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)

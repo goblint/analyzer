@@ -228,16 +228,16 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let pretty ppf state =
+  let pp ppf state =
     match state with
-    | `Int n ->  ID.pretty ppf n
-    | `Float n ->  FD.pretty ppf n
-    | `Address n ->  AD.pretty ppf n
-    | `Struct n ->  Structs.pretty ppf n
-    | `Union n ->  Unions.pretty ppf n
-    | `Array n ->  CArrays.pretty ppf n
-    | `Blob n ->  Blobs.pretty ppf n
-    | `Thread n -> Threads.pretty ppf n
+    | `Int n ->  ID.pp ppf n
+    | `Float n ->  FD.pp ppf n
+    | `Address n ->  AD.pp ppf n
+    | `Struct n ->  Structs.pp ppf n
+    | `Union n ->  Unions.pp ppf n
+    | `Array n ->  CArrays.pp ppf n
+    | `Blob n ->  Blobs.pp ppf n
+    | `Thread n -> Threads.pp ppf n
     | `Mutex -> text "mutex" ppf
     | `Bot -> text bot_name ppf
     | `Top -> text top_name ppf
@@ -256,17 +256,17 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty_diff ppf (x,y) =
+  let pp_diff ppf (x,y) =
     match (x,y) with
-    | (`Int x, `Int y) -> ID.pretty_diff ppf (x,y)
-    | (`Float x, `Float y) -> FD.pretty_diff ppf (x,y)
-    | (`Address x, `Address y) -> AD.pretty_diff ppf (x,y)
-    | (`Struct x, `Struct y) -> Structs.pretty_diff ppf (x,y)
-    | (`Union x, `Union y) -> Unions.pretty_diff ppf (x,y)
-    | (`Array x, `Array y) -> CArrays.pretty_diff ppf (x,y)
-    | (`Blob x, `Blob y) -> Blobs.pretty_diff ppf (x,y)
-    | (`Thread x, `Thread y) -> Threads.pretty_diff ppf (x, y)
-    | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y ppf
+    | (`Int x, `Int y) -> ID.pp_diff ppf (x,y)
+    | (`Float x, `Float y) -> FD.pp_diff ppf (x,y)
+    | (`Address x, `Address y) -> AD.pp_diff ppf (x,y)
+    | (`Struct x, `Struct y) -> Structs.pp_diff ppf (x,y)
+    | (`Union x, `Union y) -> Unions.pp_diff ppf (x,y)
+    | (`Array x, `Array y) -> CArrays.pp_diff ppf (x,y)
+    | (`Blob x, `Blob y) -> Blobs.pp_diff ppf (x,y)
+    | (`Thread x, `Thread y) -> Threads.pp_diff ppf (x, y)
+    | _ -> dprintf "%s: %a not same type as %a" (name ()) pp x pp y ppf
 
   (************************************************************
    * Functions for getting state out of a compound:
@@ -307,7 +307,7 @@ struct
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
-      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
+      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pp (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
@@ -360,7 +360,7 @@ struct
         | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
-    M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pretty a d_type t AD.pretty a'; a'
+    M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pp a d_type t AD.pp a'; a'
 
   (* this is called for:
    * 1. normal casts
@@ -374,7 +374,7 @@ struct
     | `Mutex ->
       v
     | _ ->
-      let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
+      let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pp v d_type t in
       let t = unrollType t in
       let v' = match t with
         | TInt (ik,_) ->
@@ -452,12 +452,12 @@ struct
         | _ -> log_top __POS__; assert false
       in
       let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
-      Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
+      Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pp v s_torg d_type t pp v'; v'
 
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pp !Tracing.current_loc pp x pp y
 
   let rec leq x y =
     match (x,y) with
@@ -895,7 +895,7 @@ struct
               end
             | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
+            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pp x; top ()
           end
     in
     let l, o = match exp with
@@ -906,7 +906,7 @@ struct
 
   let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pp x Offs.pp offs pp value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
@@ -1049,11 +1049,11 @@ struct
               `Array new_array_value
             | `Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
             | x when GobOption.exists (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
+            | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pp x; top ()
           end
       in mu result
       in
-      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pretty r;
+      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pp r;
       r
     in
     let l, o = match exp with

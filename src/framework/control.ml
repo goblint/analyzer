@@ -182,7 +182,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace n
+          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pp_trace n
     in
     LHT.iter add_local_var h;
     res
@@ -231,7 +231,7 @@ struct
     let gh = GHT.create 13 in
     let getg v = GHT.find_default gh v (EQSys.G.bot ()) in
     let sideg v d =
-      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" EQSys.GVar.pretty v EQSys.G.pretty d;
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" EQSys.GVar.pp v EQSys.G.pp d;
       GHT.replace gh v (EQSys.G.join (getg v) d)
     in
     (* Old-style global function for context.
@@ -260,7 +260,7 @@ struct
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
-        if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pretty loc;
+        if M.tracing then M.trace "con" "Initializer %a\n" CilType.Location.pp loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
         Tracing.current_loc := loc;
@@ -279,21 +279,21 @@ struct
           let res = Spec.assign {ctx with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
           let res' = Spec.sync {ctx with local = res} `Normal in
-          if M.tracing then M.trace "global_inits" "\t\t -> state:%a\n" Spec.D.pretty res;
+          if M.tracing then M.trace "global_inits" "\t\t -> state:%a\n" Spec.D.pp res;
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
+      if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pp result;
       result, !funs
     in
 
     let print_globals glob =
       let out = M.get_out (Spec.name ()) !GU.out in
       let print_one v st =
-        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
+        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pp_trace v EQSys.G.pp st)
       in
       GHT.iter print_one glob
     in
@@ -539,7 +539,7 @@ struct
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "ana.dead-code.functions" then
-              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
+              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pp fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
@@ -622,7 +622,7 @@ struct
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
     let warn_global g v =
-      (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
+      (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pp_trace g EQSys.G.pp v); *)
       (* build a ctx for using the query system *)
       let rec ctx =
         { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)

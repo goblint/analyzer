@@ -76,7 +76,7 @@ let d_acct ppf = function
 
 let d_memo ppf (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o CilType.Location.pretty v.vdecl ppf
+  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pp v d_offs o CilType.Location.pp v.vdecl ppf
   | None       -> dprintf "%a" d_acct t ppf
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
@@ -309,13 +309,13 @@ struct
   include Printable.Std
   type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
-  let pretty ppf (conf, kind, node, e, lp) =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp ppf
+  let pp ppf (conf, kind, node, e, lp) =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pp kind CilType.Location.pp (Node.location node) CilType.Exp.pp e MCPAccess.A.pp lp ppf
 
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 
@@ -333,11 +333,11 @@ struct
   include Printable.Std
   type t = acc_typ [@@deriving eq, ord, hash]
 
-  let pretty = d_acct
+  let pp = d_acct
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end
@@ -346,11 +346,11 @@ struct
   include Printable.Std
   type t = offs [@@deriving eq, ord, hash]
 
-  let pretty = d_offs
+  let pp = d_offs
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end
@@ -438,7 +438,7 @@ let print_accesses (lv, ty) grouped_accs =
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,kind,node,e,a) =
-      let d_msg ppf = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf ppf in
+      let d_msg ppf = dprintf "%a with %a (conf. %d)" AccessKind.pp kind MCPAccess.A.pp a conf ppf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e

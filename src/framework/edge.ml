@@ -32,7 +32,7 @@ type t =
 [@@deriving eq, to_yojson]
 
 
-let pretty ppf e =
+let pp ppf e =
   ppf
   |> match e with
   | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -46,7 +46,7 @@ let pretty ppf e =
   | Skip -> Pretty.text "skip"
   | VDecl v -> fun ppf -> Cil.defaultCilPrinter#pVDecl ppf v
 
-let pretty_plain ppf e =
+let pp_plain ppf e =
   ppf
   |> match e with
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv

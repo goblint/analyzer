@@ -118,7 +118,7 @@ let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
 let tracel sys ?var fmt =
   let loc = !current_loc in
   let docloc sys doc =
-    printtrace sys (dprintf "(%a)@?" CilType.Location.pretty loc ++ indent 2 doc);
+    printtrace sys (dprintf "(%a)@?" CilType.Location.pp loc ++ indent 2 doc);
   in
   gtrace true docloc sys var ~loc ignore fmt
 
@@ -139,7 +139,7 @@ let traceli sys ?var ?(subsys=[]) fmt =
   let loc = !current_loc in
   let g () = activate sys subsys in
   let docloc sys doc: unit =
-    printtrace sys (dprintf "(%a)" CilType.Location.pretty loc ++ indent 2 doc);
+    printtrace sys (dprintf "(%a)" CilType.Location.pp loc ++ indent 2 doc);
     traceIndent ()
   in
   gtrace true docloc sys var ~loc g fmt

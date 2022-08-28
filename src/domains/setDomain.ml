@@ -65,9 +65,9 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty ppf x =
+  let pp ppf x =
     let elts = elements x in
-    let content = List.map (fun x ppf -> Base.pretty ppf x) elts in
+    let content = List.map (fun x ppf -> Base.pp ppf x) elts in
     let rec separate x =
       match x with
       | [] -> []
@@ -93,12 +93,12 @@ struct
 
   let relift x = map Base.relift x
 
-  let pretty_diff ppf ((x:t),(y:t)) =
+  let pp_diff ppf ((x:t),(y:t)) =
     ppf |>
     if leq x y then dprintf "%s: These are fine!" (name ()) else
-    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
+    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pp x else begin
       let evil = choose (diff x y) in
-      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
+      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pp x pp y Base.pp evil
     end
   let printXml f xs =
     BatPrintf.fprintf f "<value>\n<set>\n";
@@ -124,8 +124,8 @@ struct
     let p (b1,u1) = exists (fun (b2,u2) -> User.equal u1 u2 && Base.leq b1 b2) s2 in
     for_all p s1
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pp_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pp x pp y
 
   let join s1 s2 =
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
@@ -259,10 +259,10 @@ struct
   (* The printable implementation *)
   (* Overrides `Top text *)
 
-  let pretty ppf x =
+  let pp ppf x =
     match x with
     | `Top -> text N.topname ppf
-    | `Lifted t -> S.pretty ppf t
+    | `Lifted t -> S.pp ppf t
 
   let show x : string =
     match x with
@@ -319,15 +319,15 @@ end
 
 (* This one just removes the extra "{" notation and also by always returning
  * false for the isSimple, the answer looks better, but this is essentially a
- * hack. All the pretty printing needs some rethinking. *)
+ * hack. All the pp printing needs some rethinking. *)
 module HeadlessSet (Base: Printable.S) =
 struct
   include Make(Base)
 
   let name () = "Headless " ^ name ()
-  let pretty ppf x =
+  let pp ppf x =
     let elts = elements x in
-    let content = List.map (fun x ppf -> Base.pretty ppf x) elts in
+    let content = List.map (fun x ppf -> Base.pp ppf x) elts in
     let rec separate x =
       match x with
       | [] -> []
@@ -338,8 +338,8 @@ struct
     let content = List.fold_left (++) nil separated in
     content ppf
 
-  let pretty_diff ppf ((x:t),(y:t)) =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
+  let pp_diff ppf ((x:t),(y:t)) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
   let printXml f xs =
     iter (Base.printXml f) xs
 end

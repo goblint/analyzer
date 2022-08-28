@@ -27,16 +27,16 @@ struct
   struct
     include Printable.Prod (Addr) (RW)
 
-    let pretty ppf (a, write) =
+    let pp ppf (a, write) =
       if write then
-        Addr.pretty ppf a
+        Addr.pp ppf a
       else
-        Pretty.dprintf "read lock %a" Addr.pretty a ppf
+        Pretty.dprintf "read lock %a" Addr.pp a ppf
 
     include Printable.SimplePretty (
       struct
         type nonrec t = t
-        let pretty = pretty
+        let pp = pp
       end
       )
   end

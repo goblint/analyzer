@@ -287,7 +287,7 @@ struct
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pp_plain_short (Option.get !MyCFG.current_node));
         v+1
       ) h;
   module D = struct
@@ -587,7 +587,7 @@ struct
 
   let tf_normal_call ctx lv e (f:fundec) args  getl sidel getg sideg =
     let combine (cd, fc, fd) =
-      if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
+      if M.tracing then M.traceli "combine" "local: %a\n" S.D.pp cd;
       (* Extra sync in case function has multiple returns.
          Each `Return sync is done before joining, so joined value may be unsound.
          Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
@@ -602,9 +602,9 @@ struct
         in
         sync sync_ctx
       in
-      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
+      if M.tracing then M.trace "combine" "function: %a\n" S.D.pp fd;
       let r = S.combine {ctx with local = cd} lv e f args fc fd in
-      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pp r;
       r
     in
     let paths = S.enter ctx lv f args in
@@ -616,7 +616,7 @@ struct
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pp r;
     r
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
@@ -790,9 +790,9 @@ struct
     | `L x -> `L (LV.relift x)
     | `G x -> `G (GV.relift x)
 
-  let pretty_trace ppf = function
-    | `L a -> LV.pretty_trace ppf a
-    | `G a -> GV.pretty_trace ppf a
+  let pp_trace ppf = function
+    | `L a -> LV.pp_trace ppf a
+    | `G a -> GV.pp_trace ppf a
 
   let printXml f = function
     | `L a -> LV.printXml f a
@@ -1043,10 +1043,10 @@ struct
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
-      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
+      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pp x;
       try
         let r = Spec.combine (conv ctx cd) l fe f a fc x in
-        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
+        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pp r;
         D.add r y
       with Deadcode ->
         if M.tracing then M.traceu "combine" "combined function: dead\n";
@@ -1203,16 +1203,16 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "dbg.compare_runs.diff" then
-          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
+          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v2,v1));
         f_le ()
       end else if b2 then begin
         if get_bool "dbg.compare_runs.diff" then
-          ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v1,v2));
         f_gr ()
       end else begin
         if get_bool "dbg.compare_runs.diff" then (
-          ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
-          ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
+          ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v2,v1));
         );
         f_uk ()
       end
@@ -1231,16 +1231,16 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v2,v1));
           incr le
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v1,v2));
           incr gr
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
-            ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
+            ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v2,v1));
           );
           incr uk
         end
@@ -1268,16 +1268,16 @@ struct
           f_eq ()
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
+            ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v2,v1));
           f_le ()
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v1,v2));
           f_gr ()
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
-            ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
+            ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v1,v2));
+            ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v2,v1));
           );
           f_uk ()
         end
@@ -1317,11 +1317,11 @@ struct
     include Printable.Std
     include Var
 
-    let pretty = pretty_trace
+    let pp = pp_trace
     include Printable.SimplePretty (
       struct
         type nonrec t = t
-        let pretty = pretty
+        let pp = pp
       end
       )
   end

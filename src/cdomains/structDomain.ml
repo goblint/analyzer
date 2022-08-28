@@ -47,7 +47,7 @@ struct
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "<" ">" whole_str_list
 
-  let pretty ppf = M.pretty ppf
+  let pp ppf = M.pp ppf
   let replace s field value = M.add field value s
   let get s field = M.find field s
   let fold = M.fold
@@ -68,8 +68,8 @@ struct
   let hash  = M.hash
   let widen = M.widen
   let narrow = M.narrow
-  let pretty_diff ppf (x,y) =
-    Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y) ppf
+  let pp_diff ppf (x,y) =
+    Pretty.dprintf "{@[%a@] ...}" M.pp_diff (x,y) ppf
   let printXml = M.printXml
   let widen_with_fct = M.widen_with_fct
   let leq_with_fct = M.leq_with_fct
@@ -137,7 +137,7 @@ struct
   type t = HS.t [@@deriving to_yojson]
 
   let show mapping = HS.show mapping
-  let pretty = HS.pretty
+  let pp = HS.pp
   let top = hs_top
   let is_top = hs_is_top
   let bot = hs_bot
@@ -145,7 +145,7 @@ struct
   let create = hs_create
 
   let replace s field value =
-    if Messages.tracing then Messages.tracel "simplesets" "Normalize top Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value;
+    if Messages.tracing then Messages.tracel "simplesets" "Normalize top Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pp s Basetype.CilField.pp field Val.pp value;
     HS.map (fun s -> SS.replace s field value) s
 
   let get = hs_get
@@ -183,8 +183,8 @@ struct
   let narrow x y =
     meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
-  let pretty_diff ppf (x,y) =
-    Pretty.dprintf "{@[%a@] ...}" HS.pretty_diff (x,y) ppf
+  let pp_diff ppf (x,y) =
+    Pretty.dprintf "{@[%a@] ...}" HS.pp_diff (x,y) ppf
   let printXml f xs = HS.printXml f xs
 
   let widen_with_fct f =
@@ -204,7 +204,7 @@ struct
 
   let join_with_fct f x y =
     let appended = List.append (HS.elements x) (HS.elements y) in
-    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct start!\nx: %a\ny: %a\n" pretty x pretty y;
+    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct start!\nx: %a\ny: %a\n" pp x pp y;
     let reduce_list_with_fct join_f xs s =
       let rec aux unique remaining =
         match remaining with
@@ -213,14 +213,14 @@ struct
           let (overlapping, rem_uniq) = List.partition (fun ss -> SS.leq h ss || SS.leq ss h ) unique in
           let joined = List.fold_left (fun el acc ->
               let res = join_f acc el in
-              if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a\n" SS.pretty acc SS.pretty el SS.pretty res;
+              if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a\n" SS.pp acc SS.pp el SS.pp res;
               res
             ) h overlapping in
           aux (joined::rem_uniq) t
       in aux [] xs
     in
     let res = reduce_list_with_fct (SS.join_with_fct f) appended x in
-    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" pretty x pretty y pretty (HS.of_list appended) pretty res;
+    if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" pp x pp y pp (HS.of_list appended) pp res;
     res
 
   let join = join_with_fct Val.join
@@ -241,9 +241,9 @@ struct
     | Some k -> HS.show s ^ " with key " ^ F.show k
     | None -> HS.show s ^ " without key"
 
-  let pretty ppf (s, k) = ppf |> match k with
-    | Some k -> (fun ppf -> HS.pretty ppf s) ++ (text " with key ") ++ (fun ppf -> F.pretty ppf k)
-    | None -> (fun ppf -> HS.pretty ppf s) ++ (text " without key")
+  let pp ppf (s, k) = ppf |> match k with
+    | Some k -> (fun ppf -> HS.pp ppf s) ++ (text " with key ") ++ (fun ppf -> F.pp ppf k)
+    | None -> (fun ppf -> HS.pp ppf s) ++ (text " without key")
 
   let top () = (hs_top (), None)
   let is_top (s, _) = hs_is_top s
@@ -306,14 +306,14 @@ struct
             aux (joined::rem_uniq) t
         in
         let res = aux [] (HS.elements s) in
-        if Messages.tracing then Messages.tracel "reduce-key" "Reduced - s:\n%a\nto:\n%a\n---------\n" HS.pretty s HS.pretty res;
+        if Messages.tracing then Messages.tracel "reduce-key" "Reduced - s:\n%a\nto:\n%a\n---------\n" HS.pp s HS.pp res;
         (res, Some key)
 
   let reduce_key (x: t): t = reduce_key_with_fct (SS.join) x
 
   let replace (s,k) field value : t =
     let join_set s =if HS.is_bot s then s else HS.singleton (join_ss s) in
-    if Messages.tracing then Messages.tracel "keyedsets" "Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value ;
+    if Messages.tracing then Messages.tracel "keyedsets" "Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pp s Basetype.CilField.pp field Val.pp value ;
     let replaced = HS.map (fun s -> SS.replace s field value) s in
     let result_key =
       match find_key_field (s,k) with
@@ -375,7 +375,7 @@ struct
 
   let narrow x y = meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
-  let pretty_diff ppf ((x, _), (y, _)) = Pretty.dprintf "{@[%a@] ...}" HS.pretty_diff (x, y) ppf
+  let pp_diff ppf ((x, _), (y, _)) = Pretty.dprintf "{@[%a@] ...}" HS.pp_diff (x, y) ppf
   let printXml f x = match x with
     | (s, Some k) ->
       BatPrintf.fprintf f "<value>\n<map>\n
@@ -405,7 +405,7 @@ struct
 
   let join_with_fct f (x, k) (y, _) =
     let appended = List.append (HS.elements x) (HS.elements y) in
-    if Messages.tracing then Messages.tracel "bettersets" "Join-fct start!\nx: %a\ny: %a\n" HS.pretty x HS.pretty y;
+    if Messages.tracing then Messages.tracel "bettersets" "Join-fct start!\nx: %a\ny: %a\n" HS.pp x HS.pp y;
     let reduce_list_key_with_fct join_f (xs: variant list) (x: t) =
       match find_key_field x with
       | None -> x
@@ -421,14 +421,14 @@ struct
               ) unique in
             let joined = List.fold_left (fun el acc ->
                 let res = join_f acc el in
-                if Messages.tracing then Messages.tracel "bettersets" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a\n" SS.pretty acc SS.pretty el SS.pretty res;
+                if Messages.tracing then Messages.tracel "bettersets" "Join-fct joining others!\nacc: %a\nel: %a\nres: %a\n" SS.pp acc SS.pp el SS.pp res;
                 res
               ) h overlapping in
             aux (joined::rem_uniq) t
         in (aux [] xs, Some key)
     in
     let res = reduce_list_key_with_fct (SS.join_with_fct f) appended (x,k) in
-    if Messages.tracing then Messages.tracel "bettersets" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" HS.pretty x HS.pretty y HS.pretty (HS.of_list appended) pretty res;
+    if Messages.tracing then Messages.tracel "bettersets" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" HS.pp x HS.pp y HS.pp (HS.of_list appended) pp res;
     res
 
   let join = join_with_fct Val.join

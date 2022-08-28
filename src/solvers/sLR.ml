@@ -60,8 +60,8 @@ module SLR3 =
           let old = HM.find rho x in
           let tmp = eq x (eval x) (side x) in
           let tmp = S.Dom.join tmp (sides x) in
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a\n" S.Var.pp_trace x ;
+          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pp tmp;
           let tmp =
             if wpx then
               if HM.mem globals x then S.Dom.widen old tmp
@@ -70,7 +70,7 @@ module SLR3 =
           in
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
+            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pp tmp;
             HM.replace rho x tmp;
             let w = try HM.find infl x with Not_found -> VS.empty in
             let w = if wpx then VS.add x w else w in
@@ -152,7 +152,7 @@ module SLR3 =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 
@@ -325,13 +325,13 @@ module Make =
           let _ = P.rem_item stable x in
           if k >= sk then () else
             let _ = X.set_value x (D.bot ()) in
-            (* ignore @@ Pretty.printf " also restarting %d: %a\n" k S.Var.pretty_trace x; *)
+            (* ignore @@ Pretty.printf " also restarting %d: %a\n" k S.Var.pp_trace x; *)
             (* flush_all (); *)
             let w = L.sub infl x in
             let _ = L.rem_item infl x in
             List.iter handle_one w
         in
-        (* ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x; *)
+        (* ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pp_trace x; *)
         (* flush_all (); *)
         let w = L.sub infl x in
         let _ = L.rem_item infl x in
@@ -364,9 +364,9 @@ module Make =
         in
 
         let old = XY.get_value (x,y) in
-        (* ignore @@ Pretty.printf "key: %a -> %a\nold: %a\n\nd: %a\n\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old S.Dom.pretty d; *)
+        (* ignore @@ Pretty.printf "key: %a -> %a\nold: %a\n\nd: %a\n\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp old S.Dom.pp d; *)
         let tmp = d in
-        (* ignore @@ Pretty.printf "tmp: %a\n\n"  S.Dom.pretty tmp; *)
+        (* ignore @@ Pretty.printf "tmp: %a\n\n"  S.Dom.pp tmp; *)
 
         if not (D.eq tmp old) then begin
           let _ = XY.set_value (x,y) tmp in
@@ -383,7 +383,7 @@ module Make =
         | None -> a
         | Some p ->
           let xs = P.to_list p in
-          (* ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pretty_trace x); *)
+          (* ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pp_trace x); *)
           List.fold_left (fun a z -> D.cup a (XY.get_value (z,x))) a xs
 
       and solve x =
@@ -396,11 +396,11 @@ module Make =
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
           let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "solvers.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a\n" S.Var.pp_trace x ;
+          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pp tmp;
           let tmp = if use_box then box x old tmp else tmp in
           if not (D.eq tmp old) then begin
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
+            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pp tmp;
             let _ = X.set_value x tmp in
             if V.ver>3 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then
               HM.replace restart_mode x (restart_mode_x - 1);
@@ -444,7 +444,7 @@ module Make =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 
@@ -477,7 +477,7 @@ module PrintInfluence =
       let r = S1.solve box x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
-        let s = Pretty.sprint ~width:max_int (fun ppf -> S.Var.pretty_trace ppf k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
+        let s = Pretty.sprint ~width:max_int (fun ppf -> S.Var.pp_trace ppf k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
         ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (XmlUtil.escape s) q);
         let f y =
           if try HM.find S1.X.keys k > HM.find S1.X.keys y with Not_found -> false then
@@ -506,7 +506,7 @@ module TwoPhased =
       let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
       let iv' = HM.fold (fun k _ b -> k::b) sd [] in
       let f v x y =
-        (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pretty_trace v S.Dom.pretty x S.Dom.pretty y); *)
+        (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pp_trace v S.Dom.pp x S.Dom.pp y); *)
         narrow x y
       in
       solve f [] iv'

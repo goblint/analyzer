@@ -22,11 +22,11 @@ struct
       S.may_race (obj x) (obj y)
     ) x y
 
-  let pretty ppf a =
+  let pp ppf a =
     (* filter with should_print *)
     let xs = unop_fold (fun acc n (module S: Analyses.MCPA) x ->
         if S.should_print (obj x) then
-          Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: acc
+          Pretty.dprintf "%s:%a" (S.name ()) S.pp (obj x) :: acc
         else
           acc
       ) [] a

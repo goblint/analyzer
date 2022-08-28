@@ -70,7 +70,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
     if NHT.mem next_nodes node2 then begin
       (* ignore (Pretty.printf "PATH: %s\n" (Arg.Node.to_string node2)); *)
       let (edge, next_node) = NHT.find next_nodes node2 in
-      (* ignore (Pretty.printf "  %a\n" MyCFG.pretty_edge edge); *)
+      (* ignore (Pretty.printf "  %a\n" MyCFG.pp_edge edge); *)
       (node2, edge, next_node) :: trace_path next_nodes next_node
     end
     else

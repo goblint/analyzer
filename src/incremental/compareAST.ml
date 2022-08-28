@@ -94,10 +94,10 @@ and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physica
 
 and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
 
-and pretty_length ppf l = Pretty.num (List.length l) ppf
+and pp_length ppf l = Pretty.num (List.length l) ppf
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
-  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pp_length acc pp_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r = match a, b with
     | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2
     | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && eq_exp lenExp1 lenExp2 rename_mapping &&  GobList.equal (eq_attribute rename_mapping) attr1 attr2

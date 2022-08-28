@@ -114,8 +114,8 @@ struct
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
-  let pretty ppf x =
-    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
+  let pp ppf x =
+    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pp (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
     | [] -> text "[]" ppf
@@ -196,8 +196,8 @@ struct
   let unop_map f ((n, d):t) =
     f n (assoc_dom n) d
 
-  let pretty ppf = unop_map (fun n (module S: Printable.S) x ->
-      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) ppf
+  let pp ppf = unop_map (fun n (module S: Printable.S) x ->
+      Pretty.dprintf "%s:%a" (S.name ()) S.pp (obj x) ppf
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->
@@ -301,10 +301,10 @@ struct
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
 
-  let pretty_diff ppf (x,y) =
+  let pp_diff ppf (x,y) =
     let f a n (module S : Lattice.S) x y =
       if S.leq (obj x) (obj y) then a
-      else a ++ (fun ppf -> S.pretty_diff ppf (obj x, obj y)) ++ text ". "
+      else a ++ (fun ppf -> S.pp_diff ppf (obj x, obj y)) ++ text ". "
     in
     binop_fold f nil x y ppf
 end
@@ -337,10 +337,10 @@ struct
   let top () = failwith "DomVariantLattice0.top"
   let bot () = failwith "DomVariantLattice0.bot"
 
-  let pretty_diff ppf (x, y) =
+  let pp_diff ppf (x, y) =
     let f _ (module S : Lattice.S) x y =
       if S.leq (obj x) (obj y) then nil
-      else fun ppf -> S.pretty_diff ppf (obj x, obj y)
+      else fun ppf -> S.pp_diff ppf (obj x, obj y)
     in
     binop_map' f x y ppf
 end

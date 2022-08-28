@@ -134,11 +134,11 @@ struct
   let hash x = Hashtbl.hash x.sid * 97
 
   (* Output *)
-  let pretty ppf x = dn_stmt ppf x
+  let pp ppf x = dn_stmt ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end
@@ -185,11 +185,11 @@ struct
   let hash (x:typ) = Hashtbl.hash x
 
   (* Output *)
-  let pretty ppf x = d_type ppf x
+  let pp ppf x = d_type ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 
@@ -356,11 +356,11 @@ struct
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
   (* Output *)
-  let pretty ppf x = dn_exp ppf x
+  let pp ppf x = dn_exp ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end
@@ -404,11 +404,11 @@ struct
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
   (* Output *)
-  let pretty ppf x = d_offset nil ppf x
+  let pp ppf x = d_offset nil ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end
@@ -442,11 +442,11 @@ struct
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
   (* Output *)
-  let pretty ppf x = dn_lval ppf x
+  let pp ppf x = dn_lval ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end
@@ -474,11 +474,11 @@ struct
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
   (* Output *)
-  let pretty ppf x = d_const ppf x
+  let pp ppf x = d_const ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 end

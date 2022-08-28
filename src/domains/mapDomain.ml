@@ -119,7 +119,7 @@ struct
 
   let show x = "mapping"
 
-  let pretty ppf mapping =
+  let pp ppf mapping =
     let groups =
       let h = Hashtbl.create 13 in
       iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
@@ -132,19 +132,19 @@ struct
          not (List.mem (Domain.show key) !ME.tracevars) then
         dok
       else
-        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
+        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pp key Range.pp st
     in
     let group_name a ppf = text (Domain.show_group a) ppf in
-    let pretty_group map ppf = ppf |> fold f map nil in
-    let pretty_groups rest (group, map) =
+    let pp_group map ppf = ppf |> fold f map nil in
+    let pp_groups rest (group, map) =
       match group with
-      | None ->  rest ++ (fun ppf -> pretty_group map ppf)
-      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
-    let content ppf = ppf |> List.fold_left pretty_groups nil groups in
+      | None ->  rest ++ (fun ppf -> pp_group map ppf)
+      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pp_group map) in
+    let content ppf = ppf |> List.fold_left pp_groups nil groups in
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content ppf
 
-  (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
-  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
+  (* uncomment to easily check pp's grouping during a normal run, e.g. ./regtest 01 01: *)
+  (* let add k v m = let _ = Pretty.printf "%a\n" pp m in M.add k v m *)
 
   let printXml f xs =
     let print_one k v =
@@ -277,8 +277,8 @@ struct
   let name = M.name
   let to_yojson = M.to_yojson
   let show = M.show
-  let pretty = M.pretty
-  let pretty_diff = M.pretty_diff
+  let pp = M.pp
+  let pp_diff = M.pp_diff
   let printXml = M.printXml
   let arbitrary = M.arbitrary
 
@@ -355,13 +355,13 @@ struct
   let is_top _ = false
   let is_bot = is_empty
 
-  let pretty_diff ppf ((m1:t),(m2:t)) =
+  let pp_diff ppf ((m1:t),(m2:t)) =
     let p key value =
       not (try Range.leq value (find key m2) with Not_found -> false)
     in
     let report key v1 v2 =
       Pretty.dprintf "Map: %a =@?@[%a@]"
-        Domain.pretty key Range.pretty_diff (v1,v2)
+        Domain.pp key Range.pp_diff (v1,v2)
     in
     let diff_key k v = function
       | None   when p k v -> Some (report k v (find k m2))
@@ -419,13 +419,13 @@ struct
 
   let narrow = long_map2 Range.narrow
 
-  let pretty_diff ppf ((m1:t),(m2:t)) =
+  let pp_diff ppf ((m1:t),(m2:t)) =
     let p key value =
       not (try Range.leq (find key m1) value with Not_found -> false)
     in
     let report key v1 v2 =
       Pretty.dprintf "Map: %a =@?@[%a@]"
-        Domain.pretty key Range.pretty_diff (v1,v2)
+        Domain.pp key Range.pp_diff (v1,v2)
     in
     let diff_key k v = function
       | None   when p k v -> Some (report k (find k m1) v)

@@ -26,7 +26,7 @@ struct
     let v_str = V.show v in
     let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = text (show x)
+  let pp () x = text (show x)
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
     if V.equal v1 v2 then F.prefix fd1 fd2 else None
@@ -42,9 +42,9 @@ struct
   let name () = "musteq"
 
   let show _ = "Equalities"
-  let pretty ppf mapping =
+  let pp ppf mapping =
     let f (v1,v2) st dok: doc =
-      dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
+      dok ++ dprintf "%a = %a%a\n" V.pp v1 V.pp v2 F.pp st in
     let content ppf = fold f mapping nil ppf in
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content ppf
 

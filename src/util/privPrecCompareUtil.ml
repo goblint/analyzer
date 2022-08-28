@@ -7,7 +7,7 @@ struct
   include Printable.Prod (CilType.Location) (Basetype.Variables)
   let name () = "location variables"
   type marshal = t
-  let pretty ppf (l, v) = Pretty.dprintf "%a %a" CilType.Location.pretty l Basetype.Variables.pretty v ppf
+  let pp ppf (l, v) = Pretty.dprintf "%a %a" CilType.Location.pp l Basetype.Variables.pp v ppf
   let to_location = fst
 end
 

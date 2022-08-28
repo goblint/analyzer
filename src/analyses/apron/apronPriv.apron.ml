@@ -717,20 +717,20 @@ struct
 
   let lock_get_m oct local_m get_m =
     let joined = LAD.join local_m get_m in
-    if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD.pretty get_m LAD.pretty joined;
+    if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD.pp get_m LAD.pp joined;
     let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
-    if M.tracing then M.trace "apronpriv" "meet=%a\n" AD.pretty r;
+    if M.tracing then M.trace "apronpriv" "meet=%a\n" AD.pp r;
     let r = AD.meet oct r in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pp r;
     r
 
   let lock oct local_m get_m =
-    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD.pretty local_m;
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD.pp local_m;
     let r = lock_get_m oct local_m get_m in
     (* is_bot check commented out because it's unnecessarily expensive *)
     (* if AD.is_bot_env r then
       failwith "DownwardClosedCluster.lock: not downward closed?"; *)
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pp r;
     r
 
   let unlock w oct_side =
@@ -809,7 +809,7 @@ struct
     (lad, lad_weak)
 
   let lock oct (local_m, _) (get_m, get_m') =
-    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pp local_m;
     let r =
       let locked = DCCluster.lock_get_m oct local_m get_m in
       if AD.is_bot_env locked then (
@@ -822,7 +822,7 @@ struct
       else
         locked
     in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pp r;
     r
 
   let unlock w oct_side =
@@ -935,32 +935,32 @@ struct
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
-    if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
+    if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pp m LAD.pp get_m;
     let r =
     if not inits then
       get_m
     else
       let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
-      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
+      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pp get_mutex_inits LAD.pp get_mutex_inits';
       LAD.join get_m get_mutex_inits'
     in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pp r;
     r
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
-    if M.tracing then M.traceli "apronpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LAD.pretty get_mutex_global_g;
+    if M.tracing then M.traceli "apronpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pp g LAD.pp get_mutex_global_g;
     let r =
     if not inits then
       get_mutex_global_g
     else
       let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
-      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
+      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pp get_mutex_inits LAD.pp get_mutex_inits';
       LAD.join get_mutex_global_g get_mutex_inits'
     in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pp r;
     r
 
   let read_global ask getg (st: apron_components_t) g x: AD.t =
@@ -1160,102 +1160,102 @@ struct
 
   let read_global ask getg st g x =
     if M.tracing then M.traceli "apronpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let r = Priv.read_global ask getg st g x in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pp r;
     r
 
   let write_global ?invariant ask getg sideg st g x =
     if M.tracing then M.traceli "apronpriv" "write_global %a %a\n" d_varinfo g d_varinfo x;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pp x G.pp v;
       sideg x v
     in
     let r = write_global ?invariant ask getg sideg st g x in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pp r;
     r
 
   let lock ask getg st m =
-    if M.tracing then M.traceli "apronpriv" "lock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.traceli "apronpriv" "lock %a\n" LockDomain.Addr.pp m;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let r = lock ask getg st m in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pp r;
     r
 
   let unlock ask getg sideg st m =
-    if M.tracing then M.traceli "apronpriv" "unlock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.traceli "apronpriv" "unlock %a\n" LockDomain.Addr.pp m;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pp x G.pp v;
       sideg x v
     in
     let r = unlock ask getg sideg st m in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pp r;
     r
 
   let enter_multithreaded ask getg sideg st =
     if M.tracing then M.traceli "apronpriv" "enter_multithreaded\n";
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pp x G.pp v;
       sideg x v
     in
     let r = enter_multithreaded ask getg sideg st in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pp r;
     r
 
   let threadenter ask getg st =
     if M.tracing then M.traceli "apronpriv" "threadenter\n";
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let r = threadenter ask getg st in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pp r;
     r
 
   let sync ask getg sideg st reason =
     if M.tracing then M.traceli "apronpriv" "sync\n";
-    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pp st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pretty x G.pretty r;
+      if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" V.pp x G.pp r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pretty x G.pretty v;
+      if M.tracing then M.trace "apronpriv" "sideg %a %a\n" V.pp x G.pp v;
       sideg x v
     in
     let r = sync ask getg sideg st reason in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pp r;
     r
 end
 

@@ -48,8 +48,8 @@ struct
   type value = Val.t
 
   let show x = "Array: " ^ Val.show x
-  let pretty ppf x = ppf |> text "Array: " ++ (fun ppf -> pretty ppf x)
-  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
+  let pp ppf x = ppf |> text "Array: " ++ (fun ppf -> pp ppf x)
+  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
   let make i v = v
@@ -87,8 +87,8 @@ struct
       | hd::tl -> (Val.show hd ^ " - " ^ (show_list tl)) in
     "Array (unrolled to " ^ (Stdlib.string_of_int (factor ())) ^ "): " ^
     (show_list xl) ^ Val.show xr ^ ")"
-  let pretty ppf x = ppf |> text "Array: " ++ text (show x)
-  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
+  let pp ppf x = ppf |> text "Array: " ++ text (show x)
+  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
   let extract x default = match x with
     | Some c -> c
     | None -> default
@@ -206,8 +206,8 @@ struct
         Val.show xm ^ " -- " ^
         Val.show xr ^ ")"
 
-  let pretty ppf x = ppf |> text "Array: " ++ text (show x)
-  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
+  let pp ppf x = ppf |> text "Array: " ++ text (show x)
+  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
 
   let printXml f ((e, (xl, xm, xr)) as x) =
     if is_not_partitioned x then
@@ -373,7 +373,7 @@ struct
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
-    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pp x LiftExp.pp i Val.pp a;
     if i = `Lifted MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)

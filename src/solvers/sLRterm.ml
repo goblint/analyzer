@@ -61,14 +61,14 @@ module SLR3term =
           HM.replace rho  x (S.Dom.bot ());
           HM.replace infl x (VS.add x VS.empty);
           let c = if side then count_side else count in
-          trace "sol" "INIT: Var: %a with prio %d\n" S.Var.pretty_trace x !c;
+          trace "sol" "INIT: Var: %a with prio %d\n" S.Var.pp_trace x !c;
           HM.replace key x !c; decr c
         end
       in
       let sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
-        trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
+        trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pp_trace x S.Dom.pp v; v
       in
       let rec iterate b_old prio =
         if H.size !q = 0 || min_key q > prio then ()
@@ -119,7 +119,7 @@ module SLR3term =
           )
           *)
           (* if S.Dom.is_bot d then print_endline "BOT" else *)
-          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pp_trace y S.Dom.pp d;
           let first = not (Set.mem y !effects) in
           effects := Set.add y !effects;
           if first then (
@@ -130,7 +130,7 @@ module SLR3term =
               ignore @@ do_var false y
               (* solve ~side:true y *)
             ) else (
-              (* trace "sol" "SIDE: Var: %a already exists with Prio: %i and Val: %a\n" S.Var.pretty_trace y (HM.find key y) S.Dom.pretty d; *)
+              (* trace "sol" "SIDE: Var: %a already exists with Prio: %i and Val: %a\n" S.Var.pp_trace y (HM.find key y) S.Dom.pp d; *)
               if HM.find key y < 0 then (
                 HM.replace key y (Ref.post_decr count_side);
                 q := rebuild !q
@@ -153,28 +153,28 @@ module SLR3term =
           if wpx then
             if S.Dom.leq tmp old then (
               let nar = narrow old tmp in
-              trace "sol" "NARROW1: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
+              trace "sol" "NARROW1: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pp_trace x S.Dom.pp old S.Dom.pp tmp S.Dom.pp nar;
               nar, true
             ) else
             if b_old then (
               let nar = narrow old tmp in
-              trace "sol" "NARROW2: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
+              trace "sol" "NARROW2: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pp_trace x S.Dom.pp old S.Dom.pp tmp S.Dom.pp nar;
               nar, true
             )
             else (
               let wid = S.Dom.widen old (S.Dom.join old tmp) in
-              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
+              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pp_trace x S.Dom.pp old S.Dom.pp tmp S.Dom.pp wid;
               wid, false
             )
           else
             tmp, b_old
         in
-        if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-        if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty val_new;
+        if tracing then trace "sol" "Var: %a\n" S.Var.pp_trace x ;
+        if tracing then trace "sol" "Contrib:%a\n" S.Dom.pp val_new;
         if S.Dom.equal old val_new then ()
         else begin
           update_var_event x old val_new;
-          if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty val_new;
+          if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pp val_new;
           HM.replace rho x val_new;
           let w = try HM.find infl x with Not_found -> VS.empty in
           (* let w = if wpx then VS.add x w else w in *)
@@ -207,7 +207,7 @@ module SLR3term =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 

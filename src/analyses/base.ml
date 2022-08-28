@@ -195,7 +195,7 @@ struct
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
-    if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
+    if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pp a1 VD.pp a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
     let bool_top ik = ID.(join (of_int ik BI.zero) (of_int ik BI.one)) in
@@ -397,14 +397,14 @@ struct
   let rec get ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
-    if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
+    if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pp addrs CPA.pp st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
         let var = get_var a gs st x in
         let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
-        if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
+        if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pp var AD.pp (AD.from_var_offset (x, offs)) VD.pp v;
         if full then v else match v with
           | `Blob (c,s,_) -> c
           | x -> x
@@ -423,7 +423,7 @@ struct
       let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
       AD.fold f addrs (VD.bot ())
     in
-    if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
+    if M.tracing then M.traceu "get" "Result: %a\n" VD.pp res;
     res
 
 
@@ -448,7 +448,7 @@ struct
 
   let rec reachable_from_value (ask: Q.ask) (gs:glob_fun) st (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
-    if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
+    if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pp value;
     match value with
     | `Top ->
       if VD.is_immediate_type t then () else M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
@@ -473,9 +473,9 @@ struct
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
-    if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
+    if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pp adr;
     let res = reachable_from_value ask gs st (get ask gs st adr None) (AD.get_type adr) (AD.show adr) in
-    if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
+    if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pp res;
     res
 
   (* The code for getting the variables reachable from the list of parameters.
@@ -483,7 +483,7 @@ struct
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
-    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pretty) args;
+    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pp) args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
     let argset = List.fold_right (AD.join) args empty in
@@ -501,7 +501,7 @@ struct
       workset := AD.diff collected !visited
     done;
     (* Return the list of elements that have been visited. *)
-    if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
+    if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pp !visited;
     List.map AD.singleton (AD.elements !visited)
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
@@ -638,7 +638,7 @@ struct
       else
         eval_rv_ask_evalint a gs st exp
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pp r;
     r
 
   (** Evaluate expression using EvalInt query.
@@ -653,7 +653,7 @@ struct
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
         let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
-        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
+        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pp a;
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (`Int x) *)
@@ -663,7 +663,7 @@ struct
       | exception Cilfacade.TypeOfError _ (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pp r;
     r
 
   (** Evaluate expression without EvalInt query on outermost expression.
@@ -708,7 +708,7 @@ struct
       | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
       | _ -> eval_next ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pp r;
     r
 
   and eval_rv_back_up a gs st exp =
@@ -799,7 +799,7 @@ struct
             | Addr (x, o) ->
               begin
                 let at = get_type_addr (x, o) in
-                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pp (Addr (x, o)) CilType.Typ.pp (Cil.unrollType x.vtype) CilType.Typ.pp at;
                 if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
                   true
                 else
@@ -824,7 +824,7 @@ struct
             VD.top () (* upcasts not! *)
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-        if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+        if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pp v d_type t VD.pp v';
         let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
         let v' = do_offs v' ofs in (* handle blessed fields? *)
         v'
@@ -945,7 +945,7 @@ struct
       | AddrOfLabel _ ->
         VD.top ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pp r;
     r
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
@@ -1027,7 +1027,7 @@ struct
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
       let r = eval_rv a gs st exp in
-      if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
+      if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pp r;
       if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
       ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
@@ -1038,9 +1038,9 @@ struct
       | `Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | `Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | `Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
-      | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
+      | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pp v; Queries.ID.bot ()
     in
-    if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
+    if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pp r;
     r
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
@@ -1227,18 +1227,18 @@ struct
           in
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
-          (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
+          (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pp d; *)
           `Lifted d
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
     | Q.BlobSize e -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
+        (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pp p; *)
         match p with
         | `Address a ->
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
-          (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
+          (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pp r; *)
           (match r with
            | `Blob (_,s,_) -> `Lifted s
            | _ -> Queries.Result.top q)
@@ -1256,7 +1256,7 @@ struct
       end
     | Q.EvalThread e -> begin
         let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
+        (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pp v); *)
         match v with
         | `Thread a -> a
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
@@ -1294,7 +1294,7 @@ struct
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.compare_length_with (AD.to_string a) 1 > 0 -> (* oh oh *)
-          M.debug "EvalStr (%a) returned %a" d_exp e AD.pretty a;
+          M.debug "EvalStr (%a) returned %a" d_exp e AD.pp a;
           Queries.Result.top q
         | `Address a when List.compare_length_with (AD.to_var_may a) 1 = 0 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
@@ -1351,14 +1351,14 @@ struct
    * precise information about arrays. *)
   let set (a: Q.ask) ~(ctx: _ ctx) ?(invariant=false) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
-      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
+      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pp y CPA.pp z;
       let r = update_variable x t y z in (* refers to defintion that is outside of set *)
-      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
+      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pp y CPA.pp z CPA.pp r;
       r
     in
     let firstvar = if M.tracing then match AD.to_var_may lval with [] -> "" | x :: _ -> x.vname else "" in
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
+    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pp lval VD.pp value CPA.pp st.cpa;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) (st: store): store =
@@ -1391,7 +1391,7 @@ struct
         else
           new_value
       in
-      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
+      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pp (AD.from_var_offset (x,offs)) d_type x.vtype D.pp st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         st
@@ -1415,7 +1415,7 @@ struct
         in
         let new_value = update_offset old_value in
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg ctx.sideg) st x new_value in
-        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
+        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pp r;
         r
       end else begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
@@ -1499,11 +1499,11 @@ struct
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
       let nst = AD.fold update_one lval st in
-      (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
+      (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a\n" CPA.pp nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then { nst with cpa = CPA.join st.cpa nst.cpa } else nst in
-      (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
+      (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a\n" CPA.pp nst; *)
       nst
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
@@ -1558,7 +1558,7 @@ struct
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
-        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
+        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pp value;
         (match value with
          | `Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
@@ -1577,14 +1577,14 @@ struct
               | None -> None
             end
           | `Address n -> begin
-              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
+              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pp n;
               match eval_rv_address a gs st (Lval x) with
               | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
               | `Top when AD.is_null n ->
                 Some (x, `Address AD.not_null)
               | v ->
-                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty v AD.pretty n;
+                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pp v AD.pp n;
                 None
             end
           (* | `Address a -> Some (x, value) *)
@@ -1679,7 +1679,7 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pp value;
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
@@ -1689,7 +1689,7 @@ struct
         let state_with_excluded = set a gs st addr t_lval value ~invariant:true ~ctx in
         let value =  get a gs state_with_excluded addr None in
         let new_val = apply_invariant oldval value in
-        if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
+        if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pp new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
         if is_some_bot new_val then (
           if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
@@ -1801,7 +1801,7 @@ struct
            let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
            let a' = excl b a in
            let b' = excl a b in
-           if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
+           if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pp a ID.pp b d_ikind ikind ID.pp a' ID.pp b';
            meet_bin a' b'
          | _, _ -> a, b
         )
@@ -1979,35 +1979,35 @@ struct
         inv_exp (`Int c) (BinOp (op, c1, c2, t)) st
       | (BinOp (op, e1, e2, _) as e, `Float _)
       | (BinOp (op, e1, e2, _) as e, `Int _) ->
-        let invert_binary_op c pretty c_int c_float =
-          if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
+        let invert_binary_op c pp c_int c_float =
+          if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pp (eval e1 st) d_binop op VD.pp (eval e2 st) pp c;
           (match eval e1 st, eval e2 st with
            | `Int a, `Int b ->
              let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
              let a', b' = inv_bin_int (a, b) ikind (c_int ikind) op in
-             if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
+             if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pp a' ID.pp b';
              let st' = inv_exp (`Int a') e1 st in
              let st'' = inv_exp (`Int b') e2 st' in
              st''
            | `Float a, `Float b ->
              let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
              let a', b' = inv_bin_float (a, b) (c_float fkind) op in
-             if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e FD.pretty a' FD.pretty b';
+             if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e FD.pp a' FD.pp b';
              let st' = inv_exp (`Float a') e1 st in
              let st'' = inv_exp (`Float b') e2 st' in
              st''
            (* Mixed `Float and `Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
            | `Int _, `Float _ | `Float _, `Int _ -> failwith "ill-typed program";
              (* | `Address a, `Address b -> ... *)
-           | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
+           | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pp a1 ^ " and " ^ sprint VD.pp a2) st)
           (* use closures to avoid unused casts *)
         in (match c_typed with
-            | `Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
-            | `Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
+            | `Int c -> invert_binary_op c ID.pp (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
+            | `Float c -> invert_binary_op c FD.pp (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
             | _ -> failwith "unreachable")
       | Lval x, `Int _(* meet x with c *)
       | Lval x, `Float _ -> (* meet x with c *)
-        let update_lval c x c' pretty = (match x with
+        let update_lval c x c' pp = (match x with
             | Var var, o ->
               (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
               let oldv = get_var a gs st var in
@@ -2016,7 +2016,7 @@ struct
               let v = VD.meet oldv newv in
               if is_some_bot v then raise Deadcode
               else (
-                if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+                if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pp oldv VD.pp v pp c VD.pp c';
                 set' (Var var,NoOffset) v st
               )
             | Mem _, _ ->
@@ -2025,7 +2025,7 @@ struct
               let v = VD.meet oldv c' in
               if is_some_bot v then raise Deadcode
               else (
-                if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+                if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pp oldv VD.pp v pp c VD.pp c';
                 set' x v st
               )) in
         let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
@@ -2035,14 +2035,14 @@ struct
              | TInt (ik, _)
              | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
              | TFloat (fk, _) -> `Float (FD.of_int fk c)
-             | _ -> `Int c) ID.pretty
+             | _ -> `Int c) ID.pp
          | `Float c -> update_lval c x (match t with
              (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
              | TInt (ik, _) -> `Int (FD.to_int ik c)
              (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
              | TEnum ({ekind = ik; _}, _) -> `Int (FD.to_int ik c)
              | TFloat (fk, _) -> `Float (FD.cast_to fk c)
-             | _ -> `Float c) FD.pretty
+             | _ -> `Float c) FD.pp
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
@@ -2063,12 +2063,12 @@ struct
              | TInt(ik_e, _)
              | TEnum ({ekind = ik_e; _ }, _) ->
                let c' = ID.cast_to ik_e c in
-               if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+               if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pp i ID.pp c d_ikind ik_e ID.pp c';
                inv_exp (`Int c') e st
              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
            else
-             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
-         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
+             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pp i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
+         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pp v) st)
       | e, _ -> fallback (sprint d_plainexp e ^ " not implemented") st
     in
     if eval_bool exp st = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
@@ -2096,7 +2096,7 @@ struct
 
 
   let set_savetop ~ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
-    if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
+    if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pp adr d_type lval_t VD.pp v;
     match v with
     | `Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
     | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
@@ -2183,7 +2183,7 @@ struct
             | Some (x,offs) ->
               let t = v.vtype in
               let iv = VD.bot_value t in (* correct bottom value for top level variable *)
-              if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
+              if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pp iv;
               let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | None ->
@@ -2200,8 +2200,8 @@ struct
     let valu = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
     let refine () =
       let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
-      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
-      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
+      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pp (ctx.ask (Queries.EqualSet exp));
+      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pp (ctx.ask (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
       match ctx.ask (Queries.CondVars exp) with
       | s when Queries.ES.cardinal s = 1 ->
@@ -2209,12 +2209,12 @@ struct
         invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
       | _ -> res
     in
-    if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
+    if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pp valu;
     (* First we want to see, if we can determine a dead branch: *)
     match valu with
     (* For a boolean value: *)
     | `Int value when (ID.is_bool value) ->
-      if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
+      if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pp value;
       (* to suppress pattern matching warnings: *)
       let fromJust x = match x with Some x -> x | None -> assert false in
       let v = fromJust (ID.to_bool value) in
@@ -2248,7 +2248,7 @@ struct
     let st: store = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
-      if M.tracing then M.trace "init" "dummy init: %a\n" D.pretty st;
+      if M.tracing then M.trace "init" "dummy init: %a\n" D.pp st;
       publish_all ctx `Init;
       (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
       (* TODO: move into sync `Init *)
@@ -2333,7 +2333,7 @@ struct
     if M.tracing && exps <> [] then (
       let addrs = List.map (Tuple3.first) invalids' in
       let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pp) addrs (d_list ", " VD.pp) vs
     );
     set_many ~ctx ask gs st invalids'
 
@@ -2638,7 +2638,7 @@ struct
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pp (eval_int ctx.ask gs st size); *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
                                                          (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address heap_var)]
         | _ -> st
@@ -2719,7 +2719,7 @@ struct
 
   let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
-      if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
+      if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pp st.cpa CPA.pp fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
@@ -2780,7 +2780,7 @@ struct
     let st: store = ctx.local in
     match e with
     | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
+      if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pp addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then

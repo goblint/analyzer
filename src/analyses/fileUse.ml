@@ -31,8 +31,8 @@ struct
     | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    let pretty_key k = Pretty.text (D.string_of_key k) in
-    if M.tracing then M.tracel "file" "%s MayPointTo %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs
+    let pp_key k = Pretty.text (D.string_of_key k) in
+    if M.tracing then M.tracel "file" "%s MayPointTo %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pp_key) xs
 
   let eval_fv ask exp: varinfo option =
     match query_lv ask exp with

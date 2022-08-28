@@ -192,14 +192,14 @@ struct
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
               if M.tracing then M.traceli "apron" "assign inner %a = %a (%a)\n" d_varinfo v d_exp e' d_plainexp e';
-              if M.tracing then M.trace "apron" "st: %a\n" AD.pretty apr';
+              if M.tracing then M.trace "apron" "st: %a\n" AD.pp apr';
               let r = AD.assign_exp apr' (V.local v) e' in
-              if M.tracing then M.traceu "apron" "-> %a\n" AD.pretty r;
+              if M.tracing then M.traceu "apron" "-> %a\n" AD.pp r;
               r
             )
         )
       in
-      if M.tracing then M.traceu "apron" "-> %a\n" D.pretty r;
+      if M.tracing then M.traceu "apron" "-> %a\n" D.pp r;
       r
     )
 
@@ -236,7 +236,7 @@ struct
     let st = ctx.local in
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
-    if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
+    if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pp ctx.local;
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
@@ -261,7 +261,7 @@ struct
         | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
-    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_apr;
+    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pp new_apr;
     [st, {st with apr = new_apr}]
 
   let body ctx f =
@@ -346,7 +346,7 @@ struct
       )
     in
     let unify_apr = AD.unify new_apr new_fun_apr in (* TODO: unify_with *)
-    if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_apr AD.pretty new_fun_apr AD.pretty unify_apr;
+    if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pp new_apr AD.pp new_fun_apr AD.pp unify_apr;
     let unify_st = {fun_st with apr = unify_apr} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
@@ -518,9 +518,9 @@ struct
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "apron query %a (%a)\n" d_exp e d_plainexp e;
-      if M.tracing then M.trace "evalint" "apron st: %a\n" D.pretty ctx.local;
+      if M.tracing then M.trace "evalint" "apron st: %a\n" D.pp ctx.local;
       let r = eval_int e in
-      if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
+      if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pp r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in

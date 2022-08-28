@@ -300,7 +300,7 @@ struct
             match Bounds.bound_texpr d texpr1 with
             | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
             | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pretty ppf i)) min_opt (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pretty ppf i)) max_opt;
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pp exp (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pp ppf i)) min_opt (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pp ppf i)) max_opt;
               raise (Unsupported_CilExp Overflow)
           );
           expr
@@ -762,7 +762,7 @@ sig
 
   val unify: t -> t -> t
   val invariant: scope:Cil.fundec -> t -> Lincons1.t list
-  val pretty_diff: Format.formatter -> t * t -> unit
+  val pp_diff: Format.formatter -> t * t -> unit
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -785,7 +785,7 @@ struct
 
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
-  let pretty ppf (x:t) = text (show x) ppf
+  let pp ppf (x:t) = text (show x) ppf
 
   let equal x y =
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
@@ -801,7 +801,7 @@ struct
   let unify x y =
     A.unify Man.mgr x y
 
-  let pretty_diff (ppf: Format.formatter) (x, y): unit =
+  let pp_diff (ppf: Format.formatter) (x, y): unit =
     let lcx = A.to_lincons_array Man.mgr x in
     let lcy = A.to_lincons_array Man.mgr y in
     let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
@@ -884,9 +884,9 @@ struct
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
         | tcons1 ->
           if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
-          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
+          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pp d;
           let r = meet_tcons d tcons1 in
-          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
+          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pp r;
           r
         | exception Convert.Unsupported_CilExp reason ->
           if M.tracing then M.trace "apron" "assert_cons %a unsupported: %s\n" d_exp e (show_unsupported_cilExp reason);
@@ -982,7 +982,7 @@ struct
     else if is_bot y then
       x
     else (
-      if M.tracing then M.tracel "apron" "join %a %a\n" pretty x pretty y;
+      if M.tracing then M.tracel "apron" "join %a %a\n" pp x pp y;
       A.join (Man.mgr) x y
       (* TODO: return lifted top if different environments? and warn? *)
     )
@@ -1007,12 +1007,12 @@ struct
   let leq x y =
     if is_bot x || is_top y then true else
     if is_bot y || is_top x then false else (
-      if M.tracing then M.tracel "apron" "leq %a %a\n" pretty x pretty y;
+      if M.tracing then M.tracel "apron" "leq %a %a\n" pp x pp y;
       Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
       (* TODO: warn if different environments? *)
     )
 
-  (* TODO: check environments in pretty_diff? *)
+  (* TODO: check environments in pp_diff? *)
 end
 
 module D (Man: Manager) = DWithOps (Man) (DLift (Man))
@@ -1050,7 +1050,7 @@ struct
 
   let strengthening j x y =
     (* TODO: optimize strengthening *)
-    if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
+    if M.tracing then M.traceli "apron" "strengthening %a\n" pp j;
     let x_env = A.env x in
     let y_env = A.env y in
     let j_env = A.env j in
@@ -1065,9 +1065,9 @@ struct
       let t_y = A.change_environment Man.mgr t y_env false in
       let leq_x = A.is_leq Man.mgr x t_x in
       let leq_y = A.is_leq Man.mgr y t_y in
-      if M.tracing then M.trace "apron" "t: %a\n" pretty t;
-      if M.tracing then M.trace "apron" "t_x (leq x %B): %a\n" leq_x pretty t_x;
-      if M.tracing then M.trace "apron" "t_y (leq y %B): %a\n" leq_y pretty t_y;
+      if M.tracing then M.trace "apron" "t: %a\n" pp t;
+      if M.tracing then M.trace "apron" "t_x (leq x %B): %a\n" leq_x pp t_x;
+      if M.tracing then M.trace "apron" "t_y (leq y %B): %a\n" leq_y pp t_y;
       if leq_x && leq_y then (
         if M.tracing then M.traceu "apron" "added\n";
         t
@@ -1101,7 +1101,7 @@ struct
       Array.concat [x_cons1_only_x; y_cons1_only_y; x_cons1_some_y; y_cons1_some_x]
     in
     let j = Array.fold_left try_add_con j cons1 in
-    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+    if M.tracing then M.traceu "apron" "-> %a\n" pp j;
     j
 
   let empty_env = Environment.make [||] [||]
@@ -1124,16 +1124,16 @@ struct
     else if is_bot y then
       x
     else (
-      if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
+      if M.tracing then M.traceli "apron" "join %a %a\n" pp x pp y;
       let j = join x y in
-      if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+      if M.tracing then M.trace "apron" "j = %a\n" pp j;
       let j =
         if strengthening_enabled then
           strengthening j x y
         else
           j
       in
-      if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+      if M.tracing then M.traceu "apron" "-> %a\n" pp j;
       j
     )
 
@@ -1195,16 +1195,16 @@ struct
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
   let widen x y =
-    if M.tracing then M.traceli "apron" "widen %a %a\n" pretty x pretty y;
+    if M.tracing then M.traceli "apron" "widen %a %a\n" pp x pp y;
     let w = widen x y in
     if M.tracing then M.trace "apron" "widen same %B\n" (equal y w);
-    if M.tracing then M.traceu "apron" "-> %a\n" pretty w;
+    if M.tracing then M.traceu "apron" "-> %a\n" pp w;
     w
 
   (* TODO: better narrow *)
   let narrow x y = x
 
-  (* TODO: check environments in pretty_diff? *)
+  (* TODO: check environments in pp_diff? *)
 end
 
 module type S2 =
@@ -1296,7 +1296,7 @@ struct
   let vars_as_array (_, d) = D.vars_as_array d
   let vars (_, d) = D.vars d
 
-  let pretty_diff ppf ((_, d1), (_, d2)) = D.pretty_diff ppf (d1, d2)
+  let pp_diff ppf ((_, d1), (_, d2)) = D.pp_diff ppf (d1, d2)
 
   let add_vars_with (b, d) vs =
     BoxD.add_vars_with b vs;
@@ -1380,12 +1380,12 @@ struct
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
-  let pretty ppf r =
+  let pp ppf r =
     ppf |>
     text "(" ++
-    (fun ppf -> AD.pretty ppf r.apr)
+    (fun ppf -> AD.pp ppf r.apr)
     ++ text ", " ++
-    (fun ppf -> PrivD.pretty ppf r.priv)
+    (fun ppf -> PrivD.pp ppf r.priv)
     ++ text ")"
 
   let printXml f r =
@@ -1408,11 +1408,11 @@ struct
   let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
     AD.leq x1 y1 && PrivD.leq x3 y3
 
-  let pretty_diff ppf (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)) =
+  let pp_diff ppf (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)) =
     if not (AD.leq x1 y1) then
-      AD.pretty_diff ppf (x1,y1)
+      AD.pp_diff ppf (x1,y1)
     else
-      PrivD.pretty_diff ppf (x3,y3)
+      PrivD.pp_diff ppf (x3,y3)
 
   let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
     {apr = op1 x1 y1; priv = op3 x3 y3 }

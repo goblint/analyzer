@@ -27,7 +27,7 @@ struct
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
-  let pretty ppf x = Pretty.text (show x) ppf
+  let pp ppf x = Pretty.text (show x) ppf
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function
@@ -47,7 +47,7 @@ struct
   open Pretty
   type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
-  let pretty ppf x = text (show x) ppf
+  let pp ppf x = text (show x) ppf
   let name () = "raw strings"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
@@ -64,7 +64,7 @@ struct
   open Pretty
   type t = bool [@@deriving eq, ord, hash, to_yojson]
   let show (x:t) =  if x then "true" else "false"
-  let pretty ppf x = text (show x) ppf
+  let pp ppf x = text (show x) ppf
   let name () = "raw bools"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 end
@@ -168,7 +168,7 @@ module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
   let show x = "<stmt>"
-  let pretty = Cilfacade.stmt_pretty_short
+  let pp = Cilfacade.stmt_pp_short
 
   let name () = "expressions"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))

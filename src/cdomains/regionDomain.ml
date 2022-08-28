@@ -13,7 +13,7 @@ struct
     let v_str = V.show v in
     let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty ppf x = Pretty.text (show x) ppf
+  let pp ppf x = Pretty.text (show x) ppf
 
   let printXml f (v,fi) =
     BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi
@@ -251,7 +251,7 @@ struct
         else
           RegMap.find vfd m
       in
-      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pp () (fst vfd)++F.pp () (snd vfd))) ();  *)
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []

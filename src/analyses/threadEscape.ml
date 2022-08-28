@@ -36,7 +36,7 @@ struct
       Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | a ->
-      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.LS.pretty a;
+      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.LS.pp a;
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
@@ -47,7 +47,7 @@ struct
       Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | a ->
-      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e Queries.LS.pretty a;
+      if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e Queries.LS.pp a;
       D.empty ()
 
   (* queries *)
@@ -60,11 +60,11 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     let lvs = mpt ask (AddrOf lval) in
-    if M.tracing then M.tracel "escape" "assign lvs: %a\n" D.pretty lvs;
+    if M.tracing then M.tracel "escape" "assign lvs: %a\n" D.pp lvs;
     if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
       let escaped = reachable ask rval in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
-      if M.tracing then M.tracel "escape" "assign lvs: %a | %a\n" D.pretty lvs D.pretty escaped;
+      if M.tracing then M.tracel "escape" "assign lvs: %a | %a\n" D.pp lvs D.pp escaped;
       if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
       D.iter (fun lv ->
@@ -114,7 +114,7 @@ struct
         (* not reusing fctx.local to avoid unnecessarily early join of extra *)
         let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
         let escaped = D.filter (fun v -> not v.vglob) escaped in
-        if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
+        if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pp escaped;
         if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
           ctx.emit (Events.Escape escaped);
         escaped

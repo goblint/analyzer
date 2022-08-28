@@ -78,11 +78,11 @@ module Verify: F =
 
     let complain_constraint x ~lhs ~rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pp_trace x S.Dom.pp lhs S.Dom.pp rhs S.Dom.pp_diff (rhs, lhs))
 
     let complain_side x y ~lhs ~rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp lhs S.Dom.pp rhs S.Dom.pp_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
@@ -192,7 +192,7 @@ struct
 
     let reachable = PS.init_reachable ~vh in
     let rec one_var x =
-      if M.tracing then M.trace "postsolver" "one_var %a reachable=%B system=%B\n" S.Var.pretty_trace x (VH.mem reachable x) (Option.is_some (S.system x));
+      if M.tracing then M.trace "postsolver" "one_var %a reachable=%B system=%B\n" S.Var.pp_trace x (VH.mem reachable x) (Option.is_some (S.system x));
       if not (VH.mem reachable x) then (
         VH.replace reachable x ();
         Option.may (one_constraint x) (S.system x)
@@ -203,13 +203,13 @@ struct
         try VH.find vh y with Not_found -> S.Dom.bot ()
       in
       let set y d =
-        if M.tracing then M.trace "postsolver" "one_side %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d;
+        if M.tracing then M.trace "postsolver" "one_side %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp d;
         PS.one_side ~vh ~x ~y ~d;
         (* check before recursing *)
         one_var y
       in
       let rhs = f get set in
-      if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
+      if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pp_trace x S.Dom.pp rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
     (GoblintCil.Stats.time "postsolver_iter" (List.iter one_var)) vs;

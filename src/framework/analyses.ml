@@ -22,7 +22,7 @@ module type VarType =
 sig
   include Hashtbl.HashedType
   include SysVar with type t := t
-  val pretty_trace: Format.formatter -> t -> unit
+  val pp_trace: Format.formatter -> t -> unit
   val compare : t -> t -> int
 
   val printXml : 'a BatInnerIO.output -> t -> unit
@@ -51,10 +51,10 @@ struct
 
   let getLocation (n,d) = Node.location n
 
-  let pretty_trace ppf ((n,c) as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x) ppf
-    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) ppf *)
-    else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x) ppf
+  let pp_trace ppf ((n,c) as x) =
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pp_trace n LD.pp c CilType.Location.pp (getLocation x) ppf
+    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pp_trace n (LD.tag c) CilType.Location.pp (getLocation x) ppf *)
+    else dprintf "%a on %a" Node.pp_trace n CilType.Location.pp (getLocation x) ppf
 
   let printXml f (n,c) =
     Var.printXml f n;
@@ -82,7 +82,7 @@ struct
   (* from Basetype.Variables *)
   let var_id = show
   let node _ = MyCFG.Function Cil.dummyFunDec
-  let pretty_trace = pretty
+  let pp_trace = pp
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
@@ -177,9 +177,9 @@ struct
   include Hashtbl.Make (ResultNode)
   type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
 
-  let pretty ppf mapping =
+  let pp ppf mapping =
     let f key st dok =
-      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pretty key Range.pretty st
+      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pp key Range.pp st
     in
     let content ppf = fold f mapping nil ppf in
     let defline ppf = dprintf "OTHERS -> Not available\n" ppf in
@@ -226,7 +226,7 @@ struct
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
-    | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
+    | "pretty" -> ignore (fprintf out "%a\n" pp (Lazy.force table))
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
@@ -360,9 +360,9 @@ struct
   let show x =
     let module C = (val !control_spec_c) in
     C.show (Obj.obj x)
-  let pretty ppf x =
+  let pp ppf x =
     let module C = (val !control_spec_c) in
-    C.pretty ppf (Obj.obj x)
+    C.pp ppf (Obj.obj x)
   let printXml f x =
     let module C = (val !control_spec_c) in
     C.printXml f (Obj.obj x)
@@ -601,7 +601,7 @@ struct
   open S
   include Printable.Prod3 (C) (D) (CilType.Fundec)
   let show (es,x,f:t) = D.show x
-  let pretty ppf (_,x,_) = D.pretty ppf x
+  let pp ppf (_,x,_) = D.pp ppf x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end

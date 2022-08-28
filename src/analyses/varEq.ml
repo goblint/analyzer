@@ -341,11 +341,11 @@ struct
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
+          then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pp () a)^" because of "^sprint 80 (Exp.pp () b)) (); r)
+          else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pp () a)^" because of "^sprint 80 (Exp.pp () b)) (); r)
+          Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pp () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pp () bls)) ();
     *)
-    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pp b CilType.Exp.pp a r;
     r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -580,7 +580,7 @@ struct
       | CastE (t,e) ->
         Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
     in
-    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pp r;
     r
 
 
@@ -590,7 +590,7 @@ struct
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pp r;
       r
     | Queries.Invariant context ->
       let scope = Node.find_fundec ctx.node in

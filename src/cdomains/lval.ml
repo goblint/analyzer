@@ -58,8 +58,8 @@ struct
     end
     )
 
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pp_diff () (x,y) =
+    dprintf "%s: %a not leq %a" (name ()) pp x pp y
 
   let rec hash = function
     | `NoOffset -> 1
@@ -363,7 +363,7 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
+  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
 end
 
 module Fields =
@@ -459,8 +459,8 @@ struct
     | `Left _ :: xs -> real_region xs typ
     | `Right i :: _ -> false
 
-  let pretty_diff ppf ((x:t),(y:t)) =
-    Pretty.dprintf "%a not leq %a" pretty x pretty y ppf
+  let pp_diff ppf ((x:t),(y:t)) =
+    Pretty.dprintf "%a not leq %a" pp x pp y ppf
 end
 
 

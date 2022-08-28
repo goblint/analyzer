@@ -88,8 +88,8 @@ struct
             let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
             let msgs = List.concat_map (fun ((before_lock, before_node, before_access), (after_lock, after_node, after_access)) ->
                 [
-                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (M.Location.Node before_node));
-                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (M.Location.Node after_node));
+                  (Pretty.dprintf "lock before: %a with %a" Lock.pp before_lock MCPAccess.A.pp before_access, Some (M.Location.Node before_node));
+                  (Pretty.dprintf "lock after: %a with %a" Lock.pp after_lock MCPAccess.A.pp after_access, Some (M.Location.Node after_node));
                 ]
               ) normalized
             in

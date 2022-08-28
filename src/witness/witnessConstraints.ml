@@ -8,10 +8,10 @@ struct
   include Var
   let to_yojson = Node.to_yojson
 
-  (* let short n x = Pretty.sprint n (pretty () x) *)
+  (* let short n x = Pretty.sprint n (pp () x) *)
   (* let short _ x = var_id x *)
   let show = Node.show_cfg
-  let pretty = Node.pretty_trace
+  let pp = Node.pp_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
   let tag _ = failwith "PrintableVar: no tag"
@@ -28,11 +28,11 @@ struct
 
   let name () = "edge"
 
-  let pretty = MyARG.pretty_inline_edge
+  let pp = MyARG.pp_inline_edge
   include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let pp = pp
     end
     )
 
@@ -85,15 +85,15 @@ struct
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
 
-    let pretty_diff ppf (((v, c, x'), e), ((w, d, y'), f)) =
+    let pp_diff ppf (((v, c, x'), e), ((w, d, y'), f)) =
       if not (Node.equal v w) then
-        Pretty.dprintf "%a not equal %a" Node.pretty v Node.pretty w ppf
+        Pretty.dprintf "%a not equal %a" Node.pp v Node.pp w ppf
       else if not (Spec.C.equal c d) then
-        Pretty.dprintf "%a not equal %a" Spec.C.pretty c Spec.C.pretty d ppf
+        Pretty.dprintf "%a not equal %a" Spec.C.pp c Spec.C.pp d ppf
       else if not (Edge.equal e f) then
-        Pretty.dprintf "%a not equal %a" Edge.pretty e Edge.pretty f ppf
+        Pretty.dprintf "%a not equal %a" Edge.pp e Edge.pp f ppf
       else
-        I.pretty_diff ppf (x', y')
+        I.pp_diff ppf (x', y')
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
