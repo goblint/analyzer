@@ -171,7 +171,7 @@ module Ttop = TestMap (Mtop)
 
 let test_Mbot_join_meet _ =
   let assert_eq =
-    let printer a = Pretty.sprint ~width:80 (Mbot.pretty () a) in
+    let printer a = Pretty.sprint ~width:80 (fun ppf -> Mbot.pp ppf a) in
     let cmp = Mbot.equal in
       assert_equal ~cmp:(cmp) ~printer:(printer)
   in
@@ -207,7 +207,7 @@ let test_Mbot_join_meet _ =
 
 let test_Mtop_join_meet _ =
   let assert_eq =
-    let printer a = Pretty.sprint ~width:80 (Mtop.pretty () a) in
+    let printer a = Pretty.sprint ~width:80 (fun ppf -> Mtop.pp ppf a) in
     let cmp = Mtop.equal in
       assert_equal ~cmp:(cmp) ~printer:(printer)
   in

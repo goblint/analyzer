@@ -8,7 +8,7 @@ module StringVar =
 struct
   type t = string
   let equal (a:t) (b:t) = a = b
-  let pretty_trace () x = text x
+  let pp_trace ppf x = text x ppf
   let compare = compare
   let hash (x:t) = Hashtbl.hash x
   let printXml _ _ = ()
