@@ -42,11 +42,11 @@ struct
   let name () = "musteq"
 
   let show _ = "Equalities"
-  let pretty () mapping =
+  let pretty ppf mapping =
     let f (v1,v2) st dok: doc =
       dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
-    let content () = fold f mapping nil in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+    let content ppf = fold f mapping nil ppf in
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content ppf
 
   let add_old = add
   let rec add (x,y) fd d =

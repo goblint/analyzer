@@ -47,7 +47,7 @@ struct
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "<" ">" whole_str_list
 
-  let pretty () = M.pretty ()
+  let pretty ppf = M.pretty ppf
   let replace s field value = M.add field value s
   let get s field = M.find field s
   let fold = M.fold
@@ -68,8 +68,8 @@ struct
   let hash  = M.hash
   let widen = M.widen
   let narrow = M.narrow
-  let pretty_diff () (x,y) =
-    Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y)
+  let pretty_diff ppf (x,y) =
+    Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y) ppf
   let printXml = M.printXml
   let widen_with_fct = M.widen_with_fct
   let leq_with_fct = M.leq_with_fct
@@ -183,8 +183,8 @@ struct
   let narrow x y =
     meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
-  let pretty_diff () (x,y) =
-    Pretty.dprintf "{@[%a@] ...}" HS.pretty_diff (x,y)
+  let pretty_diff ppf (x,y) =
+    Pretty.dprintf "{@[%a@] ...}" HS.pretty_diff (x,y) ppf
   let printXml f xs = HS.printXml f xs
 
   let widen_with_fct f =
@@ -241,9 +241,9 @@ struct
     | Some k -> HS.show s ^ " with key " ^ F.show k
     | None -> HS.show s ^ " without key"
 
-  let pretty () (s, k) = match k with
-    | Some k -> (HS.pretty () s) ++ (text " with key ") ++ (F.pretty () k)
-    | None -> (HS.pretty () s) ++ (text " without key")
+  let pretty ppf (s, k) = ppf |> match k with
+    | Some k -> (fun ppf -> HS.pretty ppf s) ++ (text " with key ") ++ (fun ppf -> F.pretty ppf k)
+    | None -> (fun ppf -> HS.pretty ppf s) ++ (text " without key")
 
   let top () = (hs_top (), None)
   let is_top (s, _) = hs_is_top s
@@ -375,7 +375,7 @@ struct
 
   let narrow x y = meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
-  let pretty_diff () ((x, _), (y, _)) = Pretty.dprintf "{@[%a@] ...}" HS.pretty_diff (x, y)
+  let pretty_diff ppf ((x, _), (y, _)) = Pretty.dprintf "{@[%a@] ...}" HS.pretty_diff (x, y) ppf
   let printXml f x = match x with
     | (s, Some k) ->
       BatPrintf.fprintf f "<value>\n<map>\n

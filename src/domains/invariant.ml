@@ -11,7 +11,7 @@ struct
   let is_top _ = failwith "ExpLat: is_top" (* cannot say for sure, many tautologies exist *)
 
   let leq _ _ = failwith "ExpLat: leq" (* cannot say for sure, requires general entailment check *)
-  let pretty_diff () _ = failwith "ExpLat: pretty_diff" (* irrelevant, no leq *)
+  let pretty_diff ppf _ = failwith "ExpLat: pretty_diff" (* irrelevant, no leq *)
 
   (* join and meet are not idempotent, commutative and associative,
      but it shouldn't be of issue since there's no leq either.

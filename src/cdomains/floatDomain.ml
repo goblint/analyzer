@@ -104,8 +104,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let name () = "FloatInterval"
 
   (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
-  let pretty_diff () (x, y) =
-    Pretty.dprintf "%a instead of %a" pretty x pretty y
+  let pretty_diff ppf (x, y) =
+    Pretty.dprintf "%a instead of %a" pretty x pretty y ppf
 
   let to_int ik = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "to_int %s" (show Bot)))
@@ -589,9 +589,9 @@ module FloatIntervalImplLifted = struct
   let narrow = lift2 (F1.narrow, F2.narrow)
   let is_exact = dispatch (F1.is_exact, F2.is_exact)
 
-  let pretty = (fun () -> dispatch (F1.pretty (), F2.pretty ())) (* TODO add fkind to output *)
+  let pretty = (fun ppf -> dispatch (F1.pretty ppf, F2.pretty ppf)) (* TODO add fkind to output *)
 
-  let pretty_diff () (x, y) = lift2_cmp ((fun a b -> F1.pretty_diff () (a, b)), (fun a b -> F2.pretty_diff () (a, b))) x y(* TODO add fkind to output *)
+  let pretty_diff ppf (x, y) = lift2_cmp ((fun a b -> F1.pretty_diff ppf (a, b)), (fun a b -> F2.pretty_diff ppf (a, b))) x y(* TODO add fkind to output *)
   let printXml o = dispatch (F1.printXml o, F2.printXml o) (* TODO add fkind to output *)
 
   (* This is for debugging *)
@@ -743,9 +743,9 @@ module FloatDomTupleImpl = struct
     for_all
     %% map2p { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.leq); }
 
-  let pretty () x =
-    Option.map_default identity nil
-      (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.pretty ()); } x)
+  let pretty ppf x =
+    ppf |> Option.map_default identity nil
+      (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> (fun f ppf -> F.pretty ppf f)); } x)
 
   (* f1: one and only unary op *)
   let neg =
@@ -810,7 +810,7 @@ module FloatDomTupleImpl = struct
   let signbit =
     map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.signbit); }
 
-  let pretty_diff () (x, y) = dprintf "%a instead of %a" pretty x pretty y
+  let pretty_diff ppf (x, y) = dprintf "%a instead of %a" pretty x pretty y ppf
 
   include Printable.SimpleShow (
     struct

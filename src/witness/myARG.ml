@@ -25,7 +25,7 @@ struct
   type t = edge
 
   let embed e = e
-  let to_string e = Pretty.sprint ~width:80 (Edge.pretty_plain () e)
+  let to_string e = Pretty.sprint ~width:80 (fun ppf -> Edge.pretty_plain ppf e)
 end
 
 type inline_edge =
@@ -34,11 +34,11 @@ type inline_edge =
   | InlineReturn of CilType.Lval.t option
   [@@deriving to_yojson]
 
-let pretty_inline_edge () = function
-  | CFGEdge e -> Edge.pretty_plain () e
-  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
-  | InlineReturn None -> Pretty.dprintf "InlineReturn"
-  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+let pretty_inline_edge ppf = function
+  | CFGEdge e -> Edge.pretty_plain ppf e
+  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args ppf
+  | InlineReturn None -> Pretty.dprintf "InlineReturn" ppf
+  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret ppf
 
 module InlineEdge: Edge with type t = inline_edge =
 struct
@@ -46,7 +46,7 @@ struct
 
   let embed e = CFGEdge e
 
-  let to_string e = Pretty.sprint ~width:80 (pretty_inline_edge () e)
+  let to_string e = Pretty.sprint ~width:80 (fun ppf -> pretty_inline_edge ppf e)
 end
 
 (* Abstract Reachability Graph *)

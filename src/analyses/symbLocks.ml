@@ -109,9 +109,9 @@ struct
     module E = struct
       include Printable.Either (CilType.Offset) (ILock)
 
-      let pretty () = function
-        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
+      let pretty ppf = function
+        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o ppf
+        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr ppf
 
       include Printable.SimplePretty (
         struct

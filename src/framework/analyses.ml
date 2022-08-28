@@ -22,7 +22,7 @@ module type VarType =
 sig
   include Hashtbl.HashedType
   include SysVar with type t := t
-  val pretty_trace: unit -> t -> doc
+  val pretty_trace: Format.formatter -> t -> unit
   val compare : t -> t -> int
 
   val printXml : 'a BatInnerIO.output -> t -> unit
@@ -51,10 +51,10 @@ struct
 
   let getLocation (n,d) = Node.location n
 
-  let pretty_trace () ((n,c) as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
-    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
-    else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
+  let pretty_trace ppf ((n,c) as x) =
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x) ppf
+    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) ppf *)
+    else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x) ppf
 
   let printXml f (n,c) =
     Var.printXml f n;
@@ -177,13 +177,13 @@ struct
   include Hashtbl.Make (ResultNode)
   type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
 
-  let pretty () mapping =
+  let pretty ppf mapping =
     let f key st dok =
       dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pretty key Range.pretty st
     in
-    let content () = fold f mapping nil in
-    let defline () = dprintf "OTHERS -> Not available\n" in
-    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
+    let content ppf = fold f mapping nil ppf in
+    let defline ppf = dprintf "OTHERS -> Not available\n" ppf in
+    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline ppf
 
   include C
 
@@ -360,9 +360,9 @@ struct
   let show x =
     let module C = (val !control_spec_c) in
     C.show (Obj.obj x)
-  let pretty () x =
+  let pretty ppf x =
     let module C = (val !control_spec_c) in
-    C.pretty () (Obj.obj x)
+    C.pretty ppf (Obj.obj x)
   let printXml f x =
     let module C = (val !control_spec_c) in
     C.printXml f (Obj.obj x)
@@ -601,7 +601,7 @@ struct
   open S
   include Printable.Prod3 (C) (D) (CilType.Fundec)
   let show (es,x,f:t) = D.show x
-  let pretty () (_,x,_) = D.pretty () x
+  let pretty ppf (_,x,_) = D.pretty ppf x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end

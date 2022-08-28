@@ -32,7 +32,9 @@ type t =
 [@@deriving eq, to_yojson]
 
 
-let pretty () = function
+let pretty ppf e =
+  ppf
+  |> match e with
   | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
   | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
   | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
@@ -42,9 +44,11 @@ let pretty () = function
   | Ret (None,f) -> Pretty.dprintf "return"
   | ASM (_,_,_) -> Pretty.text "ASM ..."
   | Skip -> Pretty.text "skip"
-  | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
+  | VDecl v -> fun ppf -> Cil.defaultCilPrinter#pVDecl ppf v
 
-let pretty_plain () = function
+let pretty_plain ppf e =
+  ppf
+  |> match e with
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
   | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
   | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars

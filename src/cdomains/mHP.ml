@@ -9,7 +9,7 @@ type t = {
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
 
-let pretty () {tid; created; must_joined} =
+let pretty ppf {tid; created; must_joined} =
   let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
   (* avoid useless empty sets in race output *)
   let created_doc =
@@ -25,7 +25,7 @@ let pretty () {tid; created; must_joined} =
       Some (Pretty.dprintf "must_joined=%a" ConcDomain.ThreadSet.pretty must_joined)
   in
   let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
-  Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs
+  Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs ppf
 
 include Printable.SimplePretty (
   struct

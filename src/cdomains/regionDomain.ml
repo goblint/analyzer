@@ -13,7 +13,7 @@ struct
     let v_str = V.show v in
     let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = Pretty.text (show x)
+  let pretty ppf x = Pretty.text (show x) ppf
 
   let printXml f (v,fi) =
     BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi

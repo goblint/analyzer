@@ -9,26 +9,32 @@ let name () = "node"
 
 (* TODO: remove this? *)
 (** Pretty node plainly with entire stmt. *)
-let pretty_plain () = function
-  | Statement s -> text "Statement " ++ dn_stmt () s
+let pretty_plain ppf n =
+  ppf
+  |> match n with
+  | Statement s -> text "Statement " ++ (fun ppf -> dn_stmt ppf s)
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
 (* TODO: remove this? *)
 (** Pretty node plainly with stmt location. *)
-let pretty_plain_short () = function
-  | Statement s -> text "Statement @ " ++ CilType.Location.pretty () (Cilfacade.get_stmtLoc s)
+let pretty_plain_short ppf n =
+  ppf
+  |> match n with
+  | Statement s -> text "Statement @ " ++ (fun ppf -> CilType.Location.pretty ppf (Cilfacade.get_stmtLoc s))
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
 (** Pretty node for solver variable tracing with short stmt. *)
-let pretty_trace () = function
+let pretty_trace ppf n =
+  ppf
+  |> match n with
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
   | Function      fd -> dprintf "call of %s (%d)" fd.svar.vname fd.svar.vid
   | FunctionEntry fd -> dprintf "entry state of %s (%d)" fd.svar.vname fd.svar.vid
 
 (** Output functions for Printable interface *)
-let pretty () x = pretty_trace () x
+let pretty ppf x = pretty_trace ppf x
 include Printable.SimplePretty (
   struct
     type nonrec t = t

@@ -92,7 +92,7 @@ struct
   let ncontexts = ref 0
   let print_context_stats rho =
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
-    let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
+    let str k = (fun ppf -> S.Var.pretty_trace ppf k) |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
     let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
     HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 0 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)

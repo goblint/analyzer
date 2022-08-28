@@ -10,7 +10,7 @@ sig
   val hash: t -> int
   val compare: t -> t -> int
   val show: t -> string
-  val pretty: unit -> t -> doc
+  val pretty: Format.formatter -> t -> unit
   (* These two lets us reuse the short function, and allows some overriding
    * possibilities. *)
   val printXml : 'a BatInnerIO.output -> t -> unit
@@ -33,7 +33,7 @@ module Empty: S =
 struct
   type t = | [@@deriving eq, ord, hash]
   let show (x: t) = match x with _ -> .
-  let pretty () (x: t) = match x with _ -> .
+  let pretty ppf (x: t) = match x with _ -> .
   let printXml _ (x: t) = match x with _ -> .
   let name () = "empty"
   let to_yojson (x: t) = match x with _ -> .
@@ -64,7 +64,7 @@ end
 module Blank =
 struct
   include Std
-  let pretty () _ = text "Output not supported"
+  let pretty ppf _ = text "Output not supported" ppf
   let show _ = "Output not supported"
   let name () = "blank"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
@@ -79,7 +79,7 @@ end
 
 module SimpleShow (P: Showable) =
 struct
-  let pretty () x = text (P.show x)
+  let pretty ppf x = text (P.show x) ppf
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
   let to_yojson x = `String (P.show x)
 end
@@ -87,12 +87,12 @@ end
 module type Prettyable =
 sig
   type t
-  val pretty: unit -> t -> doc
+  val pretty: Format.formatter -> t -> unit
 end
 
 module SimplePretty (P: Prettyable) =
 struct
-  let show x = Pretty.sprint ~width:max_int (P.pretty () x)
+  let show x = Pretty.sprint ~width:max_int (fun ppf -> P.pretty ppf x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -103,7 +103,7 @@ module UnitConf (N: Name) =
 struct
   type t = unit [@@deriving eq, ord, hash]
   include Std
-  let pretty () _ = text N.name
+  let pretty ppf _ = text N.name ppf
   let show _ = N.name
   let name () = "Unit"
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
@@ -144,7 +144,7 @@ struct
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
   let show = lift_f Base.show
   let to_yojson = lift_f (Base.to_yojson)
-  let pretty () = lift_f (Base.pretty ())
+  let pretty ppf = lift_f (Base.pretty ppf)
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
@@ -189,7 +189,7 @@ struct
   let hash x = LazyHash.force x.lazy_hash
   let show = lift_f M.show
 
-  let pretty () = lift_f (M.pretty ())
+  let pretty ppf = lift_f (M.pretty ppf)
 
   let printXml f = lift_f (M.printXml f)
   let to_yojson = lift_f (M.to_yojson)
@@ -213,11 +213,11 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty () (state:t) =
+  let pretty ppf (state:t) =
     match state with
-    | `Lifted n ->  Base.pretty () n
-    | `Bot -> text bot_name
-    | `Top -> text top_name
+    | `Lifted n ->  Base.pretty ppf n
+    | `Bot -> text bot_name ppf
+    | `Top -> text top_name ppf
 
   let name () = "lifted " ^ Base.name ()
   let printXml f = function
@@ -253,10 +253,10 @@ struct
   type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, hash]
   include Std
 
-  let pretty () (state:t) =
+  let pretty ppf (state:t) =
     match state with
-    | `Left n ->  Base1.pretty () n
-    | `Right n ->  Base2.pretty () n
+    | `Left n ->  Base1.pretty ppf n
+    | `Right n ->  Base2.pretty ppf n
 
   let show state =
     match state with
@@ -282,10 +282,10 @@ struct
   type t = Base.t option [@@deriving eq, ord, hash]
   include Std
 
-  let pretty () (state:t) =
+  let pretty ppf (state:t) =
     match state with
-    | None -> text N.name
-    | Some n -> Base.pretty () n
+    | None -> text N.name ppf
+    | Some n -> Base.pretty ppf n
 
   let show state =
     match state with
@@ -310,12 +310,12 @@ struct
   include Std
   include N
 
-  let pretty () (state:t) =
+  let pretty ppf (state:t) =
     match state with
-    | `Lifted1 n ->  Base1.pretty () n
-    | `Lifted2 n ->  Base2.pretty () n
-    | `Bot -> text bot_name
-    | `Top -> text top_name
+    | `Lifted1 n ->  Base1.pretty ppf n
+    | `Lifted2 n ->  Base2.pretty ppf n
+    | `Bot -> text bot_name ppf
+    | `Top -> text top_name ppf
 
   let show state =
     match state with
@@ -367,15 +367,16 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name ()
 
-  let pretty () (x,y) =
+  let pretty ppf (x,y) =
     if expand_fst || expand_snd then
+      ppf |>
       text "("
-      ++ (if expand_fst then Base1.pretty () x else text (Base1.show x))
+      ++ (fun ppf -> if expand_fst then Base1.pretty ppf x else text (Base1.show x) ppf)
       ++ text ", "
-      ++ (if expand_snd then Base2.pretty () y else text (Base2.show y))
+      ++ (fun ppf -> if expand_snd then Base2.pretty ppf y else text (Base2.show y) ppf)
       ++ text ")"
     else
-      text (show (x,y))
+      text (show (x,y)) ppf
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y
@@ -406,13 +407,14 @@ struct
     third  := Base3.show z;
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
-  let pretty () (x,y,z) =
+  let pretty ppf (x,y,z) =
+    ppf |>
     text "(" ++
-    Base1.pretty () x
+    (fun ppf -> Base1.pretty ppf x)
     ++ text ", " ++
-    Base2.pretty () y
+    (fun ppf -> Base2.pretty ppf y)
     ++ text ", " ++
-    Base3.pretty () z
+    (fun ppf -> Base3.pretty ppf z)
     ++ text ")"
 
   let printXml f (x,y,z) =
@@ -436,7 +438,7 @@ struct
     let elems = List.map Base.show x in
     "[" ^ (String.concat ", " elems) ^ "]"
 
-  let pretty () x = text (show x)
+  let pretty ppf x = text (show x) ppf
 
   let relift x = List.map Base.relift x
 
@@ -474,7 +476,7 @@ struct
   include Std
 
   let show x = P.names x
-  let pretty () x = text (show x)
+  let pretty ppf x = text (show x) ppf
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
@@ -494,10 +496,10 @@ struct
     | `Lifted n ->  Base.show n
     | `Bot -> "bot of " ^ (Base.name ())
 
-  let pretty () (state:t) =
+  let pretty ppf (state:t) =
     match state with
-    | `Lifted n ->  Base.pretty () n
-    | `Bot -> text ("bot of " ^ (Base.name ()))
+    | `Lifted n ->  Base.pretty ppf n
+    | `Bot -> text ("bot of " ^ (Base.name ())) ppf
 
   let name () = "bottom or " ^ Base.name ()
   let printXml f = function
@@ -525,10 +527,10 @@ struct
     | `Lifted n ->  Base.show n
     | `Top -> "top of " ^ (Base.name ())
 
-  let pretty () (state:t) =
+  let pretty ppf (state:t) =
     match state with
-    | `Lifted n ->  Base.pretty () n
-    | `Top -> text ("top of " ^ (Base.name ()))
+    | `Lifted n ->  Base.pretty ppf n
+    | `Top -> text ("top of " ^ (Base.name ())) ppf
 
   let name () = "top or " ^ Base.name ()
 
@@ -561,7 +563,7 @@ module Strings =
 struct
   type t = string [@@deriving eq, ord, hash, to_yojson]
   include Std
-  let pretty () n = text n
+  let pretty ppf n = text n ppf
   let show n = n
   let name () = "String"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x

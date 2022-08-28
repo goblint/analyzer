@@ -48,8 +48,8 @@ struct
   type value = Val.t
 
   let show x = "Array: " ^ Val.show x
-  let pretty () x = text "Array: " ++ pretty () x
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty ppf x = ppf |> text "Array: " ++ (fun ppf -> pretty ppf x)
+  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
   let make i v = v
@@ -87,8 +87,8 @@ struct
       | hd::tl -> (Val.show hd ^ " - " ^ (show_list tl)) in
     "Array (unrolled to " ^ (Stdlib.string_of_int (factor ())) ^ "): " ^
     (show_list xl) ^ Val.show xr ^ ")"
-  let pretty () x = text "Array: " ++ text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty ppf x = ppf |> text "Array: " ++ text (show x)
+  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
   let extract x default = match x with
     | Some c -> c
     | None -> default
@@ -206,8 +206,8 @@ struct
         Val.show xm ^ " -- " ^
         Val.show xr ^ ")"
 
-  let pretty () x = text "Array: " ++ text (show x)
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty ppf x = ppf |> text "Array: " ++ text (show x)
+  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
 
   let printXml f ((e, (xl, xm, xr)) as x) =
     if is_not_partitioned x then

@@ -88,7 +88,7 @@ struct
     | Some _ -> "&" ^ Addr.show a
     | None -> Addr.show a
 
-  let pretty () x =
+  let pretty ppf x =
     try
       let content = List.map (fun a -> text (short_addr a)) (elements x) in
       let rec separate x =
@@ -99,8 +99,8 @@ struct
       in
       let separated = separate content in
       let content = List.fold_left (++) nil separated in
-      (text "{") ++ content ++ (text "}")
-    with SetDomain.Unsupported _ -> pretty () x
+      ppf |> (text "{") ++ content ++ (text "}")
+    with SetDomain.Unsupported _ -> pretty ppf x
 
   let show x : string =
     try

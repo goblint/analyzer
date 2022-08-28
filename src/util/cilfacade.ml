@@ -253,7 +253,7 @@ let callConstructors ast =
       );
     !cons
   in
-  let d_fundec () fd = Pretty.text fd.svar.vname in
+  let d_fundec ppf fd = Pretty.text fd.svar.vname ppf in
   if get_bool "dbg.verbose" then ignore (Pretty.printf "Constructors: %a\n" (Pretty.d_list ", " d_fundec) constructors);
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
@@ -629,8 +629,8 @@ let reset_lazy () =
   ResettableLazy.reset original_names
 
 
-let stmt_pretty_short () x =
+let stmt_pretty_short ppf x =
   match x.skind with
-  | Instr (y::ys) -> dn_instr () y
-  | If (exp,_,_,_,_) -> dn_exp () exp
-  | _ -> dn_stmt () x
+  | Instr (y::ys) -> dn_instr ppf y
+  | If (exp,_,_,_,_) -> dn_exp ppf exp
+  | _ -> dn_stmt ppf x

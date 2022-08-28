@@ -28,9 +28,9 @@ module Ana = struct
   include All
   (* CIL *)
   include GoblintCil
-  let d_varinfo () x = d_lval () (Var x, NoOffset)
+  let d_varinfo ppf x = d_lval ppf (Var x, NoOffset)
   include Pretty
-  let sprint f x = Pretty.sprint ~width:80 (f () x)
+  let sprint f x = Pretty.sprint ~width:80 (fun ppf -> f ppf x)
   (* Analyses.Spec etc. *)
   (* include Analyses (* circular build :( *) *)
   (* module M = Messages (* same, but this is in Analyses anyway *) *)

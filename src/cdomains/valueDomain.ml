@@ -228,19 +228,19 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let pretty () state =
+  let pretty ppf state =
     match state with
-    | `Int n ->  ID.pretty () n
-    | `Float n ->  FD.pretty () n
-    | `Address n ->  AD.pretty () n
-    | `Struct n ->  Structs.pretty () n
-    | `Union n ->  Unions.pretty () n
-    | `Array n ->  CArrays.pretty () n
-    | `Blob n ->  Blobs.pretty () n
-    | `Thread n -> Threads.pretty () n
-    | `Mutex -> text "mutex"
-    | `Bot -> text bot_name
-    | `Top -> text top_name
+    | `Int n ->  ID.pretty ppf n
+    | `Float n ->  FD.pretty ppf n
+    | `Address n ->  AD.pretty ppf n
+    | `Struct n ->  Structs.pretty ppf n
+    | `Union n ->  Unions.pretty ppf n
+    | `Array n ->  CArrays.pretty ppf n
+    | `Blob n ->  Blobs.pretty ppf n
+    | `Thread n -> Threads.pretty ppf n
+    | `Mutex -> text "mutex" ppf
+    | `Bot -> text bot_name ppf
+    | `Top -> text top_name ppf
 
   let show state =
     match state with
@@ -256,17 +256,17 @@ struct
     | `Bot -> bot_name
     | `Top -> top_name
 
-  let pretty_diff () (x,y) =
+  let pretty_diff ppf (x,y) =
     match (x,y) with
-    | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
-    | (`Float x, `Float y) -> FD.pretty_diff () (x,y)
-    | (`Address x, `Address y) -> AD.pretty_diff () (x,y)
-    | (`Struct x, `Struct y) -> Structs.pretty_diff () (x,y)
-    | (`Union x, `Union y) -> Unions.pretty_diff () (x,y)
-    | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
-    | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
-    | (`Thread x, `Thread y) -> Threads.pretty_diff () (x, y)
-    | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
+    | (`Int x, `Int y) -> ID.pretty_diff ppf (x,y)
+    | (`Float x, `Float y) -> FD.pretty_diff ppf (x,y)
+    | (`Address x, `Address y) -> AD.pretty_diff ppf (x,y)
+    | (`Struct x, `Struct y) -> Structs.pretty_diff ppf (x,y)
+    | (`Union x, `Union y) -> Unions.pretty_diff ppf (x,y)
+    | (`Array x, `Array y) -> CArrays.pretty_diff ppf (x,y)
+    | (`Blob x, `Blob y) -> Blobs.pretty_diff ppf (x,y)
+    | (`Thread x, `Thread y) -> Threads.pretty_diff ppf (x, y)
+    | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y ppf
 
   (************************************************************
    * Functions for getting state out of a compound:

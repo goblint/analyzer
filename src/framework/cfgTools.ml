@@ -105,7 +105,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
-        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
+        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun ppf node -> text (Node.show_id node) ppf)) nodes;
         NH.iter (fun node _ ->
             Messages.trace "cfg" "SCC entry: %s\n" (Node.show_id node)
           ) scc.prev
@@ -115,10 +115,10 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
 
 let computeSCCs x = Stats.time "computeSCCs" (computeSCCs x)
 
-let rec pretty_edges () = function
-  | [] -> Pretty.dprintf ""
-  | [_,x] -> Edge.pretty_plain () x
-  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
+let rec pretty_edges ppf = function
+  | [] -> Pretty.dprintf "" ppf
+  | [_,x] -> Edge.pretty_plain ppf x
+  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs ppf
 
 let get_pseudo_return_id fd =
   let start_id = 10_000_000_000 in (* TODO get max_sid? *)
@@ -166,7 +166,7 @@ let createCFG (file: file) =
   let find_real_stmt ?parent ?(not_found=false) stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
     let rec find visited_sids stmt =
-      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
+      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun ppf x -> Pretty.text (string_of_int x) ppf)) visited_sids stmt.sid dn_stmt stmt;
       if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
         stmt (* cycle *)
       else
@@ -505,7 +505,7 @@ struct
   let p_node out n = Format.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
+  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (fun ppf -> Edge.pretty ppf x)))
 
   let rec p_edges out = function
     | [] -> Format.fprintf out ""

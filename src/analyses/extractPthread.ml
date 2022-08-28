@@ -14,13 +14,13 @@ class uniqueVarPrinterClass =
     method! pVar (v : varinfo) =
       text v.vname ++ chr '_' ++ text (string_of_int v.vid)
 
-    method! pExp () =
+    method! pExp ppf =
       function
       | Const (CInt (i, _, _)) ->
         (* Fix the constants with long/unsigned suffixes, e.g. 1LL *)
-        text @@ string_of_int @@ Z.to_int i
+        ppf |> text @@ string_of_int @@ Z.to_int i
       | x ->
-        super#pExp () x
+        super#pExp ppf x
   end
 
 let printer = new uniqueVarPrinterClass
@@ -372,7 +372,7 @@ module Variable = struct
 
   let make_from_lval (lhost, _) = make_from_lhost lhost
 
-  let show = sprint (fun () -> printer#pVar)
+  let show = sprint (fun ppf v -> printer#pVar v ppf)
 
   let show_def v = "int " ^ show v ^ ";"
 end

@@ -104,7 +104,7 @@ let gtrace always f sys var ?loc do_subsys fmt =
     do_subsys ();
     gprintf (f sys) fmt
   end else
-    mygprintf fmt
+    gprintf (fun _ -> ()) fmt
 
 let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
 

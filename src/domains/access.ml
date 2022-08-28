@@ -63,21 +63,21 @@ let rec addOffs os1 os2 : offs =
   | `Index os -> `Index (addOffs os os2)
   | `Field (f,os) -> `Field (f, addOffs os os2)
 
-let rec d_offs () : offs -> doc = function
-  | `NoOffset -> nil
-  | `Index o -> dprintf "[?]%a" d_offs o
-  | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
+let rec d_offs ppf : offs -> unit = function
+  | `NoOffset -> nil ppf
+  | `Index o -> dprintf "[?]%a" d_offs o ppf
+  | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o ppf
 
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord, hash]
 
-let d_acct () = function
-  | `Type t -> dprintf "(%a)" d_type t
-  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o
+let d_acct ppf = function
+  | `Type t -> dprintf "(%a)" d_type t ppf
+  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o ppf
 
-let d_memo () (t, lv) =
+let d_memo ppf (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o CilType.Location.pretty v.vdecl
-  | None       -> dprintf "%a" d_acct t
+  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o CilType.Location.pretty v.vdecl ppf
+  | None       -> dprintf "%a" d_acct t ppf
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) ->
@@ -309,8 +309,8 @@ struct
   include Printable.Std
   type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
-  let pretty () (conf, kind, node, e, lp) =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty ppf (conf, kind, node, e, lp) =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp ppf
 
   include Printable.SimplePretty (
     struct
@@ -438,12 +438,12 @@ let print_accesses (lv, ty) grouped_accs =
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,kind,node,e,a) =
-      let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
+      let d_msg ppf = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf ppf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e
         else
-          d_msg ()
+          d_msg
       in
       (doc, Some (Messages.Location.Node node))
     in

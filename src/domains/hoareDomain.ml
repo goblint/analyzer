@@ -149,8 +149,8 @@ struct
 
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
-  let pretty () x =
-    let content = List.map (E.pretty ()) (elements x) in
+  let pretty ppf x =
+    let content = List.map (fun e ppf -> E.pretty ppf e) (elements x) in
     let rec separate x =
       match x with
       | [] -> []
@@ -159,10 +159,10 @@ struct
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
+    ppf |> (text "{") ++ content ++ (text "}")
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
+  let pretty_diff ppf ((x:t),(y:t)) =
+    Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y ppf
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<set>\n";
     List.iter (E.printXml f) (elements x);
@@ -210,7 +210,8 @@ struct
   (* Copied from Make *)
   let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
 
-  let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
+  let pretty_diff ppf ((s1:t),(s2:t)) =
+    ppf |>
     if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
       try
         let p t = not (mem t s2) in
@@ -319,12 +320,13 @@ struct
   (* TODO: shouldn't this also reduce? *)
   let apply_list f s = elements s |> f |> of_list
 
-  let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-    if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
+  let pretty_diff ppf ((s1:t),(s2:t)): unit =
+    if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) ppf else begin
       try
         let p t tr = not (mem t tr s2) in
         let (evil, evilr) = choose' (filter' p s1) in
         let evilr' = R.choose evilr in
+        ppf |>
         dprintf "%a -> %a:\n" SpecD.pretty evil R.pretty (R.singleton evilr')
         ++
         if is_empty s2 then
@@ -337,5 +339,6 @@ struct
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
+        ppf
     end
 end

@@ -114,15 +114,15 @@ struct
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
-  let pretty () x =
+  let pretty ppf x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
-    | [] -> text "[]"
-    | x :: [] -> x
+    | [] -> text "[]" ppf
+    | x :: [] -> x ppf
     | x :: y ->
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+      ppf |> text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
   let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
@@ -196,8 +196,8 @@ struct
   let unop_map f ((n, d):t) =
     f n (assoc_dom n) d
 
-  let pretty () = unop_map (fun n (module S: Printable.S) x ->
-      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
+  let pretty ppf = unop_map (fun n (module S: Printable.S) x ->
+      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) ppf
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->
@@ -301,12 +301,12 @@ struct
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
 
-  let pretty_diff () (x,y) =
+  let pretty_diff ppf (x,y) =
     let f a n (module S : Lattice.S) x y =
       if S.leq (obj x) (obj y) then a
-      else a ++ S.pretty_diff () (obj x, obj y) ++ text ". "
+      else a ++ (fun ppf -> S.pretty_diff ppf (obj x, obj y)) ++ text ". "
     in
-    binop_fold f nil x y
+    binop_fold f nil x y ppf
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
@@ -337,12 +337,12 @@ struct
   let top () = failwith "DomVariantLattice0.top"
   let bot () = failwith "DomVariantLattice0.bot"
 
-  let pretty_diff () (x, y) =
+  let pretty_diff ppf (x, y) =
     let f _ (module S : Lattice.S) x y =
       if S.leq (obj x) (obj y) then nil
-      else S.pretty_diff () (obj x, obj y)
+      else fun ppf -> S.pretty_diff ppf (obj x, obj y)
     in
-    binop_map' f x y
+    binop_map' f x y ppf
 end
 
 module DomVariantLattice (DLSpec : DomainListLatticeSpec) =

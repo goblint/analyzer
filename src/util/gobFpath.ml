@@ -4,7 +4,7 @@ let equal = Fpath.equal
 let compare = Fpath.compare
 let hash p = Hashtbl.hash (Fpath.to_string p)
 
-let pretty () p = GoblintCil.Pretty.text (Fpath.to_string p)
+let pretty ppf p = GoblintCil.Pretty.text (Fpath.to_string p) ppf
 
 let to_yojson p = `String (Fpath.to_string p)
 

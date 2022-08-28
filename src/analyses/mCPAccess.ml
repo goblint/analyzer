@@ -22,7 +22,7 @@ struct
       S.may_race (obj x) (obj y)
     ) x y
 
-  let pretty () a =
+  let pretty ppf a =
     (* filter with should_print *)
     let xs = unop_fold (fun acc n (module S: Analyses.MCPA) x ->
         if S.should_print (obj x) then
@@ -34,9 +34,9 @@ struct
     (* duplicates DomListPrintable *)
     let open Pretty in
     match xs with
-    | [] -> text "[]"
-    | x :: [] -> x
+    | [] -> text "[]" ppf
+    | x :: [] -> x ppf
     | x :: y ->
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+      ppf |> text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 end

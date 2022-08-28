@@ -119,7 +119,7 @@ struct
 
   let show x = "mapping"
 
-  let pretty () mapping =
+  let pretty ppf mapping =
     let groups =
       let h = Hashtbl.create 13 in
       iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
@@ -134,14 +134,14 @@ struct
       else
         dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
     in
-    let group_name a () = text (Domain.show_group a) in
-    let pretty_group map () = fold f map nil in
+    let group_name a ppf = text (Domain.show_group a) ppf in
+    let pretty_group map ppf = ppf |> fold f map nil in
     let pretty_groups rest (group, map) =
       match group with
-      | None ->  rest ++ pretty_group map ()
+      | None ->  rest ++ (fun ppf -> pretty_group map ppf)
       | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
-    let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+    let content ppf = ppf |> List.fold_left pretty_groups nil groups in
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content ppf
 
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
@@ -355,7 +355,7 @@ struct
   let is_top _ = false
   let is_bot = is_empty
 
-  let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
+  let pretty_diff ppf ((m1:t),(m2:t)) =
     let p key value =
       not (try Range.leq value (find key m2) with Not_found -> false)
     in
@@ -369,8 +369,8 @@ struct
       | x -> x
     in
     match fold diff_key m1 None with
-    | Some w -> w
-    | None -> Pretty.dprintf "No binding grew."
+    | Some w -> w ppf
+    | None -> Pretty.dprintf "No binding grew." ppf
 
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
 
@@ -419,7 +419,7 @@ struct
 
   let narrow = long_map2 Range.narrow
 
-  let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
+  let pretty_diff ppf ((m1:t),(m2:t)) =
     let p key value =
       not (try Range.leq (find key m1) value with Not_found -> false)
     in
@@ -433,8 +433,8 @@ struct
       | x -> x
     in
     match fold diff_key m2 None with
-    | Some w -> w
-    | None -> Pretty.dprintf "No binding grew."
+    | Some w -> w ppf
+    | None -> Pretty.dprintf "No binding grew." ppf
 end
 
 exception Fn_over_All of string

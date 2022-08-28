@@ -66,15 +66,16 @@ struct
     let fourth =  PrivD.show r.priv in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ", " ^ fourth  ^ ")"
 
-  let pretty () r =
+  let pretty ppf r =
+    ppf |>
     text "(" ++
-    CPA.pretty () r.cpa
+    (fun ppf -> CPA.pretty ppf r.cpa)
     ++ text ", " ++
-    PartDeps.pretty () r.deps
+    (fun ppf -> PartDeps.pretty ppf r.deps)
     ++ text ", " ++
-    WeakUpdates.pretty () r.weak
+    (fun ppf -> WeakUpdates.pretty ppf r.weak)
     ++ text ", " ++
-    PrivD.pretty () r.priv
+    (fun ppf -> PrivD.pretty ppf r.priv)
     ++ text ")"
 
   let printXml f r =
@@ -105,15 +106,15 @@ struct
   let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =
     CPA.leq x1 y1 && PartDeps.leq x2 y2 && WeakUpdates.leq x3 y3 && PrivD.leq x4 y4
 
-  let pretty_diff () (({cpa=x1; deps=x2; weak=x3; priv=x4}:t),({cpa=y1; deps=y2; weak=y3; priv=y4}:t)): Pretty.doc =
+  let pretty_diff ppf (({cpa=x1; deps=x2; weak=x3; priv=x4}:t),({cpa=y1; deps=y2; weak=y3; priv=y4}:t)) =
     if not (CPA.leq x1 y1) then
-      CPA.pretty_diff () (x1,y1)
+      CPA.pretty_diff ppf (x1,y1)
     else if not (PartDeps.leq x2 y2) then
-      PartDeps.pretty_diff () (x2,y2)
+      PartDeps.pretty_diff ppf (x2,y2)
     else if not (WeakUpdates.leq x3 y3) then
-      WeakUpdates.pretty_diff () (x3,y3)
+      WeakUpdates.pretty_diff ppf (x3,y3)
     else
-      PrivD.pretty_diff () (x4,y4)
+      PrivD.pretty_diff ppf (x4,y4)
 
   let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
     {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }

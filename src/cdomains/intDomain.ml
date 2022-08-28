@@ -313,8 +313,8 @@ struct
   let narrow = lift2 I.narrow
 
   let show x = I.show x.v  (* TODO add ikind to output *)
-  let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
-  let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
+  let pretty ppf x = I.pretty ppf x.v (* TODO add ikind to output *)
+  let pretty_diff ppf (x, y) = I.pretty_diff ppf (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x = I.printXml o x.v (* TODO add ikind to output *)
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
@@ -497,7 +497,7 @@ module Std (B: sig
       let show = show
     end
     )
-  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let pretty_diff ppf (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y ppf
 
   include StdTop (B)
 end
@@ -999,7 +999,7 @@ struct
   let top () = raise Unknown
   let bot () = raise Error
   let leq = equal
-  let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
+  let pretty_diff ppf (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y ppf
   let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
@@ -2517,9 +2517,9 @@ struct
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t) option) : t =
-    let pretty_intv _ i = (match i with
+    let pretty_intv ppf i = (match i with
      | Some(l, u) -> let s = "["^Ints_t.to_string l^","^Ints_t.to_string u^"]" in Pretty.text s
-     | _ -> Pretty.text ("Display Error")) in
+     | _ -> Pretty.text ("Display Error")) ppf in
     let refn = refine_with_interval ik cong intv in
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a\n" pretty cong pretty_intv intv pretty refn;
     refn
@@ -2705,7 +2705,7 @@ module IntDomTupleImpl = struct
     mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
 
-  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
+  let pretty ppf = (fun xs -> ppf |> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) (fun i ppf -> I.pretty ppf i) } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
 
   let refine_functions ik : (t -> t) list =
@@ -2919,7 +2919,7 @@ module IntDomTupleImpl = struct
 
 
   (* printing boilerplate *)
-  let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
+  let pretty_diff ppf (x,y) = dprintf "%a instead of %a" pretty x pretty y ppf
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik x =

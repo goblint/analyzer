@@ -28,5 +28,5 @@ let print (ch: 'a BatIO.output) json =
   in
   Yojson.Safe.to_output oo json
 
-let pretty () json =
-  GoblintCil.Pretty.text (Yojson.Safe.to_string json)
+let pretty ppf json =
+  GoblintCil.Pretty.text (Yojson.Safe.to_string json) ppf

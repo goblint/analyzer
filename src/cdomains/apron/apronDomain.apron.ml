@@ -300,7 +300,7 @@ struct
             match Bounds.bound_texpr d texpr1 with
             | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
             | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pretty ppf i)) min_opt (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pretty ppf i)) max_opt;
               raise (Unsupported_CilExp Overflow)
           );
           expr
@@ -762,7 +762,7 @@ sig
 
   val unify: t -> t -> t
   val invariant: scope:Cil.fundec -> t -> Lincons1.t list
-  val pretty_diff: unit -> t * t -> Pretty.doc
+  val pretty_diff: Format.formatter -> t * t -> unit
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -785,7 +785,7 @@ struct
 
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
-  let pretty () (x:t) = text (show x)
+  let pretty ppf (x:t) = text (show x) ppf
 
   let equal x y =
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
@@ -801,11 +801,11 @@ struct
   let unify x y =
     A.unify Man.mgr x y
 
-  let pretty_diff () (x, y) =
+  let pretty_diff (ppf: Format.formatter) (x, y): unit =
     let lcx = A.to_lincons_array Man.mgr x in
     let lcy = A.to_lincons_array Man.mgr y in
     let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
-    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
+    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) ppf (Lincons1Set.elements diff)
 end
 
 
@@ -1296,7 +1296,7 @@ struct
   let vars_as_array (_, d) = D.vars_as_array d
   let vars (_, d) = D.vars d
 
-  let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)
+  let pretty_diff ppf ((_, d1), (_, d2)) = D.pretty_diff ppf (d1, d2)
 
   let add_vars_with (b, d) vs =
     BoxD.add_vars_with b vs;
@@ -1380,11 +1380,12 @@ struct
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
-  let pretty () r =
+  let pretty ppf r =
+    ppf |>
     text "(" ++
-    AD.pretty () r.apr
+    (fun ppf -> AD.pretty ppf r.apr)
     ++ text ", " ++
-    PrivD.pretty () r.priv
+    (fun ppf -> PrivD.pretty ppf r.priv)
     ++ text ")"
 
   let printXml f r =
@@ -1407,11 +1408,11 @@ struct
   let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
     AD.leq x1 y1 && PrivD.leq x3 y3
 
-  let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
+  let pretty_diff ppf (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)) =
     if not (AD.leq x1 y1) then
-      AD.pretty_diff () (x1,y1)
+      AD.pretty_diff ppf (x1,y1)
     else
-      PrivD.pretty_diff () (x3,y3)
+      PrivD.pretty_diff ppf (x3,y3)
 
   let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
     {apr = op1 x1 y1; priv = op3 x3 y3 }

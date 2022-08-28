@@ -65,9 +65,9 @@ struct
     let add_to_it x s = add (f x) s in
     fold add_to_it s (empty ())
 
-  let pretty () x =
+  let pretty ppf x =
     let elts = elements x in
-    let content = List.map (Base.pretty ()) elts in
+    let content = List.map (fun x ppf -> Base.pretty ppf x) elts in
     let rec separate x =
       match x with
       | [] -> []
@@ -76,7 +76,7 @@ struct
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
+    ppf |> (text "{") ++ content ++ (text "}")
 
   (** Short summary for sets. *)
   let show x : string =
@@ -93,7 +93,8 @@ struct
 
   let relift x = map Base.relift x
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+  let pretty_diff ppf ((x:t),(y:t)) =
+    ppf |>
     if leq x y then dprintf "%s: These are fine!" (name ()) else
     if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
       let evil = choose (diff x y) in
@@ -258,10 +259,10 @@ struct
   (* The printable implementation *)
   (* Overrides `Top text *)
 
-  let pretty () x =
+  let pretty ppf x =
     match x with
-    | `Top -> text N.topname
-    | `Lifted t -> S.pretty () t
+    | `Top -> text N.topname ppf
+    | `Lifted t -> S.pretty ppf t
 
   let show x : string =
     match x with
@@ -324,9 +325,9 @@ struct
   include Make(Base)
 
   let name () = "Headless " ^ name ()
-  let pretty () x =
+  let pretty ppf x =
     let elts = elements x in
-    let content = List.map (Base.pretty ()) elts in
+    let content = List.map (fun x ppf -> Base.pretty ppf x) elts in
     let rec separate x =
       match x with
       | [] -> []
@@ -335,10 +336,10 @@ struct
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-    content
+    content ppf
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff ppf ((x:t),(y:t)) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
   let printXml f xs =
     iter (Base.printXml f) xs
 end

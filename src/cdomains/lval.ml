@@ -178,7 +178,7 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = OffsetPrintable (Idx)
-      
+
   type t =
     | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
@@ -363,7 +363,7 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y ppf
 end
 
 module Fields =
@@ -459,8 +459,8 @@ struct
     | `Left _ :: xs -> real_region xs typ
     | `Right i :: _ -> false
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let pretty_diff ppf ((x:t),(y:t)) =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y ppf
 end
 
 
