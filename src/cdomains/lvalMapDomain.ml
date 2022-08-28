@@ -89,7 +89,7 @@ struct
   (* special variable used for indirection *)
   let alias_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
   (* alias structure: x[0].key=alias_var, y[0].key=linked_var *)
-  let is_alias (x,y) = neg Must'.is_empty x && (Must'.choose x).key=alias_var
+  let is_alias (x,y) = neg Must'.is_empty x && equal_k (Must'.choose x).key alias_var
   let get_alias (x,y) = (May.choose y).key
 
   (* Printing *)
