@@ -1,7 +1,6 @@
 (** Specification and functors for maps. *)
 
 module Pretty = GoblintCil.Pretty
-open Pretty
 module ME = Messages
 module GU = Goblintutil
 
@@ -127,21 +126,21 @@ struct
       (* sort groups (order of constructors in type group)  *)
       BatHashtbl.to_list h |> List.sort (cmpBy fst)
     in
-    let f key st dok =
+    let f ppf (key, st) =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
          not (List.mem (Domain.show key) !ME.tracevars) then
-        dok
+        Fmt.nop ppf ()
       else
-        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pp key Range.pp st
+        Fmt.pf ppf "%a ->@?  @[%a@]\n" Domain.pp key Range.pp st
     in
-    let group_name a ppf = text (Domain.show_group a) ppf in
-    let pp_group map ppf = ppf |> fold f map nil in
-    let pp_groups rest (group, map) =
+    let group_name = Fmt.using Domain.show_group Fmt.string in
+    let pp_group = Fmt.iter_bindings iter f in
+    let pp_groups ppf (group, map) =
       match group with
-      | None ->  rest ++ (fun ppf -> pp_group map ppf)
-      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pp_group map) in
-    let content ppf = ppf |> List.fold_left pp_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content ppf
+      | None -> pp_group ppf map
+      | Some g -> Fmt.pf ppf "@[%a {\n  @[%a@]}@]\n" group_name g pp_group map in
+    let content = Fmt.list pp_groups in
+    Fmt.pf ppf "@[%s {\n  @[%a@]}@]" (show mapping) content groups
 
   (* uncomment to easily check pp's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pp m in M.add k v m *)
@@ -365,12 +364,12 @@ struct
     in
     let diff_key k v = function
       | None   when p k v -> Some (report k v (find k m2))
-      | Some w when p k v -> Some (w++Pretty.line++report k v (find k m2))
+      | Some w when p k v -> Some Pretty.(w++Pretty.line++report k v (find k m2))
       | x -> x
     in
     match fold diff_key m1 None with
     | Some w -> w ppf
-    | None -> Pretty.dprintf "No binding grew." ppf
+    | None -> Fmt.string ppf "No binding grew."
 
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
 
@@ -429,12 +428,12 @@ struct
     in
     let diff_key k v = function
       | None   when p k v -> Some (report k (find k m1) v)
-      | Some w when p k v -> Some (w++Pretty.line++report k (find k m1) v)
+      | Some w when p k v -> Some Pretty.(w++Pretty.line++report k (find k m1) v)
       | x -> x
     in
     match fold diff_key m2 None with
     | Some w -> w ppf
-    | None -> Pretty.dprintf "No binding grew." ppf
+    | None -> Fmt.string ppf "No binding grew."
 end
 
 exception Fn_over_All of string

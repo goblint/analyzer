@@ -44,10 +44,9 @@ end
 module RawStrings: Printable.S with type t = string =
 struct
   include Printable.Std
-  open Pretty
   type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
-  let pp ppf x = text (show x) ppf
+  let pp = Fmt.of_to_string show
   let name () = "raw strings"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
@@ -61,10 +60,9 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 module RawBools: Printable.S with type t = bool =
 struct
   include Printable.Std
-  open Pretty
   type t = bool [@@deriving eq, ord, hash, to_yojson]
   let show (x:t) =  if x then "true" else "false"
-  let pp ppf x = text (show x) ppf
+  let pp = Fmt.of_to_string show
   let name () = "raw bools"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 end

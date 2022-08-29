@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 
 module M = Messages
 
@@ -167,7 +166,7 @@ struct
   let name () = "Per-Element locking triple"
 
   let pp ppf (x,y,z) = Fmt.pf ppf "(%a, %a, %a)" d_exp x d_exp y d_exp z
-  let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
+  let show = Fmt.to_to_string pp
 
   type ee = EVar of varinfo
           | EAddr

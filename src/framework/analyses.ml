@@ -2,7 +2,6 @@
 
 open Prelude
 open GoblintCil
-open Pretty
 open GobConfig
 
 module GU = Goblintutil
@@ -52,9 +51,9 @@ struct
   let getLocation (n,d) = Node.location n
 
   let pp_trace ppf ((n,c) as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pp_trace n LD.pp c CilType.Location.pp (getLocation x) ppf
-    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pp_trace n (LD.tag c) CilType.Location.pp (getLocation x) ppf *)
-    else dprintf "%a on %a" Node.pp_trace n CilType.Location.pp (getLocation x) ppf
+    if get_bool "dbg.trace.context" then Fmt.pf ppf "(%a, %a) on %a \n" Node.pp_trace n LD.pp c CilType.Location.pp (getLocation x)
+    (* if get_bool "dbg.trace.context" then Fmt.pf ppf "(%a, %d) on %a" Node.pp_trace n (LD.tag c) CilType.Location.pp (getLocation x) *)
+    else Fmt.pf ppf "%a on %a" Node.pp_trace n CilType.Location.pp (getLocation x)
 
   let printXml f (n,c) =
     Var.printXml f n;
@@ -178,12 +177,12 @@ struct
   type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
 
   let pp ppf mapping =
-    let f key st dok =
-      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pp key Range.pp st
+    let f ppf (key, st) =
+      Fmt.pf ppf "%a ->@?  @[%a@]\n" ResultNode.pp key Range.pp st
     in
-    let content ppf = fold f mapping nil ppf in
-    let defline ppf = dprintf "OTHERS -> Not available\n" ppf in
-    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline ppf
+    let content = Fmt.iter_bindings iter f in
+    let defline = "OTHERS -> Not available\n" in
+    Fmt.pf ppf "@[Mapping {\n  @[%a%s@]}@]" content mapping defline
 
   include C
 
@@ -226,7 +225,7 @@ struct
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
-    | "pretty" -> ignore (fprintf out "%a\n" pp (Lazy.force table))
+    | "pretty" -> ignore (Pretty.fprintf out "%a\n" pp (Lazy.force table))
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in

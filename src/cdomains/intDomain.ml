@@ -1,6 +1,5 @@
 open GobConfig
 open GoblintCil
-open Pretty
 open PrecisionUtil
 
 module GU = Goblintutil
@@ -497,7 +496,7 @@ module Std (B: sig
       let show = show
     end
     )
-  let pp_diff ppf (x,y) = dprintf "%s: %a instead of %a" (name ()) pp x pp y ppf
+  let pp_diff ppf (x,y) = Fmt.pf ppf "%s: %a instead of %a" (name ()) pp x pp y
 
   include StdTop (B)
 end
@@ -2704,7 +2703,7 @@ module IntDomTupleImpl = struct
     mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
 
-  let pp ppf = (fun xs -> ppf |> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) (fun i ppf -> I.pp ppf i) } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
+  let pp ppf = (Fmt.pf ppf "(%a)" (Fmt.list ~sep:Fmt.comma Pretty.insert)) % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) (fun i ppf -> I.pp ppf i) } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
 
   let refine_functions ik : (t -> t) list =
@@ -2918,7 +2917,7 @@ module IntDomTupleImpl = struct
 
 
   (* printing boilerplate *)
-  let pp_diff ppf (x,y) = dprintf "%a instead of %a" pp x pp y ppf
+  let pp_diff ppf (x,y) = Fmt.pf ppf "%a instead of %a" pp x pp y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let invariant_ikind e ik x =

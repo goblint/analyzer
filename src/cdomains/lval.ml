@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 
 module GU = Goblintutil
 
@@ -58,8 +57,9 @@ struct
     end
     )
 
-  let pp_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pp x pp y
+  (* TODO: unused *)
+  let pp_diff ppf (x,y) =
+    Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y
 
   let rec hash = function
     | `NoOffset -> 1
@@ -260,12 +260,12 @@ struct
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
         with Not_found ->
-          let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
+          let s = Pretty.sprint ~width:max_int @@ Pretty.dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
           raise (Type_offset (t, s))
       in type_offset fi.ftype o
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
-      let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
+      let s = Pretty.sprint ~width:max_int @@ Pretty.dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
       raise (Type_offset (t, s))
 
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
@@ -363,7 +363,7 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
+  let pp_diff ppf (x,y) = Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y
 end
 
 module Fields =

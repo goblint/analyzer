@@ -32,11 +32,5 @@ struct
       ) [] a
     in
     (* duplicates DomListPrintable *)
-    let open Pretty in
-    match xs with
-    | [] -> text "[]" ppf
-    | x :: [] -> x ppf
-    | x :: y ->
-      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      ppf |> text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+    Fmt.pf ppf "[@[%a@]]" (Fmt.list ~sep:Fmt.comma Pretty.insert) xs
 end

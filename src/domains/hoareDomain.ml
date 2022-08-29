@@ -1,7 +1,6 @@
 (** Abstract domains with Hoare ordering. *)
 
 module Pretty = GoblintCil.Pretty
-open Pretty
 
 exception Unsupported of string
 let unsupported s = raise (Unsupported s)
@@ -150,16 +149,7 @@ struct
   let to_yojson x = [%to_yojson: E.t list] (elements x)
 
   let pp ppf x =
-    let content = List.map (fun e ppf -> E.pp ppf e) (elements x) in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    ppf |> (text "{") ++ content ++ (text "}")
+    Fmt.pf ppf "{%a}" (Fmt.iter ~sep:Fmt.comma iter E.pp) x
 
   let pp_diff ppf ((x:t),(y:t)) =
     Pretty.dprintf "HoarePO: %a not leq %a" pp x pp y ppf
@@ -211,21 +201,20 @@ struct
   let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
 
   let pp_diff ppf ((s1:t),(s2:t)) =
-    ppf |>
-    if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
+    if leq s1 s2 then Fmt.pf ppf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
       try
         let p t = not (mem t s2) in
         let evil = choose (filter p s1) in
-        dprintf "%a:\n" B.pp evil
-        ++
-        if is_empty s2 then
-          text "empty set s2"
-        else
-          fold (fun other acc ->
-              (dprintf "not leq %a because %a\n" B.pp other B.pp_diff (evil, other)) ++ acc
-            ) s2 nil
+        Fmt.pf ppf "%a:\n%a" B.pp evil (fun ppf s2 ->
+            if is_empty s2 then
+              Fmt.string ppf "empty set s2"
+            else
+              Fmt.iter iter (fun ppf other ->
+                  Fmt.pf ppf "not leq %a because %a\n" B.pp other B.pp_diff (evil, other)
+                ) ppf s2
+          ) s2
       with Not_found ->
-        dprintf "choose failed b/c of empty set s1: %d s2: %d"
+        Fmt.pf ppf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
     end
@@ -321,24 +310,22 @@ struct
   let apply_list f s = elements s |> f |> of_list
 
   let pp_diff ppf ((s1:t),(s2:t)): unit =
-    if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) ppf else begin
+    if leq s1 s2 then Fmt.pf ppf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
       try
         let p t tr = not (mem t tr s2) in
         let (evil, evilr) = choose' (filter' p s1) in
         let evilr' = R.choose evilr in
-        ppf |>
-        dprintf "%a -> %a:\n" SpecD.pp evil R.pp (R.singleton evilr')
-        ++
-        if is_empty s2 then
-          text "empty set s2"
-        else
-          fold' (fun other otherr acc ->
-              (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pp other SpecD.pp_diff (evil, other) R.pp otherr R.pp_diff (R.singleton evilr', otherr)) ++ acc
-            ) s2 nil
+        Fmt.pf ppf "%a -> %a:\n%a" SpecD.pp evil R.pp (R.singleton evilr') (fun ppf s2 ->
+            if is_empty s2 then
+              Fmt.string ppf "empty set s2"
+            else
+              Fmt.iter_bindings iter (fun ppf (other, otherr) ->
+                  Fmt.pf ppf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pp other SpecD.pp_diff (evil, other) R.pp otherr R.pp_diff (R.singleton evilr', otherr)
+                ) ppf s2
+          ) s2
       with Not_found ->
-        dprintf "choose failed b/c of empty set s1: %d s2: %d"
+        Fmt.pf ppf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
-        ppf
     end
 end

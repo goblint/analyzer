@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 open IntOps
 
 module GU = Goblintutil
@@ -90,16 +89,7 @@ struct
 
   let pp ppf x =
     try
-      let content = List.map (fun a -> text (short_addr a)) (elements x) in
-      let rec separate x =
-        match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ (text ", ") :: separate xs
-      in
-      let separated = separate content in
-      let content = List.fold_left (++) nil separated in
-      ppf |> (text "{") ++ content ++ (text "}")
+      Fmt.pf ppf "{%a}" (Fmt.iter ~sep:Fmt.comma iter (Fmt.using short_addr Fmt.string)) x
     with SetDomain.Unsupported _ -> pp ppf x
 
   let show x : string =

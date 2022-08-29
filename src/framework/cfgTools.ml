@@ -1,6 +1,5 @@
 open MyCFG
 open GoblintCil
-open Pretty
 open GobConfig
 
 module H = NodeH

@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 
 module type S =
 sig
@@ -404,7 +403,7 @@ struct
   let hash x = Hashtbl.hash x (* TODO: is this right? *)
 
   (* Output *)
-  let pp ppf x = d_offset nil ppf x
+  let pp ppf x = d_offset Pretty.nil ppf x
   include Printable.SimplePretty (
     struct
       type nonrec t = t

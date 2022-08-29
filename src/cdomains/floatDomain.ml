@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 open PrecisionUtil
 open FloatOps
 
@@ -744,7 +743,7 @@ module FloatDomTupleImpl = struct
     %% map2p { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.leq); }
 
   let pp ppf x =
-    ppf |> Option.map_default identity nil
+    Fmt.option Pretty.insert ppf
       (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> (fun f ppf -> F.pp ppf f)); } x)
 
   (* f1: one and only unary op *)
@@ -810,7 +809,7 @@ module FloatDomTupleImpl = struct
   let signbit =
     map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.signbit); }
 
-  let pp_diff ppf (x, y) = dprintf "%a instead of %a" pp x pp y ppf
+  let pp_diff ppf (x, y) = Fmt.pf ppf "%a instead of %a" pp x pp y
 
   include Printable.SimpleShow (
     struct

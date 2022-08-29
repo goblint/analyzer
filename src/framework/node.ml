@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 
 include Printable.Std
 
@@ -9,29 +8,23 @@ let name () = "node"
 
 (* TODO: remove this? *)
 (** Pretty node plainly with entire stmt. *)
-let pp_plain ppf n =
-  ppf
-  |> match n with
-  | Statement s -> text "Statement " ++ (fun ppf -> dn_stmt ppf s)
-  | Function f -> text "Function " ++ text f.svar.vname
-  | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
+let pp_plain ppf = function
+  | Statement s -> Fmt.pf ppf "Statement %a" dn_stmt s
+  | Function f -> Fmt.pf ppf "Function %s" f.svar.vname
+  | FunctionEntry f -> Fmt.pf ppf "FunctionEntry %s" f.svar.vname
 
 (* TODO: remove this? *)
 (** Pretty node plainly with stmt location. *)
-let pp_plain_short ppf n =
-  ppf
-  |> match n with
-  | Statement s -> text "Statement @ " ++ (fun ppf -> CilType.Location.pp ppf (Cilfacade.get_stmtLoc s))
-  | Function f -> text "Function " ++ text f.svar.vname
-  | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
+let pp_plain_short ppf = function
+  | Statement s -> Fmt.pf ppf "Statement @ %a" CilType.Location.pp (Cilfacade.get_stmtLoc s)
+  | Function f -> Fmt.pf ppf "Function %s" f.svar.vname
+  | FunctionEntry f -> Fmt.pf ppf "FunctionEntry %s" f.svar.vname
 
 (** Pretty node for solver variable tracing with short stmt. *)
-let pp_trace ppf n =
-  ppf
-  |> match n with
-  | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pp_short stmt
-  | Function      fd -> dprintf "call of %s (%d)" fd.svar.vname fd.svar.vid
-  | FunctionEntry fd -> dprintf "entry state of %s (%d)" fd.svar.vname fd.svar.vid
+let pp_trace ppf = function
+  | Statement stmt   -> Fmt.pf ppf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pp_short stmt
+  | Function      fd -> Fmt.pf ppf "call of %s (%d)" fd.svar.vname fd.svar.vid
+  | FunctionEntry fd -> Fmt.pf ppf "entry state of %s (%d)" fd.svar.vname fd.svar.vid
 
 (** Output functions for Printable interface *)
 let pp ppf x = pp_trace ppf x

@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 open GobConfig
 open PrecisionUtil
 
@@ -238,9 +237,9 @@ struct
     | `Array n ->  CArrays.pp ppf n
     | `Blob n ->  Blobs.pp ppf n
     | `Thread n -> Threads.pp ppf n
-    | `Mutex -> text "mutex" ppf
-    | `Bot -> text bot_name ppf
-    | `Top -> text top_name ppf
+    | `Mutex -> Fmt.string ppf "mutex"
+    | `Bot -> Fmt.string ppf bot_name
+    | `Top -> Fmt.string ppf top_name
 
   let show state =
     match state with
@@ -266,7 +265,7 @@ struct
     | (`Array x, `Array y) -> CArrays.pp_diff ppf (x,y)
     | (`Blob x, `Blob y) -> Blobs.pp_diff ppf (x,y)
     | (`Thread x, `Thread y) -> Threads.pp_diff ppf (x, y)
-    | _ -> dprintf "%s: %a not same type as %a" (name ()) pp x pp y ppf
+    | _ -> Fmt.pf ppf "%s: %a not same type as %a" (name ()) pp x pp y
 
   (************************************************************
    * Functions for getting state out of a compound:
@@ -457,7 +456,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pp !Tracing.current_loc pp x pp y
+      Fmt.pr "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pp !Tracing.current_loc pp x pp y
 
   let rec leq x y =
     match (x,y) with

@@ -57,7 +57,6 @@ struct
   type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
 
   include Printable.Std
-  open Pretty
 
   let show r =
     let first  = CPA.show r.cpa in

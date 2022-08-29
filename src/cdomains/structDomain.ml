@@ -1,6 +1,5 @@
 open GoblintCil
 open GobConfig
-open Pretty
 open FlagHelper
 
 (* Exception raised when the set domain can not support the requested operation.
@@ -241,9 +240,9 @@ struct
     | Some k -> HS.show s ^ " with key " ^ F.show k
     | None -> HS.show s ^ " without key"
 
-  let pp ppf (s, k) = ppf |> match k with
-    | Some k -> (fun ppf -> HS.pp ppf s) ++ (text " with key ") ++ (fun ppf -> F.pp ppf k)
-    | None -> (fun ppf -> HS.pp ppf s) ++ (text " without key")
+  let pp ppf (s, k) = match k with
+    | Some k -> Fmt.pf ppf "%a with key %a" HS.pp s F.pp k
+    | None -> Fmt.pf ppf "%a without key" HS.pp s
 
   let top () = (hs_top (), None)
   let is_top (s, _) = hs_is_top s

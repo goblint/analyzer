@@ -1,7 +1,6 @@
 (** Some things are not quite lattices ... *)
 
 module Pretty = GoblintCil.Pretty
-open Pretty
 
 module type S =
 sig
@@ -64,7 +63,7 @@ end
 module Blank =
 struct
   include Std
-  let pp ppf _ = text "Output not supported" ppf
+  let pp ppf _ = Fmt.string ppf "Output not supported"
   let show _ = "Output not supported"
   let name () = "blank"
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
@@ -79,7 +78,7 @@ end
 
 module SimpleShow (P: Showable) =
 struct
-  let pp ppf x = text (P.show x) ppf
+  let pp = Fmt.using P.show Fmt.string
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
   let to_yojson x = `String (P.show x)
 end
@@ -103,7 +102,7 @@ module UnitConf (N: Name) =
 struct
   type t = unit [@@deriving eq, ord, hash]
   include Std
-  let pp ppf _ = text N.name ppf
+  let pp ppf _ = Fmt.string ppf N.name
   let show _ = N.name
   let name () = "Unit"
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
@@ -216,8 +215,8 @@ struct
   let pp ppf (state:t) =
     match state with
     | `Lifted n ->  Base.pp ppf n
-    | `Bot -> text bot_name ppf
-    | `Top -> text top_name ppf
+    | `Bot -> Fmt.string ppf bot_name
+    | `Top -> Fmt.string ppf top_name
 
   let name () = "lifted " ^ Base.name ()
   let printXml f = function
@@ -284,7 +283,7 @@ struct
 
   let pp ppf (state:t) =
     match state with
-    | None -> text N.name ppf
+    | None -> Fmt.string ppf N.name
     | Some n -> Base.pp ppf n
 
   let show state =
@@ -314,8 +313,8 @@ struct
     match state with
     | `Lifted1 n ->  Base1.pp ppf n
     | `Lifted2 n ->  Base2.pp ppf n
-    | `Bot -> text bot_name ppf
-    | `Top -> text top_name ppf
+    | `Bot -> Fmt.string ppf bot_name
+    | `Top -> Fmt.string ppf top_name
 
   let show state =
     match state with
@@ -369,14 +368,13 @@ struct
 
   let pp ppf (x,y) =
     if expand_fst || expand_snd then
-      ppf |>
-      text "("
-      ++ (fun ppf -> if expand_fst then Base1.pp ppf x else text (Base1.show x) ppf)
-      ++ text ", "
-      ++ (fun ppf -> if expand_snd then Base2.pp ppf y else text (Base2.show y) ppf)
-      ++ text ")"
+      Fmt.pf ppf "(%a, %a)"
+        (if expand_fst then Base1.pp else Fmt.of_to_string Base1.show)
+        x
+        (if expand_snd then Base2.pp else Fmt.of_to_string Base2.show)
+        y
     else
-      text (show (x,y)) ppf
+      Fmt.string ppf (show (x,y))
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y
@@ -430,7 +428,7 @@ struct
     let elems = List.map Base.show x in
     "[" ^ (String.concat ", " elems) ^ "]"
 
-  let pp ppf x = text (show x) ppf
+  let pp = Fmt.of_to_string show
 
   let relift x = List.map Base.relift x
 
@@ -468,7 +466,7 @@ struct
   include Std
 
   let show x = P.names x
-  let pp ppf x = text (show x) ppf
+  let pp = Fmt.of_to_string show
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
@@ -491,7 +489,7 @@ struct
   let pp ppf (state:t) =
     match state with
     | `Lifted n ->  Base.pp ppf n
-    | `Bot -> text ("bot of " ^ (Base.name ())) ppf
+    | `Bot -> Fmt.pf ppf "bot of %s" (Base.name ())
 
   let name () = "bottom or " ^ Base.name ()
   let printXml f = function
@@ -522,7 +520,7 @@ struct
   let pp ppf (state:t) =
     match state with
     | `Lifted n ->  Base.pp ppf n
-    | `Top -> text ("top of " ^ (Base.name ())) ppf
+    | `Top -> Fmt.pf ppf "top of %s" (Base.name ())
 
   let name () = "top or " ^ Base.name ()
 
@@ -555,7 +553,7 @@ module Strings =
 struct
   type t = string [@@deriving eq, ord, hash, to_yojson]
   include Std
-  let pp ppf n = text n ppf
+  let pp = Fmt.string
   let show n = n
   let name () = "String"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x

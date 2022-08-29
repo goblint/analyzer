@@ -1,6 +1,5 @@
 (** Abstract domains representing sets. *)
 module Pretty = GoblintCil.Pretty
-open Pretty
 
 (* Exception raised when the set domain can not support the requested operation.
  * This will be raised, when trying to iterate a set that has been set to Top *)
@@ -66,17 +65,7 @@ struct
     fold add_to_it s (empty ())
 
   let pp ppf x =
-    let elts = elements x in
-    let content = List.map (fun x ppf -> Base.pp ppf x) elts in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    ppf |> (text "{") ++ content ++ (text "}")
+    Fmt.pf ppf "{%a}" (Fmt.iter ~sep:Fmt.comma iter Base.pp) x
 
   (** Short summary for sets. *)
   let show x : string =
@@ -94,11 +83,10 @@ struct
   let relift x = map Base.relift x
 
   let pp_diff ppf ((x:t),(y:t)) =
-    ppf |>
-    if leq x y then dprintf "%s: These are fine!" (name ()) else
-    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pp x else begin
+    if leq x y then Fmt.pf ppf "%s: These are fine!" (name ()) else
+    if is_bot y then Fmt.pf ppf "%s: %a instead of bot" (name ()) pp x else begin
       let evil = choose (diff x y) in
-      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pp x pp y Base.pp evil
+      Fmt.pf ppf "%s: %a not leq %a\n  @[because %a@]" (name ()) pp x pp y Base.pp evil
     end
   let printXml f xs =
     BatPrintf.fprintf f "<value>\n<set>\n";
@@ -261,7 +249,7 @@ struct
 
   let pp ppf x =
     match x with
-    | `Top -> text N.topname ppf
+    | `Top -> Fmt.string ppf N.topname
     | `Lifted t -> S.pp ppf t
 
   let show x : string =
@@ -325,18 +313,8 @@ struct
   include Make(Base)
 
   let name () = "Headless " ^ name ()
-  let pp ppf x =
-    let elts = elements x in
-    let content = List.map (fun x ppf -> Base.pp ppf x) elts in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") ++ line :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    content ppf
+  let pp =
+    Fmt.iter ~sep:Fmt.comma iter Base.pp
 
   let pp_diff ppf ((x:t),(y:t)) =
     Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y

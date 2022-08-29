@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 open GobConfig
 open FlagHelper
 
@@ -49,7 +48,7 @@ struct
 
   let show x = "Array: " ^ Val.show x
   let pp ppf x = Fmt.pf ppf "Array: %a" pp x
-  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
+  let pp_diff ppf (x,y) = Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
   let make i v = v
@@ -87,8 +86,8 @@ struct
       | hd::tl -> (Val.show hd ^ " - " ^ (show_list tl)) in
     "Array (unrolled to " ^ (Stdlib.string_of_int (factor ())) ^ "): " ^
     (show_list xl) ^ Val.show xr ^ ")"
-  let pp ppf x = ppf |> text "Array: " ++ text (show x)
-  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
+  let pp ppf x = Fmt.pf ppf "Array: %s" (show x)
+  let pp_diff ppf (x,y) = Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y
   let extract x default = match x with
     | Some c -> c
     | None -> default
@@ -206,8 +205,8 @@ struct
         Val.show xm ^ " -- " ^
         Val.show xr ^ ")"
 
-  let pp ppf x = ppf |> text "Array: " ++ text (show x)
-  let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
+  let pp ppf x = Fmt.pf ppf "Array: %s" (show x)
+  let pp_diff ppf (x,y) = Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y
 
   let printXml f ((e, (xl, xm, xr)) as x) =
     if is_not_partitioned x then

@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 
 module V = Basetype.Variables
 module F =
@@ -26,7 +25,8 @@ struct
     let v_str = V.show v in
     let fd_str = F.show fd in
     v_str ^ fd_str
-  let pp () x = text (show x)
+  (* TODO: unused*)
+  let pp ppf = Fmt.of_to_string show ppf
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
     if V.equal v1 v2 then F.prefix fd1 fd2 else None
@@ -43,10 +43,10 @@ struct
 
   let show _ = "Equalities"
   let pp ppf mapping =
-    let f (v1,v2) st dok: doc =
-      dok ++ dprintf "%a = %a%a\n" V.pp v1 V.pp v2 F.pp st in
-    let content ppf = fold f mapping nil ppf in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content ppf
+    let f ppf ((v1,v2), st): unit =
+      Fmt.pf ppf "%a = %a%a\n" V.pp v1 V.pp v2 F.pp st
+    in
+    Fmt.pf ppf "@[%s {\n  @[%a@]}@]" (show mapping) (Fmt.iter_bindings iter f) mapping
 
   let add_old = add
   let rec add (x,y) fd d =

@@ -117,12 +117,7 @@ struct
   let pp ppf x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pp (obj x) :: a in
     let xs = unop_fold f [] x in
-    match xs with
-    | [] -> text "[]" ppf
-    | x :: [] -> x ppf
-    | x :: y ->
-      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      ppf |> text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+    Fmt.pf ppf "[@[%a@]]" (Fmt.list ~sep:Fmt.comma Pretty.insert) xs
 
   let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->

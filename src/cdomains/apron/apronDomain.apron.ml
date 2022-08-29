@@ -1,6 +1,5 @@
 open Prelude
 open GoblintCil
-open Pretty
 (* A binding to a selection of Apron-Domains *)
 open Apron
 
@@ -783,9 +782,8 @@ struct
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
 
-  let show (x:t) =
-    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
-  let pp ppf (x:t) = text (show x) ppf
+  let pp ppf (x: t) = Fmt.pf ppf "%a (env: %a)" A.print x (Environment.print: _ Fmt.t) (A.env x)
+  let show = Fmt.to_to_string pp
 
   let equal x y =
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
@@ -1373,7 +1371,6 @@ struct
   type t = (AD.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
-  open Pretty
 
   let show r =
     let first  = AD.show r.apr in

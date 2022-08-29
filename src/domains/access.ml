@@ -1,6 +1,5 @@
 open Batteries
 open GoblintCil
-open Pretty
 open GobConfig
 
 module M = Messages
@@ -64,20 +63,20 @@ let rec addOffs os1 os2 : offs =
   | `Field (f,os) -> `Field (f, addOffs os os2)
 
 let rec d_offs ppf : offs -> unit = function
-  | `NoOffset -> nil ppf
-  | `Index o -> dprintf "[?]%a" d_offs o ppf
-  | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o ppf
+  | `NoOffset -> Fmt.nop ppf ()
+  | `Index o -> Fmt.pf ppf "[?]%a" d_offs o
+  | `Field (f,o) -> Fmt.pf ppf ".%s%a" f.fname d_offs o
 
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord, hash]
 
 let d_acct ppf = function
-  | `Type t -> dprintf "(%a)" d_type t ppf
-  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o ppf
+  | `Type t -> Fmt.pf ppf "(%a)" d_type t
+  | `Struct (s,o) -> Fmt.pf ppf "(struct %s)%a" s.cname d_offs o
 
 let d_memo ppf (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pp v d_offs o CilType.Location.pp v.vdecl ppf
-  | None       -> dprintf "%a" d_acct t ppf
+  | Some (v,o) -> Fmt.pf ppf "%a%a@@%a" Basetype.Variables.pp v d_offs o CilType.Location.pp v.vdecl
+  | None       -> Fmt.pf ppf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) ->
@@ -438,10 +437,10 @@ let print_accesses (lv, ty) grouped_accs =
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,kind,node,e,a) =
-      let d_msg ppf = dprintf "%a with %a (conf. %d)" AccessKind.pp kind MCPAccess.A.pp a conf ppf in
+      let d_msg ppf = Fmt.pf ppf "%a with %a (conf. %d)" AccessKind.pp kind MCPAccess.A.pp a conf in
       let doc =
         if debug then
-          dprintf "%t  (exp: %a)" d_msg d_exp e
+          Pretty.dprintf "%t  (exp: %a)" d_msg d_exp e
         else
           d_msg
       in
