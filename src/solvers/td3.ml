@@ -123,7 +123,7 @@ module WP =
 
       let skip_unchanged_rhs =
         let enabled = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
-        if enabled && (restart_sided || restart_only_globals || restart_only_access || restart_wpoint || restart_once) then
+        if enabled && (restart_sided || restart_wpoint || restart_once) then
           (M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs"; false)
         else
           enabled
