@@ -483,7 +483,7 @@ struct
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
-    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pp) args;
+    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (Fmt.list ~sep:Fmt.comma AD.pp) args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
     let argset = List.fold_right (AD.join) args empty in
@@ -772,7 +772,7 @@ struct
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:max_int (fun ppf -> d_const ppf c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = Fmt.str "%a" d_const c in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -1256,7 +1256,7 @@ struct
       end
     | Q.EvalThread e -> begin
         let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pp v); *)
+        (* Fmt.epr "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pp v; *)
         match v with
         | `Thread a -> a
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
@@ -2309,8 +2309,8 @@ struct
     )
 
   let invalidate ?(deep=true) ~ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (Fmt.list ~sep:Fmt.comma d_plainexp) exps;
+    if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (Fmt.list ~sep:Fmt.comma d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -2333,7 +2333,7 @@ struct
     if M.tracing && exps <> [] then (
       let addrs = List.map (Tuple3.first) invalids' in
       let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pp) addrs (d_list ", " VD.pp) vs
+      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (Fmt.list ~sep:Fmt.comma AD.pp) addrs (Fmt.list ~sep:Fmt.comma VD.pp) vs
     );
     set_many ~ctx ask gs st invalids'
 
@@ -2433,7 +2433,7 @@ struct
       let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
-      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
+      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (Fmt.list ~sep:Fmt.comma d_varinfo) addrs;
       List.filter_map (create_thread None None) addrs
 
   let assert_fn ctx e refine =
@@ -2482,7 +2482,7 @@ struct
       (addr, AD.get_type addr)
     in
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (Fmt.list ~sep:Fmt.comma d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in

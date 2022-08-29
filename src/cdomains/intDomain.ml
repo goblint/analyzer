@@ -999,7 +999,7 @@ struct
   let top () = raise Unknown
   let bot () = raise Error
   let leq = equal
-  let pp_diff ppf (x,y) = Pretty.dprintf "Integer %a instead of %a" pp x pp y ppf
+  let pp_diff ppf (x,y) = Fmt.pf ppf "Integer %a instead of %a" pp x pp y
   let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
@@ -2257,9 +2257,8 @@ struct
 
 
   let cast_to ?torg ?no_ov (t : Cil.ikind) x =
-    let pp_bool _ x = Pretty.text (string_of_bool x) in
     let res = cast_to ?torg ?no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pp x Cil.d_ikind t (Pretty.docOpt (pp_bool ())) no_ov pp res;
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pp x Cil.d_ikind t (Fmt.option Fmt.bool) no_ov pp res;
     res
 
   let widen = join
@@ -2803,7 +2802,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
+      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Fmt.list ~sep:Fmt.comma (Fmt.using show Fmt.string)) us; (* do not want to abort *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }

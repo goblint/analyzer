@@ -64,7 +64,7 @@ module WP =
         (* every variable in (pruned) rho should be stable *)
         HM.iter (fun x _ ->
             if not (HM.mem data.stable x) then (
-              ignore (Pretty.printf "unstable in rho: %a\n" S.Var.pp_trace x);
+              Fmt.pr "unstable in rho: %a\n" S.Var.pp_trace x;
               assert false
             )
           ) data.rho
@@ -264,9 +264,9 @@ module WP =
         if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp tmp;
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pp_trace y (HM.mem wpoint y) (Pretty.docOpt (fun v ppf -> S.Var.pp_trace ppf v)) x S.Dom.pp d;
+        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pp_trace y (HM.mem wpoint y) (Fmt.option S.Var.pp_trace) x S.Dom.pp d;
         if S.system y <> None then (
-          ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pp_trace y S.Dom.pp d;
+          Fmt.pr "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pp_trace y S.Dom.pp d;
         );
         assert (S.system y = None);
         init y;
@@ -364,7 +364,7 @@ module WP =
 
         let restart_leaf x =
           if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pp_trace x;
-          ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pp_trace x);
+          Fmt.pr "Restarting to bot %a\n" S.Var.pp_trace x;
           HM.replace rho x (S.Dom.bot ());
           (* HM.remove rho x; *)
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
@@ -383,7 +383,7 @@ module WP =
         (* destabilize which restarts side-effected vars *)
         (* side_fuel specifies how many times (in recursion depth) to destabilize side_infl, None means infinite *)
         let rec destabilize_with_side ~side_fuel x =
-          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pp_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
+          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pp_trace x (Fmt.option Fmt.int) side_fuel;
 
           (* is side-effected var (global/function entry)? *)
           let w = HM.find_default side_dep x VS.empty in
@@ -590,7 +590,7 @@ module WP =
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
           HM.iter (fun k _ ->
               if HM.mem stable k then (
-                ignore (Pretty.printf "marked %a\n" S.Var.pp_trace k);
+                Fmt.pr "marked %a\n" S.Var.pp_trace k;
                 destabilize k
               )
             ) marked_for_deletion
@@ -626,7 +626,7 @@ module WP =
              S.iter_vars get g
                (fun v ->
                   if S.system v <> None then
-                    ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pp_trace v
+                    Fmt.pr "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pp_trace v
                   else if HM.mem stable v then
                     destabilize_leaf v)
           )
@@ -646,7 +646,7 @@ module WP =
             if should_restart_start then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
-                ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pp_trace v);
+                Fmt.pr "Destabilizing and restarting changed start var %a\n" S.Var.pp_trace v;
                 restart_and_destabilize v (* restart side effect from start *)
               | _ ->
                 (* don't restart unchanged start global *)
@@ -663,7 +663,7 @@ module WP =
               | None ->
                 (* restart removed start global to allow it to be pruned from incremental solution *)
                 (* this gets rid of its warnings and makes comparing with from scratch sensible *)
-                ignore (Pretty.printf "Destabilizing and restarting removed start var %a\n" S.Var.pp_trace v);
+                Fmt.pr "Destabilizing and restarting removed start var %a\n" S.Var.pp_trace v;
                 restart_and_destabilize v
               | _ ->
                 ()
@@ -689,7 +689,7 @@ module WP =
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
           HM.iter (fun x (old_rho, old_infl) ->
-              ignore @@ Pretty.printf "test for %a\n" Node.pp_trace (S.Var.node x);
+              Fmt.pr "test for %a\n" Node.pp_trace (S.Var.node x);
               solve x Widen;
               if not (op (HM.find rho x) old_rho) then (
                 print_endline "Destabilization required...";
@@ -721,7 +721,7 @@ module WP =
           if GobConfig.get_bool "dbg.verbose" then (
             if !i = 1 then print_newline ();
             Printf.printf "Unstable solver start vars in %d. phase:\n" !i;
-            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pp_trace v) unstable_vs;
+            List.iter (fun v -> Fmt.pr "\t%a\n" S.Var.pp_trace v) unstable_vs;
             print_newline ();
             flush_all ();
           );
@@ -741,12 +741,12 @@ module WP =
         HM.replace visited y ();
         let mem = HM.mem rho y in
         let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
-        if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp d S.Dom.pp d'
+        if not (S.Dom.leq d d') then Fmt.pr "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp d S.Dom.pp d'
       in
       let rec eq check x =
         HM.replace visited x ();
         match S.system x with
-        | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pp_trace x; S.Dom.bot ())
+        | None -> if HM.mem rho x then HM.find rho x else (Fmt.pr "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pp_trace x; S.Dom.bot ())
         | Some f -> f (get ~check) (check_side x)
       and get ?(check=false) x =
         if HM.mem visited x then (
@@ -755,9 +755,9 @@ module WP =
           let d1 = HM.find rho x in
           let d2 = eq check x in (* just to reach unrestored variables *)
           if check then (
-            if not (HM.mem stable x) && S.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pp_trace x;
+            if not (HM.mem stable x) && S.system x <> None then Fmt.pr "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pp_trace x;
             if not (S.Dom.leq d2 d1) then
-              ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pp_trace x S.Dom.pp d1 S.Dom.pp d2 S.Dom.pp_diff (d1,d2);
+              Fmt.pr "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pp_trace x S.Dom.pp d1 S.Dom.pp d2 S.Dom.pp_diff (d1,d2);
           );
           d1
         ) else (
@@ -779,7 +779,7 @@ module WP =
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Stats.time "restore" restore ();
-        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if GobConfig.get_bool "dbg.verbose" then Fmt.pr "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
@@ -789,7 +789,7 @@ module WP =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
+        HM.iter (fun k () -> Fmt.pr "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 
@@ -874,7 +874,7 @@ module WP =
         (* restart write-only *)
         HM.iter (fun x w ->
             HM.iter (fun y d ->
-                ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pp_trace y);
+                Fmt.pr "Restarting write-only to bot %a\n" S.Var.pp_trace y;
                 HM.replace rho y (S.Dom.bot ());
               ) w
           ) rho_write
@@ -932,7 +932,7 @@ module WP =
             HM.iter (fun x w ->
                 HM.iter (fun y d ->
                     let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
-                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp old_d S.Dom.pp d); *)
+                    (* Fmt.pr "rho_write retrigger %a %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp old_d S.Dom.pp d; *)
                     HM.replace rho y (S.Dom.join old_d d);
                     HM.replace init_reachable y ();
                     HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
@@ -942,7 +942,7 @@ module WP =
 
         let one_side ~vh ~x ~y ~d =
           if S.Var.is_write_only y then (
-            (* ignore (Pretty.printf "rho_write collect %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp d); *)
+            (* Fmt.pr "rho_write collect %a %a %a\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp d; *)
             HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
             let w =
               try

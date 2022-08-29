@@ -105,7 +105,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   if Messages.tracing then (
     List.iter (fun scc ->
         let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
-        Messages.trace "cfg" "SCC: %a\n" (d_list " " (fun ppf node -> text (Node.show_id node) ppf)) nodes;
+        Messages.trace "cfg" "SCC: %a\n" (Fmt.list ~sep:Fmt.sp (Fmt.using Node.show_id Fmt.string)) nodes;
         NH.iter (fun node _ ->
             Messages.trace "cfg" "SCC entry: %s\n" (Node.show_id node)
           ) scc.prev
@@ -115,10 +115,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
 
 let computeSCCs x = Stats.time "computeSCCs" (computeSCCs x)
 
-let rec pp_edges ppf = function
-  | [] -> Pretty.dprintf "" ppf
-  | [_,x] -> Edge.pp_plain ppf x
-  | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pp_plain x pp_edges xs ppf
+let pp_edges = Fmt.list ~sep:Fmt.semi (Fmt.using snd Edge.pp_plain)
 
 let get_pseudo_return_id fd =
   let start_id = 10_000_000_000 in (* TODO get max_sid? *)
@@ -166,7 +163,7 @@ let createCFG (file: file) =
   let find_real_stmt ?parent ?(not_found=false) stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
     let rec find visited_sids stmt =
-      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun ppf x -> Pretty.text (string_of_int x) ppf)) visited_sids stmt.sid dn_stmt stmt;
+      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (Fmt.list ~sep:Fmt.semi Fmt.int) visited_sids stmt.sid dn_stmt stmt;
       if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
         stmt (* cycle *)
       else
@@ -447,7 +444,7 @@ let createCFG (file: file) =
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   if get_bool "dbg.verbose" then
-    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pp_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pp_statistics (GobHashtbl.magic_stats cfgB));
+    Fmt.epr "cfgF (%a), cfgB (%a)\n" GobHashtbl.pp_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pp_statistics (GobHashtbl.magic_stats cfgB);
   cfgF, cfgB
 
 let createCFG = Stats.time "createCFG" createCFG

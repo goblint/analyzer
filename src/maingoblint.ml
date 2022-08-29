@@ -375,7 +375,7 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
+    Fmt.pr "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses;
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
@@ -404,8 +404,8 @@ let do_analyze change_info merged_AST =
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then failwith "No suitable function to start from.";
-    if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
-                                             L.pp stf L.pp exf L.pp otf);
+    if get_bool "dbg.verbose" then Fmt.pr "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
+                                             L.pp stf L.pp exf L.pp otf;
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =

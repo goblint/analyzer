@@ -19,5 +19,5 @@ let pp ppf e =
   | EnterMultiThreaded -> text "EnterMultiThreaded"
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv
   | AssignSpawnedThread (lval, tid) -> dprintf "AssignSpawnedThread (%a, %a)" d_lval lval ThreadIdDomain.Thread.pp tid
-  | Access {var_opt; kind} -> dprintf "Access {var_opt=%a, kind=%a}" (docOpt (fun v ppf -> CilType.Varinfo.pp ppf v)) var_opt AccessKind.pp kind
+  | Access {var_opt; kind} -> dprintf "Access {var_opt=%a, kind=%a}" (Fmt.option CilType.Varinfo.pp) var_opt AccessKind.pp kind
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pp lval CilType.Exp.pp exp

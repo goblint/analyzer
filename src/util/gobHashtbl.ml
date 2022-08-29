@@ -6,4 +6,4 @@ let magic_stats h =
 
 let pp_statistics ppf (s: Hashtbl.statistics) =
   let load_factor = float_of_int s.num_bindings /. float_of_int s.num_buckets in
-  Pretty.dprintf "bindings=%d buckets=%d max_length=%d histo=%a load=%f" s.num_bindings s.num_buckets s.max_bucket_length (Pretty.docList (Pretty.dprintf "%d")) (Array.to_list s.bucket_histogram) load_factor ppf
+  Fmt.pf ppf "bindings=%d buckets=%d max_length=%d histo=%a load=%f" s.num_bindings s.num_buckets s.max_bucket_length (Fmt.array ~sep:Fmt.comma Fmt.int) s.bucket_histogram load_factor

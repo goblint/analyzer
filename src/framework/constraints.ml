@@ -1203,16 +1203,16 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "dbg.compare_runs.diff" then
-          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v2,v1));
+          Fmt.pr "Global %a is more precise using left:\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v2,v1);
         f_le ()
       end else if b2 then begin
         if get_bool "dbg.compare_runs.diff" then
-          ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v1,v2));
+          Fmt.pr "Global %a is more precise using right:\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v1,v2);
         f_gr ()
       end else begin
         if get_bool "dbg.compare_runs.diff" then (
-          ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v1,v2));
-          ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v2,v1));
+          Fmt.pr "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v1,v2);
+          Fmt.pr "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pp_trace k G.pp_diff (v2,v1);
         );
         f_uk ()
       end
@@ -1231,16 +1231,16 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v2,v1));
+            Fmt.pr "%a @@ %a is more precise using left:\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v2,v1);
           incr le
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v1,v2));
+            Fmt.pr "%a @@ %a is more precise using right:\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v1,v2);
           incr gr
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v1,v2));
-            ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v2,v1));
+            Fmt.pr "%a @@ %a is incomparable (diff):\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v1,v2);
+            Fmt.pr "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pp_plain k CilType.Location.pp (Node.location k) D.pp_diff (v2,v1);
           );
           incr uk
         end
@@ -1268,16 +1268,16 @@ struct
           f_eq ()
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v2,v1));
+            Fmt.pr "%a is more precise using left:\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v2,v1);
           f_le ()
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v1,v2));
+            Fmt.pr "%a is more precise using right:\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v1,v2);
           f_gr ()
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v1,v2));
-            ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v2,v1));
+            Fmt.pr "%a is incomparable (diff):\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v1,v2);
+            Fmt.pr "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pp_trace k D.pp_diff (v2,v1);
           );
           f_uk ()
         end
@@ -1337,7 +1337,7 @@ struct
     Printf.printf "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "EqConstrSys comparison summary: %t\n" msg);
+    Fmt.pr "EqConstrSys comparison summary: %t\n" msg;
     print_newline ();
 end
 
@@ -1349,7 +1349,7 @@ struct
     Printf.printf "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "Globals comparison summary: %t\n" msg);
+    Fmt.pr "Globals comparison summary: %t\n" msg;
     print_newline ();
 end
 
@@ -1380,7 +1380,7 @@ struct
     let vh2' = join_contexts vh2 in
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
-    ignore (Pretty.printf "Nodes comparison summary: %t\n" msg);
+    Fmt.pr "Nodes comparison summary: %t\n" msg;
     print_newline ();
 end
 

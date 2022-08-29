@@ -37,8 +37,8 @@ let pp ppf e =
   |> match e with
   | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
   | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
-  | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
-  | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
+  | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (Fmt.list ~sep:Fmt.comma dn_exp) args
+  | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (Fmt.list ~sep:Fmt.comma dn_exp) args
   | Entry (f) -> Pretty.text "(body)"
   | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
   | Ret (None,f) -> Pretty.dprintf "return"
@@ -50,8 +50,8 @@ let pp_plain ppf e =
   ppf
   |> match e with
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
-  | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
-  | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars
+  | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (Fmt.list ~sep:Fmt.comma d_exp) ars
+  | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (Fmt.list ~sep:Fmt.comma d_exp) ars
   | Entry f -> dprintf "Entry %s" f.svar.vname
   | Ret (None,fd) -> dprintf "Ret (None, %s)" fd.svar.vname
   | Ret (Some r,fd) -> dprintf "Ret (Some %a, %s)" d_exp r fd.svar.vname

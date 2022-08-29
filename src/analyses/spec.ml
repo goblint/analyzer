@@ -324,11 +324,11 @@ struct
           (* there should be only one such edge or none *)
           if List.compare_length_with branch_edges 1 <> 0 then ( (* call of branch for an actual branch *)
             M.debug ~category:Analyzer "branch: branch_edges length is not 1! -> actual branch";
-            M.debug ~category:Analyzer "%s -> branch_edges1: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun ppf x -> Pretty.text (SC.def_to_string (SC.Edge x)) ppf)) branch_edges;
+            M.debug ~category:Analyzer "%s -> branch_edges1: %a" (D.string_of_entry key m) (Fmt.list (fun ppf x -> Pretty.text (SC.def_to_string (SC.Edge x)) ppf)) branch_edges;
             (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
             (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
             let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
-            M.debug ~category:Analyzer "%s -> branch_edges2: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun ppf x -> Pretty.text (SC.def_to_string (SC.Edge x)) ppf)) branch_edges;
+            M.debug ~category:Analyzer "%s -> branch_edges2: %a" (D.string_of_entry key m) (Fmt.list (fun ppf x -> Pretty.text (SC.def_to_string (SC.Edge x)) ppf)) branch_edges;
             if List.compare_length_with branch_edges 1 <> 0 then m else
               (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
                  -> find out what the alternative branch target was and remove it *)

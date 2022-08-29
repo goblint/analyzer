@@ -152,7 +152,7 @@ module SLR3 =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
+        HM.iter (fun k () -> Fmt.pr "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 
@@ -325,13 +325,13 @@ module Make =
           let _ = P.rem_item stable x in
           if k >= sk then () else
             let _ = X.set_value x (D.bot ()) in
-            (* ignore @@ Pretty.printf " also restarting %d: %a\n" k S.Var.pp_trace x; *)
+            (* Fmt.pr " also restarting %d: %a\n" k S.Var.pp_trace x; *)
             (* flush_all (); *)
             let w = L.sub infl x in
             let _ = L.rem_item infl x in
             List.iter handle_one w
         in
-        (* ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pp_trace x; *)
+        (* Fmt.pr "restarting %d: %a\n" sk S.Var.pp_trace x; *)
         (* flush_all (); *)
         let w = L.sub infl x in
         let _ = L.rem_item infl x in
@@ -351,7 +351,7 @@ module Make =
       and side x y d =
         let yk, ynonfresh = X.get_index y in
         if X.get_key x > yk then begin
-          (* ignore @@ Pretty.printf "wrong order: %d > %d\n\n"  (X.get_key x) yk; *)
+          (* Fmt.pr "wrong order: %d > %d\n\n"  (X.get_key x) yk; *)
           ()
         end;
 
@@ -364,9 +364,9 @@ module Make =
         in
 
         let old = XY.get_value (x,y) in
-        (* ignore @@ Pretty.printf "key: %a -> %a\nold: %a\n\nd: %a\n\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp old S.Dom.pp d; *)
+        (* Fmt.pr "key: %a -> %a\nold: %a\n\nd: %a\n\n" S.Var.pp_trace x S.Var.pp_trace y S.Dom.pp old S.Dom.pp d; *)
         let tmp = d in
-        (* ignore @@ Pretty.printf "tmp: %a\n\n"  S.Dom.pp tmp; *)
+        (* Fmt.pr "tmp: %a\n\n"  S.Dom.pp tmp; *)
 
         if not (D.eq tmp old) then begin
           let _ = XY.set_value (x,y) tmp in
@@ -383,7 +383,7 @@ module Make =
         | None -> a
         | Some p ->
           let xs = P.to_list p in
-          (* ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pp_trace x); *)
+          (* Fmt.pr "%d var %a\n\n" (List.length list) S.Var.pp_trace x; *)
           List.fold_left (fun a z -> D.cup a (XY.get_value (z,x))) a xs
 
       and solve x =
@@ -444,7 +444,7 @@ module Make =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
+        HM.iter (fun k () -> Fmt.pr "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 
@@ -506,7 +506,7 @@ module TwoPhased =
       let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
       let iv' = HM.fold (fun k _ b -> k::b) sd [] in
       let f v x y =
-        (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pp_trace v S.Dom.pp x S.Dom.pp y); *)
+        (* Fmt.pr "changed %a\nold:%a\nnew:%a\n\n" S.Var.pp_trace v S.Dom.pp x S.Dom.pp y; *)
         narrow x y
       in
       solve f [] iv'

@@ -36,9 +36,9 @@ type inline_edge =
 
 let pp_inline_edge ppf = function
   | CFGEdge e -> Edge.pp_plain ppf e
-  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args ppf
-  | InlineReturn None -> Pretty.dprintf "InlineReturn" ppf
-  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret ppf
+  | InlineEntry args -> Fmt.pf ppf "InlineEntry '(%a)'" (Fmt.list ~sep:Fmt.comma Cil.d_exp) args
+  | InlineReturn None -> Fmt.pf ppf "InlineReturn"
+  | InlineReturn (Some ret) -> Fmt.pf ppf "InlineReturn '%a'" Cil.d_lval ret
 
 module InlineEdge: Edge with type t = inline_edge =
 struct

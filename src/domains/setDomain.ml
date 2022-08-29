@@ -124,8 +124,8 @@ struct
     let p (b1,u1) = exists (fun (b2,u2) -> User.equal u1 u2 && Base.leq b1 b2) s2 in
     for_all p s1
 
-  let pp_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pp x pp y
+  let pp_diff ppf ((x:t),(y:t)) =
+    Fmt.pr ppf "%s: %a not leq %a" (name ()) pp x pp y
 
   let join s1 s2 =
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
@@ -339,7 +339,7 @@ struct
     content ppf
 
   let pp_diff ppf ((x:t),(y:t)) =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
+    Fmt.pf ppf "%s: %a not leq %a" (name ()) pp x pp y
   let printXml f xs =
     iter (Base.printXml f) xs
 end

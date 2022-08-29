@@ -30,8 +30,16 @@ module Ana = struct
   include GoblintCil
   let d_varinfo ppf x = d_lval ppf (Var x, NoOffset)
   include Pretty
-  let sprint f x = Pretty.sprint ~width:max_int (fun ppf -> f ppf x)
+  let sprint f x = Fmt.str "%a" f x
   (* Analyses.Spec etc. *)
   (* include Analyses (* circular build :( *) *)
   (* module M = Messages (* same, but this is in Analyses anyway *) *)
 end
+
+let () =
+  let width = max_int in
+  let ppf = Format.str_formatter in
+  (* Format.pp_set_geometry Format.str_formatter ~margin:width ~max_indent:(width - 1); *)
+  (* TODO: workaround for https://github.com/ocaml/ocaml/issues/11517 *)
+  Format.pp_set_margin ppf width;
+  Format.pp_set_max_indent ppf (Format.pp_get_margin ppf () - 1);

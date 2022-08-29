@@ -150,12 +150,12 @@ struct
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
       if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
-        ignore @@ Pretty.printf "tags are equal but values are not for %a and %a\n" pp x pp y;
+        Fmt.pr "tags are equal but values are not for %a and %a\n" pp x pp y;
       assert (Base.equal x.BatHashcons.obj y.BatHashcons.obj);
       true
     ) else (
       if Base.equal x.BatHashcons.obj y.BatHashcons.obj then
-        ignore @@ Pretty.printf "tags are not equal but values are for %a and %a\n" pp x pp y;
+        Fmt.pr "tags are not equal but values are for %a and %a\n" pp x pp y;
       assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
       false
     )
@@ -407,15 +407,7 @@ struct
     third  := Base3.show z;
     "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
-  let pp ppf (x,y,z) =
-    ppf |>
-    text "(" ++
-    (fun ppf -> Base1.pp ppf x)
-    ++ text ", " ++
-    (fun ppf -> Base2.pp ppf y)
-    ++ text ", " ++
-    (fun ppf -> Base3.pp ppf z)
-    ++ text ")"
+  let pp ppf (x,y,z) = Fmt.pf ppf "(%a, %a, %a)" Base1.pp x Base2.pp y Base3.pp z
 
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z

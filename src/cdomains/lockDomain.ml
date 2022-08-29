@@ -31,7 +31,7 @@ struct
       if write then
         Addr.pp ppf a
       else
-        Pretty.dprintf "read lock %a" Addr.pp a ppf
+        Fmt.pf ppf "read lock %a" Addr.pp a
 
     include Printable.SimplePretty (
       struct

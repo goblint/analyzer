@@ -166,7 +166,7 @@ struct
   type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, hash, to_yojson]
   let name () = "Per-Element locking triple"
 
-  let pp ppf (x,y,z) = ppf |> text "(" ++ (fun ppf -> d_exp ppf x) ++ text ", "++ (fun ppf -> d_exp ppf y) ++ text ", "++ (fun ppf -> d_exp ppf z) ++ text ")"
+  let pp ppf (x,y,z) = Fmt.pf ppf "(%a, %a, %a)" d_exp x d_exp y d_exp z
   let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
 
   type ee = EVar of varinfo

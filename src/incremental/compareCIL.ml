@@ -108,7 +108,7 @@ let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) 
   | GFun (f,_), GFun (g,_) -> eqF f g cfgs global_rename_mapping
   | GVar (x, init_x, _), GVar (y, init_y, _) -> unchanged_to_change_status (eq_varinfo x y (StringMap.empty, VarinfoMap.empty)), None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> unchanged_to_change_status (eq_varinfo x y (StringMap.empty, VarinfoMap.empty)), None
-  | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global old Cil.d_global current; Changed, None
+  | _ -> Fmt.pr "Not comparable: %a and %a\n" Cil.d_global old Cil.d_global current; Changed, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"

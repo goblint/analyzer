@@ -103,9 +103,9 @@ struct
     if S.is_empty s then
       P.pp ppf p (* hide empty set *)
     else
-      Pretty.dprintf "%a, %a" P.pp p S.pp s ppf
+      Fmt.pf ppf "%a, %a" P.pp p S.pp s
 
-  let show x = Pretty.sprint ~width:max_int (fun ppf -> pp ppf x)
+  let show = Fmt.to_to_string pp
 
   module D =
   struct

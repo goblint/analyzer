@@ -27,7 +27,7 @@ struct
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
-  let pp ppf x = Pretty.text (show x) ppf
+  let pp = Fmt.of_to_string show
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function

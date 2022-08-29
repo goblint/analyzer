@@ -78,11 +78,11 @@ module Verify: F =
 
     let complain_constraint x ~lhs ~rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pp_trace x S.Dom.pp lhs S.Dom.pp rhs S.Dom.pp_diff (rhs, lhs))
+      Fmt.pr "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pp_trace x S.Dom.pp lhs S.Dom.pp rhs S.Dom.pp_diff (rhs, lhs)
 
     let complain_side x y ~lhs ~rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp lhs S.Dom.pp rhs S.Dom.pp_diff (rhs, lhs))
+      Fmt.pr "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp lhs S.Dom.pp rhs S.Dom.pp_diff (rhs, lhs)
 
     let one_side ~vh ~x ~y ~d =
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in

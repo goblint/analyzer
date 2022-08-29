@@ -197,7 +197,7 @@ struct
     f n (assoc_dom n) d
 
   let pp ppf = unop_map (fun n (module S: Printable.S) x ->
-      Pretty.dprintf "%s:%a" (S.name ()) S.pp (obj x) ppf
+      Fmt.pf ppf "%s:%a" (S.name ()) S.pp (obj x)
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->

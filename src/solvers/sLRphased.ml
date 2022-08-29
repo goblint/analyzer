@@ -189,7 +189,7 @@ module Make =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
+        HM.iter (fun k () -> Fmt.pr "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 

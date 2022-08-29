@@ -228,7 +228,7 @@ type unsupported_cilExp =
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
   | Exp_not_supported (** Expression constructor not supported. *)
   | Overflow (** May overflow according to Apron bounds. *)
-  | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
+  | Exp_typeOf of exn [@printer Fmt.exn] (** Expression type could not be determined. *)
   | BinOp_not_supported (** BinOp constructor not supported. *)
 [@@deriving show { with_path = false }]
 
@@ -300,7 +300,7 @@ struct
             match Bounds.bound_texpr d texpr1 with
             | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
             | min_opt, max_opt ->
-              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pp exp (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pp ppf i)) min_opt (Pretty.docOpt (fun i ppf -> IntDomain.BigInt.pp ppf i)) max_opt;
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pp exp (Fmt.option IntDomain.BigInt.pp) min_opt (Fmt.option IntDomain.BigInt.pp) max_opt;
               raise (Unsupported_CilExp Overflow)
           );
           expr
@@ -805,7 +805,7 @@ struct
     let lcx = A.to_lincons_array Man.mgr x in
     let lcy = A.to_lincons_array Man.mgr y in
     let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
-    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) ppf (Lincons1Set.elements diff)
+    Fmt.list ~sep:Fmt.comma (Fmt.using Lincons1.show Fmt.string) ppf (Lincons1Set.elements diff)
 end
 
 
@@ -1380,13 +1380,7 @@ struct
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
-  let pp ppf r =
-    ppf |>
-    text "(" ++
-    (fun ppf -> AD.pp ppf r.apr)
-    ++ text ", " ++
-    (fun ppf -> PrivD.pp ppf r.priv)
-    ++ text ")"
+  let pp ppf r = Fmt.pf ppf "(%a, %a)" AD.pp r.apr PrivD.pp r.priv
 
   let printXml f r =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv

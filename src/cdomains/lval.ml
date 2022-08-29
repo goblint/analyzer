@@ -460,7 +460,7 @@ struct
     | `Right i :: _ -> false
 
   let pp_diff ppf ((x:t),(y:t)) =
-    Pretty.dprintf "%a not leq %a" pp x pp y ppf
+    Fmt.pf ppf "%a not leq %a" pp x pp y
 end
 
 

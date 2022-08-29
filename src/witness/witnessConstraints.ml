@@ -87,11 +87,11 @@ struct
 
     let pp_diff ppf (((v, c, x'), e), ((w, d, y'), f)) =
       if not (Node.equal v w) then
-        Pretty.dprintf "%a not equal %a" Node.pp v Node.pp w ppf
+        Fmt.pf ppf "%a not equal %a" Node.pp v Node.pp w
       else if not (Spec.C.equal c d) then
-        Pretty.dprintf "%a not equal %a" Spec.C.pp c Spec.C.pp d ppf
+        Fmt.pf ppf "%a not equal %a" Spec.C.pp c Spec.C.pp d
       else if not (Edge.equal e f) then
-        Pretty.dprintf "%a not equal %a" Edge.pp e Edge.pp f ppf
+        Fmt.pf ppf "%a not equal %a" Edge.pp e Edge.pp f
       else
         I.pp_diff ppf (x', y')
   end

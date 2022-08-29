@@ -25,7 +25,7 @@ let pp ppf {tid; created; must_joined} =
       Some (Pretty.dprintf "must_joined=%a" ConcDomain.ThreadSet.pp must_joined)
   in
   let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
-  Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs ppf
+  Pretty.dprintf "{%a}" (Fmt.list ~sep:Fmt.semi Pretty.insert) docs ppf
 
 include Printable.SimplePretty (
   struct

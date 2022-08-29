@@ -105,7 +105,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   (** If [leq x y = false], then [pp_diff () (x, y)] should explain why. *)
   let pp_diff ppf (x, y) =
-    Pretty.dprintf "%a instead of %a" pp x pp y ppf
+    Fmt.pf ppf "%a instead of %a" pp x pp y
 
   let to_int ik = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "to_int %s" (show Bot)))

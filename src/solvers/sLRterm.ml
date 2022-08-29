@@ -52,7 +52,7 @@ module SLR3term =
         let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
         HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k) ((+)1) histo) rho;
         let vid,n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
-        ignore @@ Pretty.printf "max #contexts: %d for var_id %s\n" n vid
+        Fmt.pr "max #contexts: %d for var_id %s\n" n vid
       in
 
       let init ?(side=false) x =
@@ -207,7 +207,7 @@ module SLR3term =
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pp_trace k) wpoint;
+        HM.iter (fun k () -> Fmt.pr "%a\n" S.Var.pp_trace k) wpoint;
         print_newline ();
       );
 

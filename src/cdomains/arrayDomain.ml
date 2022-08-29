@@ -48,7 +48,7 @@ struct
   type value = Val.t
 
   let show x = "Array: " ^ Val.show x
-  let pp ppf x = ppf |> text "Array: " ++ (fun ppf -> pp ppf x)
+  let pp ppf x = Fmt.pf ppf "Array: %a" pp x
   let pp_diff ppf (x,y) = dprintf "%s: %a not leq %a" (name ()) pp x pp y ppf
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v

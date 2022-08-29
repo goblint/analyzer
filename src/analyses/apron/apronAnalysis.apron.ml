@@ -235,7 +235,7 @@ struct
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
-    if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
+    if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (Fmt.list ~sep:Fmt.comma d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pp ctx.local;
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
@@ -315,8 +315,8 @@ struct
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let fundec = Node.find_fundec ctx.node in
     if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
-    if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
-    if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine" "apron formals: %a\n" (Fmt.list ~sep:Fmt.comma d_varinfo) f.sformals;
+    if M.tracing then M.tracel "combine" "apron args: %a\n" (Fmt.list ~sep:Fmt.comma d_exp) args;
     let new_fun_apr = AD.add_vars fun_st.apr (AD.vars st.apr) in
     let arg_substitutes =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
@@ -336,7 +336,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (AD.varinfo_tracked) |> List.map V.arg in
-    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (Fmt.list (Fmt.using Var.to_string Fmt.string)) arg_vars;
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with

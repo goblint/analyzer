@@ -243,7 +243,7 @@ struct
     | [] -> (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) "%s" msg
     | h :: t ->
       let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
+      in (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category:warn_type "%a" (Fmt.list ~sep:Fmt.sp Fmt.string) t
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint ~width:max_int (f () x)
@@ -262,7 +262,7 @@ struct
     in
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    let pp_key k = Pretty.text (string_of_key k) in
-    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pp_key) xs;
+    let pp_key = Fmt.using string_of_key Fmt.string in
+    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Fmt.list ~sep:Fmt.sp pp_key) xs;
     xs
 end

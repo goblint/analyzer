@@ -69,7 +69,7 @@ struct
   let widen = M.widen
   let narrow = M.narrow
   let pp_diff ppf (x,y) =
-    Pretty.dprintf "{@[%a@] ...}" M.pp_diff (x,y) ppf
+    Fmt.pf ppf "{@[%a@] ...}" M.pp_diff (x,y)
   let printXml = M.printXml
   let widen_with_fct = M.widen_with_fct
   let leq_with_fct = M.leq_with_fct
@@ -184,7 +184,7 @@ struct
     meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
   let pp_diff ppf (x,y) =
-    Pretty.dprintf "{@[%a@] ...}" HS.pp_diff (x,y) ppf
+    Fmt.pf ppf "{@[%a@] ...}" HS.pp_diff (x,y)
   let printXml f xs = HS.printXml f xs
 
   let widen_with_fct f =
@@ -375,7 +375,7 @@ struct
 
   let narrow x y = meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
-  let pp_diff ppf ((x, _), (y, _)) = Pretty.dprintf "{@[%a@] ...}" HS.pp_diff (x, y) ppf
+  let pp_diff ppf ((x, _), (y, _)) = Fmt.pf ppf "{@[%a@] ...}" HS.pp_diff (x, y)
   let printXml f x = match x with
     | (s, Some k) ->
       BatPrintf.fprintf f "<value>\n<map>\n

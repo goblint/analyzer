@@ -243,7 +243,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* accesses *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pp g); *)
+          (* Fmt.pr "WarnGlobal %a\n" CilType.Varinfo.pp g; *)
           let accs = G.access (ctx.global g) in
           Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)
@@ -258,12 +258,12 @@ struct
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in
     if total > 0 then (
-      ignore (Pretty.printf "\nSummary for all memory locations:\n");
-      ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
-      ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
-      ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
-      ignore (Pretty.printf "\t-------------------\n");
-      ignore (Pretty.printf "\ttotal:       %5d\n" total)
+      Fmt.pr "\nSummary for all memory locations:\n";
+      Fmt.pr "\tsafe:        %5d\n" !safe;
+      Fmt.pr "\tvulnerable:  %5d\n" !vulnerable;
+      Fmt.pr "\tunsafe:      %5d\n" !unsafe;
+      Fmt.pr "\t-------------------\n";
+      Fmt.pr "\ttotal:       %5d\n" total
     )
 end
 

@@ -94,7 +94,7 @@ and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physica
 
 and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
 
-and pp_length ppf l = Pretty.num (List.length l) ppf
+and pp_length = Fmt.using List.length Fmt.int
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
   if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pp_length acc pp_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)

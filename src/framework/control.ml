@@ -317,14 +317,14 @@ struct
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
-      ignore (Pretty.printf "domain testing...: %s\n" (D.name ()));
+      Fmt.pr "domain testing...: %s\n" (D.name ());
       let errcode = QCheck_base_runner.run_tests DP.tests in
       if (errcode <> 0) then
         failwith "domain tests failed"
     in
     let _ =
       if (get_bool "dbg.test.domain") then (
-        ignore (Pretty.printf "domain testing analysis...: %s\n" (Spec.name ()));
+        Fmt.pr "domain testing analysis...: %s\n" (Spec.name ());
         test_domain (module Spec.D);
         test_domain (module Spec.G);
       )
@@ -622,7 +622,7 @@ struct
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
     let warn_global g v =
-      (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pp_trace g EQSys.G.pp v); *)
+      (* Fmt.pr "warn_global %a %a\n" EQSys.GVar.pp_trace g EQSys.G.pp v; *)
       (* build a ctx for using the query system *)
       let rec ctx =
         { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)

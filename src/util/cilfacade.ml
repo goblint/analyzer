@@ -216,7 +216,7 @@ class addConstructors cons = object
   val mutable cons1 = cons
   method! vfunc fd =
     if List.mem fd.svar.vname (get_string_list "mainfun") then begin
-      if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
+      if get_bool "dbg.verbose" then Fmt.pr "Adding constructors to: %s\n" fd.svar.vname;
       let loc = match fd.sbody.bstmts with
         | s :: _ -> get_stmtLoc s
         | [] -> locUnknown
@@ -253,8 +253,8 @@ let callConstructors ast =
       );
     !cons
   in
-  let d_fundec ppf fd = Pretty.text fd.svar.vname ppf in
-  if get_bool "dbg.verbose" then ignore (Pretty.printf "Constructors: %a\n" (Pretty.d_list ", " d_fundec) constructors);
+  let d_fundec ppf fd = Fmt.string ppf fd.svar.vname in
+  if get_bool "dbg.verbose" then Fmt.pr "Constructors: %a\n" (Fmt.list ~sep:Fmt.comma d_fundec) constructors;
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
 

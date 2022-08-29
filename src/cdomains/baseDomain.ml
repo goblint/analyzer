@@ -66,17 +66,7 @@ struct
     let fourth =  PrivD.show r.priv in
     "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ", " ^ fourth  ^ ")"
 
-  let pp ppf r =
-    ppf |>
-    text "(" ++
-    (fun ppf -> CPA.pp ppf r.cpa)
-    ++ text ", " ++
-    (fun ppf -> PartDeps.pp ppf r.deps)
-    ++ text ", " ++
-    (fun ppf -> WeakUpdates.pp ppf r.weak)
-    ++ text ", " ++
-    (fun ppf -> PrivD.pp ppf r.priv)
-    ++ text ")"
+  let pp ppf r = Fmt.pf ppf "(%a, %a, %a, %a)" CPA.pp r.cpa PartDeps.pp r.deps WeakUpdates.pp r.weak PrivD.pp r.priv
 
   let printXml f r =
     let e = XmlUtil.escape in
