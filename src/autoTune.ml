@@ -219,7 +219,7 @@ let disableIntervalContextsInRecursiveFunctions () =
   ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
-        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval analysis");
+        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval context");
         f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"])];
       )
     )

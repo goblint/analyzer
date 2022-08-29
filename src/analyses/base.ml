@@ -1278,8 +1278,8 @@ struct
               lval_type
       in
       let update_offset old_value =
-        (* Projection to highest Precision *)
-        let projected_value = project_val a None (Some PU.max_precision) value (is_global a x) in
+        (* Projection globals to highest Precision *)
+        let projected_value = project_val a None None value (is_global a x) in
         let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
