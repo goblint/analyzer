@@ -1,0 +1,84 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
+    creation_time: 2022-08-30T14:46:04Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''16-base-unassume-dependent.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-16'''
+    task:
+      input_files:
+      - 16-base-unassume-dependent.c
+      input_file_hashes:
+        16-base-unassume-dependent.c: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+      data_model: LP64
+      language: C
+  location:
+    file_name: 16-base-unassume-dependent.c
+    file_hash: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+    line: 8
+    column: 2
+    function: main
+  loop_invariant:
+    string: 0 <= i
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
+    creation_time: 2022-08-30T14:46:04Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''16-base-unassume-dependent.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-16'''
+    task:
+      input_files:
+      - 16-base-unassume-dependent.c
+      input_file_hashes:
+        16-base-unassume-dependent.c: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+      data_model: LP64
+      language: C
+  location:
+    file_name: 16-base-unassume-dependent.c
+    file_hash: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+    line: 8
+    column: 2
+    function: main
+  loop_invariant:
+    string: i <= j
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
+    creation_time: 2022-08-30T14:46:04Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''16-base-unassume-dependent.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-16'''
+    task:
+      input_files:
+      - 16-base-unassume-dependent.c
+      input_file_hashes:
+        16-base-unassume-dependent.c: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+      data_model: LP64
+      language: C
+  location:
+    file_name: 16-base-unassume-dependent.c
+    file_hash: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+    line: 8
+    column: 2
+    function: main
+  loop_invariant:
+    string: j <= 42
+    type: assertion
+    format: C

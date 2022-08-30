@@ -1,0 +1,28 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 828f8b0f-590b-4180-bef1-d2b18cc240e6
+    creation_time: 2022-08-30T14:58:31Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''17-base-unassume-tauto.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-17'''
+    task:
+      input_files:
+      - 17-base-unassume-tauto.c
+      input_file_hashes:
+        17-base-unassume-tauto.c: a1dbab3d2dc60945ace118bcacd88e4d448ddb3aaa5e9aebe3d0872266256f89
+      data_model: LP64
+      language: C
+  location:
+    file_name: 17-base-unassume-tauto.c
+    file_hash: a1dbab3d2dc60945ace118bcacd88e4d448ddb3aaa5e9aebe3d0872266256f89
+    line: 8
+    column: 2
+    function: main
+  loop_invariant:
+    string: i <= i + 1
+    type: assertion
+    format: C
