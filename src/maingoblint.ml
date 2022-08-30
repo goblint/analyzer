@@ -132,7 +132,7 @@ let parse_arguments () =
       raise Exit
     | None -> ()
   end;
-  if get_string_list "files" = [] then (
+  if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
     raise Exit
@@ -540,15 +540,11 @@ let diff_and_rename current_file =
     {server = false; Analyses.changes = changes; restarting; old_data}
   in change_info
 
-let setup (ops_only:bool) =
-  parse_arguments ();
+let handle_options (ops_only:bool) =
   check_arguments ();
   AfterConfig.run ();
-
   Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-
   if ops_only then Cilfacade.init_options () else Cilfacade.init ();
-
   handle_flags ()
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

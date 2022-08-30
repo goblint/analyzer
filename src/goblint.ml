@@ -9,7 +9,8 @@ open Printf
 let main () =
   try
     Maingoblint.reset_stats ();
-    Maingoblint.setup false;
+    Maingoblint.parse_arguments ();
+    Maingoblint.handle_options false;
     handle_extraspecials ();
     GoblintDir.init ();
 
