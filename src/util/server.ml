@@ -228,7 +228,8 @@ let () =
     (* TODO: Check options for compatibility with the incremental analysis. *)
     let process (conf, json) _ =
       try
-        GobConfig.set_auto conf (Yojson.Safe.to_string json)
+        GobConfig.set_auto conf (Yojson.Safe.to_string json);
+        Maingoblint.handle_options ();
       with exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
@@ -251,7 +252,8 @@ let () =
     type response = unit [@@deriving to_yojson]
     let process json _ =
       try
-        GobConfig.merge json
+        GobConfig.merge json;
+        Maingoblint.handle_options ();
       with exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);
@@ -263,7 +265,7 @@ let () =
     let process { fname } _ =
       try
         GobConfig.merge_file (Fpath.v fname);
-        Maingoblint.handle_options true;
+        Maingoblint.handle_options ();
       with exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
   end);

@@ -20,7 +20,6 @@ let init () =
   removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  init_options ();
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true

@@ -8,9 +8,9 @@ open Printf
 (** the main function *)
 let main () =
   try
+    Cilfacade.init ();
     Maingoblint.reset_stats ();
     Maingoblint.parse_arguments ();
-    Maingoblint.handle_options false;
     handle_extraspecials ();
     GoblintDir.init ();
 
