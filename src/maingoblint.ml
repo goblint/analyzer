@@ -121,6 +121,7 @@ and complete args =
 
 (** Parse arguments. Print help if needed. *)
 let parse_arguments () =
+  Arg.current := 0; (* Necessary to reset in server mode. *)
   let anon_arg = set_string "files[+]" in
   let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
   Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";

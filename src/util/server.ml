@@ -251,7 +251,6 @@ let () =
     let process { fname } _ =
       try
         GobConfig.json_conf := Options.defaults;
-        Arg.current := 0;
         Maingoblint.setup true;
         GobConfig.merge_file (Fpath.v fname);
       with exn -> (* TODO: Be more specific in what we catch. *)
