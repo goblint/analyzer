@@ -234,15 +234,15 @@ let () =
   end);
 
   register (module struct
-  let name = "reset_config"
-  type params = unit [@@deriving of_yojson]
-  type response = unit [@@deriving to_yojson]
-  let process () _ =
-    try
-      GobConfig.json_conf := Options.defaults;
-      Maingoblint.parse_arguments ();
-    with exn -> (* TODO: Be more specific in what we catch. *)
-      Response.Error.(raise (of_exn exn))
+    let name = "reset_config"
+    type params = unit [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
+    let process () _ =
+      try
+        GobConfig.json_conf := Options.defaults;
+        Maingoblint.parse_arguments ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
   end);
 
   register (module struct
