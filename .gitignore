@@ -22,6 +22,7 @@ doclist.odocl
 autom4te.cache
 mytests
 result/*
+pml-result/*
 tests/regression/*/goblint_temp
 linux-headers
 

@@ -6,7 +6,6 @@
 (library
   (name goblint_lib)
   (public_name goblint.lib)
-  (wrapped false)
   (modules :standard \ goblint mainspec privPrecCompare apronPrecCompare messagesCompare)
   (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm
     ; Conditionally compile based on whether apron optional dependency is installed or not.
@@ -86,7 +85,7 @@
   (target configVersion.ml)
   (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
   (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
 
 (rule
   (target configProfile.ml)

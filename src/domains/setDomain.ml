@@ -1,4 +1,5 @@
 (** Abstract domains representing sets. *)
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 (* Exception raised when the set domain can not support the requested operation.
@@ -89,6 +90,8 @@ struct
     && for_all (fun e -> exists (Base.equal e) y) x
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
+
+  let relift x = map Base.relift x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     if leq x y then dprintf "%s: These are fine!" (name ()) else

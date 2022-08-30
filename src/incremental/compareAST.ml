@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open CilMaps
 
 (* global_type and global_t are implicitly used by GlobalMap to keep GVarDecl apart from GVar and GFun, so do not remove! *)

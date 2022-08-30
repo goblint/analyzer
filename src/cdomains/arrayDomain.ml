@@ -1,5 +1,5 @@
+open GoblintCil
 open Pretty
-open Cil
 open GobConfig
 open FlagHelper
 

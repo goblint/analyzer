@@ -1,4 +1,5 @@
 open Analyses
+open GoblintCil
 
 let uuid_random_state = Random.State.make_self_init ()
 
@@ -114,10 +115,10 @@ module Query
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                             and module GVar = GVarF (Spec.V)
                             and module D = Spec.D
-                            and module G = Spec.G)
+                            and module G = GVarG (Spec.G) (Spec.C))
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
-  let ask_local (gh: Spec.G.t GHT.t) (lvar:EQSys.LVar.t) local =
+  let ask_local (gh: EQSys.G.t GHT.t) (lvar:EQSys.LVar.t) local =
     (* build a ctx for using the query system *)
     let rec ctx =
       { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
@@ -128,7 +129,7 @@ struct
       ; context = (fun () -> snd lvar)
       ; edge    = MyCFG.Skip
       ; local  = local
-      ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+      ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
@@ -136,7 +137,7 @@ struct
     in
     Spec.query ctx
 
-  let ask_local_node (gh: Spec.G.t GHT.t) (n: Node.t) local =
+  let ask_local_node (gh: EQSys.G.t GHT.t) (n: Node.t) local =
     (* build a ctx for using the query system *)
     let rec ctx =
       { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
@@ -147,7 +148,7 @@ struct
       ; context = (fun () -> ctx_failwith "No context in witness context.")
       ; edge    = MyCFG.Skip
       ; local  = local
-      ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+      ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
@@ -163,7 +164,7 @@ module Make
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                             and module GVar = GVarF (Spec.V)
                             and module D = Spec.D
-                            and module G = Spec.G)
+                            and module G = GVarG (Spec.G) (Spec.C))
     (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
@@ -365,7 +366,7 @@ module Validator
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                             and module GVar = GVarF (Spec.V)
                             and module D = Spec.D
-                            and module G = Spec.G)
+                            and module G = GVarG (Spec.G) (Spec.C))
     (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
@@ -413,6 +414,7 @@ struct
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let validate_lvars_invariant ~entry_certificate ~loc ~lvars inv =
+        let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
 
@@ -444,31 +446,31 @@ struct
           begin match Option.get (VR.result_of_enum result) with
             | Confirmed ->
               incr cnt_confirmed;
-              M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
+              M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv;
               let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
               let certification = Entry.certification true in
               let certificate_entry = entry_certificate ~target ~certification in
               Some certificate_entry
             | Unconfirmed ->
               incr cnt_unconfirmed;
-              M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;None
+              M.warn ~category:Witness ~loc:msgLoc "invariant unconfirmed: %s" inv;None
             | Refuted ->
               incr cnt_refuted;
-              M.error ~category:Witness ~loc "invariant refuted: %s" inv;
+              M.error ~category:Witness ~loc:msgLoc "invariant refuted: %s" inv;
               let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
               let certification = Entry.certification false in
               let certificate_entry = entry_certificate ~target ~certification in
               Some certificate_entry
             | ParseError ->
               incr cnt_error;
-              M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
-              M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
+              M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
+              M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv;
               None
           end
         | Error e ->
           incr cnt_error;
-          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
-          M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;
+          M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
+          M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv;
           None
       in
 
@@ -476,13 +478,14 @@ struct
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
         let entry_certificate = Entry.loop_invariant_certificate in
+        let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt locator loc with
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
           None
       in
 
@@ -491,6 +494,7 @@ struct
         let pre = precondition_loop_invariant.precondition.string in
         let inv = precondition_loop_invariant.loop_invariant.string in
         let entry_certificate = Entry.precondition_loop_invariant_certificate in
+        let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt locator loc with
         | Some lvars ->
@@ -511,28 +515,28 @@ struct
                   else
                     false
                 | Error e ->
-                  M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" inv;
-                  M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" inv;
+                  M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse precondition: %s" inv;
+                  M.info ~category:Witness ~loc:msgLoc "precondition has undefined variables or side effects: %s" inv;
                   false
               in
 
               let lvars = LvarS.filter precondition_holds lvars in
               if LvarS.is_empty lvars then (
                 incr cnt_unchecked;
-                M.warn ~category:Witness ~loc "precondition never definitely holds: %s" pre;
+                M.warn ~category:Witness ~loc:msgLoc "precondition never definitely holds: %s" pre;
                 None
               )
               else
                 validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
             | Error e ->
               incr cnt_error;
-              M.error ~category:Witness ~loc "Frontc couldn't parse precondition: %s" pre;
-              M.info ~category:Witness ~loc "precondition has invalid syntax: %s" pre;
+              M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse precondition: %s" pre;
+              M.info ~category:Witness ~loc:msgLoc "precondition has invalid syntax: %s" pre;
               None
           end
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
           None
       in
 

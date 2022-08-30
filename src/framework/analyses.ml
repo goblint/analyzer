@@ -1,7 +1,7 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
 open Prelude
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 
@@ -12,9 +12,16 @@ module M  = Messages
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
 
+module type SysVar =
+sig
+  type t
+  val is_write_only: t -> bool
+end
+
 module type VarType =
 sig
   include Hashtbl.HashedType
+  include SysVar with type t := t
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
 
@@ -46,6 +53,7 @@ struct
 
   let pretty_trace () ((n,c) as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a \n" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
     else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
@@ -56,15 +64,59 @@ struct
 
   let var_id (n,_) = Var.var_id n
   let node (n,_) = n
+  let is_write_only _ = false
 end
 
-module GVarF (V: Printable.S) =
+module type SpecSysVar =
+sig
+  include Printable.S
+  include SysVar with type t := t
+end
+
+module GVarF (V: SpecSysVar) =
 struct
-  include V
+  include Printable.Either (V) (CilType.Fundec)
+  let spec x = `Left x
+  let contexts x = `Right x
+
   (* from Basetype.Variables *)
-  let var_id _ = "globals"
+  let var_id = show
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
+end
+
+module GVarG (G: Lattice.S) (C: Printable.S) =
+struct
+  module CSet =
+  struct
+    include SetDomain.Make (
+      struct
+        include C
+        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+      end
+      )
+  end
+
+  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVarG.spec"
+  let contexts = function
+    | `Bot -> CSet.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVarG.contexts"
+  let create_spec spec = `Lifted1 spec
+  let create_contexts contexts = `Lifted2 contexts
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
 
@@ -157,7 +209,8 @@ struct
   let printXmlWarning f () =
     let one_text f Messages.Piece.{loc; text = m; _} =
       match loc with
-      | Some l ->
+      | Some loc ->
+        let l = Messages.Location.to_cil loc in
         BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
       | None ->
         () (* TODO: not outputting warning without location *)
@@ -365,7 +418,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
-  module V: Printable.S (** Global constraint variables. *)
+  module V: SpecSysVar (** Global constraint variables. *)
 
   val name : unit -> string
 
@@ -436,13 +489,18 @@ type increment_data = {
   server: bool;
 
   old_data: analyzed_data option;
-  changes: CompareCIL.change_info
+  changes: CompareCIL.change_info;
+
+  (* Globals for which the constraint
+     system unknowns should be restarted *)
+  restarting: VarQuery.t list;
 }
 
 let empty_increment_data ?(server=false) () = {
   server;
   old_data = None;
-  changes = CompareCIL.empty_change_info ()
+  changes = CompareCIL.empty_change_info ();
+  restarting = []
 }
 
 (** A side-effecting system. *)
@@ -466,6 +524,8 @@ sig
 
   (** Data used for incremental analysis *)
   val increment : increment_data
+
+  val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
 end
 
 (** Any system of side-effecting equations over lattices. *)
@@ -481,6 +541,7 @@ sig
   module G : Lattice.S
   val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
 end
 
 (** A solver is something that can translate a system into a solution (hash-table).
@@ -545,8 +606,22 @@ struct
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
 
-module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
-module EmptyV = Printable.Empty
+module StdV =
+struct
+  let is_write_only _ = false
+end
+
+module VarinfoV =
+struct
+  include CilType.Varinfo (* TODO: or Basetype.Variables? *)
+  include StdV
+end
+
+module EmptyV =
+struct
+  include Printable.Empty
+  include StdV
+end
 
 module UnitA =
 struct

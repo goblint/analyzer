@@ -24,8 +24,9 @@ int main(){
     // and also for neg. values:
     a = -1;         b = *c; printf("a: %d, b: %d\n", a, b); __goblint_check(b == -1);
     a = INT_MIN+1;  b = *c; printf("a: %d, b: %d\n", a, b); __goblint_check(b == 1);
-    a = CHAR_MIN;   b = *c; printf("a: %d, b: %d\n", a, b); __goblint_check(b == -128);
-    a = CHAR_MIN-1; b = *c; printf("a: %d, b: %d\n", a, b); __goblint_check(b == 127);
+    // no CHAR_MIN because char has unknown signedness (particularly, unsigned on arm64)
+    a = SCHAR_MIN;   b = *c; printf("a: %d, b: %d\n", a, b); __goblint_check(b == -128);
+    a = SCHAR_MIN-1; b = *c; printf("a: %d, b: %d\n", a, b); __goblint_check(b == 127);
     // upcast must always lead to top since we might read garbage (except we know there was a corresponding downcast before)
     {
       schar a = 1;

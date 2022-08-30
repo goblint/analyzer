@@ -1,5 +1,6 @@
 
 open MCPRegistry
+module Pretty = GoblintCil.Pretty
 
 (** Access module corresponding to MCP.
     Separate to avoid dependency cycle. *)

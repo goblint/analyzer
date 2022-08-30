@@ -9,13 +9,13 @@ type float_precision = (bool)
 (* Thus for maximum precision we activate all Domains *)
 let max_int_precision : int_precision = (true, true, true, true)
 let max_float_precision : float_precision = (true)
-let int_precision_from_fundec (fd: Cil.fundec): int_precision =
+let int_precision_from_fundec (fd: GoblintCil.fundec): int_precision =
   ((ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.def_exc" ~removeAttr:"no-def_exc" ~keepAttr:"def_exc" fd),
    (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.interval" ~removeAttr:"no-interval" ~keepAttr:"interval" fd),
    (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.enums" ~removeAttr:"no-enums" ~keepAttr:"enums" fd),
    (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.congruence" ~removeAttr:"no-congruence" ~keepAttr:"congruence" fd))
 
-let float_precision_from_fundec (fd: Cil.fundec): float_precision =
+let float_precision_from_fundec (fd: GoblintCil.fundec): float_precision =
   ((ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.float.interval" ~removeAttr:"no-float-interval" ~keepAttr:"float-interval" fd))
 let int_precision_from_node (): int_precision =
   match !MyCFG.current_node with

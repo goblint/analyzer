@@ -39,11 +39,16 @@ struct
   module D      = Dom
   module C      = Dom
 
+  (* Two global invariants:
+     1. Priv.V -> Priv.G  --  used for Priv
+     2. thread -> VD  --  used for thread returns *)
+
   module V =
   struct
     include Printable.Either (Priv.V) (ThreadIdDomain.Thread)
     let priv x = `Left x
     let thread x = `Right x
+    include StdV
   end
 
   module G =
@@ -1310,6 +1315,9 @@ struct
           Queries.Result.top q
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr (V.priv x)) in
+      Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
     | Q.Invariant context -> query_invariant ctx context
     | _ -> Q.Result.top q
 
@@ -2468,6 +2476,11 @@ struct
         invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
+    let addr_type_of_exp exp =
+      let lval = mkMem ~addr:(Cil.stripCasts exp) ~off:NoOffset in
+      let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      (addr, AD.get_type addr)
+    in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
@@ -2478,10 +2491,7 @@ struct
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
       let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
-      let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
-      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-      (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-      let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+      let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
         match eval_ch with
         | `Int i when ID.to_int i = Some Z.zero ->
@@ -2493,10 +2503,7 @@ struct
     | Bzero { dest; count; }, _ ->
       (* TODO: share something with memset special case? *)
       (* TODO: check count *)
-      let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
-      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-      (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-      let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+      let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Unknown, "strcpy"
@@ -2507,6 +2514,12 @@ struct
         | _, [dst; src]
         | _, [dst; src; _]
         | "__builtin___memcpy_chk", [dst; src; _; _] ->
+          (* invalidating from interactive *)
+          (* let dest_a, dest_typ = addr_type_of_exp dst in
+             let value = VD.top_value dest_typ in
+             set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
+          (* TODO: reuse addr_type_of_exp for master *)
+          (* assigning from master *)
           let get_type lval =
             let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
             AD.get_type address

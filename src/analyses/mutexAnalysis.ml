@@ -100,6 +100,8 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem MutexEventsAnalysis.verifier_atomic held_locks
+    | Queries.IterSysVars (Global g, f) ->
+      f (Obj.repr g)
     | _ -> Queries.Result.top q
 
   module A =
