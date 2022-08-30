@@ -10,6 +10,8 @@ let main () =
   try
     Maingoblint.reset_stats ();
     Maingoblint.setup false;
+    handle_extraspecials ();
+    GoblintDir.init ();
 
     if get_bool "dbg.verbose" then (
       print_endline (localtime ());

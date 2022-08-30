@@ -548,8 +548,6 @@ let setup (ops_only:bool) =
 
   if ops_only then Cilfacade.init_options () else Cilfacade.init ();
 
-  handle_extraspecials ();
-  GoblintDir.init ();
   handle_flags ()
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
