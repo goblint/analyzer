@@ -539,6 +539,19 @@ let diff_and_rename current_file =
     {server = false; Analyses.changes = changes; old_data}
   in change_info
 
+let setup (ops_only:bool) =
+  parse_arguments ();
+  check_arguments ();
+  AfterConfig.run ();
+
+  Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+
+  if ops_only then Cilfacade.init_options () else Cilfacade.init ();
+
+  handle_extraspecials ();
+  GoblintDir.init ();
+  handle_flags ()
+
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)

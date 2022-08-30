@@ -36,13 +36,15 @@ let isCharType = function
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
+let init_options () =
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines"
 
 let init () =
   initCIL ();
   removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
+  init_options ();
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
