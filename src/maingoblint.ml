@@ -119,27 +119,21 @@ and complete args =
   |> List.iter print_endline;
   raise Exit
 
-(** Parse arguments. Print help if needed. *)
-let parse_arguments () =
-  let anon_arg = set_string "files[+]" in
-  let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
-  Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
-  begin match !writeconffile with
-    | Some writeconffile ->
-      GobConfig.write_file writeconffile;
-      raise Exit
-    | None -> ()
-  end;
-  if get_string_list "files" = [] then (
-    prerr_endline "No files for Goblint?";
-    prerr_endline "Try `goblint --help' for more information.";
-    raise Exit
-  )
+let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
+
+let check_arguments () =
+  (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
+  let warn m = eprint_color ("{yellow}Option warning: "^m) in
+  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
+  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
+  (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
+  if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
+  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated."
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-
   if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
@@ -154,6 +148,33 @@ let handle_flags () =
   | path ->
     Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
+
+let handle_options () =
+  check_arguments ();
+  AfterConfig.run ();
+  Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  Cilfacade.init_options ();
+  handle_flags ()
+
+(** Parse arguments. Print help if needed. *)
+let parse_arguments () =
+  Arg.current := 0; (* Necessary to reset in server mode. *)
+  let anon_arg = set_string "files[+]" in
+  let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
+  Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
+  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
+  begin match !writeconffile with
+    | Some writeconffile ->
+      GobConfig.write_file writeconffile;
+      raise Exit
+    | None -> ()
+  end;
+  handle_options ();
+  if not (get_bool "server.enabled") && get_string_list "files" = [] then (
+    prerr_endline "No files for Goblint?";
+    prerr_endline "Try `goblint --help' for more information.";
+    raise Exit
+  )
 
 let basic_preprocess_counts = Preprocessor.FpathH.create 3
 
@@ -475,19 +496,6 @@ let do_gobview () =
     else
       eprintf "Warning: Cannot locate Gobview.\n"
   )
-
-let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
-
-let check_arguments () =
-  (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
-  let warn m = eprint_color ("{yellow}Option warning: "^m) in
-  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
-  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
-  if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
-  (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
-  if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
-  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated."
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in

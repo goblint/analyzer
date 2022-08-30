@@ -8,18 +8,12 @@ open Printf
 (** the main function *)
 let main () =
   try
-    Maingoblint.reset_stats ();
-    parse_arguments ();
-    check_arguments ();
-    AfterConfig.run ();
-
-    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-
     Cilfacade.init ();
-
+    Maingoblint.reset_stats ();
+    Maingoblint.parse_arguments ();
     handle_extraspecials ();
     GoblintDir.init ();
-    handle_flags ();
+
     if get_bool "dbg.verbose" then (
       print_endline (localtime ());
       print_endline Goblintutil.command_line;
