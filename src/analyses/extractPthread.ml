@@ -11,14 +11,14 @@ class uniqueVarPrinterClass =
   object (self)
     inherit defaultCilPrinterClass as super
 
-    method! pVar (v : varinfo) =
-      text v.vname ++ chr '_' ++ text (string_of_int v.vid)
+    method! pVar (v : varinfo) ppf =
+      Fmt.pf ppf "%s_%d" v.vname v.vid
 
     method! pExp ppf =
       function
       | Const (CInt (i, _, _)) ->
         (* Fix the constants with long/unsigned suffixes, e.g. 1LL *)
-        ppf |> text @@ string_of_int @@ Z.to_int i
+        Z.pp_print ppf i
       | x ->
         super#pExp ppf x
   end

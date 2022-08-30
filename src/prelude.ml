@@ -29,7 +29,6 @@ module Ana = struct
   (* CIL *)
   include GoblintCil
   let d_varinfo ppf x = d_lval ppf (Var x, NoOffset)
-  include Pretty
   let sprint f x = Fmt.str "%a" f x
   (* Analyses.Spec etc. *)
   (* include Analyses (* circular build :( *) *)

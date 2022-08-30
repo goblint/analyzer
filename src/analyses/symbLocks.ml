@@ -110,7 +110,7 @@ struct
       include Printable.Either (CilType.Offset) (ILock)
 
       let pp ppf = function
-        | `Left o -> Fmt.pf ppf "p-lock:%a" (d_offset (text "*")) o
+        | `Left o -> Fmt.pf ppf "p-lock:%a" (d_offset (Pretty.text "*")) o
         | `Right addr -> Fmt.pf ppf "i-lock:%a" ILock.pp addr
 
       include Printable.SimplePretty (

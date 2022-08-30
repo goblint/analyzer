@@ -299,9 +299,9 @@ struct
   let pp_diff ppf (x,y) =
     let f a n (module S : Lattice.S) x y =
       if S.leq (obj x) (obj y) then a
-      else a ++ (fun ppf -> S.pp_diff ppf (obj x, obj y)) ++ text ". "
+      else Pretty.(a ++ (fun ppf -> S.pp_diff ppf (obj x, obj y)) ++ text ". ")
     in
-    binop_fold f nil x y ppf
+    binop_fold f Pretty.nil x y ppf
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
@@ -334,7 +334,7 @@ struct
 
   let pp_diff ppf (x, y) =
     let f _ (module S : Lattice.S) x y =
-      if S.leq (obj x) (obj y) then nil
+      if S.leq (obj x) (obj y) then Pretty.nil
       else fun ppf -> S.pp_diff ppf (obj x, obj y)
     in
     binop_map' f x y ppf
