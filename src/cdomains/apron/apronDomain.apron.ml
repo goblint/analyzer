@@ -1201,8 +1201,22 @@ struct
     if M.tracing then M.traceu "apron" "-> %a\n" pretty w;
     w
 
-  (* TODO: better narrow *)
-  let narrow x y = x
+  let narrow x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    if Environment.equal x_env y_env then (
+        if Oct.manager_is_oct Man.mgr then (
+          let octmgr = Oct.manager_to_oct Man.mgr in
+          let x_oct = Oct.Abstract1.to_oct x in
+          let y_oct = Oct.Abstract1.to_oct y in
+          let r = Oct.narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
+          Oct.Abstract1.of_oct {env = x_env; abstract0 = r}
+        )
+        else
+          x
+    )
+    else
+      y (* env decreased, can't decrease infinitely *)
 
   (* TODO: check environments in pretty_diff? *)
 end
