@@ -2452,15 +2452,27 @@ struct
           with Deadcode -> (* contradiction in unassume *)
             D.bot ()
         in
-        (* local upwards fixpoint with widening *)
-        (* TODO: narrowing phase *)
+        (* local fixpoint with widening and narrowing *)
         let rec lfp st =
+          if M.tracing then M.tracel "unassume" "base unassuming lfp st: %a\n" D.pretty st;
           let st' = f st in
+          if M.tracing then M.tracel "unassume" "base unassuming lfp st': %a\n" D.pretty st';
           let st'' = D.widen st (D.join st st') in
+          if M.tracing then M.tracel "unassume" "base unassuming lfp st'': %a\n" D.pretty st'';
+          if D.equal st st'' then
+            lfp' st
+          else
+            lfp st''
+        and lfp' st =
+          if M.tracing then M.tracel "unassume" "base unassuming lfp' st: %a\n" D.pretty st;
+          let st' = f st in
+          if M.tracing then M.tracel "unassume" "base unassuming lfp' st': %a\n" D.pretty st';
+          let st'' = D.narrow st st' in
+          if M.tracing then M.tracel "unassume" "base unassuming lfp' st'': %a\n" D.pretty st'';
           if D.equal st st'' then
             st
           else
-            lfp st''
+            lfp' st''
         in
         if M.tracing then M.traceli "unassume" "base unassuming\n";
         let r = lfp ctx.local in
