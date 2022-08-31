@@ -1616,6 +1616,9 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
           set' x v st
         )
+
+    let id_meet_down ~old ~c = ID.meet old c
+    let fd_meet_down ~old ~c = FD.meet old c
   end
 
   module Invariant = BaseInvariant.Make (InvariantEval)
@@ -2358,9 +2361,96 @@ struct
               query (ctx' asked') q
           )
         in
+        let octx = ctx in (* original ctx with non-top values *)
         let ctx = ctx' Queries.Set.empty in
+        (* TODO: deduplicate with invariant *)
+        let module UnassumeEval =
+        struct
+          module D = D
+          module V = V
+          module G = G
+
+          let oa = Analyses.ask_of_ctx octx
+          let ost = octx.local
+
+          (* all evals happen in octx with non-top values *)
+
+          let eval_rv a gs st e = eval_rv oa gs ost e
+          let eval_rv_address a gs st e = eval_rv_address oa gs ost e
+          let eval_lv a gs st lv = eval_lv oa gs ost lv
+
+          let apply_invariant oldv newv =
+            match oldv, newv with
+            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
+            (*   `Address (AD.join o n) *)
+            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
+            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
+            | _ -> VD.meet oldv newv
+
+          (* all updates happen in ctx with top values *)
+
+          let refine_lv_fallback ctx a gs st lval value tv =
+            if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+            let addr = eval_lv oa gs ost lval in
+            if (AD.is_top addr) then st
+            else
+              let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+              let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+              let t_lval = Cilfacade.typeOfLval lval in
+              let state_with_excluded = set a gs st addr t_lval value ~invariant:true ~ctx in
+              let value =  get a gs state_with_excluded addr None in
+              let new_val = apply_invariant oldval value in
+              if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
+              (* make that address meet the invariant, i.e exclusion sets will be joined *)
+              if is_some_bot new_val then (
+                if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
+                raise Analyses.Deadcode
+              )
+              else if VD.is_bot new_val
+              then set a gs st addr t_lval value ~invariant:true ~ctx (* no *_raw because this is not a real assignment *)
+              else set a gs st addr t_lval new_val ~invariant:true ~ctx (* no *_raw because this is not a real assignment *)
+
+          let refine_lv ctx a gs st c x c' pretty exp =
+            let eval e st = eval_rv a gs st e in
+            let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:true ~ctx in
+            match x with
+            | Var var, o ->
+              (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
+              let oldv = get_var a gs st var in
+              let offs = convert_offset oa gs ost o in
+              let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+              let v = VD.meet oldv newv in
+              if is_some_bot v then raise Deadcode
+              else (
+                if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+                let r = set' (Var var,NoOffset) v st in
+                if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
+                r
+              )
+            | Mem _, _ ->
+              (* For accesses via pointers, not yet *)
+              let oldv = eval (Lval x) st in
+              let v = VD.meet oldv c' in
+              if is_some_bot v then raise Deadcode
+              else (
+                if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+                set' x v st
+              )
+
+          (* don't meet with current octx values when propagating inverse operands down *)
+          let id_meet_down ~old ~c = c
+          let fd_meet_down ~old ~c = c
+        end
+        in
+        let module Unassume = BaseInvariant.Make (UnassumeEval) in
         if M.tracing then M.traceli "unassume" "base unassuming\n";
-        let r = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
+        let r =
+          try
+            Unassume.invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
+          with Deadcode -> (* contradiction in unassume *)
+            D.bot ()
+        in
+        (* TODO: unassume fixpoint *)
         if M.tracing then M.traceu "unassume" "base unassumed\n";
         r
       in

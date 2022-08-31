@@ -20,6 +20,9 @@ sig
 
   val refine_lv_fallback: (D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> lval -> VD.t -> bool -> D.t
   val refine_lv: (D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> 'a -> lval -> VD.t -> (unit -> 'a -> doc) -> exp -> D.t
+
+  val id_meet_down: old:ID.t -> c:ID.t -> ID.t
+  val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
 end
 
 module Make (Eval: Eval) =
@@ -182,7 +185,7 @@ struct
         else
           x
       in
-      let meet_bin a' b'  = ID.meet a a', ID.meet b b' in
+      let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
       let meet_com oi = (* commutative *)
         try
           meet_bin (oi c b) (oi c a)
@@ -200,7 +203,7 @@ struct
         let refine_by x y = (match ID.to_int y with
             | None -> x
             | Some v when BI.equal (BI.rem v (BI.of_int 2)) BI.zero (* v % 2 = 0 *) -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
-            | Some v (* when Int64.rem v 2L = 1L *) -> ID.meet x (ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
+            | Some v (* when Int64.rem v 2L = 1L *) -> id_meet_down ~old:x ~c:(ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
         in
         (refine_by a b, refine_by b a)
       | MinusA -> meet_non ID.add ID.sub
@@ -301,7 +304,7 @@ struct
     in
     let inv_bin_float (a, b) c op =
       let open Stdlib in
-      let meet_bin a' b'  = FD.meet a a', FD.meet b b' in
+      let meet_bin a' b'  = fd_meet_down ~old:a ~c:a', fd_meet_down ~old:b ~c:b' in
       (* Refining the abstract values based on branching is roughly based on the idea in [Symbolic execution of floating-point computations](https://hal.inria.fr/inria-00540299/document)
         However, their approach is only applicable to the "nearest" rounding mode. Here we use a more general approach covering all possible rounding modes and therefore
         use the actual `pred c_min`/`succ c_max` for the outer-bounds instead of the middles between `c_min` and `pred c_min`/`c_max` and `succ c_max` as suggested in the paper.
@@ -400,7 +403,7 @@ struct
           | Eq, Some false
           | Ne, Some true -> (* def. unequal *)
             (* M.debug ~category:Analyzer "Can't use unequal information about float value in expression \"%a\"." d_plainexp exp; *)
-            a, b
+            a, b (* TODO: no meet_bin? *)
           | _, _ -> a, b
           )
         | Lt | Le | Ge | Gt as op ->
@@ -510,7 +513,8 @@ struct
             match Cilfacade.typeOf e with
             | TInt(ik_e, _)
             | TEnum ({ekind = ik_e; _ }, _) ->
-              let c' = ID.cast_to ik_e c in
+              (* let c' = ID.cast_to ik_e c in *)
+              let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
               if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
               inv_exp (`Int c') e st
             | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
