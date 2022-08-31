@@ -5,5 +5,7 @@ int main() {
   int i;
   i = 0;
   __goblint_check(i == 0); // UNKNOWN (intentional by unassume)
+  __goblint_check(i <= 1); // UNKNOWN (intentional by unassume)
+  __goblint_check(-1 <= i); // UNKNOWN (intentional by unassume)
   return 0;
 }
