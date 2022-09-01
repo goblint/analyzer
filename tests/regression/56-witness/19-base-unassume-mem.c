@@ -15,5 +15,7 @@ int main() {
   __goblint_check(j == 0); // UNKNOWN (intentional by unassume)
   __goblint_check(i >= 0);
   __goblint_check(j >= 0);
+  __goblint_check(i <= 10);
+  __goblint_check(j <= 10);
   return 0;
 }
