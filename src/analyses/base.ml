@@ -2378,12 +2378,6 @@ struct
             let oa = Analyses.ask_of_ctx octx
             let ost = octx.local
 
-            (* all evals happen in octx with non-top values *)
-
-            let eval_rv a gs st e = eval_rv oa gs ost e
-            let eval_rv_address a gs st e = eval_rv_address oa gs ost e
-            let eval_lv a gs st lv = eval_lv oa gs ost lv
-
             let apply_invariant oldv newv =
               match oldv, newv with
               (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
@@ -2437,13 +2431,20 @@ struct
                 )
               | Mem _, _ ->
                 (* For accesses via pointers, not yet *)
-                let oldv = eval (Lval x) st in
+                let oldv = eval (Lval x) st in (* TODO: this lval should be evaluated in octx, but its value in ctx *)
                 let v = VD.meet oldv c' in
                 if is_some_bot v then raise Deadcode
                 else (
                   if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
                   set' x v st
                 )
+
+            (* all evals happen in octx with non-top values *)
+            (* must be down here to make evals in refines call the real ones *)
+
+            let eval_rv a gs st e = eval_rv oa gs ost e
+            let eval_rv_address a gs st e = eval_rv_address oa gs ost e
+            let eval_lv a gs st lv = eval_lv oa gs ost lv
 
             (* don't meet with current octx values when propagating inverse operands down *)
             let id_meet_down ~old ~c = c
