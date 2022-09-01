@@ -85,8 +85,8 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       (* Keeping this order when updating ids is very important since Node.equal in assign_same_id tests only
          for id equality. Otherwise some new nodes might not receive a new id and lead to duplicate ids in the
          respective function *)
-      List.iter (reset_changed_stmt (List.map snd d.unchangedNodes)) f.sallstmts;
-      List.iter (assign_same_id f.sallstmts) d.unchangedNodes
+      List.iter (reset_changed_stmt (List.map (fun (_, n, _) -> n) d.matched_nodes)) f.sallstmts;
+      List.iter (fun (o, n, _) -> assign_same_id f.sallstmts (o, n)) d.matched_nodes
   in
   let reset_changed_globals (changed: changed_global) =
     match (changed.current, changed.old) with

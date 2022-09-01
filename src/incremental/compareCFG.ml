@@ -32,7 +32,7 @@ let eq_edge x y =
 (* The order of the edges in the list is relevant. Therefore compare them one to one without sorting first *)
 let eq_edge_list xs ys = GobList.equal eq_edge xs ys
 
-let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
+let to_edge_list : (location * edge) list -> edge list = List.map (fun (loc, edge) -> edge)
 
 module NH = Hashtbl.Make(Node)
 type biDirectionNodeMap = {node1to2: node NH.t; node2to1: node NH.t}
@@ -114,7 +114,84 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
   repeat ();
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
 
-let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun1 fun2 =
-  let same, diff = Stats.time "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
-  let unchanged, diffNodes1 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
-  List.of_seq unchanged, List.of_seq diffNodes1
+type node_diff_precision = Fuzzy | Precise
+
+type nodes_diff = {
+  (* the results for these nodes can be reused as-is ... *)
+  matched_nodes: (node * node * node_diff_precision) list;
+  (** ... assuming all nodes reachable from these are destabilized *)
+  destabilize_nodes: node list;
+}
+
+type ('n, 'e) digraph = 'n -> ('e * 'n) list
+
+let digraph_of_cfg (cfg : cfg) n =
+  List.map (fun (es, n) -> to_edge_list es, n) (cfg n)
+
+(** reverse-postorder  *)
+let linearize_digraph (type n e)
+    (module N : Hashtbl.HashedType with type t = n)
+    (graph : (n, e) digraph) (start : n) : (n * e list) list =
+
+  let module HashtblN = Hashtbl.Make (N) in
+  let visited : unit HashtblN.t = HashtblN.create 101 in
+
+  let rec go (n : n) (acc : (n * e list) list) : (n * e list) list =
+
+    if HashtblN.mem visited n
+      then acc
+      else begin
+        HashtblN.replace visited n () ;
+        let es, ns = graph n |> List.split in
+        (* right-fold instead of left-fold is important if order of outbound edges is relevant *)
+        (n, es) :: List.fold_right go ns acc
+      end
+
+  in go start []
+
+let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
+  let same, diff = Stats.time "forwards-compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun_old fun_new) () in
+  let unchanged, diffNodes1 = Stats.time "forwards-compare-phase2" (fun () -> reexamine fun_old fun_new same diff (module CfgOld) (module CfgNew)) () in
+  { matched_nodes = List.of_seq unchanged |> List.map (fun (o, n) -> (o, n, Precise)) ;
+    destabilize_nodes = List.of_seq diffNodes1 }
+
+let linearize_cfg cfg fundec = (* type n = Node.t, type e = edge list *)
+  linearize_digraph (module Node) (digraph_of_cfg cfg) (FunctionEntry fundec)
+
+(** pass to [match_lin_diff] for matching CFGs *)
+let cfg_nes_equal fun_old fun_new (n1, es1) (n2, es2) =
+  eq_node (n1, fun_old) (n2, fun_new)
+  (* && List.compare_lengths es1 es2 = 0 *)
+  && List.equal eq_edge_list es1 es2
+
+(** matches the given linearized digraphs using Myers' diff algorithm *)
+let match_lin_diff nes_equal lin_old lin_new =
+  DiffLib.myers nes_equal lin_old lin_new
+  |> DiffLib.unify lin_old lin_new
+  |> List.filter_map (function
+      | DiffLib.UUnchanged ((o, _), (n, _)) -> Some (o, n)
+      | _ -> None)
+
+(** matches the given linearized digraphs based on their linearized order *)
+let match_lin_1to1 lin_old lin_new =
+  GobList.combine_short lin_old lin_new
+  |> List.map (fun ((o, _), (n, _)) -> o, n)
+
+let cfg_matching_of_fuzzy_match fun_old fun_new fuzzy_match =
+  { matched_nodes = (* fuzzy_match *) (* [] *)
+      (Function fun_old, Function fun_new, Precise)
+      :: (List.tl fuzzy_match |> List.map (fun (o, n) -> o, n, Fuzzy)) ;
+    destabilize_nodes = [ Function fun_old ] }
+
+let compare_fun (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
+  match GobConfig.get_string "incremental.cfg-compare.by" with
+  | "forward" -> compare_forwards (module CfgOld) (module CfgNew) fun_old fun_new
+  | "diff" | "1-to-1" as cmp_by ->
+      let lin_old = linearize_cfg CfgOld.next fun_old in
+      let lin_new = linearize_cfg CfgNew.next fun_new in
+      (match cmp_by with
+      | "diff" -> match_lin_diff (cfg_nes_equal fun_old fun_new) lin_old lin_new
+      | "1-to-1" -> match_lin_1to1 lin_old lin_new
+      | _ -> failwith "internal error")
+      |> cfg_matching_of_fuzzy_match fun_old fun_new
+  | _ -> failwith "configuration error"

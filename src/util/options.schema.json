@@ -987,6 +987,21 @@
           "enum": ["ast", "cfg"],
           "default": "ast"
         },
+        "cfg-compare": {
+          "title": "incremental.compare.cfg-compare",
+          "description": "options for when incremental.compare is 'cfg'",
+          "type": "object",
+          "properties": {
+            "by": {
+              "title": "incremental.compare.cfg-compare.by",
+              "description": "how CFGs should be compared ('forward'/'diff'/'1-to-1')",
+              "type": "string",
+              "enum": ["forward", "diff", "1-to-1"],
+              "default": "forward"
+            }
+          },
+          "additionalProperties": false
+        },
         "force-reanalyze": {
           "title": "incremental.force-reanalyze",
           "type": "object",
@@ -994,7 +1009,7 @@
             "funs": {
               "title": "incremental.force-reanalyze.funs",
               "description":
-                "List of functions that are to be re-analayzed from scratch",
+                "List of functions that are to be re-analyzed from scratch",
               "type": "array",
               "items": {
                 "type": "string"

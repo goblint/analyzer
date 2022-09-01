@@ -4,11 +4,6 @@ open CilMaps
 include CompareAST
 include CompareCFG
 
-type nodes_diff = {
-  unchangedNodes: (node * node) list;
-  primObsoleteNodes: node list; (** primary obsolete nodes -> all obsolete nodes are reachable from these *)
-}
-
 type unchanged_global = {
   old: global;
   current: global
@@ -100,9 +95,9 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
         | Some (cfgOld, (cfgNew, cfgNewBack)) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
-          let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) old current in
-          if diffNodes1 = [] then (Unchanged, None)
-          else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1})
+          let cmp = compare_fun (module CfgOld) (module CfgNew) old current in
+          if cmp.destabilize_nodes = [] then (Unchanged, None)
+          else (Changed, Some cmp)
 
 let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match old, current with
   | GFun (f,_), GFun (g,_) -> eqF f g cfgs global_rename_mapping

@@ -515,7 +515,7 @@ module WP =
         let part_changed_funs = List.filter_map (function
             | {old = GFun (f, _); diff = Some nd; _} ->
               print_endline ("Partially changed function: " ^ f.svar.vname);
-              Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
+              Some (f, nd.destabilize_nodes, nd.matched_nodes)
             | _ -> None
           ) S.increment.changes.changed
         in
@@ -558,9 +558,7 @@ module WP =
         (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
         if not reluctant then (
           List.iter (fun (f, pn, _) ->
-              List.iter (fun n ->
-                  mark_node obsolete_prim f n
-                ) pn;
+              List.iter (mark_node obsolete_prim f) pn;
               mark_node obsolete_ret f (Function f);
             ) part_changed_funs;
         );
@@ -615,12 +613,13 @@ module WP =
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
           let pseudo = dummy_pseudo_return_node f in
-          if not (List.exists (Node.equal pseudo % fst) un) then
+          if not (List.exists (Node.equal pseudo) un) then
             mark_node marked_for_deletion f (dummy_pseudo_return_node f)
         in
+        (* TODO: solver changes *)
         List.iter (fun (f,_,un) ->
             mark_node marked_for_deletion f (Function f);
-            add_pseudo_return f un
+            add_pseudo_return f (un |> List.map (fun (o, _, _) -> o))
           ) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
