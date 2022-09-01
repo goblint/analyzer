@@ -2452,6 +2452,7 @@ struct
           with Deadcode -> (* contradiction in unassume *)
             D.bot ()
         in
+        let f local = D.join ctx.local (f local) in (* join ctx.local to remain sound *)
         (* local fixpoint with widening and narrowing *)
         let rec lfp st =
           if M.tracing then M.tracel "unassume" "base unassuming lfp st: %a\n" D.pretty st;
@@ -2475,13 +2476,13 @@ struct
             lfp' st''
         in
         if M.tracing then M.traceli "unassume" "base unassuming\n";
-        let r = lfp ctx.local in
+        let r = lfp ctx.local in (* start from ctx.local instead of D.bot () to avoid invariant on bot *)
         if M.tracing then M.traceu "unassume" "base unassumed\n";
         r
       in
       M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
       M.debug ~category:Witness "base unassumed state: %a" D.pretty e_d;
-      D.join ctx.local e_d
+      e_d (* ctx.local is joined in above *)
     )
     else (
       M.info ~category:Witness "base didn't unassume invariant: %a" d_exp e;
