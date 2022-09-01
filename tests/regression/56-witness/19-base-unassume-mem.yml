@@ -1,0 +1,27 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: ddb9942d-998c-425d-a74f-228044bc38fb
+    creation_time: 2022-09-01T10:15:07Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-base-0-ged336aa6c-dirty
+      command_line: '''../../../goblint'' ''--enable'' ''ana.int.interval'' ''--enable''
+        ''witness.yaml.enabled'' ''19-base-unassume-mem.c'''
+    task:
+      input_files:
+      - 19-base-unassume-mem.c
+      input_file_hashes:
+        19-base-unassume-mem.c: d71d7065e36b8e0a2c42c96e5f6ea057d28065adae2d85b516989b8d43e77c91
+      data_model: LP64
+      language: C
+  location:
+    file_name: 19-base-unassume-mem.c
+    file_hash: d71d7065e36b8e0a2c42c96e5f6ea057d28065adae2d85b516989b8d43e77c91
+    line: 14
+    column: 2
+    function: main
+  loop_invariant:
+    string: '*p >= 0'
+    type: assertion
+    format: C
