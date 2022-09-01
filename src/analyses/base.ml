@@ -163,6 +163,11 @@ struct
     | Le -> ID.le
     | Ge -> ID.ge
     | Eq -> ID.eq
+    (* TODO: This causes inconsistent results:
+       def_exc and interval definitely in conflict:
+         evalint: base eval_rv m -> (Not {0, 1}([-31,31]),[1,1])
+         evalint: base eval_rv 1 -> (1,[1,1])
+         evalint: base query_evalint m == 1 -> (0,[1,1]) *)
     | Ne -> ID.ne
     | BAnd -> ID.bitand
     | BOr -> ID.bitor
@@ -892,9 +897,11 @@ struct
             (* get definite ints from vs *)
             let rec to_int_set = function
               | [] -> BISet.empty ()
-              | `Int i :: vs when ID.is_int i ->
-                let i' = Option.get (ID.to_int i) in
-                BISet.add i' (to_int_set vs)
+              | `Int i :: vs ->
+                begin match ID.to_int i with
+                  | Some i' -> BISet.add i' (to_int_set vs)
+                  | None -> to_int_set vs
+                end
               | _ :: vs ->
                 to_int_set vs
             in
@@ -1111,7 +1118,7 @@ struct
                   | `NoOffset -> NoOffset
                   | `Field (f, offs) -> Field (f, offs_to_offset offs)
                   | `Index (i, offs) ->
-                    (* Addr.Offs.is_definite implies Idx.is_int *)
+                    (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
                     let i_definite = BatOption.get (ValueDomain.IndexDomain.to_int i) in
                     let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
                     Index (i_exp, offs_to_offset offs)
@@ -1780,11 +1787,12 @@ struct
         in
         let a''' =
           (* if both b and c are definite, we can get a precise value in the congruence domain *)
-          if ID.is_int b && ID.is_int c then
+          match ID.to_int b, ID.to_int c with
+          | Some b, Some c ->
             (* a%b == c  -> a: c+bℤ *)
-            let t = ID.of_congruence ikind ((BatOption.get @@ ID.to_int c), (BatOption.get @@ ID.to_int b)) in
+            let t = ID.of_congruence ikind (c, b) in
             ID.meet a'' t
-          else a''
+          | _, _ -> a''
         in
         meet_bin a''' b'
       | Eq | Ne as op ->
@@ -1798,6 +1806,10 @@ struct
            (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
             * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
             * Only if a is a definite value, we can exclude it from b: *)
+           (* TODO: This causes inconsistent results:
+              interval not sufficiently refined:
+                inv_bin_int: unequal: (Unknown int([-31,31]),[0,1]) and (0,[0,0]); ikind: int; a': (Not {0}([-31,31]),[-2147483648,2147483647]), b': (0,[0,0])
+                binop: m == 0, a': (Not {0}([-31,31]),[0,1]), b': (0,[0,0]) *)
            let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
            let a' = excl b a in
            let b' = excl a b in
@@ -1811,6 +1823,10 @@ struct
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
            (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
+           (* TODO: This causes inconsistent results:
+              def_exc and interval in conflict:
+                binop m < 0 with (Not {-1}([-31,31]),[-1,0]) < (0,[0,0]) == (1,[1,1])
+                binop: m < 0, a': (Not {-1, 0}([-31,31]),[-1,-1]), b': (0,[0,0]) *)
            (match op, ID.to_bool c with
             | Le, Some true
             | Gt, Some false -> meet_bin (ID.ending ikind u2) (ID.starting ikind l1)
@@ -2213,15 +2229,19 @@ struct
     (* First we want to see, if we can determine a dead branch: *)
     match valu with
     (* For a boolean value: *)
-    | `Int value when (ID.is_bool value) ->
+    | `Int value ->
       if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
-      (* to suppress pattern matching warnings: *)
-      let fromJust x = match x with Some x -> x | None -> assert false in
-      let v = fromJust (ID.to_bool value) in
-      (* Eliminate the dead branch and just propagate to the true branch *)
-      if v = tv then refine () else begin
-        if M.tracing then M.tracel "branch" "A The branch %B is dead!\n" tv;
-        raise Deadcode
+      begin match ID.to_bool value with
+        | Some v ->
+          (* Eliminate the dead branch and just propagate to the true branch *)
+          if v = tv then
+            refine ()
+          else (
+            if M.tracing then M.tracel "branch" "A The branch %B is dead!\n" tv;
+            raise Deadcode
+          )
+        | None ->
+          refine () (* like fallback below *)
       end
     (* for some reason refine () can refine these, but not raise Deadcode in struct *)
     | `Address ad when tv && AD.is_null ad ->

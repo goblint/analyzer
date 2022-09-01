@@ -31,9 +31,7 @@ struct
   let ending ik = lift (I.ending ik)
 
   let to_int x = unlift_opt I.to_int x
-  let is_int x = unlift_is I.is_int x
   let to_bool x = unlift_opt I.to_bool x
-  let is_bool x = unlift_is I.is_bool x
 
   let is_bot_ikind = function
     | `Bot -> false

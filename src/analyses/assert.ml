@@ -34,14 +34,11 @@ struct
 
     let check_assert e st =
       match ctx.ask (Queries.EvalInt e) with
-      | v when Queries.ID.is_bool v ->
-        begin match Queries.ID.to_bool v with
-          | Some false ->  `Lifted false
-          | Some true  ->  `Lifted true
-          | _ -> `Top
-        end
       | v when Queries.ID.is_bot v -> `Bot
-      | _ -> `Top
+      | v ->
+        match Queries.ID.to_bool v with
+        | Some b -> `Lifted b
+        | None -> `Top
     in
     let expr = sprint d_exp e in
     let warn warn_fn ?annot msg = if check then
