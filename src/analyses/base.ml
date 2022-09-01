@@ -2453,30 +2453,9 @@ struct
             D.bot ()
         in
         let f local = D.join ctx.local (f local) in (* join ctx.local to remain sound *)
-        (* local fixpoint with widening and narrowing *)
-        let rec lfp st =
-          if M.tracing then M.tracel "unassume" "base unassuming lfp st: %a\n" D.pretty st;
-          let st' = f st in
-          if M.tracing then M.tracel "unassume" "base unassuming lfp st': %a\n" D.pretty st';
-          let st'' = D.widen st (D.join st st') in
-          if M.tracing then M.tracel "unassume" "base unassuming lfp st'': %a\n" D.pretty st'';
-          if D.equal st st'' then
-            lfp' st
-          else
-            lfp st''
-        and lfp' st =
-          if M.tracing then M.tracel "unassume" "base unassuming lfp' st: %a\n" D.pretty st;
-          let st' = f st in
-          if M.tracing then M.tracel "unassume" "base unassuming lfp' st': %a\n" D.pretty st';
-          let st'' = D.narrow st st' in
-          if M.tracing then M.tracel "unassume" "base unassuming lfp' st'': %a\n" D.pretty st'';
-          if D.equal st st'' then
-            st
-          else
-            lfp' st''
-        in
+        let module DFP = LocalFixpoint.Make (D) in
         if M.tracing then M.traceli "unassume" "base unassuming\n";
-        let r = lfp ctx.local in (* start from ctx.local instead of D.bot () to avoid invariant on bot *)
+        let r = DFP.lfp ~init:ctx.local f in (* start from ctx.local instead of D.bot () to avoid invariant on bot *)
         if M.tracing then M.traceu "unassume" "base unassumed\n";
         r
       in
