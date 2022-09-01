@@ -2311,10 +2311,11 @@ struct
     let e_cpa = CPA.bot () in
     let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
     if List.for_all (fun v -> not v.vglob) vars then (
-      let e_cpa = List.fold_left (fun e_cpa v ->
+      (* TODO: start with empty vars because unassume may unassume values for pointed variables not in the invariant exp *)
+      (* let e_cpa = List.fold_left (fun e_cpa v ->
           CPA.add v (VD.top_value v.vtype) e_cpa
         ) e_cpa vars
-      in
+      in *)
       (* TODO: structural unassume instead of invariant hack *)
       let e_d =
         let ctx_with_local local =
@@ -2399,9 +2400,10 @@ struct
               if (AD.is_top addr) then st
               else
                 let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
-                let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
                 let t_lval = Cilfacade.typeOfLval lval in
-                let state_with_excluded = set a gs st addr t_lval value ~invariant:true ~ctx in
+                let oldval = if VD.is_bot oldval then VD.top_value t_lval else oldval in
+                let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+                let state_with_excluded = set a gs st addr t_lval value ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
                 let value =  get a gs state_with_excluded addr None in
                 let new_val = apply_invariant oldval value in
                 if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -2411,16 +2413,18 @@ struct
                   raise Analyses.Deadcode
                 )
                 else if VD.is_bot new_val
-                then set a gs st addr t_lval value ~invariant:true ~ctx (* no *_raw because this is not a real assignment *)
-                else set a gs st addr t_lval new_val ~invariant:true ~ctx (* no *_raw because this is not a real assignment *)
+                (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+                then set a gs st addr t_lval value ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
+                else set a gs st addr t_lval new_val ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
 
             let refine_lv ctx a gs st c x c' pretty exp =
               let eval e st = eval_rv a gs st e in
-              let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:true ~ctx in
+              let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
               match x with
               | Var var, o ->
                 (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
                 let oldv = get_var a gs st var in
+                let oldv = if VD.is_bot oldv then VD.top_value var.vtype else oldv in
                 let offs = convert_offset oa gs ost o in
                 let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
                 let v = VD.meet oldv newv in
