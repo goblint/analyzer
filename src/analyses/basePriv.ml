@@ -121,7 +121,7 @@ struct
     CPA.fold side_var st.cpa st
 
   let invariant_global getg g =
-    Invariant.none
+    ValueDomain.invariant_global getg g
 end
 
 module PerMutexPrivBase =
@@ -188,19 +188,19 @@ struct
     {st with cpa = cpa'}
 
   let threadenter = old_threadenter
-
-  let invariant_global getg g =
-    Invariant.none
 end
 
 module PerMutexOplusPriv: S =
 struct
   include PerMutexPrivBase
 
+  let read_unprotected_global getg x =
+    let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
+    get_mutex_global_x |? VD.bot ()
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then
-      let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
-      get_mutex_global_x |? VD.bot ()
+      read_unprotected_global getg x
     else
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
@@ -259,6 +259,13 @@ struct
     | `Init
     | `Thread ->
       st
+
+  let invariant_global getg g =
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (read_unprotected_global getg) g'
 end
 
 module PerMutexMeetPriv: S =
@@ -348,6 +355,17 @@ struct
     | `Init
     | `Thread ->
       st
+
+  let invariant_global getg g =
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
+          (* None is VD.top () *)
+          get_mutex_global_x |? VD.bot ()
+        ) g'
 end
 
 
@@ -484,7 +502,11 @@ struct
     | _ -> ()
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left g' -> (* unprotected *)
+      ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
+    | `Right g -> (* protected *)
+      Invariant.none
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -619,7 +641,17 @@ struct
       st
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          GWeak.fold (fun s' tm acc ->
+              ThreadMap.fold (fun t' v acc ->
+                  VD.join v acc
+                ) tm acc
+            ) (G.weak (getg (V.global x))) (VD.bot ())
+        ) g'
 end
 
 module MineNoThreadPriv: S =
@@ -676,7 +708,15 @@ struct
       st
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          GWeak.fold (fun s' v acc ->
+              VD.join v acc
+            ) (G.weak (getg (V.global x))) (VD.bot ())
+        ) g'
 end
 
 module type MineWPrivParam =
@@ -766,7 +806,15 @@ struct
       old_threadenter
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          GWeak.fold (fun s' v acc ->
+              VD.join v acc
+            ) (G.weak (getg (V.global x))) (VD.bot ())
+        ) g'
 end
 
 module LockCenteredD =
@@ -917,7 +965,19 @@ struct
   let threadenter = startstate_threadenter startstate
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          let weaks = G.weak (getg (V.global x)) in
+          let d_weak = GWeak.fold (fun s' v acc ->
+              VD.join v acc
+            ) weaks (VD.bot ())
+          in
+          let d_init = GWeak.find lockset_init weaks in
+          VD.join d_weak d_init
+        ) g'
 end
 
 module WriteCenteredGBase =
@@ -1068,7 +1128,21 @@ struct
   let threadenter = startstate_threadenter startstate
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          let weaks = G.weak (getg (V.global x)) in
+          let d_weak = GWeak.fold (fun s' gweakw' acc ->
+              GWeakW.fold (fun w' v acc ->
+                  VD.join v acc
+                ) gweakw' acc
+            ) weaks (VD.bot ())
+          in
+          let d_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) weaks) in
+          VD.join d_weak d_init
+        ) g'
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
@@ -1235,7 +1309,21 @@ struct
   let threadenter = startstate_threadenter startstate
 
   let invariant_global getg g =
-    Invariant.none
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          let weaks = G.weak (getg (V.global x)) in
+          let d_weak = GWeak.fold (fun s' gweakw' acc ->
+              GWeakW.fold (fun w' v acc ->
+                  VD.join v acc
+                ) gweakw' acc
+            ) weaks (VD.bot ())
+          in
+          let d_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) weaks) in
+          VD.join d_weak d_init
+        ) g'
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =

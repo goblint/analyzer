@@ -1289,3 +1289,14 @@ struct
 
   let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v
 end
+
+let invariant_global find g =
+  let module Arg =
+  struct
+    let context = Invariant.default_context
+    let scope = dummyFunDec
+    let find = find
+  end
+  in
+  let module I = ValueInvariant (Arg) in
+  I.key_invariant g (find g)
