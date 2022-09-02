@@ -106,14 +106,14 @@ struct
     (* since hashes might change we need to rebuild: *)
     apply_list (List.map f) m
   let filter f m = apply_list (List.filter f) m (* TODO do something better? unused *)
-  let remove x m =
+  let remove x m = (* NB! strong removal *)
     let ngreq x y = not (E.leq y x) in
     B.merge_element (fun _ -> List.filter (ngreq x)) x m
   (* let add e m = if mem e m then m else B.merge List.cons e m *)
   let add e m = if mem e m then m else join (singleton e) m
   let fold f m a = Map.fold (fun _ -> List.fold_right f) m a
   let cardinal m = fold (const succ) m 0
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a (* NB! strong removal *)
   let empty () = Map.empty
   let is_empty m = Map.is_empty m
   (* let union x y = merge (B.join keep_apart) x y *)
@@ -202,7 +202,7 @@ struct
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = filter (fun y -> not (B.leq y x)) a
+  let remove x a = filter (fun y -> not (B.leq y x)) a (* NB! strong removal *)
   let join a b = union a b |> reduce
   let union _ _ = unsupported "Set.union"
   let inter _ _ = unsupported "Set.inter"
@@ -211,7 +211,7 @@ struct
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let apply_list f s = elements s |> f |> of_list
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a (* NB! strong removal *)
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
 
   (* Copied from Make *)

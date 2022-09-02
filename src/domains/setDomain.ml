@@ -19,10 +19,24 @@ sig
   val mem: elt -> t -> bool
   val add: elt -> t -> t
   val singleton: elt -> t
+
   val remove: elt -> t -> t
+  (** See {!Set.S.remove}.
+
+      {b NB!} On set abstractions this is a {e strong} removal,
+      i.e. all subsumed elements are also removed.
+      @see <https://github.com/goblint/analyzer/pull/809#discussion_r936336198> *)
+
   val union: t -> t -> t
   val inter: t -> t -> t
+
   val diff: t -> t -> t
+  (** See {!Set.S.diff}.
+
+      {b NB!} On set abstractions this is a {e strong} removal,
+      i.e. all subsumed elements are also removed.
+      @see <https://github.com/goblint/analyzer/pull/809#discussion_r936336198> *)
+
   val subset: t -> t -> bool
   val disjoint: t -> t -> bool
   val iter: (elt -> unit) -> t -> unit
@@ -400,7 +414,7 @@ struct
   let elements e = [e]
   let remove e e' =
     if E.leq e' e then
-      E.bot ()
+      E.bot () (* NB! strong removal *)
     else
       e'
   let map f e = f e
@@ -409,7 +423,7 @@ struct
   let add e e' = E.join e e'
   let is_empty e = E.is_bot e
   let union e e' = E.join e e'
-  let diff e e' = remove e' e
+  let diff e e' = remove e' e (* NB! strong removal *)
   let iter f e = f e
   let cardinal e =
     if is_empty e then
