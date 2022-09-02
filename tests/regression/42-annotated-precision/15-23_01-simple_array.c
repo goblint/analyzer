@@ -1,4 +1,5 @@
-// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// SKIP PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// skipped because https://github.com/goblint/analyzer/issues/468
 #include <assert.h>
 
 int global;

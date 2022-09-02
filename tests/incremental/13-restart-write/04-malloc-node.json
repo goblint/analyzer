@@ -1,0 +1,18 @@
+{
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": false
+            }
+        },
+        "postsolver": {
+            "enabled": true,
+            "superstable-reached": false
+        }
+    },
+    "ana": {
+        "thread": {
+            "include-node": false
+        }
+    }
+}

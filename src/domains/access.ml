@@ -10,7 +10,7 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
@@ -142,7 +142,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
 
 let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
-    let loc = !Tracing.current_loc in
+    let loc = Option.get !Node.current_node in
     side ty lv (conf, kind, loc, e, a)
   end
 
@@ -307,10 +307,10 @@ let add side e kind conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * AccessKind.t * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
+  type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
-  let pretty () (conf, kind, loc, e, lp) =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty () (conf, kind, node, e, lp) =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
   include Printable.SimplePretty (
     struct
@@ -437,7 +437,7 @@ let print_accesses (lv, ty) grouped_accs =
   let debug = get_bool "dbg.debug" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h (conf,kind,loc,e,a) =
+    let h (conf,kind,node,e,a) =
       let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
       let doc =
         if debug then
@@ -445,7 +445,7 @@ let print_accesses (lv, ty) grouped_accs =
         else
           d_msg ()
       in
-      (doc, Some loc)
+      (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs
     |> List.map h

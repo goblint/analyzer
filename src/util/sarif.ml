@@ -70,7 +70,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     | Success -> ("pass", "none")
   in
   let piece_location (piece: Messages.Piece.t) = match piece.loc with
-    | Some loc -> [location_of_cil_location loc]
+    | Some loc -> [location_of_cil_location (Messages.Location.to_cil loc)]
     | None -> []
   in
   let prefix = Format.asprintf "%a " Messages.Tags.pp message.tags in
@@ -106,7 +106,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
 
 let files_of_message (message: Messages.Message.t): string list =
   let piece_file (piece: Messages.Piece.t) = match piece.loc with
-    | Some loc -> Some loc.file
+    | Some loc -> Some (Messages.Location.to_cil loc).file
     | None -> None
   in
   match message.multipiece with

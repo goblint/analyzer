@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+  workflow_dispatch:
+
+  schedule:
+    # nightly
+    - cron: '31 1 * * *' # 01:31 UTC, 02:31/03:31 Munich, 03:31/04:31 Tartu
+    # GitHub Actions load is high at minute 0, so avoid that
+
 jobs:
   regression:
     strategy:
@@ -44,8 +51,9 @@ jobs:
         run: |
           ruby scripts/update_suite.rb group apron -s
           ruby scripts/update_suite.rb group apron2 -s
+
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run:  ruby scripts/update_suite.rb group octagon -s
+        run: ruby scripts/update_suite.rb group octagon -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
@@ -55,6 +63,46 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+  extraction:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.14.0 # matches opam lock file
+          # don't add any other because they won't be used
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install spin
+        run: sudo apt-get -y install spin
+
+      - name: Install dependencies
+        run: opam install . --deps-only --locked --with-test
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Test extraction
+        run: cd tests/extraction && ./test.sh
+
 
   gobview:
     strategy:

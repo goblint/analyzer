@@ -7,10 +7,8 @@ sig
   include Lattice.S
   include IntDomain.Arith with type t := t
   val of_int: BI.t -> t
-  val is_int: t -> bool
   val to_int: t -> BI.t option
   val of_bool: bool -> t
-  val is_bool: t -> bool
   val to_bool: t -> bool option
   val of_excl_list: Cil.ikind -> BI.t list -> t
   val is_excl_list: t -> bool

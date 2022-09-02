@@ -55,7 +55,7 @@ let exists_definitely_not_started_in_joined (current,created) other_joined =
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
-    false
+    true (* top means all threads are joined, so [other] must be as well *)
   else
     List.mem other (ConcDomain.ThreadSet.elements joined)
 
