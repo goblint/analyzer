@@ -1136,6 +1136,17 @@ struct
     else
       Invariant.none
 
+  let query_invariant_global ctx g =
+    if GobConfig.get_bool "ana.base.invariant.enabled" then (
+      match g with
+      | `Left g' -> (* priv *)
+        Priv.invariant_global (priv_getg ctx.global) g'
+      | `Right _ -> (* thread return *)
+        Invariant.none
+    )
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
@@ -1249,12 +1260,7 @@ struct
     | Q.Invariant context -> query_invariant ctx context
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g' -> (* priv *)
-          Priv.invariant_global (priv_getg ctx.global) g'
-        | `Right _ -> (* thread return *)
-          Invariant.none
-      end
+      query_invariant_global ctx g
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
