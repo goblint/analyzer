@@ -154,6 +154,12 @@ struct
   let meet x y   = merge join meet x y
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
 
+  let meet x y =
+    if M.tracing then M.traceli "ad" "meet %a %a\n" pretty x pretty y;
+    let r = meet x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
+
   let narrow x y =
     if M.tracing then M.traceli "ad" "narrow %a %a\n" pretty x pretty y;
     let r = narrow x y in
