@@ -1188,3 +1188,104 @@ and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDom
   ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
+
+
+module type InvariantArg =
+sig
+  val context: Invariant.context
+  val scope: fundec
+  val find: varinfo -> Compound.t
+end
+
+module ValueInvariant (Arg: InvariantArg) =
+struct
+  open Arg
+
+  (* VS is used to detect and break cycles in deref_invariant calls *)
+  module VS = Set.Make (Basetype.Variables)
+
+  let rec ad_invariant ~vs ~offset c x =
+    let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let i_opt = AD.fold (fun addr acc_opt ->
+        BatOption.bind acc_opt (fun acc ->
+            match addr with
+            | Addr.UnknownPtr ->
+              None
+            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+              let rec offs_to_offset = function
+                | `NoOffset -> NoOffset
+                | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                | `Index (i, offs) ->
+                  (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
+                  let i_definite = BatOption.get (IndexDomain.to_int i) in
+                  let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+                  Index (i_exp, offs_to_offset offs)
+              in
+              let offset = offs_to_offset offs in
+
+              let i =
+                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                else
+                  Invariant.none
+              in
+              let i_deref = deref_invariant ~vs c vi offset (Mem c_exp, NoOffset) in
+
+              Some (Invariant.(acc || (i && i_deref)))
+            | Addr.NullPtr ->
+              let i =
+                let addr_exp = integer 0 in
+                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                else
+                  Invariant.none
+              in
+              Some (Invariant.(acc || i))
+            (* TODO: handle Addr.StrPtr? *)
+            | _ ->
+              None
+          )
+      ) x (Some (Invariant.bot ()))
+    in
+    match i_opt with
+    | Some i -> i
+    | None -> Invariant.none
+
+  and blob_invariant ~vs ~offset c (v, _, _) =
+    vd_invariant ~vs ~offset c v
+
+  and vd_invariant ~vs ~offset c = function
+    | `Int n ->
+      let e = Lval (BatOption.get c.Invariant.lval) in
+      if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+        ID.invariant e n
+      else
+        Invariant.none
+    | `Float n ->
+      let e = Lval (BatOption.get c.Invariant.lval) in
+      if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+        FD.invariant e n
+      else
+        Invariant.none
+    | `Address n -> ad_invariant ~vs ~offset c n
+    | `Blob n -> blob_invariant ~vs ~offset c n
+    | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+    | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+    | _ -> Invariant.none (* TODO *)
+
+  and deref_invariant ~vs c vi offset lval =
+    let v = find vi in
+    key_invariant_lval ~vs c vi offset lval v
+
+  and key_invariant_lval ~vs c k offset lval v =
+    if not (VS.mem k vs) then
+      let vs' = VS.add k vs in
+      let key_context: Invariant.context = {c with lval=Some lval} in
+      vd_invariant ~vs:vs' ~offset key_context v
+    else
+      Invariant.none
+
+
+  let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v
+end
