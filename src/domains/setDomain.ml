@@ -39,19 +39,80 @@ sig
 
   val subset: t -> t -> bool
   val disjoint: t -> t -> bool
+
   val iter: (elt -> unit) -> t -> unit
+  (** See {!Set.S.iter}.
+
+      On set abstractions this iterates only over canonical elements,
+      not all subsumed elements. *)
+
   val map: (elt -> elt) -> t -> t
+  (** See {!Set.S.map}.
+
+      On set abstractions this maps only canonical elements,
+      not all subsumed elements. *)
+
   val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
+  (** See {!Set.S.fold}.
+
+      On set abstractions this folds only over canonical elements,
+      not all subsumed elements. *)
+
   val for_all: (elt -> bool) -> t -> bool
+  (** See {!Set.S.for_all}.
+
+      On set abstractions this checks only canonical elements,
+      not all subsumed elements. *)
+
   val exists: (elt -> bool) -> t -> bool
+  (** See {!Set.S.exists}.
+
+      On set abstractions this checks only canonical elements,
+      not all subsumed elements. *)
+
   val filter: (elt -> bool) -> t -> t
+  (** See {!Set.S.filter}.
+
+      On set abstractions this filters only canonical elements,
+      not all subsumed elements. *)
+
   val partition: (elt -> bool) -> t -> t * t
+  (** See {!Set.S.partition}.
+
+      On set abstractions this partitions only canonical elements,
+      not all subsumed elements. *)
+
   val cardinal: t -> int
+  (** See {!Set.S.cardinal}.
+
+      On set abstractions this counts only canonical elements,
+      not all subsumed elements. *)
+
   val elements: t -> elt list
+  (** See {!Set.S.elements}.
+
+      On set abstractions this lists only canonical elements,
+      not all subsumed elements. *)
+
   val of_list: elt list -> t
+
   val min_elt: t -> elt
+  (** See {!Set.S.min_elt}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+
   val max_elt: t -> elt
+  (** See {!Set.S.max_elt}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+
   val choose: t -> elt
+  (** See {!Set.S.choose}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
 end
 
 (** Subsignature of {!S}, which is sufficient for {!Print}. *)
@@ -399,7 +460,9 @@ struct
   let is_top x = equal x (top ())
 end
 
-(** Set abstracted by a single (joined) element. *)
+(** Set abstracted by a single (joined) element.
+
+    Element-wise {!S} operations only observe the single element. *)
 module Joined (E: Lattice.S): S with type elt = E.t =
 struct
   type elt = E.t

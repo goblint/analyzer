@@ -178,6 +178,8 @@ end
 (** Set of [Lattice.S] elements with Hoare ordering.
     This abstracts a set by its {e maximal} elements.
 
+    Element-wise {!SetDomain.S} operations only observe the maximal elements.
+
     This has {e extrapolation heuristics} instead of a true [widen],
     i.e. convergence is only guaranteed if the number of maximal
     elements converges.
@@ -350,6 +352,8 @@ end
 
 (** Set of [Lattice.S] elements with Hoare ordering.
     This abstracts a set by its {e maximal} elements.
+
+    Element-wise {!SetDomain.S} operations only observe the maximal elements.
 
     This has a true [widen] using the trivial Egli-Milner connector,
     i.e. convergence is even guaranteed if the number of maximal
