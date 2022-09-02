@@ -84,7 +84,8 @@
 
   <xsl:template match="globs">
     <!-- https://stackoverflow.com/questions/2291567/how-to-use-xslt-to-create-distinct-values#comment38881974_18886096 -->
-    <xsl:for-each select="glob/analysis[not(./@name=preceding::*/@name)]" >
+    <!-- stopped working for some unknown reason, so: https://www.oreilly.com/library/view/xslt-cookbook/0596003722/ch04s03.html -->
+    <xsl:for-each select="glob/analysis[not(./@name=../preceding-sibling::glob/analysis/@name)]" >
       <xsl:variable name="analysis" select="@name"/>
       <div class="toggle">
         <span>
