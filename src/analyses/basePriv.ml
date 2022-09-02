@@ -36,6 +36,7 @@ sig
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
+  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -118,6 +119,9 @@ struct
     in
     (* We fold over the local state, and side effect the globals *)
     CPA.fold side_var st.cpa st
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module PerMutexPrivBase =
@@ -184,6 +188,9 @@ struct
     {st with cpa = cpa'}
 
   let threadenter = old_threadenter
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module PerMutexOplusPriv: S =
@@ -475,6 +482,9 @@ struct
       vf (V.unprotected g);
       vf (V.protected g);
     | _ -> ()
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -607,6 +617,9 @@ struct
     | `Init
     | `Thread ->
       st
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module MineNoThreadPriv: S =
@@ -661,6 +674,9 @@ struct
     | `Init
     | `Thread ->
       st
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module type MineWPrivParam =
@@ -748,6 +764,9 @@ struct
       startstate_threadenter startstate
     else
       old_threadenter
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module LockCenteredD =
@@ -896,6 +915,9 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module WriteCenteredGBase =
@@ -1044,6 +1066,9 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
@@ -1208,6 +1233,9 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+
+  let invariant_global getg g =
+    Invariant.none
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
@@ -1228,6 +1256,7 @@ struct
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
+  let invariant_global getg v = time "invariant_global" (Priv.invariant_global getg) v
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()

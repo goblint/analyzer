@@ -1330,10 +1330,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* priv *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          (* let accs = G.access (ctx.global g) in
-          Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs *)
-          Invariant.none (* TODO: delegate to Priv *)
+          Priv.invariant_global (priv_getg ctx.global) g'
         | `Right _ -> (* thread return *)
           Invariant.none
       end
