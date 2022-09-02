@@ -1326,6 +1326,17 @@ struct
       let vf' x = vf (Obj.repr (V.priv x)) in
       Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
     | Q.Invariant context -> query_invariant ctx context
+    | Q.InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g' -> (* priv *)
+          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          (* let accs = G.access (ctx.global g) in
+          Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs *)
+          Invariant.none (* TODO: delegate to Priv *)
+        | `Right _ -> (* thread return *)
+          Invariant.none
+      end
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
