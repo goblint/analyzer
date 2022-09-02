@@ -44,7 +44,7 @@ struct
     r
   let leq x y =
     if M.tracing then M.traceli "ad" "leq %a %a\n" pretty x pretty y;
-    let r = leq x y in
+    let r = x == y || leq x y in (* short-circuit with physical equality, not benchmarked *)
     if M.tracing then M.traceu "ad" "-> %B\n" r;
     r
 
