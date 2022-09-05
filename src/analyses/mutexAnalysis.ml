@@ -9,11 +9,13 @@ open Prelude.Ana
 open Analyses
 
 
+(* TODO: remove SpecParam because only one implementation? *)
 module type SpecParam =
 sig
   module G: Lattice.S
   val effect_fun: ?write:bool -> Lockset.t -> G.t
   val check_fun: ?write:bool -> Lockset.t -> G.t
+  val export: ?write:bool -> G.t -> Mutexes.t
 end
 
 module MakeSpec (P: SpecParam) =
@@ -46,6 +48,15 @@ struct
   (** Global data is collected using dirty side-effecting. *)
   module G = P.G
   module V = VarinfoV
+
+  module GM = Hashtbl.Make (ValueDomain.Addr)
+  module VarSet = SetDomain.Make (Basetype.Variables)
+  let gm_rw = GM.create 10 (* TODO: marshal? move into global invariant? *)
+  let gm_w = GM.create 10 (* TODO: marshal? move into global invariant? *)
+
+  let init _ =
+    GM.clear gm_rw;
+    GM.clear gm_w
 
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
@@ -138,12 +149,39 @@ struct
               | Spawn -> false (* TODO: nonsense? *)
             in
             let el = P.effect_fun ~write ls in
-            ctx.sideg v el
+            ctx.sideg v el;
+
+            if !GU.postsolving && GobConfig.get_bool "dbg.print_protection" then (
+              let held_locks = P.export ~write (ctx.global v) in
+              let gm = if write then gm_w else gm_rw in
+              let vs_empty = VarSet.empty () in
+              Mutexes.iter (fun addr ->
+                  GM.modify_def vs_empty addr (VarSet.add v) gm
+                ) held_locks
+            )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       end;
       ctx.local
     | _ ->
       event ctx e octx (* delegate to must lockset analysis *)
+
+  let finalize () =
+    if GobConfig.get_bool "dbg.print_protection" then (
+      let max_cluster = ref 0 in
+      let num_mutexes = ref 0 in
+      let sum_protected = ref 0 in
+      Printf.printf "\n\nProtecting mutexes:\n";
+      (* TODO: what about rw? *)
+      GM.iter (fun m vs ->
+          let s = VarSet.cardinal vs in
+          max_cluster := max !max_cluster s;
+          sum_protected := !sum_protected + s;
+          incr num_mutexes;
+          Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show vs) ) gm_w;
+      Printf.printf "\nMax number of protected: %i\n" !max_cluster;
+      Printf.printf "Num mutexes: %i\n" !num_mutexes;
+      Printf.printf "Sum protected: %i\n" !sum_protected
+    )
 end
 
 module WriteBased =
@@ -165,6 +203,8 @@ struct
   let check_fun ?(write=false) ls =
     let locks = Lockset.export_locks ls in
     if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
+  let export ?(write=false) (rw, w) =
+    if write then w else rw
 end
 
 module Spec = MakeSpec (WriteBased)
