@@ -9,21 +9,24 @@ open Prelude.Ana
 open Analyses
 
 
-(* TODO: remove SpecParam because only one implementation? *)
-module type SpecParam =
-sig
-  module G: Lattice.S
-  val effect_fun: ?write:bool -> Lockset.t -> G.t
-  val check_fun: ?write:bool -> Lockset.t -> G.t
-  val export: ?write:bool -> G.t -> Mutexes.t
-end
-
-module MakeSpec (P: SpecParam) =
+module Spec =
 struct
   module Arg =
   struct
     module D = Lockset
-    module G = P.G
+
+    (** Global data is collected using dirty side-effecting. *)
+    module GReadWrite =
+    struct
+      include LockDomain.Simple
+      let name () = "readwrite"
+    end
+    module GWrite =
+    struct
+      include LockDomain.Simple
+      let name () = "write"
+    end
+    module G = Lattice.Prod (GReadWrite) (GWrite)
     module V = VarinfoV
 
     let add ctx l =
@@ -45,10 +48,6 @@ struct
   module D = Arg.D (* help type checker using explicit constraint *)
   let should_join x y = D.equal x y
 
-  (** Global data is collected using dirty side-effecting. *)
-  module G = P.G
-  module V = VarinfoV
-
   module GM = Hashtbl.Make (ValueDomain.Addr)
   module VarSet = SetDomain.Make (Basetype.Variables)
   let gm_rw = GM.create 10 (* TODO: marshal? move into global invariant? *)
@@ -57,6 +56,15 @@ struct
   let init _ =
     GM.clear gm_rw;
     GM.clear gm_w
+
+  let effect_fun ?(write=false) ls =
+    let locks = Lockset.export_locks ls in
+    (locks, if write then locks else Mutexes.top ())
+  let check_fun ?(write=false) ls =
+    let locks = Lockset.export_locks ls in
+    if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
+  let export ?(write=false) (rw, w) =
+    if write then w else rw
 
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
@@ -77,7 +85,7 @@ struct
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublic {global=v; write} ->
-      let held_locks: G.t = P.check_fun ~write (Lockset.filter snd ctx.local) in
+      let held_locks: G.t = check_fun ~write (Lockset.filter snd ctx.local) in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
@@ -85,7 +93,7 @@ struct
         non_overlapping held_locks (ctx.global v)
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
-      let held_locks: G.t = P.check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
+      let held_locks: G.t = check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
@@ -93,7 +101,7 @@ struct
          non_overlapping held_locks (ctx.global v)
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
-      let held_locks: G.t = P.check_fun ~write mutex_lockset in
+      let held_locks: G.t = check_fun ~write mutex_lockset in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex verifier_atomic then
         true
@@ -148,11 +156,11 @@ struct
               | Read -> false
               | Spawn -> false (* TODO: nonsense? *)
             in
-            let el = P.effect_fun ~write ls in
+            let el = effect_fun ~write ls in
             ctx.sideg v el;
 
             if !GU.postsolving && GobConfig.get_bool "dbg.print_protection" then (
-              let held_locks = P.export ~write (ctx.global v) in
+              let held_locks = export ~write (ctx.global v) in
               let gm = if write then gm_w else gm_rw in
               let vs_empty = VarSet.empty () in
               Mutexes.iter (fun addr ->
@@ -183,31 +191,6 @@ struct
       Printf.printf "Sum protected: %i\n" !sum_protected
     )
 end
-
-module WriteBased =
-struct
-  module GReadWrite =
-  struct
-    include LockDomain.Simple
-    let name () = "readwrite"
-  end
-  module GWrite =
-  struct
-    include LockDomain.Simple
-    let name () = "write"
-  end
-  module G = Lattice.Prod (GReadWrite) (GWrite)
-  let effect_fun ?(write=false) ls =
-    let locks = Lockset.export_locks ls in
-    (locks, if write then locks else Mutexes.top ())
-  let check_fun ?(write=false) ls =
-    let locks = Lockset.export_locks ls in
-    if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
-  let export ?(write=false) (rw, w) =
-    if write then w else rw
-end
-
-module Spec = MakeSpec (WriteBased)
 
 let _ =
   MCP.register_analysis ~dep:["mutexEvents"; "access"] (module Spec : MCPSpec)
