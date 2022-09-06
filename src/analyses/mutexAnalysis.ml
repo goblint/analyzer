@@ -9,6 +9,8 @@ open Prelude.Ana
 open Analyses
 
 
+module VarSet = SetDomain.Make (Basetype.Variables)
+
 module Spec =
 struct
   module Arg =
@@ -16,18 +18,54 @@ struct
     module D = Lockset
 
     (** Global data is collected using dirty side-effecting. *)
-    module GReadWrite =
+
+    (* Two global invariants:
+       1. varinfo -> set of mutexes  --  used for protecting locksets (M[g])
+       2. mutex -> set of varinfos  --  used for protected variables (G_m), only collected during postsolving *)
+
+    module V =
     struct
-      include LockDomain.Simple
-      let name () = "readwrite"
+      include Printable.Either (CilType.Varinfo) (ValueDomain.Addr)
+      let name () = "mutex"
+      let protecting x = `Left x
+      let protected x = `Right x
+      let is_write_only = function
+        | `Left _ -> false
+        | `Right _ -> true
     end
-    module GWrite =
+
+    module MakeG (G0: Lattice.S) =
     struct
-      include LockDomain.Simple
-      let name () = "write"
+      module ReadWrite =
+      struct
+        include G0
+        let name () = "readwrite"
+      end
+      module Write =
+      struct
+        include G0
+        let name () = "write"
+      end
+      include Lattice.Prod (ReadWrite) (Write)
     end
-    module G = Lattice.Prod (GReadWrite) (GWrite)
-    module V = VarinfoV
+
+    module GProtecting = MakeG (LockDomain.Simple)
+    module GProtected = MakeG (VarSet)
+    module G =
+    struct
+      include Lattice.Lift2 (GProtecting) (GProtected) (Printable.DefaultNames)
+
+      let protecting = function
+        | `Bot -> GProtecting.bot ()
+        | `Lifted1 x -> x
+        | _ -> failwith "Mutex.protecting"
+      let protected = function
+        | `Bot -> GProtected.bot ()
+        | `Lifted2 x -> x
+        | _ -> failwith "Mutex.protected"
+      let create_protecting protecting = `Lifted1 protecting
+      let create_protected protected = `Lifted2 protected
+    end
 
     let add ctx l =
       D.add l ctx.local
@@ -48,14 +86,21 @@ struct
   module D = Arg.D (* help type checker using explicit constraint *)
   let should_join x y = D.equal x y
 
+  module V = Arg.V
+  module GProtecting = Arg.GProtecting
+  module GProtected = Arg.GProtected
+  module G = Arg.G
+
   module GM = Hashtbl.Make (ValueDomain.Addr)
-  module VarSet = SetDomain.Make (Basetype.Variables)
-  let gm_rw = GM.create 10 (* TODO: marshal? move into global invariant? *)
-  let gm_w = GM.create 10 (* TODO: marshal? move into global invariant? *)
+
+  let max_cluster = ref 0
+  let num_mutexes = ref 0
+  let sum_protected = ref 0
 
   let init _ =
-    GM.clear gm_rw;
-    GM.clear gm_w
+    max_cluster := 0;
+    num_mutexes := 0;
+    sum_protected := 0
 
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
@@ -74,34 +119,34 @@ struct
       if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
     in
     let non_overlapping locks1 locks2 =
-      let intersect = G.join locks1 locks2 in
-      G.is_top intersect
+      let intersect = GProtecting.join locks1 locks2 in
+      GProtecting.is_top intersect
     in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublic {global=v; write} ->
-      let held_locks: G.t = check_fun ~write (Lockset.filter snd ctx.local) in
+      let held_locks: GProtecting.t = check_fun ~write (Lockset.filter snd ctx.local) in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
       else *)
-        non_overlapping held_locks (ctx.global v)
+        non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
-      let held_locks: G.t = check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
+      let held_locks: GProtecting.t = check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
-         non_overlapping held_locks (ctx.global v)
+         non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
-      let held_locks: G.t = check_fun ~write mutex_lockset in
+      let held_locks: GProtecting.t = check_fun ~write mutex_lockset in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex verifier_atomic then
         true
       else *)
-        G.leq (ctx.global global) held_locks
+      GProtecting.leq (G.protecting (ctx.global (V.protecting global))) held_locks
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
@@ -115,7 +160,24 @@ struct
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem MutexEventsAnalysis.verifier_atomic held_locks
     | Queries.IterSysVars (Global g, f) ->
-      f (Obj.repr g)
+      f (Obj.repr (V.protecting g))
+      (* TODO: something about V.protected? *)
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g' -> (* protecting *)
+          ()
+        | `Right m -> (* protected *)
+          if GobConfig.get_bool "dbg.print_protection" then (
+            (* TODO: what about rw? *)
+            let (_, protected) = G.protected (ctx.global g) in
+            let s = VarSet.cardinal protected in
+            max_cluster := max !max_cluster s;
+            sum_protected := !sum_protected + s;
+            incr num_mutexes;
+            Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show protected)
+          )
+      end
     | _ -> Queries.Result.top q
 
   module A =
@@ -152,14 +214,20 @@ struct
               | Spawn -> false (* TODO: nonsense? *)
             in
             let el = (locks, if write then locks else Mutexes.top ()) in
-            ctx.sideg v el;
+            ctx.sideg (V.protecting v) (G.create_protecting el);
 
             if !GU.postsolving && GobConfig.get_bool "dbg.print_protection" then (
-              let held_locks = (if write then snd else fst) (ctx.global v) in
-              let gm = if write then gm_w else gm_rw in
+              let held_locks = (if write then snd else fst) (G.protecting (ctx.global (V.protecting v))) in
               let vs_empty = VarSet.empty () in
               Mutexes.iter (fun addr ->
-                  GM.modify_def vs_empty addr (VarSet.add v) gm
+                  let vs = VarSet.singleton v in
+                  let protected =
+                    if write then
+                      (vs_empty, vs)
+                    else
+                      (vs, vs_empty)
+                  in
+                  ctx.sideg (V.protected addr) (G.create_protected protected)
                 ) held_locks
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
@@ -170,17 +238,6 @@ struct
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_protection" then (
-      let max_cluster = ref 0 in
-      let num_mutexes = ref 0 in
-      let sum_protected = ref 0 in
-      Printf.printf "\n\nProtecting mutexes:\n";
-      (* TODO: what about rw? *)
-      GM.iter (fun m vs ->
-          let s = VarSet.cardinal vs in
-          max_cluster := max !max_cluster s;
-          sum_protected := !sum_protected + s;
-          incr num_mutexes;
-          Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show vs) ) gm_w;
       Printf.printf "\nMax number of protected: %i\n" !max_cluster;
       Printf.printf "Num mutexes: %i\n" !num_mutexes;
       Printf.printf "Sum protected: %i\n" !sum_protected
