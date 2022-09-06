@@ -57,15 +57,6 @@ struct
     GM.clear gm_rw;
     GM.clear gm_w
 
-  let effect_fun ?(write=false) ls =
-    let locks = Lockset.export_locks ls in
-    (locks, if write then locks else Mutexes.top ())
-  let check_fun ?(write=false) ls =
-    let locks = Lockset.export_locks ls in
-    if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
-  let export ?(write=false) (rw, w) =
-    if write then w else rw
-
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset_inv o)
@@ -78,6 +69,10 @@ struct
       `Index (i_exp, conv_offset_inv o)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
+    let check_fun ~write ls =
+      let locks = Lockset.export_locks ls in
+      if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
+    in
     let non_overlapping locks1 locks2 =
       let intersect = G.join locks1 locks2 in
       G.is_top intersect
@@ -150,17 +145,17 @@ struct
       begin match var_opt with
         | Some v ->
           if not (Lockset.is_bot ctx.local) then
-            let ls = Lockset.filter snd ctx.local in
+            let locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
             let write = match kind with
               | Write | Free -> true
               | Read -> false
               | Spawn -> false (* TODO: nonsense? *)
             in
-            let el = effect_fun ~write ls in
+            let el = (locks, if write then locks else Mutexes.top ()) in
             ctx.sideg v el;
 
             if !GU.postsolving && GobConfig.get_bool "dbg.print_protection" then (
-              let held_locks = export ~write (ctx.global v) in
+              let held_locks = (if write then snd else fst) (ctx.global v) in
               let gm = if write then gm_w else gm_rw in
               let vs_empty = VarSet.empty () in
               Mutexes.iter (fun addr ->
