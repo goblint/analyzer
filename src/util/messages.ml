@@ -219,8 +219,8 @@ let print ?(ppf= !formatter) (m: Message.t) =
   in
   let pp_piece ppf piece =
     if get_bool "warn.quote-code" then (
-      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
-      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote (Option.map Location.to_cil piece.loc)
+      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" pp_quote in
+      Format.fprintf ppf "%a%a" pp_piece piece (Format.pp_print_option pp_cut_quote) (Option.map Location.to_cil piece.loc)
     )
     else
       pp_piece ppf piece
