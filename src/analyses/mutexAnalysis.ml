@@ -166,7 +166,11 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* protecting *)
-          ()
+          if GobConfig.get_bool "dbg.print_protection" then (
+            let (protecting, _) = G.protecting (ctx.global g) in (* readwrite protecting *)
+            let s = Mutexes.cardinal protecting in
+            M.info_noloc ~category:Race "Variable %a read-write protected by %d mutex(es): %a" CilType.Varinfo.pretty g' s Mutexes.pretty protecting
+          )
         | `Right m -> (* protected *)
           if GobConfig.get_bool "dbg.print_protection" then (
             let (protected, _) = G.protected (ctx.global g) in (* readwrite protected *)
@@ -174,7 +178,7 @@ struct
             max_cluster := max !max_cluster s;
             sum_protected := !sum_protected + s;
             incr num_mutexes;
-            M.info_noloc ~category:Race "Mutex %a protects: %a" ValueDomain.Addr.pretty m VarSet.pretty protected
+            M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" ValueDomain.Addr.pretty m s VarSet.pretty protected
           )
       end
     | _ -> Queries.Result.top q
@@ -237,10 +241,10 @@ struct
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_protection" then (
-      M.msg_group Info ~category:Race "Mutex protection summary" [
+      M.msg_group Info ~category:Race "Mutex read-write protection summary" [
         (Pretty.dprintf "Number of mutexes: %d" !num_mutexes, None);
-        (Pretty.dprintf "Max number of protected by a mutex: %d" !max_cluster, None);
-        (Pretty.dprintf "Total number of protected (including duplicates): %d" !sum_protected, None);
+        (Pretty.dprintf "Max number variables of protected by a mutex: %d" !max_cluster, None);
+        (Pretty.dprintf "Total number of protected variables (including duplicates): %d" !sum_protected, None);
       ]
     )
 end
