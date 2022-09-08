@@ -1128,7 +1128,20 @@ struct
       | _ -> Invariant.none
     in
 
-    cpa_invariant
+    (* TODO: move into privatizations *)
+    let protected_invariant =
+      Queries.LS.fold (fun (v, _) acc ->
+          let m = Addr.from_var v in (* TODO: don't ignore offsets *)
+          (* ignore (Pretty.printf "protected: %a\n" Queries.LS.pretty (ctx.ask (Queries.MustProtectedVars m))) *)
+          Queries.LS.fold (fun l acc ->
+              (* TODO: don't ignore offsets *)
+              let i = I.key_invariant (fst l) (get_var (Analyses.ask_of_ctx ctx) ctx.global ctx.local (fst l)) in
+              Invariant.(i && acc)
+            ) (ctx.ask (Queries.MustProtectedVars m)) acc
+        ) (ctx.ask Queries.MustLockset) Invariant.none
+    in
+
+    Invariant.(cpa_invariant && protected_invariant)
 
   let query_invariant ctx context =
     if GobConfig.get_bool "ana.base.invariant.enabled" then
