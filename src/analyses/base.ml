@@ -1101,43 +1101,51 @@ struct
 
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
+    let ask = Analyses.ask_of_ctx ctx in
 
     let module Arg =
     struct
       let context = context
       let scope = Node.find_fundec ctx.node
-      let find v = CPA.find v cpa (* TODO: also find globals correctly via priv *)
+      let find v = get_var ask ctx.global ctx.local v
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
 
-    let cpa_invariant =
-      match context.lval with
-      | None ->
-        (* TODO: exclude globals and escaped *)
-        CPA.fold (fun k v a ->
-            let i =
-              if not (InvariantCil.var_is_heap k) then
-                I.key_invariant k v
+    let var_invariant v =
+      if not (InvariantCil.var_is_heap v) then
+        I.key_invariant v (Arg.find v)
+      else
+        Invariant.none
+    in
+
+    match context.lval with
+    | None ->
+      if !GU.earlyglobs || ThreadFlag.is_multi ask then (
+        let cpa_invariant =
+          CPA.fold (fun k v a ->
+              if not (is_global ask k) then
+                Invariant.(a && var_invariant k)
               else
-                Invariant.none
-            in
-            Invariant.(a && i)
+                a
+            ) cpa Invariant.none
+        in
+        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        let priv_invariant =
+          List.fold_left (fun acc v ->
+              Invariant.(var_invariant v && acc)
+            ) Invariant.none priv_vars
+        in
+        Invariant.(cpa_invariant && priv_invariant)
+      )
+      else (
+        CPA.fold (fun k v a ->
+            Invariant.(a && var_invariant k)
           ) cpa Invariant.none
-      | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-        (try I.key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
-      | _ -> Invariant.none
-    in
-
-    let ask = Analyses.ask_of_ctx ctx in
-    let protected_invariant =
-      List.fold_left (fun acc v ->
-          let i = I.key_invariant v (get_var ask ctx.global ctx.local v) in
-          Invariant.(i && acc)
-        ) Invariant.none (Priv.invariant_vars ask (priv_getg ctx.global) ctx.local)
-    in
-
-    Invariant.(cpa_invariant && protected_invariant)
+      )
+    | Some (Var k, _) ->
+      (try var_invariant k with Not_found -> Invariant.none)
+    | _ -> Invariant.none
 
   let query_invariant ctx context =
     if GobConfig.get_bool "ana.base.invariant.enabled" then
