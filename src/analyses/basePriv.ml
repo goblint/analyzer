@@ -37,6 +37,7 @@ sig
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
   val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
+  val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -122,6 +123,8 @@ struct
 
   let invariant_global getg g =
     ValueDomain.invariant_global getg g
+
+  let invariant_vars ask getg st = []
 end
 
 module PerMutexPrivBase =
@@ -266,6 +269,8 @@ struct
       Invariant.none
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
+
+  let invariant_vars ask getg st = protected_vars ask
 end
 
 module PerMutexMeetPriv: S =
@@ -366,6 +371,8 @@ struct
           (* None is VD.top () *)
           get_mutex_global_x |? VD.bot ()
         ) g'
+
+  let invariant_vars ask getg st = protected_vars ask
 end
 
 
@@ -507,6 +514,8 @@ struct
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g -> (* protected *)
       Invariant.none
+
+  let invariant_vars ask getg st = protected_vars ask
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -652,6 +661,8 @@ struct
                 ) tm acc
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
+
+  let invariant_vars ask getg st = [] (* TODO *)
 end
 
 module MineNoThreadPriv: S =
@@ -717,6 +728,8 @@ struct
               VD.join v acc
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
+
+  let invariant_vars ask getg st = [] (* TODO *)
 end
 
 module type MineWPrivParam =
@@ -815,6 +828,8 @@ struct
               VD.join v acc
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
+
+  let invariant_vars ask getg st = [] (* TODO *)
 end
 
 module LockCenteredD =
@@ -978,6 +993,8 @@ struct
           let d_init = GWeak.find lockset_init weaks in
           VD.join d_weak d_init
         ) g'
+
+  let invariant_vars ask getg st = [] (* TODO *)
 end
 
 module WriteCenteredGBase =
@@ -1143,6 +1160,8 @@ struct
           let d_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) weaks) in
           VD.join d_weak d_init
         ) g'
+
+  let invariant_vars ask getg st = [] (* TODO *)
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
@@ -1324,6 +1343,8 @@ struct
           let d_init = GWeakW.find lockset_init (GWeak.find (Lockset.empty ()) weaks) in
           VD.join d_weak d_init
         ) g'
+
+  let invariant_vars ask getg st = [] (* TODO *)
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
@@ -1345,6 +1366,7 @@ struct
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
   let invariant_global getg v = time "invariant_global" (Priv.invariant_global getg) v
+  let invariant_vars ask getg st = time "invariant_vars" (Priv.invariant_vars ask getg) st
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()

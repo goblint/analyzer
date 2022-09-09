@@ -1106,7 +1106,7 @@ struct
     struct
       let context = context
       let scope = Node.find_fundec ctx.node
-      let find v = CPA.find v cpa
+      let find v = CPA.find v cpa (* TODO: also find globals correctly via priv *)
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
@@ -1114,6 +1114,7 @@ struct
     let cpa_invariant =
       match context.lval with
       | None ->
+        (* TODO: exclude globals and escaped *)
         CPA.fold (fun k v a ->
             let i =
               if not (InvariantCil.var_is_heap k) then
@@ -1128,17 +1129,12 @@ struct
       | _ -> Invariant.none
     in
 
-    (* TODO: move into privatizations *)
+    let ask = Analyses.ask_of_ctx ctx in
     let protected_invariant =
-      Queries.LS.fold (fun (v, _) acc ->
-          let m = Addr.from_var v in (* TODO: don't ignore offsets *)
-          (* ignore (Pretty.printf "protected: %a\n" Queries.LS.pretty (ctx.ask (Queries.MustProtectedVars m))) *)
-          Queries.LS.fold (fun l acc ->
-              (* TODO: don't ignore offsets *)
-              let i = I.key_invariant (fst l) (get_var (Analyses.ask_of_ctx ctx) ctx.global ctx.local (fst l)) in
-              Invariant.(i && acc)
-            ) (ctx.ask (Queries.MustProtectedVars m)) acc
-        ) (ctx.ask Queries.MustLockset) Invariant.none
+      List.fold_left (fun acc v ->
+          let i = I.key_invariant v (get_var ask ctx.global ctx.local v) in
+          Invariant.(i && acc)
+        ) Invariant.none (Priv.invariant_vars ask (priv_getg ctx.global) ctx.local)
     in
 
     Invariant.(cpa_invariant && protected_invariant)
