@@ -662,7 +662,14 @@ struct
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
 
-  let invariant_vars ask getg st = [] (* TODO *)
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' cpa' acc ->
+            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module MineNoThreadPriv: S =
@@ -729,7 +736,14 @@ struct
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
 
-  let invariant_vars ask getg st = [] (* TODO *)
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' cpa' acc ->
+            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module type MineWPrivParam =
@@ -829,7 +843,14 @@ struct
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
 
-  let invariant_vars ask getg st = [] (* TODO *)
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' cpa' acc ->
+            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module LockCenteredD =
@@ -994,7 +1015,14 @@ struct
           VD.join d_weak d_init
         ) g'
 
-  let invariant_vars ask getg st = [] (* TODO *)
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' cpa' acc ->
+            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module WriteCenteredGBase =
@@ -1161,7 +1189,16 @@ struct
           VD.join d_weak d_init
         ) g'
 
-  let invariant_vars ask getg st = [] (* TODO *)
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' gsyncw' acc ->
+            GSyncW.fold (fun w' cpa' acc ->
+                CPA.fold (fun x _ acc -> x :: acc) cpa' acc
+              ) gsyncw' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
@@ -1344,7 +1381,16 @@ struct
           VD.join d_weak d_init
         ) g'
 
-  let invariant_vars ask getg st = [] (* TODO *)
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' gsyncw' acc ->
+            GSyncW.fold (fun w' cpa' acc ->
+                CPA.fold (fun x _ acc -> x :: acc) cpa' acc
+              ) gsyncw' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
