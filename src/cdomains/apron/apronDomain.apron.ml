@@ -57,7 +57,7 @@ module VM =
 struct
   type t =
     | Local of varinfo (** Var for function local variable (or formal argument). *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Arg of varinfo (** Var for function formal argument entry value. *)
     | Return (** Var for function return value. *)
     | Global of varinfo
 
@@ -65,7 +65,7 @@ struct
     | Local x ->
       (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
       x.vname ^ "#" ^ string_of_int x.vid
-    | Arg -> failwith "var_name of Arg"
+    | Arg x -> x.vname ^ "#" ^ string_of_int x.vid ^ "#arg"
     | Return -> "#ret"
     | Global g -> g.vname
 end
@@ -76,13 +76,13 @@ struct
   open VM
 
   let local x = make_var (Local x)
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let arg x = make_var (Arg x)
   let return = make_var Return
   let global g = make_var (Global g)
 
   let to_cil_varinfo v =
     match find_metadata v with
-    | Some (Global v | Local v) -> Some v
+    | Some (Global v | Local v | Arg v) -> Some v
     | _ -> None
 end
 

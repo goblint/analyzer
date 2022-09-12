@@ -280,7 +280,7 @@ struct
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Arg _) when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_apr;
@@ -363,7 +363,7 @@ struct
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
-        | Some Arg -> true (* keep caller args *)
+        | Some (Arg _) -> true (* keep caller args *)
         | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
     in
