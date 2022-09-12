@@ -227,7 +227,7 @@ struct
     (* Also, a local *)
     let vname = Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> V.local_name v = vname) locals with
+    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
     | Some v -> any_local_reachable
 
@@ -257,7 +257,7 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
         | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
@@ -340,7 +340,7 @@ struct
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some Arg -> true (* keep caller args *)
         | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
@@ -392,9 +392,8 @@ struct
       match reachables ask es with
       | None ->
         (* top reachable, so try to invalidate everything *)
-        let fd = Node.find_fundec ctx.node in
         AD.vars st.apr
-        |> List.filter_map (V.to_cil_varinfo fd)
+        |> List.filter_map V.to_cil_varinfo
         |> List.map Cil.var
       | Some rs ->
         Queries.LS.elements rs
@@ -485,7 +484,7 @@ struct
     (* filter variables *)
     let var_filter v = match V.find_metadata v with
       | Some (Global _) -> keep_global
-      | Some Local -> keep_local
+      | Some (Local _) -> keep_local
       | _ -> false
     in
     let apr = AD.keep_filter apr var_filter in
@@ -498,7 +497,7 @@ struct
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         (* filter one-vars *)
         if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          CilOfApron.cil_exp_of_lincons1 scope lincons1
+          CilOfApron.cil_exp_of_lincons1 lincons1
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
           None
@@ -584,7 +583,7 @@ struct
       (* filter variables *)
       let var_filter v = match V.find_metadata v with
         | Some (Global _) -> keep_global
-        | Some Local -> keep_local
+        | Some (Local _) -> keep_local
         | _ -> false
       in
       let st = keep_filter ctx.local.apr var_filter in

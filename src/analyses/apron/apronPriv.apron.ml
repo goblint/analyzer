@@ -80,12 +80,7 @@ struct
     let apr = st.apr in
     let esc_vars = List.filter (fun var -> match AV.find_metadata var with
         | Some (Global _) -> false
-        | Some Local ->
-          (let fundec = Node.find_fundec node in
-           let r = AV.to_cil_varinfo fundec var in
-           match r with
-           | Some r -> EscapeDomain.EscapedVars.mem r escaped
-           | _ -> false)
+        | Some (Local r) -> EscapeDomain.EscapedVars.mem r escaped
         | _ -> false
       ) (AD.vars apr)
     in

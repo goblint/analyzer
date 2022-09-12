@@ -56,13 +56,15 @@ end
 module VM =
 struct
   type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Local of varinfo (** Var for function local variable (or formal argument). *)
     | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
     | Return (** Var for function return value. *)
     | Global of varinfo
 
   let var_name = function
-    | Local -> failwith "var_name of Local"
+    | Local x ->
+      (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
+      x.vname ^ "#" ^ string_of_int x.vid
     | Arg -> failwith "var_name of Arg"
     | Return -> "#ret"
     | Global g -> g.vname
@@ -73,19 +75,14 @@ struct
   include VarMetadataTbl (VM)
   open VM
 
-  (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
-  let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
-  let local x = make_var ~name:(local_name x) Local
+  let local x = make_var (Local x)
   let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
   let return = make_var Return
   let global g = make_var (Global g)
 
-  let to_cil_varinfo fundec v =
+  let to_cil_varinfo v =
     match find_metadata v with
-    | Some (Global v) -> Some v
-    | Some (Local) ->
-      let vname = Var.to_string v in
-      List.find_opt (fun v -> local_name v = vname) (fundec.sformals @ fundec.slocals)
+    | Some (Global v | Local v) -> Some v
     | _ -> None
 end
 
@@ -355,7 +352,7 @@ module CilOfApron =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
@@ -379,7 +376,7 @@ struct
     in
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo fundec v with
+      match V.to_cil_varinfo v with
       | Some vinfo ->
         (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
@@ -395,11 +392,11 @@ struct
     !expr
 
 
-  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+  let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
     let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+      let cilexp = cil_exp_of_linexpr1 linexpr1 in
       match Lincons1.get_typ lincons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
       | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
