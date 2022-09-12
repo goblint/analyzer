@@ -91,6 +91,28 @@ struct
     in
     (apr', e', v_ins)
 
+  let read_globals_to_locals_inv (ask: Queries.ask) getg st vs =
+    let v_ins_inv = VH.create (List.length vs) in
+    List.iter (fun v ->
+        let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+        VH.replace v_ins_inv v_in v;
+      ) vs;
+    let apr = AD.add_vars st.apr (List.map V.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
+    let apr' = VH.fold (fun v_in v apr ->
+        read_global ask getg {st with apr = apr} v v_in (* g#in = g; *)
+      ) v_ins_inv apr
+    in
+    let visitor_inv = object
+      inherit nopCilVisitor
+      method! vvrbl (v: varinfo) =
+        match VH.find_option v_ins_inv v with
+        | Some v' -> ChangeTo v'
+        | None -> SkipChildren
+    end
+    in
+    let e_inv e = visitCilExpr visitor_inv e in
+    (apr', e_inv, v_ins_inv)
+
   let read_from_globals_wrapper ask getg st e f =
     let (apr', e', _) = read_globals_to_locals ask getg st e in
     f apr' e' (* no need to remove g#in-s *)
@@ -479,25 +501,50 @@ struct
   let query_invariant ctx context =
     let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
-
-    let apr = ctx.local.apr in
-    (* filter variables *)
-    let var_filter v = match V.find_metadata v with
-      | Some (Global _) -> keep_global
-      | Some (Local _) -> keep_local
-      | _ -> false
-    in
-    let apr = AD.keep_filter apr var_filter in
-
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+
+    let ask = Analyses.ask_of_ctx ctx in
     let scope = Node.find_fundec ctx.node in
 
+    let (apr, e_inv) =
+      if ThreadFlag.is_multi ask then (
+        let priv_vars =
+          if keep_global then
+            Priv.invariant_vars ask ctx.global ctx.local
+          else
+            [] (* avoid pointless queries *)
+        in
+        let (apr, e_inv, v_ins_inv) = read_globals_to_locals_inv ask ctx.global ctx.local priv_vars in
+        (* filter variables *)
+        let var_filter v = match V.find_metadata v with
+          | Some (Local v) ->
+            if VH.mem v_ins_inv v then
+              keep_global
+            else
+              keep_local
+          | _ -> false
+        in
+        let apr = AD.keep_filter apr var_filter in
+        (apr, e_inv)
+      )
+      else (
+        (* filter variables *)
+        let var_filter v = match V.find_metadata v with
+          | Some (Global _) -> keep_global
+          | Some (Local _) -> keep_local
+          | _ -> false
+        in
+        let apr = AD.keep_filter ctx.local.apr var_filter in
+        (apr, Fun.id)
+      )
+    in
     AD.invariant ~scope apr
     |> List.enum
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         (* filter one-vars *)
         if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
           CilOfApron.cil_exp_of_lincons1 lincons1
+          |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
           None
