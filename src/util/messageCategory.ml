@@ -240,6 +240,7 @@ let from_string_list (s: string list) =
     | "assert" -> Assert
     | "behavior" -> Behavior.from_string_list t
     | "integer" -> Integer.from_string_list t
+    | "float" -> Float
     | "race" -> Race
     | "deadlock" -> Deadlock
     | "cast" -> Cast.from_string_list t
@@ -248,6 +249,7 @@ let from_string_list (s: string list) =
     | "unsound" -> Unsound
     | "imprecise" -> Imprecise
     | "witness" -> Witness
+    | "program" -> Program
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))
