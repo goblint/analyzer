@@ -267,8 +267,10 @@ struct
     let apr_side = AD.add_vars apr_local [g_unprot_var] in
     let apr_side = AD.assign_var apr_side g_unprot_var g_local_var in
     let apr' = apr_side in
-    let apr_side = restrict_global apr_side in
-    sideg () apr_side;
+    if not invariant then (
+      let apr_side = restrict_global apr_side in
+      sideg () apr_side
+    );
     let st' =
       (* if is_unprotected ask g then
          st (* add, assign, remove gives original local state *)
@@ -280,6 +282,8 @@ struct
       else (
         let p' = P.add g p in
         let w' = W.add g w in
+        (* Unlock after invariant will still side effect refined value (if protected) from AD, because cannot distinguish from non-invariant write. *)
+        (* Cannot invariant just to P, but not W (like in some base privs), because read_global will read bot. *)
         {apr = restrict_local (is_unprotected ask) apr' (W.empty ()); priv = (p', w')}
       )
     in
@@ -490,8 +494,11 @@ struct
     let apr_local = AD.add_vars apr [g_var] in
     let apr_local = AD.assign_var apr_local g_var x_var in
     (* unlock *)
-    let apr_side = AD.keep_vars apr_local [g_var] in
-    sideg (V.global g) apr_side;
+    if not invariant then (
+      let apr_side = AD.keep_vars apr_local [g_var] in
+      sideg (V.global g) apr_side
+      (* Unlock after invariant will still side effect refined value (if protected) from AD, because cannot distinguish from non-invariant write. *)
+    );
     let apr_local' =
       if is_unprotected ask g then
         AD.remove_vars apr_local [g_var]
@@ -1001,19 +1008,25 @@ struct
     let apr_local = AD.add_vars apr [g_var] in
     let apr_local = AD.assign_var apr_local g_var x_var in
     (* unlock *)
-    let apr_side = AD.keep_vars apr_local [g_var] in
-    let apr_side = Cluster.unlock (W.singleton g) apr_side in
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid apr_side in
-    sideg (V.global g) (G.create_global sidev);
-    let l' = L.add lm apr_side l in
+    let (lmust', l') = if not invariant then (
+        let apr_side = AD.keep_vars apr_local [g_var] in
+        let apr_side = Cluster.unlock (W.singleton g) apr_side in
+        let tid = ThreadId.get_current ask in
+        let sidev = GMutex.singleton tid apr_side in
+        sideg (V.global g) (G.create_global sidev);
+        (LMust.add lm lmust, L.add lm apr_side l)
+      )
+      else
+        (lmust, l)
+    in
     let apr_local' =
       if is_unprotected ask g then
         AD.remove_vars apr_local [g_var]
       else
         apr_local
     in
-    {apr = apr_local'; priv = (W.add g w,LMust.add lm lmust,l')}
+    (* TODO: Why doesn't this remove from W (i.e. not add to W) when unprotected? Could probably also not add when invariant. *)
+    {apr = apr_local'; priv = (W.add g w, lmust', l')}
 
   let lock ask getg (st: apron_components_t) m =
     if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
