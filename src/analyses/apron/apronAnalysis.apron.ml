@@ -573,22 +573,27 @@ struct
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Events.Unassume e ->
-      (* add only relevant vars to env *)
+      let ask = Analyses.ask_of_ctx ctx in
+      let e = replace_deref_exps ctx.ask e in
+      let (apr, e, v_ins) = read_globals_to_locals ask ctx.global ctx.local e in
+
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter AD.varinfo_tracked in
-      if List.for_all (fun v -> not v.vglob) vars then (
-        let apr = ctx.local.apr in
-        let apr = AD.forget_vars apr (List.map V.local vars) in (* havoc *)
-        let apr = List.fold_left assert_type_bounds apr vars in (* add type bounds to avoid overflow in top state *)
-        let apr = AD.assert_inv apr e false in (* assume *)
-        let apr = AD.keep_vars apr (List.map V.local vars) in (* restrict *)
-        let apr' = AD.join ctx.local.apr apr in (* (strengthening) join *)
-        M.info ~category:Witness "apron unassumed invariant: %a" d_exp e;
-        {ctx.local with apr = apr'}
-      )
-      else (
-        M.info ~category:Witness "apron didn't unassume invariant: %a" d_exp e;
-        ctx.local (* TODO: support unassume with globals *)
-      )
+      let apr = AD.forget_vars apr (List.map V.local vars) in (* havoc *)
+      let apr = List.fold_left assert_type_bounds apr vars in (* add type bounds to avoid overflow in top state *)
+      let apr = AD.assert_inv apr e false in (* assume *)
+      let apr = AD.keep_vars apr (List.map V.local vars) in (* restrict *)
+
+      (* TODO: parallel write_global? *)
+      let st = VH.fold (fun v v_in st ->
+          (* TODO: is this sideg fine? *)
+          write_global ask ctx.global ctx.sideg st v v_in
+        ) v_ins {ctx.local with apr}
+      in
+      let apr = AD.remove_vars st.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+
+      let st = D.join ctx.local {st with apr} in (* (strengthening) join *)
+      M.info ~category:Witness "apron unassumed invariant: %a" d_exp e;
+      st
     | _ ->
       st
 
