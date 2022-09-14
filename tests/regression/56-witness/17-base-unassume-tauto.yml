@@ -19,7 +19,7 @@
   location:
     file_name: 17-base-unassume-tauto.c
     file_hash: a1dbab3d2dc60945ace118bcacd88e4d448ddb3aaa5e9aebe3d0872266256f89
-    line: 8
+    line: 7
     column: 2
     function: main
   loop_invariant:
