@@ -189,7 +189,8 @@ struct
     begin match es with
       | x :: xs ->
         let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
-        ctx.emit (Unassume e)
+        ctx.emit (Unassume e);
+        WideningTokens.perform (CilType.Exp.show e)
       | [] ->
         ()
     end;

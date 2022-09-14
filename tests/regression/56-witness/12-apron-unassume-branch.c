@@ -6,6 +6,6 @@ int main() {
   while (i < 100) {
     i++;
   }
-  assert(i == 100); // TODO: avoid widening when unassume inside loop
+  assert(i == 100);
   return 0;
 }
