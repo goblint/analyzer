@@ -573,6 +573,7 @@ struct
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Events.Unassume e ->
+      let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
       let e = replace_deref_exps ctx.ask e in
       let (apr, e, v_ins) = read_globals_to_locals ask ctx.global ctx.local e in
@@ -592,7 +593,7 @@ struct
       let apr = AD.remove_vars st.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
 
       let st = D.join ctx.local {st with apr} in (* (strengthening) join *)
-      M.info ~category:Witness "apron unassumed invariant: %a" d_exp e;
+      M.info ~category:Witness "apron unassumed invariant: %a" d_exp e_orig;
       st
     | _ ->
       st
