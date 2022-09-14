@@ -2308,230 +2308,219 @@ struct
     ctx.local
 
   let unassume (ctx: (D.t, _, _, _) ctx) e =
-    let e_cpa = CPA.bot () in
-    let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
-    if List.for_all (fun v -> not v.vglob) vars then (
-      (* TODO: start with empty vars because unassume may unassume values for pointed variables not in the invariant exp *)
-      (* let e_cpa = List.fold_left (fun e_cpa v ->
-          CPA.add v (VD.top_value v.vtype) e_cpa
-        ) e_cpa vars
-      in *)
-      (* TODO: structural unassume instead of invariant hack *)
-      let e_d =
-        let ctx_with_local local =
-          (* The usual recursion trick for ctx. *)
-          (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
-          (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
-          let rec ctx' asked =
-            { ctx with
-              ask = (fun (type a) (q: a Queries.t) -> query' asked q)
-            ; local
-            }
-          and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
-            let anyq = Queries.Any q in
-            if Queries.Set.mem anyq asked then
-              Queries.Result.top q (* query cycle *)
-            else (
-              let asked' = Queries.Set.add anyq asked in
-              match q with
-              | MayEscape _
-              | MayBePublic _
-              | MayBePublicWithout _
-              | MustBeProtectedBy _
-              | MustLockset
-              | MustBeAtomic
-              | MustBeSingleThreaded
-              | MustBeUniqueThread
-              | CurrentThreadId
-              | MayBeThreadReturn
-              | PartAccess _
-              | IsHeapVar _
-              | IsMultiple _
-              | CreatedThreads
-              | MustJoinedThreads ->
-                (* These queries are safe to ask from outside,
-                  where base doesn't have the partial top local state.
-                  They are also needed for sensible eval behavior via [inv_exp]
-                  such that everything wouldn't be may escaped. *)
-                ctx.ask q
-              | _ ->
-                (* Other queries are not safe, because they would
-                  query the local value state instead of top.
-                  Therefore, these are answered only by base on the
-                  partial top local state. *)
-                query (ctx' asked') q
-            )
-          in
-          ctx' Queries.Set.empty
+    (* TODO: structural unassume instead of invariant hack *)
+    let e_d =
+      let ctx_with_local ~single local =
+        (* The usual recursion trick for ctx. *)
+        (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
+        (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
+        let rec ctx' asked =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> query' asked q)
+          ; local
+          }
+        and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
+          let anyq = Queries.Any q in
+          if Queries.Set.mem anyq asked then
+            Queries.Result.top q (* query cycle *)
+          else (
+            let asked' = Queries.Set.add anyq asked in
+            match q with
+            | MustBeSingleThreaded when single -> true
+            | MayEscape _
+            | MayBePublic _
+            | MayBePublicWithout _
+            | MustBeProtectedBy _
+            | MustLockset
+            | MustBeAtomic
+            | MustBeSingleThreaded
+            | MustBeUniqueThread
+            | CurrentThreadId
+            | MayBeThreadReturn
+            | PartAccess _
+            | IsHeapVar _
+            | IsMultiple _
+            | CreatedThreads
+            | MustJoinedThreads ->
+              (* These queries are safe to ask from outside,
+                where base doesn't have the partial top local state.
+                They are also needed for sensible eval behavior via [inv_exp]
+                such that everything wouldn't be may escaped. *)
+              ctx.ask q
+            | _ ->
+              (* Other queries are not safe, because they would
+                query the local value state instead of top.
+                Therefore, these are answered only by base on the
+                partial top local state. *)
+              query (ctx' asked') q
+          )
         in
-        let f st =
-          let local: D.t = {ctx.local with cpa = e_cpa} in
-          let octx = ctx_with_local st in (* original ctx with non-top values *)
-          (* TODO: deduplicate with invariant *)
-          let ctx = ctx_with_local local in
-          let module UnassumeEval =
-          struct
-            module D = D
-            module V = V
-            module G = G
+        ctx' Queries.Set.empty
+      in
+      let f st =
+        (* TODO: start with empty vars because unassume may unassume values for pointed variables not in the invariant exp *)
+        let local: D.t = {ctx.local with cpa = CPA.bot ()} in
+        let octx = ctx_with_local ~single:false st in (* original ctx with non-top values *)
+        (* TODO: deduplicate with invariant *)
+        let ctx = ctx_with_local ~single:true local in
+        let module UnassumeEval =
+        struct
+          module D = D
+          module V = V
+          module G = G
 
-            let oa = Analyses.ask_of_ctx octx
-            let ost = octx.local
+          let oa = Analyses.ask_of_ctx octx
+          let ost = octx.local
 
-            let apply_invariant oldv newv =
-              match oldv, newv with
-              (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
-              (*   `Address (AD.join o n) *)
-              (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
-              (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
-              | _ -> VD.meet oldv newv
+          let apply_invariant oldv newv =
+            match oldv, newv with
+            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
+            (*   `Address (AD.join o n) *)
+            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
+            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
+            | _ -> VD.meet oldv newv
 
-            (* all updates happen in ctx with top values *)
+          (* all updates happen in ctx with top values *)
 
-            let refine_lv_fallback ctx a gs st lval value tv =
-              if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-              let addr = eval_lv oa gs ost lval in
-              if (AD.is_top addr) then st
-              else
-                let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
-                let t_lval = Cilfacade.typeOfLval lval in
-                let oldval = if VD.is_bot oldval then VD.top_value t_lval else oldval in
-                let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
-                let state_with_excluded = set a gs st addr t_lval value ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
-                let value =  get a gs state_with_excluded addr None in
-                let new_val = apply_invariant oldval value in
-                if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
-                (* make that address meet the invariant, i.e exclusion sets will be joined *)
-                if is_some_bot new_val then (
-                  if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
-                  raise Analyses.Deadcode
-                )
-                else if VD.is_bot new_val
-                (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
-                then set a gs st addr t_lval value ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
-                else set a gs st addr t_lval new_val ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
+          let refine_lv_fallback ctx a gs st lval value tv =
+            if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+            let addr = eval_lv oa gs ost lval in
+            if (AD.is_top addr) then st
+            else
+              let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+              let t_lval = Cilfacade.typeOfLval lval in
+              let oldval = if VD.is_bot oldval then VD.top_value t_lval else oldval in
+              let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+              let state_with_excluded = set a gs st addr t_lval value ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+              let value =  get a gs state_with_excluded addr None in
+              let new_val = apply_invariant oldval value in
+              if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
+              (* make that address meet the invariant, i.e exclusion sets will be joined *)
+              if is_some_bot new_val then (
+                if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
+                raise Analyses.Deadcode
+              )
+              else if VD.is_bot new_val
+              (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+              then set a gs st addr t_lval value ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
+              else set a gs st addr t_lval new_val ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
 
-            let refine_lv ctx a gs st c x c' pretty exp =
-              let eval_rv_lval lv st =
-                (* old: *)
-                (* eval_rv a gs st (Lval lv) *)
+          let refine_lv ctx a gs st c x c' pretty exp =
+            let eval_rv_lval lv st =
+              (* old: *)
+              (* eval_rv a gs st (Lval lv) *)
 
-                (* new, copied from eval_rv_base to use different ctx for eval_lv (for Mem): *)
-                (* TODO: deduplicate *)
-                let do_offs def o = def in (* HACK: no do_offs blessed here *)
-                match lv with
-                | (Var v, ofs) -> do_offs (get a gs st (eval_lv oa gs ost (Var v, ofs)) (Some exp)) ofs
-                (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
-                | (Mem e, ofs) ->
-                  (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
-                  let rec contains_vla (t:typ) = match t with
-                    | TPtr (t, _) -> contains_vla t
-                    | TArray(t, None, args) -> true
-                    | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
-                    | TArray(t, Some exp, args) -> true
+              (* new, copied from eval_rv_base to use different ctx for eval_lv (for Mem): *)
+              (* TODO: deduplicate *)
+              let do_offs def o = def in (* HACK: no do_offs blessed here *)
+              match lv with
+              | (Var v, ofs) -> do_offs (get a gs st (eval_lv oa gs ost (Var v, ofs)) (Some exp)) ofs
+              (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
+              | (Mem e, ofs) ->
+                (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+                let rec contains_vla (t:typ) = match t with
+                  | TPtr (t, _) -> contains_vla t
+                  | TArray(t, None, args) -> true
+                  | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
+                  | TArray(t, Some exp, args) -> true
+                  | _ -> false
+                in
+                let b = Mem e, NoOffset in (* base pointer *)
+                let t = Cilfacade.typeOfLval b in (* static type of base *)
+                let p = eval_lv oa gs ost b in (* abstract base addresses *)
+                let v = (* abstract base value *)
+                  let open Addr in
+                  (* pre VLA: *)
+                  (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+                  let cast_ok = function
+                    | Addr (x, o) ->
+                      begin
+                        let at = get_type_addr (x, o) in
+                        if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+                        if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
+                          true
+                        else
+                          match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
+                          | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+                          | _ ->
+                            if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                              begin
+                                (* TODO: Is this ok? *)
+                                M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                                true
+                              end
+                            else
+                              false
+                      end
+                    | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
                     | _ -> false
                   in
-                  let b = Mem e, NoOffset in (* base pointer *)
-                  let t = Cilfacade.typeOfLval b in (* static type of base *)
-                  let p = eval_lv oa gs ost b in (* abstract base addresses *)
-                  let v = (* abstract base value *)
-                    let open Addr in
-                    (* pre VLA: *)
-                    (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
-                    let cast_ok = function
-                      | Addr (x, o) ->
-                        begin
-                          let at = get_type_addr (x, o) in
-                          if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
-                          if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
-                            true
-                          else
-                            match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-                            | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                            | _ ->
-                              if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                                begin
-                                  (* TODO: Is this ok? *)
-                                  M.info ~category:Unsound "Casting involving a VLA is assumed to work";
-                                  true
-                                end
-                              else
-                                false
-                        end
-                      | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
-                      | _ -> false
-                    in
-                    if AD.for_all cast_ok p then
-                      get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
-                    else
-                      VD.top () (* upcasts not! *)
-                  in
-                  let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-                  if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-                  let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
-                  let v' = do_offs v' ofs in (* handle blessed fields? *)
-                  v'
-              in
-              let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
-              match x with
-              | Var var, o ->
-                (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-                let oldv = get_var a gs st var in
-                let oldv = if VD.is_bot oldv then VD.top_value var.vtype else oldv in
-                let offs = convert_offset oa gs ost o in
-                let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
-                let v = VD.meet oldv newv in
-                if is_some_bot v then raise Deadcode
-                else (
-                  if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
-                  let r = set' (Var var,NoOffset) v st in
-                  if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
-                  r
-                )
-              | Mem _, _ ->
-                (* For accesses via pointers, not yet *)
-                let oldv = eval_rv_lval x st in
-                let oldv = if VD.is_bot oldv then VD.top_value (Cilfacade.typeOfLval x) else oldv in
-                let v = VD.meet oldv c' in
-                if is_some_bot v then raise Deadcode
-                else (
-                  if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
-                  set' x v st
-                )
+                  if AD.for_all cast_ok p then
+                    get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
+                  else
+                    VD.top () (* upcasts not! *)
+                in
+                let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+                if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+                let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+                let v' = do_offs v' ofs in (* handle blessed fields? *)
+                v'
+            in
+            let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+            match x with
+            | Var var, o ->
+              (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
+              let oldv = get_var a gs st var in
+              let oldv = if VD.is_bot oldv then VD.top_value var.vtype else oldv in
+              let offs = convert_offset oa gs ost o in
+              let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+              let v = VD.meet oldv newv in
+              if is_some_bot v then raise Deadcode
+              else (
+                if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+                let r = set' (Var var,NoOffset) v st in
+                if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
+                r
+              )
+            | Mem _, _ ->
+              (* For accesses via pointers, not yet *)
+              let oldv = eval_rv_lval x st in
+              let oldv = if VD.is_bot oldv then VD.top_value (Cilfacade.typeOfLval x) else oldv in
+              let v = VD.meet oldv c' in
+              if is_some_bot v then raise Deadcode
+              else (
+                if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+                set' x v st
+              )
 
-            (* all evals happen in octx with non-top values *)
-            (* must be down here to make evals in refines call the real ones *)
+          (* all evals happen in octx with non-top values *)
+          (* must be down here to make evals in refines call the real ones *)
 
-            let eval_rv a gs st e = eval_rv oa gs ost e
-            let eval_rv_address a gs st e = eval_rv_address oa gs ost e
-            let eval_lv a gs st lv = eval_lv oa gs ost lv
+          let eval_rv a gs st e = eval_rv oa gs ost e
+          let eval_rv_address a gs st e = eval_rv_address oa gs ost e
+          let eval_lv a gs st lv = eval_lv oa gs ost lv
 
-            (* don't meet with current octx values when propagating inverse operands down *)
-            let id_meet_down ~old ~c = c
-            let fd_meet_down ~old ~c = c
-          end
-          in
-          let module Unassume = BaseInvariant.Make (UnassumeEval) in
-          try
-            Unassume.invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
-          with Deadcode -> (* contradiction in unassume *)
-            D.bot ()
+          (* don't meet with current octx values when propagating inverse operands down *)
+          let id_meet_down ~old ~c = c
+          let fd_meet_down ~old ~c = c
+        end
         in
-        let f local = D.join ctx.local (f local) in (* join ctx.local to remain sound *)
-        let module DFP = LocalFixpoint.Make (D) in
-        if M.tracing then M.traceli "unassume" "base unassuming\n";
-        let r = DFP.lfp ~init:ctx.local f in (* start from ctx.local instead of D.bot () to avoid invariant on bot *)
-        if M.tracing then M.traceu "unassume" "base unassumed\n";
-        r
+        let module Unassume = BaseInvariant.Make (UnassumeEval) in
+        try
+          Unassume.invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
+        with Deadcode -> (* contradiction in unassume *)
+          D.bot ()
       in
-      M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
-      M.debug ~category:Witness "base unassumed state: %a" D.pretty e_d;
-      e_d (* ctx.local is joined in above *)
-    )
-    else (
-      M.info ~category:Witness "base didn't unassume invariant: %a" d_exp e;
-      ctx.local (* TODO: support unassume with globals *)
-    )
+      let f local = D.join ctx.local (f local) in (* join ctx.local to remain sound *)
+      let module DFP = LocalFixpoint.Make (D) in
+      if M.tracing then M.traceli "unassume" "base unassuming\n";
+      let r = DFP.lfp ~init:ctx.local f in (* start from ctx.local instead of D.bot () to avoid invariant on bot *)
+      if M.tracing then M.traceu "unassume" "base unassumed\n";
+      r
+    in
+    M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
+    M.debug ~category:Witness "base unassumed state: %a" D.pretty e_d;
+    e_d (* ctx.local is joined in above *)
 
   let event ctx e octx =
     let st: store = ctx.local in
