@@ -376,12 +376,20 @@ struct
     include VarinfoV (* [g]' *)
     let name () = "unprotected"
     let show x = show x ^ ":unprotected" (* distinguishable variant names for html *)
+    include Printable.SimpleShow (struct
+        type nonrec t = t
+        let show = show
+      end)
   end
   module VProt =
   struct
     include VarinfoV (* [g] *)
     let name () = "protected"
     let show x = show x ^ ":protected" (* distinguishable variant names for html *)
+    include Printable.SimpleShow (struct
+        type nonrec t = t
+        let show = show
+      end)
   end
   module V =
   struct
