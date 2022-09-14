@@ -210,6 +210,7 @@ struct
         AD.assert_inv apr' e' (not b)
       )
     in
+    (* TODO: Why doesn't this have to invoke Priv.write_global ~invariant:true like base? *)
     if AD.is_bot_env res then raise Deadcode;
     {st with apr = res}
 
