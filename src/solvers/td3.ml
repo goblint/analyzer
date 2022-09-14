@@ -629,6 +629,9 @@ module WP =
         delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
         delete_marked dep;
+        delete_marked dep_vals; (* very basic fix for incremental runs with aborting such that unknowns of function
+                                   return nodes with changed rhs but same id are actually evaluated and not looked up
+                                   (this is probably not sufficient / desirable for inefficient matchings) *)
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
         if restart_sided then (
