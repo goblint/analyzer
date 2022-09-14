@@ -2360,7 +2360,7 @@ struct
       let f st =
         (* TODO: start with empty vars because unassume may unassume values for pointed variables not in the invariant exp *)
         let local: D.t = {ctx.local with cpa = CPA.bot ()} in
-        let octx = ctx_with_local ~single:false st in (* original ctx with non-top values *)
+        let octx = ctx_with_local ~single:false (D.join ctx.local st) in (* original ctx with non-top values *)
         (* TODO: deduplicate with invariant *)
         let ctx = ctx_with_local ~single:true local in
         let module UnassumeEval =
@@ -2511,16 +2511,23 @@ struct
         with Deadcode -> (* contradiction in unassume *)
           D.bot ()
       in
-      let f local = D.join ctx.local (f local) in (* join ctx.local to remain sound *)
       let module DFP = LocalFixpoint.Make (D) in
       if M.tracing then M.traceli "unassume" "base unassuming\n";
-      let r = DFP.lfp ~init:ctx.local f in (* start from ctx.local instead of D.bot () to avoid invariant on bot *)
+      let r = DFP.lfp f in
       if M.tracing then M.traceu "unassume" "base unassumed\n";
       r
     in
     M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
     M.debug ~category:Witness "base unassumed state: %a" D.pretty e_d;
-    e_d (* ctx.local is joined in above *)
+    (* Perform actual [set]-s with final unassumed values.
+       This invokes [Priv.write_global], which was suppressed above. *)
+    let e_d' =
+      CPA.fold (fun x v acc ->
+          let addr: AD.t = AD.from_var_offset (x, `NoOffset) in
+          set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false ctx.global acc addr x.vtype v
+        ) e_d.cpa ctx.local
+    in
+    D.join ctx.local e_d'
 
   let event ctx e octx =
     let st: store = ctx.local in
