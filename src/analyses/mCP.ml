@@ -205,7 +205,7 @@ struct
         let octx'' = outer_ctx "do_emits" ~spawns ~sides ~emits octx in
         let f post_all (n,(module S:MCPSpec),(d,od)) =
           let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
-          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n d in
+          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
           n, repr @@ S.event ctx' e octx'
         in
         let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
