@@ -566,13 +566,15 @@ struct
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, apron privatization unsound"; (* TODO: something more sound *)
-      Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+      WideningTokens.with_local_side_tokens (fun () ->
+          Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+        )
     (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
-    | Events.Unassume {exp = e; _} ->
+    | Events.Unassume {exp = e; uuids} ->
       let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
       let e = replace_deref_exps ctx.ask e in
@@ -585,10 +587,13 @@ struct
       let apr = AD.keep_vars apr (List.map V.local vars) in (* restrict *)
 
       (* TODO: parallel write_global? *)
-      let st = VH.fold (fun v v_in st ->
-          (* TODO: is this sideg fine? *)
-          write_global ask ctx.global ctx.sideg st v v_in
-        ) v_ins {ctx.local with apr}
+      let st =
+        WideningTokens.with_side_tokens' (WideningTokens.TS.of_list uuids) (fun () ->
+            VH.fold (fun v v_in st ->
+              (* TODO: is this sideg fine? *)
+              write_global ask ctx.global ctx.sideg st v v_in
+            ) v_ins {ctx.local with apr}
+          )
       in
       let apr = AD.remove_vars st.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
 
@@ -616,7 +621,9 @@ struct
       let new_value = AD.join old_value st in
       RH.replace results ctx.node new_value;
     end;
-    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+    WideningTokens.with_local_side_tokens (fun () ->
+        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+      )
 
   let init marshal =
     Priv.init ()
