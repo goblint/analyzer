@@ -2312,7 +2312,7 @@ struct
     (* D.join ctx.local @@ *)
     ctx.local
 
-  let unassume (ctx: (D.t, _, _, _) ctx) e =
+  let unassume (ctx: (D.t, _, _, _) ctx) e uuids =
     (* TODO: structural unassume instead of invariant hack *)
     let e_d =
       let ctx_with_local ~single local =
@@ -2527,7 +2527,7 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      WideningTokens.with_side_token (CilType.Exp.show e) (fun () ->
+      WideningTokens.with_side_tokens' (WideningTokens.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.from_var_offset (x, `NoOffset) in
               set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false ctx.global acc addr x.vtype v
@@ -2555,8 +2555,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
-    | Events.Unassume e ->
-      unassume ctx e
+    | Events.Unassume {exp; uuids} ->
+      unassume ctx exp uuids
     | _ ->
       ctx.local
 end

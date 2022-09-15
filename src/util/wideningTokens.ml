@@ -30,6 +30,13 @@ let with_side_tokens ts f =
       side_tokens := old_side_tokens
     ) f
 
+let with_side_tokens' ts f =
+  let old_side_tokens = !side_tokens in
+  side_tokens := TS.join ts old_side_tokens;
+  Fun.protect ~finally:(fun () ->
+      side_tokens := old_side_tokens
+    ) f
+
 let local_tokens: TS.t ref = ref (TS.bot ())
 
 let with_local_tokens ts f =

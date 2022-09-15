@@ -572,7 +572,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
-    | Events.Unassume e ->
+    | Events.Unassume {exp = e; _} ->
       let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
       let e = replace_deref_exps ctx.ask e in

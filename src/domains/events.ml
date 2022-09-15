@@ -9,7 +9,7 @@ type t =
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
   | Access of {var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Access varinfo (unknown if None). *)
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *)
-  | Unassume of exp
+  | Unassume of {exp: CilType.Exp.t; uuids: string list}
 
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
@@ -20,4 +20,4 @@ let pretty () = function
   | AssignSpawnedThread (lval, tid) -> dprintf "AssignSpawnedThread (%a, %a)" d_lval lval ThreadIdDomain.Thread.pretty tid
   | Access {var_opt; kind} -> dprintf "Access {var_opt=%a, kind=%a}" (docOpt (CilType.Varinfo.pretty ())) var_opt AccessKind.pretty kind
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
-  | Unassume e -> dprintf "Unassume %a" d_exp e
+  | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids

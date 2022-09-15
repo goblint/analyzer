@@ -26,10 +26,15 @@ struct
 
   let locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
 
-  let invs: Cil.exp NH.t = NH.create 100
+  type inv = {
+    exp: Cil.exp;
+    uuid: string;
+  }
+
+  let invs: inv NH.t = NH.create 100
 
   let fun_pres: Cil.exp FH.t = FH.create 100
-  let pre_invs: Cil.exp EH.t NH.t = NH.create 100
+  let pre_invs: inv EH.t NH.t = NH.create 100
 
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
@@ -77,6 +82,7 @@ struct
     NH.clear pre_invs;
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
+      let uuid = entry.metadata.uuid in
 
       let unassume_nodes_invariant ~loc ~nodes inv =
         let msgLoc: M.Location.t = CilLocation loc in
@@ -89,7 +95,7 @@ struct
               match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
-                NH.add invs n inv_exp
+                NH.add invs n {exp = inv_exp; uuid}
               | Error e ->
                 M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
                 M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
@@ -130,7 +136,7 @@ struct
                     M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
                       NH.replace pre_invs n (EH.create 10);
-                    EH.add (NH.find pre_invs n) pre_exp inv_exp
+                    EH.add (NH.find pre_invs n) pre_exp {exp = inv_exp; uuid}
                   | Error e ->
                     M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
                     M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
@@ -188,9 +194,10 @@ struct
     in
     begin match es with
       | x :: xs ->
-        let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
-        ctx.emit (Unassume e);
-        WideningTokens.perform (CilType.Exp.show e)
+        let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
+        let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
+        ctx.emit (Unassume {exp = e; uuids});
+        List.iter WideningTokens.perform uuids
       | [] ->
         ()
     end;
