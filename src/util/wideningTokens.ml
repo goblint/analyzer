@@ -30,6 +30,17 @@ let with_side_tokens ts f =
       side_tokens := old_side_tokens
     ) f
 
+let local_tokens: TS.t ref = ref (TS.bot ())
+
+let with_local_tokens ts f =
+  let old_local_tokens = !local_tokens in
+  local_tokens := ts;
+  Fun.protect ~finally:(fun () ->
+      local_tokens := old_local_tokens
+    ) f
+
+let with_local_side_tokens f =
+  with_side_tokens !local_tokens f
 
 open Prelude
 open Analyses
@@ -94,13 +105,15 @@ struct
     { ctx with local = D.unlift ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es)
              ; global = (fun g -> G.unlift (ctx.global g))
-             ; sideg = (fun v g -> ctx.sideg v (g, TS.join (snd ctx.local) !side_tokens))
+             ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens))
     }
 
   let lift_fun ctx f g h =
     let ts = ref (snd ctx.local) in
     let d = handle ~with_:(fun t -> ts := TS.add t !ts) (fun () ->
-        h (g (conv ctx))
+        with_local_tokens (snd ctx.local) (fun () ->
+            h (g (conv ctx))
+          )
       )
     in
     f d !ts
