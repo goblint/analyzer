@@ -52,43 +52,41 @@ let with_local_side_tokens f =
 open Prelude
 open Analyses
 
+module Dom (D: Lattice.S) =
+struct
+  include Lattice.Prod (D) (TS)
+  let unlift (d, _) = d
+  let lift d = (d, TS.bot ())
+
+  let leq (d1, t1) (d2, t2) =
+    D.leq d1 d2 (* ignore tokens for order *)
+
+  (* join also joins tokens *)
+
+  let widen (d1, t1) (d2, t2) =
+    let d' = if TS.is_empty (TS.diff t2 t1) then
+        D.widen d1 d2
+      else
+        D.join d1 d2
+    in
+    (d', TS.join t1 t2)
+end
+
 module Lifter (S: Spec): Spec =
 struct
   module D =
   struct
-    include Lattice.Prod (S.D) (TS)
-    let unlift (d, _) = d
-    let lift d = (d, TS.bot ())
+    include Dom (S.D)
 
     let printXml f (d, t) =
-      (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
       BatPrintf.fprintf f "\n%a<path><analysis name=\"tokens\">%a</analysis></path>" S.D.printXml d TS.printXml t
-
-    let widen (d1, t1) (d2, t2) =
-      let d' = if TS.is_empty (TS.diff t2 t1) then
-          S.D.widen d1 d2
-        else
-          S.D.join d1 d2
-      in
-      (d', TS.join t1 t2)
   end
   module G =
   struct
-    include Lattice.Prod (S.G) (TS)
-    let unlift (d, _) = d
-    let lift d = (d, TS.bot ())
+    include Dom (S.G)
 
     let printXml f (d, t) =
-      (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
       BatPrintf.fprintf f "\n%a<analysis name=\"tokens\">%a</analysis>" S.G.printXml d TS.printXml t
-
-    let widen (d1, t1) (d2, t2) =
-      let d' = if TS.is_empty (TS.diff t2 t1) then
-          S.G.widen d1 d2
-        else
-          S.G.join d1 d2
-      in
-      (d', TS.join t1 t2)
   end
   module C = S.C
   module V = S.V
