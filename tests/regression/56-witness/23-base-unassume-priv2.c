@@ -7,7 +7,7 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A);
-  assert(1); // TODO: fix Lock and Unassume event order so this extra node isn't necessary
+
   if (g < 10)
     g++;
   pthread_mutex_unlock(&A);

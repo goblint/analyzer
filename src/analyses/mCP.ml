@@ -171,10 +171,13 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
-    let split_one n (d,emits) =
+  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) emits =
+    let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
-      ctx.split (do_emits ctx emits nv) []
+      (* Do split-specific emits before general emits.
+         [emits] and [do_emits] are in reverse order.
+         [emits'] is in normal order. *)
+      ctx.split (do_emits ctx (emits @ List.rev emits') nv) []
     in
     iter (uncurry split_one) xs
 
@@ -212,11 +215,14 @@ struct
         if M.tracing then M.tracel "event" "%a\n  before: %a\n  after:%a\n" Events.pretty e D.pretty ctx.local D.pretty d;
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
-        do_splits ctx d !splits;
+        do_splits ctx d !splits !emits;
         let d = do_emits ctx !emits d in
         if q then raise Deadcode else ctx_with_local ctx d
     in
-    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) emits in
+    if M.tracing then M.traceli "event" "do_emits:\n";
+    (* [emits] is in reverse order. *)
+    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) (List.rev emits) in
+    if M.tracing then M.traceu "event" "\n";
     ctx'.local
 
   and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
@@ -232,7 +238,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -307,7 +313,7 @@ struct
       | None -> (fun v g       -> failwith ("Cannot \"sideg\" in " ^ tfname ^ " context."))
     in
     let emit = match emits with
-      | Some emits -> (fun e -> emits := e :: !emits)
+      | Some emits -> (fun e -> emits := e :: !emits) (* [emits] is in reverse order. *)
       | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
     in
     let querycache = Queries.Hashtbl.create 13 in
@@ -346,7 +352,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -364,7 +370,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -381,7 +387,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -398,7 +404,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -416,7 +422,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -433,7 +439,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -450,7 +456,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -467,7 +473,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
