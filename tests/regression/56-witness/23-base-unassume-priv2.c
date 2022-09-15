@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 23-base-unassume-priv2.yml --set solvers.td3.side_widen always
+// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 23-base-unassume-priv2.yml --set solvers.td3.side_widen always
 #include <pthread.h>
 #include <assert.h>
 
@@ -20,7 +20,7 @@ int main() {
 
   pthread_mutex_lock(&A);
   assert(g >= 0);
-  assert(g <= 10); // TODO: widening tokens on globals
+  assert(g <= 10);
   pthread_mutex_unlock(&A);
   return 0;
 }

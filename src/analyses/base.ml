@@ -2522,10 +2522,12 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      CPA.fold (fun x v acc ->
-          let addr: AD.t = AD.from_var_offset (x, `NoOffset) in
-          set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false ctx.global acc addr x.vtype v
-        ) e_d.cpa ctx.local
+      WideningTokens.with_side_token (CilType.Exp.show e) (fun () ->
+          CPA.fold (fun x v acc ->
+              let addr: AD.t = AD.from_var_offset (x, `NoOffset) in
+              set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false ctx.global acc addr x.vtype v
+            ) e_d.cpa ctx.local
+        )
     in
     D.join ctx.local e_d'
 
