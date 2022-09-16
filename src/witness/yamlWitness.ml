@@ -203,8 +203,9 @@ struct
 
     let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
+      M.warn_noloc ~category:Witness ~tags:[Category Analyzer] "Not filtering synthetic locations!";
       match n with
-      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n -> true
+      | Statement _ when (* not loc.synthetic && *) WitnessInvariant.is_invariant_node n -> true
       | _ ->
         (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
         false

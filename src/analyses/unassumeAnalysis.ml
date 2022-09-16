@@ -45,6 +45,7 @@ struct
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
+        (* TODO: filter synthetic like in Validator *)
         Locator.add !locator (Node.location node) node;
         List.iter (fun (_, prev_node) ->
             iter_node prev_node

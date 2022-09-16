@@ -65,7 +65,10 @@
       "enabled": true
     },
     "invariant": {
-      "exact": false
+      "exact": false,
+      "loop-head": true,
+      "after-lock": false,
+      "other": false
     }
   },
   "solver": "td3",
