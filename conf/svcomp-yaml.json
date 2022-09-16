@@ -59,8 +59,7 @@
     "region-offsets": true
   },
   "witness": {
-    "id": "enumerate",
-    "unknown": false,
+    "enabled": false,
     "yaml": {
       "enabled": true
     },
