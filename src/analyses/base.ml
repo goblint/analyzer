@@ -2319,48 +2319,56 @@ struct
         (* The usual recursion trick for ctx. *)
         (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
         (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
-        let rec ctx' asked =
+        let rec ctx' ~querycache asked =
           { ctx with
-            ask = (fun (type a) (q: a Queries.t) -> query' asked q)
+            ask = (fun (type a) (q: a Queries.t) -> query' ~querycache asked q)
           ; local
           }
-        and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
+        and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> a Queries.t -> a Queries.result = fun ~querycache asked q ->
           let anyq = Queries.Any q in
-          if Queries.Set.mem anyq asked then
-            Queries.Result.top q (* query cycle *)
-          else (
-            let asked' = Queries.Set.add anyq asked in
-            match q with
-            | MustBeSingleThreaded when single -> true
-            | MayEscape _
-            | MayBePublic _
-            | MayBePublicWithout _
-            | MustBeProtectedBy _
-            | MustLockset
-            | MustBeAtomic
-            | MustBeSingleThreaded
-            | MustBeUniqueThread
-            | CurrentThreadId
-            | MayBeThreadReturn
-            | PartAccess _
-            | IsHeapVar _
-            | IsMultiple _
-            | CreatedThreads
-            | MustJoinedThreads ->
-              (* These queries are safe to ask from outside,
-                where base doesn't have the partial top local state.
-                They are also needed for sensible eval behavior via [inv_exp]
-                such that everything wouldn't be may escaped. *)
-              ctx.ask q
-            | _ ->
-              (* Other queries are not safe, because they would
-                query the local value state instead of top.
-                Therefore, these are answered only by base on the
-                partial top local state. *)
-              query (ctx' asked') q
+          match Queries.Hashtbl.find_option querycache anyq with
+          | Some r -> Obj.obj r
+          | None ->
+            if Queries.Set.mem anyq asked then
+              Queries.Result.top q (* query cycle *)
+            else (
+              let asked' = Queries.Set.add anyq asked in
+              let r: a Queries.result =
+                match q with
+                | MustBeSingleThreaded when single -> true
+                | MayEscape _
+                | MayBePublic _
+                | MayBePublicWithout _
+                | MustBeProtectedBy _
+                | MustLockset
+                | MustBeAtomic
+                | MustBeSingleThreaded
+                | MustBeUniqueThread
+                | CurrentThreadId
+                | MayBeThreadReturn
+                | PartAccess _
+                | IsHeapVar _
+                | IsMultiple _
+                | CreatedThreads
+                | MustJoinedThreads ->
+                  (* These queries are safe to ask from outside,
+                    where base doesn't have the partial top local state.
+                    They are also needed for sensible eval behavior via [inv_exp]
+                    such that everything wouldn't be may escaped. *)
+                  ctx.ask q
+                | _ ->
+                  (* Other queries are not safe, because they would
+                    query the local value state instead of top.
+                    Therefore, these are answered only by base on the
+                    partial top local state. *)
+                  query (ctx' ~querycache asked') q
+              in
+              Queries.Hashtbl.replace querycache anyq (Obj.repr r);
+              r
           )
         in
-        ctx' Queries.Set.empty
+        let querycache = Queries.Hashtbl.create 13 in
+        ctx' ~querycache Queries.Set.empty
       in
       let f st =
         (* TODO: start with empty vars because unassume may unassume values for pointed variables not in the invariant exp *)
@@ -2556,7 +2564,7 @@ struct
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
     | Events.Unassume {exp; uuids} ->
-      unassume ctx exp uuids
+      Stats.time "base unassume" (unassume ctx exp) uuids
     | _ ->
       ctx.local
 end
