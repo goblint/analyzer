@@ -60,8 +60,7 @@
     "region-offsets": true
   },
   "witness": {
-    "id": "enumerate",
-    "unknown": false
+    "enabled": false
   },
   "solver": "td3",
   "sem": {
