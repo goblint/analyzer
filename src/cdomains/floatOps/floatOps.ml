@@ -42,7 +42,7 @@ let big_int_of_float f =
   let x' = x *. Float.pow 2. (Float.of_int shift) in
   Big_int_Z.mult_big_int
     (Big_int_Z.big_int_of_int64 (Int64.of_float x'))
-    (Big_int_Z.power_int_positive_int 2 (n - shift))
+    (Big_int_Z.shift_left_big_int Big_int_Z.unit_big_int (n - shift))
 
 module CDouble = struct
   type t = float [@@deriving eq, ord, to_yojson]
