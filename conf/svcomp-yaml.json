@@ -65,6 +65,9 @@
     },
     "invariant": {
       "exact": false,
+      "loop-head": true,
+      "after-lock": false,
+      "other": false,
       "exclude-vars": [
         "tmp\\(___[0-9]+\\)?",
         "cond",

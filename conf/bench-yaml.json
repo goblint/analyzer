@@ -47,6 +47,9 @@
     },
     "invariant": {
       "exact": false,
+      "loop-head": true,
+      "after-lock": true,
+      "other": false,
       "exclude-vars": [
         "tmp\\(___[0-9]+\\)?",
         "cond",
