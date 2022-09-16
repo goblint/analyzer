@@ -842,8 +842,11 @@ struct
   let invariant_ikind e ik x =
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      let x1 = Ints_t.to_bigint x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
+      if get_bool "witness.invariant.exact" then
+        let x1 = Ints_t.to_bigint x1 in
+        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
+      else
+        Invariant.top ()
     | Some (x1, x2) ->
       let open Invariant in
       let (min_ik, max_ik) = range ik in
@@ -1615,7 +1618,11 @@ struct
 
   let invariant_ikind e ik (x:t) =
     match x with
-    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
+    | `Definite x ->
+      if get_bool "witness.invariant.exact" then
+        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
+      else
+        Invariant.top ()
     | `Excluded (s, _) ->
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
@@ -2018,10 +2025,13 @@ module Enums : S with type int_t = BigInt.t = struct
   let invariant_ikind e ik x =
     match x with
     | Inc ps ->
-      List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-          Invariant.(a || i)
-        ) (Invariant.bot ()) (BISet.elements ps)
+      if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
+        List.fold_left (fun a x ->
+            let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
+            Invariant.(a || i)
+          ) (Invariant.bot ()) (BISet.elements ps)
+      else
+        Invariant.top ()
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
@@ -2470,8 +2480,11 @@ struct
   let invariant_ikind e ik x =
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
-      let c = Ints_t.to_bigint c in
-      Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
+      if get_bool "witness.invariant.exact" then
+        let c = Ints_t.to_bigint c in
+        Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
+      else
+        Invariant.top ()
     | Some (c, m) ->
       let open Cil in
       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
@@ -2908,8 +2921,11 @@ module IntDomTupleImpl = struct
   let invariant_ikind e ik x =
     match to_int x with
     | Some v ->
-      (* If definite, output single equality instead of every subdomain repeating same equality *)
-      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
+      if get_bool "witness.invariant.exact" then
+        (* If definite, output single equality instead of every subdomain repeating same equality *)
+        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
+      else
+        Invariant.top ()
     | None ->
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind e ik } x)
       in List.fold_left (fun a i ->
