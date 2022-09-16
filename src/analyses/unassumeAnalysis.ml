@@ -39,13 +39,16 @@ struct
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
     let module Cfg = (val !MyCFG.current_cfg) in
+    let module WitnessInvariant = WitnessUtil.Invariant (struct let file = !Cilfacade.current_file end) (Cfg) in
 
     (* DFS, copied from CfgTools.find_backwards_reachable *)
     let reachable = NH.create 100 in
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
-        Locator.add !locator (Node.location node) node;
+        (* TODO: filter synthetic like in Validator *)
+        if WitnessInvariant.is_invariant_node node then
+          Locator.add !locator (Node.location node) node;
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
           ) (Cfg.prev node)
