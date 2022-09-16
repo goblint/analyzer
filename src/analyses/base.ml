@@ -675,7 +675,8 @@ struct
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
   and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_ask_mustbeequal a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
+    (* TODO: re-enable mustbeequal layer *)
+    eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
 
   (** Evaluate expression using MustBeEqual query.
       Otherwise just delegate to next eval_rv function. *)
