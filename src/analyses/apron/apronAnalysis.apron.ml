@@ -526,6 +526,7 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context ->
+      (* TODO: witness.invariant.exact *)
       query_invariant ctx context
     | _ -> Result.top q
 

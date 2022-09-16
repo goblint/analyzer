@@ -1998,6 +1998,12 @@
                 "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
               "type": "boolean",
               "default": true
+            },
+            "exact": {
+              "title": "witness.invariant.exact",
+              "description": "Emit exact invariants. They are useless for unassuming.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
