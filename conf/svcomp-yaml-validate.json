@@ -60,7 +60,12 @@
     "region-offsets": true
   },
   "witness": {
-    "enabled": false
+    "enabled": false,
+    "invariant": {
+      "loop-head": true,
+      "after-lock": false,
+      "other": false
+    }
   },
   "solver": "td3",
   "sem": {
