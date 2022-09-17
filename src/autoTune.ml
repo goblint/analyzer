@@ -309,7 +309,7 @@ let selectArrayDomains file =
   set_bool "annotation.array" true;
   let thisVisitor = new addTypeAttributeVisitor in
   ignore (visitCilFileSameGlobals thisVisitor file)
-  (*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
+(*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
 
 
 (*option that can be selected based on value/cost*)
