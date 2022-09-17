@@ -444,7 +444,7 @@ let loop_unrolling_factor loopStatement func =
   let loopStats = AutoTune.collectFactors visitCilStmt loopStatement in
   let targetFactor = if loopStats.instructions > 0 then targetInstructions / loopStats.instructions else 0 in (* Don't unroll empty (= while(1){}) loops*)
   let fixedLoop = fixedLoopSize loopStatement func in
-  if  get_bool "ana.autotune.enabled" && List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated" then 
+  if AutoTune.isActivated "loopUnrollHeuristic" then 
     match fixedLoop with 
     | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else 100 / loopStats.instructions
     | _ -> targetFactor
@@ -525,7 +525,7 @@ let createCFG (fileAST: file) =
       match glob with
       | GFun(fd,_) ->
         (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 || (get_bool "ana.autotune.enabled" && List.mem "loopUnrollHeuristic" @@ get_string_list "ana.autotune.activated") then loop_unrolling fd;
+        if (get_int "exp.unrolling-factor")>0 || AutoTune.isActivated "loopUnrollHeuristic" then loop_unrolling fd;
         prepareCFG fd;
         computeCFGInfo fd true
       | _ -> ()

@@ -76,13 +76,13 @@ let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
     Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
 
 let upper_thresholds () = 
-  let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u;;
+  let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u
 
 let lower_thresholds () = 
-  let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l;;
+  let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l
 
 let octagon_thresholds () = 
-  let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o;;
+  let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o
 
 (*old version. is there anything this has that the new one does not?*)
 

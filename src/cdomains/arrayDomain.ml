@@ -893,13 +893,13 @@ struct
 
   let name () = "AttributeConfiguredArrayDomain"
 
-  let bot () = print_endline @@ "bot"; to_t @@ match get_domain () with
+  let bot () = to_t @@ match get_domain () with
     | "partitioned" -> (Some (P.bot ()), None, None)
     | "trivial" -> (None, Some (T.bot ()), None)
     | "unroll" ->  (None, None, Some (U.bot ()))
     | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in bot "
 
-  let top () = print_endline @@ "top" ; to_t @@ match get_domain () with
+  let top () = to_t @@ match get_domain () with
     | "partitioned" -> (Some (P.top ()), None, None)
     | "trivial" -> (None, Some (T.top ()), None)
     | "unroll" -> (None, None, Some (U.top ()))

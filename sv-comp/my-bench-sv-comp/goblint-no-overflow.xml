@@ -5,7 +5,7 @@
 
   <resultfiles>**.graphml</resultfiles>
 
-  <option name="--conf">conf/svcomp22.json</option>
+  <option name="--conf">conf/svcomp.json</option>
 
 <!-- <rundefinition name="sv-comp20_prop-reachsafety">
   <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">

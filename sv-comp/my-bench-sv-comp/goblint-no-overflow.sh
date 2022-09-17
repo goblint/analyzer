@@ -2,9 +2,9 @@
 
 shopt -s extglob
 
-MYBENCHDIR=//mnt/goblint-svcomp/sv-comp/goblint/sv-comp/my-bench-sv-comp
-RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/no-overflow-autoselect-true
-GOBLINTPARALLEL=3
+MYBENCHDIR=/mnt/goblint-svcomp/benchexec/my-bench-sv-comp
+RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/no-overflow
+GOBLINTPARALLEL=14
 
 mkdir $RESULTSDIR
 
