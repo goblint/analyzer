@@ -319,8 +319,8 @@ type typeOfError =
   | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__/__imag__ *)
   | StartOf_NonArray (** typeOf: StartOf on a non-array *)
   | Mem_NonPointer of exp (** typeOfLval: Mem on a non-pointer (exp) *)
-  | Index_NonArray (** typeOffset: Index on a non-array *)
-  | Field_NonCompound (** typeOffset: Field on a non-compound *)
+  | Index_NonArray of exp * typ (** typeOffset: Index on a non-array *)
+  | Field_NonCompound of fieldinfo * typ (** typeOffset: Field on a non-compound *)
 
 exception TypeOfError of typeOfError
 
@@ -330,8 +330,8 @@ let () = Printexc.register_printer (function
         | RealImag_NonNumerical -> "unexpected non-numerical type for argument to __real__/__imag__"
         | StartOf_NonArray -> "typeOf: StartOf on a non-array"
         | Mem_NonPointer exp -> Printf.sprintf "typeOfLval: Mem on a non-pointer (%s)" (CilType.Exp.show exp)
-        | Index_NonArray -> "typeOffset: Index on a non-array"
-        | Field_NonCompound -> "typeOffset: Field on a non-compound"
+        | Index_NonArray (e, typ) -> Printf.sprintf "typeOffset: Index on a non-array (%s, %s)" (CilType.Exp.show e) (CilType.Typ.show typ)
+        | Field_NonCompound (fi, typ) -> Printf.sprintf "typeOffset: Field on a non-compound (%s, %s)" (CilType.Fieldinfo.show fi) (CilType.Typ.show typ)
       in
       Some (Printf.sprintf "Cilfacade.TypeOfError(%s)" msg)
     | _ -> None (* for other exceptions *)
@@ -412,19 +412,19 @@ and typeOffset basetyp =
   in
   function
     NoOffset -> basetyp
-  | Index (_, o) -> begin
+  | Index (e, o) -> begin
       match unrollType basetyp with
         TArray (t, _, baseAttrs) ->
         let elementType = typeOffset t o in
         blendAttributes baseAttrs elementType
-      | t -> raise (TypeOfError Index_NonArray)
+      | t -> raise (TypeOfError (Index_NonArray (e, t)))
     end
   | Field (fi, o) ->
     match unrollType basetyp with
       TComp (_, baseAttrs) ->
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
-    | _ -> raise (TypeOfError Field_NonCompound)
+    | t -> raise (TypeOfError (Field_NonCompound (fi, t)))
 
 
 (** {!Cil.mkCast} using our {!typeOf}. *)
