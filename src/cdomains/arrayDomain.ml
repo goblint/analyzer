@@ -10,6 +10,35 @@ module BI = IntOps.BigIntOps
 
 module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
 
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
+
+(* determines the domain based on variable, type and flag *)
+let get_domain ~varAttr ~typAttr =
+  let domain_from_string = function
+    | "partitioned" -> PartitionedDomain
+    | "trivial" -> TrivialDomain
+    | "unroll" ->  UnrolledDomain
+    | _ -> failwith "AttributeConfiguredArrayDomain: invalid option for domain"
+  in
+  (*TODO add options?*)
+  (*TODO let attribute determine unrolling factor?*)
+  let from_attributes = List.find_map (
+      fun (Attr (s,ps) )->
+        if s = "goblint_array_domain" then (
+          List.find_map (fun p -> match p with
+              | AStr x -> Some x
+              | _ -> None
+            ) ps
+        )
+        else None
+    ) in
+  if get_bool "annotation.array" then
+    match from_attributes varAttr, from_attributes typAttr with
+    | Some x, _ -> domain_from_string x
+    | _, Some x -> domain_from_string x
+    | _ -> domain_from_string @@ get_string "ana.base.arrays.domain"
+  else domain_from_string @@ get_string "ana.base.arrays.domain"
+
 module type S =
 sig
   include Lattice.S
@@ -19,7 +48,6 @@ sig
   val get: ?checkBounds:bool -> Q.ask -> t -> ExpDomain.t * idx -> value
   val set: Q.ask -> t -> ExpDomain.t * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
-  val get_domain: ?varAttr:attributes -> ?typAttr:attributes -> unit -> string
   val length: t -> idx option
 
   val move_if_affected: ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
@@ -55,7 +83,6 @@ struct
   let get ?(checkBounds=true) (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
   let make ?(varAttr=[]) ?(typAttr=[])  i v = v
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "trivial"
   let length _ = None
 
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
@@ -140,7 +167,6 @@ struct
     let xl = BatList.make (factor ()) v in
     (xl,Val.bot ())
   let length _ = None
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "unroll"
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let map f (xl, xr) = ((List.map f xl), f xr)
@@ -522,8 +548,6 @@ struct
     else
       (Expp.top(), (v, v, v))
 
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "partitioned"
-
   let length _ = None
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
@@ -702,9 +726,6 @@ struct
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "trivial"
-
-
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x
@@ -744,7 +765,6 @@ struct
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "partitioned"
 
   let move_if_affected ?replace_with_const ask (x,l) v i =
     (Base.move_if_affected_with_length ?replace_with_const (Some l) ask x v i), l
@@ -793,7 +813,6 @@ struct
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "unroll"
   let length (_,l) = Some l
 
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
@@ -868,83 +887,65 @@ struct
   let smart_widen f g =  binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)
   let smart_leq f g = binop' (P.smart_leq f g) (T.smart_leq f g) (U.smart_leq f g)
   let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
-
-  (*determines the domain based on variable, type and flag*)
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () =
-    (*TODO add options?*)
-    (*TODO let attribute determine unrolling factor?*)
-    let from_attributes = List.find_map (
-        fun (Attr (s,ps) )->
-          if s = "goblint_array_domain" then (
-            List.find_map (fun p -> match p with
-                | AStr x -> Some x
-                | _ -> None
-              ) ps
-          )
-          else None
-      ) in
-    if get_bool "annotation.array" then
-      match from_attributes varAttr, from_attributes typAttr with
-      | Some x, _ -> x
-      | _, Some x -> x
-      | _ -> get_string "ana.base.arrays.domain"
-    else get_string "ana.base.arrays.domain"
-
   let name () = "AttributeConfiguredArrayDomain"
 
-  let bot () = to_t @@ match get_domain () with
-    | "partitioned" -> (Some (P.bot ()), None, None)
-    | "trivial" -> (None, Some (T.bot ()), None)
-    | "unroll" ->  (None, None, Some (U.bot ()))
-    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in bot "
+  let bot () = to_t @@ match get_domain ~varAttr:[] ~typAttr:[] with
+    | PartitionedDomain -> (Some (P.bot ()), None, None)
+    | TrivialDomain -> (None, Some (T.bot ()), None)
+    | UnrolledDomain ->  (None, None, Some (U.bot ()))
 
-  let top () = to_t @@ match get_domain () with
-    | "partitioned" -> (Some (P.top ()), None, None)
-    | "trivial" -> (None, Some (T.top ()), None)
-    | "unroll" -> (None, None, Some (U.top ()))
-    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in top "
+  let top () = to_t @@ match get_domain ~varAttr:[] ~typAttr:[] with
+    | PartitionedDomain -> (Some (P.top ()), None, None)
+    | TrivialDomain -> (None, Some (T.top ()), None)
+    | UnrolledDomain -> (None, None, Some (U.top ()))
 
-  let make ?(varAttr=[]) ?(typAttr=[]) i v = to_t @@  match get_domain ~varAttr ~typAttr () with
-    | "partitioned" -> (Some (P.make i v), None, None)
-    | "trivial" -> (None, Some (T.make i v), None)
-    | "unroll" -> (None, None, Some (U.make i v))
-    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in make"
+  let make ?(varAttr=[]) ?(typAttr=[]) i v = to_t @@  match get_domain ~varAttr ~typAttr with
+    | PartitionedDomain -> (Some (P.make i v), None, None)
+    | TrivialDomain -> (None, Some (T.make i v), None)
+    | UnrolledDomain -> (None, None, Some (U.make i v))
 
-  (*convert to another domain*)
+  (* convert to another domain *)
   let index_as_expression i = (`Lifted (Cil.integer i), Idx.of_int IInt (BI.of_int i))
+                              
   let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
+      
   let partitioned_of_unroll ask u =
-    (*We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly usefull?*)
+    (* We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly useful? *)
     let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ()))) in
     let p = P.make (Option.value (U.length u) ~default:(Idx.top ())) rest in
     let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i)) in
     let set_i p (i,v) =  P.set ask p (index_as_expression i) v in
     List.fold_left set_i p @@ List.init (factor ()) get_i
+      
   let trivial_of_partitioned ask p =
     let element = (P.get ~checkBounds:false ask p (ExpDomain.top (), Idx.top ()))
     in T.make (Option.value (P.length p) ~default:(Idx.top ())) element
+      
   let trivial_of_unroll ask u =
     let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) in
     let element = List.fold_left Val.join (get_i (factor ())) @@ List.init (factor ()) get_i in (*join all single elements and the element at  *)
     T.make (Option.value (U.length u) ~default:(Idx.top ())) element
+      
   let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
+      
   let unroll_of_partitioned ask p =
     let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i))) in
-    let rest = (P.get ~checkBounds:false ask p (ExpDomain.top (), Idx.top ())) in(*This could be more precise if we were able to compare this with the partition index, but we can not access it here*)
+    (* This could be more precise if we were able to compare this with the partition index, but we can not access it here *)
+    let rest = (P.get ~checkBounds:false ask p (ExpDomain.top (), Idx.top ())) in
     let u = U.make (Option.value (P.length p) ~default:(Idx.top ())) (Val.bot ()) in
     let set_i u (i,v) =  U.set ask u (index_as_expression i) v in
     set_i (List.fold_left set_i u unrolledValues) (factor (), rest)
 
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t:t) =
-    match get_domain ~varAttr ~typAttr (), t with
-    | "partitioned", (Some x, None) -> to_t @@ (Some x, None, None)
-    | "partitioned", (None, Some (Some x, None)) -> to_t @@ (Some (partitioned_of_trivial ask x), None, None)
-    | "partitioned", (None, Some (None, Some x)) -> to_t @@ (Some (partitioned_of_unroll ask x), None, None)
-    | "trivial", (Some x, None) -> to_t @@ (None, Some (trivial_of_partitioned ask x), None)
-    | "trivial", (None, Some (Some x, None)) -> to_t @@ (None, Some x, None)
-    | "trivial", (None, Some (None, Some x)) -> to_t @@ (None, Some (trivial_of_unroll ask x), None)
-    | "unroll", (Some x, None) -> to_t @@ (None, None, Some (unroll_of_partitioned ask x) )
-    | "unroll", (None, Some (Some x, None)) -> to_t @@ (None, None, Some (unroll_of_trivial ask x) )
-    | "unroll", (None, Some (None, Some x)) -> to_t @@ (None, None, Some x)
-    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in project"
+    match get_domain ~varAttr ~typAttr, t with
+    | PartitionedDomain, (Some x, None) -> to_t @@ (Some x, None, None)
+    | PartitionedDomain, (None, Some (Some x, None)) -> to_t @@ (Some (partitioned_of_trivial ask x), None, None)
+    | PartitionedDomain, (None, Some (None, Some x)) -> to_t @@ (Some (partitioned_of_unroll ask x), None, None)
+    | TrivialDomain, (Some x, None) -> to_t @@ (None, Some (trivial_of_partitioned ask x), None)
+    | TrivialDomain, (None, Some (Some x, None)) -> to_t @@ (None, Some x, None)
+    | TrivialDomain, (None, Some (None, Some x)) -> to_t @@ (None, Some (trivial_of_unroll ask x), None)
+    | UnrolledDomain, (Some x, None) -> to_t @@ (None, None, Some (unroll_of_partitioned ask x) )
+    | UnrolledDomain, (None, Some (Some x, None)) -> to_t @@ (None, None, Some (unroll_of_trivial ask x) )
+    | UnrolledDomain, (None, Some (None, Some x)) -> to_t @@ (None, None, Some x)
+    | _ ->  failwith "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
 end

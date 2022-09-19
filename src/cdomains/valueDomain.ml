@@ -150,13 +150,13 @@ struct
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
       let typAttr = typeAttrs ai in
-      let domain = CArrays.get_domain ~varAttr ~typAttr () in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (if (domain="partitioned" || domain="unroll") then (init_value ai) else (bot_value ai)))
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (init_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let typAttr = typeAttrs ai in
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      let domain = CArrays.get_domain ~varAttr ~typAttr () in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (domain="partitioned" || domain="unroll") then (init_value ai) else (bot_value ai)))
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
     | _ -> `Top
@@ -171,13 +171,13 @@ struct
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
       let typAttr = typeAttrs ai in
-      let domain = CArrays.get_domain ~varAttr ~typAttr () in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top ()) (if (domain="partitioned" || domain="unroll") then (top_value ai) else (bot_value ai)))
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top ()) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let typAttr = typeAttrs ai in
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      let domain = CArrays.get_domain ~varAttr ~typAttr () in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (domain="partitioned" || domain="unroll") then (top_value ai) else (bot_value ai)))
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> `Top
 

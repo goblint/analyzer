@@ -1,6 +1,11 @@
 open IntOps
 open GoblintCil
 
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
+
+val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
+(** gets the underlying domain: chosen by the attributes in AttributeConfiguredArrayDomain *)
+
 (** Abstract domains representing arrays. *)
 module type S =
 sig
@@ -21,8 +26,6 @@ sig
   val make: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> idx -> value -> t
   (** [make l e] creates an abstract representation of an array of length [l]
     * containing the element [e]. *)
-  val get_domain: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> unit -> string
-  (**gets the underlying domain: choosen by the attributes in AttributeConfiguredArrayDomain *)
 
   val length: t -> idx option
   (** returns length of array if known *)
@@ -78,4 +81,4 @@ module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S wit
 (** Like partitioned but additionally manages the length of the array. *)
 
 module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
-(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type and flag. *)
+(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
