@@ -52,11 +52,12 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
   in
   let reset_globals (glob: unchanged_global) =
     try
-      match glob.current, glob.old with
-      | GFun (nw, _), GFun (old, _) -> reset_fun nw old
-      | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
-      | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old
-      | _ -> ()
+      match glob.current.def, glob.old.def with
+      | Some (Fun nw), Some (Fun old) -> reset_fun nw old
+      | Some (Var nw), Some (Var old) -> reset_var nw old
+      | _, _ -> match glob.current.decls, glob.old.decls with
+        | nw::ls1, old::ls2 -> reset_var nw old
+        | _, _ -> ()
     with Failure m -> ()
   in
   let assign_same_id fallstmts (old_n, n) = match old_n, n with
@@ -89,8 +90,9 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       List.iter (assign_same_id f.sallstmts) d.unchangedNodes
   in
   let reset_changed_globals (changed: changed_global) =
-    match (changed.current, changed.old) with
-    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old changed.unchangedHeader changed.diff
+    match (changed.current.def, changed.old.def) with
+    | Some (Fun nw), Some (Fun old) -> reset_changed_fun nw old changed.unchangedHeader changed.diff
+    (* why ids of global variables not adapted? *)
     | _ -> ()
   in
   let update_fun (f: fundec) =
@@ -102,13 +104,14 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
   let update_var (v: varinfo) =
     v.vid <- make_vid ()
   in
-  let update_globals (glob: global) =
+  let update_globals (glob: global_col) =
     try
-      match glob with
-      | GFun (nw, _) -> update_fun nw
-      | GVar (nw, _, _) -> update_var nw
-      | GVarDecl (nw, _) -> update_var nw
-      | _ -> ()
+      match glob.def with
+      | Some (Fun nw) -> update_fun nw
+      | Some (Var nw) -> update_var nw
+      | _ -> match glob.decls with
+        | v1::ls1 -> update_var v1
+        | _ -> ()
     with Failure m -> ()
   in
   List.iter reset_globals changes.unchanged;
