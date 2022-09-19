@@ -61,6 +61,12 @@ struct
   let leq (d1, t1) (d2, t2) =
     D.leq d1 d2 (* ignore tokens for order *)
 
+  (* TODO: TD3 uses equal to check for fixpoint, not leq,
+     so should we override this to ignore tokens to avoid potentially
+     unnecessary extra evals?
+     Would also have to override compare and hash. *)
+  (* let equal (d1, t1) (d2, t2) = D.equal d1 d2 *)
+
   (* join also joins tokens *)
 
   let widen (d1, t1) (d2, t2) =
