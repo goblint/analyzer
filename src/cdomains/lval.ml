@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 
 module GU = Goblintutil
@@ -15,7 +15,7 @@ module type IdxDomain =
 sig
   include Printable.S
   val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
-  val is_int: t -> bool
+  val to_int: t -> IntOps.BigIntOps.t option
 end
 
 module OffsetPrintable (Idx: IdxDomain) =
@@ -73,7 +73,7 @@ struct
   let rec is_definite = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
-    | `Index (i,o) ->  Idx.is_int i && is_definite o
+    | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
 
   (* append offset o2 to o1 *)
   (* TODO: unused *)
@@ -178,12 +178,22 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = OffsetPrintable (Idx)
+      
   type t =
     | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | StrPtr of string (** String literal pointer. *)
+    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+
+  let hash x = match x with
+    | StrPtr _ ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        13859
+      else
+        hash x
+    | _ -> hash x
+
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -210,9 +220,9 @@ struct
     | _      -> None
 
   (* strings *)
-  let from_string x = StrPtr x
+  let from_string x = StrPtr (Some x)
   let to_string = function
-    | StrPtr x -> Some x
+    | StrPtr (Some x) -> Some x
     | _        -> None
 
   let rec short_offs = function
@@ -228,7 +238,8 @@ struct
 
   let show = function
     | Addr (x, o)-> short_addr (x, o)
-    | StrPtr x   -> "\"" ^ x ^ "\""
+    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
+    | StrPtr None -> "(unknown string)"
     | UnknownPtr -> "?"
     | NullPtr    -> "NULL"
 
@@ -277,7 +288,8 @@ struct
     in
     match x with
     | Addr (v,o) -> AddrOf (Var v, to_cil o)
-    | StrPtr x -> mkString x
+    | StrPtr (Some x) -> mkString x
+    | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
@@ -303,12 +315,13 @@ struct
   module Offs = Offset (Idx)
 
   let is_definite = function
-    | NullPtr | StrPtr _ -> true
+    | NullPtr -> true
     | Addr (v,o) when Offs.is_definite o -> true
     | _ -> false
 
   let leq x y = match x, y with
-    | StrPtr a  , StrPtr b   -> a = b
+    | StrPtr _, StrPtr None -> true
+    | StrPtr a, StrPtr b   -> a = b
     | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
     | _                      -> x = y
 
@@ -316,11 +329,32 @@ struct
     | Addr (x, o) -> Addr (x, Offs.drop_ints o)
     | x -> x
 
+  let join_string_ptr x y = match x, y with
+    | None, _
+    | _, None -> None
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        None
+      else
+        raise Lattice.Uncomparable
+
+  let meet_string_ptr x y = match x, y with
+    | None, a
+    | a, None -> a
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) -> raise Lattice.Uncomparable
+
   let merge cop x y =
     match x, y with
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | StrPtr a  , StrPtr b when a=b -> StrPtr a
+    | StrPtr a, StrPtr b ->
+      StrPtr
+        begin match cop with
+          |`Join | `Widen -> join_string_ptr a b
+          |`Meet | `Narrow -> meet_string_ptr a b
+        end
     | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 

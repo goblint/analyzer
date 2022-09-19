@@ -7,13 +7,13 @@ int main(void) {
 
     r[0] = 0;
 
-    assert(r[0] != 5);
-    assert(r[0] == 0);
+    __goblint_check(r[0] != 5);
+    __goblint_check(r[0] == 0);
 
     r[0] = 5;
 
-    assert(r[0] == 5); //UNKNOWN
-    assert(r[0] != 0); //UNKNOWN
-    assert(r[0] != -10);
-    assert(r[0] != 100);
+    __goblint_check(r[0] == 5); //UNKNOWN
+    __goblint_check(r[0] != 0); //UNKNOWN
+    __goblint_check(r[0] != -10);
+    __goblint_check(r[0] != 100);
 }

@@ -1,4 +1,5 @@
 open Prelude
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 module Comparison =
@@ -101,7 +102,7 @@ struct
   module CompareDump = MakeHashtbl (Key) (Dom) (RH)
 
   let compare_dumps ({name = name1; results = lvh1}: result) ({name = name2; results = lvh2}: result) =
-    CompareDump.compare ~name1 lvh1 ~name2 lvh2
+    CompareDump.compare ~verbose:true ~name1 lvh1 ~name2 lvh2
 
   let count_locations (dumps: result list) =
     let module LH = Hashtbl.Make (CilType.Location) in

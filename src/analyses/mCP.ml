@@ -4,21 +4,18 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
-module QuerySet = Set.Make (Queries.Any)
-module QueryHash = Hashtbl.Make (Queries.Any)
-
 include MCPRegistry
 
 module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
-   and module V = DomVariantPrintable (VarListSpec) =
+   and module V = DomVariantSysVar (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
-  module V = DomVariantPrintable (VarListSpec)
+  module V = DomVariantSysVar (VarListSpec)
 
   open List open Obj
   let v_of n v = (n, repr v)
@@ -133,10 +130,6 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
-  let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
-
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -159,10 +152,6 @@ struct
         let a', b = assoc_split_eq eq k xs in
         f ((k,v::a')::a) b
     in f [] xs
-
-  let assoc_sub xs name =
-    let n' = find_id name in
-    assoc n' xs
 
   let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
     let spawn_one v d =
@@ -243,16 +232,16 @@ struct
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query': type a. querycache:Obj.t QueryHash.t -> QuerySet.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
+  and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let anyq = Queries.Any q in
-    match QueryHash.find_option querycache anyq with
+    match Queries.Hashtbl.find_option querycache anyq with
     | Some r -> Obj.obj r
     | None ->
       let module Result = (val Queries.Result.lattice q) in
-      if QuerySet.mem anyq asked then
+      if Queries.Set.mem anyq asked then
         Result.top () (* query cycle *)
       else
-        let asked' = QuerySet.add anyq asked in
+        let asked' = Queries.Set.add anyq asked in
         let sides = ref [] in
         let ctx'' = outer_ctx "query" ~sides ctx in
         let f ~q a (n,(module S:MCPSpec),d) =
@@ -274,6 +263,13 @@ struct
           f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
         | Queries.PartAccess a ->
           Obj.repr (access ctx a)
+        | Queries.IterSysVars (vq, fi) ->
+          (* IterSysVars is special: argument function is lifted for each analysis *)
+          iter (fun ((n,(module S:MCPSpec),d) as t) ->
+              let fi' x = fi (Obj.repr (v_of n x)) in
+              let q' = Queries.IterSysVars (vq, fi') in
+              f ~q:q' () t
+            ) @@ spec_list ctx.local
         (* | EvalInt e ->
            (* TODO: only query others that actually respond to EvalInt *)
            (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
@@ -281,12 +277,12 @@ struct
         | _ ->
           let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
           do_sideg ctx !sides;
-          QueryHash.replace querycache anyq (Obj.repr r);
+          Queries.Hashtbl.replace querycache anyq (Obj.repr r);
           r
 
   and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
-    let querycache = QueryHash.create 13 in
-    query' ~querycache QuerySet.empty ctx q
+    let querycache = Queries.Hashtbl.create 13 in
+    query' ~querycache Queries.Set.empty ctx q
 
   and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
     let ctx'' = outer_ctx "access" ctx in
@@ -309,12 +305,11 @@ struct
       | Some emits -> (fun e -> emits := e :: !emits)
       | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
     in
-    let querycache = QueryHash.create 13 in
+    let querycache = Queries.Hashtbl.create 13 in
     (* TODO: make rec? *)
     { ctx with
-      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache QuerySet.empty ctx q)
+      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
     ; emit
-    ; presub = assoc_sub ctx.local
     ; spawn
     ; sideg
     }

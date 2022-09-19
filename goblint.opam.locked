@@ -1,17 +1,19 @@
 opam-version: "2.0"
+name: "goblint"
+version: "dev"
 synopsis: "Static analysis framework for C"
 maintainer: [
-  "Michael Schwarz <michael.schwarz93@gmail.com>"
   "Simmo Saan <simmo.saan@gmail.com>"
-  "Ralf Vogler <ralf.vogler@gmail.com>"
+  "Michael Schwarz <michael.schwarz93@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani"
-  "Kalmer Apinis"
-  "Ralf Vogler"
+  "Simmo Saan"
   "Michael Schwarz"
   "Julian Erhard"
-  "Simmo Saan"
+  "Sarah Tilscher"
+  "Ralf Vogler"
+  "Kalmer Apinis"
+  "Vesal Vojdani"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
@@ -30,11 +32,11 @@ depends: [
   "benchmark" {= "1.6" & with-test}
   "bigarray-compat" {= "1.1.0"}
   "bigstringaf" {= "0.8.0"}
-  "biniou" {= "1.2.1"}
   "bos" {= "0.2.1"}
   "camlidl" {= "1.09"}
   "cmdliner" {= "1.1.1" & with-doc}
   "conf-autoconf" {= "0.1"}
+  "conf-gcc" {= "1.0"}
   "conf-gmp" {= "4"}
   "conf-mpfr" {= "3"}
   "conf-perl" {= "2"}
@@ -50,13 +52,12 @@ depends: [
   "dune-site" {= "3.0.3"}
   "dyn" {= "3.0.3"}
   "dune-configurator" {= "3.0.3"}
-  "easy-format" {= "1.3.2"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "1.8.2"}
+  "goblint-cil" {= "2.0.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.11"}
-  "jsonrpc" {= "1.10.3"}
+  "jsonrpc" {= "1.12.4"}
   "logs" {= "0.7.0"}
   "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
@@ -64,7 +65,6 @@ depends: [
   "ocaml-base-compiler" {= "4.14.0"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
-  "ocaml-monadic" {= "0.5"}
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocamlbuild" {= "0.14.1"}
@@ -78,16 +78,15 @@ depends: [
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_deriving_hash" {= "0.1.1"}
-  "ppx_deriving_yojson" {= "3.6.1"}
-  "ppx_distr_guards" {= "0.3"}
-  "ppxlib" {= "0.25.0"}
+  "ppx_deriving_yojson" {= "3.7.0"}
+  "ppxlib" {= "0.27.0"}
   "qcheck-core" {= "0.18.1"}
   "qcheck-ounit" {= "0.18.1" & with-test}
   "re" {= "1.10.3" & with-doc}
   "result" {= "1.5"}
   "rresult" {= "0.7.0"}
-  "seq" {= "base" & with-test}
-  "sexplib0" {= "v0.14.0"}
+  "seq" {= "base"}
+  "sexplib0" {= "v0.15.1"}
   "sha" {= "1.15.2"}
   "stdlib-shims" {= "0.3.0"}
   "stdune" {= "3.0.3"}
@@ -98,7 +97,7 @@ depends: [
   "uuidm" {= "0.9.8"}
   "uutf" {= "1.0.3" & with-doc}
   "yaml" {= "3.1.0"}
-  "yojson" {= "1.7.0"}
+  "yojson" {= "2.0.1"}
   "zarith" {= "1.12"}
 ]
 build: [
@@ -118,14 +117,9 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
-name: "goblint"
-version: "dev"
+available: os-distribution != "alpine" & arch != "arm64"
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
-  [
-    "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#9118601602d34edf53f73b35996abf2296c2d900"
-  ]
   [
     "apron.v0.9.13"
     "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"

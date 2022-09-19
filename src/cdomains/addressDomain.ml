@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 open IntOps
 
@@ -54,6 +54,15 @@ struct
     | _ -> match ID.to_excl_list i with
       | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
+
+  let to_int (type a) (module ID : IntDomain.Z with type t = a) x =
+    let ik = Cilfacade.ptr_ikind () in
+    if equal x null_ptr then
+      ID.of_int ik Z.zero
+    else if is_not_null x then
+      ID.of_excl_list ik [Z.zero]
+    else
+      ID.top_of ik
 
   let get_type xs =
     try Addr.get_type (choose xs)
@@ -131,54 +140,4 @@ struct
 
   let meet x y   = merge join meet x y
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
-
-  let invariant c x =
-    let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
-    let i_opt = fold (fun addr acc_opt ->
-        BatOption.bind acc_opt (fun acc ->
-            match addr with
-            | Addr.UnknownPtr ->
-              None
-            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-              let rec offs_to_offset = function
-                | `NoOffset -> NoOffset
-                | `Field (f, offs) -> Field (f, offs_to_offset offs)
-                | `Index (i, offs) ->
-                  (* Addr.Offs.is_definite implies Idx.is_int *)
-                  let i_definite = BatOption.get (Idx.to_int i) in
-                  let i_exp = Cil.(kinteger64 ILongLong (BigIntOps.to_int64 i_definite)) in
-                  Index (i_exp, offs_to_offset offs)
-              in
-              let offset = offs_to_offset offs in
-
-              let i =
-                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp && not (var_is_tmp vi) && var_is_in_scope c.scope vi && not (var_is_heap vi)) then
-                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                else
-                  Invariant.none
-              in
-              let i_deref =
-                c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
-              in
-
-              Some (Invariant.(acc || (i && i_deref)))
-            | Addr.NullPtr ->
-              let i =
-                let addr_exp = integer 0 in
-                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                else
-                  Invariant.none
-              in
-              Some (Invariant.(acc || i))
-            (* TODO: handle Addr.StrPtr? *)
-            | _ ->
-              None
-          )
-      ) x (Some Invariant.none)
-    in
-    match i_opt with
-    | Some i -> i
-    | None -> Invariant.none
 end

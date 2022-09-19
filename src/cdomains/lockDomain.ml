@@ -4,7 +4,7 @@ module Equ = MusteqDomain.Equ
 module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
 
-open Cil
+open GoblintCil
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
 module Simple = Lattice.Reverse (Mutexes)
@@ -54,7 +54,7 @@ struct
     | `NoOffset , `NoOffset -> true
     | `Field (x1,y1) , `Field (x2,y2) -> CilType.Compinfo.equal x1.fcomp x2.fcomp && may_be_same_offset y1 y2 (* TODO: why not fieldinfo equal? *)
     | `Index (x1,y1) , `Index (x2,y2)
-      -> (not (IdxDom.is_int x1) || not (IdxDom.is_int x2))
+      -> ((IdxDom.to_int x1 = None) || (IdxDom.to_int x2 = None))
          || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
     | _ -> false
 

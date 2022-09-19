@@ -10,13 +10,13 @@ void read_nvram(loff_t *ppos)
 {
  unsigned int i;
  *ppos = i;
- assert(*ppos == i); // UNKNOWN!
+ __goblint_check(*ppos == i); // UNKNOWN!
 }
 void write_nvram(loff_t *ppos)
 {
  unsigned int i;
  *ppos = i;
- assert(*ppos == i); // UNKNOWN!
+ __goblint_check(*ppos == i); // UNKNOWN!
 }
 loff_t *whoop_loff_t;
 void *whoop_wrapper_write_nvram(void* args)

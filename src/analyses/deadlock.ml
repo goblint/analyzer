@@ -14,22 +14,17 @@ struct
   module Arg =
   struct
     module D = MayLockEvents
-    module V = Lock
-
-    module G =
+    module V =
     struct
-      include MapDomain.MapBot (Lock) (MayLockEventPairs)
-      let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+      include Lock
+      let is_write_only _ = true
     end
 
-    let side_lock_event_pair ctx before after =
-      let d =
-        if !GU.should_warn then
-          G.singleton (Tuple3.first after) (MayLockEventPairs.singleton (before, after))
-        else
-          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-      in
-      ctx.sideg (Tuple3.first before) d
+    module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
+
+    let side_lock_event_pair ctx ((before_node, _, _) as before) ((after_node, _, _) as after) =
+      if !GU.should_warn then
+        ctx.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
     let part_access ctx: MCPAccess.A.t =
       Obj.obj (ctx.ask (PartAccess Point))
@@ -93,8 +88,8 @@ struct
             let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
             let msgs = List.concat_map (fun ((before_lock, before_node, before_access), (after_lock, after_node, after_access)) ->
                 [
-                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (UpdateCil.getLoc before_node));
-                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (UpdateCil.getLoc after_node));
+                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (M.Location.Node before_node));
+                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (M.Location.Node after_node));
                 ]
               ) normalized
             in

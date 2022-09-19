@@ -11,7 +11,7 @@ void *worker(void *arg )
   while (1) {
     pthread_mutex_lock(&A);
     g = 1000;
-    assert(g != 0);
+    __goblint_check(g != 0);
     if (g > 0) {
       g--;
     }

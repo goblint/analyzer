@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Batteries
 module Thresholds = Set.Make(Z)
 
@@ -38,9 +38,9 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold lower_thresholds @@ Z.sub i one;
 
       let negI = Z.add one @@ Z.neg i in
-      addThreshold octagon_thresholds @@ i; 
-      addThreshold octagon_thresholds @@ negI; 
-      addThreshold octagon_thresholds @@ Z.add i i; 
+      addThreshold octagon_thresholds @@ i;
+      addThreshold octagon_thresholds @@ negI;
+      addThreshold octagon_thresholds @@ Z.add i i;
       addThreshold octagon_thresholds @@ Z.add negI negI;
       DoChildren
 
@@ -62,7 +62,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
 end
 
 let default_thresholds = Thresholds.of_list (
-    let thresh_pos = List.map ( Int.pow 2) [0;2;4;8;16;32;48] in
+    let thresh_pos = List.map (Int.pow 2) [0;2;4;8;16;32;48] in
     let thresh_neg = List.map (fun x -> -x) thresh_pos in
     List.map Z.of_int (thresh_neg @ thresh_pos @ [0])
   )
@@ -75,13 +75,13 @@ let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
     Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
 
-let upper_thresholds () = 
+let upper_thresholds () =
   let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u
 
-let lower_thresholds () = 
+let lower_thresholds () =
   let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l
 
-let octagon_thresholds () = 
+let octagon_thresholds () =
   let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o
 
 (*old version. is there anything this has that the new one does not?*)
@@ -123,19 +123,12 @@ class extractInvariantsVisitor (exps) = object
   method! vinst (i: instr) =
     match i with
     | Call (_, Lval (Var f, NoOffset), args, _, _) ->
-      (* TODO: dependency cycle with LibraryFunctions somehow... *)
-      (* begin match LibraryFunctions.classify f.vname args with
-           | `Assert e ->
-             EH.replace exps e ();
-             DoChildren
-           | _ ->
-             DoChildren
-         end *)
-      begin match f.vname, args with
-        | "assert", [e] ->
-          EH.replace exps e ();
+      let desc = LibraryFunctions.find f in
+      begin match desc.special args with
+        | Assert { exp; _ } ->
+          EH.replace exps exp ();
           DoChildren
-        | _, _ ->
+        | _ ->
           DoChildren
       end
     | _ ->

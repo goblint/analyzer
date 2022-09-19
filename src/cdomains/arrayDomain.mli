@@ -1,4 +1,5 @@
 open IntOps
+open GoblintCil
 
 (** Abstract domains representing arrays. *)
 module type S =

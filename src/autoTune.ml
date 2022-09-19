@@ -1,5 +1,5 @@
 open GobConfig
-open Cil
+open GoblintCil
 
 (*Collect stats to be able to make decisions*)
 type complexityFactors = {
@@ -11,11 +11,11 @@ type complexityFactors = {
   mutable expressions : int; (* recursively. e.g. x = x + 1 has 4 expressions*)
   mutable instructions : int; (*function calls and assignments*)
   mutable integralVars : (int * int); (*global, local. Does not consider the types that a pointer/array contains*)
-  mutable arrayVars : (int * int); 
+  mutable arrayVars : (int * int);
   mutable pointerVars : (int * int);
 }
 
-let printFactors f = 
+let printFactors f =
   Printf.printf "functions: %d\n" f.functions;
   Printf.printf "functionCalls: %d\n" f.functionCalls;
   Printf.printf "loops: %d\n" f.loops;
@@ -35,29 +35,29 @@ class collectComplexityFactorsVisitor(factors) = object
 
   method! vvdec var =
     let incVar (g,l) = if var.vglob then (g + 1, l) else (g, l+1) in
-    (if isIntegralType var.vtype then 
+    (if isIntegralType var.vtype then
        factors.integralVars <- incVar factors.integralVars
-     else if isPointerType var.vtype then 
-       factors.pointerVars <- incVar factors.pointerVars 
-     else if isArrayType var.vtype then 
+     else if isPointerType var.vtype then
+       factors.pointerVars <- incVar factors.pointerVars
+     else if isArrayType var.vtype then
        factors.arrayVars <- incVar factors.arrayVars
     ); DoChildren
 
   method! vexpr _ = factors.expressions <- factors.expressions + 1; DoChildren
 
-  method! vinst = function 
-    | Set _ -> 
+  method! vinst = function
+    | Set _ ->
       factors.instructions <- factors.instructions + 1; DoChildren
-    | Call (Some _, _,_,_,_) -> 
+    | Call (Some _, _,_,_,_) ->
       factors.instructions <- factors.instructions + 2; (*Count function call and assignment of the result seperately *)
       factors.functionCalls <- factors.functionCalls + 1; DoChildren
-    | Call _ -> 
+    | Call _ ->
       factors.instructions <- factors.instructions + 1;
-      factors.functionCalls <- factors.functionCalls + 1; DoChildren 
+      factors.functionCalls <- factors.functionCalls + 1; DoChildren
     | _ -> DoChildren
 
-  method! vstmt stmt = match stmt.skind with 
-    | Loop _ -> 
+  method! vstmt stmt = match stmt.skind with
+    | Loop _ ->
       factors.controlFlowStatements <- factors.controlFlowStatements + 1;
       factors.loops <- factors.loops + 1; DoChildren
     | If _
@@ -66,7 +66,7 @@ class collectComplexityFactorsVisitor(factors) = object
     | ComputedGoto _
     | Return _ -> factors.controlFlowStatements <- factors.controlFlowStatements + 1; DoChildren
     | Break _
-    | Continue _ -> 
+    | Continue _ ->
       factors.controlFlowStatements <- factors.controlFlowStatements + 1;
       factors.loopBreaks <- factors.loopBreaks + 1; DoChildren
     | _ -> DoChildren
@@ -97,7 +97,7 @@ module FunctionCallMap = Map.Make(CilType.Varinfo)
 
 let addOrCreateMap fd = function
   | Some (set, i) -> Some (FunctionSet.add fd set, i+1)
-  | None     -> Some (FunctionSet.singleton fd, 1) 
+  | None     -> Some (FunctionSet.singleton fd, 1)
 
 class collectFunctionCallsVisitor(callSet, calledBy, argLists, fd) = object
   inherit nopCilVisitor
@@ -115,7 +115,7 @@ end
 class functionVisitor(calling, calledBy, argLists) = object
   inherit nopCilVisitor
 
-  method! vfunc fd = 
+  method! vfunc fd =
     let callSet = ref FunctionSet.empty in
     let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, argLists, fd.svar) in
     ignore @@ Cil.visitCilFunction callVisitor fd;
@@ -137,17 +137,17 @@ let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -
 let timesCalled fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> snd
 let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x) -> x |> FunctionCallMap.find_opt fd
 
-let findMallocWrappers () = 
-  let isMalloc f = 
+let findMallocWrappers () =
+  let isMalloc f =
     let desc = LibraryFunctions.find f in
     match (functionArgs f) with
     | None -> false
-    | Some args -> 
+    | Some args ->
       match desc.special args with
       | Malloc _ -> true
       | _ -> false
   in
-  ResettableLazy.force functionCallMaps 
+  ResettableLazy.force functionCallMaps
   |> (fun (x,_,_) -> x)
   |> FunctionCallMap.filter (fun _ allCalled -> FunctionSet.exists isMalloc allCalled)
   |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10)
@@ -164,14 +164,14 @@ let isExtern = function
 let rec setCongruenceRecursive fd depth neigbourFunction =
   if depth >= 0 then (
     fd.svar.vattr <- addAttributes (fd.svar.vattr) [Attr ("goblint_precision",[AStr "congruence"])];
-    FunctionSet.iter 
-      (fun vinfo -> 
+    FunctionSet.iter
+      (fun vinfo ->
          print_endline ("    " ^ vinfo.vname);
          setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
-      ) 
+      )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
-         (fun x -> not (isExtern x.vstorage || String.starts_with ~prefix:"__builtin" x.vname)) 
-         (neigbourFunction fd.svar) 
+         (fun x -> not (isExtern x.vstorage || String.starts_with ~prefix:"__builtin" x.vname))
+         (neigbourFunction fd.svar)
       )
     ;
   )
@@ -189,10 +189,10 @@ end
 class modFunctionAnnotatorVisitor = object
   inherit nopCilVisitor
 
-  method! vfunc fd = 
+  method! vfunc fd =
     let thisVisitor = new modVisitor in
-    try ignore (visitCilFunction thisVisitor fd) with 
-    | ModFound -> 
+    try ignore (visitCilFunction thisVisitor fd) with
+    | ModFound ->
       print_endline ("function " ^ (CilType.Fundec.show fd) ^" uses mod, enable congruence domain recursively for:");
       print_endline ("  \"down\":");
       setCongruenceRecursive fd 6 calledFunctions;
@@ -223,23 +223,23 @@ let disableIntervalContextsInRecursiveFunctions () =
 (*does not consider dynamic calls!*)
 
 let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread"; "threadflag"; "threadid"; "threadJoins"; "threadreturn"]
-let reduceThreadAnalyses () = 
-  let hasThreadCreate () = 
-    ResettableLazy.force functionCallMaps 
+let reduceThreadAnalyses () =
+  let hasThreadCreate () =
+    ResettableLazy.force functionCallMaps
     |> fun (_,x,_) -> x  (*every function that is called*)
                       |> FunctionCallMap.exists
                         (fun var (callers,_) ->
                            let desc = LibraryFunctions.find var in
                            match (functionArgs var) with
                            | None -> false;
-                           | Some args -> 
+                           | Some args ->
                              match desc.special args with
-                             | ThreadCreate _ -> 
-                               print_endline @@ "thread created by " ^ var.vname ^ ", called by:"; 
+                             | ThreadCreate _ ->
+                               print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
                                FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
                                true;
-                             | _ -> false; 
-                        ) 
+                             | _ -> false;
+                        )
   in
   if not @@ hasThreadCreate () then (
     print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
@@ -248,9 +248,9 @@ let reduceThreadAnalyses () =
 
   )
 
-let focusOnSpecification () = 
-  match Svcomp.Specification.of_option () with 
-  | UnreachCall s -> () 
+let focusOnSpecification () =
+  match Svcomp.Specification.of_option () with
+  | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
@@ -265,15 +265,15 @@ class enumVisitor = object
   inherit nopCilVisitor
 
   method! vglob = function
-    | GEnumTag _ 
+    | GEnumTag _
     | GEnumTagDecl _ ->
       raise EnumFound;
     | _ -> SkipChildren;
 end
 
-let hasEnums file = 
+let hasEnums file =
   let thisVisitor = new enumVisitor in
-  try 
+  try
     ignore (visitCilFileSameGlobals thisVisitor file);
     false;
   with EnumFound -> true
@@ -299,8 +299,8 @@ class addTypeAttributeVisitor = object
     DoChildren
 
   (*Set arrays with important types to unroll*)
-  method! vtype typ = 
-    if is_important_type typ && not @@ hasAttribute "goblint_array_domain" (typeAttrs typ) then 
+  method! vtype typ =
+    if is_important_type typ && not @@ hasAttribute "goblint_array_domain" (typeAttrs typ) then
       ChangeTo (typeAddAttributes [Attr ("goblint_array_domain", [AStr "unroll"])] typ)
     else SkipChildren
 end
@@ -317,7 +317,7 @@ type option = {
   value:int;
   cost:int;
   activate: unit -> unit
-} 
+}
 
 (*Option for activating the octagon apron domain on selected vars*)
 module VariableMap = Map.Make(CilType.Varinfo)
@@ -335,29 +335,29 @@ let rec extractVar = function
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
   | BinOp (MinusA, e1,e2, (TInt _)) -> (
-      match extractVar e1, extractVar e2 with 
+      match extractVar e1, extractVar e2 with
       | Some a, Some b -> Some (Either.Left (a,b))
-      | Some a, None 
+      | Some a, None
       | None, Some a -> if isConstant e1 then Some (Either.Right a) else None
       | _,_ -> None
     )
   | _ -> None
 
-let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap := 
+let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
         let old = VariableMap.find key !varMap in
-        VariableMap.add key (old + v) !varMap 
+        VariableMap.add key (old + v) !varMap
       else
         VariableMap.add key v !varMap
 
 let handle varMap v globals = function
-  | Some (Either.Left (a,b)) -> 
+  | Some (Either.Left (a,b)) ->
     addOrCreateVarMapping varMap a v globals;
-    addOrCreateVarMapping varMap b v globals; 
+    addOrCreateVarMapping varMap b v globals;
   | Some (Either.Right a) ->  addOrCreateVarMapping varMap a v globals;
   | None -> ()
 
-class octagonVariableVisitor(varMap, globals) = object 
+class octagonVariableVisitor(varMap, globals) = object
   inherit nopCilVisitor
 
   method! vexpr = function
@@ -378,26 +378,26 @@ class octagonVariableVisitor(varMap, globals) = object
     | _ -> SkipChildren
 end
 
-let topVars n varMap= 
-  let rec take n l = 
-    if n <= 0 then 
+let topVars n varMap=
+  let rec take n l =
+    if n <= 0 then
       []
-    else 
-      match l with 
-      | x :: xs -> x :: take (n-1) xs  
-      | [] -> [] 
+    else
+      match l with
+      | x :: xs -> x :: take (n-1) xs
+      | [] -> []
   in
   let compareValueDesc = (fun (_,v1) (_,v2) -> - (compare v1 v2)) in
   varMap
   |> VariableMap.bindings
   |> List.sort compareValueDesc
-  |> take n 
+  |> take n
   |> List.map fst
 
 class octagonFunctionVisitor(list, amount) = object
   inherit nopCilVisitor
 
-  method! vfunc f = 
+  method! vfunc f =
     let varMap = ref VariableMap.empty in
     let visitor = new octagonVariableVisitor(varMap, false) in
     ignore (visitCilFunction visitor f);
@@ -408,20 +408,20 @@ class octagonFunctionVisitor(list, amount) = object
 end
 
 let apronOctagonOption factors file =
-  let locals = 
-    if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then 
-      match Svcomp.Specification.of_option () with 
+  let locals =
+    if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
+      match Svcomp.Specification.of_option () with
       | NoOverflow -> 12
       | _ -> 8
     else 8
   in let globals = 2 in
-  let selectedLocals = 
+  let selectedLocals =
     let list = ref [] in
     let visitor = new octagonFunctionVisitor(list, locals) in
     visitCilFileSameGlobals visitor file;
     List.concat !list
   in
-  let selectedGlobals = 
+  let selectedGlobals =
     let varMap = ref VariableMap.empty in
     let visitor = new octagonVariableVisitor(varMap, true) in
     visitCilFileSameGlobals visitor file;
@@ -429,7 +429,7 @@ let apronOctagonOption factors file =
   in
   let allVars = (selectedGlobals @ selectedLocals) in
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
-  let activateVars () = 
+  let activateVars () =
     print_endline @@ "Octagon: " ^ string_of_int cost;
     set_bool "annotation.track_apron" true;
     set_string "ana.apron.domain" "octagon";
@@ -461,7 +461,7 @@ let wideningOption factors file =
   }
 
 
-let estimateComplexity factors file = 
+let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
   let callsEstimate = factors.functionCalls * factors.loops / factors.functions / 10 in
@@ -471,15 +471,15 @@ let estimateComplexity factors file =
   pathsEstimate * operationEstimate * callsEstimate + varEstimates / 10
 
 let totalTarget = 30000
-(*A simple greedy approximation to the knapsack problem: 
+(*A simple greedy approximation to the knapsack problem:
   take options with the highest use/cost ratio that still fit*)
 let chooseFromOptions costTarget options =
   let ratio o = Float.of_int o.value /. Float.of_int o.cost in
   let compareRatio o1 o2 = Float.compare (ratio o1) (ratio o2) in
   let rec takeFitting remainingTarget options =
-    if remainingTarget < 0 then (print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); [] ) else match options with 
+    if remainingTarget < 0 then (print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); [] ) else match options with
       | o::os ->
-        if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow overshooting *) 
+        if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow overshooting *)
           o::takeFitting (remainingTarget - o.cost) os
         else
           takeFitting (remainingTarget - o.cost) os
@@ -489,23 +489,23 @@ let chooseFromOptions costTarget options =
 
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
-let chooseConfig file = 
-  if isActivated "congruence" then 
+let chooseConfig file =
+  if isActivated "congruence" then
     addModAttributes file;
 
-  if isActivated "noRecursiveIntervals" then 
+  if isActivated "noRecursiveIntervals" then
     disableIntervalContextsInRecursiveFunctions ();
 
-  if isActivated "mallocWrappers" then 
+  if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "specification" && get_string "ana.specification" <> "" then 
+  if isActivated "specification" && get_string "ana.specification" <> "" then
     focusOnSpecification ();
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
 
-  if isActivated "singleThreaded" then 
+  if isActivated "singleThreaded" then
     reduceThreadAnalyses ();
 
   if isActivated "arrayDomain" then

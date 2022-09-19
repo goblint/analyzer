@@ -26,7 +26,7 @@ int main() {
   // might need join strengthening to reveal unsoundness instead of going to top directly
 
   pthread_mutex_lock(&m);
-  assert(g == h); // UNKNOWN!
+  __goblint_check(g == h); // UNKNOWN!
   pthread_mutex_unlock(&m);
 
   return 0;

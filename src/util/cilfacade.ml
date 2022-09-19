@@ -1,47 +1,25 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Cil
+open GoblintCil
 module E = Errormsg
 module GU = Goblintutil
 
-
-let get_labelLoc = function
-  | Label (_, loc, _) -> loc
-  | Case (_, loc, _) -> loc
-  | CaseRange (_, _, loc, _) -> loc
-  | Default (loc, _) -> loc
-
-let rec get_labelsLoc = function
-  | [] -> Cil.locUnknown
-  | label :: labels ->
-    let loc = get_labelLoc label in
-    if CilType.Location.equal loc Cil.locUnknown then
-      get_labelsLoc labels (* maybe another label has known location *)
-    else
-      loc
-
-let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
-
-let get_stmtLoc stmt =
-  match stmt.skind with
-  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
-  | Instr []
-  | Block {bstmts = []; _} ->
-    get_labelsLoc stmt.labels
-  | _ -> get_stmtkindLoc stmt.skind
+include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
 let isCharType = function
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
+let init_options () =
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines"
 
 let init () =
   initCIL ();
+  removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
@@ -144,19 +122,23 @@ let getFuns fileAST : startfuns =
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
 
-(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put in and return IInt *)
+(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. *)
 let rec get_ikind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
   | TInt (ik,_)
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
-  | _ ->
-    Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";
-    Cil.IInt
+  | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
+
+let get_fkind t =
+  (* important to unroll the type here, otherwise problems with typedefs *)
+  match Cil.unrollType t with
+  | TFloat (fk,_) -> fk
+  | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
-
+let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
 (** Cil.typeOf, etc reimplemented to raise sensible exceptions
     instead of printing all errors directly... *)
@@ -273,8 +255,25 @@ and typeOffset basetyp =
     | _ -> raise (TypeOfError Field_NonCompound)
 
 
-let get_ikind_exp e = get_ikind (typeOf e)
+(** {!Cil.mkCast} using our {!typeOf}. *)
+let mkCast ~(e: exp) ~(newt: typ) =
+  let oldt =
+    try
+      typeOf e
+    with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
+      Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
+  in
+  Cil.mkCastT ~e ~oldt ~newt
 
+let get_ikind_exp e = get_ikind (typeOf e)
+let get_fkind_exp e = get_fkind (typeOf e)
+
+(** Make {!Cil.BinOp} with correct implicit casts inserted. *)
+let makeBinOp binop e1 e2 =
+  let t1 = typeOf e1 in
+  let t2 = typeOf e2 in
+  let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
+  e
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
@@ -452,6 +451,7 @@ let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_nam
 
 
 let reset_lazy () =
+  StmtH.clear pseudo_return_to_fun;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;

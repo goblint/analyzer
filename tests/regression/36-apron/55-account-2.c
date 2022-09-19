@@ -17,18 +17,18 @@ void *funA(void *arg) {
     transfer = __VERIFIER_nondet_int();
     if (transfer >= 0) {
       pthread_mutex_lock(&M);
-      assert(moneyA >= 0);
-      assert(moneyB >= 0);
-      assert(moneyA + moneyB == total);
+      __goblint_check(moneyA >= 0);
+      __goblint_check(moneyB >= 0);
+      __goblint_check(moneyA + moneyB == total);
 
       if (transfer <= moneyA) {
         moneyA -= transfer;
         moneyB += transfer;
       }
 
-      assert(moneyA >= 0);
-      assert(moneyB >= 0);
-      assert(moneyA + moneyB == total);
+      __goblint_check(moneyA >= 0);
+      __goblint_check(moneyB >= 0);
+      __goblint_check(moneyA + moneyB == total);
       pthread_mutex_unlock(&M);
     }
   }
@@ -42,18 +42,18 @@ void *funB(void *arg) {
     transfer = __VERIFIER_nondet_int();
     if (transfer >= 0) {
       pthread_mutex_lock(&M);
-      assert(moneyA >= 0);
-      assert(moneyB >= 0);
-      assert(moneyA + moneyB == total);
+      __goblint_check(moneyA >= 0);
+      __goblint_check(moneyB >= 0);
+      __goblint_check(moneyA + moneyB == total);
 
       if (transfer <= moneyB) {
         moneyB -= transfer;
         moneyA += transfer;
       }
 
-      assert(moneyA >= 0);
-      assert(moneyB >= 0);
-      assert(moneyA + moneyB == total);
+      __goblint_check(moneyA >= 0);
+      __goblint_check(moneyB >= 0);
+      __goblint_check(moneyA + moneyB == total);
       pthread_mutex_unlock(&M);
     }
   }
@@ -66,9 +66,9 @@ int main(int argc, char **argv) {
   moneyA = __VERIFIER_nondet_int();
   if (total >= 0 && moneyA >= 0 && moneyA <= total) {
     moneyB = total - moneyA;
-    assert(moneyA >= 0);
-    assert(moneyB >= 0);
-    assert(moneyA + moneyB == total);
+    __goblint_check(moneyA >= 0);
+    __goblint_check(moneyB >= 0);
+    __goblint_check(moneyA + moneyB == total);
 
     pthread_t threadA;
     pthread_t threadB;
@@ -76,9 +76,9 @@ int main(int argc, char **argv) {
     pthread_create(&threadB, NULL, funB, NULL);
 
     pthread_mutex_lock(&M);
-    assert(moneyA >= 0);
-    assert(moneyB >= 0);
-    assert(moneyA + moneyB == total);
+    __goblint_check(moneyA >= 0);
+    __goblint_check(moneyB >= 0);
+    __goblint_check(moneyA + moneyB == total);
     pthread_mutex_unlock(&M);
   }
 

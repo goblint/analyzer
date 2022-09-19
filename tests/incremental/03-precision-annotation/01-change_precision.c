@@ -22,9 +22,9 @@ int main(){
     int x = rand() % 10;
 
     int a = foo(x);
-    assert(a == 0); //UNKNOWN
+    __goblint_check(a == 0); //UNKNOWN
 
     int b = bar(x);
-    assert(b == 0); //UNKNOWN
+    __goblint_check(b == 0); //UNKNOWN
     return 0;
 }

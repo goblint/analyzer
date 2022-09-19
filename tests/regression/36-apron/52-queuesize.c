@@ -12,43 +12,43 @@ pthread_mutex_t Q = PTHREAD_MUTEX_INITIALIZER;
 
 void pop() {
   pthread_mutex_lock(&Q);
-  assert(free >= 0);
-  assert(free <= capacity);
-  assert(used >= 0);
-  assert(used <= capacity);
-  assert(used + free == capacity);
+  __goblint_check(free >= 0);
+  __goblint_check(free <= capacity);
+  __goblint_check(used >= 0);
+  __goblint_check(used <= capacity);
+  __goblint_check(used + free == capacity);
 
   if (used >= 1) {
     used--;
     free++;
   }
 
-  assert(free >= 0);
-  assert(free <= capacity);
-  assert(used >= 0);
-  assert(used <= capacity);
-  assert(used + free == capacity);
+  __goblint_check(free >= 0);
+  __goblint_check(free <= capacity);
+  __goblint_check(used >= 0);
+  __goblint_check(used <= capacity);
+  __goblint_check(used + free == capacity);
   pthread_mutex_unlock(&Q);
 }
 
 void push() {
   pthread_mutex_lock(&Q);
-  assert(free >= 0);
-  assert(free <= capacity);
-  assert(used >= 0);
-  assert(used <= capacity);
-  assert(used + free == capacity);
+  __goblint_check(free >= 0);
+  __goblint_check(free <= capacity);
+  __goblint_check(used >= 0);
+  __goblint_check(used <= capacity);
+  __goblint_check(used + free == capacity);
 
   if (free >= 1) {
     free--;
     used++;
   }
 
-  assert(free >= 0);
-  assert(free <= capacity);
-  assert(used >= 0);
-  assert(used <= capacity);
-  assert(used + free == capacity);
+  __goblint_check(free >= 0);
+  __goblint_check(free <= capacity);
+  __goblint_check(used >= 0);
+  __goblint_check(used <= capacity);
+  __goblint_check(used + free == capacity);
   pthread_mutex_unlock(&Q);
 }
 
@@ -64,11 +64,11 @@ int main() {
     free = capacity;
     used = 0;
 
-    assert(free >= 0);
-    assert(free <= capacity);
-    assert(used >= 0);
-    assert(used <= capacity);
-    assert(used + free == capacity);
+    __goblint_check(free >= 0);
+    __goblint_check(free <= capacity);
+    __goblint_check(used >= 0);
+    __goblint_check(used <= capacity);
+    __goblint_check(used + free == capacity);
 
     pthread_t worker1;
     pthread_t worker2;

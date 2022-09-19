@@ -1,4 +1,5 @@
 (** Library function descriptor (specification). *)
+module Cil = GoblintCil
 
 (** Pointer argument access specification. *)
 module Access =
@@ -11,17 +12,36 @@ struct
   }
 end
 
+type math =
+  | Nan of (Cil.fkind * Cil.exp)
+  | Inf of Cil.fkind
+  | Isfinite of Cil.exp
+  | Isinf of Cil.exp
+  | Isnan of Cil.exp
+  | Isnormal of Cil.exp
+  | Signbit of Cil.exp
+  | Fabs of (Cil.fkind * Cil.exp)
+  | Acos of (Cil.fkind * Cil.exp)
+  | Asin of (Cil.fkind * Cil.exp)
+  | Atan of (Cil.fkind * Cil.exp)
+  | Atan2 of (Cil.fkind * Cil.exp * Cil.exp)
+  | Cos of (Cil.fkind * Cil.exp)
+  | Sin of (Cil.fkind * Cil.exp)
+  | Tan of (Cil.fkind * Cil.exp)
+
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
-  | Assert of Cil.exp
+  | Assert of { exp: Cil.exp; check: bool; refine: bool; }
   | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
   | Unlock of Cil.exp
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
+  | ThreadExit of { ret_val: Cil.exp; }
+  | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Abort
@@ -83,7 +103,6 @@ let special_of_old classify_name = fun args ->
   | `Malloc e -> Malloc e
   | `Calloc (count, size) -> Calloc { count; size; }
   | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Assert e -> Assert e
   | `Lock (try_, write, return_on_success) -> Lock { lock = List.hd args; try_; write; return_on_success; }
   | `Unlock -> Unlock (List.hd args)
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }

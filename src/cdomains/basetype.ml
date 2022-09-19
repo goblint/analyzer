@@ -1,5 +1,5 @@
 module GU = Goblintutil
-open Cil
+open GoblintCil
 
 
 (** Location with special alphanumeric output for extraction. *)
@@ -22,7 +22,6 @@ module Variables =
 struct
   include CilType.Varinfo
   let trace_enabled = true
-  let is_global v = v.vglob
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
@@ -78,6 +77,7 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
+  include Printable.Std (* for Groupable *)
   include CilType.Exp
 
   let name () = "expressions"
