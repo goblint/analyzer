@@ -40,13 +40,6 @@ void partitioned(int* a __attribute__((goblint_array_domain("partitioned")))){
 
 }
 
-int test2(void)
-{
-
-}
-
-
-
 int main(void)
 {
     int z[4] __attribute__((goblint_array_domain("trivial")));
