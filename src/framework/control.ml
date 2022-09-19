@@ -24,12 +24,13 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
             |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
+            |> lift true (module WideningTokens.Lifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
-            |> lift true (module WideningTokens.Lifter)
+            (* |> lift true (module WideningTokens.Lifter) *)
           ) in
   GobConfig.building_spec := false;
   Analyses.control_spec_c := (module S1.C);

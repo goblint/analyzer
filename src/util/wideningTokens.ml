@@ -61,6 +61,9 @@ struct
   let leq (d1, t1) (d2, t2) =
     D.leq d1 d2 (* ignore tokens for order *)
 
+  (* TODO: adapt all order functions? necessary if outermost lifter *)
+  (* let is_bot (d, t) = D.is_bot d *)
+
   (* TODO: TD3 uses equal to check for fixpoint, not leq,
      so should we override this to ignore tokens to avoid potentially
      unnecessary extra evals?
