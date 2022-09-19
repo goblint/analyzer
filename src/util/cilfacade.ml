@@ -16,6 +16,7 @@ let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines"
 
 let init () =
+  Stats.countCalls := true;
   initCIL ();
   removeBranchingOnConstants := false;
   lowerConstants := true;
