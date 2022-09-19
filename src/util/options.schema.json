@@ -399,7 +399,7 @@
             "interval_threshold_widening_constants": {
               "title": "ana.int.interval_threshold_widening_constants",
               "description":
-                "Which constants in the programm should be considered as threshold constants",
+                "Which constants in the program should be considered as threshold constants (all/comparisons)",
               "type": "string",
               "enum": ["all", "comparisons"],
               "default": "all"
@@ -1293,7 +1293,7 @@
             "enabled": {
               "title": "annotation.int.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated IntDomains.",
               "type": "boolean",
               "default": false
             },
@@ -1314,7 +1314,7 @@
             "enabled": {
               "title": "annotation.float.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated FloatDomains.",
               "type": "boolean",
               "default": false
             }
@@ -1347,7 +1347,7 @@
         },
         "array": {
           "title": "annotation.array",
-          "description": "Enable manual annotaion of arrays with desired domain",
+          "description": "Enable manual annotation of arrays with desired domain",
           "type": "boolean",
           "default": false
         },
