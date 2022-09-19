@@ -597,6 +597,19 @@ struct
       D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
+  let event ctx e octx =
+    match e with
+    | Events.Unassume {exp; _} ->
+      (* Unassume must forget equalities,
+         otherwise var_eq may still have a numeric first iteration equality
+         while base has unassumed, causing unnecessary extra evals. *)
+      Basetype.CilExp.get_vars exp
+      |> List.map Cil.var
+      |> List.fold_left (fun st lv ->
+          remove (Analyses.ask_of_ctx ctx) lv st
+        ) ctx.local
+    | _ ->
+      ctx.local
 end
 
 let _ =
