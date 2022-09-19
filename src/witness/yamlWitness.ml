@@ -243,7 +243,8 @@ struct
 
     (* 1. Collect contexts for each function *)
     (* TODO: Use [IterSysVars] for this when #391 is merged. *)
-    let fun_contexts : con_inv list FMap.t = FMap.create 103 in
+    (* TODO: re-enable precondition invariants, add option *)
+    (* let fun_contexts : con_inv list FMap.t = FMap.create 103 in
     LHT.iter (fun ((n, c) as lvar) local ->
         begin match n with
           | FunctionEntry f ->
@@ -332,7 +333,7 @@ struct
           acc
         end
       ) lh entries
-    in
+    in *)
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
 
