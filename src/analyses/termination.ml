@@ -246,11 +246,11 @@ class recomputeVisitor (fd : fundec) = object(self)
 end
 
 let _ =
-  (* CFG.register_preprocess Spec.name (new loopCounterVisitor); *)
-  CFG.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
-  CFG.register_preprocess (Spec.name ()) (new loopVarsVisitor);
-  CFG.register_preprocess (Spec.name ()) (new loopInstrVisitor);
-  CFG.register_preprocess (Spec.name ()) (new recomputeVisitor);
+  (* Cilfacade.register_preprocess Spec.name (new loopCounterVisitor); *)
+  Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopVarsVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopInstrVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor);
   Hashtbl.clear loopBreaks; (* because the sids are now different *)
-  CFG.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
+  Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor);
   MCP.register_analysis (module Spec : MCPSpec)

@@ -384,7 +384,7 @@ let merge_parsed parsed =
   Cilfacade.rmTemps merged_AST;
 
   (* create the Control Flow Graph from CIL's AST *)
-  CFG.createCFG merged_AST;
+  Cilfacade.createCFG merged_AST;
   Cilfacade.current_file := merged_AST;
   merged_AST
 
