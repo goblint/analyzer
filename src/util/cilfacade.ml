@@ -14,6 +14,7 @@ let isCharType = function
 
 
 let init () =
+  Stats.countCalls := true;
   initCIL ();
   removeBranchingOnConstants := false;
   lowerConstants := true;
