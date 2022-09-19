@@ -1246,7 +1246,17 @@ struct
                 else
                   Invariant.none
               in
-              let i_deref = deref_invariant ~vs ~lval vi offset (Mem c_exp, NoOffset) in
+              let i_deref =
+                match Cilfacade.typeOfLval (Var vi, offset) with
+                | typ ->
+                  (* Address set for a void* variable contains pointers to values of non-void type,
+                     so insert pointer cast to make invariant expression valid (no field/index on void). *)
+                  let newt = TPtr (typ, []) in
+                  let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
+                  deref_invariant ~vs ~lval vi offset (Mem c_exp, NoOffset)
+                | exception Cilfacade.TypeOfError _ -> (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
+                  Invariant.none
+              in
 
               Some (Invariant.(acc || (i && i_deref)))
             | Addr.NullPtr ->
