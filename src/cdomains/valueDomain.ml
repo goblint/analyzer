@@ -1206,7 +1206,7 @@ struct
 
   let rec ad_invariant ~vs ~offset ~lval x =
     let c_exp = Cil.(Lval (Option.get lval)) in
-    let i_opt = AD.fold (fun addr acc_opt ->
+    let is_opt = AD.fold (fun addr acc_opt ->
         BatOption.bind acc_opt (fun acc ->
             match addr with
             | Addr.UnknownPtr ->
@@ -1242,7 +1242,7 @@ struct
                   Invariant.none
               in
 
-              Some (Invariant.(acc || (i && i_deref)))
+              Some (Invariant.(i && i_deref) :: acc)
             | Addr.NullPtr ->
               let i =
                 let addr_exp = integer 0 in
@@ -1251,15 +1251,16 @@ struct
                 else
                   Invariant.none
               in
-              Some (Invariant.(acc || i))
+              Some (i :: acc)
             (* TODO: handle Addr.StrPtr? *)
             | _ ->
               None
           )
-      ) x (Some (Invariant.bot ()))
+      ) x (Some [])
     in
-    match i_opt with
-    | Some i -> i
+    match is_opt with
+    | Some [i] -> if get_bool "witness.invariant.exact" then i else Invariant.none
+    | Some is -> List.fold_left Invariant.(||) (Invariant.bot ()) is
     | None -> Invariant.none
 
   and blob_invariant ~vs ~offset ~lval (v, _, _) =
