@@ -2,10 +2,10 @@ open GoblintCil
 open Batteries
 module Thresholds = Set.Make(Z)
 
-(*Collect only constants that are used in comparisons*)
-(*For widening we want to have the tightest representation that includes the exit condition*)
-(*differentiating between upper and lower bounds, because e.g. expr > 10 is definitely true for an interval [11, x] and definitely false for an interval [x, 10]*)
-(*apron octagons use thresholds for c in inequalities +/- x +/- y <= c*)
+(* Collect only constants that are used in comparisons *)
+(* For widening we want to have the tightest representation that includes the exit condition *)
+(* differentiating between upper and lower bounds, because e.g. expr > 10 is definitely true for an interval [11, x] and definitely false for an interval [x, 10] *)
+(* apron octagons use thresholds for c in inequalities +/- x +/- y <= c *)
 let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref
 let one = Z.of_int 1
 
@@ -13,7 +13,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
   inherit nopCilVisitor
 
   method! vexpr = function
-    (*Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr*)
+    (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
     | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
     | BinOp (Ge, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Lt, _, (Const (CInt(i,_,_))), (TInt _))
@@ -22,18 +22,18 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold lower_thresholds @@ Z.sub i one;
 
       let negI = Z.add one @@ Z.neg i in
-      addThreshold octagon_thresholds @@ i; (*upper, just large enough: x + Y <= i*)
-      addThreshold octagon_thresholds @@ negI; (*lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
-      addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i*)
-      addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i*)
+      addThreshold octagon_thresholds @@ i; (* upper, just large enough: x + Y <= i *)
+      addThreshold octagon_thresholds @@ negI; (* lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
+      addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i *)
+      addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i *)
       DoChildren
 
-    (*Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr*)
+    (* Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr *)
     | BinOp (Lt, (Const (CInt(i,_,_))), _, (TInt _))
     | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
-      let i = Z.add i one in (*THe same as above with i+1 because for integers expr <= 10 <=> expr < 11  *)
+      let i = Z.add i one in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ Z.sub i one;
 
@@ -44,7 +44,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold octagon_thresholds @@ Z.add negI negI;
       DoChildren
 
-    (*Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr*)
+    (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
     | BinOp (Eq, (Const (CInt(i,_,_))), _, (TInt _))
     | BinOp (Eq, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Ne, _, (Const (CInt(i,_,_))), (TInt _))
@@ -84,7 +84,6 @@ let lower_thresholds () =
 let octagon_thresholds () =
   let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o
 
-(*old version. is there anything this has that the new one does not?*)
 
 class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2) = object
   inherit nopCilVisitor
