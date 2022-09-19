@@ -195,15 +195,15 @@ struct
     | `Top -> true
     | `Bot -> false
 
-    let rec zero_init_value ?(varAttr=[]) (t:typ): t =
-      match t with
-      | _ when is_mutex_type t -> `Mutex
-      | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-      | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
-      | TPtr _ -> `Address AD.null_ptr
-      | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
-      | TComp ({cstruct=false; _} as ci,_) ->
-        let v = try
+  let rec zero_init_value ?(varAttr=[]) (t:typ): t =
+    match t with
+    | _ when is_mutex_type t -> `Mutex
+    | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
+    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
+    | TPtr _ -> `Address AD.null_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=false; _} as ci,_) ->
+      let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
           let firstmember = List.hd ci.cfields in
           `Lifted firstmember, zero_init_value ~varAttr:firstmember.fattr firstmember.ftype

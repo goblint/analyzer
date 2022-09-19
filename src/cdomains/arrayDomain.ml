@@ -247,14 +247,14 @@ struct
         else
           begin
             let contributionLess = match Q.may_be_less ask i' e' with        (* (may i < e) ? xl : bot *)
-            | false -> Val.bot ()
-            | _ -> xl in
+              | false -> Val.bot ()
+              | _ -> xl in
             let contributionEqual = match Q.may_be_equal ask i' e' with      (* (may i = e) ? xm : bot *)
-            | false -> Val.bot ()
-            | _ -> xm in
+              | false -> Val.bot ()
+              | _ -> xm in
             let contributionGreater =  match Q.may_be_less ask e' i' with    (* (may i > e) ? xr : bot *)
-            | false -> Val.bot ()
-            | _ -> xr in
+              | false -> Val.bot ()
+              | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
           end
       end
@@ -344,37 +344,37 @@ struct
     in
     match e with
     | `Lifted exp ->
-        let is_affected = Basetype.CilExp.occurs v exp in
-        if not is_affected then
-          x
-        else
-          (* check if one part covers the entire array, so we can drop partitioning *)
-          begin
-            let e_must_bigger_max_index =
-              match length with
-              | Some l ->
-                begin
-                  match Idx.to_int l with
-                  | Some i ->
-                    let b = Q.may_be_less ask exp (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
-                    not b (* !(e <_{may} length) => e >=_{must} length *)
-                  | None -> false
-                end
-              | _ -> false
-            in
-            let e_must_less_zero =
-              Q.eval_int_binop (module Q.MustBool) Lt ask exp Cil.zero (* TODO: untested *)
-            in
-            if e_must_bigger_max_index then
-              (* Entire array is covered by left part, dropping partitioning. *)
-              Expp.top(),(xl, xl, xl)
-            else if e_must_less_zero then
-              (* Entire array is covered by right value, dropping partitioning. *)
-              Expp.top(),(xr, xr, xr)
-            else
-              (* If we can not drop partitioning, move *)
-              move (movement_for_exp exp)
-          end
+      let is_affected = Basetype.CilExp.occurs v exp in
+      if not is_affected then
+        x
+      else
+        (* check if one part covers the entire array, so we can drop partitioning *)
+        begin
+          let e_must_bigger_max_index =
+            match length with
+            | Some l ->
+              begin
+                match Idx.to_int l with
+                | Some i ->
+                  let b = Q.may_be_less ask exp (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
+                  not b (* !(e <_{may} length) => e >=_{must} length *)
+                | None -> false
+              end
+            | _ -> false
+          in
+          let e_must_less_zero =
+            Q.eval_int_binop (module Q.MustBool) Lt ask exp Cil.zero (* TODO: untested *)
+          in
+          if e_must_bigger_max_index then
+            (* Entire array is covered by left part, dropping partitioning. *)
+            Expp.top(),(xl, xl, xl)
+          else if e_must_less_zero then
+            (* Entire array is covered by right value, dropping partitioning. *)
+            Expp.top(),(xr, xr, xr)
+          else
+            (* If we can not drop partitioning, move *)
+            move (movement_for_exp exp)
+        end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
@@ -464,36 +464,36 @@ struct
                   (match Q.may_be_equal ask e' i' with (* TODO: untested *)
                    | false -> Val.bot()
                    | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
-              (
-                let t = Cilfacade.typeOf e' in
-                let ik = Cilfacade.get_ikind t in
-                match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik 1, t)) i' with
-                | true -> xm
-                | _ ->
-                  begin
-                    match Q.may_be_less ask e' i' with (* TODO: untested *)
-                    | false-> Val.bot()
-                    | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
-                  end
-              )
+                  (
+                    let t = Cilfacade.typeOf e' in
+                    let ik = Cilfacade.get_ikind t in
+                    match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik 1, t)) i' with
+                    | true -> xm
+                    | _ ->
+                      begin
+                        match Q.may_be_less ask e' i' with (* TODO: untested *)
+                        | false-> Val.bot()
+                        | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
+                      end
+                  )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
                   (match Q.may_be_equal ask e' i' with (* TODO: untested *)
                    | false -> Val.bot()
                    | _ -> xm)
 
-              (
-                let t = Cilfacade.typeOf e' in
-                let ik = Cilfacade.get_ikind t in
-                match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
-                | true -> xm
-                | _ ->
-                  begin
-                    match Q.may_be_less ask i' e' with (* TODO: untested *)
-                    | false -> Val.bot()
-                    | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
-                  end
-              )
+                  (
+                    let t = Cilfacade.typeOf e' in
+                    let ik = Cilfacade.get_ikind t in
+                    match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
+                    | true -> xm
+                    | _ ->
+                      begin
+                        match Q.may_be_less ask i' e' with (* TODO: untested *)
+                        | false -> Val.bot()
+                        | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
+                      end
+                  )
             in
             (* The new thing is partitioned according to i so we can strongly update *)
             (i,(left, a, right))

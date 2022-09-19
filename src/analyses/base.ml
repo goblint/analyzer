@@ -107,7 +107,7 @@ struct
           | _ -> pointedArrayMap xs
       )
   in
-    match VarMap.find_opt fundec.svar !array_map with
+  match VarMap.find_opt fundec.svar !array_map with
       (*We already have something -> do not change it*)
       | Some _ -> ()
       | None -> array_map := VarMap.add fundec.svar (pointedArrayMap arguments) !array_map
@@ -120,10 +120,10 @@ struct
 
   let project_val ask array_attr p_opt value is_glob =
     let p = if GobConfig.get_bool "annotation.int.enabled" then (
-      if is_glob then
-        Some PU.max_int_precision
-      else p_opt
-    ) else None
+        if is_glob then
+          Some PU.max_int_precision
+        else p_opt
+      ) else None
     in
     let a = if GobConfig.get_bool "annotation.array" then array_attr else None in
     VD.project ask p a value
