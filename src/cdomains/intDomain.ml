@@ -851,8 +851,8 @@ struct
     | Some (x1, x2) ->
       let (min_ik, max_ik) = range ik in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if not exact || Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
-      let i2 = if not exact || Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
+      let i1 = if (* not exact || *) Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
+      let i2 = if (* not exact || *) Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
       Invariant.(i1 && i2)
     | None -> Invariant.none
 
