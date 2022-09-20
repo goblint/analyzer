@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open ApronDomain
-open GobConfig
 
 module M = Messages
 
@@ -23,7 +22,11 @@ struct
   module D = ApronComponents (AD) (Priv.D)
   module G = Priv.G
   module C = D
-  module V = Priv.V
+  module V =
+  struct
+    include Priv.V
+    include StdV
+  end
 
   open AD
   open (ApronDomain: (sig module V: (module type of ApronDomain.V) end)) (* open only V from ApronDomain (to shadow V of Spec), but don't open D (to not shadow D here) *)
@@ -440,6 +443,9 @@ struct
         | _ ->
           raise Deadcode
       end
+    | Unknown, "__goblint_assume_join" ->
+      let id = List.hd args in
+      Priv.thread_join ~force:true ask ctx.global id st
     | _, _ ->
       let lvallist e =
         let s = ask.f (Queries.MayPointTo e) in
@@ -516,6 +522,9 @@ struct
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
+    | Queries.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr x) in
+      Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context ->
       query_invariant ctx context
     | _ -> Result.top q
@@ -558,7 +567,6 @@ struct
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, apron privatization unsound"; (* TODO: something more sound *)
       Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
-    (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->

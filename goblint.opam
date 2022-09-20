@@ -2,17 +2,17 @@
 opam-version: "2.0"
 synopsis: "Static analysis framework for C"
 maintainer: [
-  "Michael Schwarz <michael.schwarz93@gmail.com>"
   "Simmo Saan <simmo.saan@gmail.com>"
-  "Ralf Vogler <ralf.vogler@gmail.com>"
+  "Michael Schwarz <michael.schwarz93@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani"
-  "Kalmer Apinis"
-  "Ralf Vogler"
+  "Simmo Saan"
   "Michael Schwarz"
   "Julian Erhard"
-  "Simmo Saan"
+  "Sarah Tilscher"
+  "Ralf Vogler"
+  "Kalmer Apinis"
+  "Vesal Vojdani"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
@@ -21,14 +21,14 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "ocaml" {>= "4.10"}
   "dune" {>= "2.9.1"}
-  "goblint-cil" {>= "1.8.2"}
+  "goblint-cil" {>= "2.0.0"}
   "batteries" {>= "3.4.0"}
   "zarith" {>= "1.8"}
   "yojson" {>= "2.0.0"}
   "qcheck-core"
   "ppx_deriving"
   "ppx_deriving_hash"
-  "ppx_deriving_yojson"
+  "ppx_deriving_yojson" {>= "3.7.0"}
   "ppx_blob" {>= "0.6.0"}
   "ounit2" {with-test}
   "qcheck-ounit" {with-test}
@@ -45,8 +45,12 @@ depends: [
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}
+  "conf-gcc"
 ]
 depopts: ["apron" "z3"]
+conflicts: [
+  "result" {< "1.5"}
+]
 build: [
   ["dune" "subst"] {dev}
   [
@@ -66,12 +70,12 @@ build: [
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 # on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
 # also remember to generate/adjust goblint.opam.locked!
+available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
-  [ "goblint-cil.1.8.2" "git+https://github.com/goblint/cil.git#54b0c220a9cea4213ff596eadff877a6ec9b00fb" ]
+  # published goblint-cil 2.0.0 is currently up-to-date, so no pin needed
+  # [ "goblint-cil.2.0.0" "git+https://github.com/goblint/cil.git#85ca8cf757580c67c53b5db76bce5be048ce5541" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
-  # quoter workaround reverted for release, so no pin needed
-  # [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
   # TODO: add back after release, only pinned for CI stability
   [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
 ]

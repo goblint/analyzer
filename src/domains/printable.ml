@@ -1,5 +1,6 @@
 (** Some things are not quite lattices ... *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 module type S =
@@ -564,6 +565,31 @@ struct
   let show n = n
   let name () = "String"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
+end
+
+
+module type FailwithMessage =
+sig
+  val message: string
+end
+
+module Failwith (Message: FailwithMessage): S =
+struct
+  type t = |
+
+  let name () = "failwith"
+  let equal _ _ = failwith Message.message
+  let compare _ _ = failwith Message.message
+  let hash _ = failwith Message.message
+  let tag _ = failwith Message.message
+
+  let show _ = failwith Message.message
+  let pretty _ _ = failwith Message.message
+  let printXml _ _ = failwith Message.message
+  let to_yojson _ = failwith Message.message
+
+  let arbitrary _ = failwith Message.message
+  let relift _ = failwith Message.message
 end
 
 

@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 let create_var name = Goblintutil.create_var @@ makeGlobalVar name voidType
 

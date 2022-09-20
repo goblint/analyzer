@@ -4,6 +4,7 @@ open Prelude
 open GobConfig
 open Printf
 open Goblintutil
+open GoblintCil
 
 let writeconffile = ref None
 
@@ -118,27 +119,21 @@ and complete args =
   |> List.iter print_endline;
   raise Exit
 
-(** Parse arguments. Print help if needed. *)
-let parse_arguments () =
-  let anon_arg = set_string "files[+]" in
-  let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
-  Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
-  begin match !writeconffile with
-    | Some writeconffile ->
-      GobConfig.write_file writeconffile;
-      raise Exit
-    | None -> ()
-  end;
-  if get_string_list "files" = [] then (
-    prerr_endline "No files for Goblint?";
-    prerr_endline "Try `goblint --help' for more information.";
-    raise Exit
-  )
+let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
+
+let check_arguments () =
+  (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
+  let warn m = eprint_color ("{yellow}Option warning: "^m) in
+  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
+  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
+  (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
+  if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
+  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated."
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-
   if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
@@ -153,6 +148,33 @@ let handle_flags () =
   | path ->
     Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
+
+let handle_options () =
+  check_arguments ();
+  AfterConfig.run ();
+  Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  Cilfacade.init_options ();
+  handle_flags ()
+
+(** Parse arguments. Print help if needed. *)
+let parse_arguments () =
+  Arg.current := 0; (* Necessary to reset in server mode. *)
+  let anon_arg = set_string "files[+]" in
+  let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
+  Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
+  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
+  begin match !writeconffile with
+    | Some writeconffile ->
+      GobConfig.write_file writeconffile;
+      raise Exit
+    | None -> ()
+  end;
+  handle_options ();
+  if not (get_bool "server.enabled") && get_string_list "files" = [] then (
+    prerr_endline "No files for Goblint?";
+    prerr_endline "Try `goblint --help' for more information.";
+    raise Exit
+  )
 
 let basic_preprocess_counts = Preprocessor.FpathH.create 3
 
@@ -313,8 +335,8 @@ let preprocess_files () =
   );
   preprocessed
 
-(** Possibly merge all postprocessed files *)
-let merge_preprocessed preprocessed =
+(** Parse preprocessed files *)
+let parse_preprocessed preprocessed =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
 
@@ -339,8 +361,10 @@ let merge_preprocessed preprocessed =
 
     Cilfacade.getAST preprocessed_file
   in
-  let files_AST = List.map (get_ast_and_record_deps) preprocessed in
+  List.map get_ast_and_record_deps preprocessed
 
+(** Merge parsed files *)
+let merge_parsed parsed =
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
@@ -349,7 +373,7 @@ let merge_preprocessed preprocessed =
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
-    match files_AST with
+    match parsed with
     | [one] -> Cilfacade.callConstructors one
     | [] ->
       prerr_endline "No files to analyze!";
@@ -364,12 +388,15 @@ let merge_preprocessed preprocessed =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
-let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
+let preprocess_parse_merge () =
+  preprocess_files ()
+  |> parse_preprocessed
+  |> merge_parsed
 
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
@@ -378,9 +405,7 @@ let do_stats () =
 let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
-  (* TODO: uncomment on interactive *)
-  (* Goblintutil.narrow_reuses := 0; *)
-  (* Goblintutil.aborts := 0; *)
+  Goblintutil.narrow_reuses := 0;
   Stats.reset SoftwareTimer
 
 (** Perform the analysis over the merged AST.  *)
@@ -404,42 +429,27 @@ let do_analyze change_info merged_AST =
                                              L.pretty stf L.pretty exf L.pretty otf);
     (* and here we run the analysis! *)
 
-    let do_all_phases ast funs =
-      let do_one_phase ast p =
-        phase := p;
-        if get_bool "dbg.verbose" then (
-          let aa = String.concat ", " @@ get_string_list "ana.activated" in
-          let at = String.concat ", " @@ get_string_list "trans.activated" in
-          print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
-          print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
-        );
-        try Control.analyze change_info ast funs
-        with e ->
-          let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
-          let loc = !Tracing.current_loc in
-          Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
-          Messages.error ~category:Analyzer ~loc "About to crash!";
-          (* trigger Generic.SolverStats...print_stats *)
-          Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
-          do_stats ();
-          print_newline ();
-          Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
-          (* Cilfacade.current_file := ast'; *)
-      in
-      (* new style is phases[i].ana.activated = [ana_1, ...]
-         phases[i].ana.x overwrites setting ana.x *)
-      let num_phases =
-        let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
-        (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
-        if get_bool "dbg.verbose" then print_endline @@ "Using new format for phases!";
-        if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
-        max np 1
-      in
-      ignore @@ Enum.iter (do_one_phase ast) (0 -- (num_phases - 1))
+    let control_analyze ast funs =
+      if get_bool "dbg.verbose" then (
+        let aa = String.concat ", " @@ get_string_list "ana.activated" in
+        let at = String.concat ", " @@ get_string_list "trans.activated" in
+        print_endline @@ "Activated analyses: " ^ aa;
+        print_endline @@ "Activated transformations: " ^ at
+      );
+      try Control.analyze change_info ast funs
+      with e ->
+        let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
+        Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
+        Messages.error ~category:Analyzer "About to crash!";
+        (* trigger Generic.SolverStats...print_stats *)
+        Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+        do_stats ();
+        print_newline ();
+        Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
+        (* Cilfacade.current_file := ast'; *)
     in
 
-    (* Analyze with the new experimental framework. *)
-    Stats.time "analysis" (do_all_phases merged_AST) funs
+    Stats.time "analysis" (control_analyze merged_AST) funs
   )
 
 let do_html_output () =
@@ -487,18 +497,6 @@ let do_gobview () =
       eprintf "Warning: Cannot locate Gobview.\n"
   )
 
-let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
-
-let check_arguments () =
-  (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
-  let warn m = eprint_color ("{yellow}Option warning: "^m) in
-  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
-  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
-  if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
-  (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
-  if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
-
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
@@ -507,21 +505,31 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
+    let warn m = eprint_color ("{yellow}Warning: "^m) in
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
-      let warn m = eprint_color ("{yellow}Warning: "^m) in
       warn "incremental.load is activated but no data exists that can be loaded."
     end;
-    let (changes, old_file, max_ids) =
+    let (changes, restarting, old_file, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         Serialize.Cache.load_data ();
         let old_file = Serialize.Cache.(get_data CilFile) in
         let changes = CompareCIL.compareCilFiles old_file current_file in
         let max_ids = Serialize.Cache.(get_data VersionData) in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
-        (changes, Some old_file, max_ids)
+
+        let restarting = GobConfig.get_string_list "incremental.restart.list" in
+        let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
+        if not (List.is_empty not_found) then begin
+          List.iter
+            (fun s ->
+               warn @@ "Should restart " ^ s ^ " but no such global could not be found in the CIL-file.")
+            not_found;
+          flush stderr
+        end;
+        (changes, restarting, Some old_file, max_ids)
       end else begin
         let max_ids = MaxIdUtil.get_file_max_ids current_file in
-        (CompareCIL.empty_change_info (), None, max_ids)
+        (CompareCIL.empty_change_info (), [], None, max_ids)
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
@@ -536,7 +544,7 @@ let diff_and_rename current_file =
       | Some cil_file, Some solver_data -> Some ({solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {server = false; Analyses.changes = changes; old_data}
+    {server = false; Analyses.changes = changes; restarting; old_data}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

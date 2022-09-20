@@ -1,0 +1,11 @@
+--- tests/incremental/00-basic/07-dead-branch.c
++++ tests/incremental/00-basic/07-dead-branch.c
+@@ -1,7 +1,7 @@
+ #include <assert.h>
+
+ void foo() {
+-
++  __goblint_check(1);
+ }
+
+ int main() {

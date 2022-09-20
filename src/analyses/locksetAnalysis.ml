@@ -27,7 +27,7 @@ module type MayArg =
 sig
   module D: DS
   module G: Lattice.S
-  module V: Printable.S
+  module V: SpecSysVar
 
   val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
   val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t

@@ -1,4 +1,6 @@
-// PARAM: --set ana.activated "['base', 'mallocWrapper']" --set ana.ctx_insens[+] 'base'  --set ana.base.privatization none
+// PARAM: --set ana.activated "['base', 'mallocWrapper']" --set ana.ctx_insens[+] 'base' --set ana.ctx_insens[+] 'mallocWrapper' --set ana.base.privatization none
+// should be fully context-insensitive to activate minimal analyses
+// none privatization because mutex deactivated
 #include<stdlib.h>
 int f(int, void*);
 

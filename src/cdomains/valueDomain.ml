@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 open PrecisionUtil
@@ -98,9 +98,9 @@ struct
   ] [@@deriving eq, ord, hash]
 
   let is_mutex_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
-  | TInt (IInt, attr) -> hasAttribute "mutex" attr
-  | _ -> false
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthead_spinlock_t"
+    | TInt (IInt, attr) -> hasAttribute "mutex" attr
+    | _ -> false
 
   let is_immediate_type t = is_mutex_type t || isFunctionType t
 
@@ -562,11 +562,12 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
     | (`Float x, `Float y) -> `Float (FD.widen x y)
+    (* TODO: symmetric widen, wtf? *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
-        | Some x -> AD.(widen y not_null)
-        | None -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x -> AD.(widen y (join y not_null))
+        | None -> AD.widen y (AD.join y AD.top_ptr))
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -647,11 +648,12 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
     | (`Float x, `Float y) -> `Float (FD.widen x y)
+    (* TODO: symmetric widen, wtf? *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
-        | Some x -> AD.(widen y not_null)
-        | None -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x -> AD.(widen y (join y not_null))
+        | None -> AD.widen y (AD.join y AD.top_ptr))
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with

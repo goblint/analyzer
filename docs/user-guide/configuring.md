@@ -21,7 +21,8 @@ In `.vscode/settings.json` add the following:
     "json.schemas": [
         {
             "fileMatch": [
-                "/conf/*.json"
+                "/conf/*.json",
+                "/tests/incremental/*/*.json"
             ],
             "url": "/src/util/options.schema.json"
         }

@@ -1,4 +1,6 @@
+open Goblint_lib
 open OUnit2
+open GoblintCil
 open Z
 
 module IntTest (I:IntDomainProperties.OldS) =
@@ -21,8 +23,6 @@ struct
     assert_equal ~printer:I.show ione  (I.of_int one);
     assert_equal ~printer:I.show itrue (I.of_bool true);
     assert_equal ~printer:I.show ifalse(I.of_bool false);
-    assert_bool "IntDomain cannot hold 1" (I.is_int ione) ;
-    assert_bool "IntDomain cannot hold 0" (I.is_int izero) ;
     assert_equal (Some one ) (I.to_int ione);
     assert_equal (Some zero) (I.to_int izero);
     assert_equal (Some zero) (I.to_int ifalse)
@@ -31,10 +31,8 @@ struct
   let test_bool _ =
     assert_equal (Some true ) (I.to_bool ione);
     assert_equal (Some false) (I.to_bool izero);
-    assert_bool "0 isn't bool" (I.is_bool izero);
-    assert_bool "1 isn't bool" (I.is_bool ione);
-    assert_bool "true isn't bool" (I.is_bool itrue);
-    assert_bool "false isn't bool" (I.is_bool ifalse);
+    assert_equal (Some true ) (I.to_bool itrue);
+    assert_equal (Some false) (I.to_bool ifalse);
     assert_equal ~printer:I.show itrue  (I.lt ione  itwo);
     assert_equal ~printer:I.show ifalse (I.gt ione  itwo);
     assert_equal ~printer:I.show itrue  (I.le ione  ione);

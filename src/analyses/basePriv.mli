@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 (* Cannot use local module substitutions because ppx_import is still stuck at 4.07 AST: https://github.com/ocaml-ppx/ppx_import/issues/50#issuecomment-775817579. *)
 (* TODO: try again, because ppx_import is now removed *)
 
@@ -21,6 +21,7 @@ sig
   val escape: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseDomain.BaseComponents (D).t
   val enter_multithreaded: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+  val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for base. *)
 
   val thread_join: Queries.ask -> (V.t -> G.t) -> Cil.exp -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val thread_return: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t

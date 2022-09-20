@@ -1,6 +1,6 @@
 (** Globally accessible flags and utility functions. *)
 
-open Cil
+open GoblintCil
 open GobConfig
 
 
@@ -97,6 +97,7 @@ let seconds_of_duration_string =
 
 let vars = ref 0
 let evals = ref 0
+let narrow_reuses = ref 0
 
 (* print GC statistics; taken from Cil.Stats.print which also includes timing; there's also Gc.print_stat, but it's in words instead of MB and more info than we want (also slower than quick_stat since it goes through the heap) *)
 let print_gc_quick_stat chn =
@@ -117,22 +118,6 @@ let print_gc_quick_stat chn =
     gc.Gc.major_collections
     gc.Gc.compactions;
   gc
-
-let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
-(* typedef struct {
-   PROCESS_NAME_TYPE      NAME;
-   SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
-   STACK_SIZE_TYPE        STACK_SIZE;
-   PRIORITY_TYPE          BASE_PRIORITY;
-   SYSTEM_TIME_TYPE       PERIOD;
-   SYSTEM_TIME_TYPE       TIME_CAPACITY;
-   DEADLINE_TYPE          DEADLINE;
-   }                        PROCESS_ATTRIBUTE_TYPE; *)
-let arinc_name          = if scrambled then "M161" else "NAME"
-let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
-let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
-let arinc_period        = if scrambled then "M165" else "PERIOD"
-let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
 let exe_dir = Fpath.(parent (v Sys.executable_name))
 let command_line = match Array.to_list Sys.argv with

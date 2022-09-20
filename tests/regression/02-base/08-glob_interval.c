@@ -1,4 +1,4 @@
-// PARAM: --set solver "'new'" --set ana.int.interval true
+// PARAM: --set ana.int.interval true
 #include<pthread.h>
 #include<assert.h>
 

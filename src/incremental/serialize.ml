@@ -42,7 +42,7 @@ module Cache = struct
     mutable solver_data: Obj.t option;
     mutable analysis_data: Obj.t option;
     mutable version_data: MaxIdUtil.max_ids option;
-    mutable cil_file: Cil.file option;
+    mutable cil_file: GoblintCil.file option;
   }
 
   let data = ref {
@@ -55,7 +55,7 @@ module Cache = struct
   (** GADT that may be used to query data from and pass data to the cache. *)
   type _ data_query =
     | SolverData : _ data_query
-    | CilFile : Cil.file data_query
+    | CilFile : GoblintCil.file data_query
     | VersionData : MaxIdUtil.max_ids data_query
     | AnalysisData : _ data_query
 

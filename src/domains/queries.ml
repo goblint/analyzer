@@ -1,6 +1,6 @@
 (** Structures for the querying subsystem. *)
 
-open Cil
+open GoblintCil
 
 module GU = Goblintutil
 module ID =
@@ -31,9 +31,7 @@ struct
   let ending ik = lift (I.ending ik)
 
   let to_int x = unlift_opt I.to_int x
-  let is_int x = unlift_is I.is_int x
   let to_bool x = unlift_opt I.to_bool x
-  let is_bool x = unlift_is I.is_bool x
 
   let is_bot_ikind = function
     | `Bot -> false
@@ -111,6 +109,7 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | Invariant: invariant_context -> Invariant.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
+  | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
 
 type 'a result = 'a
 
@@ -159,6 +158,7 @@ struct
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | Invariant _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
+    | IterSysVars _ -> (module Unit)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -206,6 +206,7 @@ struct
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | Invariant _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
+    | IterSysVars _ -> Unit.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -250,6 +251,7 @@ struct
     | Any MustJoinedThreads -> 34
     | Any (WarnGlobal _) -> 35
     | Any (Invariant _) -> 36
+    | Any (IterSysVars _) -> 37
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -280,6 +282,7 @@ struct
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
+      | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 

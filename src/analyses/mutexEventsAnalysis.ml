@@ -73,7 +73,6 @@ struct
       ctx.emit (Events.Lock (verifier_atomic, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
-    let is_activated a = List.mem a (GobConfig.get_string_list "ana.activated") in (* TODO: proper LibraryFunctions group selection *)
     let remove_rw x = x in
     let unlock remove_fn =
       match f.vname, arglist with
@@ -82,11 +81,6 @@ struct
         List.iter (fun e ->
             ctx.split () [Events.Unlock (remove_fn e)]
           ) (eval_exp_addr (Analyses.ask_of_ctx ctx) arg);
-        raise Analyses.Deadcode
-      | "LAP_Se_SignalSemaphore", [Lval arg; _] when is_activated "arinc" || is_activated "extract_arinc" ->
-        List.iter (fun e ->
-            ctx.split () [Events.Unlock (remove_fn e)]
-          ) (eval_exp_addr (Analyses.ask_of_ctx ctx) (Cil.mkAddrOf arg));
         raise Analyses.Deadcode
       | _ -> failwith "unlock has multiple arguments"
     in
@@ -102,9 +96,6 @@ struct
         | "spin_lock_irqsave", [arg; _] ->
           (*print_endline @@ "Mutex `Lock "^f.vname;*)
           lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arg
-        | "LAP_Se_WaitSemaphore", [Lval arg; _; _] when is_activated "arinc" || is_activated "extract_arinc" ->
-          (*print_endline @@ "Mutex `Lock "^f.vname;*)
-          lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv (Cil.mkAddrOf arg)
         | _ -> failwith "lock has multiple arguments"
       end
     | Unlock _, "__raw_read_unlock"

@@ -1,5 +1,6 @@
 (** The lattice signature and simple functors for building lattices. *)
 
+module Pretty = GoblintCil.Pretty
 module GU = Goblintutil
 
 (* module type Rel =
@@ -37,7 +38,13 @@ sig
 end
 
 exception TopValue
+(** Exception raised by a topless lattice in place of a top value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception BotValue
+(** Exception raised by a bottomless lattice in place of a bottom value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
 
@@ -60,6 +67,15 @@ end
 module Unit = UnitConf (struct let name = "()" end)
 
 
+module NoBotTop =
+struct
+  let top () = raise TopValue
+  let is_top _ = false
+  let bot () = raise BotValue
+  let is_bot _ = false
+end
+
+
 module Fake (Base: Printable.S) =
 struct
   include Base
@@ -70,10 +86,7 @@ struct
   let meet x y =
     if equal x y then x else raise (Unsupported "fake meet")
   let narrow = meet
-  let top () = raise (Unsupported "fake top")
-  let is_top _ = false
-  let bot () = raise (Unsupported "fake bot")
-  let is_bot _ = false
+  include NoBotTop
 
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not equal %a" (Base.name ()) pretty x pretty y

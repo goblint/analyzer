@@ -1,8 +1,8 @@
-open Cil
+open GoblintCil
 open Pretty
 
-type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, to_yojson]
-type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, to_yojson]
+type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, ord, hash, to_yojson]
+type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, ord, hash, to_yojson]
 
 type t =
   | Assign of CilType.Lval.t * CilType.Exp.t
@@ -29,7 +29,7 @@ type t =
     * appeared *)
   | Skip
   (** This is here for historical reasons. I never use Skip edges! *)
-[@@deriving eq, to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 
 let pretty () = function

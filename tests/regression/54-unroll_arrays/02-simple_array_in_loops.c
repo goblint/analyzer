@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
 #include <assert.h>
 int global;
 
@@ -32,7 +32,8 @@ void example1(void)
 
 // Check that arrays of types different from int are handeled correctly
 void example2() {
-    char a[10];
+    // no char because char has unknown signedness (particularly, unsigned on arm64)
+    signed char a[10];
     int n;
     __goblint_check(a[3] == 800); // FAIL (char cannot be 800)
     __goblint_check(a[3] == 127); // UNKNOWN!
@@ -41,7 +42,7 @@ void example2() {
         a[i] = 7;
     }
 
-    a[3] = (char) n;
+    a[3] = (signed char) n;
     __goblint_check(a[3] == 800); //FAIL
     __goblint_check(a[3] == 127); //UNKNOWN
     __goblint_check(a[3] == -128); //UNKNOWN

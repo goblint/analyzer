@@ -1,6 +1,6 @@
 open MyCFG
 open Queue
-open Cil
+open GoblintCil
 open CilMaps
 include CompareAST
 
