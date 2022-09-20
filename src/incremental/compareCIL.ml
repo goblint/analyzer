@@ -47,7 +47,7 @@ let should_reanalyze (fdec: Cil.fundec) =
 (* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
-let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) =
+let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : ((cfg * cfg) * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) =
   if should_reanalyze current then
     ForceReanalyze current, None
   else
@@ -92,14 +92,14 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
       else
         match cfgs with
         | None -> unchanged_to_change_status (eq_block (old.sbody, old) (current.sbody, current) rename_mapping), None
-        | Some (cfgOld, (cfgNew, cfgNewBack)) ->
-          let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
+        | Some ((cfgOld, cfgOldBack), (cfgNew, cfgNewBack)) ->
+          let module CfgOld : MyCFG.CfgBidir = struct let prev = cfgOldBack let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
           let cmp = compare_fun (module CfgOld) (module CfgNew) old current in
           if cmp.destabilize_nodes = [] then (Unchanged, None)
           else (Changed, Some cmp)
 
-let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match old, current with
+let eq_glob (old: global) (current: global) (cfgs : ((cfg * cfg) * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match old, current with
   | GFun (f,_), GFun (g,_) -> eqF f g cfgs global_rename_mapping
   | GVar (x, init_x, _), GVar (y, init_y, _) -> unchanged_to_change_status (eq_varinfo x y (StringMap.empty, VarinfoMap.empty)), None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> unchanged_to_change_status (eq_varinfo x y (StringMap.empty, VarinfoMap.empty)), None
@@ -107,7 +107,7 @@ let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) 
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
-    then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
+    then Some (CfgTools.getCFG oldAST, CfgTools.getCFG newAST)
     else None in
 
   let generate_global_rename_mapping map global =

@@ -114,21 +114,23 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
   repeat ();
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
 
-type node_diff_precision = Fuzzy | Precise
+type node_match = { old_node : node; new_node : node; dep_vals_changed : bool }
+let node_match ?(dep_vals_changed = false) old_node new_node =
+  { old_node ; new_node ; dep_vals_changed }
 
 type nodes_diff = {
   (* the results for these nodes can be reused as-is ... *)
-  matched_nodes: (node * node * node_diff_precision) list;
-  (** ... assuming all nodes reachable from these are destabilized *)
-  destabilize_nodes: node list;
+  matched_nodes : node_match list;
+  (* ... assuming all nodes reachable from these are destabilized *)
+  destabilize_nodes : node list;
 }
 
 type ('n, 'e) digraph = 'n -> ('e * 'n) list
 
-let digraph_of_cfg (cfg : cfg) n =
-  List.map (fun (es, n) -> to_edge_list es, n) (cfg n)
+let digraph_of_cfg (cfg : cfg) : _ digraph =
+  fun n -> List.map (fun (es, n) -> (to_edge_list es, n)) (cfg n)
 
-(** reverse-postorder  *)
+(** reverse-postorder *)
 let linearize_digraph (type n e)
     (module N : Hashtbl.HashedType with type t = n)
     (graph : (n, e) digraph) (start : n) : (n * e list) list =
@@ -149,10 +151,31 @@ let linearize_digraph (type n e)
 
   in go start []
 
+let same_deps (type n1 n2)
+    (module N : Hashtbl.HashedType with type t = n1)
+    (rev_digraph_old : _ digraph) (rev_digraph_new : _ digraph)
+    eq_node eq_edge
+    (matching0 : (n1 * n2) list) : bool list =
+
+  let module HashtblN = Hashtbl.Make (N) in
+  let matching = HashtblN.of_seq (List.to_seq matching0) in
+
+  (* TODO: does CFG *edge* need to be the same too? --> yes, if the statement changes, the dependency has changed
+     what about the order of inbound edges? --> currently must be the same *)
+  matching0 |> List.map (fun (n_old, n_new) ->
+    let deps_old, deps_new = (rev_digraph_old n_old, rev_digraph_new n_new) in
+    List.compare_lengths deps_old deps_new = 0
+    && List.for_all2
+      (fun (e_old, n_old') (e_new, n_new') ->
+        eq_edge e_old e_new
+        && Option.equal eq_node (HashtblN.find_opt matching n_old') (Some n_new'))
+      deps_old deps_new
+    )
+
 let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
   let same, diff = Stats.time "forwards-compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun_old fun_new) () in
   let unchanged, diffNodes1 = Stats.time "forwards-compare-phase2" (fun () -> reexamine fun_old fun_new same diff (module CfgOld) (module CfgNew)) () in
-  { matched_nodes = List.of_seq unchanged |> List.map (fun (o, n) -> (o, n, Precise)) ;
+  { matched_nodes = List.of_seq unchanged |> List.map (fun (o, n) -> node_match o n) ;
     destabilize_nodes = List.of_seq diffNodes1 }
 
 let linearize_cfg cfg fundec = (* type n = Node.t, type e = edge list *)
@@ -177,21 +200,37 @@ let match_lin_1to1 lin_old lin_new =
   GobList.combine_short lin_old lin_new
   |> List.map (fun ((o, _), (n, _)) -> o, n)
 
-let cfg_matching_of_fuzzy_match fun_old fun_new fuzzy_match =
-  { matched_nodes = (* fuzzy_match *) (* [] *)
-      (Function fun_old, Function fun_new, Precise)
-      :: (List.tl fuzzy_match |> List.map (fun (o, n) -> o, n, Fuzzy)) ;
-    destabilize_nodes = [ Function fun_old ] }
+let same_deps_cfg rev_cfg_old rev_cfg_new =
+  same_deps (module Node) (digraph_of_cfg rev_cfg_old) (digraph_of_cfg rev_cfg_new) Node.equal eq_edge_list
 
-let compare_fun (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
-  match GobConfig.get_string "incremental.cfg-compare.by" with
-  | "forward" -> compare_forwards (module CfgOld) (module CfgNew) fun_old fun_new
-  | "diff" | "1-to-1" as cmp_by ->
+let cfg_matching_of_fuzzy_match rev_cfg_old rev_cfg_new fun_old fun_new fuzzy_match =
+  let matched_nodes =
+    List.map2
+      (fun (o, n) dep_vals_changed -> node_match ~dep_vals_changed o n)
+      fuzzy_match
+      (same_deps_cfg rev_cfg_old rev_cfg_new fuzzy_match)
+  in
+  (* for fuzzy matches, destabilize the entire function by marking the entry node *)
+  { matched_nodes ; destabilize_nodes = [ Function fun_old ] }
+
+type cfg_compare_type = Forward | Diff | OneToOne
+let cfg_compare_type_of_string = function
+  | "forward" -> Forward
+  | "diff" -> Diff
+  | "1-to-1" -> OneToOne
+  | s -> failwith ("unknown cfg compare type: " ^ s)
+
+let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) fun_old fun_new =
+  let compare_type' = match compare_type with
+    | None -> GobConfig.get_string "incremental.cfg-compare.by" |> cfg_compare_type_of_string
+    | Some cmp -> cmp
+  in
+  match compare_type' with
+  | Forward -> compare_forwards (module CfgOld) (module CfgNew) fun_old fun_new
+  | Diff | OneToOne as cmp_by ->
       let lin_old = linearize_cfg CfgOld.next fun_old in
       let lin_new = linearize_cfg CfgNew.next fun_new in
       (match cmp_by with
-      | "diff" -> match_lin_diff (cfg_nes_equal fun_old fun_new) lin_old lin_new
-      | "1-to-1" -> match_lin_1to1 lin_old lin_new
-      | _ -> failwith "internal error")
-      |> cfg_matching_of_fuzzy_match fun_old fun_new
-  | _ -> failwith "configuration error"
+      | Diff -> match_lin_diff (cfg_nes_equal fun_old fun_new) lin_old lin_new
+      | OneToOne | _ -> match_lin_1to1 lin_old lin_new)
+      |> cfg_matching_of_fuzzy_match CfgOld.prev CfgNew.prev fun_old fun_new

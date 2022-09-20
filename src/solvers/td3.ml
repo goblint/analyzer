@@ -588,6 +588,7 @@ module WP =
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         let marked_for_deletion = HM.create 103 in
+        let marked_for_dep_vals_deletion = HM.create 103 in
 
         let dummy_pseudo_return_node f =
           (* not the same as in CFG, but compares equal because of sid *)
@@ -617,20 +618,21 @@ module WP =
             mark_node marked_for_deletion f (dummy_pseudo_return_node f)
         in
         (* TODO: solver changes *)
-        List.iter (fun (f,_,un) ->
+        List.iter (fun (f, _, un) ->
             mark_node marked_for_deletion f (Function f);
-            add_pseudo_return f (un |> List.map (fun (o, _, _) -> o))
+            add_pseudo_return f (un |> List.map (fun m -> m.old_node));
+            un |> List.iter (fun m ->
+              if m.dep_vals_changed then mark_node marked_for_dep_vals_deletion f m.old_node)
           ) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
+        let delete_marked ?(marked = marked_for_deletion) s = HM.iter (fun k _ -> HM.remove s k) marked in
         delete_marked rho;
         delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
         delete_marked dep;
-        delete_marked dep_vals; (* very basic fix for incremental runs with aborting such that unknowns of function
-                                   return nodes with changed rhs but same id are actually evaluated and not looked up
-                                   (this is probably not sufficient / desirable for inefficient matchings) *)
+        delete_marked dep_vals; (* TODO: keep this? *)
+        delete_marked ~marked:marked_for_dep_vals_deletion dep_vals;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
         if restart_sided then (

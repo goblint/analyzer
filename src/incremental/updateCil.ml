@@ -59,7 +59,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       | _ -> ()
     with Failure m -> ()
   in
-  let assign_same_id fallstmts (old_n, n) = match old_n, n with
+  let assign_same_id fallstmts old_n n = match old_n, n with
     | Statement old_s, Statement s -> if List.exists (fun s' -> Node.equal n (Statement s')) fallstmts then (s.sid <- old_s.sid; update_sid_max s.sid)
     | FunctionEntry old_f, FunctionEntry f -> f.svar.vid <- old_f.svar.vid; update_vid_max f.svar.vid
     | Function old_f, Function f -> f.svar.vid <- old_f.svar.vid; update_vid_max f.svar.vid
@@ -85,8 +85,8 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       (* Keeping this order when updating ids is very important since Node.equal in assign_same_id tests only
          for id equality. Otherwise some new nodes might not receive a new id and lead to duplicate ids in the
          respective function *)
-      List.iter (reset_changed_stmt (List.map (fun (_, n, _) -> n) d.matched_nodes)) f.sallstmts;
-      List.iter (fun (o, n, _) -> assign_same_id f.sallstmts (o, n)) d.matched_nodes
+      List.iter (reset_changed_stmt (List.map (fun m -> m.new_node) d.matched_nodes)) f.sallstmts;
+      List.iter (fun m -> assign_same_id f.sallstmts m.old_node m.new_node) d.matched_nodes
   in
   let reset_changed_globals (changed: changed_global) =
     match (changed.current, changed.old) with
