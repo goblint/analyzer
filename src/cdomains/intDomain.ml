@@ -1644,11 +1644,20 @@ struct
         Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
       else
         Invariant.top ()
-    | `Excluded (s, _) ->
+    | `Excluded (s, r) ->
+      (* Emit range invariant if tighter than ikind bounds.
+         This can be more precise than interval, which has been widened. *)
+      let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
+      let (ikmin, ikmax) =
+        let ikr = size ik in
+        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
+      in
+      let imin = if (* not exact || *) BI.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if (* not exact || *) BI.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) s (Invariant.top ())
+        ) s Invariant.(imin && imax)
     | `Bot -> Invariant.none
 
   let arbitrary ik =
