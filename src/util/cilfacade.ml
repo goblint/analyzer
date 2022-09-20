@@ -5,44 +5,21 @@ open GoblintCil
 module E = Errormsg
 module GU = Goblintutil
 
-
-let get_labelLoc = function
-  | Label (_, loc, _) -> loc
-  | Case (_, loc, _) -> loc
-  | CaseRange (_, _, loc, _) -> loc
-  | Default (loc, _) -> loc
-
-let rec get_labelsLoc = function
-  | [] -> Cil.locUnknown
-  | label :: labels ->
-    let loc = get_labelLoc label in
-    if CilType.Location.equal loc Cil.locUnknown then
-      get_labelsLoc labels (* maybe another label has known location *)
-    else
-      loc
-
-let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
-
-let get_stmtLoc stmt =
-  match stmt.skind with
-  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
-  | Instr []
-  | Block {bstmts = []; _} ->
-    get_labelsLoc stmt.labels
-  | _ -> get_stmtkindLoc stmt.skind
+include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
 let isCharType = function
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
+let init_options () =
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines"
 
 let init () =
   initCIL ();
   removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
@@ -645,6 +622,7 @@ let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_nam
 
 
 let reset_lazy () =
+  StmtH.clear pseudo_return_to_fun;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;

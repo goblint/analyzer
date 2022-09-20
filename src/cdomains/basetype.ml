@@ -77,6 +77,7 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
+  include Printable.Std (* for Groupable *)
   include CilType.Exp
 
   let name () = "expressions"

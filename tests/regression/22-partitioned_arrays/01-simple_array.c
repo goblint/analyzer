@@ -180,7 +180,8 @@ void example8() {
 
 // Check that arrays of types different from int are handeled correctly
 void example9() {
-    char a[10];
+    // no char because char has unknown signedness (particularly, unsigned on arm64)
+    signed char a[10];
     int n;
     __goblint_check(a[3] == 800); // FAIL
 
@@ -191,7 +192,7 @@ void example9() {
     __goblint_check(a[0] == 7);
     __goblint_check(a[3] == 7);
 
-    a[3] = (char) n;
+    a[3] = (signed char) n;
     __goblint_check(a[3] == 800); //FAIL
     __goblint_check(a[3] == 127); //UNKNOWN
     __goblint_check(a[3] == -128); //UNKNOWN

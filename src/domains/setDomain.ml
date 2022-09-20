@@ -19,25 +19,100 @@ sig
   val mem: elt -> t -> bool
   val add: elt -> t -> t
   val singleton: elt -> t
+
   val remove: elt -> t -> t
+  (** See {!Set.S.remove}.
+
+      {b NB!} On set abstractions this is a {e strong} removal,
+      i.e. all subsumed elements are also removed.
+      @see <https://github.com/goblint/analyzer/pull/809#discussion_r936336198> *)
+
   val union: t -> t -> t
   val inter: t -> t -> t
+
   val diff: t -> t -> t
+  (** See {!Set.S.diff}.
+
+      {b NB!} On set abstractions this is a {e strong} removal,
+      i.e. all subsumed elements are also removed.
+      @see <https://github.com/goblint/analyzer/pull/809#discussion_r936336198> *)
+
   val subset: t -> t -> bool
   val disjoint: t -> t -> bool
+
   val iter: (elt -> unit) -> t -> unit
+  (** See {!Set.S.iter}.
+
+      On set abstractions this iterates only over canonical elements,
+      not all subsumed elements. *)
+
   val map: (elt -> elt) -> t -> t
+  (** See {!Set.S.map}.
+
+      On set abstractions this maps only canonical elements,
+      not all subsumed elements. *)
+
   val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
+  (** See {!Set.S.fold}.
+
+      On set abstractions this folds only over canonical elements,
+      not all subsumed elements. *)
+
   val for_all: (elt -> bool) -> t -> bool
+  (** See {!Set.S.for_all}.
+
+      On set abstractions this checks only canonical elements,
+      not all subsumed elements. *)
+
   val exists: (elt -> bool) -> t -> bool
+  (** See {!Set.S.exists}.
+
+      On set abstractions this checks only canonical elements,
+      not all subsumed elements. *)
+
   val filter: (elt -> bool) -> t -> t
+  (** See {!Set.S.filter}.
+
+      On set abstractions this filters only canonical elements,
+      not all subsumed elements. *)
+
   val partition: (elt -> bool) -> t -> t * t
+  (** See {!Set.S.partition}.
+
+      On set abstractions this partitions only canonical elements,
+      not all subsumed elements. *)
+
   val cardinal: t -> int
+  (** See {!Set.S.cardinal}.
+
+      On set abstractions this counts only canonical elements,
+      not all subsumed elements. *)
+
   val elements: t -> elt list
+  (** See {!Set.S.elements}.
+
+      On set abstractions this lists only canonical elements,
+      not all subsumed elements. *)
+
   val of_list: elt list -> t
+
   val min_elt: t -> elt
+  (** See {!Set.S.min_elt}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+
   val max_elt: t -> elt
+  (** See {!Set.S.max_elt}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+
   val choose: t -> elt
+  (** See {!Set.S.choose}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
 end
 
 (** Subsignature of {!S}, which is sufficient for {!Print}. *)
@@ -117,6 +192,8 @@ struct
     && for_all (fun e -> exists (Base.equal e) y) x
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
+
+  let relift x = map Base.relift x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     if leq x y then dprintf "%s: These are fine!" (name ()) else
@@ -385,7 +462,9 @@ struct
   let is_top x = equal x (top ())
 end
 
-(** Set abstracted by a single (joined) element. *)
+(** Set abstracted by a single (joined) element.
+
+    Element-wise {!S} operations only observe the single element. *)
 module Joined (E: Lattice.S): S with type elt = E.t =
 struct
   type elt = E.t
@@ -400,7 +479,7 @@ struct
   let elements e = [e]
   let remove e e' =
     if E.leq e' e then
-      E.bot ()
+      E.bot () (* NB! strong removal *)
     else
       e'
   let map f e = f e
@@ -409,7 +488,7 @@ struct
   let add e e' = E.join e e'
   let is_empty e = E.is_bot e
   let union e e' = E.join e e'
-  let diff e e' = remove e' e
+  let diff e e' = remove e' e (* NB! strong removal *)
   let iter f e = f e
   let cardinal e =
     if is_empty e then

@@ -44,7 +44,7 @@ end
 module NodeH = BatHashtbl.Make (Node)
 
 
-let current_node : node option ref = ref None
+let current_node = Node.current_node
 let current_cfg : (module CfgBidir) ref =
   let module Cfg =
   struct

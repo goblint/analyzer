@@ -44,7 +44,7 @@ struct
   struct
     (* custom goto (D.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) ?change_state:(change_state=true) key state m ws =
-      let loc = !Tracing.current_loc::(D.callstack m) in
+      let loc = (Option.get !Node.current_node)::(D.callstack m) in
       let warn key m msg =
         Str.global_replace (Str.regexp_string "$") (D.string_of_key key) msg
         |> D.warn ~may:(D.is_may key m || D.is_unknown key m)
@@ -411,7 +411,7 @@ struct
     (* M.debug ~category:Analyzer @@ "entering function "^f.vname^D.string_of_callstack ctx.local; *)
     if f.svar.vname = "main" then load_specfile ();
     let m = if f.svar.vname <> "main" then
-        D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
+        D.edit_callstack (BatList.cons (Option.get !Node.current_node)) ctx.local
       else ctx.local in [m, m]
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =

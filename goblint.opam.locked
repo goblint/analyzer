@@ -1,17 +1,19 @@
 opam-version: "2.0"
+name: "goblint"
+version: "dev"
 synopsis: "Static analysis framework for C"
 maintainer: [
-  "Michael Schwarz <michael.schwarz93@gmail.com>"
   "Simmo Saan <simmo.saan@gmail.com>"
-  "Ralf Vogler <ralf.vogler@gmail.com>"
+  "Michael Schwarz <michael.schwarz93@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani"
-  "Kalmer Apinis"
-  "Ralf Vogler"
+  "Simmo Saan"
   "Michael Schwarz"
   "Julian Erhard"
-  "Simmo Saan"
+  "Sarah Tilscher"
+  "Ralf Vogler"
+  "Kalmer Apinis"
+  "Vesal Vojdani"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
@@ -34,6 +36,7 @@ depends: [
   "camlidl" {= "1.09"}
   "cmdliner" {= "1.1.1" & with-doc}
   "conf-autoconf" {= "0.1"}
+  "conf-gcc" {= "1.0"}
   "conf-gmp" {= "4"}
   "conf-mpfr" {= "3"}
   "conf-perl" {= "2"}
@@ -75,15 +78,15 @@ depends: [
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_deriving_hash" {= "0.1.1"}
-  "ppx_deriving_yojson" {= "3.6.1"}
-  "ppxlib" {= "0.25.0"}
+  "ppx_deriving_yojson" {= "3.7.0"}
+  "ppxlib" {= "0.27.0"}
   "qcheck-core" {= "0.18.1"}
   "qcheck-ounit" {= "0.18.1" & with-test}
   "re" {= "1.10.3" & with-doc}
   "result" {= "1.5"}
   "rresult" {= "0.7.0"}
   "seq" {= "base"}
-  "sexplib0" {= "v0.14.0"}
+  "sexplib0" {= "v0.15.1"}
   "sha" {= "1.15.2"}
   "stdlib-shims" {= "0.3.0"}
   "stdune" {= "3.0.3"}
@@ -114,13 +117,12 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
-name: "goblint"
-version: "dev"
+available: os-distribution != "alpine" & arch != "arm64"
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
     "goblint-cil.2.0.0"
-    "git+https://github.com/goblint/cil.git#72d2c7e1a4b574e57fd7b1f65bab58cda51a1ff8"
+    "git+https://github.com/goblint/cil.git#d4724fe93b0356c611b0b0bd2172210d3f1eeb5b"
   ]
   [
     "apron.v0.9.13"

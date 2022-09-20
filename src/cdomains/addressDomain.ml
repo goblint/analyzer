@@ -21,30 +21,15 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
-  module Addr = Lval.NormalLat (Idx)
-  module R =
-  struct
-    include Addr
-    type elt = Addr.t
-
-    let rec of_elt_offset: Offs.t -> Offs.t =
-      function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* all indices to same bucket *)
-    let of_elt = function
-      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
-      | a -> a (* everything else is kept separate, including strings if not limited *)
-  end
+  module Addr = Lval.NormalLatRepr (Idx)
   module J = SetDomain.Joined (Addr)
-  (* module H = HoareDomain.Set2 (Addr) *)
+  (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include DisjointDomain.ProjectiveSet (Addr) (J) (R)
+  include DisjointDomain.ProjectiveSet (Addr) (J) (Addr.R)
 
   (* short-circuit with physical equality,
-     makes a different at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
+     makes a difference at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
   let equal x y = x == y || equal x y
 
   let widen x y =
@@ -59,7 +44,7 @@ struct
     r
   let leq x y =
     if M.tracing then M.traceli "ad" "leq %a %a\n" pretty x pretty y;
-    let r = leq x y in
+    let r = x == y || leq x y in (* short-circuit with physical equality, not benchmarked *)
     if M.tracing then M.traceu "ad" "-> %B\n" r;
     r
 
@@ -115,30 +100,26 @@ struct
   let to_string x = List.filter_map Addr.to_string (elements x)
 
   (* add an & in front of real addresses *)
-  let short_addr a =
-    match Addr.to_var a with
-    | Some _ -> "&" ^ Addr.show a
-    | None -> Addr.show a
+  module ShortAddr =
+  struct
+    include Addr
 
-  let pretty () x =
-    try
-      let content = List.map (fun a -> text (short_addr a)) (elements x) in
-      let rec separate x =
-        match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ (text ", ") :: separate xs
-      in
-      let separated = separate content in
-      let content = List.fold_left (++) nil separated in
-      (text "{") ++ content ++ (text "}")
-    with SetDomain.Unsupported _ -> pretty () x
+    let show a =
+      match Addr.to_var a with
+      | Some _ -> "&" ^ Addr.show a
+      | None -> Addr.show a
 
-  let show x : string =
-    try
-      let all_elems : string list = List.map short_addr (elements x) in
-      Printable.get_short_list "{" "}" all_elems
-    with SetDomain.Unsupported _ -> show x
+    let pretty () a = Pretty.text (show a)
+  end
+
+  include SetDomain.Print (ShortAddr) (
+    struct
+      type nonrec t = t
+      type nonrec elt = elt
+      let elements = elements
+      let iter = iter
+    end
+    )
 
   (*
   let leq = if not fast_addr_sets then leq else fun x y ->
@@ -172,6 +153,12 @@ struct
 
   let meet x y   = merge join meet x y
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+
+  let meet x y =
+    if M.tracing then M.traceli "ad" "meet %a %a\n" pretty x pretty y;
+    let r = meet x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
 
   let narrow x y =
     if M.tracing then M.traceli "ad" "narrow %a %a\n" pretty x pretty y;

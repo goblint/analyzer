@@ -112,7 +112,7 @@ let schema_defaults ?additional_field (schema: schema): Yojson.Safe.t =
   element_defaults ?additional_field (root schema)
 
 let create_schema element =
-  create @@ { element with id = Some "" } (* add id to make create defs check happy for phases Id_ref, doesn't get outputted apparently *)
+  create element
 
 let rec element_require_all (element: element): element =
   let kind' = match element.kind with

@@ -129,14 +129,6 @@
       "type": "boolean",
       "default": false
     },
-    "phases": {
-      "title": "phases",
-      "description":
-        "List of phases. Per-phase settings overwrite global ones.",
-      "type": "array",
-      "items": { "$ref": "#" },
-      "default": []
-    },
     "save_run": {
       "title": "save_run",
       "description":
@@ -321,7 +313,7 @@
       "properties": {
         "activated": {
           "title": "ana.activated",
-          "description": "Lists of activated analyses in this phase.",
+          "description": "Lists of activated analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": [
@@ -891,6 +883,25 @@
             }
           },
           "additionalProperties": false
+        },
+        "extract-pthread" : {
+          "title": "ana.extract-pthread",
+          "type": "object",
+          "properties": {
+            "assume_success": {
+              "title": "ana.extract-pthread.assume_success",
+              "description": "Assume that all POSIX pthread functions succeed.",
+              "type": "boolean",
+              "default": true
+            },
+            "ignore_assign": {
+              "title": "ana.extract-pthread.ignore_assign",
+              "description": "Ignores any assigns in POSIX programs.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -950,12 +961,12 @@
           "title": "incremental.reluctant",
           "type": "object",
           "properties": {
-            "on": {
-              "title": "incremental.reluctant.on",
+            "enabled": {
+              "title": "incremental.reluctant.enabled",
               "description":
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "compare": {
               "title": "incremental.reluctant.compare",
@@ -963,7 +974,7 @@
                 "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
               "type": "string",
               "enum": ["leq", "equal"],
-              "default": "leq"
+              "default": "equal"
             }
           },
           "additionalProperties": false
@@ -985,8 +996,83 @@
               "description":
                 "List of functions that are to be re-analayzed from scratch",
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "default": []
+            }
+          },
+          "additionalProperties": false
+        },
+        "restart": {
+          "title": "incremental.restart",
+          "type": "object",
+          "properties": {
+            "sided": {
+              "title": "incremental.restart.sided",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "incremental.restart.sided.enabled",
+                  "description": "Restart affected side-effected variables (transitively) to bot.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "vars": {
+                  "title": "incremental.restart.sided.vars",
+                  "description": "Side-effected variables to restart. Globals are non-function entry nodes. Write-only is a subset of globals.",
+                  "type": "string",
+                  "enum": ["all", "global", "write-only"],
+                  "default": "all"
+                },
+                "fuel": {
+                  "title": "incremental.restart.sided.fuel",
+                  "description": "Initial fuel for bounding transitive restarting, which uses one fuel each time when following side_fuel to restart. Zero fuel never restarts. Negative fuel doesn't bound (infinite fuel).",
+                  "type": "integer",
+                  "default": -1
+                },
+                "fuel-only-global": {
+                  "title": "incremental.restart.sided.fuel-only-global",
+                  "description": "Decrease fuel only when going to constraint system globals (not function entry nodes).",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "list": {
+              "title": "incremental.restart.list",
+              "description": "List of globals variables and function definitions for which the analysis is to be restarted.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "write-only": {
+              "title": "incremental.restart.write-only",
+              "description": "Restart write-only variables to bot during postprocessing.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "postsolver": {
+          "title": "incremental.postsolver",
+          "type" : "object",
+          "properties": {
+            "enabled": {
+              "title": "incremental.postsolver.enabled",
+              "description": "Use incremental postsolver",
+              "type": "boolean",
+              "default": true
+            },
+            "superstable-reached" : {
+              "title":  "incremental.postsolver.superstable-reached",
+              "description": "Consider superstable set reached, may be faster but can lead to spurious warnings",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1025,6 +1111,20 @@
                   "title": "sem.unknown_function.invalidate.args",
                   "description":
                     "Unknown function call invalidates arguments passed to it",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "read": {
+              "title": "sem.unknown_function.read",
+              "type": "object",
+              "properties": {
+                "args": {
+                  "title": "sem.unknown_function.read.args",
+                  "description":
+                    "Unknown function call reads arguments passed to it",
                   "type": "boolean",
                   "default": true
                 }
@@ -1115,7 +1215,7 @@
         "activated": {
           "title": "trans.activated",
           "description":
-            "Lists of activated transformations in this phase. Transformations happen after analyses.",
+            "Lists of activated transformations. Transformations happen after analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1680,6 +1780,12 @@
           "type": "boolean",
           "default": true
         },
+        "program": {
+          "title": "warn.program",
+          "description": "Program messages",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
@@ -1773,6 +1879,38 @@
                 "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
               "type": "boolean",
               "default": true
+            },
+            "narrow-reuse": {
+              "title": "solvers.td3.narrow-reuse",
+              "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
+              "type": "boolean",
+              "default": true
+            },
+            "restart": {
+              "title": "solvers.td3.restart",
+              "type": "object",
+              "properties": {
+                "wpoint": {
+                  "title": "solvers.td3.restart.wpoint",
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "title": "solvers.td3.restart.wpoint.enabled",
+                      "description": "Restart wpoint to bot when (re-)detected. Allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted).",
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "once": {
+                      "title": "solvers.td3.restart.wpoint.once",
+                      "description": "Restart wpoint only on first detection. Useful for incremental loading.",
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             },
             "verify": {
               "title": "solvers.td3.verify",

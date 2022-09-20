@@ -13,7 +13,7 @@
      // overwriting, therefore the current imprecision.
 -    __goblint_check(g == 1);
 -    __goblint_check(g != 2);
-+    __goblint_check(g != 1); // TODO (restarting)
-+    __goblint_check(g == 2); // TODO
++    __goblint_check(g != 1);
++    __goblint_check(g == 2);
      return 0;
  }
