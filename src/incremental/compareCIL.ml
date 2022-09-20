@@ -131,7 +131,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
     else None in
 
-  let addGlobal map global  = (* TODO: check consistency of id's *)
+  let addGlobal map global  =
     try
       let name, col = match global with
         | GVar (v,_,_) -> v.vname, {decls = None; def = Some (Var v)}
