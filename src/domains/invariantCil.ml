@@ -37,7 +37,7 @@ let exp_is_in_scope scope e =
 (* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)
 (* TODO: instead check if vdescr is nonempty? (doesn't cover all cases, e.g. ternary temporary) *)
 (* TODO: make option for regex cases *)
-let tmp_var_regexp = Str.regexp "^\\(tmp\\(___[0-9]+\\)?\\|__\\(cil_\\)?tmp_?[0-9]*\\(_[0-9]+\\)?\\|.*____CPAchecker_TMP_[0-9]+\\|cond\\|RETURN\\|__VERIFIER_assert__cond\\)$"
+let tmp_var_regexp = Str.regexp "^\\(tmp\\(___[0-9]+\\)?\\|__\\(cil_\\)?tmp_?[0-9]*\\(_[0-9]+\\)?\\|.*____CPAchecker_TMP_[0-9]+\\|cond\\|RETURN\\|__VERIFIER_assert__cond\\|__ksymtab_.*\\|\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+\\)$"
 let varname_is_tmp vname = Str.string_match tmp_var_regexp vname 0
 let var_is_tmp vi =
   match Cilfacade.find_original_name vi with
