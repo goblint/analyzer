@@ -93,12 +93,12 @@ struct
 
   module GM = Hashtbl.Make (ValueDomain.Addr)
 
-  let max_cluster = ref 0
+  let max_protected = ref 0
   let num_mutexes = ref 0
   let sum_protected = ref 0
 
   let init _ =
-    max_cluster := 0;
+    max_protected := 0;
     num_mutexes := 0;
     sum_protected := 0
 
@@ -175,7 +175,7 @@ struct
           if GobConfig.get_bool "dbg.print_protection" then (
             let (protected, _) = G.protected (ctx.global g) in (* readwrite protected *)
             let s = VarSet.cardinal protected in
-            max_cluster := max !max_cluster s;
+            max_protected := max !max_protected s;
             sum_protected := !sum_protected + s;
             incr num_mutexes;
             M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" ValueDomain.Addr.pretty m s VarSet.pretty protected
@@ -243,7 +243,7 @@ struct
     if GobConfig.get_bool "dbg.print_protection" then (
       M.msg_group Info ~category:Race "Mutex read-write protection summary" [
         (Pretty.dprintf "Number of mutexes: %d" !num_mutexes, None);
-        (Pretty.dprintf "Max number variables of protected by a mutex: %d" !max_cluster, None);
+        (Pretty.dprintf "Max number variables of protected by a mutex: %d" !max_protected, None);
         (Pretty.dprintf "Total number of protected variables (including duplicates): %d" !sum_protected, None);
       ]
     )
