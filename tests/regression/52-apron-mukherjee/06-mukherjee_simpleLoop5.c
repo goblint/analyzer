@@ -10,7 +10,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void* T1_SL5(void* arg){
     while(1) {
         pthread_mutex_lock(&lock);
-        assert(a != b); //TODO   requires disjunctions
+        __goblint_check(a != b); //TODO   requires disjunctions
         pthread_mutex_unlock(&lock);
     }
     return NULL;

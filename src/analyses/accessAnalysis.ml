@@ -17,13 +17,36 @@ struct
   module D = Lattice.Unit
   module C = Lattice.Unit
 
+  (* Two global invariants:
+     1. (lval, type) -> accesses  --  used for warnings
+     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
+
+  module V0 = Printable.Prod (Access.LVOpt) (Access.T)
+  module V =
+  struct
+    include Printable.Either (V0) (CilType.Varinfo)
+    let name () = "access"
+    let access x = `Left x
+    let vars x = `Right x
+    let is_write_only _ = true
+  end
+
+  module V0Set = SetDomain.Make (V0)
   module G =
   struct
-    include Access.PM
+    include Lattice.Lift2 (Access.AS) (V0Set) (Printable.DefaultNames)
 
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+    let access = function
+      | `Bot -> Access.AS.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "Access.access"
+    let vars = function
+      | `Bot -> V0Set.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "Access.vars"
+    let create_access access = `Lifted1 access
+    let create_vars vars = `Lifted2 vars
   end
-  module V = Printable.Prod (Access.LVOpt) (Access.T)
 
   let safe       = ref 0
   let vulnerable = ref 0
@@ -34,33 +57,40 @@ struct
     vulnerable := 0;
     unsafe := 0
 
-  let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
-    if !GU.should_warn then (
-      let d =
-        let open Access in
-        PM.singleton ls_opt (
-          AS.singleton (conf, w, loc, e, lp)
-        )
-      in
-      ctx.sideg (lv_opt, ty) d
-    )
-    else
-      ctx.sideg (lv_opt, ty) (G.bot ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
+  let side_vars ctx lv_opt ty =
+    match lv_opt with
+    | Some (v, _) ->
+      if !GU.should_warn then
+        ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
+    | None ->
+      ()
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+  let side_access ctx ty lv_opt (conf, w, loc, e, a) =
+    let ty =
+      if Option.is_some lv_opt then
+        `Type Cil.voidType (* avoid unsound type split for alloc variables *)
+      else
+        ty
+    in
+    if !GU.should_warn then
+      ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
+    side_vars ctx lv_opt ty
+
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
+    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
-      ctx.emit (Access {var_opt=vo; write=w});
+    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
+      ctx.emit (Access {var_opt=vo; kind});
       (*partitions & locks*)
-      ctx.ask (PartAccess {exp=e; var_opt=vo; write=w})
+      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
     in
     let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add (side_access ctx) e w conf vo oo (po,pd);
+      let a = part_access ctx e vo kind in
+      Access.add (side_access ctx) e kind conf vo oo a;
     in
     let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None (po,pd)
+      let a = part_access ctx e None kind in
+      Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
@@ -104,13 +134,18 @@ struct
     | _ ->
       add_access (conf - 60) None None
 
-  let access_one_top ?(force=false) ctx write reach exp =
-    (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
+  (** Three access levels:
+      + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
+      + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
+      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
+  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
+    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
-      if reach || write then do_access ctx write reach conf exp;
-      Access.distribute_access_exp (do_access ctx) false false conf exp;
-    )
+      if deref then do_access ctx kind reach conf exp;
+      Access.distribute_access_exp (do_access ctx Read false) conf exp;
+    );
+    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
@@ -123,18 +158,18 @@ struct
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx true  false (AddrOf lval);
-      access_one_top ctx false false rval;
+      access_one_top ~deref:true ctx Write false (AddrOf lval);
+      access_one_top ctx Read false rval;
       ctx.local
     end
 
   let branch ctx exp tv : D.t =
-    access_one_top ctx false false exp;
+    access_one_top ctx Read false exp;
     ctx.local
 
   let return ctx exp fundec : D.t =
     begin match exp with
-      | Some exp -> access_one_top ctx false false exp
+      | Some exp -> access_one_top ctx Read false exp
       | None -> ()
     end;
     ctx.local
@@ -143,18 +178,19 @@ struct
     ctx.local
 
   let special ctx lv f arglist : D.t =
-    match (LF.classify f.vname arglist, f.vname) with
+    let desc = LF.find f in
+    match desc.special arglist, f.vname with
     (* TODO: remove cases *)
     | _, "_lock_kernel" ->
       ctx.local
     | _, "_unlock_kernel" ->
       ctx.local
-    | `Lock (failing, rw, nonzero_return_when_aquired), _
+    | Lock { try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired; _ }, _
       -> ctx.local
-    | `Unlock, "__raw_read_unlock"
-    | `Unlock, "__raw_write_unlock"  ->
+    | Unlock _, "__raw_read_unlock"
+    | Unlock _, "__raw_write_unlock"  ->
       ctx.local
-    | `Unlock, _ ->
+    | Unlock _, _ ->
       ctx.local
     | _, "spinlock_check" -> ctx.local
     | _, "acquire_console_sem" when get_bool "kernel" ->
@@ -170,37 +206,34 @@ struct
     | _, "pthread_cond_wait"
     | _, "pthread_cond_timedwait" ->
       ctx.local
-    | _, x ->
-      let arg_acc act =
-        match LF.get_threadsafe_inv_ac x with
-        | Some fnc -> (fnc act arglist)
-        | _ -> arglist
-      in
-      List.iter (access_one_top ctx false true) (arg_acc `Read);
-      List.iter (access_one_top ctx true  true ) (arg_acc `Write);
+    | _, _ ->
+      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
+          access_one_top ~deref:true ctx kind reach exp (* access dereferenced using special accesses *)
+        ) arglist;
       (match lv with
-      | Some x -> access_one_top ctx true false (AddrOf x)
-      | None -> ());
+       | Some x -> access_one_top ~deref:true ctx Write false (AddrOf x)
+       | None -> ());
+      List.iter (access_one_top ctx Read false) arglist; (* always read all argument expressions without dereferencing *)
       ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
   let combine ctx lv fexp f args fc al =
-    access_one_top ctx false false fexp;
+    access_one_top ctx Read false fexp;
     begin match lv with
       | None      -> ()
-      | Some lval -> access_one_top ctx true false (AddrOf lval)
+      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
     end;
-    List.iter (access_one_top ctx false false) args;
+    List.iter (access_one_top ctx Read false) args;
     al
 
 
   let threadspawn ctx lval f args fctx =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
-    | None -> ()
-    | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      | None -> ()
+      | Some lval -> access_one_top ~force:true ~deref:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
 
@@ -208,10 +241,18 @@ struct
     match q with
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
-      (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-      let pm = ctx.global g in
-      Access.print_accesses g pm;
-      Access.incr_summary safe vulnerable unsafe g pm
+      begin match g with
+        | `Left g' -> (* accesses *)
+          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          let accs = G.access (ctx.global g) in
+          Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs
+        | `Right _ -> (* vars *)
+          ()
+      end
+    | IterSysVars (Global g, vf) ->
+      V0Set.iter (fun v ->
+          vf (Obj.repr (V.access v))
+        ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
 
   let finalize () =

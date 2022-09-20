@@ -1,5 +1,7 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval  --enable ana.base.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','apron']" --set ana.base.privatization none --set ana.apron.privatization dummy --set ana.apron.domain "polyhedra"
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf, adapted
+#include <assert.h>
+
 void main(void) {
   int X = 0;
   int N = rand();
@@ -7,8 +9,8 @@ void main(void) {
 
   X = 2 * N;
 
-  assert(X - 2 * N == 0);
-  assert(X == 2 * N);
+  __goblint_check(X - 2 * N == 0);
+  __goblint_check(X == 2 * N);
 
   if(X == 2 * N) {
     N = 8;

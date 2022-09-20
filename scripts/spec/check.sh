@@ -7,15 +7,12 @@ debug=${debug-"true"}
 if [ $ana == "file" ]; then
     ana="file"
     opt="--set ana.file.optimistic true"
-elif [ $ana == "arinc" ]; then
-    ana="arinc"
-    opt="--enable ana.arinc.export --trace arinc"
 else
     spec=$ana
     ana="spec"
     opt="--set ana.spec.file $spec"
 fi
-cmd="./goblint --set ana.activated[0][+] $ana $opt --html --enable dbg.showtemps --set dbg.debug $debug $file"
+cmd="./goblint --set ana.activated[0][+] $ana $opt --html --set dbg.debug $debug $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 

@@ -1,4 +1,6 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --set ana.base.privatization none --set ana.apron.privatization dummy
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
+#include <assert.h>
+
 extern int __VERIFIER_nondet_int();
 
 int main(void) {
@@ -13,17 +15,17 @@ int f1() {
 
     one = two;
 
-    assert(one - two == 0);
-    assert(one == two);
+    __goblint_check(one - two == 0);
+    __goblint_check(one == two);
     x = f2(one,two);
-    assert(one - two == 0);
-    assert(one == two);
-    assert(x == 48);
+    __goblint_check(one - two == 0);
+    __goblint_check(one == two);
+    __goblint_check(x == 48);
 }
 
 int f2(int a, int b) {
-    assert(a-b == 0);
-    assert(a == b);
+    __goblint_check(a-b == 0);
+    __goblint_check(a == b);
 
     return 48;
 }

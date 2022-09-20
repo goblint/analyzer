@@ -13,17 +13,17 @@ int main(){
   }
 
   signed char k = r - 80;
-  assert (k == 0); //UNKNOWN!
+  __goblint_check(k == 0); //UNKNOWN!
 
   signed char non_ov = r - 10;
-  assert (non_ov == -78); //UNKNOWN!
+  __goblint_check(non_ov == -78); //UNKNOWN!
 
   signed char m = r * 2;
 
-  assert (m == 0); //UNKNOWN!
+  __goblint_check(m == 0); //UNKNOWN!
 
   signed char l = r + (-80);
-  assert (l == 0); //UNKNOWN!
+  __goblint_check(l == 0); //UNKNOWN!
 
   int g;
 
@@ -34,10 +34,10 @@ int main(){
   }
 
   signed char f = g / (-1);
-  assert (f == 1); //UNKNOWN!
+  __goblint_check(f == 1); //UNKNOWN!
 
   signed char d = -g;
-  assert (d == 1); //UNKNOWN!
+  __goblint_check(d == 1); //UNKNOWN!
 
   return 0;
 

@@ -6,14 +6,13 @@
 (library
   (name goblint_lib)
   (public_name goblint.lib)
-  (wrapped false)
-  (modules :standard \ goblint mainarinc maindomaintest mainspec privPrecCompare apronPrecCompare)
-  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding
+  (modules :standard \ goblint mainspec privPrecCompare apronPrecCompare messagesCompare)
+  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
     (select apronDomain.ml from
-      (apron apron.octD apron.boxD apron.polkaMPQ -> apronDomain.apron.ml)
+      (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
     )
     (select apronPrecCompareUtil.ml from
@@ -33,9 +32,10 @@
       (-> violationZ3.no-z3.ml)
     )
   )
+  (foreign_stubs (language c) (names stubs))
+  (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
-    (staged_pps ppx_deriving.std ppx_deriving_yojson
-      ppx_distr_guards ocaml-monadic ppx_blob))
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
   (preprocessor_deps (file util/options.schema.json))
 )
 
@@ -48,12 +48,12 @@
 (copy_files# witness/z3/*.ml)
 
 (executables
-  (names goblint maindomaintest mainarinc mainspec) ; TODO: separate domaintest executable?
-  (public_names goblint - - -)
+  (names goblint mainspec)
+  (public_names goblint -)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
-  (modules goblint mainarinc maindomaintest mainspec)
+  (modules goblint mainspec)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 
@@ -61,7 +61,7 @@
   (name privPrecCompare)
   (modules privPrecCompare)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 
@@ -69,7 +69,15 @@
   (name apronPrecCompare)
   (modules apronPrecCompare)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall)
+)
+
+(executable
+  (name messagesCompare)
+  (modules messagesCompare)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 
@@ -77,7 +85,7 @@
   (target configVersion.ml)
   (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
   (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
 
 (rule
   (target configProfile.ml)
@@ -92,9 +100,9 @@
 
 (env
   (dev
-    (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -warn-error -A -w -unused-var-strict)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
   (trace
-    (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -warn-error -A -w -unused-var-strict)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )

@@ -5,8 +5,8 @@ module D = LvalMapDomain
 
 module Val =
 struct
-  type mode = Read | Write
-  type s = Open of string*mode | Closed | Error
+  type mode = Read | Write [@@deriving eq, ord, hash]
+  type s = Open of string*mode | Closed | Error [@@deriving eq, ord, hash]
   let name = "File handles"
   let var_state = Closed
   let string_of_mode = function Read -> "Read" | Write -> "Write"
@@ -19,7 +19,6 @@ struct
   let opened   s = s <> Closed && s <> Error
   let closed   s = s = Closed
   let writable s = match s with Open((_,Write)) -> true | _ -> false
-  let compare = compare
 end
 
 
@@ -28,9 +27,9 @@ struct
   include D.Domain (D.Value (Val))
 
   (* returns a tuple (thunk, result) *)
-  let report_ ?neg:(neg=false) k p msg m =
-    let f ?may:(may=false) msg =
-      let f () = warn ~may:may msg in
+  let report_ ?(neg=false) k p msg m =
+    let f ?(may=false) msg =
+      let f () = warn ~may msg in
       f, if may then `May true else `Must true in
     let mf = (fun () -> ()), `Must false in
     if mem k m then
@@ -41,7 +40,7 @@ struct
       else mf (* none *)
     else if neg then f msg else mf
 
-  let report ?neg:(neg=false) k p msg m = (fst (report_ ~neg:neg k p msg m)) () (* evaluate thunk *)
+  let report ?(neg=false) k p msg m = (fst (report_ ~neg k p msg m)) () (* evaluate thunk *)
 
   let reports k xs m =
     let uncurry (neg, p, msg) = report_ ~neg:neg k p msg m in

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']" --set ana.int.interval true --enable ana.base.partition-arrays.enabled
+// PARAM: --set ana.int.interval true --set ana.base.arrays.domain partitioned
 #include <stdlib.h>
 #include <pthread.h>
 #include <assert.h>
@@ -20,13 +20,13 @@ int main() {
   *x = 0;
   *y = 1;
 
-  assert(*x == 0);
-  assert(*y == 1); // UNKNOWN
+  __goblint_check(*x == 0);
+  __goblint_check(*y == 1); // UNKNOWN
 
   pthread_create(&id, NULL, t_fun, NULL);
 
-  assert(*x == 0); // UNKNOWN
-  assert(*y == 1); // UNKNOWN
+  __goblint_check(*x == 0); // UNKNOWN
+  __goblint_check(*y == 1); // UNKNOWN
 
   return 0;
 }

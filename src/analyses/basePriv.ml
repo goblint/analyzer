@@ -35,6 +35,7 @@ sig
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
+  val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -47,7 +48,7 @@ end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
   (* Copy-paste from Base make_entry *)
-  let globals = CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
+  let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
   (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
   let new_cpa = globals in
   {st with cpa = new_cpa}
@@ -55,10 +56,16 @@ let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
 let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
   {st with cpa = CPA.bot (); priv = startstate ()}
 
-module OldPrivBase =
+(* No Privatization *)
+module NonePriv: S =
 struct
   include NoFinalize
+
+  module G = BaseDomain.VD
+  module V = VarinfoV
   module D = Lattice.Unit
+
+  let init () = ()
 
   let startstate () = ()
 
@@ -69,32 +76,19 @@ struct
   let enter_multithreaded ask getg sideg st = st
   let threadenter = old_threadenter
 
-  let sync_privates reason ask =
-    match reason with
-    | `Init
-    | `Thread ->
-      true
-    | _ ->
-      !GU.earlyglobs && not (ThreadFlag.is_multi ask)
-end
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf g
+    | _ -> ()
 
-(* Copy of ProtectionBasedOldPriv with is_private constantly false. *)
-module NonePriv: S =
-struct
-  include OldPrivBase
-  module G = BaseDomain.VD
-  module V = VarinfoV
-
-  let init () = ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     getg x
 
-  let is_private (a: Q.ask) (v: varinfo): bool = false
-
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
+    if invariant then (
+      (* Do not impose invariant, will not hold without privatization *)
+      if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
       st
     )
     else (
@@ -113,66 +107,6 @@ struct
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          sideg v value;
-          {st with cpa = CPA.remove v st.cpa}
-        end else
-          st
-      in
-      if M.tracing then M.traceu "globalize" "Done!\n";
-      res
-    in
-    (* We fold over the local state, and side effect the globals *)
-    CPA.fold side_var st.cpa st
-end
-
-(** Protection-Based Reading old implementation.
-    Unsound!
-    Based on [sync].
-    Works for OSEK. *)
-module ProtectionBasedOldPriv: S =
-struct
-  include OldPrivBase
-
-  module G = BaseDomain.VD
-  module V = VarinfoV
-
-  let init () =
-    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
-
-  let read_global ask getg (st: BaseComponents (D).t) x =
-    match CPA.find x st.cpa with
-    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-
-  let is_private (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-    || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
-
-  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
-      st
-    )
-    else (
-      (* Here, an effect should be generated, but we add it to the local
-      * state, waiting for the sync function to publish it. *)
-      (* Copied from MainFunctor.update_variable *)
-      if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-        {st with cpa = CPA.add x (VD.top ()) st.cpa}
-      else
-        {st with cpa = CPA.add x v st.cpa}
-    )
-
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    let privates = sync_privates reason ask in
-    let module BaseComponents = BaseComponents (D) in
-    if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
-    (* For each global variable, we create the side effect *)
-    let side_var (v: varinfo) (value) (st: BaseComponents.t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
-      let res =
-        if is_global ask v && ((privates && not (is_precious_glob v)) || not (is_private ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           sideg v value;
           {st with cpa = CPA.remove v st.cpa}
@@ -268,7 +202,9 @@ struct
     r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
-    sideg (V.global x) (CPA.singleton x v);
+    if not invariant then
+      sideg (V.global x) (CPA.singleton x v);
+    (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -276,18 +212,23 @@ struct
     cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
-       where our (necessary) original context still has the mutex,
-       so the query would be on the wrong lockset.
-       TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
-       Therefore, just use _without to exclude the mutex we shouldn't have.
-       In non-cond locks we don't have it anyway, so there's no difference.
-       No other privatization uses is_unprotected, so this hack is only needed here. *)
-    let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
-    let cpa' = CPA.filter is_in_V get_m in
-    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
-    {st with cpa = CPA.fold CPA.add cpa' st.cpa}
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
+         where our (necessary) original context still has the mutex,
+         so the query would be on the wrong lockset.
+         TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
+         Therefore, just use _without to exclude the mutex we shouldn't have.
+         In non-cond locks we don't have it anyway, so there's no difference.
+         No other privatization uses is_unprotected, so this hack is only needed here. *)
+      let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
+      let cpa' = CPA.filter is_in_V get_m in
+      if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
+      {st with cpa = CPA.fold CPA.add cpa' st.cpa}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
@@ -343,23 +284,31 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
-    sideg (V.global x) (CPA.singleton x v);
+    if not invariant then (
+      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+      sideg (V.global x) (CPA.singleton x v)
+      (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
+    );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Additionally filter get_m in case it contains variables it no longer protects. *)
-    let is_in_Gm x _ = is_protected_by ask m x in
-    let get_m = CPA.filter is_in_Gm get_m in
-    let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-    let meet = long_meet st.cpa get_m in
-    if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
-    {st with cpa = meet}
+  let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Additionally filter get_m in case it contains variables it no longer protects. *)
+      let is_in_Gm x _ = is_protected_by ask m x in
+      let get_m = CPA.filter is_in_Gm get_m in
+      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+      let meet = long_meet st.cpa get_m in
+      if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
+      {st with cpa = meet}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg (V.mutex m) (CPA.filter is_in_Gm st.cpa);
@@ -399,81 +348,6 @@ struct
       st
 end
 
-(** Protection-Based Reading early implementation for traces paper by Vesal.
-    Based on [sync].
-    Works for OSEK. *)
-module ProtectionBasedVesalPriv: S =
-struct
-  include OldPrivBase
-
-  module D = MustVars
-  module G = BaseDomain.VD
-  module V = VarinfoV
-
-  let init () =
-    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
-
-  let startstate () = D.top ()
-
-  let read_global ask getg (st: BaseComponents (D).t) x =
-    match CPA.find x st.cpa with
-    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-
-  let is_invisible (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-    || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
-  let is_private = is_invisible
-
-  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
-      st
-    )
-    else (
-      (* Here, an effect should be generated, but we add it to the local
-      * state, waiting for the sync function to publish it. *)
-      (* Copied from MainFunctor.update_variable *)
-      if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-        {st with cpa = CPA.add x (VD.top ()) st.cpa; priv = MustVars.add x st.priv}
-      else
-        {st with cpa = CPA.add x v st.cpa; priv = MustVars.add x st.priv}
-    )
-
-  let is_protected (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
-    || not (a.f (Q.MayBePublic {global=v; write=true})) (* usual case where MayBePublic answers *)
-
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    let privates = sync_privates reason ask in
-    (* For each global variable, we create the side effect *)
-    let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
-      let res =
-        if is_global ask v then
-          let protected = is_protected ask v in
-          if privates && not (is_precious_glob v) || not protected then begin
-            if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-            sideg v value;
-            { st with cpa = CPA.remove v st.cpa; priv = MustVars.remove v st.priv}
-          end else (* protected == true *)
-            let invisible = is_invisible ask v in
-            if not invisible then
-              sideg v value;
-            if not (MustVars.mem v st.priv) then
-              let joined = VD.join (CPA.find v st.cpa) (getg v) in
-              {st with cpa = CPA.add v joined st.cpa}
-            else st
-        else st
-      in
-      if M.tracing then M.traceu "globalize" "Done!\n";
-      res
-    in
-    (* We fold over the local state, and side effect the globals *)
-    CPA.fold side_var st.cpa st
-
-  let threadenter = old_threadenter
-end
 
 module type PerGlobalPrivParam =
 sig
@@ -527,9 +401,12 @@ struct
       VD.join (CPA.find x st.cpa) (getg (V.protected x))
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    sideg (V.unprotected x) v;
-    if !GU.earlyglobs then (* earlyglobs workaround for 13/60 *)
-      sideg (V.protected x) v;
+    if not invariant then (
+      sideg (V.unprotected x) v;
+      if !GU.earlyglobs then (* earlyglobs workaround for 13/60 *)
+        sideg (V.protected x) v
+        (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
+    );
     if is_unprotected ask x then
       st
     else
@@ -599,6 +476,13 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf (V.unprotected g);
+      vf (V.protected g);
+    | _ -> ()
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -694,8 +578,9 @@ struct
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s (ThreadMap.singleton t v)));
+    (* Unlock after invariant will not side effect refined value from weak, because it's not side effected there. *)
     {st with cpa = cpa'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -751,8 +636,9 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
+    (* Unlock after invariant will not side effect refined value from weak, because it's not side effected there. *)
     {st with cpa = cpa'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -821,9 +707,14 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
-    {st with cpa = cpa'; priv = W.add x st.priv}
+    let w' = if not invariant then
+        W.add x st.priv
+      else
+        st.priv (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
+    {st with cpa = cpa'; priv = w'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
@@ -962,9 +853,10 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s v))
+      (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     );
     {st with cpa = cpa'; priv = (v', l)}
 
@@ -1101,11 +993,15 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let (w, p) = st.priv in
-    let w' = W.add x (MinLocksets.singleton s) w in
+    let w' = if not invariant then
+        W.add x (MinLocksets.singleton s) w
+      else
+        w (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );
@@ -1259,7 +1155,11 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let ((w, p), (vv, l)) = st.priv in
-    let w' = W.add x (MinLocksets.singleton s) w in
+    let w' = if not invariant then
+        W.add x (MinLocksets.singleton s) w
+      else
+        w (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let v' = L.fold (fun m _ acc ->
@@ -1267,7 +1167,7 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );
@@ -1351,6 +1251,7 @@ struct
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
+  let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
@@ -1499,12 +1400,10 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
-        | "protection-old" -> (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
         | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
-        | "protection-vesal" -> (module ProtectionBasedVesalPriv)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))

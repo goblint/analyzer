@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Batteries
 
 module Specification =
@@ -52,7 +52,7 @@ sig
   val file: Cil.file
   val specification: Specification.t
 
-  module Cfg: MyCFG.CfgForward
+  module Cfg: MyCFG.CfgBidir
 end
 
 let task: (module Task) option ref = ref None
@@ -64,6 +64,7 @@ let is_error_function f =
   | UnreachCall f_spec -> f.vname = f_spec
   | _ -> false
 
+(* TODO: unused, but should be used? *)
 let is_special_function f =
   let loc = f.vdecl in
   let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
@@ -84,11 +85,6 @@ struct
     | True
     | False of Specification.t option
     | Unknown
-
-  let to_bool = function
-    | True -> true
-    | False _ -> false
-    | Unknown -> failwith "Svcomp.Result.to_bool: Unknown"
 
   let to_string = function
     | True -> "true"

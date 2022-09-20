@@ -1,5 +1,6 @@
 (** The lattice signature and simple functors for building lattices. *)
 
+module Pretty = GoblintCil.Pretty
 module GU = Goblintutil
 
 (* module type Rel =
@@ -37,7 +38,13 @@ sig
 end
 
 exception TopValue
+(** Exception raised by a topless lattice in place of a top value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception BotValue
+(** Exception raised by a bottomless lattice in place of a bottom value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
 
@@ -60,6 +67,15 @@ end
 module Unit = UnitConf (struct let name = "()" end)
 
 
+module NoBotTop =
+struct
+  let top () = raise TopValue
+  let is_top _ = false
+  let bot () = raise BotValue
+  let is_bot _ = false
+end
+
+
 module Fake (Base: Printable.S) =
 struct
   include Base
@@ -70,10 +86,7 @@ struct
   let meet x y =
     if equal x y then x else raise (Unsupported "fake meet")
   let narrow = meet
-  let top () = raise (Unsupported "fake top")
-  let is_top _ = false
-  let bot () = raise (Unsupported "fake bot")
-  let is_bot _ = false
+  include NoBotTop
 
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not equal %a" (Base.name ()) pretty x pretty y
@@ -411,37 +424,6 @@ end
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
 module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
-module LexProd (Base1: S) (Base2: S) =
-struct
-  include Prod (Base1) (Base2)
-
-  let leq (x1,x2) (y1,y2) =
-    if Base1.equal x1 y1 then
-      Base2.leq x2 y2
-    else
-      Base1.leq x1 y1
-
-  let join (x1, y1) (x2, y2) =
-    if Base1.equal x1 x2 then
-      (x1, Base2.join y1 y2)
-    else if Base1.leq x1 x2 then
-      (x2, y2)
-    else if Base1.leq x2 x1 then
-      (x1, y1)
-    else
-      (Base1.join x1 x2, Base2.bot ())
-
-  let meet (x1, y1) (x2, y2) =
-    if Base1.equal x1 x2 then
-      (x1, Base2.meet y1 y2)
-    else if Base1.leq x1 x2 then
-      (x2, y2)
-    else if Base1.leq x2 x1 then
-      (x1, y1)
-    else
-      (Base1.meet x1 x2, Base2.top ())
-end
-
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
   include Printable.Prod3 (Base1) (Base2) (Base3)
@@ -581,6 +563,29 @@ struct
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
+module type Num = sig val x : unit -> int end
+module ProdList (Base: S) (N: Num) =
+struct
+  include Printable.Liszt (Base)
+
+  let bot () = BatList.make (N.x ()) (Base.bot ())
+  let is_bot = List.for_all Base.is_bot
+  let top () = BatList.make (N.x ()) (Base.top ())
+  let is_top = List.for_all Base.is_top
+
+  let leq =
+    let f acc x y = Base.leq x y && acc in
+    List.fold_left2 f true
+
+  let join = List.map2 Base.join
+  let widen = List.map2 Base.widen
+  let meet = List.map2 Base.meet
+  let narrow = List.map2 Base.narrow
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
+end
+
 module Chain (P: Printable.ChainParams) =
 struct
   include Printable.Std
@@ -588,8 +593,8 @@ struct
 
   let bot () = 0
   let is_bot x = x = 0
-  let top () = P.n - 1
-  let is_top x = x = P.n - 1
+  let top () = P.n () - 1
+  let is_top x = x = P.n () - 1
 
   let leq x y = x <= y
   let join x y = max x y

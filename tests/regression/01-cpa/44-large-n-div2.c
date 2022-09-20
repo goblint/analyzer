@@ -16,8 +16,8 @@ int main(){
 
     if(z == 4){
         // Should be reachable
-        assert(1);
+        __goblint_check(1);
     }
 
-    assert(z == 4);
+    __goblint_check(z == 4);
 }

@@ -48,7 +48,7 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
 
 
 
-let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.location): Location.t = {
+let location_of_cil_location ({file; line; column; endLine; endColumn; _}: GoblintCil.location): Location.t = {
   physicalLocation = {
     artifactLocation = { uri = file };
     region = {
@@ -70,7 +70,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     | Success -> ("pass", "none")
   in
   let piece_location (piece: Messages.Piece.t) = match piece.loc with
-    | Some loc -> [location_of_cil_location loc]
+    | Some loc -> [location_of_cil_location (Messages.Location.to_cil loc)]
     | None -> []
   in
   let prefix = Format.asprintf "%a " Messages.Tags.pp message.tags in
@@ -106,7 +106,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
 
 let files_of_message (message: Messages.Message.t): string list =
   let piece_file (piece: Messages.Piece.t) = match piece.loc with
-    | Some loc -> Some loc.file
+    | Some loc -> Some (Messages.Location.to_cil loc).file
     | None -> None
   in
   match message.multipiece with
@@ -130,16 +130,12 @@ let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   |> List.of_enum
 
 let to_yojson messages =
-  let commandLine = match Array.to_list Sys.argv with
-    | command :: arguments -> Filename.quote_command command arguments
-    | [] -> assert false
-  in
   SarifLog.to_yojson {
     version = "2.1.0";
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
     runs = [{
         invocations = [{
-            commandLine;
+            commandLine = Goblintutil.command_line;
             executionSuccessful = true;
           }];
         artifacts = artifacts_of_messages messages;

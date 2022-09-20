@@ -9,42 +9,42 @@ int main() {
   p = anIntPlease();
   q = anIntPlease();
 
-  assert(unknown);      // UNKNOWN
-  assert(unknown == 0); // UNKNOWN
+  __goblint_check(unknown);      // UNKNOWN
+  __goblint_check(unknown == 0); // UNKNOWN
 
-  assert(x);            // UNKNOWN
-  assert(y);            // UNKNOWN
-  assert(x == y);       // UNKNOWN
+  __goblint_check(x);            // UNKNOWN
+  __goblint_check(y);            // UNKNOWN
+  __goblint_check(x == y);       // UNKNOWN
 
-  assert(p);            // UNKNOWN
-  assert(q);            // UNKNOWN
-  assert(p == q);       // UNKNOWN
+  __goblint_check(p);            // UNKNOWN
+  __goblint_check(q);            // UNKNOWN
+  __goblint_check(p == q);       // UNKNOWN
 
   if (unknown)
-    assert(1);
+    __goblint_check(1);
   else
-    assert(1);
+    __goblint_check(1);
 
   if (x == y)
-    assert(1);
+    __goblint_check(1);
   else
-    assert(1);
+    __goblint_check(1);
 
   if (p == q)
-    assert(1);
+    __goblint_check(1);
   else
-    assert(1);
+    __goblint_check(1);
 
   p = &x;
   if (p == q)
-    assert(1);
+    __goblint_check(1);
   else
-    assert(1);
+    __goblint_check(1);
 
-  assert(p == &x);
+  __goblint_check(p == &x);
   if (q == p)
-    assert(1);
+    __goblint_check(1);
   else
-    assert(1);
+    __goblint_check(1);
   return 0;
 }

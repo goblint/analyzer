@@ -7,7 +7,7 @@ struct
   let relift x = x
   let arbitrary () = QCheck.bool *)
 
-  let pretty_diff () (x,y) = Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = GoblintCil.Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module MayBool: Lattice.S with type t = bool =

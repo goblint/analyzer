@@ -42,7 +42,7 @@ module Protection =
 struct
   let is_unprotected ask x: bool =
     let multi = ThreadFlag.is_multi ask in
-    (!GU.earlyglobs && not multi && not (is_precious_glob x)) ||
+    (!GU.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
       ask.f (Q.MayBePublic {global=x; write=true})
@@ -61,9 +61,6 @@ struct
     let r = is_protected_by ask m x in
     if r then ProtectionLogging.record m x;
     r
-
-  let is_atomic ask: bool =
-    ask Q.MustBeAtomic
 end
 
 module MutexGlobals =
@@ -89,6 +86,11 @@ struct
     let mutex_inits: t = `Left (`Right ())
     let global x: t = `Right x
   end
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf (V.global g)
+    | _ -> ()
 end
 
 module MayVars =
@@ -111,7 +113,6 @@ struct
   struct
     include Printable.Std (* To make it Groupable *)
     include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-    let disjoint s t = is_empty (inter s t)
   end
 
   module MustLockset = SetDomain.Reverse (Lockset)
@@ -127,7 +128,7 @@ struct
     if !GU.global_initialization then
       Lockset.empty ()
     else
-      let ls = ask.f Queries.CurrentLockset in
+      let ls = ask.f Queries.MustLockset in
       Q.LS.fold (fun (var, offs) acc ->
           Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
         ) ls (Lockset.empty ())

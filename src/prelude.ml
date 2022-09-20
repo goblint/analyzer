@@ -5,7 +5,6 @@ module All = struct
   let comp2 f g a b = f (g a) (g b)
   let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
   let str_remove m s = String.nreplace ~str:s ~sub:m ~by:""
-  let try_opt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
 
   (* Sys.time gives runtime in seconds as float *)
   let split_time () = (* gives CPU time in h,m,s,ms *)
@@ -28,10 +27,10 @@ include All (* shortcut so that 'open Prelude' is enough *)
 module Ana = struct
   include All
   (* CIL *)
-  include Cil
+  include GoblintCil
   let d_varinfo () x = d_lval () (Var x, NoOffset)
   include Pretty
-  let sprint f x = Pretty.sprint 80 (f () x)
+  let sprint f x = Pretty.sprint ~width:80 (f () x)
   (* Analyses.Spec etc. *)
   (* include Analyses (* circular build :( *) *)
   (* module M = Messages (* same, but this is in Analyses anyway *) *)

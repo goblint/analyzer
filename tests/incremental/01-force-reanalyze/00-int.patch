@@ -4,17 +4,17 @@
    while(in < 17) {
      in++;
    }
--  assert(in == 17); //UNKNOWN
-+  assert(in == 17);
+-  __goblint_check(in == 17); //UNKNOWN
++  __goblint_check(in == 17);
    return in;
  }
 
 @@ -12,6 +12,6 @@ int main() {
    int a = 0;
-   assert(a); // FAIL!
+   __goblint_check(a); // FAIL!
    a = f(a);
--  assert(a == 17); //UNKNOWN
-+  assert(a == 17);
+-  __goblint_check(a == 17); //UNKNOWN
++  __goblint_check(a == 17);
    return 0;
  }
 --- tests/incremental/01-force-reanalyze/00-int.json
@@ -25,7 +25,7 @@
              "enabled" : true
 +        },
 +        "goblint_precision": {
-+            "interval" : ["f"]
++            "f" : ["interval"]
          }
      },
      "ana" : {

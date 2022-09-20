@@ -49,7 +49,7 @@ void *monitor_thread (void *arg) {
     if (status != EBUSY) {
       if (status != 0)
         err_abort (status, "Trylock mutex");
-      printf ("Counter is %ld\n", counter/SPIN); // RACE
+      printf ("Counter is %ld\n", counter/SPIN); // NORACE (same lock with counter_thread, same unique thread with monitor_thread)
       status = pthread_mutex_unlock (&mutex);
       if (status != 0)
         err_abort (status, "Unlock mutex");

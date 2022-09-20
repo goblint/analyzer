@@ -2,8 +2,8 @@
 #include<assert.h>
 
 struct kala { int x; };
-void inc(int *x) { 
-  (*x)++; 
+void inc(int *x) {
+  (*x)++;
 }
 
 void set(int *x, int i) {
@@ -25,24 +25,24 @@ int main () {
 
   i = 0;
   inc(&i);
-  assert(i == 1);
+  __goblint_check(i == 1);
 
   i = 3; j = 7;
   swap(&i, &j);
-  assert(i == 7);
-  assert(j == 3);
-  
+  __goblint_check(i == 7);
+  __goblint_check(j == 3);
+
   set(&i, 5);
-  assert(i == 5);
+  __goblint_check(i == 5);
 
   tes(6, &i);
-  assert(i == 6);
+  __goblint_check(i == 6);
 
   // struct pointer
   struct kala k;
   k.x = 3;
   inc(&k.x);
-  assert(k.x == 4);
+  __goblint_check(k.x == 4);
 
   return 0;
 }

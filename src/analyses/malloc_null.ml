@@ -43,7 +43,7 @@ struct
   (* We just had to dereference an lval --- warn if it was null *)
   let warn_lval (st:D.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
     try
-      if D.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
+      if D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
         let var = Addr.from_var_offset v in
         Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
@@ -65,7 +65,12 @@ struct
       | _ -> ()
     in
     match e with
-    | Lval (Var v, offs) -> ()
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _
+    | Lval (Var _, _) -> ()
     | AddrOf (Var _, _)
     | StartOf (Var _, _) ->  warn_lval_mem e NoOffset
     | AddrOf (Mem e, offs)
@@ -77,9 +82,16 @@ struct
       warn_deref_exp a st e1;
       warn_deref_exp a st e2
     | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e
     | CastE  (_,e) ->
       warn_deref_exp a st e
-    | _ -> ()
+    | Question (b, t, f, _) ->
+      warn_deref_exp a st b;
+      warn_deref_exp a st t;
+      warn_deref_exp a st f
 
   let may (f: 'a -> 'b) (x: 'a option) : unit =
     match x with
@@ -141,7 +153,7 @@ struct
     match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let one_addr_might (v,o) =
-        D.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
+        D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
       in
       Queries.LS.exists one_addr_might a
     | _ -> false
@@ -182,10 +194,6 @@ struct
     | None -> nst
 
   (* Function calls *)
-
-  let eval_funvar ctx (fv:exp) : varinfo list =
-    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local fv;
-    []
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in

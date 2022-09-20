@@ -39,8 +39,8 @@ int main() {
     pthread_join(t1, 0);
     pthread_join(t2, 0);
 
-    assert(i < 377); //TODO
-    assert(j < 377); //TODO
+    __goblint_check(i < 377); //TODO
+    __goblint_check(j < 377); //TODO
 
     return 0;
 }

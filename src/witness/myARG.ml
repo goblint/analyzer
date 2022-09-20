@@ -1,5 +1,5 @@
-open WitnessUtil
 open MyCFG
+open GoblintCil
 
 module type Node =
 sig
@@ -17,7 +17,6 @@ sig
   type t
 
   val embed: MyCFG.edge -> t
-  val cfgedge: t -> MyCFG.edge option
   val to_string: t -> string
 end
 
@@ -26,15 +25,14 @@ struct
   type t = edge
 
   let embed e = e
-  let cfgedge e = Some e
-  let to_string e = Pretty.sprint 80 (Edge.pretty_plain () e)
+  let to_string e = Pretty.sprint ~width:80 (Edge.pretty_plain () e)
 end
 
 type inline_edge =
   | CFGEdge of Edge.t
   | InlineEntry of CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option
-  [@@deriving to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
@@ -42,17 +40,29 @@ let pretty_inline_edge () = function
   | InlineReturn None -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
 
+module InlineEdgePrintable: Printable.S with type t = inline_edge =
+struct
+  include Printable.Std
+  type t = inline_edge [@@deriving eq, ord, hash, to_yojson]
+
+  let name () = "inline edge"
+
+  let pretty = pretty_inline_edge
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+    (* TODO: deriving to_yojson gets overridden by SimplePretty *)
+end
+
 module InlineEdge: Edge with type t = inline_edge =
 struct
-  type t = inline_edge [@@deriving to_yojson]
+  type t = inline_edge
 
   let embed e = CFGEdge e
-
-  let cfgedge = function
-    | CFGEdge e -> Some e
-    | _ -> None
-
-  let to_string e = Pretty.sprint 80 (pretty_inline_edge () e)
+  let to_string e = InlineEdgePrintable.show e
 end
 
 (* Abstract Reachability Graph *)
@@ -68,7 +78,7 @@ end
 module StackNode (Node: Node):
   Node with type t = Node.t list =
 struct
-  include HashedList (Node)
+  type t = Node.t list [@@deriving eq, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
   let to_string nl =
@@ -244,7 +254,7 @@ struct
   open Cil
 
   let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
-    | Instr is1, Instr is2 -> List.for_all2 (=) is1 is2
+    | Instr is1, Instr is2 -> GobList.equal (=) is1 is2
     | Return _, Return _ -> sk1 = sk2
     | _, _ -> false (* TODO: also consider others? not sure if they ever get duplicated *)
   let is_equiv_stmt s1 s2 = is_equiv_stmtkind s1.skind s2.skind (* TODO: also consider labels *)

@@ -11,7 +11,7 @@ main () {
       break;
   }
   printf("%d\n",sum);
-  assert(sum == 1); // UNKNOWN
-  assert(k == 7);
+  __goblint_check(sum == 1); // UNKNOWN
+  __goblint_check(k == 7);
   return 0;
 }

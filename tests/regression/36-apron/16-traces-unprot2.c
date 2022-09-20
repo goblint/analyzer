@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
@@ -22,6 +22,6 @@ int main(void) {
 
   x = g;
   y = g;
-  assert(x == y); // TODO (like 13/66)
+  __goblint_check(x == y); // TODO (like 13/66)
   return 0;
 }

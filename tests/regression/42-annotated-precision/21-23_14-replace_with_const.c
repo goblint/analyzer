@@ -1,4 +1,5 @@
-// PARAM: --set solver td3 --enable ana.base.partition-arrays.enabled --set ana.base.partition-arrays.keep-expr "last" --enable ana.base.partition-arrays.partition-by-const-on-return --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set ana.base.arrays.domain partitioned --set ana.base.partition-arrays.keep-expr "last" --enable ana.base.partition-arrays.partition-by-const-on-return --enable annotation.int.enabled --set ana.int.refinement fixpoint
+#include <assert.h>
 
 void example1() __attribute__((goblint_precision("no-def_exc","interval")));
 void init_array(int* arr, int val) __attribute__((goblint_precision("no-def_exc","interval")));
@@ -14,15 +15,15 @@ void example1() {
 
   init_array(a, 42);
 
-  assert(a[2] == 42);
-  assert(a[10] == 42);
+  __goblint_check(a[2] == 42);
+  __goblint_check(a[10] == 42);
 
   do_first(a);
-  assert(a[0] == 3);
+  __goblint_check(a[0] == 3);
 
   init_array(b,12);
-  assert(b[2] == 12);
-  assert(b[10] == 12);
+  __goblint_check(b[2] == 12);
+  __goblint_check(b[10] == 12);
 }
 
 void do_first(int* arr) {
@@ -35,6 +36,6 @@ void init_array(int* arr, int val) {
       arr[i] = val;
   }
 
-  assert(arr[2] == val);
-  assert(arr[10] == val);
+  __goblint_check(arr[2] == val);
+  __goblint_check(arr[10] == val);
 }

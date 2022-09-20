@@ -7,5 +7,5 @@ int main() {
     unsigned long n = 16;
     unsigned long size = 4912;
 
-    assert(!(0xffffffffffffffffUL / size < n));
+    __goblint_check(!(0xffffffffffffffffUL / size < n));
 }
