@@ -8,7 +8,7 @@ include CompareCFG
 module GlobalMap = Map.Make(String)
 
 type global_def = Var of varinfo | Fun of fundec
-and global_col = {decls: varinfo list; def: global_def option}
+and global_col = {decls: varinfo option; def: global_def option}
 
 let name_of_global g = match g with
   | GVar (v,_,_) -> v.vname
@@ -121,7 +121,7 @@ let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) 
   | Some (Var v1), Some (Var v2) -> unchanged_to_change_status (eq_varinfo v1 v2 (StringMap.empty, VarinfoMap.empty)), None
   | Some (Fun f1), Some (Fun f2) -> eqF f1 f2 cfgs global_rename_mapping
   | None, None -> (match old.decls, current.decls with
-      | v1::ls1, v2::ls2 -> unchanged_to_change_status (eq_varinfo v1 v2 (StringMap.empty, VarinfoMap.empty)), None (* TODO how to compare declarations? Iterate? *)
+      | Some v1, Some v2 -> unchanged_to_change_status (eq_varinfo v1 v2 (StringMap.empty, VarinfoMap.empty)), None
       | _, _ -> failwith "should never collect any empty entries in GlobalMap")
   | _, _ -> Changed, None (* it is considered to be changed (not added or removed) because a global collection only exists in the map
                              if there is at least one declaration or definition for this global *)
@@ -134,18 +134,18 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let addGlobal map global  = (* TODO: check consistency of id's *)
     try
       let name, col = match global with
-        | GVar (v,_,_) -> v.vname, {decls = []; def = Some (Var v)}
-        | GFun (f,_) -> f.svar.vname, {decls = []; def = Some (Fun f)}
-        | GVarDecl (v,_) -> v.vname, {decls = [v]; def = None}
+        | GVar (v,_,_) -> v.vname, {decls = None; def = Some (Var v)}
+        | GFun (f,_) -> f.svar.vname, {decls = None; def = Some (Fun f)}
+        | GVarDecl (v,_) -> v.vname, {decls = Some v; def = None}
         | _ -> raise Not_found in
-      let merge_def def1 def2 = match def1, def2 with
+      let merge_d def1 def2 = match def1, def2 with
         | Some d, None -> Some d
         | None, Some d -> Some d
         | None, None -> None
-        | _ -> failwith "there can be only one definition per global" in
+        | _ -> failwith "there can only be one definition and one declaration per global" in
       let merge_global_col entry = match entry with
         | None -> Some col
-        | Some col' -> Some {decls = col.decls @ col'.decls; def = merge_def col.def col'.def} in
+        | Some col' -> Some {decls = merge_d col.decls col'.decls; def = merge_d col.def col'.def} in
       GlobalMap.update name merge_global_col map;
     with
       Not_found -> map

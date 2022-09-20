@@ -56,7 +56,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       | Some (Fun nw), Some (Fun old) -> reset_fun nw old
       | Some (Var nw), Some (Var old) -> reset_var nw old
       | _, _ -> match glob.current.decls, glob.old.decls with
-        | nw::ls1, old::ls2 -> reset_var nw old
+        | Some nw, Some old -> reset_var nw old
         | _, _ -> ()
     with Failure m -> ()
   in
@@ -110,7 +110,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       | Some (Fun nw) -> update_fun nw
       | Some (Var nw) -> update_var nw
       | _ -> match glob.decls with
-        | v1::ls1 -> update_var v1
+        | Some v1 -> update_var v1
         | _ -> ()
     with Failure m -> ()
   in
