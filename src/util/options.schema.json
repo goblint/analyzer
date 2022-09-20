@@ -2045,6 +2045,19 @@
               "description": "Emit exact invariants. They are useless for unassuming.",
               "type": "boolean",
               "default": true
+            },
+            "exclude-vars": {
+              "title": "witness.invariant.exclude-vars",
+              "description": "OCaml Str regexes for variables to exclude from invariants.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "tmp\\(___[0-9]+\\)?",
+                "cond",
+                "RETURN"
+              ]
             }
           },
           "additionalProperties": false

@@ -64,7 +64,17 @@
       "enabled": true
     },
     "invariant": {
-      "exact": false
+      "exact": false,
+      "exclude-vars": [
+        "tmp\\(___[0-9]+\\)?",
+        "cond",
+        "RETURN",
+        "__\\(cil_\\)?tmp_?[0-9]*\\(_[0-9]+\\)?",
+        ".*____CPAchecker_TMP_[0-9]+",
+        "__VERIFIER_assert__cond",
+        "__ksymtab_.*",
+        "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+"
+      ]
     }
   },
   "solver": "td3",
