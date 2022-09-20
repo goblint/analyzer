@@ -18,7 +18,7 @@ struct
   let get_empty () =
     try
       (is_empty_top := true;  M.top ())
-    with Lattice.Unsupported _ ->
+    with Lattice.Unsupported _ | Lattice.BotValue | Lattice.TopValue ->
       (is_empty_top := false; M.bot ())
 
   let is_empty x =
@@ -44,7 +44,7 @@ struct
 	map := M.remove "key1" !map;
 	begin
 	  try ignore (M.find "key1" !map); assert_failure "problem removeing key1"
-	  with Lattice.Unsupported _ -> ()
+	  with Lattice.Unsupported _ | Lattice.BotValue | Lattice.TopValue -> ()
 	end ;
 
       end
