@@ -766,17 +766,15 @@ struct
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
-        begin
-        match ask.f (Q.MayPointTo (Lval lval)) with
-        | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
-          begin
-          match Q.LS.choose v with
-            | (var,`Index (i,`NoOffset)) when Basetype.CilExp.equal i Cil.zero && CilType.Varinfo.equal var arr_start_var ->
-            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
-            add
-          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
-          end
-        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
+        begin match ask.f (Q.MayPointTo (Lval lval)) with
+          | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+            begin match Q.LS.choose v with
+              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+                (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
+                add
+              | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
+            end
+          | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
         end
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in
