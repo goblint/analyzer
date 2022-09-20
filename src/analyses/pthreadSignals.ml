@@ -55,19 +55,18 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LF.find f in
-    match desc.special arglist, f.vname with
-    | _, "pthread_cond_signal"
-    | _, "pthread_cond_broadcast" ->
+    match desc.special arglist with
+    | Signal cond
+    | Broadcast cond ->
       let tid = match ctx.ask CurrentThreadId with
         | `Lifted tid -> G.singleton (tid)
         | _ -> G.top ()
       in
       let publish_one a = ctx.sideg a tid in
-      let cv_arg = List.nth arglist 0 in
-      let possible_vars = possible_vinfos (Analyses.ask_of_ctx ctx) cv_arg in
+      let possible_vars = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
       List.iter publish_one possible_vars;
       ctx.local
-    | _, "pthread_cond_wait" ->
+    | Wait {cond = cond; _} ->
       let may_be_signaller tid other =
         let module TID = ThreadIdDomain.FlagConfiguredTID in
         let not_self_signal = (not (TID.is_unique tid)) || (not (TID.equal tid other)) in
@@ -81,8 +80,7 @@ struct
       in
       (match ctx.ask CurrentThreadId with
        | `Lifted tid ->
-         (let cv_arg = List.nth arglist 0 in
-          match possible_vinfos (Analyses.ask_of_ctx ctx) cv_arg with
+         (match possible_vinfos (Analyses.ask_of_ctx ctx) cond with
           | [a] ->
             let signalling_tids = ctx.global a in
             if G.is_top signalling_tids then
@@ -95,7 +93,7 @@ struct
               (M.warn "never signalled concurrently -> dead"; ctx.local)
           | _ -> ctx.local)
        | _ -> ctx.local)
-    | _, "pthread_cond_timedwait" ->
+    | TimedWait _ ->
       (* Time could simply have elapsed *)
       ctx.local
     | _ -> ctx.local

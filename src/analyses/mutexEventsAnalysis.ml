@@ -116,6 +116,17 @@ struct
     | Unlock _, _ ->
       (*print_endline @@ "Mutex `Unlock "^f.vname;*)
       unlock remove_rw
+    | Wait {cond = cond; mutex = mutex}, _
+    | TimedWait {cond = cond; mutex = mutex; _}, _ ->
+      (* mutex is unlocked while waiting but relocked when returns *)
+      (* emit unlock-lock events for privatization *)
+      let ms = eval_exp_addr (Analyses.ask_of_ctx ctx) mutex in
+      List.iter (fun m ->
+          (* unlock-lock each possible mutex as a split to be dependent *)
+          (* otherwise may-point-to {a, b} might unlock a, but relock b *)
+          ctx.split () [Events.Unlock m; Events.Lock (m, true)];
+        ) ms;
+      raise Deadcode (* splits cover all cases *)
     | _, "spinlock_check" -> ()
     | _, "acquire_console_sem" when get_bool "kernel" ->
       ctx.emit (Events.Lock (console_sem, true))
@@ -127,18 +138,6 @@ struct
       ctx.emit (Events.Lock (verifier_atomic, true))
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
       ctx.emit (Events.Unlock verifier_atomic)
-    | _, "pthread_cond_wait"
-    | _, "pthread_cond_timedwait" ->
-      (* mutex is unlocked while waiting but relocked when returns *)
-      (* emit unlock-lock events for privatization *)
-      let m_arg = List.nth arglist 1 in
-      let ms = eval_exp_addr (Analyses.ask_of_ctx ctx) m_arg in
-      List.iter (fun m ->
-          (* unlock-lock each possible mutex as a split to be dependent *)
-          (* otherwise may-point-to {a, b} might unlock a, but relock b *)
-          ctx.split () [Events.Unlock m; Events.Lock (m, true)];
-        ) ms;
-      raise Deadcode (* splits cover all cases *)
     | _, x ->
       ()
 

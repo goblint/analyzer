@@ -30,6 +30,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+    ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
+    ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
+    ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
+    ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" []] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
   ]
 
 (** GCC builtin functions.
