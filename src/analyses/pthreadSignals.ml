@@ -32,7 +32,7 @@ struct
     | _ -> []
 
   let possible_vinfos a cv_arg =
-    List.concat_map ValueDomain.Addr.to_var_may (eval_exp_addr a cv_arg)
+    List.filter_map ValueDomain.Addr.to_var_may (eval_exp_addr a cv_arg)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -54,7 +54,8 @@ struct
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match (LF.classify f.vname arglist, f.vname) with
+    let desc = LF.find f in
+    match desc.special arglist, f.vname with
     | _, "pthread_cond_signal"
     | _, "pthread_cond_broadcast" ->
       let tid = match ctx.ask CurrentThreadId with
@@ -71,20 +72,10 @@ struct
         let module TID = ThreadIdDomain.FlagConfiguredTID in
         let not_self_signal = (not (TID.is_unique tid)) || (not (TID.equal tid other)) in
         let may_be_running () =
-          if (not (TID.is_must_parent tid other)) then
-            true
-          else
-            let created = ctx.ask Queries.CreatedThreads in
-            let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
-            if ConcDomain.ThreadSet.is_top created then
-              true
-            else
-              ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
+          not @@ MHP.definitely_not_started (tid, ctx.ask Queries.CreatedThreads) other
         in
         let may_not_be_joined () =
-          try
-            not @@ List.mem other (ConcDomain.ThreadSet.elements (ctx.ask Queries.MustJoinedThreads))
-          with _ -> true
+          not @@ MHP.must_be_joined other (ctx.ask Queries.MustJoinedThreads)
         in
         not_self_signal && may_be_running () && may_not_be_joined ()
       in
@@ -97,15 +88,11 @@ struct
             if G.is_top signalling_tids then
               ctx.local
             else if G.is_empty signalling_tids || G.is_bot signalling_tids then
-              (* Does not work, probably because of this splitting and event business in mutexAnalysis *)
-              (* raise Deadcode *)
-              (M.warn "never signalled -> dead";
-               ctx.local)
+              (M.warn "never signalled -> dead"; ctx.local)
             else if G.exists (may_be_signaller tid) signalling_tids then
               Signals.add (ValueDomain.Addr.from_var a) ctx.local
             else
-              (M.warn "never signalled concurrently -> dead";
-               ctx.local)
+              (M.warn "never signalled concurrently -> dead"; ctx.local)
           | _ -> ctx.local)
        | _ -> ctx.local)
     | _, "pthread_cond_timedwait" ->
