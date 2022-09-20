@@ -130,7 +130,7 @@ struct
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
       else *)
-        non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
+      non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
       let held_locks: GProtecting.t = check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
@@ -138,7 +138,7 @@ struct
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
-         non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
+      non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
     | Queries.MustBeProtectedBy {mutex; global; write} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
       let held_locks: GProtecting.t = check_fun ~write mutex_lockset in
@@ -160,8 +160,7 @@ struct
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem MutexEventsAnalysis.verifier_atomic held_locks
     | Queries.IterSysVars (Global g, f) ->
-      f (Obj.repr (V.protecting g))
-      (* TODO: something about V.protected? *)
+      f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
