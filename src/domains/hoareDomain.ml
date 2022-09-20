@@ -369,8 +369,8 @@ struct
   (* version of widen which doesn't use E.bot *)
   (* TODO: move to Set above? *)
   let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
-  let xs,ys = elements a, elements b in
-  List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
+    let xs,ys = elements a, elements b in
+    List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
   let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
 
   (* above widen is actually extrapolation operator, so define connector-based widening instead *)

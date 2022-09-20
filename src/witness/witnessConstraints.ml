@@ -206,9 +206,9 @@ struct
       (* TODO: disabled because we now use and leave Sync for every tf,
          such that threadspawn after tf could look up state before tf *)
       (* begin match ctx.node with
-        | Function _ -> () (* returns post-sync in FromSpec *)
-        | _ -> assert (Sync.is_bot (snd ctx.local));
-      end; *)
+           | Function _ -> () (* returns post-sync in FromSpec *)
+           | _ -> assert (Sync.is_bot (snd ctx.local));
+         end; *)
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->

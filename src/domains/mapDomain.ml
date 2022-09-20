@@ -91,7 +91,7 @@ struct
     in
     let f key st dok =
       if ME.tracing && D.trace_enabled && !ME.tracevars <> [] &&
-        not (List.mem (D.show key) !ME.tracevars) then
+         not (List.mem (D.show key) !ME.tracevars) then
         dok
       else
         dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
