@@ -86,7 +86,7 @@ struct
             let signalling_tids = ctx.global a in
             if G.is_top signalling_tids then
               ctx.local
-            else if G.is_empty signalling_tids || G.is_bot signalling_tids then
+            else if G.is_empty signalling_tids then
               (M.warn ~category:Deadcode "The condition variable %s is never signalled, succeeding code is live due to spurious wakeups only!" a.vname; ctx.local)
             else if G.exists (may_be_signaller tid) signalling_tids then
               Signals.add (ValueDomain.Addr.from_var a) ctx.local
