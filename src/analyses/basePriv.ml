@@ -373,7 +373,7 @@ struct
         get_mutex_global_g
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-        let get_mutex_inits' = CPA.filter (fun k v -> k.vid = g.vid) get_mutex_inits in
+        let get_mutex_inits' = CPA.singleton g (CPA.find g get_mutex_inits) in
         CPA.join get_mutex_global_g get_mutex_inits'
     in
     r
