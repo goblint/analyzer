@@ -490,17 +490,18 @@ struct
       )
     )
     else (
-    match ConcDomain.ThreadSet.elements tids with
-    | [tid] ->
-      let lmust',l' = G.thread (getg (V.thread tid)) in
-      {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-    | _ ->
-      (* To match the paper more closely, one would have to join in the non-definite case too *)
-      (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-      st
-    | exception SetDomain.Unsupported _ ->
-      (* elements throws if the thread set is top *)
-      st)
+      match ConcDomain.ThreadSet.elements tids with
+      | [tid] ->
+        let lmust',l' = G.thread (getg (V.thread tid)) in
+        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+      | _ ->
+        (* To match the paper more closely, one would have to join in the non-definite case too *)
+        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+        st
+      | exception SetDomain.Unsupported _ ->
+        (* elements throws if the thread set is top *)
+        st
+    )
 
   let thread_return ask getg sideg tid (st: BaseComponents (D).t) =
     let _,lmust,l = st.priv in
