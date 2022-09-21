@@ -1016,7 +1016,7 @@ struct
         (* To match the paper more closely, one would have to join in the non-definite case too *)
         (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
         st
-      | exception _ ->
+      | exception SetDomain.Unsupported _ ->
         (* elements throws if the thread set is top *)
         st
     )
