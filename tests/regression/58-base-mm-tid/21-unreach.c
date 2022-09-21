@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq --set exp.extraspecials[+] ZSTD_customMalloc  --set ana.base.privatization mutex-meet-tid --set ana.path_sens[+] threadflag
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq  --set ana.base.privatization mutex-meet-tid --set ana.path_sens[+] threadflag
+// This is extracted from zstd. In this example, we unsoundly claimed unreachability for the end of fun
 #include<stdlib.h>
 #include<pthread.h>
 #include<assert.h>
