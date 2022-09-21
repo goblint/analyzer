@@ -125,6 +125,13 @@ type nodes_diff = {
   destabilize_nodes : node list;
 }
 
+
+(** To provide separation of concerns in the implementation,
+    the following functions apply to arbitrary digraphs parameterized
+    over types of nodes and edges. When CFGs are used as diagraphs,
+    the type of nodes is [Node.t] and the type of edges is [Edge.t list].
+    The diagraph type is a function from a node to a list of pairs,
+    where each pair is an outgoing edge along with the node reachable over that edge. *)
 type ('n, 'e) digraph = 'n -> ('e * 'n) list
 
 let digraph_of_cfg (cfg : cfg) : _ digraph =
@@ -151,10 +158,14 @@ let linearize_digraph (type n e)
 
   in go start []
 
-let same_deps (type n1 n2)
+(** For each pair in the given matching, determine whether the dependencies
+    of the old node are isomorphic to the dependencies of the new node
+    under the given matching, i.e., [map m (deps v) = deps (m v)].
+    Digraph arguments must be reversed, e.g., made from [CfgBackward.prev]. *)
+let same_deps (type n1 n2 e1 e2)
     (module N : Hashtbl.HashedType with type t = n1)
-    (rev_digraph_old : _ digraph) (rev_digraph_new : _ digraph)
-    eq_node eq_edge
+    (rev_digraph_old : (n1, e1) digraph) (rev_digraph_new : (n2, e2) digraph)
+    (eq_node : n2 -> n2 -> bool) (eq_edge : e1 -> e2 -> bool)
     (matching0 : (n1 * n2) list) : bool list =
 
   let module HashtblN = Hashtbl.Make (N) in
@@ -172,6 +183,33 @@ let same_deps (type n1 n2)
       deps_old deps_new
     )
 
+(** matches the given linearized digraphs using Myers' diff algorithm *)
+let match_lin_diff (type n1 n2 e1 e2)
+    (nes_equal : n1 * e1 list -> n2 * e2 list -> bool) lin_old lin_new =
+  DiffLib.myers nes_equal lin_old lin_new
+  |> DiffLib.unify lin_old lin_new
+  |> List.filter_map (function
+      | DiffLib.UUnchanged ((o, _), (n, _)) -> Some (o, n)
+      | _ -> None)
+
+(** matches the given linearized digraphs based on their linearized order *)
+let match_lin_1to1 (type n1 n2 e1 e2)
+    (nes_can_match : n1 * e1 list -> n2 * e2 list -> bool) lin_old lin_new =
+  (* for each node in the old list, take the first possible node from the new list *)
+  let[@tail_mod_cons] rec helper xs ys =
+    match xs, ys with
+    | _, [] -> []
+    | (o, _ as x) :: xs', (n, _ as y) :: ys'
+        when nes_can_match x y ->
+        (o, n) :: helper xs' ys'
+    | xs', _ :: ys' -> helper xs' ys'
+  in
+  helper lin_old lin_new
+
+
+(* The remaining functions are specific to Goblint CFGs,
+   and use the functions that apply to arbitrary CFGs above *)
+
 let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
   let same, diff = Stats.time "forwards-compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun_old fun_new) () in
   let unchanged, diffNodes1 = Stats.time "forwards-compare-phase2" (fun () -> reexamine fun_old fun_new same diff (module CfgOld) (module CfgNew)) () in
@@ -182,23 +220,17 @@ let linearize_cfg cfg fundec = (* type n = Node.t, type e = edge list *)
   linearize_digraph (module Node) (digraph_of_cfg cfg) (FunctionEntry fundec)
 
 (** pass to [match_lin_diff] for matching CFGs *)
-let cfg_nes_equal fun_old fun_new (n1, es1) (n2, es2) =
+let nes_equal_cfg fun_old fun_new (n1, es1) (n2, es2) =
   eq_node (n1, fun_old) (n2, fun_new)
   (* && List.compare_lengths es1 es2 = 0 *)
   && List.equal eq_edge_list es1 es2
 
-(** matches the given linearized digraphs using Myers' diff algorithm *)
-let match_lin_diff nes_equal lin_old lin_new =
-  DiffLib.myers nes_equal lin_old lin_new
-  |> DiffLib.unify lin_old lin_new
-  |> List.filter_map (function
-      | DiffLib.UUnchanged ((o, _), (n, _)) -> Some (o, n)
-      | _ -> None)
-
-(** matches the given linearized digraphs based on their linearized order *)
-let match_lin_1to1 lin_old lin_new =
-  GobList.combine_short lin_old lin_new
-  |> List.map (fun ((o, _), (n, _)) -> o, n)
+let nes_can_match_cfg (n1, es1) (n2, es2) =
+  match n1, n2 with
+  | Statement _, Statement _
+    | FunctionEntry _, FunctionEntry _
+    | Function _, Function _ -> true
+  | _ -> false
 
 let same_deps_cfg rev_cfg_old rev_cfg_new =
   same_deps (module Node) (digraph_of_cfg rev_cfg_old) (digraph_of_cfg rev_cfg_new) Node.equal eq_edge_list
@@ -231,6 +263,6 @@ let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBid
       let lin_old = linearize_cfg CfgOld.next fun_old in
       let lin_new = linearize_cfg CfgNew.next fun_new in
       (match cmp_by with
-      | Diff -> match_lin_diff (cfg_nes_equal fun_old fun_new) lin_old lin_new
-      | OneToOne | _ -> match_lin_1to1 lin_old lin_new)
+      | Diff -> match_lin_diff (nes_equal_cfg fun_old fun_new) lin_old lin_new
+      | OneToOne | _ -> match_lin_1to1 nes_can_match_cfg lin_old lin_new)
       |> cfg_matching_of_fuzzy_match CfgOld.prev CfgNew.prev fun_old fun_new
