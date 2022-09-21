@@ -7,12 +7,12 @@ include RelationAnalysis
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module AD = AffineEqualityDomain.D2 in
-    let module ADVM = SharedFunctions.AssertionModule (AD(val VectorMatrix.get_vector ()) (val VectorMatrix.get_matrix ())) in
+    let module ADVM = SharedFunctions.AssertionModule (AffineEqualityDomain.V) (AD(val VectorMatrix.get_vector ()) (val VectorMatrix.get_matrix ())) in
     let module RD: RelationDomain.RD =
     struct
-      module Var = SharedFunctions.Var
-      module V = RelationDomain.V(Var)
-      include ADVM
+      module Var = AffineEqualityDomain.Var
+      module V = AffineEqualityDomain.V
+      include RelationDomain.NoInvariantRelD2(ADVM)
     end in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec = struct include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)

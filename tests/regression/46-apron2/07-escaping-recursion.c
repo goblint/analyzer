@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.base.privatization none --set ana.apron.privatization top
+// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.base.privatization none --set ana.relation.privatization top
 // Copy of 01/52 for Apron
 int rec(int i,int* ptr) {
     int top;

@@ -4,6 +4,7 @@ open Pretty
 (* A binding to a selection of Apron-Domains *)
 open Apron
 open RelationDomain
+open SharedFunctions
 
 
 module BI = IntOps.BigIntOps
@@ -24,8 +25,10 @@ let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
   )
 
 let reset_lazy () =
-  ResettableLazy.reset 
-  widening_thresholds_apron
+  ResettableLazy.reset widening_thresholds_apron
+
+module Var = SharedFunctions.Var
+module V = RelationDomain.V(Var)
 
 
 module type Manager =
@@ -99,12 +102,6 @@ let manager =
 
 let get_manager (): (module Manager) =
   Lazy.force manager
-
-module type Tracked =
-sig
-  val type_tracked: typ -> bool
-  val varinfo_tracked: varinfo -> bool
-end
 
 module Lincons1 =
 struct
@@ -286,7 +283,7 @@ end
 module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
   open SharedFunctions
-  module Convert = Convert(Bounds(Man)) (struct let allow_global = false end) (Tracked)
+  module Convert = Convert (V) (Bounds(Man)) (struct let allow_global = false end) (Tracked)
 
   type t = Man.mt A.t
 
@@ -296,12 +293,14 @@ struct
 
   let copy_pt = copy
 
-  let vars d = EnvOps.vars (A.env d)
-
   let vars_as_array d =
     let ivs, fvs = Environment.vars (A.env d) in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
     ivs
+
+  let vars d =
+    let ivs = vars_as_array d in
+    List.of_enum (Array.enum ivs)
 
   (* marshal type: Abstract0.t and an array of var names *)
   type marshal = Man.mt Abstract0.t * string array
@@ -482,7 +481,22 @@ struct
   let meet_tcons d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
-    A.meet_tcons_array Man.mgr d earray
+    let res = A.meet_tcons_array Man.mgr d earray in
+    match Man.name () with
+    | "ApronAffEq" ->
+          let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
+          begin match Convert.determine_bounds_one_var e with
+          | None -> overflow_res res
+          | Some (ev, min, max) ->
+            let module Bounds = Bounds(Man) in
+            let module BI = IntOps.BigIntOps in
+            begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
+              | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then  d
+                else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+                  (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
+                else res
+              | _, _ -> overflow_res res end end
+    | _ -> res
 
   let to_lincons_array d =
     A.to_lincons_array Man.mgr d
@@ -561,21 +575,8 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
-  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
-end
 
-module Tracked: Tracked =
-struct
-  let is_pthread_int_type = function
-    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
-    | _ -> false
-
-  let type_tracked typ =
-    isIntegralType typ && not (is_pthread_int_type typ)
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype
+  val invariant: scope:Cil.fundec -> t -> Lincons1Set.elt list
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
@@ -857,7 +858,7 @@ struct
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
-          let module Convert = SharedFunctions.Convert (Bounds(Man)) (struct let allow_global = true end) (Tracked) in
+          let module Convert = SharedFunctions.Convert (V) (Bounds(Man)) (struct let allow_global = true end) (Tracked) in
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
               let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
@@ -906,13 +907,11 @@ sig
   include SharedFunctions.Tracked
   include SLattice with type t = Man.mt A.t
 
+  include RelS3 with type t = Man.mt A.t and type var = SharedFunctions.Var.t and type consSet = Lincons1Set.elt
+
   val exp_is_cons : exp -> bool
   val assert_cons : t -> exp -> bool -> bool Lazy.t -> t
-  val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
-  val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 end
-
-type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
@@ -925,13 +924,18 @@ struct
     let remove_filter_pt_with t f = remove_filter_with t f; t
 
     let assign_var_parallel_pt_with t vars = assign_var_parallel_with t vars; t
+
+    type consSet = Lincons1Set.elt
+
+    let get_cons_size (c: Apron.Lincons1.t) = Apron.Linexpr0.get_size c.lincons0.linexpr0
+
+    let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 scope cons
   end
-  include SharedFunctions.AssertionModule(DWO)
+  include SharedFunctions.AssertionModule (V) (DWO)
 include DWO
   module Tracked = Tracked
   module Man = Man
 end
-
 
 module OctagonD2 = D2 (OctagonManager)
 
@@ -1056,71 +1060,6 @@ struct
     |> Lincons1Set.elements
 
   let to_oct (b, d) = D.to_oct d
-end
-
-module BoxProd (D: S3): S3 =
-struct
-  module BP0 = BoxProd0 (D)
-  include BP0
-  include AOpsPureOfImperative (BP0)
-end
-
-module ApronComponents (D3: S3) (PrivD: Lattice.S):
-sig
-  module AD: S3
-  include Lattice.S with type t = (D3.t, PrivD.t) aproncomponents_t
-end =
-struct
-  module AD = D3
-  type t = (AD.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
-
-  include Printable.Std
-  open Pretty
-
-  let show r =
-    let first  = AD.show r.apr in
-    let third  = PrivD.show r.priv in
-    "(" ^ first ^ ", " ^ third  ^ ")"
-
-  let pretty () r =
-    text "(" ++
-    AD.pretty () r.apr
-    ++ text ", " ++
-    PrivD.pretty () r.priv
-    ++ text ")"
-
-  let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
-
-  let name () = AD.name () ^ " * " ^ PrivD.name ()
-
-  let of_tuple(apr, priv):t = {apr; priv}
-  let to_tuple r = (r.apr, r.priv)
-
-  let arbitrary () =
-    let tr = QCheck.pair (AD.arbitrary ()) (PrivD.arbitrary ()) in
-    QCheck.map ~rev:to_tuple of_tuple tr
-
-  let bot () = {apr = AD.bot (); priv = PrivD.bot ()}
-  let is_bot {apr; priv} = AD.is_bot apr && PrivD.is_bot priv
-  let top () = {apr = AD.top (); priv = PrivD.bot ()}
-  let is_top {apr; priv} = AD.is_top apr && PrivD.is_top priv
-
-  let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
-    AD.leq x1 y1 && PrivD.leq x3 y3
-
-  let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
-    if not (AD.leq x1 y1) then
-      AD.pretty_diff () (x1,y1)
-    else
-      PrivD.pretty_diff () (x3,y3)
-
-  let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
-    {apr = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme AD.join PrivD.join
-  let meet = op_scheme AD.meet PrivD.meet
-  let widen = op_scheme AD.widen PrivD.widen
-  let narrow = op_scheme AD.narrow PrivD.narrow
 end
 
 module BoxProd (D: S3): S3 =

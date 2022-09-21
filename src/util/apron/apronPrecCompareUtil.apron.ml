@@ -1,20 +1,13 @@
 open PrecCompareUtil
 open ApronDomain
 
-module MyNode =
-struct
-  include Node
-  (* Override the name to "nodes", as plural fits better in the output format of PrePrivPrecCompare *)
-  let name () = "nodes"
-  let to_location n = Node.location n
-end
-
 (* Currently serialization of Apron results only works for octagons. *)
 module OctagonD = ApronDomain.OctagonD2
 module Util =
+functor (D2: RelationDomain.RelS2) -> (*ToDo Functor argument is useless and just needed to fit Util interface*)
 struct
-  include Util (MyNode) (OctagonD)
-  type marshal = OctagonD.marshal RH.t
+  include Util (RelationPrecCompareUtil.MyNode) (D2)
+  type marshal = D2.marshal RH.t
   type dump = marshal dump_gen
   type result = Dom.t RH.t result_gen
 

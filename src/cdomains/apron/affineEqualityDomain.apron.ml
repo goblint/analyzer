@@ -12,6 +12,9 @@ module Mpqf = struct
   let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
 end
 
+module Var = SharedFunctions.Var
+module V = RelationDomain.V(Var)
+
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
   include SharedFunctions.EnvOps
@@ -111,6 +114,8 @@ struct
 
   let vars t = vars t.env
 
+  let mem_var t var = Environment.mem_var t.env var
+
   include ConvenienceOps(Mpqf)
 
   let get_c v = match Vector.findi (fun x -> x <> (of_int 0)) v with
@@ -197,16 +202,16 @@ struct
   let bound_texpr d texpr1 = Stats.time "bounds calculation" (bound_texpr d) texpr1
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.AssertionRelD2 with type var = SharedFunctions.V.t)=
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.AssertionRelS with type var = V.t)=
 struct
   include ConvenienceOps (Mpqf)
   include VarManagement (Vc) (Mx)
 
   module Bounds = ExpressionBounds (Vc) (Mx)
 
-  module Convert = SharedFunctions.Convert (Bounds)
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (RelationDomain.Tracked)
 
-  type var = SharedFunctions.V.t
+  type var = V.t
 
   let tag t = failwith "No tag"
 
@@ -268,8 +273,6 @@ struct
   let name () = "affeq"
 
   let to_yojson t = failwith "ToDo Implement in future"
-
-  let invariant a b = Invariant.none
 
   let arbitrary () = failwith "no arbitrary"
 
@@ -453,9 +456,9 @@ struct
 
   let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    match Convert.texpr1_expr_of_cil_exp t t.env (Lazy.force no_ov) exp with
+    match Convert.texpr1_expr_of_cil_exp t t.env exp (Lazy.force no_ov) with
     | exp -> assign_texpr t var exp
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
       if is_bot t then t else forget_vars t [var]
 
   let assign_exp t var exp no_ov =
@@ -543,7 +546,7 @@ struct
       | None -> overflow_res res
       | Some (ev, min, max) ->
         begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-          | exception Convert.Unsupported_CilExp -> overflow_res res
+          | exception Convert.Unsupported_CilExp _ -> overflow_res res
           | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
             if min = BI.of_int 0 && b_min = b_max then raise NotRefinable
             else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
@@ -582,7 +585,7 @@ struct
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %s \n %b" (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () e)) no_ov;
     begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
       | tcons1 -> meet_tcons d tcons1 e
-      | exception Convert.Unsupported_CilExp ->
+      | exception Convert.Unsupported_CilExp _ ->
         d
     end
 

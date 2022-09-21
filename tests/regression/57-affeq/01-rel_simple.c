@@ -1,4 +1,4 @@
-//SKIP PARAM: --set ana.activated[+] affeq --set sem.int.signed_overflow assume_none --set ana.relation.privatization dummy
+//SKIP PARAM: --set ana.activated[+] affeq --set sem.int.signed_overflow assume_none --set ana.relation.privatization top
 // Example from https://link.springer.com/content/pdf/10.1007/BF00268497.pdf
 void main(void) {
     int i;

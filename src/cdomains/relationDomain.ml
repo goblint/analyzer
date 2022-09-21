@@ -61,6 +61,7 @@ sig
   val vh: vartable
   val make_var: ?name:string -> RelVM.t -> t
   val find_metadata: t -> RelVM.t Option.t
+  val local_name: varinfo -> string
   val local: varinfo -> t
   val arg: varinfo -> t
   val return: t
@@ -77,20 +78,30 @@ struct
 
   type vartable = RelVM.t VMT.VH.t
 
-  let local x = make_var ~name:x.vname Local
+  (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
+  let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
+  let local x = make_var ~name:(local_name x) Local
   let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
   let return = make_var Return
   let global g = make_var (Global g)
+
   let to_cil_varinfo fundec v =
     match find_metadata v with
     | Some (Global v) -> Some v
     | Some (Local) ->
       let vname = Var.to_string v in
-      List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals)
+      List.find_opt (fun v -> local_name v = vname) (fundec.sformals @ fundec.slocals)
     | _ -> None
 end
 
-module type D2  =
+module type LinCons =
+sig
+  type t
+  val get_size: t -> int
+  val to_cil_exp: t -> exp Option.t
+end
+
+module type RelS  =
 sig
   type t
   type var
@@ -116,85 +127,122 @@ sig
   val unify: t -> t -> t
   val marshal: t -> marshal
   val unmarshal: marshal -> t
+  val mem_var: t -> var -> bool
 end
 
-module type RelD2  =
+module Tracked =
+struct
+  let type_tracked typ =
+    isIntegralType typ
+
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype && not vi.vaddrof
+end
+
+module type RelS2 =
 sig
-  include D2
+  include RelS
+
   val type_tracked : typ -> bool
   val varinfo_tracked : varinfo -> bool
   val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
+module type RelS3 =
+sig
+  include RelS2
 
+  type consSet
+
+  val get_cons_size: consSet -> int
+
+  val cons_to_cil_exp:  scope:Cil.fundec -> consSet -> exp Option.t
+
+  val invariant: scope:Cil.fundec -> t -> consSet list
+end
+
+module NoInvariantRelD2 (D2: RelS2) : RelS3 with type var = D2.var =
+struct
+  include D2
+
+  type consSet
+
+  let get_cons_size _ = 0
+
+  let cons_to_cil_exp ~scope _ = None
+
+  let invariant ~scope _ = []
+end
 
 type ('a, 'b) relcomponents_t = {
-  rel: 'b;
-  priv: 'a;
-} [@@deriving eq, ord, to_yojson]
+  rel: 'a;
+  priv: 'b;
+} [@@deriving eq, ord, hash, to_yojson]
 
-module RelComponents (D2: RelD2) =
-  functor (PrivD: Lattice.S) ->
-  struct
-    type t = (PrivD.t, D2.t) relcomponents_t [@@deriving eq, ord, to_yojson]
+module RelComponents (D3: RelS3) (PrivD: Lattice.S):
+sig
+  module AD: RelS3
+  include Lattice.S with type t = (D3.t, PrivD.t) relcomponents_t
+end =
+struct
+  module AD = D3
+  type t = (AD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson]
 
-    include Printable.Std
-    open Pretty
-    let hash r  = D2.hash r.rel + PrivD.hash r.priv * 33
+  include Printable.Std
+  open Pretty
 
-    let show r =
-      let first  = D2.show r.rel in
-      let third  = PrivD.show r.priv in
-      "(" ^ first ^ ", " ^ third  ^ ")"
+  let show r =
+    let first  = AD.show r.rel in
+    let third  = PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ third  ^ ")"
 
-    let pretty () r =
-      text "(" ++
-      D2.pretty () r.rel
-      ++ text ", " ++
-      PrivD.pretty () r.priv
-      ++ text ")"
+  let pretty () r =
+    text "(" ++
+    AD.pretty () r.rel
+    ++ text ", " ++
+    PrivD.pretty () r.priv
+    ++ text ")"
 
-    let printXml f r =
-      BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+  let printXml f r =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-    let name () = D2.name () ^ " * " ^ PrivD.name ()
+  let name () = AD.name () ^ " * " ^ PrivD.name ()
 
-    let invariant c {rel; priv} =
-      Invariant.(D2.invariant c rel && PrivD.invariant c priv)
+  let of_tuple(rel, priv):t = {rel; priv}
+  let to_tuple r = (r.rel, r.priv)
 
-    let of_tuple(rel, priv):t = {rel; priv}
-    let to_tuple r = (r.rel, r.priv)
+  let arbitrary () =
+    let tr = QCheck.pair (AD.arbitrary ()) (PrivD.arbitrary ()) in
+    QCheck.map ~rev:to_tuple of_tuple tr
 
-    let arbitrary () =
-      let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
-      QCheck.map ~rev:to_tuple of_tuple tr
+  let bot () = {rel = AD.bot (); priv = PrivD.bot ()}
+  let is_bot {rel; priv} = AD.is_bot rel && PrivD.is_bot priv
+  let top () = {rel = AD.top (); priv = PrivD.bot ()}
+  let is_top {rel; priv} = AD.is_top rel && PrivD.is_top priv
 
-    let bot () = { rel = D2.bot (); priv = PrivD.bot ()}
-    let is_bot {rel; priv} = D2.is_bot rel && PrivD.is_bot priv
-    let top () = {rel = D2.top (); priv = PrivD.bot ()}
-    let is_top {rel; priv} = D2.is_top rel && PrivD.is_top priv
+  let leq {rel=x1; priv=x3 } {rel=y1; priv=y3} =
+    AD.leq x1 y1 && PrivD.leq x3 y3
 
-    let leq {rel=x1; priv=x3 } {rel=y1; priv=y3} =
-      D2.leq x1 y1 && PrivD.leq x3 y3
+  let pretty_diff () (({rel=x1; priv=x3}:t),({rel=y1; priv=y3}:t)): Pretty.doc =
+    if not (AD.leq x1 y1) then
+      AD.pretty_diff () (x1,y1)
+    else
+      PrivD.pretty_diff () (x3,y3)
 
-    let pretty_diff () (({rel=x1; priv=x3}:t),({rel=y1; priv=y3}:t)): Pretty.doc =
-      if not (D2.leq x1 y1) then
-        D2.pretty_diff () (x1,y1)
-      else
-        PrivD.pretty_diff () (x3,y3)
-
-    let op_scheme op1 op3 {rel=x1; priv=x3} {rel=y1; priv=y3}: t =
-      {rel = op1 x1 y1; priv = op3 x3 y3 }
-    let join = op_scheme D2.join PrivD.join
-    let meet = op_scheme D2.meet PrivD.meet
-    let widen = op_scheme D2.widen PrivD.widen
-    let narrow = op_scheme D2.narrow PrivD.narrow
+  let op_scheme op1 op3 {rel=x1; priv=x3} {rel=y1; priv=y3}: t =
+    {rel = op1 x1 y1; priv = op3 x3 y3 }
+  let join = op_scheme AD.join PrivD.join
+  let meet = op_scheme AD.meet PrivD.meet
+  let widen = op_scheme AD.widen PrivD.widen
+  let narrow = op_scheme AD.narrow PrivD.narrow
 end
+
 
 module type RD =
 sig
   module Var : Var
   module V : module type of struct include V(Var) end
-  include RelD2 with type var = Var.t
+  include RelS3 with type var = Var.t
 end
