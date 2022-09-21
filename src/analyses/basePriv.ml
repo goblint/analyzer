@@ -1445,8 +1445,8 @@ struct
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
 
-  let thread_join ask get e st = time "thread_join" (Priv.thread_join ask) get e st
-  let thread_return ask get set tid st = time "thread_return" (Priv.thread_return ask) get set tid st
+  let thread_join ask get e st = time "thread_join" (Priv.thread_join ask get e) st
+  let thread_return ask get set tid st = time "thread_return" (Priv.thread_return ask get set tid) st
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
