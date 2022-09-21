@@ -844,18 +844,7 @@ struct
       let exclude_must_joined () = GobConfig.get_bool "ana.apron.priv.must-joined"
     end)(LAD)
 
-  module D = Lattice.Prod3 (W) (LMust) (L)
-
   module AV = ApronDomain.V
-
-  module V =
-  struct
-    include Printable.Either (MutexGlobals.V) (TID)
-    let mutex x = `Left (MutexGlobals.V.mutex x)
-    let mutex_inits = `Left MutexGlobals.V.mutex_inits
-    let global x = `Left (MutexGlobals.V.global x)
-    let thread x = `Right x
-  end
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
