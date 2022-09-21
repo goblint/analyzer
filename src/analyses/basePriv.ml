@@ -356,8 +356,8 @@ module PerMutexMeetTIDPriv: S =
 struct
   include PerMutexPrivBase
   include PerMutexTidCommon(struct
-      let exclude_not_started () = GobConfig.get_bool "ana.apron.priv.not-started"
-      let exclude_must_joined () = GobConfig.get_bool "ana.apron.priv.must-joined"
+      let exclude_not_started () = GobConfig.get_bool "ana.base.priv.not-started"
+      let exclude_must_joined () = GobConfig.get_bool "ana.base.priv.must-joined"
     end)(CPA)
 
   let iter_sys_vars getg vq vf =
