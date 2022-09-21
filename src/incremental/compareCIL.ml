@@ -101,7 +101,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
           let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) old current in
-          if diffNodes1 = [] then (Changed, None)
+          if diffNodes1 = [] then (Unchanged, None)
           else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1})
 
 let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match old, current with
