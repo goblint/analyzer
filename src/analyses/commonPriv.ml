@@ -190,12 +190,12 @@ struct
   end
 end
 
-module type PerMutexTidGArg = sig
+module type PerMutexTidCommonArg = sig
   val exclude_not_started: unit -> bool
   val exclude_must_joined: unit -> bool
 end
 
-module PerMutexTidG (Conf:PerMutexTidGArg) (LD:Lattice.S) =
+module PerMutexTidCommon (Conf:PerMutexTidCommonArg) (LD:Lattice.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 

@@ -839,7 +839,7 @@ struct
   module Cluster = NC
   module LAD = NC.LAD
 
-  include PerMutexTidG(struct
+  include PerMutexTidCommon(struct
       let exclude_not_started () = GobConfig.get_bool "ana.apron.priv.not-started"
       let exclude_must_joined () = GobConfig.get_bool "ana.apron.priv.must-joined"
     end)(LAD)
