@@ -111,6 +111,21 @@ struct
   let leq y x = if is_bot y then true else if is_bot x then false else
       for_all (fun p -> exists (B.leq p) y) x
 
+  let pretty_diff () (y, x) =
+    (* based on DisjointDomain.PairwiseSet *)
+    let x_not_leq = filter (fun p ->
+        not (exists (fun q -> B.leq p q) y)
+      ) x
+    in
+    let p_not_leq = choose x_not_leq in
+    GoblintCil.Pretty.(
+      dprintf "%a:\n" B.pretty p_not_leq
+      ++
+      fold (fun q acc ->
+          dprintf "not leq %a because %a\n" B.pretty q B.pretty_diff (p_not_leq, q) ++ acc
+        ) y nil
+    )
+
   let meet xs ys = if is_bot xs || is_bot ys then bot () else
       let f (x: set) (zs: partition): partition =
         let p z = B.disjoint x z in

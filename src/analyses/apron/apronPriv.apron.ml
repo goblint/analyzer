@@ -426,8 +426,6 @@ struct
       | _ -> false
     in
     AD.keep_filter oct protected
-
-  let finalize () = ProtectionLogging.dump ()
 end
 
 (** Per-mutex meet. *)
@@ -582,7 +580,7 @@ struct
     {apr = AD.bot (); priv = startstate ()}
 
   let init () = ()
-  let finalize () = finalize ()
+  let finalize () = ()
 end
 
 (** May written variables. *)
@@ -1073,7 +1071,7 @@ struct
     | VarQuery.Global g -> vf (V.global g)
     | _ -> ()
 
-  let finalize () = finalize ()
+  let finalize () = ()
 end
 
 module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S3) ->

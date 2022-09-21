@@ -32,7 +32,7 @@ type inline_edge =
   | CFGEdge of Edge.t
   | InlineEntry of CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option
-  [@@deriving eq, ord, hash, to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
@@ -54,7 +54,7 @@ struct
       let pretty = pretty
     end
     )
-  (* TODO: deriving to_yojson gets overridden by SimplePretty *)
+    (* TODO: deriving to_yojson gets overridden by SimplePretty *)
 end
 
 module InlineEdge: Edge with type t = inline_edge =

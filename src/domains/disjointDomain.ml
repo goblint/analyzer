@@ -122,7 +122,7 @@ struct
     ) m (empty ()) (* no intermediate lists *)
 
   let widen m1 m2 =
-    assert (leq m1 m2);
+    Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
     M.widen m1 m2
 
   let meet m1 m2 =
@@ -292,6 +292,26 @@ struct
         S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2
       ) s1
 
+  let pretty_diff () (s1, s2) =
+    (* based on HoareDomain.Set *)
+    let s1_not_leq = S.filter (fun b1 ->
+        let e1 = B.choose b1 in
+        not (S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2)
+      ) s1
+    in
+    let b1_not_leq = S.choose s1_not_leq in
+    let e1_not_leq = B.choose b1_not_leq in
+    GoblintCil.Pretty.(
+      dprintf "%a:\n" B.pretty b1_not_leq
+      ++
+      S.fold (fun b2 acc ->
+          if C.cong (B.choose b2) e1_not_leq then
+            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
+          else
+            dprintf "not cong %a\n" B.pretty b2 ++ acc
+        ) s2 nil
+    )
+
   let join s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
@@ -308,7 +328,7 @@ struct
     S.union s1' acc
 
   let widen s1 s2 =
-    assert (leq s1 s2);
+    Lattice.assert_valid_widen ~leq ~pretty_diff s1 s2;
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
       let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose e1) e2) s1 in
@@ -377,26 +397,6 @@ struct
       let elements = elements
       let iter = iter
     end
-    )
-
-  let pretty_diff () (s1, s2) =
-    (* based on HoareDomain.Set *)
-    let s1_not_leq = S.filter (fun b1 ->
-        let e1 = B.choose b1 in
-        not (S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2)
-      ) s1
-    in
-    let b1_not_leq = S.choose s1_not_leq in
-    let e1_not_leq = B.choose b1_not_leq in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty b1_not_leq
-      ++
-      S.fold (fun b2 acc ->
-          if C.cong (B.choose b2) e1_not_leq then
-            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
-          else
-            dprintf "not cong %a\n" B.pretty b2 ++ acc
-        ) s2 nil
     )
 
   let arbitrary () = failwith "Pairwise.arbitrary"
@@ -572,6 +572,26 @@ struct
         S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2
       ) s1
 
+  let pretty_diff () (s1, s2) =
+    (* based on PairwiseSet *)
+    let s1_not_leq = S.filter (fun b1 ->
+        let e1 = fst (B.choose b1) in
+        not (S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2)
+      ) s1
+    in
+    let b1_not_leq = S.choose s1_not_leq in
+    let e1_not_leq = fst (B.choose b1_not_leq) in
+    GoblintCil.Pretty.(
+      dprintf "%a:\n" B.pretty b1_not_leq
+      ++
+      S.fold (fun b2 acc ->
+          if C.cong (fst (B.choose b2)) e1_not_leq then
+            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
+          else
+            dprintf "not cong %a\n" B.pretty b2 ++ acc
+        ) s2 nil
+    )
+
   let join s1 s2 =
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
@@ -588,7 +608,7 @@ struct
     S.union s1' acc
 
   let widen s1 s2 =
-    assert (leq s1 s2);
+    Lattice.assert_valid_widen ~leq ~pretty_diff s1 s2;
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
       let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (fst (B.choose e1)) e2) s1 in
@@ -659,26 +679,6 @@ struct
       let bindings = bindings
       let iter = iter
     end
-    )
-
-  let pretty_diff () (s1, s2) =
-    (* based on PairwiseSet *)
-    let s1_not_leq = S.filter (fun b1 ->
-        let e1 = fst (B.choose b1) in
-        not (S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2)
-      ) s1
-    in
-    let b1_not_leq = S.choose s1_not_leq in
-    let e1_not_leq = fst (B.choose b1_not_leq) in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty b1_not_leq
-      ++
-      S.fold (fun b2 acc ->
-          if C.cong (fst (B.choose b2)) e1_not_leq then
-            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
-          else
-            dprintf "not cong %a\n" B.pretty b2 ++ acc
-        ) s2 nil
     )
 
   let arbitrary () = failwith "PairwiseMap.arbitrary"

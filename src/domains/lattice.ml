@@ -48,6 +48,18 @@ exception BotValue
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
 
+exception Invalid_widen of Pretty.doc
+
+let () = Printexc.register_printer (function
+    | Invalid_widen doc ->
+      Some (Pretty.sprint ~width:max_int (Pretty.dprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc))
+    | _ -> None (* for other exceptions *)
+  )
+
+let assert_valid_widen ~leq ~pretty_diff x y =
+  if not (leq x y) then
+    raise (Invalid_widen (pretty_diff () (x, y)))
+
 module UnitConf (N: Printable.Name) =
 struct
   include Printable.UnitConf (N)
