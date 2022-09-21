@@ -987,13 +987,13 @@
           "enum": ["ast", "cfg"],
           "default": "ast"
         },
-        "cfg-compare": {
-          "title": "incremental.compare.cfg-compare",
+        "compare-cfg": {
+          "title": "incremental.compare-cfg",
           "description": "options for when incremental.compare is 'cfg'",
           "type": "object",
           "properties": {
             "by": {
-              "title": "incremental.compare.cfg-compare.by",
+              "title": "incremental.compare-cfg.by",
               "description": "how CFGs should be compared ('forward'/'diff'/'1-to-1')",
               "type": "string",
               "enum": ["forward", "diff", "1-to-1"],

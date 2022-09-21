@@ -222,7 +222,7 @@ let cfg_compare_type_of_string = function
 
 let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) fun_old fun_new =
   let compare_type' = match compare_type with
-    | None -> GobConfig.get_string "incremental.cfg-compare.by" |> cfg_compare_type_of_string
+    | None -> GobConfig.get_string "incremental.compare-cfg.by" |> cfg_compare_type_of_string
     | Some cmp -> cmp
   in
   match compare_type' with
