@@ -416,7 +416,12 @@ struct
       in
       let f = function
         | Addr.Addr (x, o) -> f_addr (x, o)
-        | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
+        | Addr.NullPtr ->
+          begin match get_string "sem.null-pointer.dereference" with
+            | "assume_none" -> VD.bot ()
+            | "assume_top" -> top
+            | _ -> assert false
+          end
         | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in

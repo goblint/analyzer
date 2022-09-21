@@ -1,4 +1,4 @@
-// PARAM: --set sem.null-pointer.dereference assume_top
+// PARAM: --set sem.null-pointer.dereference assume_none
 #include <assert.h>
 #include <stddef.h>
 
@@ -13,6 +13,6 @@ int main() {
     p = NULL;
 
   if (*p == 2) // WARN
-    assert(1); // reachable (via UB)
+    assert(0); // NOWARN (unreachable)
   return 0;
 }
