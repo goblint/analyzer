@@ -37,7 +37,7 @@ sig
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
-  val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
+  val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
   val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseComponents (D).t -> BaseComponents (D).t
 
   val init: unit -> unit
@@ -122,7 +122,7 @@ struct
     (* We fold over the local state, and side effect the globals *)
     CPA.fold side_var st.cpa st
 
-  let thread_join ask get e st = st
+  let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 end
 
@@ -191,7 +191,7 @@ struct
 
   let threadenter = old_threadenter
 
-  let thread_join ask get e st = st
+  let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 end
 
@@ -470,9 +470,26 @@ struct
       let l' = L.add lm (CPA.filter is_in_Gm st.cpa) l in
       {st with cpa = cpa'; priv = (w',LMust.add lm lmust,l')}
 
-  let thread_join (ask:Q.ask) getg exp (st: BaseComponents (D).t) =
+  let thread_join ?(force=false) (ask:Q.ask) getg exp (st: BaseComponents (D).t) =
     let w,lmust,l = st.priv in
     let tids = ask.f (Q.EvalThread exp) in
+    if force then (
+      if ConcDomain.ThreadSet.is_top tids then (
+        M.info ~category:Unsound "Unknown thread ID assume-joined, privatization unsound"; (* TODO: something more sound *)
+        st (* cannot find all thread IDs to join them all *)
+      )
+      else (
+        (* fold throws if the thread set is top *)
+        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
+            let lmust',l' = G.thread (getg (V.thread tid)) in
+            (LMust.union lmust' lmust, L.join l l')
+          ) tids' (lmust, l)
+        in
+        {st with priv = (w, lmust', l')}
+      )
+    )
+    else (
     match ConcDomain.ThreadSet.elements tids with
     | [tid] ->
       let lmust',l' = G.thread (getg (V.thread tid)) in
@@ -483,7 +500,7 @@ struct
       st
     | exception SetDomain.Unsupported _ ->
       (* elements throws if the thread set is top *)
-      st
+      st)
 
   let thread_return ask getg sideg tid (st: BaseComponents (D).t) =
     let _,lmust,l = st.priv in
@@ -663,7 +680,7 @@ struct
 
   let threadenter = startstate_threadenter startstate
 
-  let thread_join ask get e st = st
+  let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
   let iter_sys_vars getg vq vf =
@@ -720,7 +737,7 @@ struct
   include ConfCheck.RequireMutexPathSensInit
   include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
-  let thread_join ask get e st = st
+  let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 end
 
@@ -1445,7 +1462,7 @@ struct
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
 
-  let thread_join ask get e st = time "thread_join" (Priv.thread_join ask get e) st
+  let thread_join ?(force=false) ask get e st = time "thread_join" (Priv.thread_join ~force ask get e) st
   let thread_return ask get set tid st = time "thread_return" (Priv.thread_return ask get set tid) st
 
   let init () = time "init" (Priv.init) ()
