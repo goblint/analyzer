@@ -1,5 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.relation.privatization mutex-meet --set ana.apron.domain polyhedra
-// TODO: why doesn't mutex-meet-tid succeed?
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.privatization mutex-meet --set ana.apron.domain polyhedra
+// TODO: why doesn't mutex-meet-tid succeed? a widening loses some upper bound and we forget a possible overflow, succeeds with assume_none
 #include <pthread.h>
 #include <assert.h>
 

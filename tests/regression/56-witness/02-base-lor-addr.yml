@@ -1,0 +1,140 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
+    creation_time: 2022-06-16T06:37:52Z
+    producer:
+      name: Goblint
+      version: heads/base-eval-lor-0-g5a1ac0905-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled''
+        ''tests/regression/56-witness/02-base-lor-addr.c'''
+    task:
+      input_files:
+      - tests/regression/56-witness/02-base-lor-addr.c
+      input_file_hashes:
+        tests/regression/56-witness/02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+      data_model: LP64
+      language: C
+  location:
+    file_name: 02-base-lor-addr.c
+    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+    line: 17
+    column: 2
+    function: main
+  loop_invariant:
+    string: (x == &a || x == &b) || x == &c
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
+    creation_time: 2022-06-16T06:37:52Z
+    producer:
+      name: Goblint
+      version: heads/base-eval-lor-0-g5a1ac0905-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled''
+        ''tests/regression/56-witness/02-base-lor-addr.c'''
+    task:
+      input_files:
+      - tests/regression/56-witness/02-base-lor-addr.c
+      input_file_hashes:
+        tests/regression/56-witness/02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+      data_model: LP64
+      language: C
+  location:
+    file_name: 02-base-lor-addr.c
+    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+    line: 18
+    column: 2
+    function: main
+  loop_invariant:
+    string: (x == &a || x == &b) || x == &d
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
+    creation_time: 2022-06-16T06:37:52Z
+    producer:
+      name: Goblint
+      version: heads/base-eval-lor-0-g5a1ac0905-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled''
+        ''tests/regression/56-witness/02-base-lor-addr.c'''
+    task:
+      input_files:
+      - tests/regression/56-witness/02-base-lor-addr.c
+      input_file_hashes:
+        tests/regression/56-witness/02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+      data_model: LP64
+      language: C
+  location:
+    file_name: 02-base-lor-addr.c
+    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+    line: 29
+    column: 2
+    function: main
+  loop_invariant:
+    string: y == &e || y == x
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
+    creation_time: 2022-06-16T06:37:52Z
+    producer:
+      name: Goblint
+      version: heads/base-eval-lor-0-g5a1ac0905-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled''
+        ''tests/regression/56-witness/02-base-lor-addr.c'''
+    task:
+      input_files:
+      - tests/regression/56-witness/02-base-lor-addr.c
+      input_file_hashes:
+        tests/regression/56-witness/02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+      data_model: LP64
+      language: C
+  location:
+    file_name: 02-base-lor-addr.c
+    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+    line: 30
+    column: 2
+    function: main
+  loop_invariant:
+    string: (y == &a || y == &b) || y == &c || y == &e
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
+    creation_time: 2022-06-16T06:37:52Z
+    producer:
+      name: Goblint
+      version: heads/base-eval-lor-0-g5a1ac0905-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled''
+        ''tests/regression/56-witness/02-base-lor-addr.c'''
+    task:
+      input_files:
+      - tests/regression/56-witness/02-base-lor-addr.c
+      input_file_hashes:
+        tests/regression/56-witness/02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+      data_model: LP64
+      language: C
+  location:
+    file_name: 02-base-lor-addr.c
+    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+    line: 31
+    column: 2
+    function: main
+  loop_invariant:
+    string: y == &d || y == x
+    type: assertion
+    format: C

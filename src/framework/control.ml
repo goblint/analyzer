@@ -135,6 +135,7 @@ struct
           endLine = e;
           endColumn = -1; (* not shown *)
           endByte = 0; (* wrong, but not shown *)
+          synthetic = false;
         }
         in
         (doc, Some loc)
@@ -312,11 +313,11 @@ struct
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
-    let marshal =
+    let marshal: Spec.marshal option =
       if get_string "load_run" <> "" then
         Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
       else if Serialize.results_exist () && get_bool "incremental.load" then
-        Some (Serialize.load_data Serialize.AnalysisData)
+        Some (Serialize.Cache.(get_data AnalysisData))
       else
         None
     in
@@ -475,7 +476,7 @@ struct
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
-            Serialize.store_data solver_data Serialize.SolverData;
+            Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (
             let save_run = Fpath.v save_run_str in
             let analyses = Fpath.(save_run / "analyses.marshalled") in
@@ -581,38 +582,23 @@ struct
             match local with
             | None -> Queries.Result.bot q
             | Some local ->
-              match q with
-              | Queries.Invariant context ->
-                (* Directly handle the invariant query here *)
-                (let context: Invariant.context = {
-                    scope=context.scope;
-                    i= -1; (* Not used here *)
-                    lval=context.lval;
-                    offset=context.offset;
-                    deref_invariant=(fun _ _ _ -> Invariant.none)
-                  } in
-                 match Spec.D.invariant context local with
-                 | Some e -> (`Lifted e)
-                 | None -> `Top)
-              | _ ->
-                (* build a ctx for using the query system for all other queries *)
-                let rec ctx =
-                  { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-                  ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-                  ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-                  ; prev_node = MyCFG.dummy_node
-                  ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
-                  ; context = (fun () -> ctx_failwith "No context in query context.")
-                  ; edge    = MyCFG.Skip
-                  ; local  = local
-                  ; global = GHT.find gh
-                  ; presub = (fun _ -> raise Not_found)
-                  ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-                  ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-                  ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-                  }
-                in
-                Spec.query ctx q
+              let rec ctx =
+                { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+                ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+                ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+                ; prev_node = MyCFG.dummy_node
+                ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+                ; context = (fun () -> ctx_failwith "No context in query context.")
+                ; edge    = MyCFG.Skip
+                ; local  = local
+                ; global = GHT.find gh
+                ; presub = (fun _ -> raise Not_found)
+                ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+                ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+                ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+                }
+              in
+              Spec.query ctx q
           )
         in
         let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in
@@ -691,8 +677,8 @@ struct
       Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
     );
     if get_bool "incremental.save" then (
-      Serialize.store_data marshal Serialize.AnalysisData;
-      Serialize.move_tmp_results_to_results ()
+      Serialize.Cache.(update_data AnalysisData marshal);
+      Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_fast_xml file

@@ -10,30 +10,30 @@ extern void __goblint_unknown(void*);
 
 int main(){
   int i, j, k, n;
-  
+
   n=0;
   assert(n==0); // SUCCESS
-  
-  unknown(&i);   
-  assert(i==8); // UNKNOWN 
+
+  unknown(&i);
+  assert(i==8); // UNKNOWN
   assert(i==8); // SUCCESS
-  
+
   j=3;
   check(j==3); // assert
 
-  unknown(&j);   
+  unknown(&j);
   check(j==6); // assert UNKNOWN
   check(j==6); // assert UNKNOWN
-  
+
   unknown(&k);
-  commit(k==4); // assert SUCCESS
+  commit(k==4); // TODO? assert SUCCESS
   check(k==4);  // assert SUCCESS
-  
+
   unknown(&k);
-  commit(k+1==n); // FAIL
-  
-  commit(n==5);  // NOWARN
+  commit(k+1==n); // TODO? FAIL
+
+  commit(n==5);  // TODO? NOWARN
   assert(0);     // NOWARN
-  
+
   return 0;
 }

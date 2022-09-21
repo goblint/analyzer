@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --set ana.base.privatization none --set ana.relation.privatization dummy
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 extern int __VERIFIER_nondet_int();
 
 int main(void) {
