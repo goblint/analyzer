@@ -1081,7 +1081,7 @@ module Spec : Analyses.MCPSpec = struct
       else
         let env = Env.get ctx in
         (* write out edges with call to f coming from all predecessor nodes of the caller *)
-        ( if Ctx.is_int d_callee.ctx
+        ( if Ctx.to_int d_callee.ctx <> None
           then
             let last_pred = d_caller.pred in
             let action = Action.Call (fun_ctx d_callee.ctx f.svar) in

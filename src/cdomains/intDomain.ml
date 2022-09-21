@@ -100,11 +100,9 @@ sig
   val bot_of: Cil.ikind -> t
   val top_of: Cil.ikind -> t
   val to_int: t -> int_t option
-  val is_int: t -> bool
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
-  val is_bool: t -> bool
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   val of_excl_list: Cil.ikind -> int_t list -> t
   val is_excl_list: t -> bool
@@ -326,11 +324,9 @@ struct
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
   let of_int ikind x = { v = I.of_int ikind x; ikind}
-  let is_int x = I.is_int x.v
   let equal_to i x = I.equal_to i x.v
   let to_bool x = I.to_bool x.v
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
-  let is_bool x = I.is_bool x.v
   let to_excl_list x = I.to_excl_list x.v
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
   let is_excl_list x = I.is_excl_list x.v
@@ -588,8 +584,6 @@ struct
     | None, z | z, None -> None
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2)
 
-  let is_int = function Some (x,y) when Ints_t.compare x y = 0 -> true | _ -> false
-
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int = function Some (x,y) when Ints_t.compare x y = 0 -> Some x | _ -> None
   let of_interval ik (x,y) = norm ik @@ Some (x,y)
@@ -599,7 +593,6 @@ struct
   let top_bool = Some (Ints_t.zero, Ints_t.one)
 
   let of_bool _ik = function true -> one | false -> zero
-  let is_bool x = x <> None && not (leq zero x) || equal x zero
   let to_bool (a: t) = match a with
     | None -> None
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
@@ -962,10 +955,8 @@ struct
   let of_bool x = if x then Ints_t.one else Ints_t.zero
   let to_bool' x = x <> Ints_t.zero
   let to_bool x = Some (to_bool' x)
-  let is_bool _ = true
   let of_int  x = x
   let to_int  x = Some x
-  let is_int  _ = true
 
   let neg  = Ints_t.neg
   let add  = Ints_t.add (* TODO: signed overflow is undefined behavior! *)
@@ -1030,15 +1021,11 @@ struct
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
     | _ -> None
-  let is_int  x = match x with
-    | `Lifted x -> true
-    | _ -> false
 
   let of_bool x = `Lifted (Base.of_bool x)
   let to_bool x = match x with
     | `Lifted x -> Base.to_bool x
     | _ -> None
-  let is_bool = is_int
 
   let to_excl_list x = None
   let of_excl_list ik x = top_of ik
@@ -1113,15 +1100,11 @@ struct
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
     | _ -> None
-  let is_int  x = match x with
-    | `Lifted x -> true
-    | _ -> false
 
   let of_bool x = `Lifted (Base.of_bool x)
   let to_bool x = match x with
     | `Lifted x -> Base.to_bool x
     | _ -> None
-  let is_bool = is_int
 
   let lift1 f x = match x with
     | `Lifted x -> `Lifted (f x)
@@ -1457,9 +1440,6 @@ struct
   let to_int x = match x with
     | `Definite x -> Some x
     | _ -> None
-  let is_int  x = match x with
-    | `Definite x -> true
-    | _ -> false
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
@@ -1471,11 +1451,6 @@ struct
     | `Definite x -> BigInt.to_bool x
     | `Excluded (s,r) when S.mem BI.zero s -> Some true
     | _ -> None
-  let is_bool x =
-    match x with
-    | `Definite x -> true
-    | `Excluded (s,r) -> S.mem BI.zero s
-    | _ -> false
 
   let of_interval ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
 
@@ -1703,10 +1678,8 @@ struct
 
   let of_bool x = x
   let to_bool x = Some x
-  let is_bool x = not x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
-  let is_int x  = not x
 
   let neg x = x
   let add x y = x || y
@@ -1960,9 +1933,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc xs when BISet.for_all ((<>) BI.zero) xs -> Some true
     | Exc (xs,_) when BISet.exists ((=) BI.zero) xs -> Some true
     | _ -> None
-  let is_bool = BatOption.is_some % to_bool
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
-  let is_int = BatOption.is_some % to_int
 
   let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, (Option.get (R.minimal r), Option.get (R.maximal r))) | _ -> None
   let of_excl_list ik xs =
@@ -2209,8 +2180,6 @@ struct
     if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
-  let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
-
   let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
   let of_int ik (x: int_t) = normalize ik @@ Some (x, Ints_t.zero)
   let zero = Some (Ints_t.zero, Ints_t.zero)
@@ -2218,7 +2187,6 @@ struct
   let top_bool = top()
 
   let of_bool _ik = function true -> one | false -> zero
-  let is_bool x = x <> None && not (leq zero x) || equal x zero
 
   let to_bool (a: t) = match a with
     | None -> None
@@ -2668,8 +2636,6 @@ module IntDomTupleImpl = struct
   let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
   let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
   let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top_of ik }
-  let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
-  let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
 
   let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =

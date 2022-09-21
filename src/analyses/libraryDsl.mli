@@ -1,7 +1,8 @@
 (** Library function descriptor DSL. *)
-open GoblintCil
 
 (** See {!LibraryFunctions} implementation for example usage. *)
+
+open GoblintCil
 
 (** Type parameters in this module can be ignored for usage.
     They are inferred automatically and used to ensure type-safety. *)

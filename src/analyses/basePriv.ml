@@ -202,7 +202,9 @@ struct
     r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
-    sideg (V.global x) (CPA.singleton x v);
+    if not invariant then
+      sideg (V.global x) (CPA.singleton x v);
+    (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -282,8 +284,11 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
-    sideg (V.global x) (CPA.singleton x v);
+    if not invariant then (
+      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+      sideg (V.global x) (CPA.singleton x v)
+      (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
+    );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
@@ -396,9 +401,12 @@ struct
       VD.join (CPA.find x st.cpa) (getg (V.protected x))
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    sideg (V.unprotected x) v;
-    if !GU.earlyglobs then (* earlyglobs workaround for 13/60 *)
-      sideg (V.protected x) v;
+    if not invariant then (
+      sideg (V.unprotected x) v;
+      if !GU.earlyglobs then (* earlyglobs workaround for 13/60 *)
+        sideg (V.protected x) v
+        (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
+    );
     if is_unprotected ask x then
       st
     else
@@ -570,8 +578,9 @@ struct
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s (ThreadMap.singleton t v)));
+    (* Unlock after invariant will not side effect refined value from weak, because it's not side effected there. *)
     {st with cpa = cpa'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -627,8 +636,9 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
+    (* Unlock after invariant will not side effect refined value from weak, because it's not side effected there. *)
     {st with cpa = cpa'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -697,9 +707,14 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
-    {st with cpa = cpa'; priv = W.add x st.priv}
+    let w' = if not invariant then
+        W.add x st.priv
+      else
+        st.priv (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
+    {st with cpa = cpa'; priv = w'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
@@ -838,9 +853,10 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s v))
+      (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     );
     {st with cpa = cpa'; priv = (v', l)}
 
@@ -977,11 +993,15 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let (w, p) = st.priv in
-    let w' = W.add x (MinLocksets.singleton s) w in
+    let w' = if not invariant then
+        W.add x (MinLocksets.singleton s) w
+      else
+        w (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );
@@ -1135,7 +1155,11 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let ((w, p), (vv, l)) = st.priv in
-    let w' = W.add x (MinLocksets.singleton s) w in
+    let w' = if not invariant then
+        W.add x (MinLocksets.singleton s) w
+      else
+        w (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let v' = L.fold (fun m _ acc ->
@@ -1143,7 +1167,7 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
+    if not invariant && not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );

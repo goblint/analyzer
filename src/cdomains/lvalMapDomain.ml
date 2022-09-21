@@ -239,11 +239,26 @@ struct
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
   let warn ?may:(may=false) ?loc:(loc=[Option.get !Node.current_node]) msg =
-    match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) "%s" msg
-    | h :: t ->
-      let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
+    let split_category s =
+      if Str.string_partial_match (Str.regexp {|\[\([^]]*\)\]|}) s 0 then
+        (Some (Str.matched_group 1 s), Str.string_after s (Str.match_end ()))
+      else
+        (None, s)
+    in
+    let rec split_categories s =
+      match split_category s with
+      | (Some category, s') ->
+        let (categories, s'') = split_categories s' in
+        (category :: categories, s'')
+      | (None, s') -> ([], s')
+    in
+    match split_categories msg with
+    | ([], msg) -> (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) "%s" msg
+    | (category :: categories, msg) ->
+      let category_of_string s = Messages.Category.from_string_list [String.lowercase_ascii s] in (* TODO: doesn't split subcategories, not used and no defined syntax even *)
+      let category = category_of_string category in
+      let tags = List.map (fun category -> Messages.Tag.Category (category_of_string category)) categories in
+      (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category ~tags "%s" msg
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint ~width:80 (f () x)
