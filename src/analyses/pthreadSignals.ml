@@ -82,15 +82,16 @@ struct
        | `Lifted tid ->
          (match possible_vinfos (Analyses.ask_of_ctx ctx) cond with
           | [a] ->
+            (* Only report if there is one definite condition variable for which wait is called *)
             let signalling_tids = ctx.global a in
             if G.is_top signalling_tids then
               ctx.local
             else if G.is_empty signalling_tids || G.is_bot signalling_tids then
-              (M.warn "never signalled -> dead"; ctx.local)
+              (M.warn ~category:Deadcode "The condition variable %s is never signalled, succeeding code is live due to spurious wakeups only!" a.vname; ctx.local)
             else if G.exists (may_be_signaller tid) signalling_tids then
               Signals.add (ValueDomain.Addr.from_var a) ctx.local
             else
-              (M.warn "never signalled concurrently -> dead"; ctx.local)
+              (M.warn ~category:Deadcode "The condition variable %s is never signalled concurrently, succeeding code is live due to spurious wakeups only!" a.vname; ctx.local)
           | _ -> ctx.local)
        | _ -> ctx.local)
     | TimedWait _ ->
