@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[-] escape
+// PARAM: --set ana.activated[-] escape --set ana.path_sens[+] threadflag --set ana.base.privatization mutex-meet-tid
 #include <pthread.h>
 #include <assert.h>
 
@@ -12,12 +12,15 @@ void* t(void *v) {
 
 int main(void){
   int l = 42;
+  int top;
 
   pthread_t tid;
   pthread_create(&tid, NULL, t, (void *)&l);
-  l = 42;
-  pthread_join(tid, NULL);
 
-  __goblint_check(l==42); //UNKNOWN!
+  if(top) {
+    pthread_join(tid, NULL);
+  }
+
+  __goblint_check(l == 42); //UNKNOWN!
   return 0;
 }

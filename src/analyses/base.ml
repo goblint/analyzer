@@ -2285,16 +2285,15 @@ struct
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-        begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
-            (* Evaluate exp and cast the resulting value to the void-pointer-type.
-               Casting to the right type here avoids precision loss on joins. *)
-            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-            ctx.sideg (V.thread tid) (G.create_thread rv);
-          | _ -> ()
-        end;
-        set ~ctx ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
-  (* lval_raw:None, and rval_raw:None is correct here *)
+        let st' = set ~ctx ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv in
+        match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+          (* Evaluate exp and cast the resulting value to the void-pointer-type.
+              Casting to the right type here avoids precision loss on joins. *)
+          let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+          ctx.sideg (V.thread tid) (G.create_thread rv);
+          Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st'
+        | _ -> st'
 
   let vdecl ctx (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
@@ -2577,11 +2576,16 @@ struct
     | ThreadExit { ret_val = exp }, _ ->
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
-          let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-          ctx.sideg (V.thread tid) (G.create_thread rv);
-          (* TODO: emit thread return event so other analyses are aware? *)
-          (* TODO: publish still needed? *)
-          publish_all ctx `Return (* like normal return *)
+          (
+            let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+            ctx.sideg (V.thread tid) (G.create_thread rv);
+            (* TODO: emit thread return event so other analyses are aware? *)
+            (* TODO: publish still needed? *)
+            publish_all ctx `Return; (* like normal return *)
+            match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+            | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+              ignore @@ Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
+            | _ -> ())
         | _ -> ()
       end;
       raise Deadcode
@@ -2654,7 +2658,11 @@ struct
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
       in
-      invalidate_ret_lv st'
+      let st' = invalidate_ret_lv st' in
+      Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
+    | Unknown, "__goblint_assume_join" ->
+      let id = List.hd args in
+      Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
     | Malloc size, _ -> begin
         match lv with
         | Some lv ->
