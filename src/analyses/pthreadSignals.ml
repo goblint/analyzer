@@ -93,9 +93,9 @@ struct
       (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
        | PossiblySignalled -> add_if_singleton conds
        | NotConcurrently ->
-         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %s are never signalled concurrently, succeeding code is live due to spurious wakeups only!" (Basetype.CilExp.show cond); ctx.local)
+         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %a are never signalled concurrently, succeeding code is live due to spurious wakeups only!" Basetype.CilExp.pretty cond; ctx.local)
        | Never ->
-         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %s are never signalled, succeeding code is live due to spurious wakeups only!" (Basetype.CilExp.show cond); ctx.local)
+         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %a are never signalled, succeeding code is live due to spurious wakeups only!" Basetype.CilExp.pretty cond; ctx.local)
       )
 
     | TimedWait _ ->
