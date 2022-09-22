@@ -21,9 +21,9 @@ void* f1(void* ptr) {
     }
 
 
-    pthread_mutex_lock(&(mut[x]));
-    pthread_mutex_lock(&(mut[3])); //WARN
-    pthread_mutex_unlock(&mut);
+    pthread_mutex_lock(&mut[x]);
+    pthread_mutex_lock(&mut[3]); //WARN
+    pthread_mutex_unlock(&mut[3]);
     return NULL;
 }
 
