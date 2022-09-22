@@ -55,3 +55,7 @@ let find_fundec (node: t) =
   | Statement stmt -> Cilfacade.find_stmt_fundec stmt
   | Function fd -> fd
   | FunctionEntry fd -> fd
+
+let of_id s = 
+  let id = int_of_string s in
+  Statement { dummyStmt with sid = id }
