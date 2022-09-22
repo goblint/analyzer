@@ -92,14 +92,6 @@ let collectFactors visitAction visitedObject =
   ignore (visitAction visitor visitedObject);
   factors
 
-
-
-(*array heuristics*)
-let is_important_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
-  | TInt (IInt, attr) -> hasAttribute "mutex" attr
-  | _ -> false
-
 let is_large_array = function
   | TArray (_,Some (Const (CInt (i,_,_))),_) -> i > Z.of_int @@ 10 * get_int "ana.base.arrays.unrolling-factor"
   | _ -> false
