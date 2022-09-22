@@ -26,6 +26,29 @@ The following string arguments are supported:
 4. `apron.context`/`apron.no-context` to override the `ana.apron.context` option.
 5. `widen`/`no-widen` to override the `ana.context.widen` option.
 
+### Apron attributes
+The Apron library can be set to only track variables with the attribute `goblint_apron_track`
+
+### Array attributes
+Arrays can be annotated with the domain that should be used for it ("unroll", "parttioned", or "trivial"):
+
+```c
+int x[4] __attribute__((goblint_array_domain("unroll")));
+__attribute__((goblint_array_domain("trivial"))) int x[4];
+
+struct array {
+	int arr[5] __attribute__((goblint_array_domain("partitioned")));
+};
+```
+It is also possible to annotate a type, so that all arrays of this type without an own attribute will use this one: 
+
+```c
+typedef int unrollInt __attribute__((goblint_array_domain("trivial")));
+unrollInt x[4];
+```
+Lastly, pointer parameters can have this attribute and the array arguments may get converted to the choosen domain. This does not always happen because the pointers can change during the analysis which arrays they could be pointing at.
+
+
 
 ## Functions
 Goblint-specific functions can be called in the code, where they assist the analyzer but have no runtime effect.
