@@ -125,7 +125,7 @@ struct
       )
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-        v_out.vattr <- v.vattr; (*copy the attributes*)
+        v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with apr = AD.add_vars st.apr [V.local v_out]} in (* add temporary g#out *)
         let st' = {st with apr = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;

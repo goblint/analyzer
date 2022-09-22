@@ -125,7 +125,7 @@ struct
         else p_opt
       ) else None
     in
-    let a = if GobConfig.get_bool "annotation.array" then array_attr else None in
+    let a = if GobConfig.get_bool "annotation.goblint_array_domain" then array_attr else None in
     VD.project ask p a value
 
   let project ask p_opt cpa fundec =

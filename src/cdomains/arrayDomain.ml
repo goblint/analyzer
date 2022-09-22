@@ -32,7 +32,7 @@ let get_domain ~varAttr ~typAttr =
         )
         else None
     ) in
-  if get_bool "annotation.array" then
+  if get_bool "annotation.goblint_array_domain" then
     match from_attributes varAttr, from_attributes typAttr with
     | Some x, _ -> domain_from_string x
     | _, Some x -> domain_from_string x

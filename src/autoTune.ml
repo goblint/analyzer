@@ -210,7 +210,7 @@ class addTypeAttributeVisitor = object
 end
 
 let selectArrayDomains file =
-  set_bool "annotation.array" true;
+  set_bool "annotation.goblint_array_domain" true;
   let thisVisitor = new addTypeAttributeVisitor in
   ignore (visitCilFileSameGlobals thisVisitor file)
 (*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
@@ -335,7 +335,7 @@ let apronOctagonOption factors file =
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
     print_endline @@ "Octagon: " ^ string_of_int cost;
-    set_bool "annotation.track_apron" true;
+    set_bool "annotation.goblint_apron_track" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;

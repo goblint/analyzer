@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.arrays.unrolling-factor 5 --enable annotation.array --enable ana.int.interval
+// PARAM: --set ana.base.arrays.unrolling-factor 5 --enable annotation.goblint_array_domain --enable ana.int.interval
 
 
 int main(void);

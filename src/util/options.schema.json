@@ -1345,14 +1345,14 @@
             "default": []
           }
         },
-        "array": {
-          "title": "annotation.array",
+        "goblint_array_domain": {
+          "title": "annotation.goblint_array_domain",
           "description": "Enable manual annotation of arrays with desired domain",
           "type": "boolean",
           "default": false
         },
-        "track_apron": {
-          "title": "annotation.track_apron",
+        "goblint_apron_track": {
+          "title": "annotation.goblint_apron_track",
           "description": "Let apron track variables only if they have the attribute goblint_apron_track",
           "type": "boolean",
           "default": false
