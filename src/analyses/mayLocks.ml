@@ -14,8 +14,7 @@ struct
     else
       D.add l ctx.local
 
-  let remove ctx l =
-    D.remove l (D.remove l ctx.local)
+  let remove ctx l = D.remove l ctx.local
 end
 
 module Spec =
