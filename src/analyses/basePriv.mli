@@ -22,7 +22,11 @@ sig
   val enter_multithreaded: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for base. *)
-  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t (** [Queries.InvariantGlobal] for base. *)
+
+  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
+  (** Provides [Queries.InvariantGlobal] result for base.
+
+      Should account for all unprotected/weak values of global variables. *)
 
   val init: unit -> unit
   val finalize: unit -> unit
