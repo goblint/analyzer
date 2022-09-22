@@ -121,6 +121,10 @@ available: os-distribution != "alpine" & arch != "arm64"
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
+    "goblint-cil.2.0.0"
+    "git+https://github.com/goblint/cil.git#d4724fe93b0356c611b0b0bd2172210d3f1eeb5b"
+  ]
+  [
     "apron.v0.9.13"
     "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
   ]
