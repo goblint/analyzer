@@ -1184,6 +1184,20 @@
           },
           "additionalProperties": false
         },
+        "null-pointer": {
+          "title": "sem.null-pointer",
+          "type": "object",
+          "properties": {
+            "dereference": {
+              "title": "sem.null-pointer.dereference",
+              "description": "NULL pointer dereference handling. assume_top: assume it results in a top value, assume_none: assume it doesn't happen",
+              "type": "string",
+              "enum": ["assume_top", "assume_none"],
+              "default": "assume_none"
+            }
+          },
+          "additionalProperties": false
+        },
         "malloc": {
           "title": "sem.malloc",
           "type": "object",
