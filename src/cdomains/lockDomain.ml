@@ -86,7 +86,7 @@ end
 
 module MayLocksetNoRW =
 struct
-  include ValueDomain.AddrSetDomain
+  include PreValueDomain.AD
 end
 
 module Symbolic =
