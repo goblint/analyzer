@@ -2506,7 +2506,8 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Memcpy { dest = dst; src }, _ ->
+    | Memcpy { dest = dst; src }, _
+    | Strcpy { dest = dst; src }, _ ->
       (* invalidating from interactive *)
       (* let dest_a, dest_typ = addr_type_of_exp dst in
           let value = VD.top_value dest_typ in

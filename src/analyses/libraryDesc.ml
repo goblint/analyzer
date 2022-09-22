@@ -45,7 +45,8 @@ type special =
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
-  | Memcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: separate for strcpy, etc *)
+  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
   | Abort
   | Identity of Cil.exp
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
