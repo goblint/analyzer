@@ -15,7 +15,7 @@ struct
   let name () = "pthreadSignals"
   module D = MustSignals
   module C = MustSignals
-  module G = ConcDomain.ThreadSet
+  module G = SetDomain.ToppedSet (MHP) (struct let topname = "All Threads" end)
 
   let rec conv_offset x =
     match x with
@@ -58,61 +58,46 @@ struct
     match desc.special arglist with
     | Signal cond
     | Broadcast cond ->
-      let tid = match ctx.ask CurrentThreadId with
-        | `Lifted tid -> G.singleton (tid)
-        | _ -> G.top ()
-      in
-      let publish_one a = ctx.sideg a tid in
+      let mhp = G.singleton @@ MHP.current (Analyses.ask_of_ctx ctx) in
+      let publish_one a = ctx.sideg a mhp in
       let possible_vars = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
       List.iter publish_one possible_vars;
       ctx.local
     | Wait {cond = cond; _} ->
-      let may_be_signaller tid other =
-        let module TID = ThreadIdDomain.FlagConfiguredTID in
-        let not_self_signal = (not (TID.is_unique tid)) || (not (TID.equal tid other)) in
-        let may_be_running () =
-          not @@ MHP.definitely_not_started (tid, ctx.ask Queries.CreatedThreads) other
-        in
-        let may_not_be_joined () =
-          not @@ MHP.must_be_joined other (ctx.ask Queries.MustJoinedThreads)
-        in
-        not_self_signal && may_be_running () && may_not_be_joined ()
+      let current_mhp = MHP.current (Analyses.ask_of_ctx ctx) in
+      let module Signalled = struct
+        type signalled = Never | NotConcurrently | PossiblySignalled
+
+        let (|||) a b = match a,b with
+          | PossiblySignalled, _
+          | _, PossiblySignalled -> PossiblySignalled
+          | NotConcurrently , _
+          | _, NotConcurrently -> NotConcurrently
+          | Never, Never -> Never
+
+        let can_be_signalled a =
+          let signalling_tids = ctx.global a in
+          if G.is_top signalling_tids then
+            PossiblySignalled
+          else if G.is_empty signalling_tids then
+            Never
+          else if not @@ G.exists (MHP.may_happen_in_parallel current_mhp) signalling_tids then
+            NotConcurrently
+          else
+            PossiblySignalled
+      end
       in
-      (match ctx.ask CurrentThreadId with
-       | `Lifted tid ->
-         let module Signalled = struct
-           type signalled = Never | NotConcurrently | PossiblySignalled
+      let open Signalled in
+      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.from_var a) ctx.local | _ -> ctx.local in
+      let conds = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
+      (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
+       | PossiblySignalled -> add_if_singleton conds
+       | NotConcurrently ->
+         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %s are never signalled concurrently, succeeding code is live due to spurious wakeups only!" (Basetype.CilExp.show cond); ctx.local)
+       | Never ->
+         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %s are never signalled, succeeding code is live due to spurious wakeups only!" (Basetype.CilExp.show cond); ctx.local)
+      )
 
-           let (|||) a b = match a,b with
-             | PossiblySignalled, _
-             | _, PossiblySignalled -> PossiblySignalled
-             | NotConcurrently , _
-             | _, NotConcurrently -> NotConcurrently
-             | Never, Never -> Never
-
-           let can_be_signalled a =
-             let signalling_tids = ctx.global a in
-             if G.is_top signalling_tids then
-               PossiblySignalled
-             else if G.is_empty signalling_tids then
-               Never
-             else if not @@ G.exists (may_be_signaller tid) signalling_tids then
-               NotConcurrently
-             else
-               PossiblySignalled
-         end
-         in
-         let open Signalled in
-         let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.from_var a) ctx.local | _ -> ctx.local in
-         let conds = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
-         (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
-          | PossiblySignalled -> add_if_singleton conds
-          | NotConcurrently ->
-            (M.warn ~category:Deadcode "The condition variable(s) pointed to by %s are never signalled concurrently, succeeding code is live due to spurious wakeups only!" (Basetype.CilExp.show cond); ctx.local)
-          | Never ->
-            (M.warn ~category:Deadcode "The condition variable(s) pointed to by %s are never signalled, succeeding code is live due to spurious wakeups only!" (Basetype.CilExp.show cond); ctx.local)
-         )
-       | _ -> ctx.local)
     | TimedWait _ ->
       (* Time could simply have elapsed *)
       ctx.local
