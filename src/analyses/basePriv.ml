@@ -161,6 +161,11 @@ struct
       | None, Some v -> Some v
       | None, None -> None
 
+  let read_unprotected_global getg x =
+    let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
+    (* None is VD.top () *)
+    get_mutex_global_x |? VD.bot ()
+
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     sideg V.mutex_inits escaped_cpa;
@@ -198,15 +203,18 @@ struct
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
+
+  let invariant_global getg g =
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (read_unprotected_global getg) g'
 end
 
 module PerMutexOplusPriv: S =
 struct
   include PerMutexPrivBase
-
-  let read_unprotected_global getg x =
-    let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
-    get_mutex_global_x |? VD.bot ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then
@@ -271,13 +279,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let invariant_global getg g =
-    match g with
-    | `Left _ -> (* mutex *)
-      Invariant.none
-    | `Right g' -> (* global *)
-      ValueDomain.invariant_global (read_unprotected_global getg) g'
 end
 
 module PerMutexMeetPriv: S =
@@ -286,9 +287,8 @@ struct
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then (
-      let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* If the global is unprotected, all appropriate information should come via the appropriate globals, local value may be too small due to stale values surviving widening *)
-      get_mutex_global_x |? VD.bot ()
+      read_unprotected_global getg x
     )
     else
       CPA.find x st.cpa
@@ -365,17 +365,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let invariant_global getg g =
-    match g with
-    | `Left _ -> (* mutex *)
-      Invariant.none
-    | `Right g' -> (* global *)
-      ValueDomain.invariant_global (fun x ->
-          let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
-          (* None is VD.top () *)
-          get_mutex_global_x |? VD.bot ()
-        ) g'
 end
 
 module PerMutexMeetTIDPriv: S =
