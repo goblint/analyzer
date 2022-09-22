@@ -268,27 +268,27 @@ struct
   let name () = "exp"
 
   (* Identity *)
+  (* ArrayDomain seems to rely on this constructor order for "simpler" expressions *)
+  let order = function
+    | Const _ -> 0
+    | Lval _ -> 1
+    | SizeOf _ -> 2
+    | SizeOfE _ -> 3
+    | SizeOfStr _ -> 4
+    | AlignOf _ -> 5
+    | AlignOfE _ -> 6
+    | UnOp _ -> 7
+    | BinOp _ -> 9
+    | CastE _ -> 10
+    | AddrOf _ -> 11
+    | StartOf _ -> 12
+    | Question _ -> 13
+    | AddrOfLabel _ -> 14
+    | Real _ -> 15
+    | Imag _ -> 16
+
   (* Need custom compare because normal compare on CIL Exp might not terminate *)
   let rec compare a b =
-    (* ArrayDomain seems to rely on this constructor order for "simpler" expressions *)
-    let order x = match x with
-      | Const _ -> 0
-      | Lval _ -> 1
-      | SizeOf _ -> 2
-      | SizeOfE _ -> 3
-      | SizeOfStr _ -> 4
-      | AlignOf _ -> 5
-      | AlignOfE _ -> 6
-      | UnOp _ -> 7
-      | BinOp _ -> 9
-      | CastE _ -> 10
-      | AddrOf _ -> 11
-      | StartOf _ -> 12
-      | Question _ -> 13
-      | AddrOfLabel _ -> 14
-      | Real _ -> 15
-      | Imag _ -> 16
-    in
     if a == b then
       0
     else
@@ -351,9 +351,27 @@ struct
                 r
               else
                 compare e1c e2c
+        (* TODO: Real, Imag missing *)
         | _ -> failwith "CilType.Exp.compare: mismatching exps"
   let equal a b = compare a b = 0
-  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+  let rec hash_arg = function
+    | Const c -> Constant.hash c
+    | AddrOf l
+    | StartOf l
+    | Lval l -> Lval.hash l
+    | AlignOf t
+    | SizeOf t -> Typ.hash t
+    | AlignOfE e
+    | SizeOfE e
+    | Real e
+    | Imag e -> hash e
+    | SizeOfStr s -> Hashtbl.hash s
+    | UnOp (op, e, t) -> 31 * (31 * Hashtbl.hash op + hash e) + Typ.hash t
+    | BinOp (op, e1, e2, t) -> 31 * (31 * (31 * Hashtbl.hash op + hash e1) + hash e2) + Typ.hash t
+    | CastE (t, e) -> 31 * Typ.hash t + hash e
+    | AddrOfLabel s -> Hashtbl.hash s (* TODO: is this right? *)
+    | Question (e1, e2, e3, t) -> 31 * (31 * (31 * hash e1 + hash e2) + hash e3) + Typ.hash t
+  and hash x = 31 * order x + hash_arg x
 
   (* Output *)
   let pretty () x = dn_exp () x
@@ -401,7 +419,10 @@ struct
           compare o1 o2
       | _ -> failwith "CilType.Offset.compare: mismatching offsets"
   let equal x y = compare x y = 0
-  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+  let rec hash = function
+    | NoOffset -> 31 * 0
+    | Field (f, o) -> 31 * (31 * 1 + Fieldinfo.hash f) + hash o
+    | Index (e, o) -> 31 * (31 * 2 + Exp.hash e) + hash o
 
   (* Output *)
   let pretty () x = d_offset nil () x
@@ -439,7 +460,9 @@ struct
     | (Var _, _), (Mem _, _) -> -1
     | (Mem _, _), (Var _, _) -> 1
   let equal x y = compare x y = 0
-  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+  let hash = function
+    | (Var v, o) -> 31 * (31 * 0 + Varinfo.hash v) + Offset.hash o
+    | (Mem e, o) -> 31 * (31 * 1 + Exp.hash e) + Offset.hash o
 
   (* Output *)
   let pretty () x = dn_lval () x
