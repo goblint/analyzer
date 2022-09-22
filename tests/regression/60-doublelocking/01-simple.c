@@ -29,5 +29,8 @@ int main(int argc, char const *argv[])
     pthread_create(&t1,NULL,f1,NULL);
     pthread_join(t1, NULL);
 
+    pthread_mutex_lock(&mut); //NOWARN
+    pthread_mutex_unlock(&mut);
+
     return 0;
 }
