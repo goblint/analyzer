@@ -48,7 +48,7 @@ type special =
   | Memcpy of { dest: Cil.exp; src: Cil.exp }
   | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
   | Abort
-  | Identity of Cil.exp
+  | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
