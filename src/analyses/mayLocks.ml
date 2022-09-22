@@ -1,4 +1,4 @@
-(** May lockset analysis (unused). *)
+(** May lockset analysis and analysis of double locking. *)
 
 open Analyses
 
