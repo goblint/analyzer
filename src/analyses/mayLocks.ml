@@ -23,6 +23,10 @@ struct
   let name () = "maylocks"
 
   let exitstate  v = D.top () (* TODO: why? *)
+
+  let return ctx exp fundec =
+    if not @@ D.is_bot ctx.local && ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then M.warn "Exiting thread while still holding a mutex!";
+    ctx.local
 end
 
 let _ =
