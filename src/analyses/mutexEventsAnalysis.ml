@@ -98,7 +98,8 @@ struct
       unlock arg (fun l -> remove_rw (drop_raw_lock l))
     | Unlock arg, _ ->
       unlock arg remove_rw
-    | CondWait { lock = m_arg; _}, _ ->
+    | Wait { mutex = m_arg; _}, _
+    | TimedWait { mutex = m_arg; _}, _ ->
       (* mutex is unlocked while waiting but relocked when returns *)
       (* emit unlock-lock events for privatization *)
       let ms = eval_exp_addr (Analyses.ask_of_ctx ctx) m_arg in
