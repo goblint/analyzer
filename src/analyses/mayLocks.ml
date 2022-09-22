@@ -1,6 +1,7 @@
 (** May lockset analysis and analysis of double locking. *)
-
 open Analyses
+open GoblintCil
+module LF = LibraryFunctions
 
 module Arg:LocksetAnalysis.MayArg =
 struct
@@ -26,6 +27,13 @@ struct
 
   let return ctx exp fundec =
     if not @@ D.is_bot ctx.local && ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then M.warn "Exiting thread while still holding a mutex!";
+    ctx.local
+
+  let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
+    (match(LF.find f).special args with
+     | ThreadExit _ -> if not @@ D.is_bot ctx.local then M.warn "Exiting thread while still holding a mutex!"
+     | _ -> ())
+    ;
     ctx.local
 end
 

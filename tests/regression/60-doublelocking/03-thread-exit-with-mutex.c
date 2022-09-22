@@ -22,6 +22,11 @@ void* f1(void* ptr) {
 
 
     pthread_mutex_lock(&mut[x]);
+
+    if(top) {
+        pthread_exit(5); //WARN
+    }
+
     return NULL; //WARN
 }
 
