@@ -41,13 +41,7 @@ struct
       )
   end
 
-  (* TODO: use SetDomain.Reverse *)
-  module ReverseAddrSet = SetDomain.ToppedSet (Lock)
-      (struct let topname = "All mutexes" end)
-
-  module AddrSet = Lattice.Reverse (ReverseAddrSet)
-
-  include AddrSet
+  include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
 
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
@@ -60,7 +54,7 @@ struct
 
   let add (addr,rw) set =
     match (Addr.to_var_offset addr) with
-    | Some (_,x) when Offs.is_definite x -> ReverseAddrSet.add (addr,rw) set
+    | Some (_,x) when Offs.is_definite x -> add (addr,rw) set
     | _ -> set
 
   let remove (addr,rw) set =
@@ -71,18 +65,9 @@ struct
       | None -> false
     in
     match (Addr.to_var_offset addr) with
-    | Some (_,x) when Offs.is_definite x -> ReverseAddrSet.remove (addr,rw) set
-    | Some x -> ReverseAddrSet.filter (collect_diff_varinfo_with x) set
-    | _   -> AddrSet.top ()
-
-  let empty = ReverseAddrSet.empty
-  let is_empty = ReverseAddrSet.is_empty
-
-  let filter = ReverseAddrSet.filter
-  let fold = ReverseAddrSet.fold
-  let singleton = ReverseAddrSet.singleton
-  let mem = ReverseAddrSet.mem
-  let exists = ReverseAddrSet.exists
+    | Some (_,x) when Offs.is_definite x -> remove (addr,rw) set
+    | Some x -> filter (collect_diff_varinfo_with x) set
+    | _   -> top ()
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
