@@ -84,6 +84,11 @@ struct
   let bot = Lockset.top
 end
 
+module MayLocksetNoRW =
+struct
+  include ValueDomain.AddrSetDomain
+end
+
 module Symbolic =
 struct
   (* TODO: use SetDomain.Reverse *)

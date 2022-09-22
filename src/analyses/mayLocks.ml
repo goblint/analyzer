@@ -2,17 +2,20 @@
 
 open Analyses
 
-module Arg =
+module Arg:LocksetAnalysis.MayArg =
 struct
-  module D = LockDomain.MayLockset
+  module D = LockDomain.MayLocksetNoRW
   module G = DefaultSpec.G
   module V = DefaultSpec.V
 
-  let add ctx l =
-    D.add l ctx.local
+  let add ctx (l,_) =
+    if D.mem l ctx.local then
+      (M.warn "double locking"; ctx.local)
+    else
+      D.add l ctx.local
 
   let remove ctx l =
-    D.remove (l, true) (D.remove (l, false) ctx.local)
+    D.remove l (D.remove l ctx.local)
 end
 
 module Spec =
