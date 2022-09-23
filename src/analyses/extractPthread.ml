@@ -1081,7 +1081,7 @@ module Spec : Analyses.MCPSpec = struct
       else
         let env = Env.get ctx in
         (* write out edges with call to f coming from all predecessor nodes of the caller *)
-        ( if Ctx.is_int d_callee.ctx
+        ( if Ctx.to_int d_callee.ctx <> None
           then
             let last_pred = d_caller.pred in
             let action = Action.Call (fun_ctx d_callee.ctx f.svar) in
@@ -1228,15 +1228,15 @@ module Spec : Analyses.MCPSpec = struct
         add_actions
         @@ List.map (fun id -> Action.CondVarInit id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | Unknown, "pthread_cond_broadcast", [ cond_var ] ->
+      | Broadcast cond_var, _, _ ->
         add_actions
         @@ List.map (fun id -> Action.CondVarBroadcast id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | Unknown, "pthread_cond_signal", [ cond_var ] ->
+      | Signal cond_var, _, _ ->
         add_actions
         @@ List.map (fun id -> Action.CondVarSignal id)
         @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
-      | Unknown, "pthread_cond_wait", [ cond_var; mutex ] ->
+      | Wait {cond = cond_var; mutex = mutex}, _, _ ->
         let cond_vars = ExprEval.eval_ptr ctx cond_var in
         let mutex_vars = ExprEval.eval_ptr ctx mutex in
         let cond_var_action (v, m) =

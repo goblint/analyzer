@@ -64,6 +64,14 @@ struct
   }
 
   (* non-standard extension *)
+  let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
+    entry_type = FlowInsensitiveInvariant {
+        flow_insensitive_invariant = invariant;
+      };
+    metadata = metadata ~task ();
+  }
+
+  (* non-standard extension *)
   let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
     entry_type = PreconditionLoopInvariant {
         location;
@@ -152,6 +160,26 @@ struct
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+      }
+    in
+    Spec.query ctx
+
+  let ask_global (gh: EQSys.G.t GHT.t) =
+    (* copied from Control for WarnGlobal *)
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+      ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> ctx_failwith "No context in query context.")
+      ; context = (fun () -> ctx_failwith "No context in query context.")
+      ; edge    = MyCFG.Skip
+      ; local  = Spec.startstate dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *) (* TODO: is this startstate bad? *)
+      ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) (* TODO: how can be missing? *)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
       }
     in
     Spec.query ctx
@@ -262,7 +290,7 @@ struct
                 let entry = Entry.loop_invariant ~task ~location ~invariant in
                 entry :: acc
               ) acc invs
-          | `Bot | `Top -> (* TODO: 0 for bot? *)
+          | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
             acc
         )
         else
@@ -270,6 +298,25 @@ struct
       ) nh []
     in
 
+    (* Generate flow-insensitive invariants *)
+    let entries = GHT.fold (fun g v acc ->
+        match g with
+        | `Left g -> (* Spec global *)
+          begin match Query.ask_global gh (InvariantGlobal (Obj.repr g)) with
+            | `Lifted inv ->
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
+                  let invariant = Entry.invariant (CilType.Exp.show inv) in
+                  let entry = Entry.flow_insensitive_invariant ~task ~invariant in
+                  entry :: acc
+                ) acc invs
+            | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+              acc
+          end
+        | `Right _ -> (* contexts global *)
+          acc
+      ) gh entries
+    in
 
     (* Generate precondition invariants.
        We do this in three steps:
@@ -462,15 +509,12 @@ struct
                   let x = ask_local lvar d (Queries.EvalInt inv_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     Option.get (VR.result_of_enum (VR.bot ()))
-                  else if Queries.ID.is_bool x then (
-                    let verdict = Option.get (Queries.ID.to_bool x) in
-                    if verdict then
-                      Confirmed
-                    else
-                      Refuted
+                  else (
+                    match Queries.ID.to_bool x with
+                    | Some true -> Confirmed
+                    | Some false -> Refuted
+                    | None -> Unconfirmed
                   )
-                  else
-                    Unconfirmed
                 | Error e ->
                   ParseError
               in
@@ -545,10 +589,11 @@ struct
                   let x = ask_local lvar pre_d (Queries.EvalInt pre_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     true
-                  else if Queries.ID.is_bool x then
-                    Option.get (Queries.ID.to_bool x)
-                  else
-                    false
+                  else (
+                    match Queries.ID.to_bool x with
+                    | Some b -> b
+                    | None -> false
+                  )
                 | Error e ->
                   M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse precondition: %s" inv;
                   M.info ~category:Witness ~loc:msgLoc "precondition has undefined variables or side effects: %s" inv;

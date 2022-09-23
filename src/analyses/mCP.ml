@@ -266,6 +266,10 @@ struct
             (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
             let (n, g): V.t = Obj.obj g in
             f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+          | Queries.InvariantGlobal g ->
+            (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
           | Queries.PartAccess a ->
             Obj.repr (access ctx a)
           | Queries.IterSysVars (vq, fi) ->

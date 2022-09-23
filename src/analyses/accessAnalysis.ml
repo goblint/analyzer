@@ -93,8 +93,8 @@ struct
       ctx.local
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
       ctx.local
-    | _, "pthread_cond_wait"
-    | _, "pthread_cond_timedwait" ->
+    | Wait _ , _
+    | TimedWait _, _ ->
       ctx.local
     | _, _ ->
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->

@@ -106,21 +106,19 @@ struct
     (* since hashes might change we need to rebuild: *)
     apply_list (List.map f) m
   let filter f m = apply_list (List.filter f) m (* TODO do something better? unused *)
-  let remove x m =
+  let remove x m = (* NB! strong removal *)
     let ngreq x y = not (E.leq y x) in
     B.merge_element (fun _ -> List.filter (ngreq x)) x m
   (* let add e m = if mem e m then m else B.merge List.cons e m *)
   let add e m = if mem e m then m else join (singleton e) m
   let fold f m a = Map.fold (fun _ -> List.fold_right f) m a
   let cardinal m = fold (const succ) m 0
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a (* NB! strong removal *)
   let empty () = Map.empty
   let is_empty m = Map.is_empty m
   (* let union x y = merge (B.join keep_apart) x y *)
   let union x y = join x y
   let iter f m = Map.iter (fun _ -> List.iter f) m
-
-  let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
 
   (* Lattice *)
   let bot () = Map.empty
@@ -168,6 +166,7 @@ struct
     List.iter (E.printXml f) (elements x);
     BatPrintf.fprintf f "</set>\n</value>\n"
 end
+[@@deprecated]
 
 
 module type SetS =
@@ -176,7 +175,17 @@ sig
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
-(** Set of [Lattice] elements with Hoare ordering. *)
+(** Set of [Lattice.S] elements with Hoare ordering.
+    This abstracts a set by its {e maximal} elements.
+
+    Element-wise {!SetDomain.S} operations only observe the maximal elements.
+
+    This has {e extrapolation heuristics} instead of a true [widen],
+    i.e. convergence is only guaranteed if the number of maximal
+    elements converges.
+    Otherwise use {!SetEM}.
+
+    @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
 module Set (B : Lattice.S): SetS with type elt = B.t =
 struct
   include SetDomain.Make (B)
@@ -195,7 +204,7 @@ struct
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = unsupported "Set.remove"
+  let remove x a = filter (fun y -> not (B.leq y x)) a (* NB! strong removal *)
   let join a b = union a b |> reduce
   let union _ _ = unsupported "Set.union"
   let inter _ _ = unsupported "Set.inter"
@@ -204,7 +213,7 @@ struct
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let apply_list f s = elements s |> f |> of_list
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a (* NB! strong removal *)
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
 
   (* Copied from Make *)
@@ -338,4 +347,57 @@ struct
         (cardinal s1)
         (cardinal s2)
     end
+end
+[@@deprecated]
+
+(** Set of [Lattice.S] elements with Hoare ordering.
+    This abstracts a set by its {e maximal} elements.
+
+    Element-wise {!SetDomain.S} operations only observe the maximal elements.
+
+    This has a true [widen] using the trivial Egli-Milner connector,
+    i.e. convergence is even guaranteed if the number of maximal
+    elements does not converge.
+    Otherwise {!Set} is sufficient.
+
+    @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
+module SetEM (E: Lattice.S): SetDomain.S with type elt = E.t =
+struct
+  module H = Set (E)
+  include H
+
+  (* version of widen which doesn't use E.bot *)
+  (* TODO: move to Set above? *)
+  let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
+  let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
+
+  (* above widen is actually extrapolation operator, so define connector-based widening instead *)
+
+  (** Egli-Milner partial order relation.
+      See Bagnara, Section 3. *)
+  let leq_em s1 s2 =
+    is_bot s1 || leq s1 s2 && for_all (fun e2 -> exists (fun e1 -> E.leq e1 e2) s1) s2
+
+  (** Egli-Milner connector, i.e. {e any} upper bound operator for {!leq_em}.
+      Trivial connector, which joins all elements to a singleton set.
+      See Bagnara, Section 3. *)
+  let join_em s1 s2 =
+    join s1 s2
+    |> elements
+    |> BatList.reduce E.join
+    |> singleton
+
+  (** Connector-based widening.
+      See Bagnara, Section 6. *)
+  let widen s1 s2 =
+    assert (leq s1 s2);
+    let s2' =
+      if leq_em s1 s2 then
+        s2
+      else
+        join_em s1 s2
+    in
+    widen s1 s2'
 end

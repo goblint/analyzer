@@ -31,9 +31,7 @@ struct
   let ending ik = lift (I.ending ik)
 
   let to_int x = unlift_opt I.to_int x
-  let is_int x = unlift_is I.is_int x
   let to_bool x = unlift_opt I.to_bool x
-  let is_bool x = unlift_is I.is_bool x
 
   let is_bot_ikind = function
     | `Bot -> false
@@ -110,6 +108,7 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | Invariant: invariant_context -> Invariant.t t
+  | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
@@ -160,6 +159,7 @@ struct
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | Invariant _ -> (module Invariant)
+    | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
@@ -209,6 +209,7 @@ struct
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | Invariant _ -> Invariant.top ()
+    | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
@@ -257,7 +258,8 @@ struct
     | Any (WarnGlobal _) -> 35
     | Any (Invariant _) -> 36
     | Any (IterSysVars _) -> 37
-    | Any MayAccessed -> 38
+    | Any (InvariantGlobal _) -> 38
+    | Any MayAccessed -> 39
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -288,6 +290,7 @@ struct
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
+      | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
@@ -318,6 +321,7 @@ struct
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
+    | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     (* only argumentless queries should remain *)
     | _ -> 0
 
@@ -357,6 +361,7 @@ struct
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
+    | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
 end
 
