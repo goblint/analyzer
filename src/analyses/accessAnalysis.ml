@@ -14,6 +14,9 @@ struct
   let name () = "access"
 
   module D = AccessDomain.EventSet
+  (** Access events from the last transfer function only.
+      [sync] empties these between transfer functions. *)
+
   module C = Lattice.Unit
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
@@ -131,6 +134,7 @@ struct
     | _ -> Queries.Result.top q
 
   let sync reason ctx: D.t =
+    (* Empty local access event set, such that local states only have accesses from last transfer function. *)
     D.empty ()
 
   let event ctx e octx =
