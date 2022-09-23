@@ -45,7 +45,7 @@ struct
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
-      M.warn "Access to unknown address could be global"; []
+      M.info ~category:Unsound "Access to unknown address could be global"; []
 
   let rec access_one_byval a rw (exp:exp) =
     match exp with
@@ -113,7 +113,7 @@ struct
         GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
+        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
@@ -152,7 +152,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.warn "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
+        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -180,7 +180,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.warn "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
+      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
       []
 
 

@@ -6,6 +6,6 @@ extern void* magic(void* arg);
 int g;
 
 int main() {
-  assert(g == 0); // UNKNOWN! (magic may invalidate)
+  __goblint_check(g == 0); // UNKNOWN! (magic may invalidate)
   return 0;
 }

@@ -1,4 +1,3 @@
-// PARAM: --set dbg.debug true
 #include <assert.h>
 
 void QQ(){
@@ -14,8 +13,8 @@ int main(){
 
   struct a A[1] = {50, (unsigned long)&QQ};
 
-  assert(A[0].aa == 50);
-  assert(A[0].qq == (unsigned long)&QQ); // UNKNOWN
+  __goblint_check(A[0].aa == 50);
+  __goblint_check(A[0].qq == (unsigned long)&QQ); // UNKNOWN
 
   return 0;
 }

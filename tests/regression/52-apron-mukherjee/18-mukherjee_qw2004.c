@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening --sets ana.relation.privatization mutex-meet-tid
+=======
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening --set ana.apron.privatization mutex-meet-tid
+>>>>>>> master
 
 #include <pthread.h>
 #include <assert.h>
@@ -19,7 +23,7 @@ void* T1_QW2004(void* arg) {
     else
         stopped--;
 
-    assert(pendingIo == stopped);
+    __goblint_check(pendingIo == stopped);
     pthread_mutex_unlock(&m);
     return NULL;
 }
@@ -43,12 +47,12 @@ int main() {
             stopped++;
             status = 0;
         }
-        assert(pendingIo == stopped);
+        __goblint_check(pendingIo == stopped);
     pthread_mutex_unlock(&m);
 
     pthread_mutex_lock(&m);
     if (status == 0)
-        assert(pendingIo == stopped);
+        __goblint_check(pendingIo == stopped);
     pthread_mutex_unlock(&m);
 
     pthread_mutex_lock(&m);
@@ -60,7 +64,7 @@ int main() {
     if (pending == 0)
         stoppingEvent = 1;
 
-    assert(pendingIo == stopped);
+    __goblint_check(pendingIo == stopped);
     pthread_mutex_unlock(&m);
     return 0;
 }

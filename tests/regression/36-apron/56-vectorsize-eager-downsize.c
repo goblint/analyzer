@@ -20,11 +20,11 @@ void remove() {
   if (amount >= 0) {
     pthread_mutex_lock(&U);
     pthread_mutex_lock(&C);
-    assert(used >= 0);
-    assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY);
-    assert(used <= capacity);
-    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
+    __goblint_check(used >= 0);
+    __goblint_check(capacity >= 1);
+    __goblint_check(capacity <= MAX_CAPACITY);
+    __goblint_check(used <= capacity);
+    __goblint_check(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
 
     if (amount <= used) {
       used -= amount;
@@ -36,11 +36,11 @@ void remove() {
         capacity = used;
     }
 
-    assert(used >= 0);
-    assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY);
-    assert(used <= capacity);
-    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
+    __goblint_check(used >= 0);
+    __goblint_check(capacity >= 1);
+    __goblint_check(capacity <= MAX_CAPACITY);
+    __goblint_check(used <= capacity);
+    __goblint_check(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
     pthread_mutex_unlock(&C);
     pthread_mutex_unlock(&U);
   }
@@ -52,11 +52,11 @@ void append() {
   if (amount >= 0) {
     pthread_mutex_lock(&U);
     pthread_mutex_lock(&C);
-    assert(used >= 0);
-    assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY);
-    assert(used <= capacity);
-    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
+    __goblint_check(used >= 0);
+    __goblint_check(capacity >= 1);
+    __goblint_check(capacity <= MAX_CAPACITY);
+    __goblint_check(used <= capacity);
+    __goblint_check(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
 
     if (used <= MAX_CAPACITY - amount) { // used + amount <= MAX_CAPACITY, but without overflow in +
       int new_used = used + amount;
@@ -67,11 +67,11 @@ void append() {
       used = new_used;
     }
 
-    assert(used >= 0);
-    assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY);
-    assert(used <= capacity);
-    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
+    __goblint_check(used >= 0);
+    __goblint_check(capacity >= 1);
+    __goblint_check(capacity <= MAX_CAPACITY);
+    __goblint_check(used <= capacity);
+    __goblint_check(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
     pthread_mutex_unlock(&C);
     pthread_mutex_unlock(&U);
   }
@@ -88,11 +88,11 @@ void *worker(void *arg) {
 int main() {
   used = 0;
   capacity = 1;
-  assert(used >= 0);
-  assert(capacity >= 1);
-  assert(capacity <= MAX_CAPACITY);
-  assert(used <= capacity);
-  assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
+  __goblint_check(used >= 0);
+  __goblint_check(capacity >= 1);
+  __goblint_check(capacity <= MAX_CAPACITY);
+  __goblint_check(used <= capacity);
+  __goblint_check(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
 
   pthread_t worker1;
   pthread_t worker2;
@@ -102,11 +102,11 @@ int main() {
   while (1) {
     pthread_mutex_lock(&U);
     pthread_mutex_lock(&C);
-    assert(used >= 0);
-    assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY);
-    assert(used <= capacity);
-    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
+    __goblint_check(used >= 0);
+    __goblint_check(capacity >= 1);
+    __goblint_check(capacity <= MAX_CAPACITY);
+    __goblint_check(used <= capacity);
+    __goblint_check(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
     pthread_mutex_unlock(&C);
     pthread_mutex_unlock(&U);
   }

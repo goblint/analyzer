@@ -1,3 +1,5 @@
+open GoblintCil
+
 module type Arg = Lattice.S
 
 module type S =

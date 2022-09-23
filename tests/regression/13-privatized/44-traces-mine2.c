@@ -21,8 +21,8 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == 3);
+  __goblint_check(g == 3);
   pthread_mutex_lock(&B);
-  assert(g == 3);
+  __goblint_check(g == 3);
   return 0;
 }

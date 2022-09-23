@@ -21,7 +21,7 @@ void *worker(void *arg)
 {
   pthread_mutex_lock(& aworker_lock);
   aworkers --;
-  assert(aworkers <= nworkers);
+  __goblint_check(aworkers <= nworkers);
   pthread_mutex_unlock(& aworker_lock);
   return NULL;
 }

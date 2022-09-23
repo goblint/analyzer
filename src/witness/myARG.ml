@@ -1,4 +1,5 @@
 open MyCFG
+open GoblintCil
 
 module type Node =
 sig
@@ -31,7 +32,7 @@ type inline_edge =
   | CFGEdge of Edge.t
   | InlineEntry of CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option
-  [@@deriving to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
@@ -39,13 +40,29 @@ let pretty_inline_edge () = function
   | InlineReturn None -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
 
+module InlineEdgePrintable: Printable.S with type t = inline_edge =
+struct
+  include Printable.Std
+  type t = inline_edge [@@deriving eq, ord, hash, to_yojson]
+
+  let name () = "inline edge"
+
+  let pretty = pretty_inline_edge
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+    (* TODO: deriving to_yojson gets overridden by SimplePretty *)
+end
+
 module InlineEdge: Edge with type t = inline_edge =
 struct
-  type t = inline_edge [@@deriving to_yojson]
+  type t = inline_edge
 
   let embed e = CFGEdge e
-
-  let to_string e = Pretty.sprint ~width:80 (pretty_inline_edge () e)
+  let to_string e = InlineEdgePrintable.show e
 end
 
 (* Abstract Reachability Graph *)

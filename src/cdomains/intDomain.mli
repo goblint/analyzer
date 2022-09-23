@@ -1,5 +1,6 @@
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
+open GoblintCil
 
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
@@ -178,19 +179,11 @@ sig
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
 
-  val is_int: t -> bool
-  (** Checks if the element is a definite integer value. If this function
-    * returns [true], the above [to_int] should return a real value. *)
-
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
-
-  val is_bool: t -> bool
-  (** Checks if the element is a definite boolean value. If this function
-    * returns [true], the above [to_bool] should return a real value. *)
 
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
@@ -275,7 +268,7 @@ sig
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
@@ -304,7 +297,7 @@ sig
 
   val is_top_of: Cil.ikind -> t -> bool
 
-  val project: PrecisionUtil.precision -> t -> t
+  val project: PrecisionUtil.int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
 end
 (** The signature of integral value domains keeping track of ikind information *)

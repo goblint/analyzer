@@ -36,8 +36,9 @@ module type S =
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
     val threadenter: Q.ask -> (V.t -> G.t) -> relation_components_t -> relation_components_t
 
-    val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> relation_components_t -> relation_components_t
-    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> relation_components_t -> relation_components_t
+    val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
+    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+    val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
     val init: unit -> unit
     val finalize: unit -> unit
@@ -71,8 +72,8 @@ struct
     let lock ask getg st m = st
     let unlock ask getg sideg st m = st
 
-    let thread_join ask getg exp st = st
-    let thread_return ask getg sideg tid st = st
+  let thread_join ?(force=false) ask getg exp st = st
+  let thread_return ask getg sideg tid st = st
 
   let escape node ask getg sideg (st:relation_components_t) escaped:relation_components_t =
     let rel = st.rel in
@@ -124,9 +125,11 @@ struct
   let threadenter ask getg (st: relation_components_t): relation_components_t =
     {rel = RD.bot (); priv = startstate ()}
 
-    let init () = ()
-    let finalize () = ()
-  end
+  let iter_sys_vars getg vq vf = ()
+
+  let init () = ()
+  let finalize () = ()
+end
 
 module type ProtectionBasedPrivParam =
 sig
@@ -323,7 +326,7 @@ struct
     {rel = rel_local'; priv = (p', w')}
 
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: relation_components_t) reason =
@@ -399,6 +402,8 @@ struct
   let threadenter ask getg (st: relation_components_t): relation_components_t =
     {rel = getg (); priv = startstate ()}
 
+  let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
+
   let finalize () = ()
 end
 
@@ -419,9 +424,7 @@ struct
       | Some (Global g) -> is_protected_by ask m g
       | _ -> false
     in
-    RD.keep_filter oct protected
-
-  let finalize () = ProtectionLogging.dump ()
+    AD.keep_filter oct protected
 end
 
 (** Per-mutex meet. *)
@@ -514,7 +517,7 @@ struct
     let rel_local = remove_globals_unprotected_after_unlock ask m rel in
     {st with rel = rel_local}
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: relation_components_t) reason =
@@ -576,7 +579,7 @@ struct
     {rel = RD.bot (); priv = startstate ()}
 
   let init () = ()
-  let finalize () = finalize ()
+  let finalize () = ()
 end
 
 (** May written variables. *)
@@ -1040,22 +1043,40 @@ struct
       let l' = L.add lm rel_side l in
       {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
 
-  let thread_join (ask:Q.ask) getg exp (st: relation_components_t) =
+  let thread_join ?(force=false) (ask:Q.ask) getg exp (st: apron_components_t) =
     let w,lmust,l = st.priv in
     let tids = ask.f (Q.EvalThread exp) in
-    if ConcDomain.ThreadSet.is_top tids then
-      st (* TODO: why needed? *)
+    if force then (
+      if ConcDomain.ThreadSet.is_top tids then (
+        M.info ~category:Unsound "Unknown thread ID assume-joined, Apron privatization unsound"; (* TODO: something more sound *)
+        st (* cannot find all thread IDs to join them all *)
+      )
+      else (
+        (* fold throws if the thread set is top *)
+        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
+            let lmust',l' = G.thread (getg (V.thread tid)) in
+            (LMust.union lmust' lmust, L.join l l')
+          ) tids' (lmust, l)
+        in
+        {st with priv = (w, lmust', l')}
+      )
+    )
     else (
-      (* elements throws if the thread set is top *)
-      let tids = ConcDomain.ThreadSet.elements tids in
-      match tids with
-      | [tid] ->
-        let lmust',l' = G.thread (getg (V.thread tid)) in
-        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-      | _ ->
-        (* To match the paper more closely, one would have to join in the non-definite case too *)
-        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-        st
+      if ConcDomain.ThreadSet.is_top tids then
+        st (* TODO: why needed? *)
+      else (
+        (* elements throws if the thread set is top *)
+        let tids = ConcDomain.ThreadSet.elements tids in
+        match tids with
+        | [tid] ->
+          let lmust',l' = G.thread (getg (V.thread tid)) in
+          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+        | _ ->
+          (* To match the paper more closely, one would have to join in the non-definite case too *)
+          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+          st
+      )
     )
 
   let thread_return ask getg sideg tid (st: relation_components_t) =
@@ -1116,7 +1137,12 @@ struct
     let _,lmust,l = st.priv in
     {rel = RD.bot (); priv = (W.bot (),lmust,l)}
 
-  let finalize () = finalize ()
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf (V.global g)
+    | _ -> ()
+
+  let finalize () = ()
 end
 
 module TracingPriv = functor (Priv: S) -> functor (RD: RelationDomain.RD) ->

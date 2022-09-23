@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.relation.privatization mutex-meet-tid
+=======
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.apron.privatization mutex-meet-tid
+>>>>>>> master
 #include <pthread.h>
 #include <assert.h>
 #include <stdio.h>
@@ -15,9 +19,9 @@ int main(){
     int y;
     g = y;
     h = y;
-    assert(g == h);
+    __goblint_check(g == h);
     pthread_create(&thread, NULL, foo, NULL);
-    assert(g == h); //TODO We would like to be able to prove that this holds (but can't as we lose g = h)
+    __goblint_check(g == h); //TODO We would like to be able to prove that this holds (but can't as we lose g = h)
     pthread_join(thread, NULL);
     return 0;
 }

@@ -34,7 +34,7 @@ int main(void) {
       // 3. y == #ret && #ret == z + 1 (&& y == z + 1)
     // forget #ret is: y == z + 1
 
-    assert(y == z + 1);
+    __goblint_check(y == z + 1);
   }
   return 0;
 }

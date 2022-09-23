@@ -10,7 +10,7 @@ int main() {
   if (i < 0) {
     i = jz; // must invalidate apron invariant about i through typedef
     if (i >= 0) {
-      assert(1); // reachable
+      __goblint_check(1); // reachable
     }
   }
 

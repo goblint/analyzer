@@ -3,7 +3,7 @@
 #include <assert.h>
 
 void *t_fun(int arg) {
-  assert(arg == 3); // TODO (cast through void*)
+  __goblint_check(arg == 3); // TODO (cast through void*)
   return NULL;
 }
 

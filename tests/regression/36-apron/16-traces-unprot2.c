@@ -22,6 +22,6 @@ int main(void) {
 
   x = g;
   y = g;
-  assert(x == y); // TODO (like 13/66)
+  __goblint_check(x == y); // TODO (like 13/66)
   return 0;
 }

@@ -4,10 +4,10 @@
  void foo() {
 -    int fooTwo = 1;
 -    fooTwo++;
--    assert(fooTwo == 2);
+-    __goblint_check(fooTwo == 2);
 +    int fooThree = 1;
 +    fooThree++;
-+    assert(fooThree == 2);
++    __goblint_check(fooThree == 2);
  }
- 
+
  void bar() {
