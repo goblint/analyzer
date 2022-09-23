@@ -10,7 +10,7 @@ module type S =
 sig
   include Lattice.S
   type value
-  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context1 -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context1 -> t -> Invariant.t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval option -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval option -> t -> Invariant.t
 end
 
 module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
@@ -23,29 +23,27 @@ struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
 
-  let invariant ~value_invariant ~offset c (lift_f, v) =
+  let invariant ~value_invariant ~offset ~lval (lift_f, v) =
     match offset with
     (* invariants for all fields *)
     | Cil.NoOffset ->
-      let c_lval = BatOption.get c.Invariant.lval in
+      let c_lval = Option.get lval in
       begin match lift_f with
       | `Lifted f ->
         let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-        let f_c = {c with lval=Some f_lval} in
-        value_invariant ~offset f_c v
+        value_invariant ~offset ~lval:(Some f_lval) v
       | `Top
       | `Bot ->
         Invariant.none
       end
     (* invariant for one field *)
     | Field (f, offset) ->
-      let c_lval = BatOption.get c.Invariant.lval in
+      let c_lval = Option.get lval in
       begin match lift_f with
         | `Lifted f' ->
           let v = Values.cast ~torg:f'.ftype f.ftype v in
           let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-          let f_c = {c with lval=Some f_lval} in
-          value_invariant ~offset f_c v
+          value_invariant ~offset ~lval:(Some f_lval) v
         | `Top
         | `Bot ->
           Invariant.none

@@ -39,12 +39,6 @@ let ( && ) = meet
 let ( || ) = join
 
 
-
-type context1 = {
-  path: int option;
-  lval: lval option;
-}
-
 type context = {
   path: int option;
   lvals: CilLval.Set.t;

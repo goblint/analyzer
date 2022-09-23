@@ -1099,8 +1099,8 @@ struct
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
 
-    let rec ad_invariant ~vs ~offset c x =
-      let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let rec ad_invariant ~vs ~offset ~lval x =
+      let c_exp = Cil.(Lval (Option.get lval)) in
       let i_opt = AD.fold (fun addr acc_opt ->
           BatOption.bind acc_opt (fun acc ->
               match addr with
@@ -1125,7 +1125,7 @@ struct
                   else
                     Invariant.none
                 in
-                let i_deref = deref_invariant ~vs c vi offset (Mem c_exp, NoOffset) in
+                let i_deref = deref_invariant ~vs ~lval vi offset (Mem c_exp, NoOffset) in
 
                 Some (Invariant.(acc || (i && i_deref)))
               | Addr.NullPtr ->
@@ -1147,45 +1147,44 @@ struct
       | Some i -> i
       | None -> Invariant.none
 
-    and blob_invariant ~vs ~offset c (v, _, _) =
-      vd_invariant ~vs ~offset c v
+    and blob_invariant ~vs ~offset ~lval (v, _, _) =
+      vd_invariant ~vs ~offset ~lval v
 
-    and vd_invariant ~vs ~offset c = function
+    and vd_invariant ~vs ~offset ~lval = function
       | `Int n ->
-        let e = Lval (BatOption.get c.Invariant.lval) in
+        let e = Lval (Option.get lval) in
         if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
           ID.invariant e n
         else
           Invariant.none
       | `Float n ->
-        let e = Lval (BatOption.get c.Invariant.lval) in
+        let e = Lval (Option.get lval) in
         if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
           FD.invariant e n
         else
           Invariant.none
-      | `Address n -> ad_invariant ~vs ~offset c n
-      | `Blob n -> blob_invariant ~vs ~offset c n
-      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
-      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+      | `Address n -> ad_invariant ~vs ~offset ~lval n
+      | `Blob n -> blob_invariant ~vs ~offset ~lval n
+      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
       | _ -> Invariant.none (* TODO *)
 
-    and deref_invariant ~vs c vi offset lval =
+    (* TODO: remove duplicate lval arguments? *)
+    and deref_invariant ~vs ~lval vi offset lval' =
       let v = CPA.find vi cpa in
-      key_invariant_lval ~vs c vi offset lval v
+      key_invariant_lval ~vs ~lval vi offset lval' v
 
-    and key_invariant_lval ~vs c k offset lval v =
+    and key_invariant_lval ~vs ~lval k offset lval' v =
       if not (VS.mem k vs) then
         let vs' = VS.add k vs in
-        let key_context: Invariant.context1 = {c with lval=Some lval} in
-        vd_invariant ~vs:vs' ~offset key_context v
+        vd_invariant ~vs:vs' ~offset ~lval:(Some lval') v
       else
         Invariant.none
     in
 
     let cpa_invariant =
-      let context1: Invariant.context1 = {path = context.Invariant.path; lval = None} in
-      let key_invariant k ?(offset=NoOffset) v = key_invariant_lval ~vs:VS.empty context1 k offset (var k) v in
-      if CilLval.Set.is_top context.lvals then (
+      let key_invariant k ?(offset=NoOffset) v = key_invariant_lval ~vs:VS.empty ~lval:None k offset (var k) v in
+      if CilLval.Set.is_top context.Invariant.lvals then (
         CPA.fold (fun k v a ->
             let i =
               if not (InvariantCil.var_is_heap k) then
