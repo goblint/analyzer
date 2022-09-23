@@ -1,10 +1,6 @@
-<<<<<<< HEAD
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.base.privatization none --set ana.relation.privatization top
-=======
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization top
 #include <assert.h>
 
->>>>>>> master
 extern int __VERIFIER_nondet_int();
 
 void otherchange(int* ptr) {

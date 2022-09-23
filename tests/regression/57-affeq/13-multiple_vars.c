@@ -5,5 +5,5 @@ int f (int j) {
 }
 int main() {
     int test = f(10);
-    assert (test == 11);
+    __goblint_check(test == 11);
   }

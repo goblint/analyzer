@@ -9,11 +9,11 @@ int main() {
   if (two == three) {
       p = 1;
   }
-  assert(p == 0);
+  __goblint_check(p == 0);
 
   int k = 0;
   if (two + 3 == 5) {
       k = 1;
   }
-  assert(k == 1);
+  __goblint_check(k == 1);
 }

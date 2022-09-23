@@ -1,17 +1,12 @@
-open Cil
+open GoblintCil
 open Prelude
 open Apron
 module M = Messages
 
 
 module BI = IntOps.BigIntOps
-module type Tracked =
-sig
-  val type_tracked: typ -> bool
-  val varinfo_tracked: varinfo -> bool
-end
 
-module Tracked: Tracked =
+module Tracked: RelationDomain.Tracked =
 struct
   let is_pthread_int_type = function
     | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
@@ -85,7 +80,7 @@ sig
 end
 
 (** Conversion from CIL expressions to Apron. *)
-module ApronOfCil (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: Tracked) =
+module ApronOfCil (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked) =
 struct
   open Texpr1
   open Tcons1
@@ -145,7 +140,7 @@ struct
             | _ ->
               raise (Unsupported_CilExp Exp_not_supported)
           in
-          if not (IntDomain.should_ignore_overflow ik) then ( (*ToDo URGENT! Introduce Improved Overflow Handling again*)
+          if not no_ov then (
             let (type_min, type_max) = IntDomain.Size.range ik in
             let texpr1 = Texpr1.of_expr env expr in
             match Bounds.bound_texpr d texpr1 with
@@ -277,7 +272,7 @@ struct
 end
 
 (** Conversion between CIL expressions and Apron. *)
-module Convert (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: Tracked)=
+module Convert (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked)=
 struct
   include ApronOfCil (V) (Bounds) (Arg) (Tracked)
   include CilOfApron (V)
@@ -323,9 +318,8 @@ end
 
 module type AssertionRelS =
 sig
-  module Bounds: ConvBounds
-
-  include RelationDomain.RelS with type t = Bounds.t
+  type t
+  module Bounds: ConvBounds with type t = t
 
   val is_bot_env: t -> bool
 
@@ -337,9 +331,10 @@ end
 module AssertionModule (V: SV) (AD: AssertionRelS) =
 struct
   include AD
-  include Tracked
+  type nonrec var = V.t
+  module Tracked = Tracked
 
-  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (RelationDomain.Tracked)
+  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (Tracked)
 
   let rec exp_is_cons = function
   (* constraint *)
@@ -362,7 +357,7 @@ struct
     assert_cons d e' negate no_ov
 
 
-  let eval_interval_expr d e no_ov =
+  let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (env d) e false with
     | texpr1 -> 
       Bounds.bound_texpr d texpr1
@@ -392,7 +387,7 @@ let eval_int d e no_ov =
       | `False -> ID.of_bool ik false
       | `Top -> ID.top_of ik
     else
-      match eval_interval_expr d e no_ov with
+      match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max

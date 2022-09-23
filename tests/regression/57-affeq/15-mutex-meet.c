@@ -1,4 +1,4 @@
-//SKIP PARAM:  --set ana.activated[+] "apron" --set ana.apron.domain "affeq" --set ana.affeq.matrix "array" --set sem.int.signed_overflow assume_none --set ana.relation.privatization mutex-meet
+//SKIP PARAM:  --set ana.activated[+] "affeq" --set ana.apron.domain "affeq" --set ana.affeq.matrix "array" --set sem.int.signed_overflow assume_none --set ana.relation.privatization mutex-meet
 
 #include <assert.h>
 
@@ -20,6 +20,6 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
     pthread_mutex_lock(&A);
     pthread_mutex_unlock(&A);
-    assert(g == 42);
+    __goblint_check(g == 42);
   return 0;
 }

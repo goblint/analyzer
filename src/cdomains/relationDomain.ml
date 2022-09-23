@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 
 module type Var =
 sig
@@ -101,11 +101,19 @@ sig
   val to_cil_exp: t -> exp Option.t
 end
 
-module type RelS  =
+module type Tracked =
+sig
+  val type_tracked: typ -> bool
+  val varinfo_tracked: varinfo -> bool
+end
+
+module type S2 =
 sig
   type t
   type var
   type marshal
+
+  module Tracked: Tracked
 
   include Lattice.S with type t:= t
   val is_bot_env : t -> bool
@@ -128,31 +136,13 @@ sig
   val marshal: t -> marshal
   val unmarshal: marshal -> t
   val mem_var: t -> var -> bool
-end
-
-module Tracked =
-struct
-  let type_tracked typ =
-    isIntegralType typ
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype && not vi.vaddrof
-end
-
-module type RelS2 =
-sig
-  include RelS
-
-  val type_tracked : typ -> bool
-  val varinfo_tracked : varinfo -> bool
   val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
-module type RelS3 =
+module type S3 =
 sig
-  include RelS2
+  include S2
 
   type consSet
 
@@ -163,7 +153,7 @@ sig
   val invariant: scope:Cil.fundec -> t -> consSet list
 end
 
-module NoInvariantRelD2 (D2: RelS2) : RelS3 with type var = D2.var =
+module NoInvariantRelD3 (D2: S2) : S3 with type var = D2.var =
 struct
   include D2
 
@@ -181,9 +171,9 @@ type ('a, 'b) relcomponents_t = {
   priv: 'b;
 } [@@deriving eq, ord, hash, to_yojson]
 
-module RelComponents (D3: RelS3) (PrivD: Lattice.S):
+module RelComponents (D3: S3) (PrivD: Lattice.S):
 sig
-  module AD: RelS3
+  module AD: S3
   include Lattice.S with type t = (D3.t, PrivD.t) relcomponents_t
 end =
 struct
@@ -244,5 +234,5 @@ module type RD =
 sig
   module Var : Var
   module V : module type of struct include V(Var) end
-  include RelS3 with type var = Var.t
+  include S3 with type var = Var.t
 end

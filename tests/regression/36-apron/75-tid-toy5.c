@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --sets ana.relation.privatization mutex-meet-tid
-=======
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.apron.privatization mutex-meet-tid
->>>>>>> master
 #include <pthread.h>
 #include <assert.h>
 

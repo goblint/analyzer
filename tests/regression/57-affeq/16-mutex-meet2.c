@@ -40,6 +40,6 @@ int main(void) {
     pthread_mutex_unlock(&B);
   }
   // mine-w also reads 15 here by weak influence, so useless example
-  assert(g == 42);
+  __goblint_check(g == 42);
   return 0;
 }

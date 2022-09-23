@@ -5,6 +5,6 @@ int main() {
     int c = 2147483647;
     c = c + 1;
 
-   assert (c < 2147483647); //UNKNOWN!
+   __goblint_check(c < 2147483647); //UNKNOWN!
 
 }

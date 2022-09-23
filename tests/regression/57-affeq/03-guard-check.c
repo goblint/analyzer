@@ -10,33 +10,33 @@ void main(void) {
 
     //EQ
     if (x == 0) {
-        assert (x == 0);
+        __goblint_check(x == 0);
     }
 
     if (i == 0) {
-        assert (1); // reachable
+        __goblint_check(1); // reachable
     }
-    assert (2 * z == 2 * i + 2 * k);
-    assert (2 * f == 2 * x + 2 * y);
+    __goblint_check(2 * z == 2 * i + 2 * k);
+    __goblint_check(2 * f == 2 * x + 2 * y);
 
     //DISEQ
     if (i != 1) {
-       assert (1); // reachable
+       __goblint_check(1); // reachable
     }
 
     //SUP
     if (i > -1) {
-        assert (1); // reachable
+        __goblint_check(1); // reachable
     }
-    assert (f > x + y); //FAIL
-    assert (z > i + k); //FAIL
+    __goblint_check(f > x + y); //FAIL
+    __goblint_check(z > i + k); //FAIL
 
     //SUPEQ
     if (i >= -1) {
-        assert (1); // reachable
+        __goblint_check(1); // reachable
     }
-    assert (f < x + y); //FAIL
-    assert (f >= x + y);
-    assert (z >= i + k + 5); //FAIL
+    __goblint_check(f < x + y); //FAIL
+    __goblint_check(f >= x + y);
+    __goblint_check(z >= i + k + 5); //FAIL
 
 }

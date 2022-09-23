@@ -36,8 +36,8 @@ module type S =
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
     val threadenter: Q.ask -> (V.t -> G.t) -> relation_components_t -> relation_components_t
 
-    val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
-    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+    val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> relation_components_t -> relation_components_t
+    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> relation_components_t -> relation_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
     val init: unit -> unit
@@ -424,7 +424,7 @@ struct
       | Some (Global g) -> is_protected_by ask m g
       | _ -> false
     in
-    AD.keep_filter oct protected
+    RD.keep_filter oct protected
 end
 
 (** Per-mutex meet. *)
@@ -571,7 +571,7 @@ struct
 
   let escape node ask getg sideg (st:relation_components_t) escaped : relation_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
-    let esc_vars = List.filter (fun v -> not v.vglob && RD.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
+    let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
     let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
@@ -1043,7 +1043,7 @@ struct
       let l' = L.add lm rel_side l in
       {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
 
-  let thread_join ?(force=false) (ask:Q.ask) getg exp (st: apron_components_t) =
+  let thread_join ?(force=false) (ask:Q.ask) getg exp (st: relation_components_t) =
     let w,lmust,l = st.priv in
     let tids = ask.f (Q.EvalThread exp) in
     if force then (
@@ -1109,7 +1109,7 @@ struct
 
   let escape node ask getg sideg (st: relation_components_t) escaped: relation_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
-    let esc_vars = List.filter (fun v -> not v.vglob && RD.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
+    let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
     let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 

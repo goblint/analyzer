@@ -1,5 +1,4 @@
-open Prelude
-open Pretty
+open Prelude.Ana
 module M = Messages
 open Apron
 open VectorMatrix
@@ -202,14 +201,14 @@ struct
   let bound_texpr d texpr1 = Stats.time "bounds calculation" (bound_texpr d) texpr1
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.AssertionRelS with type var = V.t)=
+module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
 struct
   include ConvenienceOps (Mpqf)
   include VarManagement (Vc) (Mx)
 
   module Bounds = ExpressionBounds (Vc) (Mx)
 
-  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (RelationDomain.Tracked)
+  module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
 
   type var = V.t
 
@@ -600,5 +599,11 @@ struct
   let marshal t = t
 
   let unmarshal t = t
+end
 
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S2 with type var = Var.t =
+struct
+    module D =  D (Vc) (Mx)
+    include SharedFunctions.AssertionModule (V) (D)
+    include D
 end

@@ -7,6 +7,6 @@ int main() {
   int x, y;
   if (x == three && y/x == two) {
     // y could for example also be 7
-    assert(y == six);  // UNKNOWN!
+    __goblint_check(y == six);  // UNKNOWN!
   }
 }

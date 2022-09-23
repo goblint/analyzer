@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.apron.privatization mutex-meet-tid
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.relation.privatization mutex-meet-tid
 // Modification of 19 that would fail if pthread_exit was only handled for the top-level thread
 #include <pthread.h>
 #include <assert.h>

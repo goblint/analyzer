@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.base.privatization none --set ana.relation.privatization mutex-meet
-=======
-// SKIP PARAM: --set ana.activated[+] apron --set ana.base.privatization none --set ana.apron.privatization mutex-meet
->>>>>>> master
+// SKIP PARAM: --set ana.activated[+] apron --set ana.base.privatization none --set ana.relation.privatization mutex-meet
 // Copy of 45 01 for apron
 #include <pthread.h>
 #include <assert.h>

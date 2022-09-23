@@ -11,5 +11,5 @@ int main() {
         t = 10;
     }
 
-    assert (t == 10); //UNKNOWN!
+    __goblint_check(t == 10); //UNKNOWN!
 }

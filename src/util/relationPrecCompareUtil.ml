@@ -10,7 +10,7 @@ end
 
 (* Currently serialization of Apron results only works for octagons. *)
 module type Util =
-  functor (D2: RelationDomain.RelS2) ->
+  functor (D2: RelationDomain.S2) ->
   sig
     include module type of struct include Util (MyNode) (D2) end
     type marshal
@@ -23,7 +23,7 @@ module type Util =
   end
 
 module DummyUtil : Util =
-  functor (D2: RelationDomain.RelS2) ->
+  functor (D2: RelationDomain.S2) ->
   struct
     include Util (MyNode) (D2)
     type marshal = D2.marshal RH.t

@@ -126,37 +126,6 @@ end
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
-let int_of_scalar ?round (scalar: Scalar.t) =
-  if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
-    None
-  else
-    match scalar with
-    | Float f -> (* octD, boxD *)
-      (* bound_texpr on bottom also gives Float even with MPQ *)
-      let f_opt = match round with
-        | Some `Floor -> Some (Float.floor f)
-        | Some `Ceil -> Some (Float.ceil f)
-        | None when Stdlib.Float.is_integer f-> Some f
-        | None -> None
-      in
-      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
-    | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
-      let n = Mpqf.get_num scalar in
-      let d = Mpqf.get_den scalar in
-      let z_opt =
-        if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
-          Some n
-        else
-          begin match round with
-            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
-            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
-            | None -> None
-          end
-      in
-      Option.map Z_mlgmpidl.z_of_mpzf z_opt
-    | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
-
 module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
@@ -199,7 +168,7 @@ sig
   val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
   val substitute_exp_with : t -> Var.t -> exp -> bool Lazy.t-> unit
   val substitute_exp_parallel_with :
-    t -> (Var.t * exp) list -> bool -> unit
+    t -> (Var.t * exp) list -> bool Lazy.t -> unit
   val substitute_var_with : t -> Var.t -> Var.t -> unit
 end
 
@@ -207,6 +176,17 @@ module type AOpsImperativeCopy =
 sig
   include AOpsImperative
   val copy : t -> t
+end
+
+module type AOpsPT =
+sig
+type t
+val remove_vars_pt_with : t -> Var.t list -> t
+val remove_filter_pt_with: t -> (Var.t -> bool) -> t
+
+val assign_var_parallel_pt_with : t -> (Var.t * Var.t) list -> t
+
+val copy_pt : t -> t
 end
 
 (** Default implementations of pure functions from [copy] and imperative functions. *)
@@ -253,6 +233,17 @@ struct
     nd
 end
 
+module AOpsImperativePT(AImp: AOpsImperativeCopy): AOpsPT with type t = AImp.t =
+struct
+open AImp
+type nonrec t = t
+
+let remove_vars_pt_with t vars = remove_vars_with t vars; t
+let remove_filter_pt_with t f = remove_filter_with t f; t
+let assign_var_parallel_pt_with t vars = assign_var_parallel_with t vars; t
+let copy_pt = copy
+end
+
 (** Extra functions that don't have the pure-imperative correspondence. *)
 module type AOpsExtra =
 sig
@@ -269,12 +260,18 @@ sig
   val meet_tcons : t -> Tcons1.t -> exp -> t
   val to_lincons_array : t -> Lincons1.earray
   val of_lincons_array : Lincons1.earray -> t
+  val get_cons_size: Lincons1Set.elt -> int
+
+  val cons_to_cil_exp:  scope:Cil.fundec -> Lincons1Set.elt -> exp Option.t
+
+  val invariant: scope:Cil.fundec -> t -> Lincons1Set.elt list
 end
 
 module type AOps =
 sig
   include AOpsExtra
   include AOpsImperative with type t := t
+  include AOpsPT with type t := t
   include AOpsPure with type t := t
 end
 
@@ -287,11 +284,11 @@ struct
 
   type t = Man.mt A.t
 
+  type var = Var.t
+
   let env t = A.env t
 
   let copy = A.copy Man.mgr
-
-  let copy_pt = copy
 
   let vars_as_array d =
     let ivs, fvs = Environment.vars (A.env d) in
@@ -364,7 +361,7 @@ struct
     A.forget_array_with Man.mgr nd vs' false
 
   let assign_exp_with nd v e no_ov =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e (Lazy.force no_ov) with
     | texpr1 ->
       if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
@@ -435,9 +432,8 @@ struct
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
-  let substitute_exp_with nd v e ov =
-    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
-    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
+  let substitute_exp_with nd v e no_ov =
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e (Lazy.force no_ov) with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
@@ -451,7 +447,7 @@ struct
       ves
       |> List.enum
       |> Enum.map (Tuple2.map2 (fun e ->
-          match Convert.texpr1_of_cil_exp nd env e no_ov with
+          match Convert.texpr1_of_cil_exp nd env e (Lazy.force no_ov) with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
@@ -504,6 +500,12 @@ struct
   let of_lincons_array (a: Apron.Lincons1.earray) =
     A.of_lincons_array Man.mgr a.array_env a
   let unify (a:t) (b:t) = A.unify Man.mgr a b
+
+  type consSet = Lincons1Set.elt
+
+  let get_cons_size (c: Apron.Lincons1.t) = Apron.Linexpr0.get_size c.lincons0.linexpr0
+
+  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 scope cons
 end
 
 module AOps (Tracked: Tracked) (Man: Manager) =
@@ -511,6 +513,7 @@ struct
   module AO0 = AOps0 (Tracked) (Man)
   include AO0
   include AOpsPureOfImperative (AO0)
+  include AOpsImperativePT(AO0)
 end
 
 module type SPrintable =
@@ -914,39 +917,24 @@ struct
 end
 
 module type S2 =
+(*ToDo ExS3 or better extend RelationDomain.S3 directly?*)
 sig
   module Man: Manager
-  module Tracked : SharedFunctions.Tracked
   include module type of AOps (Tracked) (Man)
-  include SharedFunctions.Tracked
   include SLattice with type t = Man.mt A.t
 
-  include RelS3 with type t = Man.mt A.t and type var = SharedFunctions.Var.t and type consSet = Lincons1Set.elt
+  include S3 with type t = Man.mt A.t and type var = Var.t and type consSet = Lincons1Set.elt
 
   val exp_is_cons : exp -> bool
   val assert_cons : t -> exp -> bool -> bool Lazy.t -> t
 end
 
+
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
-  module DWO = struct 
-    include DWithOps (Man) (DHetero (Man))
-    type var = SharedFunctions.Var.t
-
-    let remove_vars_pt_with t vars = remove_vars_with t vars; t
-
-    let remove_filter_pt_with t f = remove_filter_with t f; t
-
-    let assign_var_parallel_pt_with t vars = assign_var_parallel_with t vars; t
-
-    type consSet = Lincons1Set.elt
-
-    let get_cons_size (c: Apron.Lincons1.t) = Apron.Linexpr0.get_size c.lincons0.linexpr0
-
-    let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 scope cons
-  end
+  module DWO = DWithOps (Man) (DHetero (Man))
   include SharedFunctions.AssertionModule (V) (DWO)
-include DWO
+  include DWO
   module Tracked = Tracked
   module Man = Man
 end
@@ -957,6 +945,8 @@ module type S3 =
 sig
   include SLattice
   include AOps with type t := t
+
+  module Tracked: RelationDomain.Tracked
 
   val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
@@ -1062,7 +1052,10 @@ struct
   let meet_tcons (b, d) c e = (BoxD.meet_tcons b c e, D.meet_tcons d c e)
   let to_lincons_array (_, d) = D.to_lincons_array d
   let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
+  
+  let get_cons_size = D.get_cons_size
 
+  let cons_to_cil_exp =  D.cons_to_cil_exp
   let assert_inv (b, d) e n no_ov = (BoxD.assert_inv b e n no_ov, D.assert_inv d e n no_ov)
   let eval_int (_, d) = D.eval_int d
 
@@ -1079,6 +1072,8 @@ end
 module BoxProd (D: S3): S3 =
 struct
   module BP0 = BoxProd0 (D)
+  module Tracked = SharedFunctions.Tracked
   include BP0
+  include AOpsImperativePT (BP0)
   include AOpsPureOfImperative (BP0)
 end

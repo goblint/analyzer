@@ -8,10 +8,10 @@ int main() {
       p = 1;
     }
 
-    assert (p == 0);
+    __goblint_check(p == 0);
 
     if (x + y == __INT32_MAX__) {
-        assert (x + y == __INT32_MAX__);
+        __goblint_check(x + y == __INT32_MAX__);
     }
 
 }

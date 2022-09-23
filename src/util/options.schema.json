@@ -10,8 +10,6 @@
           "type": "string"
         },
         "default": []
-      },
-      "default": []
     },
     "outfile": {
       "title": "outfile",
@@ -252,18 +250,60 @@
           "additionalProperties": false
         }
       },
-      "justcil": {
-        "title": "justcil",
-        "description": "Just parse and output the CIL.",
-        "type": "boolean",
+      "additionalProperties": false
+    },
+    "cil": {
+      "title": "cil",
+      "description": "CIL configuration",
+      "type": "object",
+      "properties": {
+        "merge": {
+          "title": "cil.merge",
+          "type": "object",
+          "properties": {
+            "inlines": {
+              "title": "cil.merge.inlines",
+              "description": "Merge inline functions (by their body printout).",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "server": {
+      "title": "Server",
+      "description": "Server mode",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "server.enabled",
+          "description": "Enable server mode",
+          "type": "boolean",
         "default": false
       },
-      "justcfg": {
-        "title": "justcfg",
-        "description": "Only output the CFG in cfg.dot .",
+      "mode": {
+        "title": "server.mode",
+        "description": "Server transport mode",
+        "type": "string",
+        "enum": ["stdio", "unix"],
+        "default": "stdio"
+      },
+      "unix-socket": {
+        "title": "server.unix-socket",
+        "description": "The path to the UNIX socket",
+        "type": "string",
+        "default": "goblint.sock"
+      },
+      "reparse": {
+        "title": "server.reparse",
+        "description": "Reparse source files before each analysis run",
         "type": "boolean",
         "default": false
-      },
+      }
+    },
       "additionalProperties": false
     },
     "ana": {
@@ -384,162 +424,6 @@
               "default": false
             }
           },
-          "includes": {
-            "title": "pre.includes",
-            "description": "List of directories to include.",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "kernel_includes": {
-            "title": "pre.kernel_includes",
-            "description": "List of kernel directories to include.",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "additionalProperties": false
-        },
-        "opt": {
-          "title": "ana.opt",
-          "type": "object",
-          "properties": {
-            "hashcons": {
-              "title": "ana.opt.hashcons",
-              "description":
-                "Should we try to save memory and speed up equality by hashconsing?",
-              "type": "boolean",
-              "default": true
-            },
-            "equal": {
-              "title": "ana.opt.equal",
-              "description":
-                "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags).",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "cppflags": {
-            "title": "pre.cppflags",
-            "description": "Pre-processing parameters.",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "compdb": {
-            "title": "pre.compdb",
-            "type": "object",
-            "properties": {
-              "original-path": {
-                "title": "pre.compdb.original-path",
-                "description":
-                  "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
-                "type": "string",
-                "default": ""
-              },
-              "split": {
-                "title": "pre.compdb.split",
-                "description": "Split Compilation Database entries containing multiple .c files.",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "limit-string-addresses": {
-              "title": "ana.base.limit-string-addresses",
-              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
-              "type": "boolean",
-              "default": true
-            },
-            "partition-arrays": {
-              "title": "ana.base.partition-arrays",
-              "type": "object",
-              "properties": {
-                "keep-expr": {
-                  "title": "ana.base.partition-arrays.keep-expr",
-                  "description":
-                    "When using the partitioning which expression should be used for partitioning ('first', 'last')",
-                  "type": "string",
-                  "enum": ["first", "last"],
-                  "default": "first"
-                },
-                "partition-by-const-on-return": {
-                  "title": "ana.base.partition-arrays.partition-by-const-on-return",
-                  "description":
-                    "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
-                  "type": "boolean",
-                  "default": false
-                },
-                "smart-join": {
-                  "title": "ana.base.partition-arrays.smart-join",
-                  "description":
-                    "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
-                  "type": "boolean",
-                  "default": false
-                }
-              },
-              "interval": {
-                "title": "ana.int.interval",
-                "description":
-                  "Use IntDomain.Interval32: (int64 * int64) option.",
-                "type": "boolean",
-                "default": false
-              },
-              "enums": {
-                "title": "ana.int.enums",
-                "description":
-                  "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions.",
-                "type": "boolean",
-                "default": false
-              },
-              "congruence": {
-                "title": "ana.int.congruence",
-                "description":
-                  "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m",
-                "type": "boolean",
-                "default": false
-              },
-              "refinement": {
-                "title": "ana.int.refinement",
-                "description":
-                  "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
-                "type": "string",
-                "enum": ["never", "once", "fixpoint"],
-                "default": "never"
-              },
-              "def_exc_widen_by_join": {
-                "title": "ana.int.def_exc_widen_by_join",
-                "description":
-                  "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
-                "type": "boolean",
-                "default": false
-              },
-              "interval_narrow_by_meet": {
-                "title": "ana.int.interval_narrow_by_meet",
-                "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
-                "type": "boolean",
-                "default": false
-              },
-              "interval_threshold_widening": {
-                "title": "ana.int.interval_threshold_widening",
-                "description":
-                  "Use constants appearing in program as threshold for widening",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "file": {
-            "title": "ana.file",
-            "type": "object",
-            "properties": {
-              "optimistic": {
-                "title": "ana.file.optimistic",
-                "description": "Assume fopen never fails.",
-                "type": "boolean",
-                "default": false
-              }
-            },
             "additionalProperties": false
           },
           "spec": {
@@ -565,48 +449,6 @@
                   "Insert extra assertions into Promela code for debugging.",
                 "type": "boolean",
                 "default": true
-              }
-            },
-            "additionalProperties": false
-          },
-          "arinc": {
-            "title": "ana.arinc",
-            "type": "object",
-            "properties": {
-              "assume_success": {
-                "title": "ana.arinc.assume_success",
-                "description":
-                  "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it).",
-                "type": "boolean",
-                "default": true
-              },
-              "simplify": {
-                "title": "ana.arinc.simplify",
-                "description":
-                  "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call.",
-                "type": "boolean",
-                "default": true
-              },
-              "validate": {
-                "title": "ana.arinc.validate",
-                "description":
-                  "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables.",
-                "type": "boolean",
-                "default": true
-              },
-              "export": {
-                "title": "ana.arinc.export",
-                "description":
-                  "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way.",
-                "type": "boolean",
-                "default": true
-              },
-              "merge_globals": {
-                "title": "ana.arinc.merge_globals",
-                "description":
-                  "Merge all global return code variables into one.",
-                "type": "boolean",
-                "default": false
               }
             },
             "additionalProperties": false
@@ -698,124 +540,28 @@
                     "type": "boolean",
                     "default": true
                   },
-                  "additionalProperties": false
-                }
+                  "int": {
+                    "title": "ana.base.context.int",
+                    "description": "Integer values in function contexts.",
+                  "type": "boolean",
+                  "default": true
               },
-              "additionalProperties": false
-            },
-            "privatization": {
-              "title": "ana.base.privatization",
-              "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
-              "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
-              "default": "protection-read"
-            },
-            "invariant": {
-              "title": "ana.base.invariant",
-              "type": "object",
-              "properties": {
-                "enabled": {
-                  "title": "ana.base.invariant.enabled",
-                  "description": "Generate base analysis invariants",
+              "interval": {
+                "title": "ana.base.context.interval",
+                "description":
+                  "Integer values of the Interval domain in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
               },
               "additionalProperties": false
-            },
-            "eval": {
-              "title": "ana.base.eval",
-              "type": "object",
-              "properties": {
-                "deep-query": {
-                  "title": "ana.base.eval.deep-query",
-                  "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            }
           },
-          "additionalProperties": false
-        },
-        "malloc": {
-          "title": "ana.malloc",
-          "type": "object",
-          "properties": {
-            "wrappers": {
-              "title": "ana.malloc.wrappers",
-              "description":
-                "Loads a list of known malloc wrapper functions.",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": [
-                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
-                "kzalloc"
-              ]
-            },
-            "unique_address_count": {
-                "title": "ana.malloc.unique_address_count",
-                "description": "Number of unique memory addresses allocated for each malloc node.",
-                "type": "integer",
-                "default": 0
-            }
-          },
-          "additionalProperties": false
-        },
-        "apron": {
-          "title": "ana.apron",
-          "type": "object",
-          "properties": {
-            "context": {
-              "title": "ana.apron.context",
-              "description": "Entire relation in function contexts.",
+          "limit-string-addresses": {
+            "title": "ana.base.limit-string-addresses",
+            "description": "Limit abstract address sets to keep at most one distinct string pointer.",
               "type": "boolean",
               "default": true
             },
-            "strengthening": {
-              "title": "ana.apron.strengthening",
-              "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
-              "type": "boolean",
-              "default": false
-            },
-            "domain": {
-              "title": "ana.apron.domain",
-              "description":
-                "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
-              "type": "string",
-              "enum": ["octagon", "interval", "polyhedra"],
-              "default": "octagon"
-            },
-            "threshold_widening": {
-              "title": "ana.apron.threshold_widening",
-              "description":
-                "Use constants appearing in program as threshold for widening",
-              "type": "boolean",
-              "default": false
-            },
-            "privatization": {
-              "title": "ana.apron.privatization",
-              "description":
-                "Which apron privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
-              "type": "string",
-              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
-              "default": "mutex-meet"
-            },
-            "priv": {
-              "title": "ana.apron.priv",
-              "type": "object",
-              "properties": {
-                "not-started": {
-                  "title": "ana.apron.priv.not-started",
-                  "description":
-                    "Exclude writes from threads that may not be started yet",
-                  "type": "boolean",
-                  "default": true
-                },
-                "additionalProperties": false
-              },
               "partition-arrays": {
                 "title": "ana.base.partition-arrays",
                 "type": "object",
@@ -960,8 +706,55 @@
                   "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                   "kzalloc"
                 ]
+              },
+              "unique_address_count": {
+                  "title": "ana.malloc.unique_address_count",
+                  "description": "Number of unique memory addresses allocated for each malloc node.",
+                  "type": "integer",
+                  "default": 0
               }
             },
+            "additionalProperties": false
+          },
+          "apron": {
+            "title": "ana.apron",
+            "type": "object",
+            "properties": {
+            "strengthening": {
+              "title": "ana.apron.strengthening",
+              "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
+              "type": "boolean",
+              "default": false
+            },
+            "domain": {
+              "title": "ana.apron.domain",
+              "description":
+                "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
+              "type": "string",
+              "enum": ["octagon", "interval", "polyhedra", "affeq"],
+              "default": "octagon"
+            },
+            "threshold_widening": {
+              "title": "ana.apron.threshold_widening",
+              "description":
+                "Use constants appearing in program as threshold for widening",
+              "type": "boolean",
+              "default": false
+            },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
             "additionalProperties": false
           },
           "relation": {
@@ -1004,66 +797,96 @@
                 "additionalProperties": false
               },
               "invariant": {
-                "title": "ana.apron.invariant",
+                "title": "ana.relation.invariant",
                 "type": "object",
                 "properties": {
                   "one-var": {
-                    "title": "ana.apron.invariant.one-var",
+                    "title": "ana.relation.invariant.one-var",
                     "description": "Generate invariants with only one variable",
                     "type": "boolean",
                     "default": false
                   },
                   "local": {
-                    "title": "ana.apron.invariant.local",
+                    "title": "ana.relation.invariant.local",
                     "description": "Keep local variables in invariants",
                     "type": "boolean",
                     "default": true
                   },
                   "global": {
-                    "title": "ana.apron.invariant.global",
+                    "title": "ana.relation.invariant.global",
                     "description": "Keep global variables in invariants",
                     "type": "boolean",
                     "default": true
-                  },
-                  "diff-box": {
-                    "title": "ana.apron.invariant.diff-box",
-                    "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
-                    "type": "boolean",
-                    "default": false
                   }
                 },
                 "additionalProperties": false
               }
             },
-            "additionalProperties": false
+                "additionalProperties": false
+          },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "matrix":{
+              "title": "ana.affeq.matrix",
+              "description": "Which matrix should be used for the affine equality analysis",
+              "type": "string",
+              "enum": [
+                "list",
+                "array"
+              ],
+              "default": "array"
+            }
+          },
+          "additionalProperties": false
         },
-          "apron": {
-            "title": "ana.apron",
-            "type": "object",
-            "properties": {
-              "strengthening": {
-                "title": "ana.apron.strengthening",
-                "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
-                "type": "boolean",
-                "default": false
-              },
-              "domain": {
-                "title": "ana.apron.domain",
-                "description":
-                  "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval', 'polyhedra' or 'affeq'",
-                "type": "string",
-                "enum": [ "octagon", "interval", "polyhedra", "affeq"],
-                "default": "octagon"
-              },
-              "threshold_widening": {
-                "title": "ana.apron.threshold_widening",
-                "description":
-                  "Use constants appearing in program as threshold for widening",
-                "type": "boolean",
-                "default": false
+        "context": {
+          "title": "ana.context",
+          "type": "object",
+          "properties": {
+            "widen": {
+              "title": "ana.context.widen",
+              "description":
+                "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "thread": {
+          "title": "ana.thread",
+          "type": "object",
+          "properties": {
+            "domain": {
+              "title": "ana.thread.domain",
+              "description":
+                "Which domain should be used for the thread ids. Can be 'history' or 'plain'",
+              "type": "string",
+              "enum": ["history", "plain"],
+              "default": "history"
+            },
+            "include-node" : {
+              "title": "ana.thread.include-node",
+              "description":
+                "Whether the node at which a thread is created is part of its threadid",
+              "type": "boolean",
+              "default" : true
               }
             },
             "additionalProperties": false
+          },
+          "race": {
+            "title": "ana.race",
+            "type": "object",
+            "properties": {
+              "free": {
+                "title": "ana.race.free",
+                "description": "Consider memory free as racing write.",
+                "type": "boolean",
+                "default": true
+              }
           },
           "additionalProperties": false
         },
@@ -1185,65 +1008,6 @@
               "default": "equal"
             }
           },
-          "load-dir": {
-            "title": "incremental.load-dir",
-            "description": "Location where to load incremental analysis results from.",
-            "type": "string",
-            "default": "incremental_data"
-          },
-          "only-rename": {
-            "title": "incremental.only-rename",
-            "description":
-              "Only reset IDs of unchanged objects in the AST. Do  not reuse solver results. This option is mainly useful for benchmarking purposes.",
-            "type": "boolean",
-            "default": false
-          },
-          "save": {
-            "title": "incremental.save",
-            "description": "Store incremental analysis results.",
-            "type": "boolean",
-            "default": false
-          },
-          "save-dir": {
-            "title": "incremental.save-dir",
-            "description": "Location where to save incremental analysis results to.",
-            "type": "string",
-            "default": "incremental_data"
-          },
-          "stable": {
-            "title": "incremental.stable",
-            "description":
-              "Reuse the stable set and selectively destabilize it (recommended).",
-            "type": "boolean",
-            "default": true
-          },
-          "wpoint": {
-            "title": "incremental.wpoint",
-            "description":
-              "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points.",
-            "type": "boolean",
-            "default": false
-          },
-          "reluctant": {
-            "title": "incremental.reluctant",
-            "type": "object",
-            "properties": {
-              "on": {
-                "title": "incremental.reluctant.on",
-                "description":
-                  "Destabilize nodes in changed functions reluctantly",
-                "type": "boolean",
-                "default": true
-              },
-              "compare": {
-                "title": "incremental.reluctant.compare",
-                "description":
-                  "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
-                "type": "string",
-                "enum": ["leq", "equal"],
-                "default": "leq"
-              }
-            },
             "additionalProperties": false
           },
           "compare": {
@@ -1262,182 +1026,6 @@
                 "title": "incremental.force-reanalyze.funs",
                 "description":
                   "List of functions that are to be re-analayzed from scratch",
-                "type": "array",
-                "items": { "type": "string" },
-                "default": []
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "sem": {
-        "title": "Semantics",
-        "description": "Options for semantics",
-        "type": "object",
-        "properties": {
-          "unknown_function": {
-            "title": "sem.unknown_function",
-            "type": "object",
-            "properties": {
-              "spawn": {
-                "title": "sem.unknown_function.spawn",
-                "description":
-                  "Unknown function call spawns reachable functions",
-                "type": "boolean",
-                "default": true
-              },
-              "invalidate": {
-                "title": "sem.unknown_function.invalidate",
-                "type": "object",
-                "properties": {
-                  "globals": {
-                    "title": "sem.unknown_function.invalidate.globals",
-                    "description":
-                      "Unknown function call invalidates all globals",
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "args": {
-                    "title": "sem.unknown_function.invalidate.args",
-                    "description":
-                      "Unknown function call invalidates arguments passed to it",
-                    "type": "boolean",
-                    "default": true
-                  }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "builtin_unreachable": {
-            "title": "sem.builtin_unreachable",
-            "type": "object",
-            "properties": {
-              "dead_code": {
-                "title": "sem.builtin_unreachable.dead_code",
-                "description":
-                  "__builtin_unreachable is assumed to be dead code",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "int": {
-            "title": "sem.int",
-            "type": "object",
-            "properties": {
-              "signed_overflow": {
-                "title": "sem.int.signed_overflow",
-                "description":
-                  "How to handle overflows of signed types. Values: 'assume_top' (default): Assume signed overflow results in a top value; 'assume_none': Assume program is free of signed overflows;  'assume_wraparound': Assume signed types wrap-around and two's complement representation of signed integers",
-                "type": "string",
-                "enum": ["assume_top", "assume_none", "assume_wraparound"],
-                "default": "assume_top"
-              }
-            },
-            "additionalProperties": false
-          },
-          "malloc": {
-            "title": "sem.malloc",
-            "type": "object",
-            "properties": {
-              "fail": {
-                "title": "sem.malloc.fail",
-                "description":
-                  "Consider the case where malloc or calloc fails.",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "lock": {
-            "title": "sem.lock",
-            "type": "object",
-            "properties": {
-              "fail": {
-                "title": "sem.lock.fail",
-                "description":
-                  "Takes the possible failing of locking operations into account.",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "trans": {
-        "title": "Transformations",
-        "description": "Options for transformations",
-        "type": "object",
-        "properties": {
-          "activated": {
-            "title": "trans.activated",
-            "description":
-              "Lists of activated transformations in this phase. Transformations happen after analyses.",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "expeval": {
-            "title": "trans.expeval",
-            "type": "object",
-            "properties": {
-              "query_file_name": {
-                "title": "trans.expeval.query_file_name",
-                "description":
-                  "Path to the JSON file containing an expression evaluation query.",
-                "type": "string",
-                "default": ""
-              }
-            },
-            "additionalProperties": false
-          },
-          "output" : {
-            "title": "trans.output",
-            "description": "Output filename for transformations that output a transformed file.",
-            "type":"string",
-            "default": "transformed.c"
-          }
-        },
-        "additionalProperties": false
-      },
-      "annotation": {
-        "title": "Annotation",
-        "description": "Options for annotations",
-        "type": "object",
-        "properties": {
-          "int": {
-            "title": "annotation.int",
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "title": "annotation.int.enabled",
-                "description":
-                  "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains.",
-                "type": "boolean",
-                "default": false
-              },
-              "privglobs": {
-                "title": "annotation.int.privglobs",
-                "description":
-                  "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true.",
-                "type": "boolean",
-                "default": true
-              }
-            },
-            "additionalProperties": false
-          },
-          "goblint_context": {
-            "title": "annotation.goblint_context",
-            "type": "object",
-            "additionalProperties": {
               "type": "array",
               "items": {
                 "type": "string"
@@ -1738,721 +1326,20 @@
             "default": []
           }
         },
-        "additionalProperties": false
-      },
-      "exp": {
-        "title": "Experimental",
-        "description": "Experimental features",
-        "type": "object",
-        "properties": {
-          "priv-prec-dump": {
-            "title": "exp.priv-prec-dump",
-            "description": "File to dump privatization precision data to.",
-            "type": "string",
-            "default": ""
-          },
-          "priv-distr-init": {
-            "title": "exp.priv-distr-init",
-            "description":
-              "Distribute global initializations to all global invariants for more consistent widening dynamics.",
-            "type": "boolean",
-            "default": false
-          },
-          "apron": {
-            "title": "exp.apron",
-            "type": "object",
-            "properties": {
-              "prec-dump": {
-                "title": "exp.apron.prec-dump",
-                "description": "File to dump apron precision data to.",
-                "type": "string",
-                "default": ""
-              }
-            },
-            "additionalProperties": false
-          },
-          "cfgdot": {
-            "title": "exp.cfgdot",
-            "description": "Output CFG to dot files",
-            "type": "boolean",
-            "default": false
-          },
-          "mincfg": {
-            "title": "exp.mincfg",
-            "description": "Try to minimize the number of CFG nodes.",
-            "type": "boolean",
-            "default": false
-          },
-          "earlyglobs": {
-            "title": "exp.earlyglobs",
-            "description":
-              "Side-effecting of globals right after initialization.",
-            "type": "boolean",
-            "default": false
-          },
-          "region-offsets": {
-            "title": "exp.region-offsets",
-            "description": "Considers offsets for region accesses.",
-            "type": "boolean",
-            "default": false
-          },
-          "unique": {
-            "title": "exp.unique",
-            "description": "For types that have only one value.",
+        "goblint_precision": {
+          "title": "annotation.goblint_precision",
+          "type": "object",
+          "additionalProperties": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string",
+              "enum": ["no-def_exc", "def_exc", "no-interval", "interval", "no-enums", "enums", "no-congruence", "congruence"]
+            },
             "default": []
-          },
-          "forward": {
-            "title": "exp.forward",
-            "description":
-              "Use implicit forward propagation instead of the demand driven approach.",
-            "type": "boolean",
-            "default": false
-          },
-          "volatiles_are_top": {
-            "title": "exp.volatiles_are_top",
-            "description":
-              "volatile and extern keywords set variables permanently to top",
-            "type": "boolean",
-            "default": true
-          },
-          "single-threaded": {
-            "title": "exp.single-threaded",
-            "description": "Ensures analyses that no threads are created.",
-            "type": "boolean",
-            "default": false
-          },
-          "globs_are_top": {
-            "title": "exp.globs_are_top",
-            "description": "Set globals permanently to top.",
-            "type": "boolean",
-            "default": false
-          },
-          "exclude_from_earlyglobs": {
-            "title": "exp.exclude_from_earlyglobs",
-            "description":
-              "Global variables that should be handled flow-sensitively when using earlyglobs.",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "exclude_from_invalidation" : {
-            "title": "exp.exclude_from_invalidation",
-            "description":
-              "Global variables that should not be invalidated. This assures the analysis that such globals are only modified through known code",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "g2html_path": {
-            "title": "exp.g2html_path",
-            "description": "Location of the g2html.jar file.",
-            "type": "string",
-            "default": "."
-          },
-          "extraspecials": {
-            "title": "exp.extraspecials",
-            "description":
-              "List of functions that must be analyzed as unknown extern functions",
-            "type": "array",
-            "items": { "type": "string" },
-            "default": []
-          },
-          "no-narrow": {
-            "title": "exp.no-narrow",
-            "description": "Overwrite narrow a b = a",
-            "type": "boolean",
-            "default": false
-          },
-          "basic-blocks": {
-            "title": "exp.basic-blocks",
-            "description":
-              "Only keep values for basic blocks instead of for every node. Should take longer but need less space.",
-            "type": "boolean",
-            "default": false
-          },
-          "fast_global_inits": {
-            "title": "exp.fast_global_inits",
-            "description":
-              "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
-            "type": "boolean",
-            "default": true
-          },
-          "architecture": {
-            "title": "exp.architecture",
-            "description": "Architecture for analysis, currently for witness",
-            "type": "string",
-            "enum": ["64bit", "32bit"],
-            "default": "64bit"
-          },
-          "gcc_path": {
-            "title": "exp.gcc_path",
-            "description":
-              "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise).",
-            "type": "string",
-            "default": "/usr/bin/gcc"
-          },
-          "cpp-path": {
-            "title": "exp.cpp-path",
-            "description":
-              "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
-            "type": "string",
-            "default": ""
-          },
-          "unrolling-factor": {
-            "title": "exp.unrolling-factor",
-            "description":
-              "Sets the unrolling factor for the loopUnrollingVisitor.",
-            "type": "integer",
-            "default": 0
           }
-        },
-        "additionalProperties": false
-      },
-      "dbg": {
-        "title": "Debugging",
-        "description": "Debugging options",
-        "type": "object",
-        "properties": {
-          "debug": {
-            "title": "dbg.debug",
-            "description": "Debug mode: for testing the analyzer itself.",
-            "type": "boolean",
-            "default": false
-          },
-          "verbose": {
-            "title": "dbg.verbose",
-            "description": "Prints some status information.",
-            "type": "boolean",
-            "default": false
-          },
-          "trace": {
-            "title": "dbg.trace",
-            "type": "object",
-            "properties": {
-              "context": {
-                "title": "dbg.trace.context",
-                "description": "Also print the context of solver variables.",
-                "type": "boolean",
-                "default": false
               }
             },
             "additionalProperties": false
-          },
-          "uncalled": {
-            "title": "dbg.uncalled",
-            "description": "Display uncalled functions.",
-            "type": "boolean",
-            "default": true
-          },
-          "dump": {
-            "title": "dbg.dump",
-            "description": "Dumps the results to the given path",
-            "type": "string",
-            "default": ""
-          },
-          "cilout": {
-            "title": "dbg.cilout",
-            "description": "Where to dump cil output",
-            "type": "string",
-            "default": ""
-          },
-          "timeout": {
-            "title": "dbg.timeout",
-            "description":
-              "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60.",
-            "type": "string",
-            "default": "0"
-          },
-          "solver-stats-interval": {
-            "title": "dbg.solver-stats-interval",
-            "description":
-              "Interval in seconds to print statistics while solving. Set to 0 to deactivate.",
-            "type": "integer",
-            "default": 10
-          },
-          "solver-signal": {
-            "title": "dbg.solver-signal",
-            "description":
-              "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
-            "type": "string",
-            "default": "sigusr1"
-          },
-          "backtrace-signal": {
-            "title": "dbg.backtrace-signal",
-            "description":
-              "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
-            "type": "string",
-            "default": "sigusr2"
-          },
-          "solver-progress": {
-            "title": "dbg.solver-progress",
-            "description":
-              "Used for debugging. Prints out a symbol on solving a rhs.",
-            "type": "boolean",
-            "default": false
-          },
-          "print_wpoints": {
-            "title": "dbg.print_wpoints",
-            "description":
-              "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3.",
-            "type": "boolean",
-            "default": false
-          },
-          "print_dead_code": {
-            "title": "dbg.print_dead_code",
-            "description": "Print information about dead code",
-            "type": "boolean",
-            "default": false
-          },
-          "slice": {
-            "title": "dbg.slice",
-            "type": "object",
-            "properties": {
-              "on": {
-                "title": "dbg.slice.on",
-                "description": "Turn slicer on or off.",
-                "type": "boolean",
-                "default": false
-              },
-              "n": {
-                "title": "dbg.slice.n",
-                "description": "How deep function stack do we analyze.",
-                "type": "integer",
-                "default": 10
-              }
-            },
-            "additionalProperties": false
-          },
-          "limit": {
-            "title": "dbg.limit",
-            "type": "object",
-            "properties": {
-              "widen": {
-                "title": "dbg.limit.widen",
-                "description":
-                  "Limit for number of widenings per node (0 = no limit).",
-                "type": "integer",
-                "default": 0
-              }
-            },
-            "additionalProperties": false
-          },
-          "warn_with_context": {
-            "title": "dbg.warn_with_context",
-            "description":
-              "Keep warnings for different contexts apart (currently only done for asserts).",
-            "type": "boolean",
-            "default": false
-          },
-          "regression": {
-            "title": "dbg.regression",
-            "description":
-              "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)",
-            "type": "boolean",
-            "default": false
-          },
-          "test": {
-            "title": "dbg.test",
-            "type": "object",
-            "properties": {
-              "domain": {
-                "title": "dbg.test.domain",
-                "description": "Test domain properties",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "cilcfgdot": {
-            "title": "dbg.cilcfgdot",
-            "description": "Output dot files for CIL CFGs.",
-            "type": "boolean",
-            "default": false
-          },
-          "cfg": {
-            "title": "dbg.cfg",
-            "type": "object",
-            "properties": {
-              "loop-clusters": {
-                "title": "dbg.cfg.loop-clusters",
-                "description": "Add loop SCC clusters to CFG .dot output.",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "compare_runs": {
-            "title": "dbg.compare_runs",
-            "type": "object",
-            "properties": {
-              "globsys": {
-                "title": "dbg.compare_runs.globsys",
-                "description": "Compare GlobConstrSys in compare_runs",
-                "type": "boolean",
-                "default": false
-              },
-              "eqsys": {
-                "title": "dbg.compare_runs.eqsys",
-                "description": "Compare EqConstrSys in compare_runs",
-                "type": "boolean",
-                "default": true
-              },
-              "global": {
-                "title": "dbg.compare_runs.global",
-                "description": "Compare globals in compare_runs",
-                "type": "boolean",
-                "default": false
-              },
-              "node": {
-                "title": "dbg.compare_runs.node",
-                "description": "Compare nodes (with joined contexts) in compare_runs",
-                "type": "boolean",
-                "default": false
-              },
-              "diff": {
-                "title": "dbg.compare_runs.diff",
-                "description": "Print differences",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "print_tids": {
-            "title": "dbg.print_tids",
-            "description":
-              "Should the analysis print information on the encountered TIDs",
-            "type": "boolean",
-            "default": false
-          },
-          "print_protection": {
-            "title": "dbg.print_protection",
-            "description":
-              "Should the analysis print information on which globals are protected by which mutex?",
-            "type": "boolean",
-            "default": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "warn": {
-        "title": "Warnings",
-        "description": "Filtering of warnings",
-        "type": "object",
-        "properties": {
-          "assert": {
-            "title": "warn.assert",
-            "description": "Assert messages",
-            "type": "boolean",
-            "default": true
-          },
-          "behavior": {
-            "title": "warn.behavior",
-            "description": "undefined behavior warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "integer": {
-            "title": "warn.integer",
-            "description": "integer (Overflow, Div_by_zero) warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "cast": {
-            "title": "warn.cast",
-            "description": "Cast (Type_mismatch(bug) warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "race": {
-            "title": "warn.race",
-            "description": "Race warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "deadlock": {
-            "title": "warn.deadlock",
-            "description": "Deadlock warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "deadcode": {
-            "title": "warn.deadcode",
-            "description": "Dead code warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "analyzer": {
-            "title": "warn.analyzer",
-            "description": "Analyzer messages",
-            "type": "boolean",
-            "default": true
-          },
-          "unsound": {
-            "title": "warn.unsound",
-            "description": "Unsoundness messages",
-            "type": "boolean",
-            "default": true
-          },
-          "imprecise": {
-            "title": "warn.imprecise",
-            "description": "Imprecision messages",
-            "type": "boolean",
-            "default": true
-          },
-          "witness": {
-            "title": "warn.witness",
-            "description": "Witness messages",
-            "type": "boolean",
-            "default": true
-          },
-          "unknown": {
-            "title": "warn.unknown",
-            "description": "Unknown (of string) warnings",
-            "type": "boolean",
-            "default": true
-          },
-          "error": {
-            "title": "warn.error",
-            "description": "Error severity messages",
-            "type": "boolean",
-            "default": true
-          },
-          "warning": {
-            "title": "warn.warning",
-            "description": "Warning severity messages",
-            "type": "boolean",
-            "default": true
-          },
-          "info": {
-            "title": "warn.info",
-            "description": "Info severity messages",
-            "type": "boolean",
-            "default": true
-          },
-          "debug": {
-            "title": "warn.debug",
-            "description": "Debug severity messages",
-            "type": "boolean",
-            "default": false
-          },
-          "success": {
-            "title": "warn.success",
-            "description": "Success severity messages",
-            "type": "boolean",
-            "default": true
-          },
-          "quote-code": {
-            "title": "warn.quote-code",
-            "description": "Quote code in message output.",
-            "type": "boolean",
-            "default": false
-          },
-          "race-threshold": {
-            "title": "warn.race-threshold",
-            "description": "Races with confidence at least threshold are warnings, lower are infos.",
-            "type": "integer",
-            "default": 0
-          }
-        },
-        "additionalProperties": false
-      },
-      "solvers": {
-        "title": "solvers",
-        "type": "object",
-        "properties": {
-          "td3": {
-            "title": "solvers.td3",
-            "type": "object",
-            "properties": {
-              "term": {
-                "title": "solvers.td3.term",
-                "description":
-                  "Should the td3 solver use the phased/terminating strategy?",
-                "type": "boolean",
-                "default": true
-              },
-              "side_widen": {
-                "title": "solvers.td3.side_widen",
-                "description":
-                  "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
-                "type": "string",
-                "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
-                "default": "sides"
-              },
-              "space": {
-                "title": "solvers.td3.space",
-                "description":
-                  "Should the td3 solver only keep values at widening points?",
-                "type": "boolean",
-                "default": false
-              },
-              "space_cache": {
-                "title": "solvers.td3.space_cache",
-                "description": "Should the td3-space solver cache values?",
-                "type": "boolean",
-                "default": true
-              },
-              "space_restore": {
-                "title": "solvers.td3.space_restore",
-                "description":
-                  "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
-                "type": "boolean",
-                "default": true
-              },
-              "verify": {
-                "title": "solvers.td3.verify",
-                "description": "Check TD3 data structure invariants",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "slr4": {
-            "title": "solvers.slr4",
-            "type": "object",
-            "properties": {
-              "restart_count": {
-                "title": "solvers.slr4.restart_count",
-                "description":
-                  "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
-                "type": "integer",
-                "default": 1
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      "witness": {
-        "title": "witness",
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "title": "witness.enabled",
-            "description": "Output witness",
-            "type": "boolean",
-            "default": true
-          },
-          "path": {
-            "title": "witness.path",
-            "description": "Witness output path",
-            "type": "string",
-            "default": "witness.graphml"
-          },
-          "id": {
-            "title": "witness.id",
-            "description": "Which witness node IDs to use? node/enumerate",
-            "type": "string",
-            "enum": ["node", "enumerate"],
-            "default": "node"
-          },
-          "invariant": {
-            "title": "witness.invariant",
-            "type": "object",
-            "properties": {
-              "loop-head": {
-                "title": "witness.invariant.loop-head",
-                "description":
-                  "Emit invariants at loop heads",
-                "type": "boolean",
-                "default": true
-              },
-              "after-lock": {
-                "title": "witness.invariant.after-lock",
-                "description":
-                  "Emit invariants after mutex locking",
-                "type": "boolean",
-                "default": true
-              },
-              "other": {
-                "title": "witness.invariant.other",
-                "description":
-                  "Emit invariants at all other locations",
-                "type": "boolean",
-                "default": true
-              },
-              "split-conjunction": {
-                "title": "witness.invariant.split-conjunction",
-                "description": "Split conjunctive invariant to multiple invariants",
-                "type": "boolean",
-                "default": true
-              },
-              "full": {
-                "title": "witness.invariant.full",
-                "description":
-                  "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
-                "type": "boolean",
-                "default": true
-              }
-            },
-            "additionalProperties": false
-          },
-          "minimize": {
-            "title": "witness.minimize",
-            "description": "Try to minimize the witness",
-            "type": "boolean",
-            "default": false
-          },
-          "uncil": {
-            "title": "witness.uncil",
-            "description":
-              "Try to undo CIL control flow transformations in witness",
-            "type": "boolean",
-            "default": false
-          },
-          "stack": {
-            "title": "witness.stack",
-            "description": "Construct stacktrace-based witness nodes",
-            "type": "boolean",
-            "default": true
-          },
-          "unknown": {
-            "title": "witness.unknown",
-            "description": "Output witness for unknown result",
-            "type": "boolean",
-            "default": true
-          },
-          "yaml": {
-            "title": "witness.yaml",
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "title": "witness.yaml.enabled",
-                "description": "Output YAML witness",
-                "type": "boolean",
-                "default": false
-              },
-              "path": {
-                "title": "witness.yaml.path",
-                "description": "YAML witness output path",
-                "type": "string",
-                "default": "witness.yml"
-              },
-              "validate": {
-                "title": "witness.yaml.validate",
-                "description": "YAML witness input path",
-                "type": "string",
-                "default": ""
-              },
-              "certificate": {
-                "title": "witness.yaml.certificate",
-                "description": "YAML witness certificate output path",
-                "type": "string",
-                "default": "witness.certificate.yml"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      }
     },
     "exp": {
       "title": "Experimental",

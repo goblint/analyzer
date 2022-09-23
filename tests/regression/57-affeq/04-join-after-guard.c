@@ -10,6 +10,6 @@ void main(void) {
    } else {
        r = 10;
    }
-   assert (r == 10);
-   assert (d == 500); //UNKNOWN!
+   __goblint_check(r == 10);
+   __goblint_check(d == 500); //UNKNOWN!
 }
