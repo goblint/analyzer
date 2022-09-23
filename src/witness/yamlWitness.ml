@@ -64,6 +64,14 @@ struct
   }
 
   (* non-standard extension *)
+  let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
+    entry_type = FlowInsensitiveInvariant {
+      flow_insensitive_invariant = invariant;
+      };
+    metadata = metadata ~task ();
+  }
+
+  (* non-standard extension *)
   let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
     entry_type = PreconditionLoopInvariant {
         location;
@@ -155,6 +163,26 @@ struct
       }
     in
     Spec.query ctx
+
+  let ask_global (gh: EQSys.G.t GHT.t) =
+    (* copied from Control for WarnGlobal *)
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+      ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> ctx_failwith "No context in query context.")
+      ; context = (fun () -> ctx_failwith "No context in query context.")
+      ; edge    = MyCFG.Skip
+      ; local  = Spec.startstate dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *) (* TODO: is this startstate bad? *)
+      ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) (* TODO: how can be missing? *)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+      }
+    in
+    Spec.query ctx
 end
 
 module Make
@@ -224,7 +252,7 @@ struct
                   let entry = Entry.loop_invariant ~task ~location ~invariant in
                   entry :: acc
                 ) acc invs
-            | `Bot | `Top -> (* TODO: 0 for bot? *)
+            | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
               acc
           end
         end else begin
@@ -233,6 +261,25 @@ struct
       ) nh []
     in
 
+    (* Generate flow-insensitive invariants *)
+    let entries = GHT.fold (fun g v acc ->
+        match g with
+        | `Left g -> (* Spec global *)
+          begin match Query.ask_global gh (InvariantGlobal (Obj.repr g)) with
+            | `Lifted inv ->
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
+                  let invariant = Entry.invariant (CilType.Exp.show inv) in
+                  let entry = Entry.flow_insensitive_invariant ~task ~invariant in
+                  entry :: acc
+                ) acc invs
+            | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+              acc
+          end
+        | `Right _ -> (* contexts global *)
+          acc
+      ) gh entries
+    in
 
     (* Generate precondition invariants.
        We do this in three steps:

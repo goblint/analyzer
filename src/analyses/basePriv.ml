@@ -40,6 +40,8 @@ sig
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
   val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseComponents (D).t -> BaseComponents (D).t
 
+  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
+
   val init: unit -> unit
   val finalize: unit -> unit
 end
@@ -124,6 +126,9 @@ struct
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
+
+  let invariant_global getg g =
+    ValueDomain.invariant_global getg g
 end
 
 module PerMutexPrivBase =
@@ -155,6 +160,11 @@ struct
       | Some v, None
       | None, Some v -> Some v
       | None, None -> None
+
+  let read_unprotected_global getg x =
+    let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
+    (* None is VD.top () *)
+    get_mutex_global_x |? VD.bot ()
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
@@ -193,6 +203,13 @@ struct
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
+
+  let invariant_global getg g =
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (read_unprotected_global getg) g'
 end
 
 module PerMutexOplusPriv: S =
@@ -201,8 +218,7 @@ struct
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then
-      let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
-      get_mutex_global_x |? VD.bot ()
+      read_unprotected_global getg x
     else
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
@@ -271,9 +287,8 @@ struct
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then (
-      let get_mutex_global_x = get_mutex_global_x_with_mutex_inits getg x in
       (* If the global is unprotected, all appropriate information should come via the appropriate globals, local value may be too small due to stale values surviving widening *)
-      get_mutex_global_x |? VD.bot ()
+      read_unprotected_global getg x
     )
     else
       CPA.find x st.cpa
@@ -550,6 +565,21 @@ struct
     let _,lmust,l = st.priv in
     {st with cpa = new_cpa; priv = (W.bot (),lmust,l)}
 
+  let read_unprotected_global getg x =
+    let get_mutex_global_x = merge_all @@ G.mutex @@ getg (V.global x) in
+    let get_mutex_global_x' = CPA.find x get_mutex_global_x in
+    let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+    let get_mutex_inits' = CPA.find x get_mutex_inits in
+    VD.join get_mutex_global_x' get_mutex_inits'
+
+  let invariant_global getg g =
+    match g with
+    | `Left (`Left _) -> (* mutex *)
+      Invariant.none
+    | `Left (`Right g') -> (* global *)
+      ValueDomain.invariant_global (read_unprotected_global getg) g'
+    | `Right _ -> (* thread *)
+      Invariant.none
 end
 
 
@@ -690,6 +720,13 @@ struct
       vf (V.unprotected g);
       vf (V.protected g);
     | _ -> ()
+
+  let invariant_global getg g =
+    match g with
+    | `Left g' -> (* unprotected *)
+      ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
+    | `Right g -> (* protected *)
+      Invariant.none
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -725,11 +762,42 @@ struct
   end
 end
 
-module LockCenteredGBase =
+module type WeakRangeS =
+sig
+  include Lattice.S
+  val fold_weak: (VD.t -> 'a -> 'a) -> t -> 'a -> 'a
+  (** Fold over all values represented by weak range. *)
+end
+
+module AbstractLockCenteredBase (WeakRange: WeakRangeS) (SyncRange: Lattice.S) =
 struct
+  include AbstractLockCenteredGBase (WeakRange) (SyncRange)
+  include MutexGlobals
+
+  let invariant_global getg g =
+    match g with
+    | `Left _ -> (* mutex *)
+      Invariant.none
+    | `Right g' -> (* global *)
+      ValueDomain.invariant_global (fun x ->
+          GWeak.fold (fun s' tm acc ->
+              WeakRange.fold_weak VD.join tm acc
+            ) (G.weak (getg (V.global x))) (VD.bot ())
+        ) g'
+end
+
+module LockCenteredBase =
+struct
+  module VD =
+  struct
+    include VD
+
+    let fold_weak f v a = f v a
+  end
+
   (* weak: G -> (2^M -> D) *)
   (* sync: M -> (2^M -> (G -> D)) *)
-  include AbstractLockCenteredGBase (VD) (CPA)
+  include AbstractLockCenteredBase (VD) (CPA)
 end
 
 module MinePrivBase =
@@ -760,11 +828,16 @@ struct
   open Locksets
 
   module Thread = ThreadIdDomain.Thread
-  module ThreadMap = MapDomain.MapBot (Thread) (VD)
+  module ThreadMap =
+  struct
+    include MapDomain.MapBot (Thread) (VD)
+
+    let fold_weak f m a = fold (fun _ v a -> f v a) m a
+  end
 
   (* weak: G -> (2^M -> (T -> D)) *)
   (* sync: M -> (2^M -> (G -> D)) *)
-  include AbstractLockCenteredGBase (ThreadMap) (CPA)
+  include AbstractLockCenteredBase (ThreadMap) (CPA)
 
   let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
@@ -831,7 +904,7 @@ end
 module MineNoThreadPriv: S =
 struct
   include MineNaivePrivBase
-  include LockCenteredGBase
+  include LockCenteredBase
   open Locksets
 
   let read_global ask getg (st: BaseComponents (D).t) x =
@@ -893,7 +966,7 @@ end
 module MineWPriv (Param: MineWPrivParam): S =
 struct
   include MinePrivBase
-  include LockCenteredGBase
+  include LockCenteredBase
   open Locksets
 
   module W =
@@ -996,7 +1069,7 @@ end
 module LockCenteredPriv: S =
 struct
   include MinePrivBase
-  include LockCenteredGBase
+  include LockCenteredBase
   open Locksets
 
   open LockCenteredD
@@ -1124,23 +1197,28 @@ struct
   let threadenter = startstate_threadenter startstate
 end
 
-module WriteCenteredGBase =
+module WriteCenteredBase =
 struct
   open Locksets
 
-  module GWeakW = MapDomain.MapBot (Lockset) (VD)
+  module GWeakW =
+  struct
+    include MapDomain.MapBot (Lockset) (VD)
+
+    let fold_weak f m a = fold (fun _ v a -> f v a) m a
+  end
   module GSyncW = MapDomain.MapBot (Lockset) (CPA)
 
   (* weak: G -> (S:2^M -> (W:2^M -> D)) *)
   (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
-  include AbstractLockCenteredGBase (GWeakW) (GSyncW)
+  include AbstractLockCenteredBase (GWeakW) (GSyncW)
 end
 
 (** Write-Centered Reading. *)
 module WriteCenteredPriv: S =
 struct
   include MinePrivBase
-  include WriteCenteredGBase
+  include WriteCenteredBase
   open Locksets
 
   open WriteCenteredD
@@ -1280,7 +1358,7 @@ end
 module WriteAndLockCenteredPriv: S =
 struct
   include MinePrivBase
-  include WriteCenteredGBase
+  include WriteCenteredBase
   open Locksets
 
   open LockCenteredD
@@ -1462,6 +1540,7 @@ struct
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
+  let invariant_global getg v = time "invariant_global" (Priv.invariant_global getg) v
 
   let thread_join ?(force=false) ask get e st = time "thread_join" (Priv.thread_join ~force ask get e) st
   let thread_return ask get set tid st = time "thread_return" (Priv.thread_return ask get set tid) st
