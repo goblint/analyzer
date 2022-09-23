@@ -1,0 +1,19 @@
+--- tests/incremental/11-restart/06-local-wpoint-read.c
++++ tests/incremental/11-restart/06-local-wpoint-read.c
+@@ -4,7 +4,7 @@
+ int g = 1;
+
+ void* t_fun(void *arg) {
+-    g = 0;
++
+     return NULL;
+ }
+
+@@ -16,7 +16,7 @@ int main() {
+     x = g;
+     while (1) {
+         g = x;
+-        __goblint_check(x == 1); // UNKNOWN before, success after
++        __goblint_check(x == 1); // unknown before, SUCCESS after
+         x = g;
+     }

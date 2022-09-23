@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 open Pretty
 (* A binding to a selection of Apron-Domains *)
 open Apron
@@ -15,17 +15,78 @@ module M = Messages
     - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
-let widening_thresholds_apron = lazy (
-  let t = WideningThresholds.thresholds () in
-  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
+let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
+  let t = WideningThresholds.thresholds_incl_mul2 () in
+  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
   Array.of_list r
 )
+
+let reset_lazy () =
+  ResettableLazy.reset widening_thresholds_apron
 
 module Var =
 struct
   include Var
 
   let equal x y = Var.compare x y = 0
+end
+
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end
+
+module VM =
+struct
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
+end
+
+module V =
+struct
+  include VarMetadataTbl (VM)
+  open VM
+
+  (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
+  let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
+  let local x = make_var ~name:(local_name x) Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
+
+  let to_cil_varinfo fundec v =
+    match find_metadata v with
+    | Some (Global v) -> Some v
+    | Some (Local) ->
+      let vname = Var.to_string v in
+      List.find_opt (fun v -> local_name v = vname) (fundec.sformals @ fundec.slocals)
+    | _ -> None
 end
 
 module type Manager =
@@ -94,6 +155,26 @@ sig
   val varinfo_tracked: varinfo -> bool
 end
 
+module Lincons1 =
+struct
+  include Lincons1
+
+  let show = Format.asprintf "%a" print
+  let compare x y = String.compare (show x) (show y) (* HACK *)
+end
+
+module Lincons1Set =
+struct
+  include Set.Make (Lincons1)
+
+  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> of_enum
+end
+
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
@@ -107,6 +188,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       let f_opt = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
+        | None when Stdlib.Float.is_integer f-> Some f
         | None -> None
       in
       Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
@@ -123,7 +205,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
             | None -> None
           end
       in
-      Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
+      Option.map Z_mlgmpidl.z_of_mpzf z_opt
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
@@ -136,66 +218,95 @@ struct
     (min, max)
 end
 
+module type ConvertArg =
+sig
+  val allow_global: bool
+end
+
+type unsupported_cilExp =
+  | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
+  | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
+  | Exp_not_supported (** Expression constructor not supported. *)
+  | Overflow (** May overflow according to Apron bounds. *)
+  | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
+  | BinOp_not_supported (** BinOp constructor not supported. *)
+[@@deriving show { with_path = false }]
+
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) (Man: Manager)=
+module ApronOfCil (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager) =
 struct
   open Texpr1
   open Tcons1
   module Bounds = Bounds(Man)
-  exception Unsupported_CilExp
 
-  (* TODO: move this into some general place *)
-  let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
-    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+  exception Unsupported_CilExp of unsupported_cilExp
+
+  let () = Printexc.register_printer (function
+      | Unsupported_CilExp reason -> Some (show_unsupported_cilExp reason)
+      | _ -> None (* for other exception *)
+    )
 
   let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob then
-          let var = Var.of_string v.vname in
+        if not v.vglob || Arg.allow_global then
+          let var =
+            if v.vglob then
+              V.global v
+            else
+              V.local v
+          in
           if Environment.mem_var env var then
             Var var
           else
-            raise Unsupported_CilExp
+            raise (Unsupported_CilExp (Var_not_found v))
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt (i, _, _)) ->
-        let str = Cilint.string_of_cilint i in
-        Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
+        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
       | exp ->
-        let expr =
-          match exp with
-          | UnOp (Neg, e, _) ->
-            Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-          | BinOp (PlusA, e1, e2, _) ->
-            Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (MinusA, e1, e2, _) ->
-            Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (Mult, e1, e2, _) ->
-            Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (Div, e1, e2, _) ->
-            Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-          | BinOp (Mod, e1, e2, _) ->
-            Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-            Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-          | _ ->
-            raise Unsupported_CilExp
-        in
-        let ik = Cilfacade.get_ikind_exp exp in
-        if not (IntDomain.should_ignore_overflow ik) then (
-          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
-          let texpr1 = Texpr1.of_expr env expr in
-          match Bounds.bound_texpr d texpr1 with
-          | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-          | _ ->
-            (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
-            raise Unsupported_CilExp
-        );
-        expr
+        match Cilfacade.get_ikind_exp exp with
+        | ik ->
+          let expr =
+            match exp with
+            | UnOp (Neg, e, _) ->
+              Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
+            | BinOp (PlusA, e1, e2, _) ->
+              Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | BinOp (MinusA, e1, e2, _) ->
+              Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | BinOp (Mult, e1, e2, _) ->
+              Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | BinOp (Div, e1, e2, _) ->
+              Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
+            | BinOp (Mod, e1, e2, _) ->
+              Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | CastE (TInt (t_ik, _) as t, e) ->
+              begin match IntDomain.should_ignore_overflow t_ik || IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                | true ->
+                  Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
+                | false
+                | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
+                | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
+                  raise (Unsupported_CilExp (Cast_not_injective t))
+              end
+            | _ ->
+              raise (Unsupported_CilExp Exp_not_supported)
+          in
+          if not (IntDomain.should_ignore_overflow ik) then (
+            let (type_min, type_max) = IntDomain.Size.range ik in
+            let texpr1 = Texpr1.of_expr env expr in
+            match Bounds.bound_texpr d texpr1 with
+            | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
+            | min_opt, max_opt ->
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
+              raise (Unsupported_CilExp Overflow)
+          );
+          expr
+        | exception (Cilfacade.TypeOfError _ as e)
+        | exception (Invalid_argument _ as e) ->
+          raise (Unsupported_CilExp (Exp_typeOf e))
     in
     texpr1_expr_of_cil_exp
 
@@ -218,9 +329,9 @@ struct
           | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
           | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise Unsupported_CilExp
+          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
         end
-      | _ -> raise Unsupported_CilExp
+      | _ -> raise (Unsupported_CilExp Exp_not_supported)
     in
     let inverse_typ = function
       | EQ -> DISEQ
@@ -239,11 +350,187 @@ struct
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 end
 
+(** Conversion from Apron to CIL expressions. *)
+module CilOfApron =
+struct
+  exception Unsupported_Linexpr1
+
+  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+    let longlong = TInt(ILongLong,[]) in
+    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
+      | Scalar c ->
+        (match int_of_scalar c with
+         | Some i ->
+           let ci,truncation = truncateCilint ILongLong i in
+           if truncation = NoTruncation then
+             if not consider_flip || Z.compare i Z.zero >= 0 then
+               Const (CInt(i,ILongLong,None)), false
+             else
+               (* attempt to negate if that does not cause an overflow *)
+               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+               if truncation = NoTruncation then
+                 Const (CInt((Z.neg i),ILongLong,None)), true
+               else
+                 Const (CInt(i,ILongLong,None)), false
+           else
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+         | None -> raise Unsupported_Linexpr1)
+      | _ -> raise Unsupported_Linexpr1
+    in
+    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
+    let append_summand (c:Coeff.union_5) v =
+      match V.to_cil_varinfo fundec v with
+      | Some vinfo ->
+        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+        let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+        let coeff, flip = coeff_to_const true c in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        if flip then
+          expr := BinOp(MinusA,!expr,prod,longlong)
+        else
+          expr := BinOp(PlusA,!expr,prod,longlong)
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+    in
+    Linexpr1.iter append_summand linexpr1;
+    !expr
+
+
+  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+    let zero = Cil.kinteger ILongLong 0 in
+    try
+      let linexpr1 = Lincons1.get_linexpr1 lincons1 in
+      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+      match Lincons1.get_typ lincons1 with
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
+      | EQMOD _ -> None
+    with
+      Unsupported_Linexpr1 -> None
+end
+
+(** Conversion between CIL expressions and Apron. *)
+module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
+struct
+  include ApronOfCil (Arg) (Tracked) (Man)
+  include CilOfApron
+end
+
+(** Pure environment and transfer functions. *)
+module type AOpsPure =
+sig
+  type t
+  val add_vars : t -> Var.t list -> t
+  val remove_vars : t -> Var.t list -> t
+  val remove_filter : t -> (Var.t -> bool) -> t
+  val keep_vars : t -> Var.t list -> t
+  val keep_filter : t -> (Var.t -> bool) -> t
+  val forget_vars : t -> Var.t list -> t
+  val assign_exp : t -> Var.t -> exp -> t
+  val assign_var : t -> Var.t -> Var.t -> t
+  val substitute_exp : t -> Var.t -> exp -> t
+end
+
+(** Imperative in-place environment and transfer functions. *)
+module type AOpsImperative =
+sig
+  type t
+  val add_vars_with : t -> Var.t list -> unit
+  val remove_vars_with : t -> Var.t list -> unit
+  val remove_filter_with : t -> (Var.t -> bool) -> unit
+  val keep_vars_with : t -> Var.t list -> unit
+  val keep_filter_with : t -> (Var.t -> bool) -> unit
+  val forget_vars_with : t -> Var.t list -> unit
+  val assign_exp_with : t -> Var.t -> exp -> unit
+  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
+  val assign_var_with : t -> Var.t -> Var.t -> unit
+  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
+  val substitute_exp_with : t -> Var.t -> exp -> unit
+  val substitute_exp_parallel_with :
+    t -> (Var.t * exp) list -> unit
+  val substitute_var_with : t -> Var.t -> Var.t -> unit
+end
+
+module type AOpsImperativeCopy =
+sig
+  include AOpsImperative
+  val copy : t -> t
+end
+
+(** Default implementations of pure functions from [copy] and imperative functions. *)
+module AOpsPureOfImperative (AOpsImperative: AOpsImperativeCopy): AOpsPure with type t = AOpsImperative.t =
+struct
+  open AOpsImperative
+  type nonrec t = t
+
+  let add_vars d vs =
+    let nd = copy d in
+    add_vars_with nd vs;
+    nd
+  let remove_vars d vs =
+    let nd = copy d in
+    remove_vars_with nd vs;
+    nd
+  let remove_filter d f =
+    let nd = copy d in
+    remove_filter_with nd f;
+    nd
+  let keep_vars d vs =
+    let nd = copy d in
+    keep_vars_with nd vs;
+    nd
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
+    nd
+  let forget_vars d vs =
+    let nd = copy d in
+    forget_vars_with nd vs;
+    nd
+  let assign_exp d v e =
+    let nd = copy d in
+    assign_exp_with nd v e;
+    nd
+  let assign_var d v v' =
+    let nd = copy d in
+    assign_var_with nd v v';
+    nd
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
+end
+
+(** Extra functions that don't have the pure-imperative correspondence. *)
+module type AOpsExtra =
+sig
+  type t
+  val copy : t -> t
+  val vars_as_array : t -> Var.t array
+  val vars : t -> Var.t list
+  type marshal
+  val unmarshal : marshal -> t
+  val marshal : t -> marshal
+  val mem_var : t -> Var.t -> bool
+  val assign_var_parallel' :
+    t -> Var.t list -> Var.t list -> t
+  val meet_tcons : t -> Tcons1.t -> t
+  val to_lincons_array : t -> Lincons1.earray
+  val of_lincons_array : Lincons1.earray -> t
+end
+
+module type AOps =
+sig
+  include AOpsExtra
+  include AOpsImperative with type t := t
+  include AOpsPure with type t := t
+end
 
 (** Convenience operations on A. *)
-module AOps (Tracked: Tracked) (Man: Manager) =
+module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked) (Man)
+  module Convert = Convert (struct let allow_global = false end) (Tracked) (Man)
 
   type t = Man.mt A.t
 
@@ -284,11 +571,6 @@ struct
     let env' = Environment.add env vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let add_vars d vs =
-    let nd = copy d in
-    add_vars_with nd vs;
-    nd
-
   let remove_vars_with nd vs =
     let env = A.env nd in
     let vs' =
@@ -300,11 +582,6 @@ struct
     let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
 
-  let remove_vars d vs =
-    let nd = copy d in
-    remove_vars_with nd vs;
-    nd
-
   let remove_filter_with nd f =
     let env = A.env nd in
     let vs' =
@@ -315,11 +592,6 @@ struct
     in
     let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
-
-  let remove_filter d f =
-    let nd = copy d in
-    remove_filter_with nd f;
-    nd
 
   let keep_vars_with nd vs =
     let env = A.env nd in
@@ -334,11 +606,6 @@ struct
     let env' = Environment.make vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_vars d vs =
-    let nd = copy d in
-    keep_vars_with nd vs;
-    nd
-
   let keep_filter_with nd f =
     (* Instead of removing undesired vars,
        make a new env with just the desired vars. *)
@@ -351,32 +618,19 @@ struct
     let env' = Environment.make vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_filter d f =
-    let nd = copy d in
-    keep_filter_with nd f;
-    nd
-
   let forget_vars_with nd vs =
     (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
     let vs' = Array.of_list vs in
     A.forget_array_with Man.mgr nd vs' false
 
-  let forget_vars d vs =
-    let nd = copy d in
-    forget_vars_with nd vs;
-    nd
-
   let assign_exp_with nd v e =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
+      if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
+      if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
-
-  let assign_exp d v e =
-    let nd = copy d in
-    assign_exp_with nd v e;
-    nd
 
   let assign_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -388,7 +642,7 @@ struct
       |> Enum.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp nd env e with
           | texpr1 -> Some texpr1
-          | exception Convert.Unsupported_CilExp -> None
+          | exception Convert.Unsupported_CilExp _ -> None
         ))
       |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
@@ -411,11 +665,6 @@ struct
   let assign_var_with nd v v' =
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.assign_texpr_with Man.mgr nd v texpr1 None
-
-  let assign_var d v v' =
-    let nd = copy d in
-    assign_var_with nd v v';
-    nd
 
   let assign_var_parallel_with nd vv's =
     (* TODO: non-_with version? *)
@@ -445,13 +694,8 @@ struct
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
       forget_vars_with nd [v]
-
-  let substitute_exp d v e =
-    let nd = copy d in
-    substitute_exp_with nd v e;
-    nd
 
   let substitute_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -463,7 +707,7 @@ struct
       |> Enum.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp nd env e with
           | texpr1 -> Some texpr1
-          | exception Convert.Unsupported_CilExp -> None
+          | exception Convert.Unsupported_CilExp _ -> None
         ))
       |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
@@ -500,6 +744,12 @@ struct
     A.of_lincons_array Man.mgr a.array_env a
 end
 
+module AOps (Tracked: Tracked) (Man: Manager) =
+struct
+  module AO0 = AOps0 (Tracked) (Man)
+  include AO0
+  include AOpsPureOfImperative (AO0)
+end
 
 module type SPrintable =
 sig
@@ -509,13 +759,17 @@ sig
   val bot_env: Environment.t -> t
   val is_top_env: t -> bool
   val is_bot_env: t -> bool
+
+  val unify: t -> t -> t
+  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
+  val pretty_diff: unit -> t * t -> Pretty.doc
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
   type t = Man.mt A.t
 
-  let name () = "Apron"
+  let name () = "Apron " ^ Man.name ()
 
   (* Functions for bot and top for particular environment. *)
   let top_env = A.top    Man.mgr
@@ -524,7 +778,7 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant _ _ = Invariant.none
+  let invariant ~scope _ = []
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -544,7 +798,14 @@ struct
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
 
-  let pretty_diff () (x,y) = text "pretty_diff"
+  let unify x y =
+    A.unify Man.mgr x y
+
+  let pretty_diff () (x, y) =
+    let lcx = A.to_lincons_array Man.mgr x in
+    let lcy = A.to_lincons_array Man.mgr y in
+    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
+    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
 end
 
 
@@ -552,6 +813,21 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
+  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
+end
+
+module Tracked: Tracked =
+struct
+  let is_pthread_int_type = function
+    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
+    | _ -> false
+
+  let type_tracked typ =
+    isIntegralType typ && not (is_pthread_int_type typ)
+
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
@@ -559,23 +835,18 @@ struct
   include D
   module Bounds = Bounds (Man)
 
-  module Tracked =
-  struct
-    let type_tracked typ =
-      isIntegralType typ
-
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
-
   include AOps (Tracked) (Man)
 
   include Tracked
 
-  let exp_is_cons = function
+  (* LAnd, LOr, LNot are directly supported by Apron domain in order to
+     confirm logic-containing Apron invariants from witness while deep-query is disabled. *)
+
+  let rec exp_is_cons = function
     (* constraint *)
     | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_cons e1 && exp_is_cons e2
+    | UnOp (LNot,e,_) -> exp_is_cons e
     (* expression *)
     | _ -> false
 
@@ -592,11 +863,33 @@ struct
       let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) in
       let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
       join assert_gt assert_lt
+    | BinOp (LAnd, lhs, rhs, intType) when not negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      meet assert_l assert_r
+    | BinOp (LAnd, lhs, rhs, intType) when negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      join assert_l assert_r (* de Morgan *)
+    | BinOp (LOr, lhs, rhs, intType) when not negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      join assert_l assert_r
+    | BinOp (LOr, lhs, rhs, intType) when negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      meet assert_l assert_r (* de Morgan *)
+    | UnOp (LNot,e,_) -> assert_cons d e (not negate)
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
         | tcons1 ->
-          meet_tcons d tcons1
-        | exception Convert.Unsupported_CilExp ->
+          if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
+          let r = meet_tcons d tcons1 in
+          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
+          r
+        | exception Convert.Unsupported_CilExp reason ->
+          if M.tracing then M.trace "apron" "assert_cons %a unsupported: %s\n" d_exp e (show_unsupported_cilExp reason);
           d
       end
 
@@ -624,24 +917,41 @@ struct
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
       Bounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
       (None, None)
 
   (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int d e =
     let module ID = Queries.ID in
-    let ik = Cilfacade.get_ikind_exp e in
-    if exp_is_cons e then
-      match check_assert d e with
-      | `True -> ID.of_bool ik true
-      | `False -> ID.of_bool ik false
-      | `Top -> ID.top ()
-    else
-      match eval_interval_expr d e with
-      | (Some min, Some max) -> ID.of_interval ik (min, max)
-      | (Some min, None) -> ID.starting ik min
-      | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top ()
+    match Cilfacade.get_ikind_exp e with
+    | exception Cilfacade.TypeOfError _
+    | exception Invalid_argument _ ->
+      ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
+    | ik ->
+      if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
+      if exp_is_cons e then
+        match check_assert d e with
+        | `True -> ID.of_bool ik true
+        | `False -> ID.of_bool ik false
+        | `Top -> ID.top_of ik
+      else
+        match eval_interval_expr d e with
+        | (Some min, Some max) -> ID.of_interval ik (min, max)
+        | (Some min, None) -> ID.starting ik min
+        | (None, Some max) -> ID.ending ik max
+        | (None, None) -> ID.top_of ik
+
+  let invariant ~scope x =
+    (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
+       but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
+    (* let x = A.copy Man.mgr x in
+       A.minimize Man.mgr x; *)
+    let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> List.of_enum
 end
 
 
@@ -702,8 +1012,7 @@ struct
       (* TODO: warn if different environments? *)
     )
 
-  let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module D (Man: Manager) = DWithOps (Man) (DLift (Man))
@@ -740,6 +1049,7 @@ struct
     A.meet_lincons_array Man.mgr d earray
 
   let strengthening j x y =
+    (* TODO: optimize strengthening *)
     if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
     let x_env = A.env x in
     let y_env = A.env y in
@@ -805,6 +1115,8 @@ struct
   let is_bot = equal (bot ())
   let is_top _ = false
 
+  let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
+
   let join x y =
     (* just to optimize joining folds, which start with bot *)
     if is_bot x then
@@ -815,8 +1127,12 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
-      (* let j = strengthening j x y in *)
+      let j =
+        if strengthening_enabled then
+          strengthening j x y
+        else
+          j
+      in
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j
     )
@@ -839,24 +1155,70 @@ struct
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
-    if Environment.equal x_env y_env  then
-      if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
-        let octmgr = Oct.manager_to_oct Man.mgr in
-        let ts = Lazy.force widening_thresholds_apron in
-        let x_oct = Oct.Abstract1.to_oct x in
-        let y_oct = Oct.Abstract1.to_oct y in
-        let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-        Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+    if Environment.equal x_env y_env then (
+      if GobConfig.get_bool "ana.apron.threshold_widening" then (
+        if Oct.manager_is_oct Man.mgr then (
+          let octmgr = Oct.manager_to_oct Man.mgr in
+          let ts = ResettableLazy.force widening_thresholds_apron in
+          let x_oct = Oct.Abstract1.to_oct x in
+          let y_oct = Oct.Abstract1.to_oct y in
+          let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+        )
+        else (
+          let exps = ResettableLazy.force WideningThresholds.exps in
+          let module Convert = Convert (struct let allow_global = true end) (Tracked) (Man) in
+          (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
+          let tcons1s = List.filter_map (fun e ->
+              match Convert.tcons1_of_cil_exp y y_env e false with
+              | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
+                Some tcons1
+              | _
+              | exception Convert.Unsupported_CilExp _ ->
+                None
+            ) exps
+          in
+          let tcons1_earray: Tcons1.earray = {
+            array_env = y_env;
+            tcons0_array = tcons1s |> List.enum |> Enum.map Tcons1.get_tcons0 |> Array.of_enum
+          }
+          in
+          let w = A.widening Man.mgr x y in
+          A.meet_tcons_array_with Man.mgr w tcons1_earray;
+          w
+        )
+      )
       else
         A.widening Man.mgr x y
+    )
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
-  (* TODO: better narrow *)
-  let narrow x y = x
+  let widen x y =
+    if M.tracing then M.traceli "apron" "widen %a %a\n" pretty x pretty y;
+    let w = widen x y in
+    if M.tracing then M.trace "apron" "widen same %B\n" (equal y w);
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty w;
+    w
 
-  let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let narrow x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    if Environment.equal x_env y_env then (
+      if Oct.manager_is_oct Man.mgr then (
+        let octmgr = Oct.manager_to_oct Man.mgr in
+        let x_oct = Oct.Abstract1.to_oct x in
+        let y_oct = Oct.Abstract1.to_oct y in
+        let r = Oct.narrowing octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) in
+        Oct.Abstract1.of_oct {env = x_env; abstract0 = r}
+      )
+      else
+        x
+    )
+    else
+      y (* env decreased, can't decrease infinitely *)
+
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module type S2 =
@@ -869,130 +1231,206 @@ sig
   include SLattice with type t = Man.mt A.t
 
 
-  val exp_is_cons : exp -> bool
-  val assert_cons : t -> exp -> bool -> t
   val assert_inv : t -> exp -> bool -> t
-  val check_assert : t -> exp -> [> `False | `Top | `True ]
-  val eval_interval_expr : t -> exp -> Z.t option * Z.t option
-  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
+  val eval_int : t -> exp -> Queries.ID.t
 end
 
-type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, to_yojson]
+type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
+  module Tracked = Tracked
   module Man = Man
 end
 
-module ApronComponents (D2: S2) (PrivD: Lattice.S):
+
+module OctagonD2 = D2 (OctagonManager)
+
+module type S3 =
 sig
-  module AD: S2 with type Man.mt = D2.Man.mt
-  include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
-  val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+  include SLattice
+  include AOps with type t := t
+
+  val assert_inv : t -> exp -> bool -> t
+  val eval_int : t -> exp -> Queries.ID.t
+
+  val to_oct: t -> OctagonD2.t
+end
+
+
+module D3 (Man: Manager) : S3 =
+struct
+  include D2 (Man)
+
+  let to_oct (a: t): OctagonD2.t =
+    if Oct.manager_is_oct Man.mgr then
+      Oct.Abstract1.to_oct a
+    else
+      let generator = to_lincons_array a in
+      OctagonD2.of_lincons_array generator
+end
+
+(** Lift [D] to a non-reduced product with box.
+    Both are updated in parallel, but [D] answers to queries.
+    Box domain is used to filter out non-relational invariants for output. *)
+module BoxProd0 (D: S3) =
+struct
+  module BoxD = D3 (IntervalManager)
+
+  include Printable.Prod (BoxD) (D)
+
+  let equal (_, d1) (_, d2) = D.equal d1 d2
+  let hash (_, d) = D.hash d
+  let compare (_, d1) (_, d2) = D.compare d1 d2
+
+  let leq (_, d1) (_, d2) = D.leq d1 d2
+  let join (b1, d1) (b2, d2) = (BoxD.join b1 b2, D.join d1 d2)
+  let meet (b1, d1) (b2, d2) = (BoxD.meet b1 b2, D.meet d1 d2)
+  let widen (b1, d1) (b2, d2) = (BoxD.widen b1 b2, D.widen d1 d2)
+  let narrow (b1, d1) (b2, d2) = (BoxD.narrow b1 b2, D.narrow d1 d2)
+
+  let top () = (BoxD.top (), D.top ())
+  let bot () = (BoxD.bot (), D.bot ())
+  let is_top (_, d) = D.is_top d
+  let is_bot (_, d) = D.is_bot d
+  let top_env env = (BoxD.top_env env, D.top_env env)
+  let bot_env env = (BoxD.bot_env env, D.bot_env env)
+  let is_top_env (_, d) = D.is_top_env d
+  let is_bot_env (_, d) = D.is_bot_env d
+  let unify (b1, d1) (b2, d2) = (BoxD.unify b1 b2, D.unify d1 d2)
+  let copy (b, d) = (BoxD.copy b, D.copy d)
+
+  type marshal = BoxD.marshal * D.marshal
+
+  let marshal (b, d) = (BoxD.marshal b, D.marshal d)
+  let unmarshal (b, d) = (BoxD.unmarshal b, D.unmarshal d)
+
+  let mem_var (_, d) v = D.mem_var d v
+  let vars_as_array (_, d) = D.vars_as_array d
+  let vars (_, d) = D.vars d
+
+  let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)
+
+  let add_vars_with (b, d) vs =
+    BoxD.add_vars_with b vs;
+    D.add_vars_with d vs
+  let remove_vars_with (b, d) vs =
+    BoxD.remove_vars_with b vs;
+    D.remove_vars_with d vs
+  let remove_filter_with (b, d) f =
+    BoxD.remove_filter_with b f;
+    D.remove_filter_with d f
+  let keep_filter_with (b, d) f =
+    BoxD.keep_filter_with b f;
+    D.keep_filter_with d f
+  let keep_vars_with (b, d) vs =
+    BoxD.keep_vars_with b vs;
+    D.keep_vars_with d vs
+  let forget_vars_with (b, d) vs =
+    BoxD.forget_vars_with b vs;
+    D.forget_vars_with d vs
+  let assign_exp_with (b, d) v e =
+    BoxD.assign_exp_with b v e;
+    D.assign_exp_with d v e
+  let assign_exp_parallel_with (b, d) ves =
+    BoxD.assign_exp_parallel_with b ves;
+    D.assign_exp_parallel_with d ves
+  let assign_var_with (b, d) v e =
+    BoxD.assign_var_with b v e;
+    D.assign_var_with d v e
+  let assign_var_parallel_with (b, d) vvs =
+    BoxD.assign_var_parallel_with b vvs;
+    D.assign_var_parallel_with d vvs
+  let assign_var_parallel' (b, d) vs v's =
+    (BoxD.assign_var_parallel' b vs v's, D.assign_var_parallel' d vs v's)
+  let substitute_exp_with (b, d) v e =
+    BoxD.substitute_exp_with b v e;
+    D.substitute_exp_with d v e
+  let substitute_exp_parallel_with (b, d) ves =
+    BoxD.substitute_exp_parallel_with b ves;
+    D.substitute_exp_parallel_with d ves
+  let substitute_var_with (b, d) v1 v2 =
+    BoxD.substitute_var_with b v1 v2;
+    D.substitute_var_with d v1 v2
+  let meet_tcons (b, d) c = (BoxD.meet_tcons b c, D.meet_tcons d c)
+  let to_lincons_array (_, d) = D.to_lincons_array d
+  let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
+
+  let assert_inv (b, d) e n = (BoxD.assert_inv b e n, D.assert_inv d e n)
+  let eval_int (_, d) = D.eval_int d
+
+  let invariant ~scope (b, d) =
+    (* diff via lincons *)
+    let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
+    let lcd = D.to_lincons_array d in
+    Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
+    |> Lincons1Set.elements
+
+  let to_oct (b, d) = D.to_oct d
+end
+
+module BoxProd (D: S3): S3 =
+struct
+  module BP0 = BoxProd0 (D)
+  include BP0
+  include AOpsPureOfImperative (BP0)
+end
+
+module ApronComponents (D3: S3) (PrivD: Lattice.S):
+sig
+  module AD: S3
+  include Lattice.S with type t = (D3.t, PrivD.t) aproncomponents_t
 end =
 struct
-  module AD = D2
-  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, to_yojson]
+  module AD = D3
+  type t = (AD.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash (r: t)  = D2.hash r.apr + PrivD.hash r.priv * 33
 
   let show r =
-    let first  = D2.show r.apr in
+    let first  = AD.show r.apr in
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    D2.pretty () r.apr
+    AD.pretty () r.apr
     ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let name () = D2.name () ^ " * " ^ PrivD.name ()
-
-  let invariant c {apr; priv} =
-    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
+  let name () = AD.name () ^ " * " ^ PrivD.name ()
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
+    let tr = QCheck.pair (AD.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = {apr = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {apr; priv} = D2.is_bot apr && PrivD.is_bot priv
-  let top () = {apr = D2.top (); priv = PrivD.bot ()}
-  let is_top {apr; priv} = D2.is_top apr && PrivD.is_top priv
+  let bot () = {apr = AD.bot (); priv = PrivD.bot ()}
+  let is_bot {apr; priv} = AD.is_bot apr && PrivD.is_bot priv
+  let top () = {apr = AD.top (); priv = PrivD.bot ()}
+  let is_top {apr; priv} = AD.is_top apr && PrivD.is_top priv
 
   let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
-    D2.leq x1 y1 && PrivD.leq x3 y3
+    AD.leq x1 y1 && PrivD.leq x3 y3
 
   let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
-    if not (D2.leq x1 y1) then
-      D2.pretty_diff () (x1,y1)
+    if not (AD.leq x1 y1) then
+      AD.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
 
   let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
     {apr = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme D2.join PrivD.join
-  let meet = op_scheme D2.meet PrivD.meet
-  let widen = op_scheme D2.widen PrivD.widen
-  let narrow = op_scheme D2.narrow PrivD.narrow
-end
-
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-module VarMetadataTbl (VM: VarMetadata) =
-struct
-  module VH = Hashtbl.Make (Var)
-
-  let vh = VH.create 113
-
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
-
-  let find_metadata var =
-    VH.find_option vh var
-end
-
-module VM =
-struct
-  type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
-    | Return (** Var for function return value. *)
-    | Global of varinfo
-
-  let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
-    | Return -> "#ret"
-    | Global g -> g.vname
-end
-
-module V =
-struct
-  include VarMetadataTbl (VM)
-  open VM
-
-  let local x = make_var ~name:x.vname Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
-  let return = make_var Return
-  let global g = make_var (Global g)
+  let join = op_scheme AD.join PrivD.join
+  let meet = op_scheme AD.meet PrivD.meet
+  let widen = op_scheme AD.widen PrivD.widen
+  let narrow = op_scheme AD.narrow PrivD.narrow
 end

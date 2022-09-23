@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 
 module type S =
@@ -16,6 +16,7 @@ module Location:
 sig
   include S with type t = location
   val pp: Format.formatter -> t -> unit (* for Messages *)
+  val of_yojson: Yojson.Safe.t -> (t, string) result
 end =
 struct
   include Std
@@ -48,25 +49,46 @@ struct
       else
         ""
     )
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
-  let pretty () x = Pretty.text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `Assoc (
       [
         ("file", `String x.file);
         ("line", `Int x.line);
         ("column", `Int x.column);
+        ("byte", `Int x.byte);
       ]
       @
       if x.endByte >= 0 then
         [
           ("endLine", `Int x.endLine);
           ("endColumn", `Int x.endColumn);
+          ("endByte", `Int x.endByte);
         ]
       else
         []
     )
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for Messages *)
+
+  let of_yojson = function
+    | `Assoc l ->
+      begin match List.assoc_opt "file" l, List.assoc_opt "line" l, List.assoc_opt "column" l, List.assoc_opt "byte" l with
+        | Some (`String file), Some (`Int line), Some (`Int column), Some (`Int byte) ->
+          let loc = {file; line; column; byte; endLine = -1; endColumn = -1; endByte = -1; synthetic = false} in
+          begin match List.assoc_opt "endLine" l, List.assoc_opt "endColumn" l, List.assoc_opt "endByte" l with
+            | Some (`Int endLine), Some (`Int endColumn), Some (`Int endByte) ->
+              Result.Ok {loc with endLine; endColumn; endByte}
+            | _, _, _ ->
+              Result.Ok loc
+          end
+        | _, _, _, _ -> Result.Error "CilType.Location.of_yojson"
+      end
+    | _ -> Result.Error "CilType.Location.of_yojson"
 end
 
 module Varinfo:
@@ -89,9 +111,12 @@ struct
 
   (* Output *)
   let show x = x.vname
-  let pretty () x = Pretty.text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String x.vname
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
   let pp fmt x = Format.fprintf fmt "%s" x.vname (* for deriving show *)
 end
 
@@ -110,9 +135,12 @@ struct
 
   (* Output *)
   let pretty () x = dn_stmt () x
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 module Fundec: S with type t = fundec =
@@ -130,12 +158,19 @@ struct
 
   (* Output *)
   let show x = x.svar.vname
-  let pretty () x = Pretty.text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
-module Typ: S with type t = typ =
+module Typ:
+sig
+  include S with type t = typ
+  val pp: Format.formatter -> t -> unit (* for deriving show *)
+end =
 struct
   include Std
 
@@ -151,9 +186,14 @@ struct
 
   (* Output *)
   let pretty () x = d_type () x
-  let show x = sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+
+  let pp fmt x = Format.fprintf fmt "%s" (show x) (* for deriving show *)
 end
 
 module Compinfo: S with type t = compinfo =
@@ -171,9 +211,12 @@ struct
 
   (* Output *)
   let show x = compFullName x
-  let pretty () x = Pretty.text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module Fieldinfo: S with type t = fieldinfo =
@@ -208,9 +251,12 @@ struct
 
   (* Output *)
   let show x = x.fname
-  let pretty () x = Pretty.text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module rec Exp: S with type t = exp =
@@ -243,7 +289,7 @@ struct
       | Real _ -> 15
       | Imag _ -> 16
     in
-    if a == b || Expcompare.compareExp a b then
+    if a == b then
       0
     else
       let r = Stdlib.compare (order a) (order b) in
@@ -311,9 +357,12 @@ struct
 
   (* Output *)
   let pretty () x = dn_exp () x
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 and Offset: S with type t = offset =
@@ -356,9 +405,12 @@ struct
 
   (* Output *)
   let pretty () x = d_offset nil () x
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 and Lval: S with type t = lval =
@@ -391,9 +443,12 @@ struct
 
   (* Output *)
   let pretty () x = dn_lval () x
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 and Constant: S with type t = constant =
@@ -420,7 +475,10 @@ struct
 
   (* Output *)
   let pretty () x = d_const () x
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end

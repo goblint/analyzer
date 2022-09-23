@@ -1,0 +1,21 @@
+{
+    "annotation" : {
+        "int" : {
+            "enabled" : true
+        }
+    },
+    "ana" : {
+        "int" : {
+            "refinement" : "fixpoint",
+            "interval_narrow_by_meet": true
+        }
+    },
+    "incremental" : {
+        "force-reanalyze" : {
+            "funs": ["f"]
+        },
+        "reluctant" : {
+          "enabled" : false
+        }
+    }
+}

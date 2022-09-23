@@ -1,0 +1,11 @@
+{
+    "dbg": {
+        "debug": true
+    },
+    "incremental" : {
+        "postsolver": {
+            "enabled":  true,
+            "superstable-reached" : true
+        }
+    }
+}

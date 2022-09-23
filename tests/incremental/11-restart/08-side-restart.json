@@ -1,0 +1,21 @@
+{
+    "ana": {
+        "int": {
+            "interval": true
+        }
+    },
+    "incremental": {
+        "reluctant": {
+            "enabled": false
+        }
+    },
+    "solvers": {
+        "td3": {
+            "restart": {
+                "wpoint": {
+                    "enabled": false
+                }
+            }
+        }
+    }
+}

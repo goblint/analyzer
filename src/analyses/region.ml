@@ -14,7 +14,11 @@ struct
   module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
-  module V = Printable.UnitConf (struct let name = "partitions" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "partitions" end)
+    include StdV
+  end
 
   let regions exp part st : Lval.CilLval.t list =
     match st with
@@ -22,7 +26,7 @@ struct
       let ev = Reg.eval_exp exp in
       let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
       List.map to_exp (Reg.related_globals ev (part,reg))
-    | `Top -> Messages.warn "Region state is broken :("; []
+    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
   let is_bullet exp part st : bool =
@@ -42,28 +46,6 @@ struct
     else
       Some (regions e regpart ctx.local)
 
-  let part_access ctx e _ _ = (*todo: remove regions that cannot be reached from the var*)
-    let open Access in
-    let rec pretty_offs () = function
-      | `NoOffset     -> dprintf ""
-      | `Field (f,os) -> dprintf ".%s%a" f.fname pretty_offs os
-      | `Index (_,os) -> dprintf "[?]%a" pretty_offs os
-    in
-    let show (v,os) =
-      v.vname ^ sprint pretty_offs os
-    in
-    let es = LSSet.empty () in
-    let add_region ps r =
-      LSSSet.add (LSSet.singleton ("region", show r)) ps
-    in
-    match get_region ctx e with
-    | None -> (LSSSet.empty (),es)
-    | Some [] -> (LSSSet.singleton es, es) (* Should it happen in the first place that RegMap has empty value? *)
-    | Some xs ->
-      let ps = List.fold_left add_region (LSSSet.empty ()) xs in
-      (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
-      (ps, es)
-
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -72,9 +54,37 @@ struct
       if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
         ls
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
     | _ -> Queries.Result.top q
+
+  module Lvals = SetDomain.Make (Lval.CilLval)
+  module A =
+  struct
+    include Printable.Option (Lvals) (struct let name = "no region" end)
+    let name () = "region"
+    let may_race r1 r2 = match r1, r2 with
+      | None, _
+      | _, None -> false
+      (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
+      | Some r1, _ when Lvals.is_empty r1 -> true
+      | _, Some r2 when Lvals.is_empty r2 -> true
+      | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
+      | _, _ -> true
+    let should_print r = match r with
+      | Some r when Lvals.is_empty r -> false
+      | _ -> true
+  end
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
+      Some (Lvals.empty ())
+    | Memory {exp = e; _} ->
+      (* TODO: remove regions that cannot be reached from the var*)
+      let rec unknown_index = function
+        | `NoOffset -> `NoOffset
+        | `Field (f, os) -> `Field (f, unknown_index os)
+        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
+      in
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -144,11 +154,13 @@ struct
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `Malloc _ | `Calloc _ -> begin
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | Malloc _ | Calloc _ | Realloc _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
           let old_regpart = ctx.global () in
+          (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             ctx.sideg () regpart;

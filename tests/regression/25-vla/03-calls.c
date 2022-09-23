@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned
 // Variable-sized arrays
 void foo(int n, int a[n]);
 void foo2(int n, int a[30][n]);

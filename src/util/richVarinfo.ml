@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 let create_var name = Goblintutil.create_var @@ makeGlobalVar name voidType
 
@@ -141,7 +141,7 @@ struct
   struct
     module BiVarinfoMap = PrivateMake(X)
     include BiVarinfoMap
-    let register =
+    let () =
       let m = (module BiVarinfoMap: S) in
       Collection.register_mapping m;
   end

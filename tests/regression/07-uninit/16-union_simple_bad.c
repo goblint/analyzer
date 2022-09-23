@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set exp.privatization none
+// PARAM: --set ana.activated[+] uninit
 typedef union {
 	double i;
 	int j;

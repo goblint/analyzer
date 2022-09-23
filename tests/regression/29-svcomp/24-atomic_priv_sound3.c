@@ -16,7 +16,7 @@ int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   __VERIFIER_atomic_begin();
-  assert(myglobal == 5); // UNKNOWN!
+  __goblint_check(myglobal == 5); // UNKNOWN!
   __VERIFIER_atomic_end();
   pthread_join (id, NULL);
   return 0;

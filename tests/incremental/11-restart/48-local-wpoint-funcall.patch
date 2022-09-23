@@ -1,0 +1,24 @@
+--- tests/incremental/11-restart/48-local-wpoint-funcall.c
++++ tests/incremental/11-restart/48-local-wpoint-funcall.c
+@@ -1,7 +1,7 @@
+ #include <assert.h>
+
+ int f(int x) {
+-    return 1;
++    return 0;
+ }
+
+ int main() {
+@@ -10,9 +10,9 @@ int main() {
+     while (x < 10) {
+         y = f(x);
+         x = x + y;
+-        __goblint_check(x == 0); // FAIL before, success after
++        __goblint_check(x == 0); // fail before, SUCCESS after
+     }
+
+-    __goblint_check(0); // FAIL before, nowarn after
++    __goblint_check(0); // fail before, NOWARN after
+     return 0;
+ }
+\ No newline at end of file

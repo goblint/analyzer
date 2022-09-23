@@ -1,25 +1,18 @@
 open MyCFG
-open WitnessUtil
 open Graphml
 open Svcomp
 open GobConfig
+
+module Stats = GoblintCil.Stats
 
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Cfg = Task.Cfg in
-  let loop_heads = find_loop_heads (module Cfg) Task.file in
-
-  let is_invariant_node cfgnode =
-    match get_string "exp.witness.invariant.nodes" with
-    | "all" -> true
-    | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
-    | "none" -> false
-    | _ -> failwith "exp.witness.invariant.nodes: invalid value"
-  in
+  let module Invariant = WitnessUtil.Invariant (struct let file = Task.file end) (Cfg) in
 
   let module TaskResult =
-    (val if get_bool "exp.witness.stack" then
+    (val if get_bool "witness.stack" then
         (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
@@ -30,7 +23,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   struct
     (* type node = N.t
     type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "exp.witness.minimize"
+    let minwitness = get_bool "witness.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
@@ -38,18 +31,18 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       let to_cfgnode = N.cfgnode to_node in
       if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
         true
-      else if WitnessUtil.NH.mem loop_heads to_cfgnode then
+      else if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
         true
       else begin match edge with
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
-      end || begin if is_invariant_node to_cfgnode then
-            match to_cfgnode, TaskResult.invariant to_node with
-            | Statement _, Some _ -> true
-            | _, _ -> false
-          else
-            false
-        end || begin match from_cfgnode, to_cfgnode with
+      end || begin if Invariant.is_invariant_node to_cfgnode then
+               match to_cfgnode, TaskResult.invariant to_node with
+               | Statement _, `Lifted _ -> true
+               | _, _ -> false
+             else
+               false
+           end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
           | Function f, _ -> true
           | _, _ -> false
@@ -64,12 +57,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
   let module GML =
-    (val match get_string "exp.witness.id" with
+    (val match get_string "witness.id" with
       | "node" ->
         (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
       | "enumerate" ->
         (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "exp.witness.id: illegal value"
+      | _ -> failwith "witness.id: illegal value"
     )
   in
   let module GML = DeDupGraphMlWriter (N) (GML) in
@@ -142,9 +135,9 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             []
         end;
         begin
-          if is_invariant_node cfgnode then
+          if Invariant.is_invariant_node cfgnode then
             match cfgnode, TaskResult.invariant node with
-            | Statement _, Some i ->
+            | Statement _, `Lifted i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
@@ -200,7 +193,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin if WitnessUtil.NH.mem loop_heads to_cfgnode then
+        begin if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
             [("enterLoopHead", "true")]
           else
             []
@@ -271,7 +264,7 @@ module Result (Cfg : CfgBidir)
               (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                                   and module GVar = GVarF (Spec.V)
                                   and module D = Spec.D
-                                  and module G = Spec.G)
+                                  and module G = GVarG (Spec.G) (Spec.C))
               (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
               (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
@@ -299,17 +292,14 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = GHT.find gh
-        ; presub = []
-        ; postsub= []
+        ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       in
       Spec.query ctx
@@ -406,15 +396,8 @@ struct
     in
 
     let find_invariant (n, c, i) =
-      let context: Invariant.context = {
-          scope=CfgNode.find_fundec n;
-          i;
-          lval=None;
-          offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-        }
-      in
-      Spec.D.invariant context (get (n, c))
+      let context = {Invariant.default_context with path = Some i} in
+      ask_local (n, c) (get (n, c)) (Invariant context)
     in
 
     match Task.specification with
@@ -531,7 +514,7 @@ struct
         let next _ = []
       end
       in
-      if Access.is_all_safe () then (
+      if !Access.is_all_safe then (
         let module TaskResult =
         struct
           module Arg = TrivialArg
@@ -592,8 +575,9 @@ struct
 
     print_task_result (module TaskResult);
 
-    if TaskResult.result <> Result.Unknown || get_bool "exp.witness.unknown" then (
-      let witness_path = get_string "exp.witness.path" in
+    (* TODO: use witness.enabled elsewhere as well *)
+    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
+      let witness_path = get_string "witness.path" in
       Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
     )
 

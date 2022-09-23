@@ -1,4 +1,4 @@
-// PARAM: --set exp.structs.domain "sets"
+// PARAM: --set ana.base.structs.domain "sets"
 
 #include<assert.h>
 #include<stdio.h>
@@ -115,12 +115,12 @@ int main() {
     typedef int (*fun)(int);
     if (functionToRun.id == 1) {
         fun f = functionToRun.ptr;
-        assert(f == factorial);
+        __goblint_check(f == factorial);
         int result = f(n);
         printf("Factorial of %d is %d\n", n, result);
     } else if (functionToRun.id == 2) {
         fun f = functionToRun.ptr;
-        assert(f == inverseFactorial);
+        __goblint_check(f == inverseFactorial);
         int result = f(n);
         printf("Factorial of %d is %d\n", result, n);
     } else {

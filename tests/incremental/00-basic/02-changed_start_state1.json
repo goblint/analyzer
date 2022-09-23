@@ -1,6 +1,10 @@
 {
+  "ana": {
+    "base" : {
+      "privatization": "none"
+    }
+  },
   "exp": {
-    "earlyglobs": true,
-    "privatization": "none"
+    "earlyglobs": true
   }
 }

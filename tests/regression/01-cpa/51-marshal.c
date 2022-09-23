@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --enable ana.int.interval
 void callee(int j) {
   j++;
 }

@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.def_exc  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --enable ana.int.def_exc  --set ana.base.arrays.domain partitioned
+#include <assert.h>
+
 int main(void) {
     // Minimal and maximal in def_exc were broken. They are not directly used, but used in the MayBeLess and MayBeEqual queries, that
     // are in turn used by the partitioning arrays. This is why we run the arrays in combination with def_exc.
@@ -16,7 +18,7 @@ void t1() {
     for(i=0; i < 9;i++) { }
 
     int j = arr[i];
-    assert(j == 5); //UNKNOWN
+    __goblint_check(j == 5); //UNKNOWN
 }
 
 
@@ -285,5 +287,5 @@ void t2() {
 
     for(i=0; i < 511; i++) { }
     int j = arr[i];
-    assert(j==5); //UNKNOWN
+    __goblint_check(j==5); //UNKNOWN
 }

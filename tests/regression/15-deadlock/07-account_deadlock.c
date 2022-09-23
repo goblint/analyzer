@@ -10,7 +10,7 @@ typedef struct {
 bank_account A, B;
 
 void deposit(bank_account *f, bank_account *t, int ammount) {
-  pthread_mutex_lock(&f->mutex);
+  pthread_mutex_lock(&f->mutex);  // DEADLOCK
   pthread_mutex_lock(&t->mutex);  // DEADLOCK
   t->balance += ammount;
   f->balance -= ammount;

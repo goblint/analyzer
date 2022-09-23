@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --set exp.privatization none
+#include <assert.h>
+
 extern void f_everything_up();
 
 struct s {
@@ -8,7 +9,7 @@ struct s {
 
 void hello(){
 	//is it me your looking for ...
-	assert(1);
+	__goblint_check(1);
 }
 
 int g = 0;
@@ -16,11 +17,11 @@ void (*fp)(void) = &hello;
 
 int main(){
 	s.f = &hello;
-	assert(s.f == &hello);
-	assert(fp == &hello);
+	__goblint_check(s.f == &hello);
+	__goblint_check(fp == &hello);
 	f_everything_up();
 	s.f();
-	assert(s.data == 0); // UNKNOWN!!1!one!
-	assert(fp == &hello);// UNKNOWN
+	__goblint_check(s.data == 0); // UNKNOWN!!1!one!
+	__goblint_check(fp == &hello);// UNKNOWN
 	return 0;
 }

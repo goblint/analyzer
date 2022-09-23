@@ -1,4 +1,6 @@
-open OUnit
+open Goblint_lib
+open OUnit2
+open GoblintCil
 open Pretty
 
 (* variables are strings *)
@@ -9,13 +11,11 @@ struct
   let pretty_trace () x = text x
   let compare = compare
   let hash (x:t) = Hashtbl.hash x
-  let category _ = 1
   let printXml _ _ = ()
   let var_id x = x
-  let file_name x = x
-  let line_nr _ = 1
   let node _ = failwith "no node"
   let relift x = x
+  let is_write_only _ = false
 end
 
 (* domain is (reversed) integers *)
@@ -29,7 +29,7 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  let increment = Analyses.empty_increment_data Cil.dummyFile
+  let increment = Analyses.empty_increment_data ()
 
   (*
     1. x := g
@@ -43,6 +43,8 @@ module ConstrSys = struct
     | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
     | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
     | _   -> None
+
+  let iter_vars _ _ _ _ _ = ()
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
@@ -56,7 +58,7 @@ struct
 end
 module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
 
-let test1 () =
+let test1 _ =
   let id x = x in
   let ((sol, gsol), _) = Solver.solve [] [] ["w"] in
   assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));

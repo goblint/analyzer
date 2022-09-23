@@ -29,12 +29,12 @@ int main() {
     // If we are not multi-threaded, or are not sure if we are
     if(k==3) {} else {
       // This must be reachable
-      assert(1);
+      __goblint_check(1);
     }
   }
 
   k = glob2;
-  assert(k == 9);
+  __goblint_check(k == 9);
 
   // This would cause glob1=4 side effect to disappear
   // if it's side-effected only on return.

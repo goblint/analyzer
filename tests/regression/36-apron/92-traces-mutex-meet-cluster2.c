@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --sets exp.apron.privatization mutex-meet-tid-cluster12
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.apron.privatization mutex-meet-tid-cluster12 --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
@@ -38,7 +38,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   int z = h;
-  assert(z != 31);
+  __goblint_check(z != 31);
   pthread_mutex_unlock(&A);
   return 0;
 }

@@ -16,7 +16,7 @@ void* W1_Indexer(void* arg){
         w = (++m) * 12;
         h = (w*7) % SIZE;
 
-        assert(h>=0);
+        __goblint_check(h>=0);
 
         rv = 0;
         h = rv + 1;
@@ -44,7 +44,7 @@ void* W2_Indexer(void* arg){
         w = (++m) * 12;
         h = (w*7) % SIZE;
 
-        assert(h>=0);
+        __goblint_check(h>=0);
 
         rv = 0;
         h = rv + 1;

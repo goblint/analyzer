@@ -5,7 +5,7 @@ module D = LvalMapDomain
 
 module Val =
 struct
-  type s = string
+  type s = string [@@deriving eq, ord, hash]
   let name = "Spec value"
   let var_state = ""
   let string_of_state s = s
@@ -16,7 +16,6 @@ struct
   (* let records = function Must x -> (Set.singleton x) | May xs -> xs *)
   (* let list_of_records = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs) *)
   (* let vnames x = String.concat ", " (List.map (fun r -> string_of_key r.var) (list_of_records x)) *)
-  let compare = compare
 end
 
 

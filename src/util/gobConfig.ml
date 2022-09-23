@@ -21,19 +21,20 @@
 open Prelude
 open Tracing
 open Printf
-open JsonSchema
 
 exception ConfigError of string
 
-let build_config = ref false
+let building_spec = ref false
 
-(* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
-let phase = ref 0
-let phase_config = ref true
+
+module Validator = JsonSchema.Validator (struct let schema = Options.schema end)
+module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.require_all end)
 
 (** The type for [gobConfig] module. *)
 module type S =
 sig
+  val get_json: string -> Yojson.Safe.t
+
   (** Functions to query conf variable of type int. *)
   val get_int    : string -> int
 
@@ -65,20 +66,16 @@ sig
   (** Set a list of values *)
   val set_list : string -> Yojson.Safe.t list -> unit
 
-  (** Functions to set a conf variables to null. *)
-  val set_null   : string -> unit
-
-  (** Print the current configuration *)
-  val print : 'a BatInnerIO.output -> unit
-
   (** Write the current configuration to [filename] *)
-  val write_file: string -> unit
+  val write_file: Fpath.t -> unit
 
-  (** Merge configurations form a file with current. *)
-  val merge_file : string -> unit
+  (** Merge configurations from a file with current. *)
+  val merge_file : Fpath.t -> unit
 
-  (** Add a schema to the conf*)
-  val addenum_sch: Yojson.Safe.t -> unit
+  (** Merge configurations from a JSON object with current. *)
+  val merge : Yojson.Safe.t -> unit
+
+  val json_conf: Yojson.Safe.t ref
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -111,7 +108,7 @@ struct
     | Index (New  ,p) -> fprintf ch "[*]%a"    print_path' p
 
   (** Path printing where you can ignore the first dot. *)
-  let print_path ch = function
+  let[@warning "-unused-value-declaration"] print_path ch = function
     | Select (s,p) -> fprintf ch "%s%a" s print_path' p
     | pth -> print_path' ch pth
 
@@ -145,7 +142,7 @@ struct
         let fld, pth = split '.' '[' (String.lchop s) in
         Select (fld, parse_path' pth)
       | '[' ->
-        let idx, pth = String.split (String.lchop s) "]" in
+        let idx, pth = String.split (String.lchop s) ~by:"]" in
         Index (parse_index idx, parse_path' pth)
       | _ -> raise PathParseError
 
@@ -166,32 +163,28 @@ struct
   (** Here we store the actual configuration. *)
   let json_conf : Yojson.Safe.t ref = ref `Null
 
-  (** The schema for the conf [json_conf] *)
-  let conf_schema : jschema =
-    { sid      = Some "root"
-    ; sdescr   = Some "Configuration root for the Goblint."
-    ; stype    = None
-    ; sdefault = None
-    ; saddenum = []
-    }
-
-  (** Add the schema to [conf_schema]. *)
-  let addenum_sch jv = addenum conf_schema @@ fromJson jv
-
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     GobYojson.print ch !json_conf
-  let write_file filename = File.with_file_out filename print
+  let write_file filename = File.with_file_out (Fpath.to_string filename) print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
     match o, pth with
     | o, Here -> o
-    | `Assoc m, Select (key,pth) -> begin
+    | `Assoc m, Select (key,pth) ->
+      begin
         try get_value (List.assoc key m) pth
-        with Not_found -> raise ConfTypeError end
-    | `List a, Index (Int i, pth) -> get_value (List.at a i) pth
-    | _ -> raise ConfTypeError
+        with Not_found ->
+        try get_value (List.assoc Options.defaults_additional_field m) pth (* if schema specifies additionalProperties, then use the default from that *)
+        with Not_found -> raise ConfTypeError
+      end
+    | `List a, Index (Int i, pth) ->
+      begin
+        try get_value (List.at a i) pth
+        with Invalid_argument _ -> raise ConfTypeError
+      end
+    | _, _ -> raise ConfTypeError
 
   (** Recursively create the value for some new path. *)
   let rec create_new v = function
@@ -227,13 +220,15 @@ struct
     let rec set_value v o pth =
       match o, pth with
       | `Assoc m, Select (key,pth) ->
-        begin try `Assoc ((key, set_value v (List.assoc key m) pth) :: List.remove_assoc key m)
-          with Not_found ->
-            if !build_config then
-              `Assoc ((key, create_new v pth) :: m)
-            else
-              raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
-        end
+        let rec modify = function
+          | [] ->
+            [(key, create_new v pth)] (* create new key, validated by schema *)
+          | (key', v') :: kvs when key' = key ->
+            (key, set_value v v' pth) :: kvs
+          | (key', v') :: kvs ->
+            (key', v') :: modify kvs
+        in
+        `Assoc (modify m)
       | `List a, Index (Int i, pth) ->
         `List (List.modify_at i (fun o -> set_value v o pth) a)
       | `List a, Index (App, pth) ->
@@ -260,29 +255,23 @@ struct
         new_v
     in
     o := set_value v !o orig_pth;
-    validate conf_schema !json_conf
+    Validator.validate_exn !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
     try
       let st = String.trim st in
-      let st, x =
-        let g st = st, get_value !json_conf (parse_path st) in
-        if !phase_config then
-          try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
-          with _ -> g st (* do global lookup if undefined *)
-        else
-          g st (* just use the old format *)
-      in
+      let x = get_value !json_conf (parse_path st) in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
-      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
+      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
+  let get_json = get_path_string Fun.id
 
   (** Convenience functions for reading values. *)
   (* memoize for each type with BatCache: *)
@@ -302,10 +291,16 @@ struct
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
-  let get_int    = memo_int.get
-  let get_bool   = memo_bool.get
-  let get_string = memo_string.get
-  let get_list   = memo_list.get
+  let wrap_get f x =
+    (* self-observe options, which Spec construction depends on *)
+    if !building_spec && Tracing.tracing then Tracing.trace "config" "get during building_spec: %s\n" x;
+    (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
+    f x
+
+  let get_int    = wrap_get memo_int.get
+  let get_bool   = wrap_get memo_bool.get
+  let get_string = wrap_get memo_string.get
+  let get_list   = wrap_get memo_list.get
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
@@ -314,7 +309,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
-    if not !build_config then drop_memo ();
+    drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
     set_path_string st v
 
@@ -322,19 +317,9 @@ struct
   let set_int    st i = set_path_string_trace st (`Int i)
   let set_bool   st i = set_path_string_trace st (`Bool i)
   let set_string st i = set_path_string_trace st (`String i)
-  let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
-    if not !build_config then drop_memo ();
+    drop_memo ();
     set_value (`List l) json_conf (parse_path st)
-
-  (** A convenience functions for writing values. *)
-  let set_auto' st v =
-    if v = "null" then set_null st else
-      try set_bool st (bool_of_string v)
-      with Invalid_argument _ ->
-      try set_int st (int_of_string v)
-      with Failure _ ->
-        set_string st v
 
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
@@ -350,12 +335,34 @@ struct
       eprintf "Cannot set %s to '%s'.\n" st s;
       raise e
 
+  let merge json =
+    Validator.validate_exn json;
+    json_conf := GobYojson.merge !json_conf json;
+    ValidatorRequireAll.validate_exn !json_conf;
+    drop_memo ()
+
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
-    json_conf := GobYojson.merge !json_conf v;
-    drop_memo ();
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
+    let cwd = Fpath.v (Sys.getcwd ()) in
+    let config_dirs = cwd :: (List.map Fpath.v Goblint_sites.conf)  in
+    let file = List.find_map_opt (fun custom_include_dir ->
+        let path = Fpath.append custom_include_dir fn in
+        if Sys.file_exists (Fpath.to_string path) then
+          Some path
+        else
+          None
+      ) config_dirs
+    in
+    match file with
+    | Some fn ->
+      let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
+      merge v;
+      if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
+    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
 end
 
 include Impl
+
+let () =
+  json_conf := Options.defaults;
+  ValidatorRequireAll.validate_exn !json_conf

@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open GobConfig
 open Pretty
 open FlagHelper
@@ -6,6 +6,13 @@ open FlagHelper
 (* Exception raised when the set domain can not support the requested operation.
  * This will be raised, when trying to iterate a set that has been set to Top *)
 exception Unsupported of string
+
+module type Arg =
+sig
+  include Lattice.S
+  val is_bot_value: t -> bool
+  val is_top_value: t -> typ -> bool
+end
 
 module type S =
 sig
@@ -21,16 +28,10 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
+  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context -> t -> Invariant.t
 end
 
-module type LatticeWithIsTopBotValue =
-sig
-  include Lattice.S
-  val is_bot_value: t -> bool
-  val is_top_value: t -> typ -> bool
-end
-
-module Simple (Val: Lattice.S) =
+module Simple (Val: Arg) =
 struct
   include Printable.Std
   module M = MapDomain.MapTop_LiftBot (Basetype.CilField) (Val)
@@ -76,28 +77,27 @@ struct
 
   let for_all_fields f = M.for_all f
 
-  let invariant c x =
-    match c.Invariant.offset with
+  let invariant ~value_invariant ~offset c x =
+    match offset with
     (* invariants for all fields *)
     | NoOffset ->
       let c_lval = BatOption.get c.Invariant.lval in
       fold (fun f v acc ->
           let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
           let f_c = {c with lval=Some f_lval} in
-          let i = Val.invariant f_c v in
+          let i = value_invariant ~offset f_c v in
           Invariant.(acc && i)
-        ) x Invariant.none
+        ) x (Invariant.top ())
     (* invariant for one field *)
     | Field (f, offset) ->
-      let f_c = {c with offset} in
       let v = get x f in
-      Val.invariant f_c v
+      value_invariant ~offset c v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none
 end
 
-module SetsCommon (Val:LatticeWithIsTopBotValue) =
+module SetsCommon (Val:Arg) =
 struct
   include Printable.Std
   module SS = Simple (Val)
@@ -129,7 +129,7 @@ struct
     else HS.map (SS.map f) s
 end
 
-module Sets (Val: LatticeWithIsTopBotValue) =
+module Sets (Val: Arg) =
 struct
   include SetsCommon(Val)
 
@@ -172,8 +172,7 @@ struct
     in
     let x_list = HS.elements x in
     let y_list = HS.elements y in
-    List.map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
-    |> List.flatten
+    List.concat_map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
     |> List.filter (fun (ssx, ssy) -> maps_overlap ssx ssy)
     |> List.map (fun (ssx, ssy) -> f ssx ssy)
     |> HS.of_list
@@ -191,7 +190,7 @@ struct
   let widen_with_fct f =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> HS.of_list (List.append x ys)
+      List.concat_map (fun x -> List.map (fun y -> op x y) ys) xs |> fun x -> HS.of_list (List.append x ys)
     in
     product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ())
 
@@ -226,10 +225,11 @@ struct
 
   let join = join_with_fct Val.join
 
-  let invariant = HS.invariant
+  (* let invariant = HS.invariant *)
+  let invariant ~value_invariant ~offset _ _ = Invariant.none (* TODO *)
 end
 
-module KeyedSets (Val: LatticeWithIsTopBotValue) =
+module KeyedSets (Val: Arg) =
 struct
   include SetsCommon(Val)
   module F = Basetype.CilField
@@ -257,12 +257,12 @@ struct
     if fields = []
     then None
     else
-      let fields = if get_bool "exp.structs.key.forward" then fields else List.rev fields in
+      let fields = if get_bool "ana.base.structs.key.forward" then fields else List.rev fields in
       let rec first_appropriate_key (rem_fields: field list) (second_choice: field): field =
         match rem_fields with
         | [] -> second_choice
         | h::t -> begin
-            match (h.ftype, get_bool "exp.structs.key.prefer-ptrs", get_bool "exp.structs.key.avoid-ints") with
+            match (h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints") with
             | (TPtr (_, _), _, _) -> h
             | (TInt (_, _), true, _)
             | (TInt (_, _), _, true) -> first_appropriate_key t second_choice
@@ -362,8 +362,7 @@ struct
       let ((sx, kx), (sy, ky)) = (x, y) in
       let x_list = HS.elements sx in
       let y_list = HS.elements sy in
-      let s = List.map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
-              |> List.flatten
+      let s = List.concat_map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
               |> List.filter (fun (ssx, ssy) -> maps_overlap ssx ssy)
               |> List.map (fun (ssx, ssy) -> f ssx ssy)
               |> HS.of_list
@@ -391,7 +390,7 @@ struct
   let widen_with_fct f (x, kx) (y, ky) =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.map (fun x -> List.map (op x) ys) xs |> List.flatten |> fun x -> HS.of_list (List.append x ys)
+      List.concat_map (fun x -> List.map (op x) ys) xs |> fun x -> HS.of_list (List.append x ys)
     in
     let s = product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ()) x y
     in reduce_key (s, take_some_key kx ky s)
@@ -434,11 +433,12 @@ struct
 
   let join = join_with_fct Val.join
 
-  let invariant c (x,_) = HS.invariant c x
+  (* let invariant c (x,_) = HS.invariant c x *)
+  let invariant ~value_invariant ~offset _ _ = Invariant.none (* TODO *)
 end
 
 
-module FlagConfiguredStructDomain (Val: LatticeWithIsTopBotValue) =
+module FlagConfiguredStructDomain (Val: Arg) =
 struct
   include Printable.Std
   module S = Simple(Val)
@@ -468,7 +468,7 @@ struct
   module I = struct include LatticeFlagHelper (HS) (KS) (P) let name () = "" end
   include LatticeFlagHelper (S) (I) (P)
 
-  let invariant c = unop (S.invariant c) (I.unop (HS.invariant c) (KS.invariant c))
+  let invariant ~value_invariant ~offset c = unop (S.invariant ~value_invariant ~offset c) (I.unop (HS.invariant ~value_invariant ~offset c) (KS.invariant ~value_invariant ~offset c))
 
   let twoaccop_to_t ops ophs opks (s,r) a1 a2 = to_t @@ match of_t (s,r) with
     | (Some s, None, None) -> (Some (ops s a1 a2), None, None)
@@ -491,7 +491,7 @@ struct
   let fold f = unop' (S.fold f) (HS.fold f) (KS.fold f)
 
   (* Functions that make us of the configuration flag *)
-  let chosen_domain () = get_string "exp.structs.domain"
+  let chosen_domain () = get_string "ana.base.structs.domain"
 
   let pick_combined setting (comp: compinfo) =
     let all_bool () = List.for_all (fun f -> match f.ftype with TInt(IBool, _) -> true | _ -> false) comp.cfields in

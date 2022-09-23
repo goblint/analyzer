@@ -1,5 +1,6 @@
 (** Abstract domains with Hoare ordering. *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 exception Unsupported of string
@@ -27,10 +28,10 @@ struct
       | [] -> [e]
       | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
 
-    (* widen element e with bucket using op *)
+    (* widen new(!) element e with old(!) bucket using op *)
     let rec widen op e = function
       | [] -> []
-      | x::xs -> try if E.leq e x then [op e x] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
+      | x::xs -> try if E.leq x e then [op x e] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
 
     (* meet element e with bucket using op *)
     let rec meet op e = function
@@ -48,6 +49,7 @@ struct
   let elements m = Map.values m |> List.of_enum |> List.flatten
 
   (* merge elements in x and y by f *)
+  (* TODO: unused, remove? *)
   let merge op f x y =
     let g = match op with
       | `Join -> B.join
@@ -65,14 +67,14 @@ struct
   let merge_meet f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->
-          let r = List.concat @@ List.map (fun x -> B.meet f x a) b in
+          let r = List.concat_map (fun x -> B.meet f x a) b in
           if r = [] then None else Some r
         | _ -> None
       ) x y
   let merge_widen f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->
-          let r = List.concat @@ List.map (fun x -> B.widen f x b) a in (* a, b switched compared to merge_meet to ensure correct order of widen arguments inside B.widen *)
+          let r = List.concat_map (fun x -> B.widen f x a) b in
           let r = List.fold_left (fun r x -> B.join E.join x r) r b in (* join b per bucket *)
           if r = [] then None else Some r
         | None, Some b -> Some b (* join b per bucket *)
@@ -93,8 +95,6 @@ struct
   (* Set *)
   let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
   let of_list es = of_list_by E.join es
-  let keep_apart x y = raise Lattice.Uncomparable
-  let of_list_apart es = of_list_by keep_apart es
   let singleton e = of_list [e]
   let exists p m = List.exists p (elements m)
   let for_all p m = List.for_all p (elements m)
@@ -105,22 +105,20 @@ struct
     (* Map.map (List.map f) m *)
     (* since hashes might change we need to rebuild: *)
     apply_list (List.map f) m
-  let filter f m = apply_list (List.filter f) m (* TODO do something better? *)
-  let remove x m =
+  let filter f m = apply_list (List.filter f) m (* TODO do something better? unused *)
+  let remove x m = (* NB! strong removal *)
     let ngreq x y = not (E.leq y x) in
     B.merge_element (fun _ -> List.filter (ngreq x)) x m
   (* let add e m = if mem e m then m else B.merge List.cons e m *)
   let add e m = if mem e m then m else join (singleton e) m
   let fold f m a = Map.fold (fun _ -> List.fold_right f) m a
   let cardinal m = fold (const succ) m 0
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a (* NB! strong removal *)
   let empty () = Map.empty
   let is_empty m = Map.is_empty m
   (* let union x y = merge (B.join keep_apart) x y *)
   let union x y = join x y
   let iter f m = Map.iter (fun _ -> List.iter f) m
-
-  let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
 
   (* Lattice *)
   let bot () = Map.empty
@@ -168,6 +166,7 @@ struct
     List.iter (E.printXml f) (elements x);
     BatPrintf.fprintf f "</set>\n</value>\n"
 end
+[@@deprecated]
 
 
 module type SetS =
@@ -176,7 +175,17 @@ sig
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
-(** Set of [Lattice] elements with Hoare ordering. *)
+(** Set of [Lattice.S] elements with Hoare ordering.
+    This abstracts a set by its {e maximal} elements.
+
+    Element-wise {!SetDomain.S} operations only observe the maximal elements.
+
+    This has {e extrapolation heuristics} instead of a true [widen],
+    i.e. convergence is only guaranteed if the number of maximal
+    elements converges.
+    Otherwise use {!SetEM}.
+
+    @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
 module Set (B : Lattice.S): SetS with type elt = B.t =
 struct
   include SetDomain.Make (B)
@@ -187,15 +196,15 @@ struct
   let reduce s = filter (fun x -> not (exists (le x) s)) s
   let product_bot op a b =
     let a,b = elements a, elements b in
-    List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
+    List.concat_map (fun x -> List.map (fun y -> op x y) b) a |> fun x -> reduce (of_list x)
   let product_widen op a b = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
+    List.concat_map (fun x -> List.map (fun y -> op x y) ys) xs |> fun x -> reduce (union b (of_list x))
   let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
-  let remove x a = unsupported "Set.remove"
+  let remove x a = filter (fun y -> not (B.leq y x)) a (* NB! strong removal *)
   let join a b = union a b |> reduce
   let union _ _ = unsupported "Set.union"
   let inter _ _ = unsupported "Set.inter"
@@ -203,9 +212,8 @@ struct
   let subset _ _ = unsupported "Set.subset"
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
-  let split x a = unsupported "Set.split"
   let apply_list f s = elements s |> f |> of_list
-  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a (* NB! strong removal *)
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
 
   (* Copied from Make *)
@@ -224,7 +232,7 @@ struct
           fold (fun other acc ->
               (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
@@ -260,9 +268,7 @@ struct
   let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
   let iter' = iter
-  let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
   let for_all' = for_all
-  let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
   let exists' = exists
   let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
   let fold' = fold
@@ -298,18 +304,18 @@ struct
     maximals
   let product_bot op op2 a b =
     let a,b = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> fun x -> reduce (of_list x)
   let product_bot2 op2 a b =
     let a,b = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> fun x -> reduce (of_list x)
   (* why are type annotations needed for product_widen? *)
   (* TODO: unused now *)
   let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let product_widen2 op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) ys) xs |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
@@ -336,9 +342,62 @@ struct
           fold' (fun other otherr acc ->
               (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
     end
+end
+[@@deprecated]
+
+(** Set of [Lattice.S] elements with Hoare ordering.
+    This abstracts a set by its {e maximal} elements.
+
+    Element-wise {!SetDomain.S} operations only observe the maximal elements.
+
+    This has a true [widen] using the trivial Egli-Milner connector,
+    i.e. convergence is even guaranteed if the number of maximal
+    elements does not converge.
+    Otherwise {!Set} is sufficient.
+
+    @see <https://doi.org/10.1007/s10009-005-0215-8> Bagnara, R., Hill, P.M. & Zaffanella, E. Widening operators for powerset domains. *)
+module SetEM (E: Lattice.S): SetDomain.S with type elt = E.t =
+struct
+  module H = Set (E)
+  include H
+
+  (* version of widen which doesn't use E.bot *)
+  (* TODO: move to Set above? *)
+  let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
+  let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
+
+  (* above widen is actually extrapolation operator, so define connector-based widening instead *)
+
+  (** Egli-Milner partial order relation.
+      See Bagnara, Section 3. *)
+  let leq_em s1 s2 =
+    is_bot s1 || leq s1 s2 && for_all (fun e2 -> exists (fun e1 -> E.leq e1 e2) s1) s2
+
+  (** Egli-Milner connector, i.e. {e any} upper bound operator for {!leq_em}.
+      Trivial connector, which joins all elements to a singleton set.
+      See Bagnara, Section 3. *)
+  let join_em s1 s2 =
+    join s1 s2
+    |> elements
+    |> BatList.reduce E.join
+    |> singleton
+
+  (** Connector-based widening.
+      See Bagnara, Section 6. *)
+  let widen s1 s2 =
+    assert (leq s1 s2);
+    let s2' =
+      if leq_em s1 s2 then
+        s2
+      else
+        join_em s1 s2
+    in
+    widen s1 s2'
 end

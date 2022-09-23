@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set exp.privatization mutex-meet --set exp.solver.td3.side_widen sides-pp
+// PARAM: --enable ana.int.interval --set ana.base.privatization mutex-meet --set solvers.td3.side_widen sides-pp
 #include <pthread.h>
 #include <stdio.h>
 

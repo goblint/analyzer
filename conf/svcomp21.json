@@ -14,7 +14,9 @@
       "threadid",
       "threadflag",
       "mallocWrapper",
+      "mutexEvents",
       "mutex",
+      "access",
       "escape",
       "expRelation",
       "var_eq",
@@ -24,16 +26,7 @@
     ],
     "context": {
       "widen": false
-    }
-  },
-  "exp": {
-    "witness": {
-      "id": "enumerate"
     },
-    "partition-arrays": {
-      "enabled": true
-    },
-    "region-offsets": true,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -49,12 +42,26 @@
         "kmalloc_array",
         "kcalloc"
       ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
     }
+  },
+  "exp": {
+    "region-offsets": true
   },
   "solver": "td3",
   "sem": {
     "unknown_function": {
       "spawn": false
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
+  },
+  "witness": {
+    "id": "enumerate"
   }
 }

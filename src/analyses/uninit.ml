@@ -45,12 +45,15 @@ struct
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
-      M.warn "Access to unknown address could be global"; []
+      M.info ~category:Unsound "Access to unknown address could be global"; []
 
   let rec access_one_byval a rw (exp:exp) =
     match exp with
-    (* Integer literals *)
-    | Const _ -> []
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _ -> []
     (* Variables and address expressions *)
     | Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
     (* Binary operators *)
@@ -58,14 +61,19 @@ struct
       let a1 = access_one_byval a rw arg1 in
       let a2 = access_one_byval a rw arg2 in
       a1 @ a2
-    (* Unary operators *)
-    | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e ->
+      access_one_byval a rw e
     (* The address operators, we just check the accesses under them *)
     | AddrOf lval -> access_lv_byval a lval
     | StartOf lval -> access_lv_byval a lval
     (* Most casts are currently just ignored, that's probably not a good idea! *)
     | CastE  (t, exp) -> access_one_byval a rw exp
-    | _ -> []
+    | Question (b, t, f, _) ->
+      access_one_byval a rw b @ access_one_byval a rw t @ access_one_byval a rw f
   (* Accesses during the evaluation of an lval, not the lval itself! *)
   and access_lv_byval a (lval:lval) =
     let rec access_offset (ofs: offset) =
@@ -77,23 +85,6 @@ struct
     match lval with
     | Var x, ofs -> access_offset ofs
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
-
-  let access_byval a (rw: bool) (exps: exp list) =
-    List.concat (List.map (access_one_byval a rw) exps)
-
-  (* TODO: unused? remove? *)
-  let access_byref ask (exps: exp list) =
-    (* Find the addresses reachable from some expression, and assume that these
-     * can all be written to. *)
-    let do_exp e =
-      match ask (Queries.ReachableFrom e) with
-      | a when not (Queries.LS.is_top a) ->
-        let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
-        Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-      (* Ignore soundness warnings, as invalidation proper will raise them. *)
-      | _ -> []
-    in
-    List.concat (List.map do_exp exps)
 
   (* list accessed addresses *)
   let varoffs a (rval:exp) =
@@ -116,13 +107,13 @@ struct
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
     let variables = vars a expr in
-    let raw_vars = List.concat (List.map Addr.to_var_offset variables) in
+    let raw_vars = List.filter_map Addr.to_var_offset variables in
     let will_addr_init (t:bool) a =
       let f addr =
-        List.exists (is_prefix_of a) (Addr.to_var_offset addr)
+        GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
+        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
@@ -131,7 +122,7 @@ struct
   let remove_if_prefix (pr: varinfo * (Addr.field,Addr.idx) Lval.offs) (uis: D.t) : D.t =
     let f ad =
       let vals = Addr.to_var_offset ad in
-      List.for_all (fun a -> not (is_prefix_of pr a)) vals
+      GobOption.for_all (fun a -> not (is_prefix_of pr a)) vals
     in
     D.filter f uis
 
@@ -161,7 +152,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.warn "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
+        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -189,7 +180,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.warn "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
+      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
       []
 
 
@@ -231,11 +222,11 @@ struct
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
-      List.concat (List.map do_exp args)
+      List.concat_map do_exp args
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
+      List.fold_right AD.add (List.concat_map to_addrs vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st

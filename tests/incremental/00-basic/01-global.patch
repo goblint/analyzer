@@ -1,4 +1,10 @@
-3c3
-< int g = 0;
----
-> int g = 53;
+--- tests/incremental/00-basic/01-global.c
++++ tests/incremental/00-basic/01-global.c
+@@ -1,6 +1,6 @@
+ // Previosuly, the function was erroneously not reanalyzed when the global initializer/the start state changed
+ // when hash-consing is activated.
+-int g = 0;
++int g = 35;
+
+ int main(){
+     int x = g;

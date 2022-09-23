@@ -21,19 +21,19 @@ int main () {
   *p = 7;
   i = *p;
   printf("%d\n", i); // GCC: i = 7
-  assert(i == 7);
+  __goblint_check(i == 7);
 
   dang();
   i = *p;
   printf("%d\n", i); // GCC: i = 3
-  assert(i == 3); // UNKNOWN
+  __goblint_check(i == 3); // UNKNOWN
 
   nestra(&p);
   *p = 8;
   nestra(&q);
   i = *p;
   printf("%d\n", i); // GCC: i = 5
-  assert(i == 5); // UNKNOWN
+  __goblint_check(i == 5); // UNKNOWN
 
   return 0;
 }

@@ -35,3 +35,24 @@ let cpp =
   )
 
 let get_cpp () = Lazy.force cpp
+
+module FpathH = Hashtbl.Make (GobFpath)
+let dependencies: bool Fpath.Map.t FpathH.t = FpathH.create 3 (* bool is system_header *)
+
+let dependencies_to_yojson () =
+  dependencies
+  |> FpathH.enum
+  |> Enum.map (fun (p, deps) ->
+      let deps' =
+        deps
+        |> Fpath.Map.bindings
+        |> List.filter_map (function
+            | (dep, false) -> Some dep
+            | (_, true) -> None
+          )
+        |> [%to_yojson: GobFpath.t list]
+      in
+      (Fpath.to_string p, deps')
+    )
+  |> List.of_enum
+  |> (fun l -> `Assoc l)

@@ -1,20 +1,9 @@
-open Cil
+open GoblintCil
 open Pretty
 
 include Printable.Std
 
-(** A node in the Control Flow Graph is either a statement or function. Think of
- * the function node as last node that all the returning nodes point to.  So
- * the result of the function call is contained in the function node. *)
-type t =
-  | Statement of CilType.Stmt.t
-  (** The statements as identified by CIL *)
-  (* The stmt in a Statement node is misleading because nodes are program points between transfer functions (edges), which actually correspond to statement execution. *)
-  | FunctionEntry of CilType.Fundec.t
-  (** *)
-  | Function of CilType.Fundec.t
-  (** The variable information associated with the function declaration. *)
-[@@deriving eq, ord, to_yojson]
+include Node0
 
 let name () = "node"
 
@@ -35,14 +24,18 @@ let pretty_plain_short () = function
 (** Pretty node for solver variable tracing with short stmt. *)
 let pretty_trace () = function
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
-  | Function      fd -> dprintf "call of %s" fd.svar.vname
-  | FunctionEntry fd -> dprintf "entry state of %s" fd.svar.vname
+  | Function      fd -> dprintf "call of %s (%d)" fd.svar.vname fd.svar.vid
+  | FunctionEntry fd -> dprintf "entry state of %s (%d)" fd.svar.vname fd.svar.vid
 
 (** Output functions for Printable interface *)
 let pretty () x = pretty_trace () x
-let show x = Pretty.sprint ~width:max_int (pretty () x)
-let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-let to_yojson x = `String (show x)
+include Printable.SimplePretty (
+  struct
+    type nonrec t = t
+    let pretty = pretty
+  end
+  )
+(* TODO: deriving to_yojson gets overridden by SimplePretty *)
 
 (** Show node ID for CFG and results output. *)
 let show_id = function
@@ -56,17 +49,6 @@ let show_cfg = function
   | Function fd      -> "return of " ^ fd.svar.vname ^ "()"
   | FunctionEntry fd -> fd.svar.vname ^ "()"
 
-
-let hash = function
-  | Statement   stmt -> Hashtbl.hash (CilType.Stmt.hash stmt, 0)
-  | Function      fd -> Hashtbl.hash (CilType.Fundec.hash fd, 1)
-  | FunctionEntry fd -> Hashtbl.hash (CilType.Fundec.hash fd, 2)
-
-let location (node: t) =
-  match node with
-  | Statement stmt -> Cilfacade.get_stmtLoc stmt
-  | Function fd -> fd.svar.vdecl
-  | FunctionEntry fd -> fd.svar.vdecl
 
 (** Find [fundec] which the node is in. In an incremental run this might yield old fundecs for pseudo-return nodes from the old file. *)
 let find_fundec (node: t) =
