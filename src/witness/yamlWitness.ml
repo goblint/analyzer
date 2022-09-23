@@ -66,7 +66,7 @@ struct
   (* non-standard extension *)
   let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
     entry_type = FlowInsensitiveInvariant {
-      flow_insensitive_invariant = invariant;
+        flow_insensitive_invariant = invariant;
       };
     metadata = metadata ~task ();
   }
