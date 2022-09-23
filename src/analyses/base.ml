@@ -1143,7 +1143,8 @@ struct
 
   let query_invariant_global ctx g =
     if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
-      (* Currently these global invariants are only sound for single-threaded mode with earlyglobs. *)
+      (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
+         Otherwise, the values of globals in single-threaded mode are not accounted for. *)
       (* TODO: account for single-threaded values without earlyglobs. *)
       match g with
       | `Left g' -> (* priv *)
