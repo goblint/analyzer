@@ -106,16 +106,16 @@ struct
           )
           | _ -> pointedArrayMap xs
       )
-  in
-  match Hashtbl.find_option array_map fundec.svar with
+    in
+    match Hashtbl.find_option array_map fundec.svar with
     | Some _ -> () (*We already have something -> do not change it*)
     | None -> Hashtbl.add array_map fundec.svar (pointedArrayMap arguments)
 
   let attributes_varinfo info fundec =
     let map = Hashtbl.find array_map fundec.svar in
     match VarMap.find_opt info map with
-      | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
-      | None -> Some (info.vattr, typeAttrs (info.vtype))
+    | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+    | None -> Some (info.vattr, typeAttrs (info.vtype))
 
   let project_val ask array_attr p_opt value is_glob =
     let p = if GobConfig.get_bool "annotation.int.enabled" then (
