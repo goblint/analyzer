@@ -41,7 +41,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) =
     emit_splits_ctx ctx
 
-  (* TODO: should splits go to enter? *)
+  (* enter passes splits to function by IdentitySpec *)
 
   let body ctx (f:fundec) =
     emit_splits_ctx ctx
@@ -50,7 +50,8 @@ struct
     emit_splits_ctx ctx
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au =
-    emit_splits_ctx ctx (* TODO: how to combine if splits also from au? *)
+    let d = D.join ctx.local au in
+    emit_splits ctx d
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     let d = match f.vname with
