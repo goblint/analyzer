@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] expsplit
+// SKIP PARAM: --set ana.activated[+] expsplit
 #include <stddef.h>
 #include <assert.h>
 #include <goblint.h>

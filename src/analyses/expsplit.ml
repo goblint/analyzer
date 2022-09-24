@@ -15,9 +15,8 @@ struct
   let startstate v = D.bot ()
   let exitstate = startstate
 
-  include Analyses.IdentitySpec (* TODO: implement others correctly instead of identity *)
+  include Analyses.DefaultSpec
 
-  (* after IdentitySpec, because that would override... *)
   let should_join = D.equal
 
   let emit_splits ctx d =
@@ -41,7 +40,8 @@ struct
   let branch ctx (exp:exp) (tv:bool) =
     emit_splits_ctx ctx
 
-  (* enter passes splits to function by IdentitySpec *)
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
+    [ctx.local, ctx.local]
 
   let body ctx (f:fundec) =
     emit_splits_ctx ctx
@@ -67,6 +67,8 @@ struct
         ctx.local
     in
     emit_splits ctx d
+
+  let threadenter ctx lval f args = [ctx.local]
 
   let threadspawn ctx lval f args fctx =
     emit_splits_ctx ctx
