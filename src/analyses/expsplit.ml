@@ -20,27 +20,55 @@ struct
   (* after IdentitySpec, because that would override... *)
   let should_join = D.equal
 
-  (* TODO: emit update splits from all transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) =
+  let emit_splits ctx d =
     D.iter (fun e _ ->
         ctx.emit (UpdateExpSplit e)
-      ) ctx.local;
-    ctx.local
+      ) d;
+    d
+
+  let emit_splits_ctx ctx =
+    emit_splits ctx ctx.local
+
+  let assign ctx (lval:lval) (rval:exp) =
+    emit_splits_ctx ctx
+
+  let vdecl ctx (var:varinfo) =
+    emit_splits_ctx ctx
+
+  let vdecl ctx (var:varinfo) =
+    emit_splits_ctx ctx
+
+  let branch ctx (exp:exp) (tv:bool) =
+    emit_splits_ctx ctx
+
+  (* TODO: should splits go to enter? *)
+
+  let body ctx (f:fundec) =
+    emit_splits_ctx ctx
+
+  let return ctx (exp:exp option) (f:fundec) =
+    emit_splits_ctx ctx
+
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au =
+    emit_splits_ctx ctx (* TODO: how to combine if splits also from au? *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
-    (* TODO: emit update splits *)
-    match f.vname with
-    | "__goblint_split_begin" ->
-      let exp = List.hd arglist in
-      let ik = Cilfacade.get_ikind_exp exp in
-      (* TODO: something different for pointers, currently casts pointers to ints and loses precision (other than NULL) *)
-      D.add exp (ID.top_of ik) ctx.local (* TODO: immediately split *)
-      (* TODO: emit update splits _after_ adding expression, then doesn't have to eval for something better than top here (?) *)
-    | "__goblint_split_end" ->
-      let exp = List.hd arglist in
-      D.remove exp ctx.local
-    | _ ->
-      ctx.local (* TODO: not identity *)
+    let d = match f.vname with
+      | "__goblint_split_begin" ->
+        let exp = List.hd arglist in
+        let ik = Cilfacade.get_ikind_exp exp in
+        (* TODO: something different for pointers, currently casts pointers to ints and loses precision (other than NULL) *)
+        D.add exp (ID.top_of ik) ctx.local (* split immediately follows *)
+      | "__goblint_split_end" ->
+        let exp = List.hd arglist in
+        D.remove exp ctx.local
+      | _ ->
+        ctx.local
+    in
+    emit_splits ctx d
+
+  let threadspawn ctx lval f args fctx =
+    emit_splits_ctx ctx
 
   let event ctx (event: Events.t) octx =
     match event with
