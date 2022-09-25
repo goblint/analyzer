@@ -43,6 +43,7 @@ type special =
   | ThreadExit of { ret_val: Cil.exp; }
   | Signal of Cil.exp
   | Broadcast of Cil.exp
+  | MutexAttrSetType of { attr:Cil.exp; typ: Cil.exp; }
   | Wait of { cond: Cil.exp; mutex: Cil.exp; }
   | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; }
   | Math of { fun_args: math; }

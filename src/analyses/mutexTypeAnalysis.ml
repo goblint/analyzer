@@ -3,24 +3,7 @@
 open Prelude.Ana
 open Analyses
 
-module MutexKind =
-struct
-  include Printable.Std
-
-  type t = NonRec | Recursive [@@deriving eq, ord, hash, to_yojson]
-  let name () = "mutexKind"
-  let show x = match x with
-    | NonRec -> "fast/error_checking"
-    | Recursive -> "recursive"
-
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
-end
-
-
-module MutexKindLattice = Lattice.Flat(MutexKind) (struct let bot_name = "Uninitialized" let top_name = "Top" end)
+module MAttr= ValueDomain.MutexAttr
 
 module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
 struct
@@ -30,7 +13,7 @@ struct
   let name () = "pthreadMutexType"
   module D = Lattice.Unit
   module C = Lattice.Unit
-  module G = MutexKindLattice
+  module G = MAttr
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -38,13 +21,7 @@ struct
     | Var v, Field (f1, Field (f2, NoOffset)) when ValueDomain.Compound.is_mutex_type v.vtype && f1.fname = "__data" && f2.fname = "__kind"  ->
       let kind =
         (match Cil.constFold true rval with
-         | Const (CInt (c, _, _)) ->
-           if Z.equal c Z.zero then
-             `Lifted(MutexKind.NonRec)
-           else if Z.equal c Z.one then
-             `Lifted(MutexKind.Recursive)
-           else
-             `Top
+         | Const (CInt (c, _, _)) -> MAttr.of_int c
          | _ -> `Top)
       in
       ctx.sideg v kind;
@@ -76,7 +53,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.IsRecursiveMutex v -> ctx.global v = `Lifted (MutexKind.Recursive)
+    | Queries.IsRecursiveMutex v -> ctx.global v = `Lifted (MAttr.MutexKind.Recursive)
     | _ -> Queries.Result.top q
 end
 

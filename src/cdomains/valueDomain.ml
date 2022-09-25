@@ -70,6 +70,35 @@ end
 
 module Threads = ConcDomain.ThreadSet
 
+module MutexAttr = struct
+  module MutexKind =
+  struct
+    include Printable.Std
+
+    type t = NonRec | Recursive [@@deriving eq, ord, hash, to_yojson]
+    let name () = "mutexKind"
+    let show x = match x with
+      | NonRec -> "fast/error_checking"
+      | Recursive -> "recursive"
+
+    include Printable.SimpleShow (struct
+        type nonrec t = t
+        let show = show
+      end)
+  end
+
+  include Lattice.Flat(MutexKind) (struct let bot_name = "Uninitialized" let top_name = "Top" end)
+
+  let of_int z =
+    if Z.equal z Z.zero then
+      `Lifted MutexKind.NonRec
+    else if Z.equal z Z.one then
+      `Lifted MutexKind.Recursive
+    else
+      `Top
+
+end
+
 module rec Compound: S with type t = [
     | `Top
     | `Int of ID.t
@@ -81,6 +110,7 @@ module rec Compound: S with type t = [
     | `Blob of Blobs.t
     | `Thread of Threads.t
     | `Mutex
+    | `MutexAttr of MutexAttr.t
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
 struct
@@ -95,8 +125,13 @@ struct
     | `Blob of Blobs.t
     | `Thread of Threads.t
     | `Mutex
+    | `MutexAttr of MutexAttr.t
     | `Bot
   ] [@@deriving eq, ord, hash]
+
+  let is_mutexattr_type (t:typ): bool = match t with
+    | TNamed (info, attr) -> info.tname = "pthread_mutexattr_t"
+    | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
     | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthead_spinlock_t"
@@ -123,6 +158,7 @@ struct
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttr.bot ())
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
@@ -137,6 +173,7 @@ struct
     | `Blob x -> Blobs.is_bot x
     | `Thread x -> Threads.is_bot x
     | `Mutex -> true
+    | `MutexAttr x -> MutexAttr.is_bot x
     | `Bot -> true
     | `Top -> false
 
@@ -183,6 +220,7 @@ struct
     | `Array x -> CArrays.is_top x
     | `Blob x -> Blobs.is_top x
     | `Thread x -> Threads.is_top x
+    | `MutexAttr x -> MutexAttr.is_top x
     | `Mutex -> true
     | `Top -> true
     | `Bot -> false
@@ -214,7 +252,7 @@ struct
       | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex"  | `MutexAttr _ -> "MutexAttr" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -239,6 +277,7 @@ struct
     | `Array n ->  CArrays.pretty () n
     | `Blob n ->  Blobs.pretty () n
     | `Thread n -> Threads.pretty () n
+    | `MutexAttr n -> MutexAttr.pretty () n
     | `Mutex -> text "mutex"
     | `Bot -> text bot_name
     | `Top -> text top_name
@@ -254,6 +293,7 @@ struct
     | `Blob n ->  Blobs.show n
     | `Thread n -> Threads.show n
     | `Mutex -> "mutex"
+    | `MutexAttr x -> MutexAttr.show x
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -1129,6 +1169,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `Thread n -> Threads.printXml f n
+    | `MutexAttr n -> MutexAttr.printXml f n
     | `Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
@@ -1142,6 +1183,7 @@ struct
     | `Array n -> CArrays.to_yojson n
     | `Blob n -> Blobs.to_yojson n
     | `Thread n -> Threads.to_yojson n
+    | `MutexAttr n -> MutexAttr.to_yojson n
     | `Mutex -> `String "mutex"
     | `Bot -> `String "⊥"
     | `Top -> `String "⊤"
@@ -1159,6 +1201,7 @@ struct
     | `Array n -> `Array (project_arr p n)
     | `Blob (v, s, z) -> `Blob (project p v, ID.project p s, z)
     | `Thread n -> `Thread n
+    | `MutexAttr n -> `MutexAttr n
     | `Mutex -> `Mutex
     | `Bot -> `Bot
     | `Top -> `Top
