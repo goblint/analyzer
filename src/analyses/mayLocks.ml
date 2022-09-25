@@ -9,13 +9,13 @@ struct
   module G = DefaultSpec.G
   module V = DefaultSpec.V
 
-  let add ctx (l,_) =
+  let add ctx (l,r) =
     if D.mem l ctx.local then
       match D.Addr.to_var_must l with
       | Some v when ctx.ask (Queries.IsRecursiveMutex v)->
         ctx.local
       | _ ->
-        (M.warn "double locking"; ctx.local)
+        (M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a (possibly non-recursive) mutex that may be already held"; ctx.local)
     else
       D.add l ctx.local
 
