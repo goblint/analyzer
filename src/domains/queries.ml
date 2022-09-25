@@ -104,6 +104,7 @@ type _ t =
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | IsRecursiveMutex: varinfo -> MustBool.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
@@ -153,6 +154,7 @@ struct
     | IterVars _ -> (module Unit)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
+    | IsRecursiveMutex _ -> (module MustBool)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
@@ -187,6 +189,7 @@ struct
     | MayBePublicWithout _ -> MayBool.top ()
     | MayBeThreadReturn -> MayBool.top ()
     | IsHeapVar _ -> MayBool.top ()
+    | IsRecursiveMutex _ -> MustBool.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
     | MustBeSingleThreaded -> MustBool.top ()
@@ -252,6 +255,7 @@ struct
     | Any (WarnGlobal _) -> 35
     | Any (Invariant _) -> 36
     | Any (IterSysVars _) -> 37
+    | Any (IsRecursiveMutex _) -> 38
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in

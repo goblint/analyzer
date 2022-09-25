@@ -11,7 +11,11 @@ struct
 
   let add ctx (l,_) =
     if D.mem l ctx.local then
-      (M.warn "double locking"; ctx.local)
+      match D.Addr.to_var_must l with
+      | Some v when ctx.ask (Queries.IsRecursiveMutex v)->
+        ctx.local
+      | _ ->
+        (M.warn "double locking"; ctx.local)
     else
       D.add l ctx.local
 

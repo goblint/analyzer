@@ -29,6 +29,7 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
+  val is_mutex_type: typ -> bool
   val bot_value: typ -> t
   val is_bot_value: t -> bool
   val init_value: typ -> t
