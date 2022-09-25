@@ -38,14 +38,14 @@ struct
     | Var v, Field (f1, Field (f2, NoOffset)) when ValueDomain.Compound.is_mutex_type v.vtype && f1.fname = "__data" && f2.fname = "__kind"  ->
       let kind =
         (match Cil.constFold true rval with
-        | Const (CInt (c, _, _)) ->
-          if Z.equal c Z.zero then
-            `Lifted(MutexKind.NonRec)
-          else if Z.equal c Z.one then
-            `Lifted(MutexKind.Recursive)
-          else
-            `Top
-        | _ -> `Top)
+         | Const (CInt (c, _, _)) ->
+           if Z.equal c Z.zero then
+             `Lifted(MutexKind.NonRec)
+           else if Z.equal c Z.one then
+             `Lifted(MutexKind.Recursive)
+           else
+             `Top
+         | _ -> `Top)
       in
       ctx.sideg v kind;
       ctx.local
