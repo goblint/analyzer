@@ -5,6 +5,14 @@
 #include<unistd.h>
 #include <assert.h>
 
+#ifdef __APPLE__
+    // OS X does not have PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
+    int main(int argc, char const *argv[])
+    {
+        return 0;
+    }
+#else
+
 int g;
 
 pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
@@ -38,3 +46,5 @@ int main(int argc, char const *argv[])
 
     return 0;
 }
+  }
+#endif
