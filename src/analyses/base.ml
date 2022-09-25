@@ -1231,6 +1231,12 @@ struct
       end
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+    | Q.EvalMutexAttr e -> begin
+        let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
+        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `MutexAttr a -> a
+        | v -> MutexAttrDomain.top ()
+      end
     | Q.EvalLength e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->

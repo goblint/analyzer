@@ -10,6 +10,7 @@ module GU = Goblintutil
 module Expp = ExpDomain
 module Q = Queries
 module BI = IntOps.BigIntOps
+module MutexAttr = MutexAttrDomain
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -70,35 +71,6 @@ end
 
 module Threads = ConcDomain.ThreadSet
 
-module MutexAttr = struct
-  module MutexKind =
-  struct
-    include Printable.Std
-
-    type t = NonRec | Recursive [@@deriving eq, ord, hash, to_yojson]
-    let name () = "mutexKind"
-    let show x = match x with
-      | NonRec -> "fast/error_checking"
-      | Recursive -> "recursive"
-
-    include Printable.SimpleShow (struct
-        type nonrec t = t
-        let show = show
-      end)
-  end
-
-  include Lattice.Flat(MutexKind) (struct let bot_name = "Uninitialized" let top_name = "Top" end)
-
-  let of_int z =
-    if Z.equal z Z.zero then
-      `Lifted MutexKind.NonRec
-    else if Z.equal z Z.one then
-      `Lifted MutexKind.Recursive
-    else
-      `Top
-
-end
-
 module rec Compound: S with type t = [
     | `Top
     | `Int of ID.t
@@ -125,7 +97,7 @@ struct
     | `Blob of Blobs.t
     | `Thread of Threads.t
     | `Mutex
-    | `MutexAttr of MutexAttr.t
+    | `MutexAttr of MutexAttrDomain.t
     | `Bot
   ] [@@deriving eq, ord, hash]
 
@@ -158,7 +130,7 @@ struct
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
-    | t when is_mutexattr_type t -> `MutexAttr (MutexAttr.bot ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.bot ())
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
@@ -412,7 +384,8 @@ struct
     match v with
     | `Bot
     | `Thread _
-    | `Mutex ->
+    | `Mutex
+    | `MutexAttr _ ->
       v
     | _ ->
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in

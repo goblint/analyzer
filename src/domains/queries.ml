@@ -106,6 +106,7 @@ type _ t =
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | IsRecursiveMutex: varinfo -> MustBool.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | EvalMutexAttr: exp -> MutexAttrDomain.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | Invariant: invariant_context -> Invariant.t t
@@ -146,6 +147,7 @@ struct
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
+    | EvalMutexAttr _ -> (module MutexAttrDomain)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
@@ -196,6 +198,7 @@ struct
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
+    | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
@@ -256,6 +259,7 @@ struct
     | Any (Invariant _) -> 36
     | Any (IterSysVars _) -> 37
     | Any (IsRecursiveMutex _) -> 38
+    | Any (EvalMutexAttr _ ) -> 39
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -276,6 +280,7 @@ struct
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
@@ -287,6 +292,7 @@ struct
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
+      | Any (IsRecursiveMutex v1), Any (IsRecursiveMutex v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -306,6 +312,7 @@ struct
     | Any (EvalInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
+    | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
@@ -316,6 +323,7 @@ struct
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
+    | Any (IsRecursiveMutex v) -> CilType.Varinfo.hash v
     (* only argumentless queries should remain *)
     | _ -> 0
 

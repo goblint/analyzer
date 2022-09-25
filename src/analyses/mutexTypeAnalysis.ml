@@ -3,7 +3,8 @@
 open Prelude.Ana
 open Analyses
 
-module MAttr= ValueDomain.MutexAttr
+module MAttr = ValueDomain.MutexAttr
+module LF = LibraryFunctions
 
 module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
 struct
@@ -44,7 +45,14 @@ struct
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    let desc = LF.find f in
+    match desc.special arglist with
+    | MutexInit {mutex = mutex; attr = attr} ->
+      let mutexes = ctx.ask (Queries.MayPointTo mutex) in
+      let attr = ctx.ask (Queries.EvalMutexAttr attr) in
+      Queries.LS.iter (function (v, _) -> ctx.sideg v attr) mutexes;
+      ctx.local
+    | _ -> ctx.local
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
