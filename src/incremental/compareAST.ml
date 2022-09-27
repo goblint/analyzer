@@ -1,11 +1,6 @@
 open GoblintCil
 open CilMaps
 
-(* global_type and global_t are implicitly used by GlobalMap to keep GVarDecl apart from GVar and GFun, so do not remove! *)
-type global_type = Fun | Decl | Var
-
-and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
-
 module StringMap = Map.Make(String)
 
 type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: string StringMap.t}
@@ -38,18 +33,6 @@ let rename_mapping_to_string (rename_mapping: rename_mapping) =
                                    "; renamed_params=" ^ [%show: (string * string) list] (List.of_seq (StringMap.to_seq parameter_renames)) ^ ")") |>
                                String.concat ", " in
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "])"
-
-let identifier_of_global glob =
-  match glob with
-  | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
-  | GVar (var, init, l) -> {name = var.vname; global_t = Var}
-  | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
-  | _ -> raise Not_found
-
-module GlobalMap = Map.Make(struct
-    type t = global_identifier [@@deriving ord]
-  end)
-
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name (a: string) (b: string) =
@@ -174,6 +157,7 @@ and eq_attribute (rename_mapping: rename_mapping) (a: attribute) (b: attribute) 
 
 and eq_varinfo2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) = eq_varinfo a b rename_mapping
 
+(* TODO introduce default parameter for rename_mapping *)
 and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
 
