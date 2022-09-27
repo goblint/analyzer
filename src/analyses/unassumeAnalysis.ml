@@ -195,16 +195,18 @@ struct
         | None -> acc
       ) ctx.local es
     in
-    begin match es with
-      | x :: xs ->
-        let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
+    match es with
+    | x :: xs ->
+      let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
+      (* M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e; *)
+      if not !Goblintutil.postsolving then (
         let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
         ctx.emit (Unassume {exp = e; uuids});
         List.iter WideningTokens.perform uuids
-      | [] ->
-        ()
-    end;
-    ctx.local
+      );
+      ctx.local
+    | [] ->
+      ctx.local
 
   let assign ctx lv e =
     emit_unassume ctx
