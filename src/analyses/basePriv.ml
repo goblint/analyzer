@@ -802,13 +802,14 @@ struct
         ) g'
 
   let invariant_vars ask getg st =
+    let module VS = Set.Make (CilType.Varinfo) in
     let s = current_lockset ask in
     Lockset.fold (fun m acc ->
         GSync.fold (fun s' cpa' acc ->
-            SyncRange.fold_sync_vars List.cons cpa' acc
+            SyncRange.fold_sync_vars VS.add cpa' acc
           ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
+      ) s VS.empty
+    |> VS.elements
 end
 
 module LockCenteredBase =
