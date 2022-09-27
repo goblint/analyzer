@@ -285,7 +285,7 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
-  type t = { v : I.t; ikind : (ikind [@equal (=)] [@compare Stdlib.compare] [@hash fun x -> Hashtbl.hash x]) } [@@deriving eq, ord, hash]
+  type t = { v : I.t; ikind : CilType.Ikind.t } [@@deriving eq, ord, hash]
 
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
