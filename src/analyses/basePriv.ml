@@ -213,6 +213,8 @@ struct
       Invariant.none
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
+
+  let invariant_vars ask getg st = protected_vars ask
 end
 
 module PerMutexOplusPriv: S =
@@ -282,8 +284,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let invariant_vars ask getg st = protected_vars ask
 end
 
 module PerMutexMeetPriv: S =
@@ -370,8 +370,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let invariant_vars ask getg st = protected_vars ask
 end
 
 module PerMutexMeetTIDPriv: S =
@@ -587,8 +585,6 @@ struct
       ValueDomain.invariant_global (read_unprotected_global getg) g'
     | `Right _ -> (* thread *)
       Invariant.none
-
-  let invariant_vars ask getg st = protected_vars ask
 end
 
 
@@ -780,10 +776,19 @@ sig
   (** Fold over all values represented by weak range. *)
 end
 
-module AbstractLockCenteredBase (WeakRange: WeakRangeS) (SyncRange: Lattice.S) =
+module type SyncRangeS =
+sig
+  include Lattice.S
+  val fold_sync_vars: (varinfo -> 'a -> 'a) -> t -> 'a -> 'a
+  (** Fold over all variables represented by sync range. *)
+end
+
+module AbstractLockCenteredBase (WeakRange: WeakRangeS) (SyncRange: SyncRangeS) =
 struct
   include AbstractLockCenteredGBase (WeakRange) (SyncRange)
   include MutexGlobals
+
+  open Locksets
 
   let invariant_global getg g =
     match g with
@@ -795,6 +800,15 @@ struct
               WeakRange.fold_weak VD.join tm acc
             ) (G.weak (getg (V.global x))) (VD.bot ())
         ) g'
+
+  let invariant_vars ask getg st =
+    let s = current_lockset ask in
+    Lockset.fold (fun m acc ->
+        GSync.fold (fun s' cpa' acc ->
+            SyncRange.fold_sync_vars List.cons cpa' acc
+          ) (G.sync (getg (V.mutex m))) acc
+      ) s []
+    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module LockCenteredBase =
@@ -804,6 +818,13 @@ struct
     include VD
 
     let fold_weak f v a = f v a
+  end
+
+  module CPA =
+  struct
+    include CPA
+
+    let fold_sync_vars f m a = fold (fun k _ a -> f k a) m a
   end
 
   (* weak: G -> (2^M -> D) *)
@@ -848,7 +869,7 @@ struct
 
   (* weak: G -> (2^M -> (T -> D)) *)
   (* sync: M -> (2^M -> (G -> D)) *)
-  include AbstractLockCenteredBase (ThreadMap) (CPA)
+  include AbstractLockCenteredBase (ThreadMap) (LockCenteredBase.CPA)
 
   let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
@@ -910,15 +931,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let invariant_vars ask getg st =
-    let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
-        GSync.fold (fun s' cpa' acc ->
-            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
-          ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module MineNoThreadPriv: S =
@@ -974,15 +986,6 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let invariant_vars ask getg st =
-    let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
-        GSync.fold (fun s' cpa' acc ->
-            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
-          ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module type MineWPrivParam =
@@ -1075,15 +1078,6 @@ struct
       startstate_threadenter startstate
     else
       old_threadenter
-
-  let invariant_vars ask getg st =
-    let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
-        GSync.fold (fun s' cpa' acc ->
-            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
-          ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module LockCenteredD =
@@ -1233,15 +1227,6 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
-
-  let invariant_vars ask getg st =
-    let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
-        GSync.fold (fun s' cpa' acc ->
-            CPA.fold (fun x _ acc -> x :: acc) cpa' acc
-          ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module WriteCenteredBase =
@@ -1254,7 +1239,15 @@ struct
 
     let fold_weak f m a = fold (fun _ v a -> f v a) m a
   end
-  module GSyncW = MapDomain.MapBot (Lockset) (CPA)
+  module GSyncW =
+  struct
+    include MapDomain.MapBot (Lockset) (LockCenteredBase.CPA)
+
+    let fold_sync_vars f m a =
+      fold (fun _ cpa a ->
+          LockCenteredBase.CPA.fold_sync_vars f cpa a
+        ) m a
+  end
 
   (* weak: G -> (S:2^M -> (W:2^M -> D)) *)
   (* sync: M -> (S:2^M -> (W:2^M -> (G -> D))) *)
@@ -1399,17 +1392,6 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
-
-  let invariant_vars ask getg st =
-    let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
-        GSync.fold (fun s' gsyncw' acc ->
-            GSyncW.fold (fun w' cpa' acc ->
-                CPA.fold (fun x _ acc -> x :: acc) cpa' acc
-              ) gsyncw' acc
-          ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 (** Write-Centered Reading and Lock-Centered Reading combined. *)
@@ -1578,17 +1560,6 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
-
-  let invariant_vars ask getg st =
-    let s = current_lockset ask in
-    Lockset.fold (fun m acc ->
-        GSync.fold (fun s' gsyncw' acc ->
-            GSyncW.fold (fun w' cpa' acc ->
-                CPA.fold (fun x _ acc -> x :: acc) cpa' acc
-              ) gsyncw' acc
-          ) (G.sync (getg (V.mutex m))) acc
-      ) s []
-    |> List.unique_cmp ~cmp:CilType.Varinfo.compare (* TODO: use set *)
 end
 
 module TimedPriv (Priv: S): S with module D = Priv.D =
