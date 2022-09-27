@@ -7,7 +7,7 @@ include CompareCFG
 module GlobalMap = Map.Make(String)
 
 type global_def = Var of varinfo | Fun of fundec
-and global_col = {decls: varinfo option; def: global_def option}
+type global_col = {decls: varinfo option; def: global_def option}
 
 let name_of_global g = match g with
   | GVar (v,_,_) -> v.vname

@@ -89,10 +89,16 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
       List.iter (reset_changed_stmt (List.map snd d.unchangedNodes)) f.sallstmts;
       List.iter (assign_same_id f.sallstmts) d.unchangedNodes
   in
+  let update_var (v: varinfo) =
+    v.vid <- make_vid ()
+  in
   let reset_changed_globals (changed: changed_global) =
     match (changed.current.def, changed.old.def) with
     | Some (Fun nw), Some (Fun old) -> reset_changed_fun nw old changed.unchangedHeader changed.diff
-    (* why ids of global variables not adapted? *)
+    | Some (Var nw), Some (Var old) -> update_var nw
+    | None, None -> (match (changed.current.decls, changed.old.decls) with
+        | Some nw, Some old -> update_var nw
+        | _ -> ())
     | _ -> ()
   in
   let update_fun (f: fundec) =
@@ -100,9 +106,6 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
     List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
     List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
     List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
-  in
-  let update_var (v: varinfo) =
-    v.vid <- make_vid ()
   in
   let update_globals (glob: global_col) =
     try
