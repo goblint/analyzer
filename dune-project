@@ -1,6 +1,7 @@
 (lang dune 2.9)
 ; need 2.9 for dune-site to work with opam install: https://github.com/ocaml/dune/issues/4212, https://github.com/ocaml/dune/pull/4645, https://github.com/ocaml/dune/pull/4774
 (using dune_site 0.1)
+(cram enable)
 (name goblint)
 ; build failed with: Files src/.maingoblint.eobjs/native/mutex.cmx and _opam/lib/ocaml/threads/threads.cmxa both define a module named Mutex
 ; maybe related: https://github.com/ocaml/dune/issues/1727, https://github.com/ocaml/dune/issues/597

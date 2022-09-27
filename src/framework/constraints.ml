@@ -928,15 +928,21 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = HoareDomain.Set(Spec.D).t
-     and module G = Spec.G
+    with module G = Spec.G
      and module C = Spec.C
      and module V = Spec.V
 =
 struct
   module D =
   struct
-    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    module C =
+    struct
+      type elt = Spec.D.t
+      let cong = Spec.should_join
+    end
+    module J = SetDomain.Joined (Spec.D)
+    include DisjointDomain.PairwiseSet (Spec.D) (J) (C)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -944,27 +950,6 @@ struct
         BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x
       in
       iter print_one x
-
-    (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
-      let rec loop js = function
-        | [] -> js
-        | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
-            if Spec.should_join x j then Spec.D.join x j, r else j, x::r
-          ) (x,[]) xs in
-          loop (j::js) r
-      in
-      apply_list (loop []) a
-
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
-
-    let binop op a b = op a b |> join_reduce
-
-    let join = binop join
-    let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow
   end
 
   module G = Spec.G
@@ -1124,6 +1109,14 @@ struct
               | `Top -> (* may be both true and false *)
                 ()
             ) em;
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
