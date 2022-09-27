@@ -123,8 +123,10 @@ struct
   let name () = "ikind"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
-  let compare (x: t) (y: t) = compare x y
+  let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
@@ -146,8 +148,10 @@ struct
   let name () = "fkind"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
-  let compare (x: t) (y: t) = compare x y
+  let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
@@ -169,8 +173,10 @@ struct
   let name () = "unop"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
-  let compare (x: t) (y: t) = compare x y
+  let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
@@ -192,8 +198,10 @@ struct
   let name () = "binop"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
-  let compare (x: t) (y: t) = compare x y
+  let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
@@ -215,8 +223,10 @@ struct
   let name () = "wstring_type"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
-  let compare (x: t) (y: t) = compare x y
+  let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
@@ -241,8 +251,10 @@ struct
   let name () = "encoding"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
-  let compare (x: t) (y: t) = compare x y
+  let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
@@ -271,7 +283,7 @@ struct
 
   (* Identity *)
   let equal x y = x.vid = y.vid
-  let compare x y = compare x.vid y.vid
+  let compare x y = Stdlib.compare x.vid y.vid
   let hash x = x.vid - 4773
   (* let hash x = Hashtbl.hash x.vid *)
 
@@ -320,7 +332,7 @@ struct
 
   (* Identity *)
   let equal x y = x.ckey = y.ckey
-  let compare x y = compare x.ckey y.ckey
+  let compare x y = Stdlib.compare x.ckey y.ckey
   (* let hash x = Hashtbl.hash x.ckey *)
   let hash x = x.ckey
 
@@ -386,7 +398,7 @@ struct
   (* Identity *)
   (* TODO: Is this enough or do we have to recursively compare eitems, etc? *)
   let equal x y = x.ename = y.ename
-  let compare x y = compare x.ename y.ename
+  let compare x y = String.compare x.ename y.ename
   let hash x = Hashtbl.hash x.ename
 
   (* Output *)
@@ -410,7 +422,7 @@ struct
   (* Identity *)
   (* TODO: Is this enough or do we have to recursively compare ttype? *)
   let equal x y = x.tname = y.tname
-  let compare x y = compare x.tname y.tname
+  let compare x y = String.compare x.tname y.tname
   let hash x = Hashtbl.hash x.tname
 
   (* Output *)
@@ -433,7 +445,7 @@ struct
 
   (* Identity *)
   let equal x y = x.sid = y.sid
-  let compare x y = compare x.sid y.sid
+  let compare x y = Stdlib.compare x.sid y.sid
   (* let hash x = Hashtbl.hash x.sid * 97 *)
   let hash x = x.sid
 
@@ -559,8 +571,8 @@ struct
 
   type t = offset =
     | NoOffset
-    | Field      of Fieldinfo.t * t
-    | Index    of Exp.t * t
+    | Field of Fieldinfo.t * t
+    | Index of Exp.t * t
   [@@deriving eq, ord, hash]
 
   let name () = "offset"
@@ -613,8 +625,8 @@ struct
   include Std
 
   type lhost = Cil.lhost =
-    | Var        of Varinfo.t
-    | Mem        of Exp.t
+    | Var of Varinfo.t
+    | Mem of Exp.t
   [@@deriving eq, ord, hash]
 
   type t = lhost * Offset.t [@@deriving eq, ord, hash]
@@ -658,22 +670,22 @@ struct
   include Std
 
   type t = exp =
-    | Const      of Constant.t
-    | Lval       of Lval.t
-    | SizeOf     of Typ.t
-    | Real       of t
-    | Imag       of t
-    | SizeOfE    of t
-    | SizeOfStr  of string
-    | AlignOf    of Typ.t
-    | AlignOfE   of t
-    | UnOp       of Unop.t * t * Typ.t
-    | BinOp      of Binop.t * t * t * Typ.t
-    | Question   of t * t * t * Typ.t
-    | CastE      of Typ.t * t
-    | AddrOf     of Lval.t
+    | Const of Constant.t
+    | Lval of Lval.t
+    | SizeOf of Typ.t
+    | Real of t
+    | Imag of t
+    | SizeOfE of t
+    | SizeOfStr of string
+    | AlignOf of Typ.t
+    | AlignOfE of t
+    | UnOp of Unop.t * t * Typ.t
+    | BinOp of Binop.t * t * t * Typ.t
+    | Question of t * t * t * Typ.t
+    | CastE of Typ.t * t
+    | AddrOf of Lval.t
     | AddrOfLabel of (Stmt.t ref [@hash fun x -> Stmt.hash !x]) (* TODO: ref in ppx_deriving_hash *)
-    | StartOf    of Lval.t
+    | StartOf of Lval.t
   [@@deriving eq, ord, hash]
 
   let name () = "exp"
