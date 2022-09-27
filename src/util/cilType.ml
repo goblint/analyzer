@@ -12,6 +12,29 @@ struct
   include Printable.Std
 end
 
+module Cilint: S with type t = Cilint.cilint =
+struct
+  include Std
+
+  type t = Cilint.cilint
+
+  let name () = "cilint"
+
+  (* Identity *)
+  let equal = Z.equal
+  let compare = Z.compare
+  let hash = Z.hash
+
+  (* Output *)
+  let show = Z.to_string
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
+
 module Location:
 sig
   include S with type t = location
@@ -120,6 +143,149 @@ struct
   let pp fmt x = Format.fprintf fmt "%s" x.vname (* for deriving show *)
 end
 
+module Ikind: S with type t = ikind =
+struct
+  include Std
+
+  type t = ikind
+
+  let name () = "ikind"
+
+  (* Identity *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = compare x y
+  let hash (x: t) = Hashtbl.hash x
+
+  (* Output *)
+  let pretty () x = d_ikind () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+module Fkind: S with type t = fkind =
+struct
+  include Std
+
+  type t = fkind
+
+  let name () = "fkind"
+
+  (* Identity *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = compare x y
+  let hash (x: t) = Hashtbl.hash x
+
+  (* Output *)
+  let pretty () x = d_fkind () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+module Unop: S with type t = unop =
+struct
+  include Std
+
+  type t = unop
+
+  let name () = "unop"
+
+  (* Identity *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = compare x y
+  let hash (x: t) = Hashtbl.hash x
+
+  (* Output *)
+  let pretty () x = d_unop () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+module Binop: S with type t = binop =
+struct
+  include Std
+
+  type t = binop
+
+  let name () = "binop"
+
+  (* Identity *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = compare x y
+  let hash (x: t) = Hashtbl.hash x
+
+  (* Output *)
+  let pretty () x = d_binop () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+module Wstring_type: S with type t = wstring_type =
+struct
+  include Std
+
+  type t = wstring_type
+
+  let name () = "wstring_type"
+
+  (* Identity *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = compare x y
+  let hash (x: t) = Hashtbl.hash x
+
+  (* Output *)
+  let show = function
+    | Wchar_t -> "wchar_t"
+    | Char16_t -> "char16_t"
+    | Char32_t -> "char32_t"
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
+
+module Encoding: S with type t = encoding =
+struct
+  include Std
+
+  type t = encoding
+
+  let name () = "encoding"
+
+  (* Identity *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = compare x y
+  let hash (x: t) = Hashtbl.hash x
+
+  (* Output *)
+  let show = function
+    | No_encoding -> "no encoding"
+    | Utf8 -> "utf-8"
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
+
 module Stmt: S with type t = stmt =
 struct
   include Std
@@ -131,7 +297,8 @@ struct
   (* Identity *)
   let equal x y = x.sid = y.sid
   let compare x y = compare x.sid y.sid
-  let hash x = Hashtbl.hash x.sid * 97
+  (* let hash x = Hashtbl.hash x.sid * 97 *)
+  let hash x = x.sid
 
   (* Output *)
   let pretty () x = dn_stmt () x
@@ -154,7 +321,8 @@ struct
   (* Identity *)
   let equal x y = Varinfo.equal x.svar y.svar
   let compare x y = Varinfo.compare x.svar y.svar
-  let hash x = x.svar.vid * 3
+  (* let hash x = x.svar.vid * 3 *)
+  let hash x = Varinfo.hash x.svar
 
   (* Output *)
   let show x = x.svar.vname
@@ -166,7 +334,55 @@ struct
     )
 end
 
-module Typ:
+module Typeinfo: S with type t = typeinfo =
+struct
+  include Std
+
+  type t = typeinfo
+
+  let name () = "typeinfo"
+
+  (* Identity *)
+  (* TODO: Is this enough or do we have to recursively compare ttype? *)
+  let equal x y = x.tname = y.tname
+  let compare x y = compare x.tname y.tname
+  let hash x = Hashtbl.hash x.tname
+
+  (* Output *)
+  let show x = x.tname
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
+
+module Enuminfo: S with type t = enuminfo =
+struct
+  include Std
+
+  type t = enuminfo
+
+  let name () = "enuminfo"
+
+  (* Identity *)
+  (* TODO: Is this enough or do we have to recursively compare eitems, etc? *)
+  let equal x y = x.ename = y.ename
+  let compare x y = compare x.ename y.ename
+  let hash x = Hashtbl.hash x.ename
+
+  (* Output *)
+  let show x = x.ename
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
+
+module rec Typ:
 sig
   include S with type t = typ
   val pp: Format.formatter -> t -> unit (* for deriving show *)
@@ -174,15 +390,27 @@ end =
 struct
   include Std
 
-  type t = typ
+  type t = typ =
+    | TVoid of Attributes.t
+    | TInt of Ikind.t * Attributes.t
+    | TFloat of Fkind.t * Attributes.t
+    | TPtr of t * Attributes.t
+    | TArray of t * Exp.t option * Attributes.t
+    | TFun of t * (string * t * Attributes.t) list option * bool * Attributes.t
+    | TNamed of Typeinfo.t * Attributes.t
+    | TComp of Compinfo.t * Attributes.t
+    | TEnum of Enuminfo.t * Attributes.t
+    | TBuiltin_va_list of Attributes.t
+  [@@deriving eq, ord, hash]
 
   let name () = "typ"
 
   (* Identity *)
   (* call to typeSig here is necessary, otherwise compare might not terminate *)
-  let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y)
-  let compare x y = compare (Cil.typeSig x) (Cil.typeSig y)
-  let hash (x:typ) = Hashtbl.hash x
+  (* let equal x y = Util.equals (Cil.typeSig x) (Cil.typeSig y) *)
+  (* let compare x y = compare (Cil.typeSig x) (Cil.typeSig y) *)
+  (* let equal x y = compare x y = 0 *)
+  (* let hash (x:typ) = Hashtbl.hash x *)
 
   (* Output *)
   let pretty () x = d_type () x
@@ -196,7 +424,103 @@ struct
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for deriving show *)
 end
 
-module Compinfo: S with type t = compinfo =
+and Typsig: S with type t = typsig =
+struct
+  include Std
+
+  type t = typsig =
+    | TSArray of t * Cilint.t option * Attributes.t
+    | TSPtr of t * Attributes.t
+    | TSComp of bool * string * Attributes.t
+    | TSFun of t * t list option * bool * Attributes.t
+    | TSEnum of string * Attributes.t
+    | TSBase of Typ.t
+  [@@deriving eq, ord, hash]
+
+  let name () = "typsig"
+
+  (* Output *)
+  let pretty () x = d_typsig () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+and Attrparam: S with type t = attrparam =
+struct
+  include Std
+
+  type t = attrparam =
+    | AInt of int
+    | AStr of string
+    | ACons of string * t list
+    | ASizeOf of Typ.t
+    | ASizeOfE of t
+    | ASizeOfS of Typsig.t
+    | AAlignOf of Typ.t
+    | AAlignOfE of t
+    | AAlignOfS of Typsig.t
+    | AUnOp of Unop.t * t
+    | ABinOp of Binop.t * t * t
+    | ADot of t * string
+    | AStar of t
+    | AAddrOf of t
+    | AIndex of t * t
+    | AQuestion of t * t * t
+  [@@deriving eq, ord, hash]
+
+  let name () = "attrparam"
+
+  (* Output *)
+  let pretty () x = d_attrparam () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+and Attribute: S with type t = attribute =
+struct
+  include Std
+
+  type t = attribute = Attr of string * Attrparam.t list [@@deriving eq, ord, hash]
+
+  let name () = "attribute"
+
+  (* Output *)
+  let pretty () x = d_attr () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+and Attributes: S with type t = attributes =
+struct
+  include Std
+
+  type t = Attribute.t list [@@deriving eq, ord, hash]
+
+  let name () = "attributes"
+
+  (* Output *)
+  let pretty () x = d_attrlist () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+and Compinfo: S with type t = compinfo =
 struct
   include Std
 
@@ -207,7 +531,8 @@ struct
   (* Identity *)
   let equal x y = x.ckey = y.ckey
   let compare x y = compare x.ckey y.ckey
-  let hash x = Hashtbl.hash x.ckey
+  (* let hash x = Hashtbl.hash x.ckey *)
+  let hash x = x.ckey
 
   (* Output *)
   let show x = compFullName x
@@ -219,7 +544,7 @@ struct
     )
 end
 
-module Fieldinfo: S with type t = fieldinfo =
+and Fieldinfo: S with type t = fieldinfo =
 struct
   include Std
 
@@ -247,7 +572,8 @@ struct
       r
     else
       compare (a.fname, a.fbitfield, a.fattr, a.floc) (b.fname, b.fbitfield, b.fattr, b.floc) *)
-  let hash x = Hashtbl.hash (x.fname, Compinfo.hash x.fcomp)
+  (* let hash x = Hashtbl.hash (x.fname, Compinfo.hash x.fcomp) *)
+  let hash x = 31 * (Hashtbl.hash x.fname) + Compinfo.hash x.fcomp
 
   (* Output *)
   let show x = x.fname
@@ -259,17 +585,35 @@ struct
     )
 end
 
-module rec Exp: S with type t = exp =
+and Exp: S with type t = exp =
 struct
   include Std
 
-  type t = exp
+  type t = exp =
+    | Const      of Constant.t
+    | Lval       of Lval.t
+    | SizeOf     of Typ.t
+    | Real       of t
+    | Imag       of t
+    | SizeOfE    of t
+    | SizeOfStr  of string
+    | AlignOf    of Typ.t
+    | AlignOfE   of t
+    | UnOp       of Unop.t * t * Typ.t
+    | BinOp      of Binop.t * t * t * Typ.t
+    | Question   of t * t * t * Typ.t
+    | CastE      of Typ.t * t
+    | AddrOf     of Lval.t
+    | AddrOfLabel of (Stmt.t ref [@hash fun x -> Stmt.hash !x]) (* TODO: ref in ppx_deriving_hash *)
+    | StartOf    of Lval.t
+  [@@deriving eq, ord, hash]
 
   let name () = "exp"
 
   (* Identity *)
   (* ArrayDomain seems to rely on this constructor order for "simpler" expressions *)
-  let order = function
+  (* TODO: fix ArrayDomain *)
+  (* let order = function
     | Const _ -> 0
     | Lval _ -> 1
     | SizeOf _ -> 2
@@ -371,7 +715,7 @@ struct
     | CastE (t, e) -> 31 * Typ.hash t + hash e
     | AddrOfLabel s -> Hashtbl.hash s (* TODO: is this right? *)
     | Question (e1, e2, e3, t) -> 31 * (31 * (31 * hash e1 + hash e2) + hash e3) + Typ.hash t
-  and hash x = 31 * order x + hash_arg x
+  and hash x = 31 * order x + hash_arg x *)
 
   (* Output *)
   let pretty () x = dn_exp () x
@@ -387,12 +731,16 @@ and Offset: S with type t = offset =
 struct
   include Std
 
-  type t = offset
+  type t = offset =
+    | NoOffset
+    | Field      of Fieldinfo.t * t
+    | Index    of Exp.t * t
+  [@@deriving eq, ord, hash]
 
   let name () = "offset"
 
   (* Identity *)
-  let rec compare a b =
+  (* let rec compare a b =
     let order x =
       match x with
       | NoOffset -> 0
@@ -422,7 +770,7 @@ struct
   let rec hash = function
     | NoOffset -> 31 * 0
     | Field (f, o) -> 31 * (31 * 1 + Fieldinfo.hash f) + hash o
-    | Index (e, o) -> 31 * (31 * 2 + Exp.hash e) + hash o
+    | Index (e, o) -> 31 * (31 * 2 + Exp.hash e) + hash o *)
 
   (* Output *)
   let pretty () x = d_offset nil () x
@@ -438,12 +786,17 @@ and Lval: S with type t = lval =
 struct
   include Std
 
-  type t = lval
+  type lhost = Cil.lhost =
+    | Var        of Varinfo.t
+    | Mem        of Exp.t
+  [@@deriving eq, ord, hash]
+
+  type t = lhost * Offset.t [@@deriving eq, ord, hash]
 
   let name () = "lval"
 
   (* Identity *)
-  let compare a b =
+  (* let compare a b =
     match a, b with
     | (Var v1, o1), (Var v2, o2) ->
       let r = Varinfo.compare v1 v2 in
@@ -462,7 +815,7 @@ struct
   let equal x y = compare x y = 0
   let hash = function
     | (Var v, o) -> 31 * (31 * 0 + Varinfo.hash v) + Offset.hash o
-    | (Mem e, o) -> 31 * (31 * 1 + Exp.hash e) + Offset.hash o
+    | (Mem e, o) -> 31 * (31 * 1 + Exp.hash e) + Offset.hash o *)
 
   (* Output *)
   let pretty () x = dn_lval () x
@@ -478,12 +831,19 @@ and Constant: S with type t = constant =
 struct
   include Std
 
-  type t = constant
+  type t = constant =
+    | CInt of Cilint.t * Ikind.t * string option
+    | CStr of string * Encoding.t
+    | CWStr of int64 list * Wstring_type.t
+    | CChr of char
+    | CReal of (float [@hash Hashtbl.hash]) * Fkind.t * string option (* TODO: float hash in ppx_deriving_hash *)
+    | CEnum of Exp.t * string * Enuminfo.t
+  [@@deriving eq, ord, hash]
 
   let name () = "constant"
 
   (* Identity *)
-  let compare a b =
+  (* let compare a b =
     match a,b with
     | CEnum (ea, sa, ia), CEnum (eb, sb, ib) ->
       let r = Exp.compare ea eb in
@@ -494,7 +854,7 @@ struct
     | _ ->
       compare a b
   let equal a b = compare a b = 0
-  let hash x = Hashtbl.hash x (* TODO: is this right? *)
+  let hash x = Hashtbl.hash x (* TODO: is this right? *) *)
 
   (* Output *)
   let pretty () x = d_const () x
