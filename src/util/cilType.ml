@@ -15,28 +15,6 @@ end
 let hash_float = Hashtbl.hash (* TODO: float hash in ppx_deriving_hash *)
 let hash_ref hash r = hash !r (* TODO: ref in ppx_deriving_hash *)
 
-module Cilint: S with type t = Cilint.cilint =
-struct
-  include Std
-
-  type t = Cilint.cilint
-
-  let name () = "cilint"
-
-  (* Identity *)
-  let equal = Z.equal
-  let compare = Z.compare
-  let hash = Z.hash
-
-  (* Output *)
-  let show = Z.to_string
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
-end
 
 module Location:
 sig
@@ -485,7 +463,7 @@ struct
   include Std
 
   type t = typsig =
-    | TSArray of t * Cilint.t option * Attributes.t
+    | TSArray of t * Z.t option * Attributes.t
     | TSPtr of t * Attributes.t
     | TSComp of bool * string * Attributes.t
     | TSFun of t * t list option * bool * Attributes.t
@@ -510,7 +488,7 @@ struct
   include Std
 
   type t = constant =
-    | CInt of Cilint.t * Ikind.t * string option
+    | CInt of Z.t * Ikind.t * string option
     | CStr of string * Encoding.t
     | CWStr of int64 list * Wstring_type.t
     | CChr of char
