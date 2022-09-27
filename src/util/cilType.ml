@@ -289,7 +289,7 @@ struct
       | Real _ -> 15
       | Imag _ -> 16
     in
-    if a == b || Expcompare.compareExp a b then
+    if a == b then
       0
     else
       let r = Stdlib.compare (order a) (order b) in

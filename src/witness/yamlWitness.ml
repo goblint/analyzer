@@ -66,7 +66,7 @@ struct
   (* non-standard extension *)
   let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
     entry_type = FlowInsensitiveInvariant {
-      flow_insensitive_invariant = invariant;
+        flow_insensitive_invariant = invariant;
       };
     metadata = metadata ~task ();
   }
@@ -252,7 +252,7 @@ struct
                   let entry = Entry.loop_invariant ~task ~location ~invariant in
                   entry :: acc
                 ) acc invs
-            | `Bot | `Top -> (* TODO: 0 for bot? *)
+            | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
               acc
           end
         end else begin
@@ -273,7 +273,7 @@ struct
                   let entry = Entry.flow_insensitive_invariant ~task ~invariant in
                   entry :: acc
                 ) acc invs
-            | `Bot | `Top -> (* TODO: 0 for bot? *)
+            | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
               acc
           end
         | `Right _ -> (* contexts global *)

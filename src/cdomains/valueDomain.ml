@@ -562,11 +562,12 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
     | (`Float x, `Float y) -> `Float (FD.widen x y)
+    (* TODO: symmetric widen, wtf? *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
-        | Some x -> AD.(widen y not_null)
-        | None -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x -> AD.(widen y (join y not_null))
+        | None -> AD.widen y (AD.join y AD.top_ptr))
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -647,11 +648,12 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
     | (`Float x, `Float y) -> `Float (FD.widen x y)
+    (* TODO: symmetric widen, wtf? *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
-        | Some x -> AD.(widen y not_null)
-        | None -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x -> AD.(widen y (join y not_null))
+        | None -> AD.widen y (AD.join y AD.top_ptr))
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -764,17 +766,15 @@ struct
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
-        begin
-        match ask.f (Q.MayPointTo (Lval lval)) with
-        | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
-          begin
-          match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.equal i Cil.zero && CilType.Varinfo.equal var arr_start_var ->
-            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
-            add
-          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
-          end
-        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
+        begin match ask.f (Q.MayPointTo (Lval lval)) with
+          | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+            begin match Q.LS.choose v with
+              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+                (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
+                add
+              | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
+            end
+          | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
         end
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in

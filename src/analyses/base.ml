@@ -416,7 +416,12 @@ struct
       in
       let f = function
         | Addr.Addr (x, o) -> f_addr (x, o)
-        | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
+        | Addr.NullPtr ->
+          begin match get_string "sem.null-pointer.dereference" with
+            | "assume_none" -> VD.bot ()
+            | "assume_top" -> top
+            | _ -> assert false
+          end
         | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in
@@ -1154,7 +1159,10 @@ struct
       Invariant.none
 
   let query_invariant_global ctx g =
-    if GobConfig.get_bool "ana.base.invariant.enabled" then (
+    if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
+      (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
+         Otherwise, the values of globals in single-threaded mode are not accounted for. *)
+      (* TODO: account for single-threaded values without earlyglobs. *)
       match g with
       | `Left g' -> (* priv *)
         Priv.invariant_global (priv_getg ctx.global) g'
@@ -2237,16 +2245,15 @@ struct
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-        begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
-            (* Evaluate exp and cast the resulting value to the void-pointer-type.
-               Casting to the right type here avoids precision loss on joins. *)
-            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-            ctx.sideg (V.thread tid) (G.create_thread rv);
-          | _ -> ()
-        end;
-        set ~ctx ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
-  (* lval_raw:None, and rval_raw:None is correct here *)
+        let st' = set ~ctx ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv in
+        match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+          (* Evaluate exp and cast the resulting value to the void-pointer-type.
+              Casting to the right type here avoids precision loss on joins. *)
+          let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+          ctx.sideg (V.thread tid) (G.create_thread rv);
+          Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st'
+        | _ -> st'
 
   let vdecl ctx (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
@@ -2398,7 +2405,11 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | _, _ ->
+    | _, _ when get_bool "sem.unknown_function.spawn" ->
+      (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
+         But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
+         definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
+         Need this to not have memmove spawn in SV-COMP. *)
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
@@ -2407,6 +2418,7 @@ struct
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
       List.filter_map (create_thread None None) addrs
+    | _, _ -> []
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
@@ -2524,11 +2536,16 @@ struct
     | ThreadExit { ret_val = exp }, _ ->
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
-          let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-          ctx.sideg (V.thread tid) (G.create_thread rv);
-          (* TODO: emit thread return event so other analyses are aware? *)
-          (* TODO: publish still needed? *)
-          publish_all ctx `Return (* like normal return *)
+          (
+            let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+            ctx.sideg (V.thread tid) (G.create_thread rv);
+            (* TODO: emit thread return event so other analyses are aware? *)
+            (* TODO: publish still needed? *)
+            publish_all ctx `Return; (* like normal return *)
+            match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+            | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+              ignore @@ Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
+            | _ -> ())
         | _ -> ()
       end;
       raise Deadcode
@@ -2601,7 +2618,11 @@ struct
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
       in
-      invalidate_ret_lv st'
+      let st' = invalidate_ret_lv st' in
+      Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
+    | Unknown, "__goblint_assume_join" ->
+      let id = List.hd args in
+      Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
     | Malloc size, _ -> begin
         match lv with
         | Some lv ->

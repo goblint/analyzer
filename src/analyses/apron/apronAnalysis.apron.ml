@@ -613,7 +613,6 @@ struct
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, apron privatization unsound"; (* TODO: something more sound *)
       Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
-    (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->

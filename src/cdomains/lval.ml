@@ -41,7 +41,7 @@ struct
     match x, y with
     | `NoOffset , `NoOffset -> true
     | `NoOffset, x
-    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case *)
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
     | _ -> false
@@ -61,7 +61,7 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let rec hash = function
+  let rec hash = function (* special cases not used for AddressDomain any more due to splitting *)
     | `NoOffset -> 1
     | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
     | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
@@ -86,7 +86,7 @@ struct
   let rec compare o1 o2 = match o1, o2 with
     | `NoOffset, `NoOffset -> 0
     | `NoOffset, x
-    | x, `NoOffset when cmp_zero_offset x = `MustZero -> 0 (* cannot derive due to this special case *)
+    | x, `NoOffset when cmp_zero_offset x = `MustZero -> 0 (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
     | `Field (f1,o1), `Field (f2,o2) ->
       let c = CilType.Fieldinfo.compare f1 f2 in
       if c=0 then compare o1 o2 else c
@@ -112,8 +112,8 @@ struct
   let rec leq x y =
     match x, y with
     | `NoOffset, `NoOffset -> true
-    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
-    | x, `NoOffset -> cmp_zero_offset x = `MustZero
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero (* special case not used for AddressDomain any more due to splitting *)
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* special case not used for AddressDomain any more due to splitting *)
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
@@ -123,13 +123,13 @@ struct
     match x, y with
     | `NoOffset, `NoOffset -> `NoOffset
     | `NoOffset, x
-    | x, `NoOffset -> (match cop, cmp_zero_offset x with
+    | x, `NoOffset -> (match cop, cmp_zero_offset x with (* special cases not used for AddressDomain any more due to splitting *)
       | (`Join | `Widen), (`MustZero | `MayZero) -> x
       | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
       | _ -> raise Lattice.Uncomparable)
     | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
-    | _ -> raise Lattice.Uncomparable
+    | _ -> raise Lattice.Uncomparable (* special case not used for AddressDomain any more due to splitting *)
 
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y
@@ -178,7 +178,7 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = OffsetPrintable (Idx)
-      
+
   type t =
     | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
@@ -309,6 +309,15 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
+(** Lvalue lattice.
+
+    Actually a disjoint union of lattices without top or bottom.
+    Lvalues are grouped as follows:
+
+    - Each {!Addr}, modulo precise index expressions in offset, is a sublattice with ordering induced by {!Offset}.
+    - {!NullPtr} is a singleton sublattice.
+    - {!UnknownPtr} is a singleton sublattice.
+    - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
 module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
@@ -343,7 +352,11 @@ struct
     | None, a
     | a, None -> a
     | Some a, Some b when a = b -> Some a
-    | Some a, Some b (* when a <> b *) -> raise Lattice.Uncomparable
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        raise Lattice.BotValue
+      else
+        raise Lattice.Uncomparable
 
   let merge cop x y =
     match x, y with
@@ -363,7 +376,32 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
+  include Lattice.NoBotTop
+
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IntDomain.Z) =
+struct
+  include NormalLat (Idx)
+
+  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    include Normal (Idx)
+    type elt = t
+
+    let rec of_elt_offset: Offs.t -> Offs.t =
+      function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) -> `Field (f, of_elt_offset o)
+      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* all indices to same bucket *)
+    let of_elt = function
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
+      | a -> a (* everything else is kept separate, including strings if not limited *)
+  end
 end
 
 module Fields =
