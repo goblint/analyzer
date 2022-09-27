@@ -508,10 +508,10 @@ struct
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
+  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
+
   let top () = failwith @@ "top () not implemented for " ^ (name ())
-  let top_of ik = Some (min_int ik, max_int ik)
+  let top_of ik = Some (range ik)
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
 
@@ -542,8 +542,7 @@ struct
   let norm ?(cast=false) ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
     else (
-      let min_ik = min_int ik in
-      let max_ik = max_int ik in
+      let (min_ik, max_ik) = range ik in
       let underflow = Ints_t.compare min_ik x > 0 in
       let overflow = Ints_t.compare max_ik y < 0 in
       if underflow || overflow then (
@@ -610,10 +609,10 @@ struct
     | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range ik)
 
   let starting ik n =
-    (norm ik) @@ Some (n, range_opt snd (Some ik) |? (max_int ik))
+    norm ik @@ Some (n, snd (range ik))
 
   let ending ik n =
-    norm ik @@ Some (range_opt fst (Some ik) |? min_int ik, n)
+    norm ik @@ Some (fst (range ik), n)
 
   (* TODO: change signature of maximal, minimal to return big_int*)
   let maximal = function None -> None | Some (x,y) -> Some y
@@ -622,26 +621,27 @@ struct
   let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
-    let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold u =
-      let ts = ResettableLazy.force widening_thresholds in
-      let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-      BatOption.map_default Ints_t.of_bigint (max_int ik) t
-    in
-    let lower_threshold l =
-      let ts = ResettableLazy.force widening_thresholds_desc in
-      let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-      BatOption.map_default Ints_t.of_bigint (min_int ik) t
-    in
     match x, y with
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
-      let lt = if threshold then lower_threshold l1 else min_int ik in
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt (min_int ik)) in
-      let ut = if threshold then upper_threshold u1 else max_int ik in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut (max_int ik)) in
+      let (min_ik, max_ik) = range ik in
+      let threshold = get_bool "ana.int.interval_threshold_widening" in
+      let upper_threshold u =
+        let ts = ResettableLazy.force widening_thresholds in
+        let u = Ints_t.to_bigint u in
+        let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+        BatOption.map_default Ints_t.of_bigint max_ik t
+      in
+      let lower_threshold l =
+        let ts = ResettableLazy.force widening_thresholds_desc in
+        let l = Ints_t.to_bigint l in
+        let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+        BatOption.map_default Ints_t.of_bigint min_ik t
+      in
+      let lt = if threshold then lower_threshold l1 else min_ik in
+      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt min_ik) in
+      let ut = if threshold then upper_threshold u1 else max_ik in
+      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut max_ik) in
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
@@ -653,8 +653,9 @@ struct
     match x, y with
     | _,None | None, _ -> None
     | Some (x1,x2), Some (y1,y2) ->
-      let lr = if Ints_t.compare (min_int ik) x1 = 0 then y1 else x1 in
-      let ur = if Ints_t.compare (max_int ik) x2 = 0 then y2 else x2 in
+      let (min_ik, max_ik) = range ik in
+      let lr = if Ints_t.compare min_ik x1 = 0 then y1 else x1 in
+      let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
 
   let narrow ik x y =
@@ -855,9 +856,10 @@ struct
       else
         Invariant.top ()
     | Some (x1, x2) ->
+      let (min_ik, max_ik) = range ik in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if (* not exact || *) Ints_t.compare (min_int ik) x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
-      let i2 = if (* not exact || *) Ints_t.compare x2 (max_int ik) <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
+      let i1 = if (* not exact || *) Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
+      let i2 = if (* not exact || *) Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
       Invariant.(i1 && i2)
     | None -> Invariant.none
 
@@ -886,11 +888,12 @@ struct
       else if Ints_t.equal m Ints_t.zero then
         Some (c, c)
       else
+        let (min_ik, max_ik) = range ik in
         let rcx =
-          if Ints_t.equal x (min_int ik) then x else
+          if Ints_t.equal x min_ik then x else
             Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
         let lcy =
-          if Ints_t.equal y (max_int ik) then y else
+          if Ints_t.equal y max_ik then y else
             Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
         if Ints_t.compare rcx lcy > 0 then None
         else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
@@ -912,8 +915,9 @@ struct
         let new_b = (op b (Ints_t.of_int(Bool.to_int(List.mem b ls)))) in
         if not (Ints_t.equal b new_b) then shrink op new_b else new_b
       in
-      let l' = if Ints_t.equal l (min_int ik) then l else shrink Ints_t.add l in
-      let u' = if Ints_t.equal u (max_int ik) then u else shrink Ints_t.sub u in
+      let (min_ik, max_ik) = range ik in
+      let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
+      let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
       let intv' = norm ik @@ Some (l', u') in
       let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
       meet ik intv' range
@@ -1774,8 +1778,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [I.zero; I.one])
 
-  let min_int ik = I.of_bigint @@ fst @@ Size.range ik
-  let max_int ik = I.of_bigint @@ snd @@ Size.range ik
+  let range ik = BatTuple.Tuple2.mapn I.of_bigint (Size.range ik)
+
 (*
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
@@ -1792,7 +1796,7 @@ module Enums : S with type int_t = BigInt.t = struct
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
   let norm ikind v =
-    let min, max = min_int ikind, max_int ikind in
+    let min, max = range ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =
       I.compare min v <= 0 && I.compare v max <= 0
@@ -2148,9 +2152,8 @@ struct
         else
           Some (c' %: m', m')
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
+  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
   let top () = Some (Ints_t.zero, Ints_t.one)
   let top_of ik = Some (Ints_t.zero, Ints_t.one)
   let bot () = None
@@ -2270,8 +2273,16 @@ struct
       (*   (https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html)   *)
       (* Clang behaves the same but they never document that anywhere *)
       Some (c', m)
-    | _ -> match torg with
-      | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >=: max_int ikorg && min_int t <=: min_int ikorg) -> if M.tracing then M.trace "cong-cast" "some case"; x
+    | _ ->
+      let (min_t, max_t) = range t in
+      let p ikorg =
+        let (min_ikorg, max_ikorg) = range ikorg in
+        ikorg = t || (max_t >=: max_ikorg && min_t <=: min_ikorg)
+      in
+      match torg with
+      | Some (Cil.TInt (ikorg, _)) when p ikorg ->
+        if M.tracing then M.trace "cong-cast" "some case";
+        x
       | _ -> top ()
 
 
@@ -2335,10 +2346,11 @@ struct
     | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
+      let (_, max_ik) = range ik in
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then
-        normalize ik @@ Some (Ints_t.bitand (max_int ik) (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
+        normalize ik @@ Some (Ints_t.bitand max_ik (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
       else
-        let x = (Ints_t.bitand (max_int ik) (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
+        let x = (Ints_t.bitand max_ik (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
         (* TODO: commented out because fails test with _Bool *)
         (* if is_prime (m' +: Ints_t.one) then
              normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
@@ -2359,7 +2371,8 @@ struct
       Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 *: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
+      let (_, max_ik) = range ik in
+      Some((c1 *: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
     | _ -> top ()
 
   let mul ?no_ov ik x y =
@@ -2381,7 +2394,8 @@ struct
     | Some (c1, m1), Some (c2, m2) when no_ov -> normalize ik (Some (c1 +: c2, Ints_t.gcd m1 m2))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 +: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
+      let (_, max_ik) = range ik in
+      Some((c1 +: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
     | _ -> top ()
 
 
@@ -2404,7 +2418,12 @@ struct
 
   let bitnot ik x = match x with
     | None -> None
-    | Some (c, m) -> if (Cil.isSigned ik) then sub ik (neg ik x) one else Some (Ints_t.sub (max_int ik) c, m)
+    | Some (c, m) ->
+      if (Cil.isSigned ik) then
+        sub ik (neg ik x) one
+      else
+        let (_, max_ik) = range ik in
+        Some (Ints_t.sub max_ik c, m)
 
   (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
