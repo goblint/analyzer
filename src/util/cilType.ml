@@ -446,6 +446,15 @@ struct
 
   let name () = "typ"
 
+  (* Identity *)
+  (* Optimize derived with physical equality. *)
+  let equal x y = x == y || equal x y
+  let compare x y =
+    if x == y then
+      0
+    else
+      compare x y
+
   (* Output *)
   let pretty () x = dn_type () x
   include Printable.SimplePretty (
@@ -543,6 +552,15 @@ struct
 
   let name () = "lval"
 
+  (* Identity *)
+  (* Optimize derived with physical equality. *)
+  let equal x y = x == y || equal x y
+  let compare x y =
+    if x == y then
+      0
+    else
+      compare x y
+
   (* Output *)
   let pretty () x = dn_lval () x
   include Printable.SimplePretty (
@@ -577,6 +595,15 @@ struct
   [@@deriving eq, ord, hash]
 
   let name () = "exp"
+
+  (* Identity *)
+  (* Optimize derived with physical equality. *)
+  let equal x y = x == y || equal x y
+  let compare x y =
+    if x == y then
+      0
+    else
+      compare x y
 
   (* Output *)
   let pretty () x = dn_exp () x
