@@ -14,5 +14,6 @@ int main() {
   assert(1 <= s.i);
   assert(s.i <= 3);
   assert(s.j == 3);
+  assert(s.i == 2); // UNKNOWN (intentional by unassume)
   return 0;
 }

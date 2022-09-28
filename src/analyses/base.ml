@@ -2501,7 +2501,7 @@ struct
               (* oldv is bot at first, but update_offset will partially initialize it as necessary *)
               let offs = convert_offset oa gs ost o in
               let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
-              let v = VD.meet oldv newv in
+              let v = if VD.is_bot oldv then newv else VD.meet oldv newv in (* avoid meet if was initial bot *)
               if is_some_bot v then raise Deadcode
               else (
                 if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
