@@ -982,7 +982,7 @@ struct
                 let init_field nstruct fd = Structs.replace nstruct fd `Bot in
                 List.fold_left init_field nstruct compinfo.cfields
               in
-              let strc = init_comp fld.fcomp in
+              let strc = init_comp {fld.fcomp with cfields = [fld]} in
               let l', o' = shift_one_over l o in
               `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
             | `Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
