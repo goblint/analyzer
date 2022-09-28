@@ -1,5 +1,5 @@
-(** Ref: Affine Relationships Among Variables of a Program, Michael Karr 1976
-  https://link.springer.com/content/pdf/10.1007/BF00268497.pdf *)
+(* Ref: Affine Relationships Among Variables of a Program, Michael Karr 1976
+    https://link.springer.com/content/pdf/10.1007/BF00268497.pdf *)
 open Analyses
 
 include RelationAnalysis
@@ -11,7 +11,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     struct
       module Var = AffineEqualityDomain.Var
       module V = AffineEqualityDomain.V
-      include RelationDomain.NoInvariantRelD3(AD)
+      include AD
     end in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec = struct include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)

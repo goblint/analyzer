@@ -34,7 +34,7 @@ end
 
 
 module VarMetadataTbl =
-functor (VM: VarMetadata) ->
+  functor (VM: VarMetadata) ->
   functor (Var: Var) ->
   struct
     module VH = Hashtbl.Make (Var)
@@ -71,7 +71,7 @@ end
 
 module V (Var: Var): (RV with type t = Var.t and type vartable = RelVM.t VarMetadataTbl (RelVM) (Var).VH.t) =
 struct
-   type t = Var.t
+  type t = Var.t
   module VMT = VarMetadataTbl (RelVM) (Var)
   include VMT
   open RelVM
@@ -146,24 +146,9 @@ sig
 
   type consSet
 
-  val get_cons_size: consSet -> int
-
   val cons_to_cil_exp:  scope:Cil.fundec -> consSet -> exp Option.t
 
   val invariant: scope:Cil.fundec -> t -> consSet list
-end
-
-module NoInvariantRelD3 (D2: S2) : S3 with type var = D2.var =
-struct
-  include D2
-
-  type consSet
-
-  let get_cons_size _ = 0
-
-  let cons_to_cil_exp ~scope _ = None
-
-  let invariant ~scope _ = []
 end
 
 type ('a, 'b) relcomponents_t = {

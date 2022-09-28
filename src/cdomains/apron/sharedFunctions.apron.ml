@@ -65,6 +65,26 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 
 module type SV =  RelationDomain.RV with type t = Var.t
 
+module Lincons1 =
+struct
+  include Lincons1
+
+  let show = Format.asprintf "%a" print
+  let compare x y = String.compare (show x) (show y) (* HACK *)
+end
+
+module Lincons1Set =
+struct
+  include Set.Make (Lincons1)
+
+  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> of_enum
+end
+
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
@@ -337,12 +357,12 @@ struct
   module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (Tracked)
 
   let rec exp_is_cons = function
-  (* constraint *)
-  | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-  | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_cons e1 && exp_is_cons e2
-  | UnOp (LNot,e,_) -> exp_is_cons e
-  (* expression *)
-  | _ -> false
+    (* constraint *)
+    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_cons e1 && exp_is_cons e2
+    | UnOp (LNot,e,_) -> exp_is_cons e
+    (* expression *)
+    | _ -> false
 
 
   (** Assert any expression. *)
@@ -372,25 +392,25 @@ struct
     else
       `Top
 
-(** Evaluate constraint or non-constraint expression as integer. *)
-let eval_int d e no_ov =
-  let module ID = Queries.ID in
-  match Cilfacade.get_ikind_exp e with
-  | exception Cilfacade.TypeOfError _
-  | exception Invalid_argument _ ->
-    ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
-  | ik ->
-    if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
-    if exp_is_cons e then
-      match check_assert d e no_ov with
-      | `True -> ID.of_bool ik true
-      | `False -> ID.of_bool ik false
-      | `Top -> ID.top_of ik
-    else
-      match eval_interval_expr d e with
-      | (Some min, Some max) -> ID.of_interval ik (min, max)
-      | (Some min, None) -> ID.starting ik min
-      | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top_of ik
+  (** Evaluate constraint or non-constraint expression as integer. *)
+  let eval_int d e no_ov =
+    let module ID = Queries.ID in
+    match Cilfacade.get_ikind_exp e with
+    | exception Cilfacade.TypeOfError _
+    | exception Invalid_argument _ ->
+      ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
+    | ik ->
+      if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
+      if exp_is_cons e then
+        match check_assert d e no_ov with
+        | `True -> ID.of_bool ik true
+        | `False -> ID.of_bool ik false
+        | `Top -> ID.top_of ik
+      else
+        match eval_interval_expr d e with
+        | (Some min, Some max) -> ID.of_interval ik (min, max)
+        | (Some min, None) -> ID.starting ik min
+        | (None, Some max) -> ID.ending ik max
+        | (None, None) -> ID.top_of ik
 
 end

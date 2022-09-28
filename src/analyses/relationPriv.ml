@@ -69,8 +69,8 @@ struct
     assert (not (RD.mem_var rel (AV.global g)));
     st
 
-    let lock ask getg st m = st
-    let unlock ask getg sideg st m = st
+  let lock ask getg st m = st
+  let unlock ask getg sideg st m = st
 
   let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
@@ -143,20 +143,20 @@ struct
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
-    (** Locally must-written protected globals that have been continuously protected since writing. *)
-    module P =
-    struct
-      include MustVars
-      let name () = "P"
-    end
+  (** Locally must-written protected globals that have been continuously protected since writing. *)
+  module P =
+  struct
+    include MustVars
+    let name () = "P"
+  end
 
-    (** Locally may-written protected globals that have been continuously protected since writing. *)
-    (* TODO: is this right? *)
-    module W =
-    struct
-      include MayVars
-      let name () = "W"
-    end
+  (** Locally may-written protected globals that have been continuously protected since writing. *)
+  (* TODO: is this right? *)
+  module W =
+  struct
+    include MayVars
+    let name () = "W"
+  end
 
   module D = Lattice.Prod (P) (W)
   module G = RD
@@ -179,7 +179,7 @@ struct
   module AV =
   struct
     include RelationDomain.VarMetadataTbl (VM)(RD.Var)
-    
+
 
     let local g = make_var (Local g)
     let unprot g = make_var (Unprot g)
@@ -365,8 +365,8 @@ struct
         sideg () rel_side;
         (* TODO: why not remove at all? should only remove unprotected? *)
         (* let rel_local = RD.remove_vars rel g_vars in
-        let rel_local' = RD.meet rel_local (getg ()) in
-        {st with rel = rel_local'} *)
+           let rel_local' = RD.meet rel_local (getg ()) in
+           {st with rel = rel_local'} *)
         st
     | `Normal
     | `Init
@@ -477,38 +477,38 @@ struct
     in
     rel_local'
 
-    let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x: relation_components_t =
-      let apr = st.rel in
-      (* lock *)
-      let apr = RD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
-      (* write *)
-      let g_var = AV.global g in
-      let x_var = AV.local x in
-      let apr_local = RD.add_vars apr [g_var] in
-      let apr_local = RD.assign_var apr_local g_var x_var in
-      (* unlock *)
-      let apr_side = RD.keep_vars apr_local [g_var] in
-      sideg (V.global g) apr_side;
-      let apr_local' =
-        if is_unprotected ask g then
-          RD.remove_vars apr_local [g_var]
-        else
-          apr_local
-      in
-      {st with rel = apr_local'}
-
-    let lock ask getg (st: relation_components_t) m =
-      (* TODO: somehow actually unneeded here? *)
-      if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
-        let rel = st.rel in
-        let get_m = get_m_with_mutex_inits ask getg m in
-        (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-        let get_m = keep_only_protected_globals ask m get_m in
-        let rel' = RD.meet rel get_m in
-        {st with rel = rel'}
-      )
+  let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x: relation_components_t =
+    let apr = st.rel in
+    (* lock *)
+    let apr = RD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
+    (* write *)
+    let g_var = AV.global g in
+    let x_var = AV.local x in
+    let apr_local = RD.add_vars apr [g_var] in
+    let apr_local = RD.assign_var apr_local g_var x_var in
+    (* unlock *)
+    let apr_side = RD.keep_vars apr_local [g_var] in
+    sideg (V.global g) apr_side;
+    let apr_local' =
+      if is_unprotected ask g then
+        RD.remove_vars apr_local [g_var]
       else
-        st (* sound w.r.t. recursive lock *)
+        apr_local
+    in
+    {st with rel = apr_local'}
+
+  let lock ask getg (st: relation_components_t) m =
+    (* TODO: somehow actually unneeded here? *)
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let rel = st.rel in
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+      let get_m = keep_only_protected_globals ask m get_m in
+      let rel' = RD.meet rel get_m in
+      {st with rel = rel'}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
     let rel = st.rel in

@@ -103,26 +103,6 @@ let manager =
 let get_manager (): (module Manager) =
   Lazy.force manager
 
-module Lincons1 =
-struct
-  include Lincons1
-
-  let show = Format.asprintf "%a" print
-  let compare x y = String.compare (show x) (show y) (* HACK *)
-end
-
-module Lincons1Set =
-struct
-  include Set.Make (Lincons1)
-
-  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
-    Array.enum lincons0_array
-    |> Enum.map (fun (lincons0: Lincons0.t) ->
-        Lincons1.{lincons0; env = array_env}
-      )
-    |> of_enum
-end
-
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
@@ -180,13 +160,13 @@ end
 
 module type AOpsPT =
 sig
-type t
-val remove_vars_pt_with : t -> Var.t list -> t
-val remove_filter_pt_with: t -> (Var.t -> bool) -> t
+  type t
+  val remove_vars_pt_with : t -> Var.t list -> t
+  val remove_filter_pt_with: t -> (Var.t -> bool) -> t
 
-val assign_var_parallel_pt_with : t -> (Var.t * Var.t) list -> t
+  val assign_var_parallel_pt_with : t -> (Var.t * Var.t) list -> t
 
-val copy_pt : t -> t
+  val copy_pt : t -> t
 end
 
 (** Default implementations of pure functions from [copy] and imperative functions. *)
@@ -235,13 +215,13 @@ end
 
 module AOpsImperativePT(AImp: AOpsImperativeCopy): AOpsPT with type t = AImp.t =
 struct
-open AImp
-type nonrec t = t
+  open AImp
+  type nonrec t = t
 
-let remove_vars_pt_with t vars = remove_vars_with t vars; t
-let remove_filter_pt_with t f = remove_filter_with t f; t
-let assign_var_parallel_pt_with t vars = assign_var_parallel_with t vars; t
-let copy_pt = copy
+  let remove_vars_pt_with t vars = remove_vars_with t vars; t
+  let remove_filter_pt_with t f = remove_filter_with t f; t
+  let assign_var_parallel_pt_with t vars = assign_var_parallel_with t vars; t
+  let copy_pt = copy
 end
 
 (** Extra functions that don't have the pure-imperative correspondence. *)
@@ -260,7 +240,6 @@ sig
   val meet_tcons : t -> Tcons1.t -> exp -> t
   val to_lincons_array : t -> Lincons1.earray
   val of_lincons_array : Lincons1.earray -> t
-  val get_cons_size: Lincons1Set.elt -> int
 
   val cons_to_cil_exp:  scope:Cil.fundec -> Lincons1Set.elt -> exp Option.t
 
@@ -480,18 +459,18 @@ struct
     let res = A.meet_tcons_array Man.mgr d earray in
     match Man.name () with
     | "ApronAffEq" ->
-          let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
-          begin match Convert.determine_bounds_one_var e with
-          | None -> overflow_res res
-          | Some (ev, min, max) ->
-            let module Bounds = Bounds(Man) in
-            let module BI = IntOps.BigIntOps in
-            begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-              | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then  d
-                else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
-                  (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
-                else res
-              | _, _ -> overflow_res res end end
+      let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
+      begin match Convert.determine_bounds_one_var e with
+        | None -> overflow_res res
+        | Some (ev, min, max) ->
+          let module Bounds = Bounds(Man) in
+          let module BI = IntOps.BigIntOps in
+          begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
+            | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then  d
+              else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+                (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
+              else res
+            | _, _ -> overflow_res res end end
     | _ -> res
 
   let to_lincons_array d =
@@ -635,17 +614,17 @@ struct
           d
       end
 
-      let invariant ~scope x =
-        (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
-           but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
-        (* let x = A.copy Man.mgr x in
-           A.minimize Man.mgr x; *)
-        let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
-        Array.enum lincons0_array
-        |> Enum.map (fun (lincons0: Lincons0.t) ->
-            Lincons1.{lincons0; env = array_env}
-          )
-        |> List.of_enum
+  let invariant ~scope x =
+    (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
+       but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
+    (* let x = A.copy Man.mgr x in
+       A.minimize Man.mgr x; *)
+    let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> List.of_enum
 end
 
 
@@ -1052,8 +1031,6 @@ struct
   let meet_tcons (b, d) c e = (BoxD.meet_tcons b c e, D.meet_tcons d c e)
   let to_lincons_array (_, d) = D.to_lincons_array d
   let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
-  
-  let get_cons_size = D.get_cons_size
 
   let cons_to_cil_exp =  D.cons_to_cil_exp
   let assert_inv (b, d) e n no_ov = (BoxD.assert_inv b e n no_ov, D.assert_inv d e n no_ov)

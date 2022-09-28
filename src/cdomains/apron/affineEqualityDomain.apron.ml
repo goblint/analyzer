@@ -592,6 +592,27 @@ struct
 
   let relift t = t
 
+  type consSet = SharedFunctions.Lincons1Set.elt
+
+  let invariant ~scope t = 
+    if Option.is_none t.d then [] else (
+      let m = Option.get t.d in
+      let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
+      for i = 0 to Lincons1.array_length earray do
+        let row = Matrix.get_row m i in
+        let coeff_vars = List.map (fun x ->  Coeff.s_of_mpqf @@ Vector.nth row (Environment.dim_of_var t.env x), x) (vars t) in
+        let cst = Coeff.s_of_mpqf @@ Vector.nth row (Vector.length row - 1) in
+        Lincons1.set_list (Lincons1.array_get earray i) coeff_vars (Some cst)
+      done;
+      let {lincons0_array; array_env}: Lincons1.earray = earray in
+      Array.enum lincons0_array
+      |> Enum.map (fun (lincons0: Lincons0.t) ->
+          Lincons1.{lincons0; env = array_env}
+        )
+      |> List.of_enum)
+
+  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 scope cons
+
   let env (t: Bounds.t) = t.env
 
   type marshal = Bounds.t
@@ -601,9 +622,9 @@ struct
   let unmarshal t = t
 end
 
-module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S2 with type var = Var.t =
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): RelationDomain.S3 with type var = Var.t =
 struct
-    module D =  D (Vc) (Mx)
-    include SharedFunctions.AssertionModule (V) (D)
-    include D
+  module D =  D (Vc) (Mx)
+  include SharedFunctions.AssertionModule (V) (D)
+  include D
 end

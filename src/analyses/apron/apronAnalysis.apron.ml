@@ -15,10 +15,7 @@ struct
 
   let results = PCU.RH.create 103 (*ToDo This should not be created again!*)
 
-  open AD
   open (ApronDomain: (sig module V: (module type of ApronDomain.V) end)) (* open only V from ApronDomain (to shadow V of Spec), but don't open D (to not shadow D here) *)
-
-  open ApronPrecCompareUtil
 
   let name () = "apron"
 
@@ -42,13 +39,13 @@ struct
     let results: ApronPrecCompareUtil.dump = {marshalled = results; name } in
     Serialize.marshal results file
 
-    let finalize () =
-      let file = GobConfig.get_string "exp.apron.prec-dump" in
-      if file <> "" then begin
-        Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
-        Stats.time "apron.prec-dump" store_data (Fpath.v file)
-      end;
-      Priv.finalize ()
+  let finalize () =
+    let file = GobConfig.get_string "exp.apron.prec-dump" in
+    if file <> "" then begin
+      Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
+      Stats.time "apron.prec-dump" store_data (Fpath.v file)
+    end;
+    Priv.finalize ()
 end
 
 
@@ -64,7 +61,7 @@ let spec_module: (module MCPSpec) Lazy.t =
       module V = ApronDomain.V
       include AD
       type var = ApronDomain.Var.t
-      type consSet = ApronDomain.Lincons1Set.elt
+      type consSet = SharedFunctions.Lincons1Set.elt
     end in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec = ExtendedSpecFunctor (RD) (Priv) in
@@ -79,7 +76,7 @@ let after_config () =
   MCP.register_analysis (module Spec : MCPSpec);
   GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
 
-  let () =
+let () =
   Printexc.register_printer
     (function
       | Apron.Manager.Error e ->
@@ -90,3 +87,4 @@ let after_config () =
 
 let _ =
   AfterConfig.register after_config
+  
