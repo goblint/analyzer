@@ -2501,6 +2501,7 @@ struct
               (* oldv is bot at first, but update_offset will partially initialize it as necessary *)
               let offs = convert_offset oa gs ost o in
               let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+              (* TODO: need long meet for structs? *)
               let v = if VD.is_bot oldv then newv else VD.meet oldv newv in (* avoid meet if was initial bot *)
               if is_some_bot v then raise Deadcode
               else (
@@ -2512,9 +2513,9 @@ struct
             | Mem _, _ ->
               (* For accesses via pointers, not yet *)
               let oldv = eval_rv_lval x st in
-              let oldv = if VD.is_bot oldv then VD.top_value (Cilfacade.typeOfLval x) else oldv in
-              (* TODO: somehow use bot oldv for partial initialization also here *)
-              let v = VD.meet oldv c' in
+              (* oldv is bot at first, but update_offset (in set) will partially initialize it as necessary *)
+              (* TODO: need long meet for structs? *)
+              let v = if VD.is_bot oldv then c' else VD.meet oldv c' in (* avoid meet if was initial bot *)
               if is_some_bot v then raise Deadcode
               else (
                 if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';

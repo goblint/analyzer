@@ -1,0 +1,29 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 1adf4170-5097-4d1c-9771-547227f3f550
+    creation_time: 2022-09-28T08:35:43Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-test-0-g558a95192-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''26-base-unassume-partial-struct-mem.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--set'' ''printstats'' ''true'' ''--set'' ''goblint-dir''
+        ''.goblint-56-25'''
+    task:
+      input_files:
+      - 26-base-unassume-partial-struct-mem.c
+      input_file_hashes:
+        26-base-unassume-partial-struct-mem.c: 3aa8cabe20c3aa2617cf1f4e1d54e1d2accd775af1eaa96c3b70f6b66c58b003
+      data_model: LP64
+      language: C
+  location:
+    file_name: 26-base-unassume-partial-struct-mem.c
+    file_hash: 3aa8cabe20c3aa2617cf1f4e1d54e1d2accd775af1eaa96c3b70f6b66c58b003
+    line: 14
+    column: 2
+    function: main
+  loop_invariant:
+    string: 1 <= *p && *p <= 3
+    type: assertion
+    format: C
