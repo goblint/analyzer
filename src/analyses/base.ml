@@ -2416,6 +2416,7 @@ struct
               let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
               let t_lval = Cilfacade.typeOfLval lval in
               let oldval = if VD.is_bot oldval then VD.top_value t_lval else oldval in
+              (* TODO: somehow use bot oldv for partial initialization also here *)
               let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
               let state_with_excluded = set a gs st addr t_lval value ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
               let value =  get a gs state_with_excluded addr None in
@@ -2497,7 +2498,7 @@ struct
             | Var var, o ->
               (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
               let oldv = get_var a gs st var in
-              let oldv = if VD.is_bot oldv then VD.top_value var.vtype else oldv in
+              (* oldv is bot at first, but update_offset will partially initialize it as necessary *)
               let offs = convert_offset oa gs ost o in
               let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
               let v = VD.meet oldv newv in
@@ -2512,6 +2513,7 @@ struct
               (* For accesses via pointers, not yet *)
               let oldv = eval_rv_lval x st in
               let oldv = if VD.is_bot oldv then VD.top_value (Cilfacade.typeOfLval x) else oldv in
+              (* TODO: somehow use bot oldv for partial initialization also here *)
               let v = VD.meet oldv c' in
               if is_some_bot v then raise Deadcode
               else (

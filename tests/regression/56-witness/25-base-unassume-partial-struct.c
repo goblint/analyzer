@@ -13,6 +13,6 @@ int main() {
 
   assert(1 <= s.i);
   assert(s.i <= 3);
-  assert(s.j == 3); // TODO
+  assert(s.j == 3);
   return 0;
 }
