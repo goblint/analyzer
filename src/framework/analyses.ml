@@ -252,14 +252,9 @@ struct
         BatPrintf.fprintf f "<run>";
         BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
         BatPrintf.fprintf f "<statistics>";
-        (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
-        let name, chn = Filename.open_temp_file "stat" "goblint" in
-        Timing.print (Format.formatter_of_out_channel chn);
-        Stdlib.close_out chn;
-        let f_in = BatFile.open_in name in
-        let s = BatIO.read_all f_in in
-        BatIO.close_in f_in;
-        BatPrintf.fprintf f "%s" s;
+        let timing_ppf = BatFormat.formatter_of_out_channel f in
+        Timing.print timing_ppf;
+        Format.pp_print_flush timing_ppf ();
         BatPrintf.fprintf f "</statistics>";
         BatPrintf.fprintf f "<result>\n";
         BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
