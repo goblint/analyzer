@@ -14,8 +14,8 @@
       "threadid",
       "threadflag",
       "mallocWrapper",
-      "mutex",
       "mutexEvents",
+      "mutex",
       "access",
       "escape",
       "expRelation",
@@ -49,8 +49,8 @@
       }
     },
     "apron":{
-    "domain": "octagon"
-    }
+      "domain": "octagon"
+      }
   },
   "exp": {
     "region-offsets": true

@@ -124,7 +124,7 @@ struct
 
   let get_coeff_vec (t: t) texp =
     (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
-      Returns None if the expression is not affine linear*)
+      Returns None if the expression is not affine*)
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
@@ -134,6 +134,7 @@ struct
     in
     let rec convert_texpr texp =
       begin match texp with
+      (*If x is a constant, replace it with its const. val. immediately*)
         | Cst x -> let of_union union =
                      let open Coeff in
                      match union with
@@ -143,7 +144,6 @@ struct
                          | Mpqf x -> x
                          | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
         | Var x ->
-          (*If x is a constant, replace it with its const. val. immediately*)
           let zero_vec_cp = Vector.copy_pt_with zero_vec in
           let entry_only v = Vector.set_val_pt_with v(Environment.dim_of_var t.env x) (of_int 1) in
           begin match t.d with
@@ -156,7 +156,7 @@ struct
         | Unop (u, e, _, _) ->
           begin match u with
             | Neg -> neg @@ convert_texpr e
-            | Cast -> convert_texpr e (*Ignore*)
+            | Cast -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
             | Sqrt -> raise NotLinear end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
@@ -271,7 +271,7 @@ struct
 
   let name () = "affeq"
 
-  let to_yojson t = failwith "ToDo Implement in future"
+  let to_yojson _ = failwith "ToDo Implement in future"
 
   let arbitrary () = failwith "no arbitrary"
 
@@ -282,9 +282,9 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let top () = failwith "D2.top ()"
+  let top () = failwith "D.top ()"
 
-  let is_top t = false
+  let is_top _ = false
 
   let is_top_env t = (not @@ Environment.equal empty_env t.env) && Option.is_some t.d && Matrix.is_empty (Option.get t.d)
 

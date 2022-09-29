@@ -36,11 +36,13 @@
     },
     "apron": {
       "invariant": {
-        "one-var": true,
-        "local": true,
-        "global": true,
         "diff-box": false
       }
+    },
+    "relation" : {
+      "one-var": true,
+      "local": true,
+      "global": true
     }
   },
   "sem": {

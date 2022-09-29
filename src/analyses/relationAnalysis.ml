@@ -232,7 +232,6 @@ struct
 
 
   (* Function call transfer functions. *)
-
   let any_local_reachable fundec reachable_from_args =
     let locals = fundec.sformals @ fundec.slocals in
     let locals_id = List.map (fun v -> v.vid) locals in
