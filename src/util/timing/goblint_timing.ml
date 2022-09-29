@@ -45,43 +45,6 @@ struct
     root.children <- []
     (* TODO: reset cputime, etc? *)
 
-  let print ppf =
-    (* Total up *)
-    root.cputime <- List.fold_left (fun sum f -> sum +. f.cputime) 0.0 root.children;
-    let rec prTree ind node =
-    (Format.fprintf ppf "%s%-25s      %6.3f s"
-          (String.make ind ' ') node.name node.cputime);
-      begin
-        if node.count <= 0 then
-    Format.pp_print_string ppf "\n"
-        else if node.count = 1 then
-          Format.pp_print_string ppf "  (1 call)\n"
-        else
-    (Format.fprintf ppf "  (%d calls)\n" node.count)
-      end;
-      List.iter (prTree (ind + 2)) (List.rev node.children)
-    in
-    List.iter (prTree 0) [ root ];
-    Format.fprintf ppf "Timing used\n";
-    let gc = Gc.quick_stat () in
-    let printM (w: float) : string =
-      let coeff = float_of_int (Sys.word_size / 8) in
-      Printf.sprintf "%.2fMB" (w *. coeff /. 1000000.0)
-    in
-    Format.fprintf ppf
-      "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
-      (printM (gc.Gc.minor_words +. gc.Gc.major_words
-                -. gc.Gc.promoted_words))
-      (printM (float_of_int gc.Gc.top_heap_words))
-      (printM gc.Gc.minor_words)
-      (printM gc.Gc.major_words)
-      (printM gc.Gc.promoted_words)
-      gc.Gc.minor_collections
-      gc.Gc.major_collections
-      gc.Gc.compactions;
-
-    ()
-
   let current_cputime (): float =
     let {Unix.tms_utime; tms_stime; tms_cutime; tms_cstime} = Unix.times () in
     tms_utime +. tms_stime +. tms_cutime +. tms_cstime
@@ -137,4 +100,23 @@ struct
       f arg
     else
       wrap str f arg
+
+  let rec pp_tree ppf node =
+    let pp_count ppf count =
+      if count = 1 then
+        Format.fprintf ppf "  (1 call)"
+      else if count > 1 then
+        Format.fprintf ppf "  (%d calls)" count
+    in
+    let pp_children ppf children =
+      (* cut also before first child *)
+      List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev children)
+    in
+    Format.fprintf ppf "@[<v 2>%-25s      %6.3f s%a%a@]" node.name node.cputime pp_count node.count pp_children node.children
+
+  let print ppf =
+    (* Total up *)
+    root.cputime <- List.fold_left (fun sum f -> sum +. f.cputime) 0.0 root.children;
+    (* TODO: total all current frames *)
+    pp_tree ppf root
 end
