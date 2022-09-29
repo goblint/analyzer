@@ -27,7 +27,8 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  Frontc.parse (Fpath.to_string fileName) ()
+  let cabs2cil = Timing.time "FrontC" Frontc.parse (Fpath.to_string fileName) in
+  Timing.time "Cabs2cil" cabs2cil ()
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
