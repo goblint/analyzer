@@ -1,36 +1,28 @@
-(** Whether to use the performance counters (on Pentium only) *)
-type timerModeEnum =
-  | Disabled      (** Do not collect timing information *)
-  | SoftwareTimer (** Use OCaml's [Unix.time] for timing information *)
+let timerEnabled = ref false
 
-let timerMode = ref Disabled
-
-(* Flag for counting number of calls *)
+(** Flag for counting number of calls *)
 let countCalls = ref false
 
-                                        (* A hierarchy of timings *)
-
+(** A hierarchy of timings *)
 type t = { name : string;
            mutable time : float; (* In seconds *)
-	   mutable ncalls : int;
+           mutable ncalls : int;
            mutable sub  : t list}
 
-                                        (* Create the top level *)
+(** Create the top level *)
 let top = { name = "TOTAL";
             time = 0.0;
-	    ncalls = 0;
+            ncalls = 0;
             sub  = []; }
 
-                                        (* The stack of current path through
-                                           the hierarchy. The first is the
-                                           leaf. *)
+(** The stack of current path through
+    the hierarchy. The first is the
+    leaf. *)
 let current : t list ref = ref [top]
 
-let reset (mode: timerModeEnum) : unit =
+let reset (enabled: bool) : unit =
   top.sub <- [];
-  timerMode := mode
-
-
+  timerEnabled := enabled
 
 let print chn msg =
   (* Total up *)
@@ -70,14 +62,13 @@ let print chn msg =
 
   ()
 
-
-
 (* Get the current time, in seconds *)
 let get_current_time () : float =
   (Unix.times ()).Unix.tms_utime
 
+(* TODO: remove limit *)
 let repeattime limit str f arg =
-                                        (* Find the right stat *)
+  (* Find the right stat *)
   let stat : t =
     let curr = match !current with h :: _ -> h | [] -> assert false in
     let rec loop = function
@@ -118,30 +109,8 @@ let repeattime limit str f arg =
   in
   repeatf 1
 
-
 let time str f arg =
-  if !timerMode = Disabled then
+  if not !timerEnabled then
     f arg
   else
     repeattime 0.0 str f arg
-
-
-let lastTime = ref 0.0
-let timethis (f: 'a -> 'b) (arg: 'a) : 'b =
-  let start = get_current_time () in
-  let res = f arg in
-  lastTime := get_current_time () -. start;
-  res
-
-(** Return the cumulative time of all calls to {!Stats.time} and
-  {!Stats.repeattime} with the given label. *)
-(* Usually there will be only one occurrence in the tree, but summing them all
-   makes more sense than choosing one arbitrarily *)
-let lookupTime (label:string) : float =
-  let time : float ref = ref 0.0 in
-  let rec search (x:t) : unit =
-    if x.name = label then time := !time +. x.time;
-    List.iter search x.sub
-  in
-  search top;
-  !time
