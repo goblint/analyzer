@@ -1,29 +1,6 @@
 (** Utilities for maintaining timing statistics *)
 
-module type Name =
-sig
-  val name: string
-end
-
-module type S =
-sig
-  type t = {
-    name : string;
-    mutable time : float;
-    mutable ncalls : int;
-    mutable sub : t list;
-  }
-
-  val top : t
-
-  val reset: bool -> unit
-
-  val countCalls: bool ref
-
-  val time : string -> ('a -> 'b) -> 'a -> 'b
-
-  val print : out_channel -> string -> unit
-end
+include Goblint_timing_intf
 
 module Make (Name: Name): S =
 struct
