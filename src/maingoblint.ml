@@ -398,7 +398,7 @@ let do_stats () =
     print_newline ();
     ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
-    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    Timing.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
   )
 
@@ -406,7 +406,7 @@ let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
   Goblintutil.narrow_reuses := 0;
-  Stats.reset SoftwareTimer
+  Timing.reset SoftwareTimer
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
@@ -449,7 +449,7 @@ let do_analyze change_info merged_AST =
         (* Cilfacade.current_file := ast'; *)
     in
 
-    Stats.time "analysis" (control_analyze merged_AST) funs
+    Timing.time "analysis" (control_analyze merged_AST) funs
   )
 
 let do_html_output () =

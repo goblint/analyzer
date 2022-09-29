@@ -3,8 +3,6 @@ open Graphml
 open Svcomp
 open GobConfig
 
-module Stats = GoblintCil.Stats
-
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
@@ -571,14 +569,14 @@ struct
 
   let write lh gh entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.time "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
     (* TODO: use witness.enabled elsewhere as well *)
     if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
       let witness_path = get_string "witness.path" in
-      Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+      Timing.time "write" (write_file witness_path (module Task)) (module TaskResult)
     )
 
   let write lh gh entrystates =
@@ -587,5 +585,5 @@ struct
     | _ -> write lh gh entrystates
 
   let write lh gh entrystates =
-    Stats.time "witness" (write lh gh) entrystates
+    Timing.time "witness" (write lh gh) entrystates
 end

@@ -115,6 +115,6 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
 
 let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun1 fun2 =
-  let same, diff = Stats.time "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
-  let unchanged, diffNodes1 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
+  let same, diff = Timing.time "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
+  let unchanged, diffNodes1 = Timing.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
   List.of_seq unchanged, List.of_seq diffNodes1

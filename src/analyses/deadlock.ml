@@ -108,7 +108,7 @@ struct
         end
       in
 
-      Stats.time "deadlock" (iter_lock LS.empty []) g
+      Timing.time "deadlock" (iter_lock LS.empty []) g
     | _ -> Queries.Result.top q
 end
 

@@ -245,7 +245,7 @@ struct
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let accs = G.access (ctx.global g) in
-          Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs
+          Timing.time "access" (Access.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)
           ()
       end
