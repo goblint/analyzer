@@ -494,7 +494,7 @@ struct
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
-              Serialize.marshal (Timing.top, Gc.quick_stat ()) stats
+              Serialize.marshal (Timing.root, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );

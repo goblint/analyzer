@@ -254,7 +254,7 @@ struct
         BatPrintf.fprintf f "<statistics>";
         (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
         let name, chn = Filename.open_temp_file "stat" "goblint" in
-        Timing.print chn "";
+        Timing.print (Format.formatter_of_out_channel chn);
         Stdlib.close_out chn;
         let f_in = BatFile.open_in name in
         let s = BatIO.read_all f_in in

@@ -2,21 +2,24 @@
 
 include Goblint_timing_intf
 
+let dummy_options = {
+  count = false;
+}
+
 module Make (Name: Name): S =
 struct
-  let timerEnabled = ref false
+  let enabled = ref false
+  let options = ref dummy_options
 
-  (** Flag for counting number of calls *)
-  let countCalls = ref false
+  let start options' =
+    options := options';
+    enabled := true
 
-  (** A hierarchy of timings *)
-  type t = { name : string;
-            mutable time : float; (* In seconds *)
-            mutable ncalls : int;
-            mutable sub  : t list}
+  let stop () =
+    enabled := false
 
   (** Create the top level *)
-  let top = { name = "TOTAL";
+  let root = { name = "TOTAL";
               time = 0.0;
               ncalls = 0;
               sub  = []; }
@@ -24,37 +27,35 @@ struct
   (** The stack of current path through
       the hierarchy. The first is the
       leaf. *)
-  let current : t list ref = ref [top]
+  let current : tree list ref = ref [root]
 
-  let reset (enabled: bool) : unit =
-    top.sub <- [];
-    timerEnabled := enabled
+  let reset () =
+    root.sub <- []
 
-  let print chn msg =
+  let print ppf =
     (* Total up *)
-    top.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 top.sub;
+    root.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 root.sub;
     let rec prTree ind node =
-    (Printf.fprintf chn "%s%-25s      %6.3f s"
+    (Format.fprintf ppf "%s%-25s      %6.3f s"
           (String.make ind ' ') node.name node.time);
       begin
         if node.ncalls <= 0 then
-    output_string chn "\n"
+    Format.pp_print_string ppf "\n"
         else if node.ncalls = 1 then
-    output_string chn "  (1 call)\n"
+          Format.pp_print_string ppf "  (1 call)\n"
         else
-    (Printf.fprintf chn "  (%d calls)\n" node.ncalls)
+    (Format.fprintf ppf "  (%d calls)\n" node.ncalls)
       end;
       List.iter (prTree (ind + 2)) (List.rev node.sub)
     in
-    Printf.fprintf chn "%s" msg;
-    List.iter (prTree 0) [ top ];
-    Printf.fprintf chn "Timing used\n";
+    List.iter (prTree 0) [ root ];
+    Format.fprintf ppf "Timing used\n";
     let gc = Gc.quick_stat () in
     let printM (w: float) : string =
       let coeff = float_of_int (Sys.word_size / 8) in
       Printf.sprintf "%.2fMB" (w *. coeff /. 1000000.0)
     in
-    Printf.fprintf chn
+    Format.fprintf ppf
       "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
       (printM (gc.Gc.minor_words +. gc.Gc.major_words
                 -. gc.Gc.promoted_words))
@@ -74,7 +75,7 @@ struct
 
   let time str f arg =
     (* Find the right stat *)
-    let stat : t =
+    let stat : tree =
       let curr = match !current with h :: _ -> h | [] -> assert false in
       let rec loop = function
           h :: _ when h.name = str -> h
@@ -90,7 +91,7 @@ struct
     current := stat :: oldcurrent;
     let start = get_current_time () in
     let finish diff =
-      if !countCalls then stat.ncalls <- stat.ncalls + 1;
+      if !options.count then stat.ncalls <- stat.ncalls + 1;
       stat.time <- stat.time +. diff;
       current := oldcurrent;                (* Pop the current stat *)
       ()
@@ -107,7 +108,7 @@ struct
     res                                   (* Return the function result *)
 
   let time str f arg =
-    if not !timerEnabled then
+    if not !enabled then
       f arg
     else
       time str f arg
