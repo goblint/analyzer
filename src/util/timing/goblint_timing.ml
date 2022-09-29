@@ -82,9 +82,9 @@ struct
 
     ()
 
-  (* Get the current time, in seconds *)
-  let get_current_time () : float =
-    (Unix.times ()).Unix.tms_utime
+  let current_cputime (): float =
+    let {Unix.tms_utime; tms_stime; tms_cutime; tms_cstime} = Unix.times () in
+    tms_utime +. tms_stime +. tms_cutime +. tms_cstime
 
   let enter str =
     (* Find the right stat *)
@@ -100,14 +100,14 @@ struct
       in
       loop curr.children
     in
-    let start = if !options.cputime then get_current_time () else 0.0 in
+    let start = if !options.cputime then current_cputime () else 0.0 in
     Stack.push {tree = stat; start_cputime = start} current
 
   let exit str =
     let {tree = stat; start_cputime = start} = Stack.pop current in
     assert (stat.name = str);
     if !options.cputime then (
-      let diff = get_current_time () -. start in
+      let diff = current_cputime () -. start in
       stat.cputime <- stat.cputime +. diff
     );
     if !options.count then

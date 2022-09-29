@@ -331,7 +331,7 @@ let preprocess_files () =
       | Unix.WEXITED 0 -> ()
       | process_status -> failwith (GobUnix.string_of_process_status process_status)
     in
-    ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
+    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
   );
   preprocessed
 
