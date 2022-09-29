@@ -10,7 +10,7 @@ let main () =
   try
     Cilfacade.init ();
     Maingoblint.reset_stats ();
-    Timing.start {count = true};
+    Timing.start {cputime = true; count = true};
     Maingoblint.parse_arguments ();
     handle_extraspecials ();
     GoblintDir.init ();

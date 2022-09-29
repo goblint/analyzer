@@ -4,7 +4,7 @@ sig
 end
 
 type options = {
-  (* TODO: cputime *)
+  cputime: bool;
   (* TODO: walltime *)
   (* TODO: allocated_bytes *)
   count: bool;
@@ -12,10 +12,10 @@ type options = {
 
 (** A timing entry *)
 type tree = {
-  name : string;        (** Name of the task *)
-  mutable time : float; (** In seconds *)
-  mutable ncalls : int; (** Number of repetitions. Only set if {!Timing.countCalls} is true. *)
-  mutable sub : tree list; (** Subtasks *)
+  name: string;        (** Name of the task *)
+  mutable cputime: float; (** In seconds *)
+  mutable count: int; (** Number of repetitions. Only set if {!Timing.countCalls} is true. *)
+  mutable children: tree list; (** Subtasks *)
 }
 
 module type S =

@@ -2,7 +2,8 @@
 
 include Goblint_timing_intf
 
-let dummy_options = {
+let dummy_options: options = {
+  cputime = false;
   count = false;
 }
 
@@ -19,34 +20,46 @@ struct
     enabled := false
 
   (** Create the top level *)
-  let root = { name = "TOTAL";
-              time = 0.0;
-              ncalls = 0;
-              sub  = []; }
+  let root = {
+    name = Name.name;
+    cputime = 0.0;
+    count = 0;
+    children = [];
+  }
 
   (** The stack of current path through
       the hierarchy. The first is the
       leaf. *)
-  let current : (tree * float) list ref = ref [(root, 0.0)]
+
+  type frame = {
+    tree: tree;
+    start_cputime: float;
+  }
+
+  let current: frame Stack.t =
+    let current = Stack.create () in
+    Stack.push {tree = root; start_cputime = 0.0} current; (* TODO: current time? *)
+    current
 
   let reset () =
-    root.sub <- []
+    root.children <- []
+    (* TODO: reset cputime, etc? *)
 
   let print ppf =
     (* Total up *)
-    root.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 root.sub;
+    root.cputime <- List.fold_left (fun sum f -> sum +. f.cputime) 0.0 root.children;
     let rec prTree ind node =
     (Format.fprintf ppf "%s%-25s      %6.3f s"
-          (String.make ind ' ') node.name node.time);
+          (String.make ind ' ') node.name node.cputime);
       begin
-        if node.ncalls <= 0 then
+        if node.count <= 0 then
     Format.pp_print_string ppf "\n"
-        else if node.ncalls = 1 then
+        else if node.count = 1 then
           Format.pp_print_string ppf "  (1 call)\n"
         else
-    (Format.fprintf ppf "  (%d calls)\n" node.ncalls)
+    (Format.fprintf ppf "  (%d calls)\n" node.count)
       end;
-      List.iter (prTree (ind + 2)) (List.rev node.sub)
+      List.iter (prTree (ind + 2)) (List.rev node.children)
     in
     List.iter (prTree 0) [ root ];
     Format.fprintf ppf "Timing used\n";
@@ -76,33 +89,29 @@ struct
   let enter str =
     (* Find the right stat *)
     let stat : tree =
-      let (curr, _) = match !current with h :: _ -> h | [] -> assert false in
+      let {tree = curr; _} = Stack.top current in
       let rec loop = function
           h :: _ when h.name = str -> h
         | _ :: rest -> loop rest
         | [] ->
-            let nw = {name = str; time = 0.0; ncalls = 0; sub = []} in
-            curr.sub <- nw :: curr.sub;
+            let nw = {name = str; cputime = 0.0; count = 0; children = []} in
+            curr.children <- nw :: curr.children;
             nw
       in
-      loop curr.sub
+      loop curr.children
     in
-    let oldcurrent = !current in
-    let start = get_current_time () in
-    current := (stat, start) :: oldcurrent
+    let start = if !options.cputime then get_current_time () else 0.0 in
+    Stack.push {tree = stat; start_cputime = start} current
 
   let exit str =
-    let (stat, start) = List.hd !current in
+    let {tree = stat; start_cputime = start} = Stack.pop current in
     assert (stat.name = str);
-    let oldcurrent = List.tl !current in
-    let finish diff =
-      if !options.count then stat.ncalls <- stat.ncalls + 1;
-      stat.time <- stat.time +. diff;
-      current := oldcurrent;                (* Pop the current stat *)
-      ()
-    in
-    let diff = get_current_time () -. start in
-    finish diff
+    if !options.cputime then (
+      let diff = get_current_time () -. start in
+      stat.cputime <- stat.cputime +. diff
+    );
+    if !options.count then
+      stat.count <- stat.count + 1
 
   let wrap str f arg =
     enter str;
