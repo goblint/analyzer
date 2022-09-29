@@ -2318,8 +2318,7 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
       Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
-    | Some (c1, m1), Some (c2, m2)
-         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 *: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
     | _ -> top ()
@@ -2341,8 +2340,7 @@ struct
     | None, _ | _, None ->
        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov -> normalize ik (Some (c1 +: c2, Ints_t.gcd m1 m2))
-    | Some (c1, m1), Some (c2, m2)
-         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 +: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
     | _ -> top ()
