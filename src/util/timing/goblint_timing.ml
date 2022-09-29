@@ -27,7 +27,7 @@ struct
   (** The stack of current path through
       the hierarchy. The first is the
       leaf. *)
-  let current : tree list ref = ref [root]
+  let current : (tree * float) list ref = ref [(root, 0.0)]
 
   let reset () =
     root.sub <- []
@@ -73,10 +73,10 @@ struct
   let get_current_time () : float =
     (Unix.times ()).Unix.tms_utime
 
-  let time str f arg =
+  let enter str =
     (* Find the right stat *)
     let stat : tree =
-      let curr = match !current with h :: _ -> h | [] -> assert false in
+      let (curr, _) = match !current with h :: _ -> h | [] -> assert false in
       let rec loop = function
           h :: _ when h.name = str -> h
         | _ :: rest -> loop rest
@@ -88,28 +88,44 @@ struct
       loop curr.sub
     in
     let oldcurrent = !current in
-    current := stat :: oldcurrent;
     let start = get_current_time () in
+    current := (stat, start) :: oldcurrent
+
+  let exit str =
+    let (stat, start) = List.hd !current in
+    assert (stat.name = str);
+    let oldcurrent = List.tl !current in
     let finish diff =
       if !options.count then stat.ncalls <- stat.ncalls + 1;
       stat.time <- stat.time +. diff;
       current := oldcurrent;                (* Pop the current stat *)
       ()
     in
+    let diff = get_current_time () -. start in
+    finish diff
+
+  let wrap str f arg =
+    enter str;
     let res   =
       try f arg
       with e ->
-        let diff = get_current_time () -. start in
-        finish diff;
+        exit str;
         raise e
     in
-    let diff = get_current_time () -. start in
-    finish diff;
+    exit str;
     res                                   (* Return the function result *)
 
-  let time str f arg =
+  let enter str =
+    if !enabled then
+      enter str
+
+  let exit str =
+    if !enabled then
+      exit str
+
+  let wrap str f arg =
     if not !enabled then
       f arg
     else
-      time str f arg
+      wrap str f arg
 end

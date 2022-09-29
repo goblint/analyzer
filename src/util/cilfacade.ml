@@ -27,8 +27,8 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  let cabs2cil = Timing.time "FrontC" Frontc.parse (Fpath.to_string fileName) in
-  Timing.time "Cabs2cil" cabs2cil ()
+  let cabs2cil = Timing.wrap "FrontC" Frontc.parse (Fpath.to_string fileName) in
+  Timing.wrap "Cabs2cil" cabs2cil ()
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
@@ -238,7 +238,7 @@ class addConstructors cons = object
 end
 
 let getMergedAST fileASTs =
-  let merged = Timing.time "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
+  let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
   merged

@@ -450,7 +450,7 @@ let do_analyze change_info merged_AST =
         (* Cilfacade.current_file := ast'; *)
     in
 
-    Timing.time "analysis" (control_analyze merged_AST) funs
+    Timing.wrap "analysis" (control_analyze merged_AST) funs
   )
 
 let do_html_output () =

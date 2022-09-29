@@ -113,7 +113,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   );
   r
 
-let computeSCCs x = Timing.time "computeSCCs" (computeSCCs x)
+let computeSCCs x = Timing.wrap "computeSCCs" (computeSCCs x)
 
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
@@ -359,7 +359,7 @@ let createCFG (file: file) =
           | ComputedGoto _ ->
             failwith "MyCFG.createCFG: unsupported stmt"
         in
-        Timing.time "handle" (List.iter handle) fd.sallstmts;
+        Timing.wrap "handle" (List.iter handle) fd.sallstmts;
 
         if Messages.tracing then Messages.trace "cfg" "Over\n";
 
@@ -436,7 +436,7 @@ let createCFG (file: file) =
           else
             NH.iter (NH.replace node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        Timing.time "iter_connect" iter_connect ();
+        Timing.wrap "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
@@ -450,7 +450,7 @@ let createCFG (file: file) =
     ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
   cfgF, cfgB
 
-let createCFG = Timing.time "createCFG" createCFG
+let createCFG = Timing.wrap "createCFG" createCFG
 
 
 let minimizeCFG (fw,bw) =
@@ -580,7 +580,7 @@ let getCFG (file: file) : cfg * cfg =
   let cfgF, cfgB = createCFG file in
   let cfgF, cfgB =
     if get_bool "exp.mincfg" then
-      Timing.time "minimizing the cfg" minimizeCFG (cfgF, cfgB)
+      Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB)
     else
       (cfgF, cfgB)
   in

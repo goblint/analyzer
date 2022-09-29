@@ -197,7 +197,7 @@ module WP =
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
-          if not (Timing.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             if tracing then trace "sol" "Changed\n";
             update_var_event x old tmp;
             HM.replace rho x tmp;
@@ -778,7 +778,7 @@ module WP =
           List.iter get vs;
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
-        Timing.time "restore" restore ();
+        Timing.wrap "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
@@ -861,7 +861,7 @@ module WP =
               Option.may (VS.iter one_var') (HM.find_option side_infl x)
             )
           in
-          (Timing.time "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
+          (Timing.wrap "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
 
           reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
         else if incr_verify then

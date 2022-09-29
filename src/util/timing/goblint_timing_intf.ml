@@ -24,17 +24,20 @@ sig
   val stop: unit -> unit
   val reset: unit -> unit
 
-  (** The top-level timing entry *)
-  val root : tree
+  val enter: string -> unit
+  val exit: string -> unit
 
+  val wrap: string -> ('a -> 'b) -> 'a -> 'b
   (** Time a function and associate the time with the given string. If some
       timing information is already associated with that string, then accumulate
       the times. If this function is invoked within another timed function then
       you can have a hierarchy of timings *)
-  val time : string -> ('a -> 'b) -> 'a -> 'b
 
   (** Print the current stats *)
-  val print : Format.formatter -> unit
+  val print: Format.formatter -> unit
+
+  (** The top-level timing entry *)
+  val root: tree
 end
 
 module type Goblint_timing =
