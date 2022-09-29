@@ -66,8 +66,7 @@ let print chn msg =
 let get_current_time () : float =
   (Unix.times ()).Unix.tms_utime
 
-(* TODO: remove limit *)
-let repeattime limit str f arg =
+let time str f arg =
   (* Find the right stat *)
   let stat : t =
     let curr = match !current with h :: _ -> h | [] -> assert false in
@@ -84,33 +83,25 @@ let repeattime limit str f arg =
   let oldcurrent = !current in
   current := stat :: oldcurrent;
   let start = get_current_time () in
-  let rec repeatf count =
-    let finish diff =
-      (* count each call to repeattime once *)
-      if !countCalls then stat.ncalls <- stat.ncalls + 1;
-      stat.time <- stat.time +. (diff /. float(count));
-      current := oldcurrent;                (* Pop the current stat *)
-      ()
-    in
-    let res   =
-      try f arg
-      with e ->
-	let diff = get_current_time () -. start in
-	finish diff;
-	raise e
-    in
-    let diff = get_current_time () -. start in
-    if diff < limit then
-      repeatf (count + 1)
-    else begin
-      finish diff;
-      res                                   (* Return the function result *)
-    end
+  let finish diff =
+    if !countCalls then stat.ncalls <- stat.ncalls + 1;
+    stat.time <- stat.time +. diff;
+    current := oldcurrent;                (* Pop the current stat *)
+    ()
   in
-  repeatf 1
+  let res   =
+    try f arg
+    with e ->
+      let diff = get_current_time () -. start in
+      finish diff;
+      raise e
+  in
+  let diff = get_current_time () -. start in
+  finish diff;
+  res                                   (* Return the function result *)
 
 let time str f arg =
   if not !timerEnabled then
     f arg
   else
-    repeattime 0.0 str f arg
+    time str f arg
