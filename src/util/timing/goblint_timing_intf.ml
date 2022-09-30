@@ -5,7 +5,7 @@ end
 
 type options = {
   cputime: bool;
-  (* TODO: walltime *)
+  walltime: bool;
   (* TODO: allocated_bytes *)
   count: bool;
 }
@@ -14,6 +14,7 @@ type options = {
 type tree = {
   name: string;        (** Name of the task *)
   mutable cputime: float; (** In seconds *)
+  mutable walltime: float; (** In seconds *)
   mutable count: int; (** Number of repetitions. Only set if {!Timing.countCalls} is true. *)
   mutable children: tree list; (** Subtasks *)
 }

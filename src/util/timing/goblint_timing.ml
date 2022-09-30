@@ -4,6 +4,7 @@ include Goblint_timing_intf
 
 let dummy_options: options = {
   cputime = false;
+  walltime = false;
   count = false;
 }
 
@@ -23,6 +24,7 @@ struct
   let root = {
     name = Name.name;
     cputime = 0.0;
+    walltime = 0.0;
     count = 0;
     children = [];
   }
@@ -34,20 +36,24 @@ struct
   type frame = {
     tree: tree;
     start_cputime: float;
+    start_walltime: float;
   }
+
+  let current_cputime (): float =
+    let {Unix.tms_utime; tms_stime; tms_cutime; tms_cstime} = Unix.times () in
+    tms_utime +. tms_stime +. tms_cutime +. tms_cstime
+
+  let current_walltime (): float =
+    Unix.gettimeofday ()
 
   let current: frame Stack.t =
     let current = Stack.create () in
-    Stack.push {tree = root; start_cputime = 0.0} current; (* TODO: current time? *)
+    Stack.push {tree = root; start_cputime = current_cputime (); start_walltime = current_walltime ()} current;
     current
 
   let reset () =
     root.children <- []
     (* TODO: reset cputime, etc? *)
-
-  let current_cputime (): float =
-    let {Unix.tms_utime; tms_stime; tms_cutime; tms_cstime} = Unix.times () in
-    tms_utime +. tms_stime +. tms_cutime +. tms_cstime
 
   let enter str =
     (* Find the right stat *)
@@ -57,19 +63,24 @@ struct
           h :: _ when h.name = str -> h
         | _ :: rest -> loop rest
         | [] ->
-            let nw = {name = str; cputime = 0.0; count = 0; children = []} in
+            let nw = {name = str; cputime = 0.0; walltime = 0.0; count = 0; children = []} in
             curr.children <- nw :: curr.children;
             nw
       in
       loop curr.children
     in
-    let start = if !options.cputime then current_cputime () else 0.0 in
-    Stack.push {tree = stat; start_cputime = start} current
+    let start_cputime = if !options.cputime then current_cputime () else 0.0 in
+    let start_walltime = if !options.walltime then current_walltime () else 0.0 in
+    Stack.push {tree = stat; start_cputime; start_walltime} current
 
   let add_frame_to_tree frame tree =
     if !options.cputime then (
       let diff = current_cputime () -. frame.start_cputime in
       tree.cputime <- tree.cputime +. diff
+    );
+    if !options.walltime then (
+      let diff = current_walltime () -. frame.start_walltime in
+      tree.walltime <- tree.walltime +. diff
     );
     if !options.count then
       tree.count <- tree.count + 1
@@ -132,7 +143,7 @@ struct
       (* cut also before first child *)
       List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev children)
     in
-    Format.fprintf ppf "@[<v 2>%-25s      %6.3f s%a%a@]" node.name node.cputime pp_count node.count pp_children node.children
+    Format.fprintf ppf "@[<v 2>%-25s      %6.3f s %6.3f s%a%a@]" node.name node.cputime node.walltime pp_count node.count pp_children node.children
 
   let print ppf =
     pp_tree ppf (root_with_current ())
