@@ -1,7 +1,6 @@
-(** Utilities for maintaining timing statistics *)
-
 include Goblint_timing_intf
 
+(** Dummy options used for initialization before {!S.setup} is called. *)
 let dummy_options: options = {
   cputime = false;
   walltime = false;
@@ -10,6 +9,8 @@ let dummy_options: options = {
   tef = false;
 }
 
+(** TEF process ID for the next {!Make}.
+    We give each timing hierarchy a separate PID in TEF such that they'd be rendered as separate tracks. *)
 let next_tef_pid = ref 0
 
 module Make (Name: Name): S =
@@ -24,6 +25,7 @@ struct
   let start options' =
     options := options';
     if !options.tef then (
+      (* Override TEF process and thread name for track rendering. *)
       Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~cat:["__firefox_profiler_hack__"] ~args:[("name", `String Name.name)] Catapult.Event_type.M;
       (* First event must have category, otherwise Firefox Profiler refuses to open. *)
       Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
@@ -33,7 +35,6 @@ struct
   let stop () =
     enabled := false
 
-  (** Create the top level *)
   let root = {
     name = Name.name;
     cputime = 0.0;
@@ -43,19 +44,19 @@ struct
     children = [];
   }
 
-  (** The stack of current path through
-      the hierarchy. The first is the
-      leaf. *)
-
+  (** A currently active timing frame in the stack. *)
   type frame = {
-    tree: tree;
-    start_cputime: float;
-    start_walltime: float;
-    start_allocated: float;
+    tree: tree; (** Tree node, where the measurement results will be accumulated. *)
+    start_cputime: float; (** CPU time at the beginning of the frame. *)
+    start_walltime: float; (** Wall time at the beginning of the frame. *)
+    start_allocated: float; (** Allocated memory at the beginning of the frame. *)
+    (* No need for count, because it always gets incremented by 1. *)
   }
 
   let current_cputime (): float =
     let {Unix.tms_utime; tms_stime; tms_cutime; tms_cstime} = Unix.times () in
+    (* Sum CPU time from userspace and kernel, including child processes.
+       This way we account for preprocessor executions. *)
     tms_utime +. tms_stime +. tms_cutime +. tms_cstime
 
   let current_walltime (): float =
@@ -63,26 +64,27 @@ struct
 
   let current_allocated = Gc.allocated_bytes
 
+  (** Stack of currently active timing frames. *)
   let current: frame Stack.t =
     let current = Stack.create () in
     Stack.push {tree = root; start_cputime = current_cputime (); start_walltime = current_walltime (); start_allocated = current_allocated ()} current;
     current
 
   let reset () =
-    root.children <- []
-    (* TODO: reset cputime, etc? *)
+    root.children <- [] (* TODO: reset cputime, etc? *)
 
   let enter str =
     (* Find the right stat *)
     let stat : tree =
       let {tree = curr; _} = Stack.top current in
       let rec loop = function
-          h :: _ when h.name = str -> h
+        | h :: _ when h.name = str -> h
         | _ :: rest -> loop rest
         | [] ->
-            let nw = {name = str; cputime = 0.0; walltime = 0.0; allocated = 0.0; count = 0; children = []} in
-            curr.children <- nw :: curr.children;
-            nw
+          (* Not found, create new. *)
+          let nw = {name = str; cputime = 0.0; walltime = 0.0; allocated = 0.0; count = 0; children = []} in
+          curr.children <- nw :: curr.children;
+          nw
       in
       loop curr.children
     in
@@ -93,6 +95,7 @@ struct
     if !options.tef then
       Catapult.Tracing.begin' ~pid:tef_pid str
 
+  (** Add current frame measurements to tree node accumulators. *)
   let add_frame_to_tree frame tree =
     if !options.cputime then (
       let diff = current_cputime () -. frame.start_cputime in
@@ -125,7 +128,9 @@ struct
         raise e
     in
     exit str;
-    res                                   (* Return the function result *)
+    res
+
+  (* Shortcutting measurement functions to avoid any work when disabled. *)
 
   let enter str =
     if !enabled then
@@ -155,6 +160,7 @@ struct
       | ([] as current_rev') ->
         tree (* no need to recurse, current doesn't go into subtree *)
     in
+    (* Folding the stack also reverses it such that the root frame is at the beginning. *)
     let current_rev = Stack.fold (fun acc frame -> frame :: acc) [] current in
     tree_with_current current_rev root
 
@@ -169,7 +175,7 @@ struct
     if !options.walltime then
       Format.fprintf ppf "%10.3fs" node.walltime;
     if !options.allocated then
-      Format.fprintf ppf "%10.2fMB" (node.allocated /. 1000000.0);
+      Format.fprintf ppf "%10.2fMB" (node.allocated /. 1_000_000.0);
     if !options.count then
       Format.fprintf ppf "%7d×" node.count;
     Format.fprintf ppf "%a@]" pp_children node.children
