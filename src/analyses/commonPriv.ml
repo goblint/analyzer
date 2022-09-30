@@ -61,7 +61,7 @@ struct
         let m = ValueDomain.Addr.from_var v in (* TODO: don't ignore offsets *)
         Q.LS.fold (fun l acc ->
             VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
-          ) (ask.f (Q.MustProtectedVars m)) acc
+          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
       ) (ask.f Q.MustLockset) VS.empty
     |> VS.elements
 end

@@ -159,8 +159,8 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem MutexEventsAnalysis.verifier_atomic held_locks
-    | Queries.MustProtectedVars m ->
-      let (protected, _ ) = G.protected (ctx.global (V.protected m)) in (* readwrite protected *)
+    | Queries.MustProtectedVars {mutex = m; write} ->
+      let protected = (if write then snd else fst) (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
           Queries.LS.add (v, `NoOffset) acc
         ) protected (Queries.LS.empty ())

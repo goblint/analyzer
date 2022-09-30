@@ -63,6 +63,7 @@ module Unit = Lattice.Unit
 type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
 type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} [@@deriving ord, hash]
 type access =
   | Memory of memory_access (** Memory location access (race). *)
@@ -107,7 +108,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
-  | MustProtectedVars: PreValueDomain.Addr.t -> LS.t t
+  | MustProtectedVars: mustprotectedvars -> LS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -292,7 +293,7 @@ struct
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
-      | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> PreValueDomain.Addr.compare m1 m2
+      | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -323,7 +324,7 @@ struct
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
-    | Any (MustProtectedVars m) -> PreValueDomain.Addr.hash m
+    | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     (* only argumentless queries should remain *)
     | _ -> 0
 
