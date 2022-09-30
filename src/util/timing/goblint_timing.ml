@@ -78,7 +78,15 @@ struct
   (** Stack of currently active timing frames. *)
   let current: frame Stack.t =
     let current = Stack.create () in
-    Stack.push (create_frame root) current;
+    Stack.push
+      {
+        tree = root;
+        start_cputime = current_cputime ();
+        start_walltime = current_walltime ();
+        start_allocated = current_allocated ()
+      } current;
+    (* TODO: root frame should actually be created after {!start}, otherwise options are wrong in {!create_frame} *)
+    (* Stack.push (create_frame root) current; *)
     current
 
   let reset () =
