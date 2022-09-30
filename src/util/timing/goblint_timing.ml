@@ -66,15 +66,18 @@ struct
     let start = if !options.cputime then current_cputime () else 0.0 in
     Stack.push {tree = stat; start_cputime = start} current
 
-  let exit str =
-    let {tree = stat; start_cputime = start} = Stack.pop current in
-    assert (stat.name = str);
+  let add_frame_to_tree frame tree =
     if !options.cputime then (
-      let diff = current_cputime () -. start in
-      stat.cputime <- stat.cputime +. diff
+      let diff = current_cputime () -. frame.start_cputime in
+      tree.cputime <- tree.cputime +. diff
     );
     if !options.count then
-      stat.count <- stat.count + 1
+      tree.count <- tree.count + 1
+
+  let exit str =
+    let {tree; _} as frame = Stack.pop current in
+    assert (tree.name = str);
+    add_frame_to_tree frame tree
 
   let wrap str f arg =
     enter str;
@@ -101,6 +104,23 @@ struct
     else
       wrap str f arg
 
+  (** Root tree with current (entered but not yet exited) frame resources added.
+      This allows printing with in-progress resources also accounted for. *)
+  let root_with_current () =
+    let rec tree_with_current current_rev tree =
+      match current_rev with
+      | frame :: current_rev' when tree == frame.tree ->
+        let tree' = {tree with name = tree.name} in (* new physical copy to avoid mutating original tree *)
+        add_frame_to_tree frame tree';
+        let children = List.map (tree_with_current current_rev') tree.children in
+        {tree' with children}
+      | _ :: current_rev'
+      | ([] as current_rev') ->
+        tree (* no need to recurse, current doesn't go into subtree *)
+    in
+    let current_rev = Stack.fold (fun acc frame -> frame :: acc) [] current in
+    tree_with_current current_rev root
+
   let rec pp_tree ppf node =
     let pp_count ppf count =
       if count = 1 then
@@ -115,8 +135,5 @@ struct
     Format.fprintf ppf "@[<v 2>%-25s      %6.3f s%a%a@]" node.name node.cputime pp_count node.count pp_children node.children
 
   let print ppf =
-    (* Total up *)
-    root.cputime <- List.fold_left (fun sum f -> sum +. f.cputime) 0.0 root.children;
-    (* TODO: total all current frames *)
-    pp_tree ppf root
+    pp_tree ppf (root_with_current ())
 end
