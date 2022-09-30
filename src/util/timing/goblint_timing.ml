@@ -143,21 +143,35 @@ struct
     tree_with_current current_rev root
 
   let rec pp_tree ppf node =
-    let pp_allocated ppf allocated =
-      Format.fprintf ppf "%.2fMB" (allocated /. 1000000.0)
-    in
-    let pp_count ppf count =
-      if count = 1 then
-        Format.fprintf ppf "  (1 call)"
-      else if count > 1 then
-        Format.fprintf ppf "  (%d calls)" count
-    in
     let pp_children ppf children =
       (* cut also before first child *)
       List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev children)
     in
-    Format.fprintf ppf "@[<v 2>%-25s      %6.3f s %6.3f s %a%a%a@]" node.name node.cputime node.walltime pp_allocated node.allocated pp_count node.count pp_children node.children
+    Format.fprintf ppf "@[<v 2>%-25s      " node.name;
+    if !options.cputime then
+      Format.fprintf ppf "%9.3fs" node.cputime;
+    if !options.walltime then
+      Format.fprintf ppf "%10.3fs" node.walltime;
+    if !options.allocated then
+      Format.fprintf ppf "%10.2fMB" (node.allocated /. 1000000.0);
+    if !options.count then
+      Format.fprintf ppf "%7d×" node.count;
+    Format.fprintf ppf "%a@]" pp_children node.children
+
+  let pp_header ppf =
+    Format.fprintf ppf "%-25s      " "";
+    if !options.cputime then
+      Format.fprintf ppf "   cputime";
+    if !options.walltime then
+      Format.fprintf ppf "   walltime";
+    if !options.allocated then
+      Format.fprintf ppf "   allocated";
+    if !options.count then
+      Format.fprintf ppf "   count";
+    Format.fprintf ppf "@\n"
 
   let print ppf =
-    pp_tree ppf (root_with_current ())
+    pp_header ppf;
+    pp_tree ppf (root_with_current ());
+    Format.fprintf ppf "@\n"
 end
