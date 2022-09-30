@@ -13,6 +13,7 @@ let main () =
     Timing.start {
       cputime = true;
       walltime = true;
+      allocated = true;
       count = true;
     };
     Maingoblint.parse_arguments ();
