@@ -66,7 +66,7 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_unlock_kernel", special [drop "func" [r]; drop "file" [r]; drop "line" []] @@ Unlock big_kernel_lock);
     ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
     ("release_console_sem", special [] @@ Unlock console_sem);
-    ("misc_deregister", unknown [drop "misc" [r_deep; s_deep]]); (* TODO: why does this need to spawn to pass 04-mutex/40-rw_lock_rc? *)
+    ("misc_deregister", unknown [drop "misc" [r_deep]]);
   ]
 
 (** Goblint functions. *)
