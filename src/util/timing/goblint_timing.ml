@@ -24,7 +24,8 @@ struct
   let start options' =
     options := options';
     if !options.tef then (
-      Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M;
+      Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~cat:["__firefox_profiler_hack__"] ~args:[("name", `String Name.name)] Catapult.Event_type.M;
+      (* First event must have category, otherwise Firefox Profiler refuses to open. *)
       Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
     );
     enabled := true
