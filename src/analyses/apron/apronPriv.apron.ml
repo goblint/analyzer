@@ -428,11 +428,25 @@ struct
     AD.keep_filter oct protected
 end
 
+module PerMutexMeetPrivBase (AD: ApronDomain.S3) =
+struct
+  let invariant_vars ask getg (st: (AD.t, _) ApronDomain.aproncomponents_t) =
+    (* Mutex-meet local states contain precisely the protected global variables,
+       so we can do fewer queries than {!protected_vars}. *)
+    AD.vars st.apr
+    |> List.filter_map (fun var ->
+        match ApronDomain.V.find_metadata var with
+        | Some (Global g) -> Some g
+        | _ -> None
+      )
+end
+
 (** Per-mutex meet. *)
 module PerMutexMeetPriv : S = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
+  include PerMutexMeetPrivBase (AD)
 
   module D = Lattice.Unit
   module G = AD
@@ -578,8 +592,6 @@ struct
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
     {apr = AD.bot (); priv = startstate ()}
-
-  let invariant_vars ask getg st = protected_vars ask
 
   let init () = ()
   let finalize () = ()
@@ -834,6 +846,7 @@ module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
+  include PerMutexMeetPrivBase (AD)
 
   module NC = Cluster(AD)
   module Cluster = NC
@@ -1072,8 +1085,6 @@ struct
     match vq with
     | VarQuery.Global g -> vf (V.global g)
     | _ -> ()
-
-  let invariant_vars ask getg st = protected_vars ask
 
   let finalize () = ()
 end

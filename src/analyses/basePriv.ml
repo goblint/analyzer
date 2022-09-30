@@ -213,8 +213,6 @@ struct
       Invariant.none
     | `Right g' -> (* global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g'
-
-  let invariant_vars ask getg st = protected_vars ask
 end
 
 module PerMutexOplusPriv: S =
@@ -284,11 +282,28 @@ struct
     | `Init
     | `Thread ->
       st
+
+  let invariant_vars ask getg st = protected_vars ask
+end
+
+module PerMutexMeetPrivBase =
+struct
+  include PerMutexPrivBase
+
+  let invariant_vars ask getg (st: _ BaseDomain.basecomponents_t) =
+    (* Mutex-meet local states contain precisely the protected global variables,
+       so we can do fewer queries than {!protected_vars}. *)
+    CPA.fold (fun x v acc ->
+        if is_global ask x then
+          x :: acc
+        else
+          acc
+      ) st.cpa []
 end
 
 module PerMutexMeetPriv: S =
 struct
-  include PerMutexPrivBase
+  include PerMutexMeetPrivBase
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     if is_unprotected ask x then (
@@ -374,7 +389,7 @@ end
 
 module PerMutexMeetTIDPriv: S =
 struct
-  include PerMutexPrivBase
+  include PerMutexMeetPrivBase
   include PerMutexTidCommon(struct
       let exclude_not_started () = GobConfig.get_bool "ana.base.priv.not-started"
       let exclude_must_joined () = GobConfig.get_bool "ana.base.priv.must-joined"
