@@ -92,7 +92,7 @@ struct
   let reset () =
     root.children <- [] (* TODO: reset cputime, etc? *)
 
-  let enter name =
+  let enter ?args name =
     (* Find the right tree. *)
     let tree: tree =
       let {tree; _} = Stack.top current in
@@ -109,7 +109,7 @@ struct
     in
     Stack.push (create_frame tree) current;
     if !options.tef then
-      Catapult.Tracing.begin' ~pid:tef_pid name
+      Catapult.Tracing.begin' ~pid:tef_pid ?args name
 
   (** Add current frame measurements to tree node accumulators. *)
   let add_frame_to_tree frame tree =
@@ -135,8 +135,8 @@ struct
     if !options.tef then
       Catapult.Tracing.exit' ~pid:tef_pid name
 
-  let wrap name f x =
-    enter name;
+  let wrap ?args name f x =
+    enter ?args name;
     match f x with
     | r ->
       exit name;
@@ -147,17 +147,17 @@ struct
 
   (* Shortcutting measurement functions to avoid any work when disabled. *)
 
-  let enter name =
+  let enter ?args name =
     if !enabled then
-      enter name
+      enter ?args name
 
   let exit name =
     if !enabled then
       exit name
 
-  let wrap name f x =
+  let wrap ?args name f x =
     if !enabled then
-      wrap name f x
+      wrap ?args name f x
     else
       f x
 

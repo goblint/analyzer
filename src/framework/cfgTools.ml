@@ -359,7 +359,7 @@ let createCFG (file: file) =
           | ComputedGoto _ ->
             failwith "MyCFG.createCFG: unsupported stmt"
         in
-        Timing.wrap "handle" (List.iter handle) fd.sallstmts;
+        Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 
         if Messages.tracing then Messages.trace "cfg" "Over\n";
 
@@ -436,7 +436,7 @@ let createCFG (file: file) =
           else
             NH.iter (NH.replace node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        Timing.wrap "iter_connect" iter_connect ();
+        Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in

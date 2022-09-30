@@ -40,15 +40,17 @@ sig
 
   (** {2 Measurement} *)
 
-  val enter: string -> unit
-  (** [enter name] enters a new nested timed section called [name]. *)
+  val enter: ?args:(string * Catapult.Tracing.arg) list -> string -> unit
+  (** [enter name] enters a new nested timed section called [name].
+      @param args custom data for TEF *)
 
   val exit: string -> unit
   (** [exit name] exits the current timed section called [name].
       Sections must be exited in valid nested fashion. *)
 
-  val wrap: string -> ('a -> 'b) -> 'a -> 'b
-  (** [wrap name f x] runs [f x] and measures it as a timed section called [name]. *)
+  val wrap: ?args:(string * Catapult.Tracing.arg) list -> string -> ('a -> 'b) -> 'a -> 'b
+  (** [wrap name f x] runs [f x] and measures it as a timed section called [name].
+      @param args custom data for TEF *)
 
   (** {2 Output} *)
 
