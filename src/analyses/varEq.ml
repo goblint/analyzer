@@ -512,18 +512,18 @@ struct
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
-    match desc.special args, f.vname with
-    | Identity e, _ ->
+    match desc.special args with
+    | Identity e ->
       begin match lval with
         | Some x -> assign ctx x e
         | None -> unknown_fn ctx lval f args
       end
-    | ThreadCreate { arg; _ }, _ ->
+    | ThreadCreate { arg; _ } ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
       end
-    | _, _ -> unknown_fn ctx lval f args
+    | _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =

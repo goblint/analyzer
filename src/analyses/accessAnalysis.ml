@@ -179,12 +179,12 @@ struct
 
   let special ctx lv f arglist : D.t =
     let desc = LF.find f in
-    match desc.special arglist, f.vname with
+    match desc.special arglist with
     (* TODO: remove Lock/Unlock cases when all those libraryfunctions use librarydescs and don't read mutex contents *)
-    | Lock _, _
-    | Unlock _, _ ->
+    | Lock _
+    | Unlock _ ->
       ctx.local
-    | _, _ ->
+    | _ ->
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
           access_one_top ~deref:true ctx kind reach exp (* access dereferenced using special accesses *)
         ) arglist;
