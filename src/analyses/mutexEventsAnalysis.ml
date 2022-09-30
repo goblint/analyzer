@@ -78,28 +78,13 @@ struct
       raise Analyses.Deadcode
     in
     let desc = LF.find f in
-    match desc.special arglist, f.vname with
-    | Lock { lock = arg; try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired }, _ ->
+    match desc.special arglist with
+    | Lock { lock = arg; try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired } ->
       lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arg
-    | Unlock arg, ("__raw_read_unlock" | "__raw_write_unlock") ->
-      (* TODO: why is this needed? *)
-      let drop_raw_lock x =
-        let rec drop_offs o =
-          match o with
-          | `Field ({fname="raw_lock"; _},`NoOffset) -> `NoOffset
-          | `Field (f1,o1) -> `Field (f1, drop_offs o1)
-          | `Index (i1,o1) -> `Index (i1, drop_offs o1)
-          | `NoOffset -> `NoOffset
-        in
-        match Addr.to_var_offset x with
-        | Some (v,o) -> Addr.from_var_offset (v, drop_offs o)
-        | None -> x
-      in
-      unlock arg (fun l -> remove_rw (drop_raw_lock l))
-    | Unlock arg, _ ->
+    | Unlock arg ->
       unlock arg remove_rw
-    | Wait { mutex = m_arg; _}, _
-    | TimedWait { mutex = m_arg; _}, _ ->
+    | Wait { mutex = m_arg; _}
+    | TimedWait { mutex = m_arg; _} ->
       (* mutex is unlocked while waiting but relocked when returns *)
       (* emit unlock-lock events for privatization *)
       let ms = eval_exp_addr (Analyses.ask_of_ctx ctx) m_arg in
@@ -109,7 +94,7 @@ struct
           ctx.split () [Events.Unlock m; Events.Lock (m, true)];
         ) ms;
       raise Deadcode (* splits cover all cases *)
-    | _, x ->
+    | _ ->
       ()
 
 end
