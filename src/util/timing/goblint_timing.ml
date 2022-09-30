@@ -35,14 +35,17 @@ struct
   let stop () =
     enabled := false
 
-  let root = {
-    name = Name.name;
-    cputime = 0.0;
-    walltime = 0.0;
-    allocated = 0.0;
-    count = 0;
-    children = [];
-  }
+  let create_tree name =
+    {
+      name = name;
+      cputime = 0.0;
+      walltime = 0.0;
+      allocated = 0.0;
+      count = 0;
+      children = [];
+    }
+
+  let root = create_tree Name.name
 
   (** A currently active timing frame in the stack. *)
   type frame = {
@@ -64,36 +67,41 @@ struct
 
   let current_allocated = Gc.allocated_bytes
 
+  let create_frame tree =
+    {
+      tree;
+      start_cputime = if !options.cputime then current_cputime () else 0.0;
+      start_walltime = if !options.walltime then current_walltime () else 0.0;
+      start_allocated = if !options.allocated then current_allocated () else 0.0;
+    }
+
   (** Stack of currently active timing frames. *)
   let current: frame Stack.t =
     let current = Stack.create () in
-    Stack.push {tree = root; start_cputime = current_cputime (); start_walltime = current_walltime (); start_allocated = current_allocated ()} current;
+    Stack.push (create_frame root) current;
     current
 
   let reset () =
     root.children <- [] (* TODO: reset cputime, etc? *)
 
-  let enter str =
-    (* Find the right stat *)
-    let stat : tree =
-      let {tree = curr; _} = Stack.top current in
+  let enter name =
+    (* Find the right tree. *)
+    let tree: tree =
+      let {tree; _} = Stack.top current in
       let rec loop = function
-        | h :: _ when h.name = str -> h
-        | _ :: rest -> loop rest
+        | child :: _ when child.name = name -> child
+        | _ :: children' -> loop children'
         | [] ->
           (* Not found, create new. *)
-          let nw = {name = str; cputime = 0.0; walltime = 0.0; allocated = 0.0; count = 0; children = []} in
-          curr.children <- nw :: curr.children;
-          nw
+          let tree' = create_tree name in
+          tree.children <- tree' :: tree.children;
+          tree'
       in
-      loop curr.children
+      loop tree.children
     in
-    let start_cputime = if !options.cputime then current_cputime () else 0.0 in
-    let start_walltime = if !options.walltime then current_walltime () else 0.0 in
-    let start_allocated = if !options.allocated then current_allocated () else 0.0 in
-    Stack.push {tree = stat; start_cputime; start_walltime; start_allocated} current;
+    Stack.push (create_frame tree) current;
     if !options.tef then
-      Catapult.Tracing.begin' ~pid:tef_pid str
+      Catapult.Tracing.begin' ~pid:tef_pid name
 
   (** Add current frame measurements to tree node accumulators. *)
   let add_frame_to_tree frame tree =
@@ -112,39 +120,38 @@ struct
     if !options.count then
       tree.count <- tree.count + 1
 
-  let exit str =
+  let exit name =
     let {tree; _} as frame = Stack.pop current in
-    assert (tree.name = str);
+    assert (tree.name = name);
     add_frame_to_tree frame tree;
     if !options.tef then
-      Catapult.Tracing.exit' ~pid:tef_pid str
+      Catapult.Tracing.exit' ~pid:tef_pid name
 
-  let wrap str f arg =
-    enter str;
-    let res   =
-      try f arg
-      with e ->
-        exit str;
-        raise e
-    in
-    exit str;
-    res
+  let wrap name f x =
+    enter name;
+    match f x with
+    | r ->
+      exit name;
+      r
+    | exception e ->
+      exit name;
+      raise e
 
   (* Shortcutting measurement functions to avoid any work when disabled. *)
 
-  let enter str =
+  let enter name =
     if !enabled then
-      enter str
+      enter name
 
-  let exit str =
+  let exit name =
     if !enabled then
-      exit str
+      exit name
 
-  let wrap str f arg =
-    if not !enabled then
-      f arg
+  let wrap name f x =
+    if !enabled then
+      wrap name f x
     else
-      wrap str f arg
+      f x
 
   (** Root tree with current (entered but not yet exited) frame resources added.
       This allows printing with in-progress resources also accounted for. *)
@@ -165,20 +172,18 @@ struct
     tree_with_current current_rev root
 
   let rec pp_tree ppf node =
-    let pp_children ppf children =
-      (* cut also before first child *)
-      List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev children)
-    in
     Format.fprintf ppf "@[<v 2>%-25s      " node.name;
     if !options.cputime then
       Format.fprintf ppf "%9.3fs" node.cputime;
     if !options.walltime then
       Format.fprintf ppf "%10.3fs" node.walltime;
     if !options.allocated then
-      Format.fprintf ppf "%10.2fMB" (node.allocated /. 1_000_000.0);
+      Format.fprintf ppf "%10.2fMB" (node.allocated /. 1_000_000.0); (* TODO: or should it be 1024-based (MiB)? *)
     if !options.count then
       Format.fprintf ppf "%7d×" node.count;
-    Format.fprintf ppf "%a@]" pp_children node.children
+    (* cut also before first child *)
+    List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev node.children);
+    Format.fprintf ppf "@]"
 
   let pp_header ppf =
     Format.fprintf ppf "%-25s      " "";
