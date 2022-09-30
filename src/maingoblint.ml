@@ -399,7 +399,7 @@ let do_stats () =
     ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
     print_string "Timings:\n";
-    Timing.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 
@@ -407,7 +407,7 @@ let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
   Goblintutil.narrow_reuses := 0;
-  Timing.reset ();
+  Timing.Default.reset ();
   Timing.Program.reset ()
 
 (** Perform the analysis over the merged AST.  *)

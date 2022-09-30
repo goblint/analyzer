@@ -253,7 +253,7 @@ struct
         BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
         BatPrintf.fprintf f "<statistics>";
         let timing_ppf = BatFormat.formatter_of_out_channel f in
-        Timing.print timing_ppf;
+        Timing.Default.print timing_ppf;
         Format.pp_print_flush timing_ppf ();
         BatPrintf.fprintf f "</statistics>";
         BatPrintf.fprintf f "<result>\n";
