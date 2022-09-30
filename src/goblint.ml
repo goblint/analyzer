@@ -9,23 +9,30 @@ open Printf
 let main () =
   try
     Cilfacade.init ();
-    Maingoblint.reset_stats ();
-    Goblint_timing.setup_tef "goblint.timing.json";
-    Timing.Default.start {
-      cputime = true;
-      walltime = true;
-      allocated = true;
-      count = true;
-      tef = true;
-    };
-    Timing.Program.start {
-      cputime = false;
-      walltime = false;
-      allocated = false;
-      count = false;
-      tef = true;
-    };
     Maingoblint.parse_arguments ();
+
+    (* Timing. *)
+    Maingoblint.reset_stats ();
+    if get_bool "dbg.timing.enabled" then (
+      let tef_filename = get_string "dbg.timing.tef" in
+      if tef_filename <> "" then
+        Goblint_timing.setup_tef tef_filename;
+      Timing.Default.start {
+        cputime = true;
+        walltime = true;
+        allocated = true;
+        count = true;
+        tef = true;
+      };
+      Timing.Program.start {
+        cputime = false;
+        walltime = false;
+        allocated = false;
+        count = false;
+        tef = true;
+      }
+    );
+
     handle_extraspecials ();
     GoblintDir.init ();
 
