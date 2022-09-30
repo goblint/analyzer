@@ -7,12 +7,19 @@ let dummy_options: options = {
   walltime = false;
   allocated = false;
   count = false;
+  tef = false;
 }
+
+let next_tef_pid = ref 0
 
 module Make (Name: Name): S =
 struct
   let enabled = ref false
   let options = ref dummy_options
+  let tef_pid =
+    let tef_pid = !next_tef_pid in
+    incr next_tef_pid;
+    tef_pid
 
   let start options' =
     options := options';
@@ -78,7 +85,8 @@ struct
     let start_walltime = if !options.walltime then current_walltime () else 0.0 in
     let start_allocated = if !options.allocated then current_allocated () else 0.0 in
     Stack.push {tree = stat; start_cputime; start_walltime; start_allocated} current;
-    Catapult.Tracing.begin' str
+    if !options.tef then
+      Catapult.Tracing.begin' ~pid:tef_pid str
 
   let add_frame_to_tree frame tree =
     if !options.cputime then (
@@ -100,7 +108,8 @@ struct
     let {tree; _} as frame = Stack.pop current in
     assert (tree.name = str);
     add_frame_to_tree frame tree;
-    Catapult.Tracing.exit' str
+    if !options.tef then
+      Catapult.Tracing.exit' ~pid:tef_pid str
 
   let wrap str f arg =
     enter str;

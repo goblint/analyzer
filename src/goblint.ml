@@ -11,11 +11,19 @@ let main () =
     Cilfacade.init ();
     Maingoblint.reset_stats ();
     Goblint_timing.setup_tef "goblint.timing.json";
-    Timing.start {
+    Timing.Default.start {
       cputime = true;
       walltime = true;
       allocated = true;
       count = true;
+      tef = true;
+    };
+    Timing.Program.start {
+      cputime = false;
+      walltime = false;
+      allocated = false;
+      count = false;
+      tef = true;
     };
     Maingoblint.parse_arguments ();
     handle_extraspecials ();

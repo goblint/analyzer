@@ -8,6 +8,7 @@ type options = {
   walltime: bool;
   allocated: bool;
   count: bool;
+  tef: bool;
 }
 
 (** A timing entry *)

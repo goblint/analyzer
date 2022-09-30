@@ -407,7 +407,8 @@ let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
   Goblintutil.narrow_reuses := 0;
-  Timing.reset ()
+  Timing.reset ();
+  Timing.Program.reset ()
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
