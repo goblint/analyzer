@@ -42,6 +42,8 @@ depends: [
   "arg-complete"
   "yaml"
   "uuidm"
+  "catapult"
+  "catapult-file"
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}

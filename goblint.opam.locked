@@ -34,6 +34,8 @@ depends: [
   "bigstringaf" {= "0.8.0"}
   "bos" {= "0.2.1"}
   "camlidl" {= "1.09"}
+  "catapult" {= "0.1.1"}
+  "catapult-file" {= "0.1.1"}
   "cmdliner" {= "1.1.1" & with-doc}
   "conf-autoconf" {= "0.1"}
   "conf-gcc" {= "1.0"}

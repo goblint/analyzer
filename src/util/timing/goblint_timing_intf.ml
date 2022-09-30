@@ -48,4 +48,7 @@ sig
   module type S = S
 
   module Make (_: Name): S
+
+  val setup_tef: string -> unit
+  val teardown_tef: unit -> unit
 end

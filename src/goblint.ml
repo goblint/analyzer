@@ -10,6 +10,7 @@ let main () =
   try
     Cilfacade.init ();
     Maingoblint.reset_stats ();
+    Goblint_timing.setup_tef "goblint.timing.json";
     Timing.start {
       cputime = true;
       walltime = true;
@@ -46,20 +47,24 @@ let main () =
       do_stats ();
       do_html_output ();
       do_gobview ();
+      Goblint_timing.teardown_tef ();
       if !verified = Some false then exit 3 (* verifier failed! *)
     )
   with
   | Exit ->
     do_stats ();
+    Goblint_timing.teardown_tef ();
     exit 1
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
     do_stats ();
     (* Printexc.print_backtrace BatInnerIO.stderr *)
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+    Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
   | Timeout ->
     do_stats ();
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+    Goblint_timing.teardown_tef ();
     exit 124
 
 (* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)

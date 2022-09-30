@@ -77,7 +77,8 @@ struct
     let start_cputime = if !options.cputime then current_cputime () else 0.0 in
     let start_walltime = if !options.walltime then current_walltime () else 0.0 in
     let start_allocated = if !options.allocated then current_allocated () else 0.0 in
-    Stack.push {tree = stat; start_cputime; start_walltime; start_allocated} current
+    Stack.push {tree = stat; start_cputime; start_walltime; start_allocated} current;
+    Catapult.Tracing.begin' str
 
   let add_frame_to_tree frame tree =
     if !options.cputime then (
@@ -98,7 +99,8 @@ struct
   let exit str =
     let {tree; _} as frame = Stack.pop current in
     assert (tree.name = str);
-    add_frame_to_tree frame tree
+    add_frame_to_tree frame tree;
+    Catapult.Tracing.exit' str
 
   let wrap str f arg =
     enter str;
@@ -175,3 +177,11 @@ struct
     pp_tree ppf (root_with_current ());
     Format.fprintf ppf "@\n"
 end
+
+let setup_tef filename =
+  Catapult_file.set_file filename;
+  Catapult_file.enable ();
+  Catapult_file.setup ()
+
+let teardown_tef () =
+  Catapult_file.teardown ()

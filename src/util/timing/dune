@@ -2,4 +2,5 @@
 
 (library
  (name goblint_timing)
- (public_name goblint.timing))
+ (public_name goblint.timing)
+ (libraries catapult catapult-file))
