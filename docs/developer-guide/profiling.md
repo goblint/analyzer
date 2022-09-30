@@ -1,24 +1,34 @@
 # Profiling
 
 ## Timing
-`Timing` is an OCaml module (originally from CIL) that can be used to profile certain parts of code.
+`Timing` is an OCaml module (based on CIL's `Stats`) that can be used to profile certain parts of code.
 
-Wrap the function call to be profiled with `Timing.time`. For example, replace
+Wrap the function call to be profiled with `Timing.wrap`. For example, replace
 ```ocaml
 f x y z
 ```
 with
 ```ocaml
-Timing.time "mything" (f x y) z
+Timing.wrap "mything" (f x y) z
 ```
 where `mything` should be replaced with a relevant name to be shown in the output.
 Note that all but the last argument are partially applied to `f`.
-The last argument is given separately for `Timing.time` to apply and measure.
+The last argument is given separately for `Timing.wrap` to apply and measure.
 
 Then run Goblint with `--enable dbg.timing.enabled` or `-v` (verbose) to see the timing stats under `Timings:`.
 
-The timings are automatically presented as a tree which follows the nesting of `Timing.time` calls.
-Unlike [tracing](./debugging.md#tracing), timings cannot be toggled easily, so be considerate of where you leave them after doing the profiling.
+The timings are automatically presented as a tree which follows the nesting of `Timing.wrap` calls.
+Unlike [tracing](./debugging.md#tracing), timings cannot be toggled easily individually, so be considerate of where you leave them after doing the profiling.
+
+### Trace Event Format
+[Trace Event Format (TEF)](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/edit) is a simple JSON-based format for profiling data.
+Besides just accumulating timing information, all timed calls are individually recorded, allowing flamegraph-style visualization.
+
+Goblint can produce a TEF file with
+```console
+--enable dbg.timing.enabled --set dbg.timing.tef goblint.timing.json
+```
+Then open `goblint.timing.json` in [Perfetto UI](https://ui.perfetto.dev/).
 
 
 ## perf
