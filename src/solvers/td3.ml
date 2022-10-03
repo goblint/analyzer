@@ -82,6 +82,21 @@ module WP =
       data.rho_write <- HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
       data.dep <- HM.copy data.dep
 
+    (* This hack is for fixing hashconsing.
+     * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
+     * HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
+     * The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
+     * We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
+     * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
+     * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
+     * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected.
+     *)
+    (* Another problem are the tags for the context part of a S.Var.t.
+     * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
+     * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
+     * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
+     *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
+     *)
     let relift_marshal (data: marshal): unit = (* TODO: should return new marshal? *)
       let rho' = HM.create (HM.length data.rho) in
       HM.iter (fun k v ->
@@ -151,7 +166,23 @@ module WP =
     module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
-    let solve box st vs data =
+    let solve box st vs marshal =
+      let reuse_stable = GobConfig.get_bool "incremental.stable" in
+      let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
+      let data =
+        match marshal with
+        | Some data ->
+          if not reuse_stable then (
+            print_endline "Destabilizing everything!";
+            data.stable <- HM.create 10;
+            data.infl <- HM.create 10
+          );
+          if not reuse_wpoint then data.wpoint <- HM.create 10;
+          data
+        | None ->
+          create_empty_data ()
+      in
+
       let term  = GobConfig.get_bool "solvers.td3.term" in
       let side_widen = GobConfig.get_string "solvers.td3.side_widen" in
       let space = GobConfig.get_bool "solvers.td3.space" in
@@ -945,46 +976,7 @@ module WP =
       print_data data "Data after postsolve";
 
       verify_data data;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
-
-    let solve box st vs (old_data: marshal option) =
-      let reuse_stable = GobConfig.get_bool "incremental.stable" in
-      let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
-      if GobConfig.get_bool "incremental.load" then (
-        let loaded, data = match old_data with
-          | Some d -> true, d
-          | _ -> false, create_empty_data ()
-        in
-        (* This hack is for fixing hashconsing.
-         * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
-         * HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
-         * The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
-         * We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
-         * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
-         * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
-         * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected.
-         *)
-        (* Another problem are the tags for the context part of a S.Var.t.
-         * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
-         * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
-         * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
-         *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
-         *)
-
-        if not reuse_stable then (
-          print_endline "Destabilizing everything!";
-          data.stable <- HM.create 10;
-          data.infl <- HM.create 10
-        );
-        if not reuse_wpoint then data.wpoint <- HM.create 10;
-        let result = solve box st vs data in
-        result.rho, result
-      )
-      else (
-        let data = create_empty_data () in
-        let result = solve box st vs data in
-        result.rho, result
-      )
+      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 let _ =
