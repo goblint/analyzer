@@ -970,10 +970,6 @@ module WP =
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
-        if loaded && (false (* && S.increment.server *)) then (* TODO: fix server *)
-          copy_marshal data
-        else if loaded && GobConfig.get_bool "ana.opt.hashcons" then
-          relift_marshal data;
 
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
