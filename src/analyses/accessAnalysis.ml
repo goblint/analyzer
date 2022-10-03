@@ -13,11 +13,20 @@ struct
 
   let name () = "access"
 
-  module D = AccessDomain.EventSet
-  (** Access events from the last transfer function only.
-      [sync] empties these between transfer functions. *)
-
+  module D = Lattice.Unit
   module C = Lattice.Unit
+
+  module V =
+  struct
+    include Node
+    let is_write_only _ = true
+  end
+  module G = AccessDomain.EventSet
+
+  let collect_local = ref false
+
+  let init _ =
+    collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed"
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
@@ -29,17 +38,19 @@ struct
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
-  let access_one_top ?(deref=false) ctx (kind: AccessKind.t) reach exp =
+  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if deref then
-      do_access ctx kind reach exp;
-    Access.distribute_access_exp (do_access ctx Read false) exp;
+    if force || (!collect_local && !Goblintutil.postsolving) || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
+      if deref then
+        do_access ctx kind reach exp;
+      Access.distribute_access_exp (do_access ctx Read false) exp
+    );
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
-  let startstate v = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
-  let exitstate  v = D.empty ()
+  let startstate v = ()
+  let threadenter ctx lval f args = [()]
+  let exitstate  v = ()
   let context fd d = ()
 
 
@@ -123,29 +134,25 @@ struct
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()
-      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
+      | Some lval -> access_one_top ~force:true ~deref:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | MayAccessed ->
-      (ctx.local: D.t)
+      (ctx.global ctx.node: G.t)
     | _ -> Queries.Result.top q
-
-  let sync reason ctx: D.t =
-    (* Empty local access event set, such that local states only have accesses from last transfer function. *)
-    D.empty ()
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} ->
+    | Events.Access {lvals; kind; _} when !collect_local && !Goblintutil.postsolving ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
-          D.add access ctx.local
+          ctx.sideg ctx.node (G.singleton access)
         | ls ->
-          Queries.LS.fold (fun (var, offs) acc ->
+          let events = Queries.LS.fold (fun (var, offs) acc ->
               let coffs = Lval.CilLval.to_ciloffs offs in
               let access: AccessDomain.Event.t =
                 if CilType.Varinfo.equal var dummyFunDec.svar then
@@ -153,8 +160,10 @@ struct
                 else
                   {var_opt = (Some var); offs_opt = (Some coffs); kind}
               in
-              D.add access acc
-            ) ls ctx.local
+              G.add access acc
+            ) ls (G.empty ())
+          in
+          ctx.sideg ctx.node events
       end
     | _ ->
       ctx.local
