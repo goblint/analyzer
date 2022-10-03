@@ -492,11 +492,13 @@ type increment_data = {
   restarting: VarQuery.t list;
 }
 
+(** Abstract incremental change to constraint system.
+    @param 'v constrain system variable type *)
 type 'v sys_change_info = {
-  obsolete: 'v list;
-  delete: 'v list;
-  reluctant: 'v list;
-  restart: 'v list;
+  obsolete: 'v list; (** Variables to destabilize. *)
+  delete: 'v list; (** Variables to delete. *)
+  reluctant: 'v list; (** Variables to solve reluctantly. *)
+  restart: 'v list; (** Variables to restart. *)
 }
 
 (** A side-effecting system. *)
@@ -518,8 +520,8 @@ sig
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
-  (** Data used for incremental analysis *)
   val sys_change: (v -> d) -> v sys_change_info
+  (** Compute incremental constraint system change from old solution. *)
 end
 
 (** Any system of side-effecting equations over lattices. *)

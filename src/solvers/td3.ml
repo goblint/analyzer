@@ -212,6 +212,8 @@ module WP =
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
 
+      let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
+
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
       let dep = data.dep in
@@ -557,7 +559,7 @@ module WP =
         let sys_change = S.sys_change (fun v -> try HM.find rho v with Not_found -> S.Dom.bot ()) in
 
         let old_ret = HM.create 103 in
-        if GobConfig.get_bool "incremental.reluctant.enabled" then (
+        if reluctant then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           List.iter (fun k ->
               if HM.mem rho k then (
@@ -677,7 +679,7 @@ module WP =
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
-        if GobConfig.get_bool "incremental.reluctant.enabled" then (
+        if reluctant then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
