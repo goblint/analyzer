@@ -518,8 +518,6 @@ sig
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
-  val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
-
   (** Data used for incremental analysis *)
   val sys_change: (v -> d) -> v sys_change_info
 end
@@ -536,7 +534,6 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
-  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
 end
 

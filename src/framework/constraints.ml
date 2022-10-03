@@ -984,9 +984,6 @@ struct
     | `G _ -> None
     | `L x -> Option.map conv (S.system x)
 
-  let iter_vars get vq f =
-    S.iter_vars (getL % get % l) (getG % get % g) vq (f % l) (f % g)
-
   let sys_change get =
     S.sys_change (getL % get % l) (getG % get % g)
 end
