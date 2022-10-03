@@ -547,8 +547,8 @@ module type GenericEqBoxIncrSolverBase =
   sig
     type marshal
 
-    val copy_marshal: marshal -> unit
-    val relift_marshal: marshal -> unit
+    val copy_marshal: marshal -> marshal
+    val relift_marshal: marshal -> marshal
 
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
@@ -588,8 +588,8 @@ module type GenericGlobSolver =
   sig
     type marshal
 
-    val copy_marshal: marshal -> unit
-    val relift_marshal: marshal -> unit
+    val copy_marshal: marshal -> marshal
+    val relift_marshal: marshal -> marshal
 
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].

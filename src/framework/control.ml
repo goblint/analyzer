@@ -464,10 +464,11 @@ struct
             match Inc.increment with
             | Some {solver_data; server; _} ->
               if server then
-                Slvr.copy_marshal solver_data
+                Some (Slvr.copy_marshal solver_data) (* Copy, so that we can abort and reuse old data unmodified. *)
               else if GobConfig.get_bool "ana.opt.hashcons" then
-                Slvr.relift_marshal solver_data;
-              Some solver_data
+                Some (Slvr.relift_marshal solver_data)
+              else
+                Some solver_data
             | None -> None
           in
           if get_bool "dbg.verbose" then
