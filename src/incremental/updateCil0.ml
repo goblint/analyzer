@@ -1,8 +1,12 @@
 (** UpdateCil functions to avoid dependency cycles.*)
+open GoblintCil
 
 module NodeMap = Hashtbl.Make(Node0)
 
 let location_map = ref (NodeMap.create 103: Cil.location NodeMap.t)
+
+let init () =
+  NodeMap.clear !location_map
 
 let getLoc (node: Node0.t) =
   (* In case this belongs to a changed function, we will find the true location in the map*)

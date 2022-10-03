@@ -1,4 +1,3 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']"
 #include<pthread.h>
 #include<assert.h>
 
@@ -29,13 +28,13 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
 
   k = glob1;
-  assert(k == 1); // UNKNOWN
+  __goblint_check(k == 1); // UNKNOWN
 
   k = glob2;
-  assert(k == 2); // UNKNOWN
+  __goblint_check(k == 2); // UNKNOWN
 
   k = glob3;
-  assert(k == 3);
+  __goblint_check(k == 3);
 
   return 0;
 }

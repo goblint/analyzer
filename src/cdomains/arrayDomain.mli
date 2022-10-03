@@ -1,4 +1,5 @@
 open IntOps
+open GoblintCil
 
 (** Abstract domains representing arrays. *)
 module type S =
@@ -38,9 +39,6 @@ sig
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   (** Left fold (like List.fold_left) over the arrays elements *)
 
-  val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
-  (** Left fold over the elements of two arrays (like List.fold_left2 *)
-
   val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> t
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
@@ -76,4 +74,4 @@ module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S wit
 (** Like partitioned but additionally manages the length of the array. *)
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
-(** Switches between PartitionedWithLength and TrivialWithLength based on the value of ana.base.partition-arrays. *)
+(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on the value of ana.base.arrays.domain. *)

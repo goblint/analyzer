@@ -4,110 +4,113 @@ open Prelude.Ana
 open Analyses
 open DeadlockDomain
 
-let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
 
-  let name () = "deadlock"
+  module LockEventPair = Printable.Prod (LockEvent) (LockEvent)
+  module MayLockEventPairs = SetDomain.Make (LockEventPair)
 
-  (* The domain for the analysis *)
-  module D = DeadlockDomain.Lockset (* MayLockset *)
-  module C = DeadlockDomain.Lockset
-
-  let addLockingInfo newLock lockList =
-    let add_comb a b =
-      if List.exists (fun (x,y) -> MyLock.equal x a && MyLock.equal y b) !forbiddenList then ()
-      else forbiddenList := (a,b)::!forbiddenList
-    in
-
-    (* Check forbidden list *)
-    if !Goblintutil.postsolving then begin
-      D.iter (fun e -> List.iter (fun (a,b) ->
-          if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr pretty_node_loc e.node pretty_node_loc newLock.node pretty_node_loc b.node pretty_node_loc a.node;
-            Messages.warn ~loc:(Node a.node) "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr pretty_node_loc b.node pretty_node_loc a.node pretty_node_loc e.node pretty_node_loc newLock.node;
-          )
-          else () ) !forbiddenList ) lockList;
-
-      (* Add forbidden order *)
-      D.iter (
-        fun lock ->
-          add_comb newLock lock;
-          let transAddList = List.find_all (fun (a,b) -> MyLock.equal a lock) !forbiddenList in
-          List.iter (fun (a,b) -> add_comb newLock b) transAddList
-      ) lockList
+  module Arg =
+  struct
+    module D = MayLockEvents
+    module V =
+    struct
+      include Lock
+      let is_write_only _ = true
     end
 
+    module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
 
-  (* Some required states *)
-  let startstate _ : D.t = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
-  let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  _ : D.t = D.empty ()
+    let side_lock_event_pair ctx ((before_node, _, _) as before) ((after_node, _, _) as after) =
+      if !GU.should_warn then
+        ctx.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
-  (* ======== Transfer functions ======== *)
-  (* Called for assignments, branches, ... *)
+    let part_access ctx: MCPAccess.A.t =
+      Obj.obj (ctx.ask (PartAccess Point))
 
-  (* Assignment lval <- exp *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
+    let add ctx ((l, _): LockDomain.Lockset.Lock.t) =
+      let after: LockEvent.t = (l, ctx.prev_node, part_access ctx) in (* use octx for access to use locksets before event *)
+      D.iter (fun before ->
+          side_lock_event_pair ctx before after
+        ) ctx.local;
+      D.add after ctx.local
 
-  (* Branch *)
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+    let remove ctx l =
+      let inLockAddrs (e, _, _) = Lock.equal l e in
+      D.filter (neg inLockAddrs) ctx.local
+  end
 
-  (* Body of a function starts *)
-  let body ctx (f:fundec) : D.t =
-    ctx.local
+  include LocksetAnalysis.MakeMay (Arg)
+  let name () = "deadlock"
 
-  (* Returns from a function *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+  module G = Arg.G (* help type checker using explicit constraint *)
 
-  (* Calls/Enters a function *)
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [D.bot (),ctx.local]
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
 
-  (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    au
+      let module LH = Hashtbl.Make (Lock) in
+      let module LS = Set.Make (Lock) in
+      (* TODO: find all cycles/SCCs *)
+      let global_visited_locks = LH.create 100 in
 
-  (* Helper function to convert query-offsets to valuedomain-offsets *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
+      let may_equal l1 l2 = match l1, l2 with
+        | ValueDomain.Addr.UnknownPtr, _
+        | _, ValueDomain.Addr.UnknownPtr ->
+          true
+        | _, _ -> Lock.equal l1 l2
+      in
 
-  (* Query the value (of the locking argument) to a list of locks. *)
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn "Could not evaluate '%a' to an points-to set, instead got '%a'." d_exp exp Queries.LS.pretty b; []
+      (* DFS *)
+      let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
+        if LS.mem lock path_visited_locks || LS.mem ValueDomain.Addr.UnknownPtr path_visited_locks || (not (LS.is_empty path_visited_locks) && lock = ValueDomain.Addr.UnknownPtr) then (
+          (* cycle may not return to first lock, but an intermediate one, cut off the non-cyclic stem *)
+          let path_visited_lock_event_pairs =
+            (* path_visited_lock_event_pairs cannot be empty *)
+            List.hd path_visited_lock_event_pairs ::
+            List.take_while (fun (_, (after_lock, _, _)) ->
+                not (may_equal after_lock lock)
+              ) (List.tl path_visited_lock_event_pairs)
+          in
+          let mhp =
+            Enum.cartesian_product (List.enum path_visited_lock_event_pairs) (List.enum path_visited_lock_event_pairs)
+            |> Enum.for_all (fun (((_, (_, _, access1)) as p1), ((_, (_, _, access2)) as p2)) ->
+                LockEventPair.equal p1 p2 || MCPAccess.A.may_race access1 access2
+              )
+          in
+          if mhp then (
+            (* normalize path_visited_lock_event_pairs such that we don't get the same cycle multiple times, starting from different events *)
+            let min = List.min ~cmp:LockEventPair.compare path_visited_lock_event_pairs in
+            let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
+            let (init, tail) = List.split_at mini path_visited_lock_event_pairs in
+            let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
+            let msgs = List.concat_map (fun ((before_lock, before_node, before_access), (after_lock, after_node, after_access)) ->
+                [
+                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (M.Location.Node before_node));
+                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (M.Location.Node after_node));
+                ]
+              ) normalized
+            in
+            M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs
+          )
+        )
+        else if not (LH.mem global_visited_locks lock) then begin
+          LH.replace global_visited_locks lock ();
+          let new_path_visited_locks = LS.add lock path_visited_locks in
+          G.iter (fun to_lock lock_event_pairs ->
+              MayLockEventPairs.iter (fun lock_event_pair ->
+                  let new_path_visited_lock_event_pairs' = lock_event_pair :: path_visited_lock_event_pairs in
+                  iter_lock new_path_visited_locks new_path_visited_lock_event_pairs' to_lock
+                ) lock_event_pairs
+            ) (ctx.global lock)
+        end
+      in
 
-  (* Called when calling a special/unknown function *)
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    if D.is_top ctx.local then ctx.local else
-      match LibraryFunctions.classify f.vname arglist with
-      | `Lock (_, _, _) ->
-        List.fold_left (fun d lockAddr ->
-          addLockingInfo {addr = lockAddr; node = Option.get !Node.current_node } ctx.local;
-          D.add {addr = lockAddr; node = Option.get !Node.current_node } ctx.local
-        ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
-      | `Unlock ->
-        let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in
-        if List.compare_length_with lockAddrs 1 = 0 then
-          let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
-          D.filter (neg inLockAddrs) ctx.local
-        else ctx.local
-      | _ -> ctx.local
-
+      Stats.time "deadlock" (iter_lock LS.empty []) g
+    | _ -> Queries.Result.top q
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["mutexEvents"] (module Spec : MCPSpec)

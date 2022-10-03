@@ -22,13 +22,11 @@ doclist.odocl
 autom4te.cache
 mytests
 result/*
-tests/regression/14-osek/osek_goblint.h
-tests/regression/16-relinv/osek_goblint.h
-tests/regression/16-relinv/flags.json
+pml-result/*
 tests/regression/*/goblint_temp
 linux-headers
 
-.goblint/*
+.goblint*/
 goblint_temp_*/
 
 src/spec/graph
@@ -56,8 +54,11 @@ goblint.bc.js
 
 sv-comp/goblint.zip
 
-privPrecCompare*
+privPrecCompare
+privPrecCompare-creduce
+privPrecCompareRes
 apronPrecCompare
+messagesCompare
 tests/regression/*/run
 
 # csmith
@@ -81,3 +82,8 @@ dune-workspace
 
 # gobview
 run/
+gobview_out/*
+
+# witnesses
+witness.yml
+witness.certificate.yml

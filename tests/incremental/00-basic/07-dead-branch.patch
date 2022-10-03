@@ -5,7 +5,7 @@
 
  void foo() {
 -
-+  assert(1);
++  __goblint_check(1);
  }
 
  int main() {

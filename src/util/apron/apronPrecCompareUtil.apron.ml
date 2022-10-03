@@ -10,11 +10,11 @@ struct
 end
 
 (* Currently serialization of Apron results only works for octagons. *)
-module OctagonD = ApronDomain.D2 (ApronDomain.OctagonManager)
+module OctagonD = ApronDomain.OctagonD2
 module Util =
 struct
   include Util (MyNode) (OctagonD)
-  type marshal = (OctagonManager.mt Apron.Abstract0.t * string array) RH.t
+  type marshal = OctagonD.marshal RH.t
   type dump = marshal dump_gen
   type result = Dom.t RH.t result_gen
 

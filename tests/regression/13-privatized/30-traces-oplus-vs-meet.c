@@ -27,12 +27,12 @@ void *t_fun(void *arg) {
 
 int main(void) {
   pthread_t id;
-  assert(g == 0);
+  __goblint_check(g == 0);
   pthread_create(&id, NULL, t_fun, NULL);
   // t2
   pthread_mutex_lock(&B);
   pthread_mutex_lock(&A);
-  assert(g == 0);
+  __goblint_check(g == 0);
   pthread_mutex_unlock(&A);
   pthread_mutex_unlock(&B);
   pthread_join(id, NULL);

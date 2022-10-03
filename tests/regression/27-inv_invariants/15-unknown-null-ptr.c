@@ -1,17 +1,18 @@
 #include <stddef.h>
+#include <assert.h>
 
 int main() {
   int *r; // rand
 
   if (r == NULL)
-    assert(r == NULL);
+    __goblint_check(r == NULL);
   else
-    assert(r != NULL); // TODO
+    __goblint_check(r != NULL);
 
   if (r != NULL)
-    assert(r != NULL); // TODO
+    __goblint_check(r != NULL);
   else
-    assert(r == NULL);
+    __goblint_check(r == NULL);
 
   return 0;
 }

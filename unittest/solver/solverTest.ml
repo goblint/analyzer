@@ -1,4 +1,6 @@
+open Goblint_lib
 open OUnit2
+open GoblintCil
 open Pretty
 
 (* variables are strings *)
@@ -9,13 +11,11 @@ struct
   let pretty_trace () x = text x
   let compare = compare
   let hash (x:t) = Hashtbl.hash x
-  let category _ = 1
   let printXml _ _ = ()
   let var_id x = x
-  let file_name x = x
-  let line_nr _ = 1
   let node _ = failwith "no node"
   let relift x = x
+  let is_write_only _ = false
 end
 
 (* domain is (reversed) integers *)
@@ -43,7 +43,7 @@ module ConstrSys = struct
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()
-  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []}
+  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)

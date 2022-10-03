@@ -17,8 +17,8 @@ int main(int argc , char **argv )
   while (g >= 10) {
 
   }
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   g++;
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }

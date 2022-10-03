@@ -10,20 +10,20 @@
 void test_scanf() {
   int n = 0, m = 0;
   scanf("%d %d", &n, &m);
-  assert(n == 0); // UNKNOWN!
-  assert(m == 0); // UNKNOWN!
+  __goblint_check(n == 0); // UNKNOWN!
+  __goblint_check(m == 0); // UNKNOWN!
 }
 
 void test_memset() {
   int n = 0;
   memset(&n, 1, sizeof(int));
-  assert(n == 0); // UNKNOWN!
+  __goblint_check(n == 0); // UNKNOWN!
 }
 
 void test_bzero() {
   int n = 1;
   bzero(&n, sizeof(int));
-  assert(n == 1); // UNKNOWN!
+  __goblint_check(n == 0);
 }
 
 void test_getopt() {
@@ -46,17 +46,30 @@ void test_free() {
   int* n = malloc(sizeof(int));
   *n = 0;
   free(n);
-  assert(n != 0);
+  __goblint_check(n != 0);
 }
 
 void test_memcpy() {
   int dest = 0;
   int src = 1;
-  
+
   memcpy(&dest, &src, sizeof(int));
 
-  assert(dest == 0); // UNKNOWN!
-  assert(src == 1);
+  __goblint_check(dest == 0); //FAIL
+  __goblint_check(src == 1);
+}
+
+void test_memcpy_two() {
+  int dest = 0;
+  int src = 1;
+
+  int* destp = &dest;
+  int* srcp = &src;
+
+  memcpy(destp, srcp, sizeof(int));
+
+  __goblint_check(dest == 0); //FAIL
+  __goblint_check(src == 1);
 }
 
 void test_fopen() {
@@ -67,7 +80,7 @@ void test_connect() {
   struct sockaddr sa;
   sa.sa_family = 0;
   connect(0, &sa, 0);
-  assert(sa.sa_family == 0);
+  __goblint_check(sa.sa_family == 0);
 }
 
 void test_sprintf() {
@@ -81,13 +94,13 @@ void test_vsprintf() {
 void test_localtime() {
   time_t t = 1;
   localtime(&t);
-  assert(t == 1);
+  __goblint_check(t == 1);
 }
 
 void test_time() {
   time_t t = 1;
   time(&t);
-  assert(t == 1); // UNKNOWN!
+  __goblint_check(t == 1); // UNKNOWN!
 }
 
 void test_strftime() {
@@ -101,19 +114,19 @@ void test_snprintf() {
 void test_send() {
   int n = 0;
   send(0, &n, sizeof(int), 0);
-  assert(n == 0);
+  __goblint_check(n == 0);
 }
 
 void test_recv() {
   int n = 0;
   recv(0, &n, sizeof(int), 0);
-  assert(n == 0); // UNKNOWN!
+  __goblint_check(n == 0); // UNKNOWN!
 }
 
 void test_fwrite() {
   int n = 0;
   fwrite(&n, sizeof(int), 1, stdout);
-  assert(n == 0);
+  __goblint_check(n == 0);
 }
 
 void test_atoi() {
@@ -147,7 +160,7 @@ void test_strncmp() {
 void test_write() {
   int n = 0;
   write(0, &n, sizeof(int));
-  assert(n == 0);
+  __goblint_check(n == 0);
 }
 
 void test_fclose() {
@@ -157,13 +170,13 @@ void test_fclose() {
 void test_fread() {
   int n = 0;
   fread(&n, sizeof(int), 1, stdin);
-  assert(n == 0); // UNKNOWN!
+  __goblint_check(n == 0); // UNKNOWN!
 }
 
 void test_read() {
   int n = 0;
   read(0, &n, sizeof(int));
-  assert(n == 0); // UNKNOWN!
+  __goblint_check(n == 0); // UNKNOWN!
 }
 
 void test_printf() {
@@ -173,8 +186,8 @@ void test_printf() {
 void test_sscanf() {
   int n = 0, m = 0;
   sscanf("10 20", "%d %d", &n, &m);
-  assert(n == 0); // UNKNOWN!
-  assert(m == 0); // UNKNOWN!
+  __goblint_check(n == 0); // UNKNOWN!
+  __goblint_check(m == 0); // UNKNOWN!
 }
 
 int main () {
@@ -191,6 +204,7 @@ int main () {
   test_getopt();
   test_localtime();
   test_memcpy();
+  test_memcpy_two();
   test_memset();
   test_printf();
   test_read();
@@ -211,6 +225,6 @@ int main () {
   test_vprintf();
   test_vsprintf();
   test_write();
-  assert(0); // FAIL!
+  __goblint_check(0); // FAIL!
   return 0;
 }

@@ -15,22 +15,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
 
       - name: Install ajv-cli
         run: npm install -g ajv-cli
 
-      - name: Work around meta-schema missing error # https://github.com/ajv-validator/ajv-cli/issues/199
-        run: |
-          sed -i 's|"$schema": "http://json-schema.org/draft-04/schema#",||' src/util/options.schema.json
+      - name: Migrate schema # https://github.com/ajv-validator/ajv-cli/issues/199
+        run: ajv migrate -s src/util/options.schema.json
 
       - name: Validate conf
-        run: ajv validate -s src/util/options.schema.json -d "conf/*.json"
+        run: ajv validate -s src/util/options.schema.json -d "conf/**/*.json"
 
       - name: Validate incremental tests
         run: ajv validate -s src/util/options.schema.json -d "tests/incremental/*/*.json"

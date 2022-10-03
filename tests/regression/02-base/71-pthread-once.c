@@ -6,7 +6,7 @@ int g;
 pthread_once_t once = PTHREAD_ONCE_INIT;
 
 void t_fun() {
-  assert(1); // reachable!
+  __goblint_check(1); // reachable!
   return NULL;
 }
 

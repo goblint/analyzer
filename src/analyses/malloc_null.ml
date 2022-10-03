@@ -65,7 +65,12 @@ struct
       | _ -> ()
     in
     match e with
-    | Lval (Var v, offs) -> ()
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _
+    | Lval (Var _, _) -> ()
     | AddrOf (Var _, _)
     | StartOf (Var _, _) ->  warn_lval_mem e NoOffset
     | AddrOf (Mem e, offs)
@@ -77,9 +82,16 @@ struct
       warn_deref_exp a st e1;
       warn_deref_exp a st e2
     | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e
     | CastE  (_,e) ->
       warn_deref_exp a st e
-    | _ -> ()
+    | Question (b, t, f, _) ->
+      warn_deref_exp a st b;
+      warn_deref_exp a st t;
+      warn_deref_exp a st f
 
   let may (f: 'a -> 'b) (x: 'a option) : unit =
     match x with
@@ -183,10 +195,6 @@ struct
 
   (* Function calls *)
 
-  let eval_funvar ctx (fv:exp) : varinfo list =
-    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local fv;
-    []
-
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
@@ -209,8 +217,9 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
-    match f.vname, lval with
-    | "malloc", Some lv ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, lval with
+    | Malloc _, Some lv ->
       begin
         match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some (Var v, offs) ->

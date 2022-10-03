@@ -1,4 +1,6 @@
-// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']"
+// PARAM: --enable allfuns
+#include <assert.h>
+
 int glob1 = 5;
 int glob2 = 7;
 
@@ -8,7 +10,7 @@ int f() {
 }
 
 int g() {
-  assert(glob1 == 5);
-  assert(glob2 == 7);
+  __goblint_check(glob1 == 5);
+  __goblint_check(glob2 == 7);
   return 0;
 }

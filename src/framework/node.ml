@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 
 include Printable.Std
@@ -24,8 +24,8 @@ let pretty_plain_short () = function
 (** Pretty node for solver variable tracing with short stmt. *)
 let pretty_trace () = function
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
-  | Function      fd -> dprintf "call of %s" fd.svar.vname
-  | FunctionEntry fd -> dprintf "entry state of %s" fd.svar.vname
+  | Function      fd -> dprintf "call of %s (%d)" fd.svar.vname fd.svar.vid
+  | FunctionEntry fd -> dprintf "entry state of %s (%d)" fd.svar.vname fd.svar.vid
 
 (** Output functions for Printable interface *)
 let pretty () x = pretty_trace () x
@@ -35,6 +35,7 @@ include Printable.SimplePretty (
     let pretty = pretty
   end
   )
+(* TODO: deriving to_yojson gets overridden by SimplePretty *)
 
 (** Show node ID for CFG and results output. *)
 let show_id = function

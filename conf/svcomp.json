@@ -1,8 +1,8 @@
 {
   "ana": {
     "base": {
-      "partition-arrays": {
-        "enabled": true
+      "arrays": {
+        "domain": "partitioned"
       }
     },
     "sv-comp": {
@@ -20,10 +20,12 @@
       "threadflag",
       "threadreturn",
       "mallocWrapper",
+      "mutexEvents",
       "mutex",
       "access",
       "escape",
       "expRelation",
+      "mhp",
       "var_eq",
       "symb_locks",
       "region",
@@ -67,6 +69,9 @@
     },
     "int": {
       "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
   }
 }

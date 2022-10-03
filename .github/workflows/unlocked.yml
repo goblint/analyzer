@@ -18,22 +18,30 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          - 4.14.x
           - 4.13.x
           - 4.12.x
           - 4.10.x
         apron:
           - false
           - true
+        z3:
+          - false
+
+        include:
+          - os: ubuntu-latest
+            ocaml-compiler: 4.14.x
+            z3: true
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
-    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }})
+    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }}${{ matrix.z3 && ', z3' || '' }})
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -48,6 +56,12 @@ jobs:
         run: |
           opam depext apron
           opam install apron
+
+      - name: Install Z3 dependencies
+        if: ${{ matrix.z3 }}
+        run: |
+          opam depext z3
+          opam install z3
 
       - name: Build
         run: ./make.sh nat
@@ -69,6 +83,9 @@ jobs:
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test regression cram
+        run: opam exec -- dune runtest tests/regression
+
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
@@ -89,7 +106,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.13.1 # matches opam lock file
+          - 4.14.0 # matches opam lock file
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
@@ -100,7 +117,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -145,6 +162,9 @@ jobs:
         # if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test regression cram
+        run: opam exec -- dune runtest tests/regression
+
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
@@ -165,14 +185,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1 # needed for GitHub Actions Cache in build-push-action
+        uses: docker/setup-buildx-action@v2 # needed for GitHub Actions Cache in build-push-action
 
       - name: Build dev Docker image
         id: build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           target: dev
@@ -197,13 +217,13 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.13.1 # matches opam lock file
+          - 4.14.0 # matches opam lock file
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -221,8 +241,8 @@ jobs:
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
 
-      - name: Set gobopt with kernel-root # because linux-headers are not installed
-        run: echo "gobopt=--set kernel-root $PWD/linux-headers" >> $GITHUB_ENV
+      - name: Set gobopt with pre.kernel-root # because linux-headers are not installed
+        run: echo "gobopt=--set pre.kernel-root $PWD/linux-headers" >> $GITHUB_ENV
 
       - name: Test regression
         run: ./make.sh headers testci

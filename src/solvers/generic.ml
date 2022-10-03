@@ -11,10 +11,11 @@ module LoadRunSolver: GenericEqBoxSolver =
     let solve box xs vs =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
-      let load_run = get_string "load_run" in
-      let solver = Filename.concat load_run solver_file in
+      let load_run = Fpath.v (get_string "load_run") in
+      let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
-        print_endline ("Loading the solver result of a saved run from " ^ solver);
+        (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+        print_endline ("Loading the solver result of a saved run from " ^ (Fpath.to_string solver));
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
         let vh' = VH.create (VH.length vh) in
@@ -77,9 +78,6 @@ struct
     incr Goblintutil.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
-  let abort_rhs_event x =
-    incr Goblintutil.aborts
-
   let update_var_event x o n =
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && Option.is_some !max_var && Var.equal (Option.get !max_var) x) then begin
@@ -96,7 +94,7 @@ struct
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
     let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
     let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
-    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
+    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 0 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
     (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
     ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
@@ -108,10 +106,11 @@ struct
     |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
 
   let stats_csv =
-    let save_run = GobConfig.get_string "save_run" in
-    if save_run <> "" then (
-      ignore @@ Goblintutil.create_dir save_run;
-      save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
+    let save_run_str = GobConfig.get_string "save_run" in
+    if save_run_str <> "" then (
+      let save_run = Fpath.v save_run_str in
+      GobSys.mkdir_or_exists save_run;
+      Fpath.(to_string (save_run / "solver_stats.csv")) |> open_out |> Option.some
     ) else None
   let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"
 
@@ -300,7 +299,7 @@ module SoundBoxSolverImpl =
           H.remove infl x;
           H.replace infl x [x];
           if full_trace
-          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: semgrep.trace-not-in-tracing *)
+          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
         end

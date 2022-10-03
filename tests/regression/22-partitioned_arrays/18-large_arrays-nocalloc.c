@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.base.partition-arrays.enabled
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
 #include <assert.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -12,7 +12,7 @@
 
 int main(){
     // Check that ptrdiff_t is at least as big as long, so we can index arrays with non-negative longs
-    assert(sizeof(ptrdiff_t) >= sizeof(long));
+    __goblint_check(sizeof(ptrdiff_t) >= sizeof(long));
 
     char arr[LENGTH];
 
@@ -21,21 +21,21 @@ int main(){
     }
 
     // arr[0] ... arr[STOP - 1] should be 1, the others equal to 0
-    assert(arr[0] == 1);
-    assert(arr[INT_MAX + 1l] == 1);
+    __goblint_check(arr[0] == 1);
+    __goblint_check(arr[INT_MAX + 1l] == 1);
 
     // j is the smallest index where checking it used to yield an unsound value
     // long j = ((long) INT_MAX) * INT_MAX * 2 + INT_MAX - 1;
     long j = LONG_MAX - 6442450943;
-    assert(0 < j);
-    assert(j < STOP);
+    __goblint_check(0 < j);
+    __goblint_check(j < STOP);
 
-    assert(arr[j - 1] == 1);
+    __goblint_check(arr[j - 1] == 1);
 
-    assert(arr[j] == 1);
-    assert(arr[STOP - 1] == 1);
+    __goblint_check(arr[j] == 1);
+    __goblint_check(arr[STOP - 1] == 1);
 
-    assert(arr[STOP] == 0); //UNKNOWN!
-    assert(arr[LENGTH - 1] == 0); //UNKNOWN!
+    __goblint_check(arr[STOP] == 0); //UNKNOWN!
+    __goblint_check(arr[LENGTH - 1] == 0); //UNKNOWN!
     return 0;
 }

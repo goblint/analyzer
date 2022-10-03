@@ -15,13 +15,13 @@ int main(void) {
   }
 
   // using apron interval
-  assert(0 <= g);
-  assert(g <= 1);
+  __goblint_check(0 <= g);
+  __goblint_check(g <= 1);
 
   g = r;
 
   x = g;
   y = g;
-  assert(x == y);
+  __goblint_check(x == y);
   return 0;
 }

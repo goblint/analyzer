@@ -5,9 +5,13 @@ on:
   push:
     paths:
       - 'CITATION.cff'
+      - '.zenodo.json'
+      - '.github/workflows/metadata.yml' # meta
   pull_request:
     paths:
       - 'CITATION.cff'
+      - '.zenodo.json'
+      - '.github/workflows/metadata.yml' # meta
 
 jobs:
   cff-validate:
@@ -15,9 +19,38 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Validate CITATION.cff
         uses: docker://citationcff/cffconvert:latest
         with:
           args: --validate
+
+  zenodo-validate:
+    strategy:
+      matrix:
+        node-version:
+          - 14
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install ajv
+        run: npm install -g ajv-cli
+
+      - name: Download Zenodo schema
+        run: wget https://zenodo.org/schemas/deposits/records/legacyrecord.json
+
+      - name: Migrate Zenodo schema # https://github.com/ajv-validator/ajv-cli/issues/199
+        run: ajv migrate -s legacyrecord.json
+
+      - name: Validate .zenodo.json
+        run: ajv validate -s legacyrecord.json -d .zenodo.json

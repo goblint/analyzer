@@ -13,12 +13,12 @@
      while (x < 10) {
          y = f(x);
          x = x + y;
--        assert(x == 0); // FAIL before, success after
-+        assert(x == 0); // fail before, SUCCESS after
+-        __goblint_check(x == 0); // FAIL before, success after
++        __goblint_check(x == 0); // fail before, SUCCESS after
      }
 
--    assert(0); // FAIL before, nowarn after
-+    assert(0); // fail before, NOWARN after
+-    __goblint_check(0); // FAIL before, nowarn after
++    __goblint_check(0); // fail before, NOWARN after
      return 0;
  }
 \ No newline at end of file

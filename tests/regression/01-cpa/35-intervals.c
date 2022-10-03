@@ -4,11 +4,11 @@
 void main(){
   int n = 7;
   for (; n; n--) {
-      assert(n==1); // UNKNOWN!
+      __goblint_check(n==1); // UNKNOWN!
   }
   int i;
   if(i-1){
-    assert(i==2); // UNKNOWN!
+    __goblint_check(i==2); // UNKNOWN!
   }
   return;
 }

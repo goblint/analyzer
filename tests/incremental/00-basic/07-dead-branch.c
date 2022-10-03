@@ -8,7 +8,7 @@ int main() {
   int a = 1;
 
   if (a) // WARN
-    assert(a);
+    __goblint_check(a);
 
   foo();
 

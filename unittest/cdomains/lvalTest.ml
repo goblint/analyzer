@@ -1,4 +1,6 @@
+open Goblint_lib
 open OUnit2
+open GoblintCil
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
 module LV = Lval.NormalLat (ID)
@@ -57,5 +59,6 @@ let test () =
     "test_compare_0" >:: test_compare_0;
     "test_hash_0" >:: test_hash_0;
     "test_join_0" >:: test_join_0;
+    "test_leq_0" >:: test_leq_0;
     "test_leq_not_0" >:: test_leq_not_0;
   ]

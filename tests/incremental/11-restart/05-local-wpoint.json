@@ -5,6 +5,20 @@
         }
     },
     "incremental": {
-        "wpoint": false
+        "wpoint": false,
+        "restart": {
+            "sided": {
+                "enabled": true
+            }
+        }
+    },
+    "solvers": {
+        "td3": {
+            "restart": {
+                "wpoint": {
+                    "enabled": true
+                }
+            }
+        }
     }
 }

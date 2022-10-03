@@ -12,17 +12,22 @@ void *t_fun(void *arg) {
 
 int main() {
   pthread_t id;
+  int top;
+
+  if(top) {
+    pthread_mutex_lock(&A);
+    g = 1;
+    pthread_mutex_unlock(&A);
+  }
+
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
   if (g) // protected globals should be refined
-    assert(g);
+    __goblint_check(g);
   else
-    assert(!g);
+    __goblint_check(!g);
   pthread_mutex_unlock(&A);
 
-  pthread_mutex_lock(&A);
-  g = 1;
-  pthread_mutex_unlock(&A);
   return 0;
 }

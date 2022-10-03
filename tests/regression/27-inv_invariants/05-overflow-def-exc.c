@@ -7,7 +7,7 @@ int main() {
     int z = 5;
 
     if(xl == -20) {
-        assert(1);
+        __goblint_check(1);
     }
   }
  }

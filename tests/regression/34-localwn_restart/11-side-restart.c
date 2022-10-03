@@ -7,7 +7,7 @@ int g;
 
 void* t_fun(void *arg) {
     int x = g;
-    assert(x <= 8);
+    __goblint_check(x <= 8);
     return NULL;
 }
 

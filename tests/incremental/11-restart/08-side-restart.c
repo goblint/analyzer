@@ -5,7 +5,7 @@ int g;
 
 void* t_fun1(void *arg) {
     int x = g;
-    assert(x <= 8); // TODO
+    __goblint_check(x <= 8); // TODO
     return NULL;
 }
 
@@ -27,7 +27,7 @@ int main() {
             g = i;
         }
     }
-    assert(i <= 9);
+    __goblint_check(i <= 9);
 
     pthread_create(&id2, NULL, t_fun2, NULL);
     return 0;

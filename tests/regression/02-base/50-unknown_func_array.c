@@ -26,6 +26,6 @@ int main(){
 
     // When passing an arrays to an unknown function, reachable memory should be invalidated
     mutate_array(a);
-    assert(xs[0] == 0); //UNKNOWN!
+    __goblint_check(xs[0] == 0); //UNKNOWN!
     return 0;
 }

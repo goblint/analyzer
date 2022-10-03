@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 module Thresholds = Set.Make(Z)
 
 
@@ -18,7 +18,7 @@ class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2)
     | _ -> DoChildren
 end
 
-let widening_thresholds = lazy (
+let widening_thresholds = ResettableLazy.from_fun (fun () ->
   let set = ref Thresholds.empty in
   let set_incl_mul2 = ref Thresholds.empty in
   let thisVisitor = new extractConstantsVisitor(set,set_incl_mul2) in
@@ -26,7 +26,47 @@ let widening_thresholds = lazy (
   Thresholds.elements !set, Thresholds.elements !set_incl_mul2)
 
 let thresholds () =
-  fst @@ Lazy.force widening_thresholds
+  fst @@ ResettableLazy.force widening_thresholds
 
 let thresholds_incl_mul2 () =
-  snd @@ Lazy.force widening_thresholds
+  snd @@ ResettableLazy.force widening_thresholds
+
+module EH = BatHashtbl.Make (CilType.Exp)
+
+class extractInvariantsVisitor (exps) = object
+  inherit nopCilVisitor
+
+  method! vinst (i: instr) =
+    match i with
+    | Call (_, Lval (Var f, NoOffset), args, _, _) ->
+      let desc = LibraryFunctions.find f in
+      begin match desc.special args with
+        | Assert { exp; _ } ->
+          EH.replace exps exp ();
+          DoChildren
+        | _ ->
+          DoChildren
+      end
+    | _ ->
+      DoChildren
+
+  method! vstmt (s: stmt) =
+    match s.skind with
+    | If (e, _, _, _, _)
+    | Switch (e, _, _, _, _) ->
+      EH.replace exps e ();
+      DoChildren
+    | _ ->
+      DoChildren
+end
+
+let exps = ResettableLazy.from_fun (fun () ->
+    let exps = EH.create 100 in
+    let visitor = new extractInvariantsVisitor exps in
+    visitCilFileSameGlobals visitor !Cilfacade.current_file;
+    EH.keys exps |> BatList.of_enum
+  )
+
+let reset_lazy () =
+  ResettableLazy.reset widening_thresholds;
+  ResettableLazy.reset exps
