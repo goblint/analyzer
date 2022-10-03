@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 char rec (int x) {
   char v;

@@ -15,7 +15,7 @@
 #endif
 
 extern void abort(void);
-#include <assert.h>
+#include <goblint.h>
 void reach_error() { __goblint_check(0); } // FAIL
 int __VERIFIER_nondet_int(void);
 void ldv___goblint_check(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN

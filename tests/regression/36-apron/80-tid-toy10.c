@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set ana.apron.privatization mutex-meet-tid
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 int h = 10;

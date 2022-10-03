@@ -1,6 +1,5 @@
 //PARAM: --set ana.activated[+] threadJoins
 #include <pthread.h>
-#include <assert.h>
 
 int g = 10;
 int h = 10;

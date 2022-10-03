@@ -13,7 +13,7 @@
 // Ran in 1.6-1.7s.
 // ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c --disable ana.base.eval.deep-query
 
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int x, y, z, w;

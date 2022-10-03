@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.float.interval
-#include <assert.h>
+#include <goblint.h>
 
 #define RANGE(val, min, max) \
     if (rnd)                 \

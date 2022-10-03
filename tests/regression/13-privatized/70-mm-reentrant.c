@@ -4,7 +4,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <signal.h>
-#include <assert.h>
+#include <goblint.h>
 
 pthread_mutex_t mt;
 int i = 0;

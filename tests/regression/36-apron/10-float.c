@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 // Copied from 01/45 for apron.
-#include <assert.h>
+#include <goblint.h>
 
 int isNan(float arg) {
     float x;

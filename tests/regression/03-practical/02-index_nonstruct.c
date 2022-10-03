@@ -1,5 +1,5 @@
 #include<stdlib.h>
-#include<assert.h>
+#include <goblint.h>
 
 typedef struct _s {
   int i;

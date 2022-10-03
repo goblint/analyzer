@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 42; // matches write in t_fun
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;

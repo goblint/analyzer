@@ -1,5 +1,5 @@
 // Making sure unknown conditions result in evaluating both branches.
-#include<assert.h>
+#include <goblint.h>
 
 extern int * anIntPlease();
 int main() {

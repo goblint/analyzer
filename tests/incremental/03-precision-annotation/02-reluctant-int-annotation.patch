@@ -3,7 +3,7 @@ index 38187f1c0..698e45b62 100644
 --- tests/incremental/03-precision-annotation/02-reluctant-int-annotation.c
 +++ tests/incremental/03-precision-annotation/02-reluctant-int-annotation.c
 @@ -1,10 +1,11 @@
- #include<assert.h>
+ #include <goblint.h>
 
 +int f(int in) __attribute__ ((goblint_precision("def_exc", "interval")));
  int f(int in){

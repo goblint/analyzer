@@ -1,7 +1,7 @@
 // From the Trier benches...
 
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int x = 0;
 
