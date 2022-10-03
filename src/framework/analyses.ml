@@ -577,6 +577,9 @@ module type GenericGlobSolver =
   sig
     type marshal
 
+    val copy_marshal: marshal -> unit
+    val relift_marshal: marshal -> unit
+
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)

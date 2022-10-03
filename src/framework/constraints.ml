@@ -941,6 +941,9 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 
       type marshal = Sol'.marshal
 
+      let copy_marshal = Sol'.copy_marshal
+      let relift_marshal = Sol'.relift_marshal
+
       let solve ls gs l old_data =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
