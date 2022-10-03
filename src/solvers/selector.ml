@@ -22,6 +22,16 @@ module Make =
   struct
     type marshal = Obj.t (* cannot use Sol.marshal because cannot unpack first-class module in applicative functor *)
 
+    let copy_marshal (marshal: marshal) =
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
+      let module F = Sol (Arg) (S) (VH) in
+      F.copy_marshal (Obj.obj marshal)
+
+    let relift_marshal (marshal: marshal) =
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
+      let module F = Sol (Arg) (S) (VH) in
+      F.relift_marshal (Obj.obj marshal)
+
     let solve box xs vs (old_data: marshal option) =
       let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
       let module F = Sol (Arg) (S) (VH) in

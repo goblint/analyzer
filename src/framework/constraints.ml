@@ -928,6 +928,8 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
     module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
 
     type marshal = unit
+    let copy_marshal () = ()
+    let relift_marshal () = ()
 
     let solve box xs vs _ =
       let vh = Sol.solve box xs vs in
