@@ -71,6 +71,73 @@ module WP =
         (* vice versa doesn't currently hold, because stable is not pruned *)
       )
 
+    let copy_marshal (data: marshal): unit = (* TODO: should return new marshal? *)
+      data.rho <- HM.copy data.rho;
+      data.stable <- HM.copy data.stable;
+      data.wpoint <- HM.copy data.wpoint;
+      data.infl <- HM.copy data.infl;
+      data.side_infl <- HM.copy data.side_infl;
+      data.side_dep <- HM.copy data.side_dep;
+      (* data.st is immutable, no need to copy *)
+      data.var_messages <- HM.copy data.var_messages;
+      data.rho_write <- HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
+      data.dep <- HM.copy data.dep
+
+    let relift_marshal (data: marshal): unit = (* TODO: should return new marshal? *)
+      let rho' = HM.create (HM.length data.rho) in
+      HM.iter (fun k v ->
+          (* call hashcons on contexts and abstract values; results in new tags *)
+          let k' = S.Var.relift k in
+          let v' = S.Dom.relift v in
+          HM.replace rho' k' v';
+        ) data.rho;
+      data.rho <- rho';
+      let stable' = HM.create (HM.length data.stable) in
+      HM.iter (fun k v ->
+          HM.replace stable' (S.Var.relift k) v
+        ) data.stable;
+      data.stable <- stable';
+      let wpoint' = HM.create (HM.length data.wpoint) in
+      HM.iter (fun k v ->
+          HM.replace wpoint' (S.Var.relift k) v
+        ) data.wpoint;
+      data.wpoint <- wpoint';
+      let infl' = HM.create (HM.length data.infl) in
+      HM.iter (fun k v ->
+          HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.infl;
+      data.infl <- infl';
+      let side_infl' = HM.create (HM.length data.side_infl) in
+      HM.iter (fun k v ->
+          HM.replace side_infl' (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.side_infl;
+      data.side_infl <- side_infl';
+      let side_dep' = HM.create (HM.length data.side_dep) in
+      HM.iter (fun k v ->
+          HM.replace side_dep' (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.side_dep;
+      data.side_dep <- side_dep';
+      data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
+      let var_messages' = HM.create (HM.length data.var_messages) in
+      HM.iter (fun k v ->
+          HM.add var_messages' (S.Var.relift k) v (* var_messages contains duplicate keys, so must add not replace! *)
+        ) data.var_messages;
+      data.var_messages <- var_messages';
+      let rho_write' = HM.create (HM.length data.rho_write) in
+      HM.iter (fun x w ->
+          let w' = HM.create (HM.length w) in
+          HM.iter (fun y d ->
+              HM.add w' (S.Var.relift y) (S.Dom.relift d) (* w contains duplicate keys, so must add not replace! *)
+            ) w;
+          HM.replace rho_write' (S.Var.relift x) w';
+        ) data.rho_write;
+      data.rho_write <- rho_write';
+      let dep' = HM.create (HM.length data.dep) in
+      HM.iter (fun k v ->
+          HM.replace dep' (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.dep;
+      data.dep <- dep'
+
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
     module P =
@@ -1026,73 +1093,11 @@ module WP =
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
-        if loaded && (match S.increment with Some {server; _} -> server | None -> false) then (
-          data.rho <- HM.copy data.rho;
-          data.stable <- HM.copy data.stable;
-          data.wpoint <- HM.copy data.wpoint;
-          data.infl <- HM.copy data.infl;
-          data.side_infl <- HM.copy data.side_infl;
-          data.side_dep <- HM.copy data.side_dep;
-          (* data.st is immutable, no need to copy *)
-          data.var_messages <- HM.copy data.var_messages;
-          data.rho_write <- HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
-          data.dep <- HM.copy data.dep;
-        )
-        else if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
-          let rho' = HM.create (HM.length data.rho) in
-          HM.iter (fun k v ->
-              (* call hashcons on contexts and abstract values; results in new tags *)
-              let k' = S.Var.relift k in
-              let v' = S.Dom.relift v in
-              HM.replace rho' k' v';
-            ) data.rho;
-          data.rho <- rho';
-          let stable' = HM.create (HM.length data.stable) in
-          HM.iter (fun k v ->
-              HM.replace stable' (S.Var.relift k) v
-            ) data.stable;
-          data.stable <- stable';
-          let wpoint' = HM.create (HM.length data.wpoint) in
-          HM.iter (fun k v ->
-              HM.replace wpoint' (S.Var.relift k) v
-            ) data.wpoint;
-          data.wpoint <- wpoint';
-          let infl' = HM.create (HM.length data.infl) in
-          HM.iter (fun k v ->
-              HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
-            ) data.infl;
-          data.infl <- infl';
-          let side_infl' = HM.create (HM.length data.side_infl) in
-          HM.iter (fun k v ->
-              HM.replace side_infl' (S.Var.relift k) (VS.map S.Var.relift v)
-            ) data.side_infl;
-          data.side_infl <- side_infl';
-          let side_dep' = HM.create (HM.length data.side_dep) in
-          HM.iter (fun k v ->
-              HM.replace side_dep' (S.Var.relift k) (VS.map S.Var.relift v)
-            ) data.side_dep;
-          data.side_dep <- side_dep';
-          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
-          let var_messages' = HM.create (HM.length data.var_messages) in
-          HM.iter (fun k v ->
-              HM.add var_messages' (S.Var.relift k) v (* var_messages contains duplicate keys, so must add not replace! *)
-            ) data.var_messages;
-          data.var_messages <- var_messages';
-          let rho_write' = HM.create (HM.length data.rho_write) in
-          HM.iter (fun x w ->
-              let w' = HM.create (HM.length w) in
-              HM.iter (fun y d ->
-                  HM.add w' (S.Var.relift y) (S.Dom.relift d) (* w contains duplicate keys, so must add not replace! *)
-                ) w;
-              HM.replace rho_write' (S.Var.relift x) w';
-            ) data.rho_write;
-          data.rho_write <- rho_write';
-          let dep' = HM.create (HM.length data.dep) in
-          HM.iter (fun k v ->
-              HM.replace dep' (S.Var.relift k) (VS.map S.Var.relift v)
-            ) data.dep;
-          data.dep <- dep';
-        );
+        if loaded && (match S.increment with Some {server; _} -> server | None -> false) then
+          copy_marshal data
+        else if loaded && GobConfig.get_bool "ana.opt.hashcons" then
+          relift_marshal data;
+
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
           data.stable <- HM.create 10;
