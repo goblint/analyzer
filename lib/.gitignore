@@ -1,2 +1,5 @@
 # override root goblint .gitignore
 !goblint
+
+*.a
+*.so

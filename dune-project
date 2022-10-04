@@ -65,5 +65,6 @@
     (share lib_stub_src)
     (share lib_runtime_include)
     (share lib_runtime_src)
+    (share lib_runtime)
     (share conf))
 )
