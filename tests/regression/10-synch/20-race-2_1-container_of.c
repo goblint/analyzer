@@ -18,7 +18,7 @@ extern void abort(void);
 #include <goblint.h>
 void reach_error() { __goblint_check(0); } // FAIL
 int __VERIFIER_nondet_int(void);
-void ldv___goblint_check(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN
+void ldv_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN
 
 pthread_t t1,t2;
 
@@ -57,8 +57,8 @@ int my_drv_probe(struct my_data *data) {
 	pthread_mutex_init(&data->lock, NULL);
 	data->shared.a = 0; // NORACE
 	data->shared.b = 0; // NORACE
-	ldv___goblint_check(data->shared.a==0); // NORACE
-	ldv___goblint_check(data->shared.b==0); // NORACE
+	ldv_assert(data->shared.a==0); // NORACE
+	ldv_assert(data->shared.b==0); // NORACE
 
 	int res = __VERIFIER_nondet_int();
 	if(res)
@@ -96,14 +96,14 @@ int main(void) {
 		probe_ret = my_drv_probe(&data);
 		if(probe_ret==0) {
 			my_drv_disconnect(&data);
-			ldv___goblint_check(data.shared.a==1); // NORACE
-			ldv___goblint_check(data.shared.b==2); // NORACE
+			ldv_assert(data.shared.a==1); // NORACE
+			ldv_assert(data.shared.b==2); // NORACE
 		}
 		my_drv_cleanup();
 		data.shared.a = -1; // NORACE
 		data.shared.b = -1; // NORACE
-		ldv___goblint_check(data.shared.a==-1); // NORACE
-		ldv___goblint_check(data.shared.b==-1); // NORACE
+		ldv_assert(data.shared.a==-1); // NORACE
+		ldv_assert(data.shared.b==-1); // NORACE
 	}
 	return 0;
 }
