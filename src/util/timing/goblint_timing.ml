@@ -1,6 +1,6 @@
 include Goblint_timing_intf
 
-(** Dummy options used for initialization before {!S.setup} is called. *)
+(** Dummy options used for initialization before {!S.start} is called. *)
 let dummy_options: options = {
   cputime = false;
   walltime = false;
