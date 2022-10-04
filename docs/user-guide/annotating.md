@@ -34,6 +34,6 @@ Goblint-specific functions can be called in the code, where they assist the anal
   _Expsplit analysis must be activated._
 * `__goblint_split_end(exp)` ends path-sensitivity w.r.t. the value of `exp`.
   _Expsplit analysis must be activated._
-* `__goblint_assume_join(id)` is like `pthread_join(id)`, but considers the given thread IDs must-joined even if Goblint cannot, e.g. due to non-uniqueness.
+* `__goblint_assume_join(id)` is like `pthread_join(id, NULL)`, but considers the given thread IDs must-joined even if Goblint cannot, e.g. due to non-uniqueness.
   Notably, this annotation can be used after a threads joining loop to make the assumption that the loop correctly joined all those threads.
   _Misuse of this annotation can cause unsoundness._

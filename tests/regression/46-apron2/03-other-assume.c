@@ -13,7 +13,7 @@ void *t_fun(void *arg) {
 void *t_benign(void *arg) {
   pthread_t id2;
   pthread_create(&id2, NULL, t_fun, NULL);
-  __goblint_assume_join(id2, NULL);
+  __goblint_assume_join(id2);
   // t_fun should be in here
 
   g = 7;

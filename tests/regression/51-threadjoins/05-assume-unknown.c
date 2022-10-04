@@ -1,5 +1,6 @@
 //PARAM: --set ana.activated[+] threadJoins
 #include <pthread.h>
+#include <goblint.h>
 
 int g = 0;
 
