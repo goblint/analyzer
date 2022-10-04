@@ -252,7 +252,7 @@ struct
           let f ~q a (n,(module S:MCPSpec),d) =
             let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
             (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
-              See https://github.com/goblint/analyzer/pull/214. *)
+               See https://github.com/goblint/analyzer/pull/214. *)
             let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
               { ctx' with
                 ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
@@ -280,9 +280,9 @@ struct
                 f ~q:q' () t
               ) @@ spec_list ctx.local
           (* | EvalInt e ->
-            (* TODO: only query others that actually respond to EvalInt *)
-            (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
-            f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+             (* TODO: only query others that actually respond to EvalInt *)
+             (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
+             f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;
