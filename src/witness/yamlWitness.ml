@@ -256,7 +256,7 @@ struct
             Cfg.next n
             |> BatList.enum
             |> BatEnum.filter_map (fun (_, next_n) ->
-                let next_local = NH.find nh next_n in
+                let next_local = try NH.find nh next_n with Not_found -> Spec.D.bot () in
                 match Query.ask_local_node gh next_n next_local MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
