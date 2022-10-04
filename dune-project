@@ -60,5 +60,10 @@
   (conflicts
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
   )
-  (sites (share includes) (share conf))
+  (sites
+    (share lib_stub_include)
+    (share lib_stub_src)
+    (share lib_runtime_include)
+    (share lib_runtime_src)
+    (share conf))
 )
