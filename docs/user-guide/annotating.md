@@ -29,7 +29,11 @@ The following string arguments are supported:
 
 ## Functions
 Goblint-specific functions can be called in the code, where they assist the analyzer but have no runtime effect.
+Include `goblint.h` when using these.
 
+* `__goblint_check(exp)` checks whether `exp` holds, but doesn't refine, i.e. doesn't assume it holds for the following code.
+* `__goblint_assume(exp)` assumes `exp` holds for the following code, i.e. refines.
+* `__goblint_assert(exp)` checks whether `exp` holds and also refines, i.e. assumes it holds for the following code.
 * `__goblint_split_begin(exp)` begins path-sensitivity w.r.t. the value of `exp`.
   _Expsplit analysis must be activated._
 * `__goblint_split_end(exp)` ends path-sensitivity w.r.t. the value of `exp`.
