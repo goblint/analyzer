@@ -39,13 +39,13 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  assert(g >= h);
+  __goblint_check(g >= h);
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
 
   t = g;
   pthread_mutex_lock(&A);
-  assert(t >= g);
+  __goblint_check(t >= g);
   pthread_mutex_unlock(&A);
   return 0;
 }

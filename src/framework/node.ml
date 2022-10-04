@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 
 include Printable.Std
@@ -35,6 +35,7 @@ include Printable.SimplePretty (
     let pretty = pretty
   end
   )
+(* TODO: deriving to_yojson gets overridden by SimplePretty *)
 
 (** Show node ID for CFG and results output. *)
 let show_id = function

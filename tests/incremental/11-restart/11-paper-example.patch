@@ -4,8 +4,8 @@
          res = fp();
      }
      pthread_mutex_unlock(&mutex);
--    assert(res >= 0); // UNKNOWN before, success after
-+    assert(res >= 0); // unknown before, SUCCESS after
+-    __goblint_check(res >= 0); // UNKNOWN before, success after
++    __goblint_check(res >= 0); // unknown before, SUCCESS after
      res = 0;
      // change absorbed
      return NULL;

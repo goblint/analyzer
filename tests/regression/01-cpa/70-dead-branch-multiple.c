@@ -5,7 +5,7 @@ int main() {
   int b = 0;
 
   if (a && b) { // WARN
-    assert(0); // NOWARN (unreachable)
+    __goblint_check(0); // NOWARN (unreachable)
   }
 
   return 0;

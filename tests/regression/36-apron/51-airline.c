@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
     //   pthread_join(threads[i], NULL);
 
     pthread_mutex_lock(&A);
-    assert(sold <= capacity); // not oversold
+    __goblint_check(sold <= capacity); // not oversold
     pthread_mutex_unlock(&A);
   }
 

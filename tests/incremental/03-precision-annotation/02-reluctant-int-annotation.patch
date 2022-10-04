@@ -4,22 +4,22 @@ index 38187f1c0..698e45b62 100644
 +++ tests/incremental/03-precision-annotation/02-reluctant-int-annotation.c
 @@ -1,10 +1,11 @@
  #include<assert.h>
- 
+
 +int f(int in) __attribute__ ((goblint_precision("def_exc", "interval")));
  int f(int in){
    while(in < 17) {
      in++;
    }
--  assert(in == 17); //UNKNOWN
-+  assert(in == 17);
+-  __goblint_check(in == 17); //UNKNOWN
++  __goblint_check(in == 17);
    return in;
  }
- 
+
 @@ -12,6 +13,6 @@ int main() {
    int a = 0;
-   assert(a); // FAIL!
+   __goblint_check(a); // FAIL!
    a = f(a);
--  assert(a == 17); //UNKNOWN
-+  assert(a == 17);
+-  __goblint_check(a == 17); //UNKNOWN
++  __goblint_check(a == 17);
    return 0;
  }

@@ -11,11 +11,15 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
     ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
+    ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src });
+    ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
-    ("assert", special [__ "cond" [r]] @@ fun cond -> Assert cond);
   ]
 
 (** C POSIX library functions.
@@ -31,25 +35,48 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+    ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
+    ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
+    ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
+    ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
   ]
 
 (** GCC builtin functions.
     These are not builtin versions of functions from other lists. *)
 let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
+    ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
+    ("__builtin_expect", special [__ "exp" []; drop' []] @@ fun exp -> Identity exp); (* Identity, because just compiler optimization annotation. *)
+    ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
+    ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
+    ("__builtin_return_address", unknown [drop "level" []]);
   ]
 
-(** Linux kernel functions. *)
-let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
+let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
+let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
 
+(** Linux kernel functions. *)
+(* TODO: conditional on kernel option *)
+let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("spin_lock_irqsave", special [__ "lock" []; drop "flags" []] @@ fun lock -> Lock { lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
+    ("_raw_spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
+    ("spinlock_check", special [__ "lock" []] @@ fun lock -> Identity lock);  (* Identity, because we don't want lock internals. *)
+    ("_lock_kernel", special [drop "func" [r]; drop "file" [r]; drop "line" []] @@ Lock { lock = big_kernel_lock; try_ = false; write = true; return_on_success = true });
+    ("_unlock_kernel", special [drop "func" [r]; drop "file" [r]; drop "line" []] @@ Unlock big_kernel_lock);
+    ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
+    ("release_console_sem", special [] @@ Unlock console_sem);
+    ("misc_deregister", unknown [drop "misc" [r_deep]]);
   ]
 
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
-    ("__goblint_check", unknown [drop' []]);
-    ("__goblint_commit", unknown [drop' []]);
-    ("__goblint_assert", unknown [drop' []]);
+    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = false });
+    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp; check = false; refine = true });
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
+    ("__goblint_split_begin", unknown [drop "exp" []]);
+    ("__goblint_split_end", unknown [drop "exp" []]);
   ]
 
 (** zstd functions.
@@ -58,6 +85,66 @@ let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
     ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
     ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
+  ]
+
+(** math functions.
+    Functions and builtin versions of function and macros defined in math.h. *)
+let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__builtin_nan", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FDouble, str)) });
+    ("__builtin_nanf", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FFloat, str)) });
+    ("__builtin_nanl", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FLongDouble, str)) });
+    ("__builtin_inf", special [] @@ Math { fun_args = Inf FDouble});
+    ("__builtin_inff", special [] @@ Math { fun_args = Inf FFloat});
+    ("__builtin_infl", special [] @@ Math { fun_args = Inf FLongDouble});
+    ("__builtin_isfinite", special [__ "x" []] @@ fun x -> Math { fun_args = (Isfinite x) });
+    ("__builtin_isinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__builtin_isinf_sign", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__builtin_isnan", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnan x) });
+    ("__builtin_isnormal", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnormal x) });
+    ("__builtin_signbit", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
+    ("__builtin_fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
+    ("fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
+    ("fabsf", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FFloat, x)) });
+    ("fabsl", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FLongDouble, x)) });
+    ("__builtin_acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FDouble, x)) });
+    ("acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FDouble, x)) });
+    ("acosf", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FFloat, x)) });
+    ("acosl", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FLongDouble, x)) });
+    ("__builtin_asin", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin (FDouble, x)) });
+    ("asin", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin (FDouble, x)) });
+    ("asinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin (FFloat, x)) });
+    ("asinl", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin (FLongDouble, x)) });
+    ("__builtin_atan", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan (FDouble, x)) });
+    ("atan", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan (FDouble, x)) });
+    ("atanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan (FFloat, x)) });
+    ("atanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan (FLongDouble, x)) });
+    ("__builtin_atan2", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (FDouble, y, x)) });
+    ("atan2", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (FDouble, y, x)) });
+    ("atan2f", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (FFloat, y, x)) });
+    ("atan2l", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (FLongDouble, y, x)) });
+    ("__builtin_cos", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos (FDouble, x)) });
+    ("cos", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos (FDouble, x)) });
+    ("cosf", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos (FFloat, x)) });
+    ("cosl", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos (FLongDouble, x)) });
+    ("__builtin_sin", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin (FDouble, x)) });
+    ("sin", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin (FDouble, x)) });
+    ("sinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin (FFloat, x)) });
+    ("sinl", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin (FLongDouble, x)) });
+    ("__builtin_tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FDouble, x)) });
+    ("tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FDouble, x)) });
+    ("tanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FFloat, x)) });
+    ("tanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FLongDouble, x)) });
+  ]
+
+let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
+let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_var))
+
+(** SV-COMP functions.
+    Just the ones that require special handling and cannot be stubbed. *)
+(* TODO: conditional on ana.sv-comp.functions option *)
+let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
+    ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
   ]
 
 (* TODO: allow selecting which lists to use *)
@@ -69,6 +156,8 @@ let library_descs = Hashtbl.of_list (List.concat [
     linux_descs_list;
     goblint_descs_list;
     zstd_descs_list;
+    math_descs_list;
+    svcomp_descs_list;
   ])
 
 
@@ -76,7 +165,6 @@ type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
   | `Realloc      of exp * exp
-  | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
@@ -86,7 +174,7 @@ type categories = [
 
 let classify fn exps: categories =
   let strange_arguments () =
-    M.warn "%s arguments are strange!" fn;
+    M.warn ~category:Program "%s arguments are strange!" fn;
     `Unknown fn
   in
   match fn with
@@ -113,26 +201,24 @@ let classify fn exps: categories =
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
   | "down_trylock"
     -> `Lock(true, true, true)
-  | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
+  | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock" | "pthread_spin_trylock"
     -> `Lock (true, true, false)
-  | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
-  | "spin_lock_irqsave" | "spin_lock"
+  | "spin_lock" | "pthread_spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
   | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
   | "down_read"
     -> `Lock (get_bool "sem.lock.fail", false, true)
-  | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
-  | "mutex_unlock" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
-  | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
-  | "up"
+  | "mutex_unlock" | "_write_unlock" | "_read_unlock"
+  | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "up_read" | "up_write"
+  | "up" | "pthread_spin_unlock"
     -> `Unlock
   | x -> `Unknown x
 
@@ -255,10 +341,7 @@ let invalidate_actions = [
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
-    "memcpy", writes [1];(*keep [1]*)
-    "__builtin_memcpy", writes [1];(*keep [1]*)
     "mempcpy", writes [1];(*keep [1]*)
-    "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
@@ -267,6 +350,9 @@ let invalidate_actions = [
     "pthread_mutex_lock", readsAll;(*safe*)
     "pthread_mutex_trylock", readsAll;
     "pthread_mutex_unlock", readsAll;(*safe*)
+    "pthread_spin_lock", readsAll;(*safe*)
+    "pthread_spin_trylock", readsAll;
+    "pthread_spin_unlock", readsAll;(*safe*)
     "__pthread_mutex_lock", readsAll;(*safe*)
     "__pthread_mutex_trylock", readsAll;
     "__pthread_mutex_unlock", readsAll;(*safe*)
@@ -283,6 +369,8 @@ let invalidate_actions = [
     "pthread_mutex_destroy", readsAll;(*safe*)
     "pthread_mutexattr_settype", readsAll;(*safe*)
     "pthread_mutexattr_init", readsAll;(*safe*)
+    "pthread_spin_init", readsAll;(*safe*)
+    "pthread_spin_destroy", readsAll;(*safe*)
     "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
@@ -296,7 +384,6 @@ let invalidate_actions = [
     "strftime", writes [1];(*keep [1]*)
     "strlen", readsAll;(*safe*)
     "strncmp", readsAll;(*safe*)
-    "strncpy", writes [1];(*keep [1]*)
     "strncat", writes [1];(*keep [1]*)
     "strstr", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
@@ -368,7 +455,6 @@ let invalidate_actions = [
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
-    "strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy_chk", writes [1];(*keep [1]*)
     "strcat", writes [1];(*keep [1]*)
@@ -527,17 +613,12 @@ let invalidate_actions = [
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
     "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     (* no args, declare invalidate actions to prevent invalidating globals *)
     "__VERIFIER_atomic_begin", readsAll;
     "__VERIFIER_atomic_end", readsAll;
-    (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
-    (* "LAP_Se_SetPartitionMode", writes [2]; *)
-    "LAP_Se_CreateProcess", writes [2; 3];
-    "LAP_Se_CreateErrorHandler", writes [2; 3];
     "isatty", readsAll;
     "setpriority", readsAll;
     "getpriority", readsAll;
@@ -545,11 +626,186 @@ let invalidate_actions = [
     "spin_lock_init", readsAll;
     "spin_lock", readsAll;
     "spin_unlock", readsAll;
-    "spin_unlock_irqrestore", readsAll;
-    "spin_lock_irqsave", readsAll;
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
+    "acos", readsAll;
+    "acosf", readsAll;
+    "acosh", readsAll;
+    "acoshf", readsAll;
+    "acoshl", readsAll;
+    "acosl", readsAll;
+    "asin", readsAll;
+    "asinf", readsAll;
+    "asinh", readsAll;
+    "asinhf", readsAll;
+    "asinhl", readsAll;
+    "asinl", readsAll;
+    "atan", readsAll;
+    "atan2", readsAll;
+    "atan2f", readsAll;
+    "atan2l", readsAll;
+    "atanf", readsAll;
+    "atanh", readsAll;
+    "atanhf", readsAll;
+    "atanhl", readsAll;
+    "atanl", readsAll;
+    "cbrt", readsAll;
+    "cbrtf", readsAll;
+    "cbrtl", readsAll;
+    "ceil", readsAll;
+    "ceilf", readsAll;
+    "ceill", readsAll;
+    "copysign", readsAll;
+    "copysignf", readsAll;
+    "copysignl", readsAll;
+    "cos", readsAll;
+    "cosf", readsAll;
+    "cosh", readsAll;
+    "coshf", readsAll;
+    "coshl", readsAll;
+    "cosl", readsAll;
+    "erf", readsAll;
+    "erfc", readsAll;
+    "erfcf", readsAll;
+    "erfcl", readsAll;
+    "erff", readsAll;
+    "erfl", readsAll;
+    "exp", readsAll;
+    "exp2", readsAll;
+    "exp2f", readsAll;
+    "exp2l", readsAll;
+    "expf", readsAll;
+    "expl", readsAll;
+    "expm1", readsAll;
+    "expm1f", readsAll;
+    "expm1l", readsAll;
+    "fabs", readsAll;
+    "fabsf", readsAll;
+    "fabsl", readsAll;
+    "fdim", readsAll;
+    "fdimf", readsAll;
+    "fdiml", readsAll;
+    "floor", readsAll;
+    "floorf", readsAll;
+    "floorl", readsAll;
+    "fma", readsAll;
+    "fmaf", readsAll;
+    "fmal", readsAll;
+    "fmax", readsAll;
+    "fmaxf", readsAll;
+    "fmaxl", readsAll;
+    "fmin", readsAll;
+    "fminf", readsAll;
+    "fminl", readsAll;
+    "fmod", readsAll;
+    "fmodf", readsAll;
+    "fmodl", readsAll;
+    "frexp", readsAll;
+    "frexpf", readsAll;
+    "frexpl", readsAll;
+    "hypot", readsAll;
+    "hypotf", readsAll;
+    "hypotl", readsAll;
+    "ilogb", readsAll;
+    "ilogbf", readsAll;
+    "ilogbl", readsAll;
+    "j0", readsAll;
+    "j1", readsAll;
+    "jn", readsAll;
+    "ldexp", readsAll;
+    "ldexpf", readsAll;
+    "ldexpl", readsAll;
+    "lgamma", readsAll;
+    "lgammaf", readsAll;
+    "lgammal", readsAll;
+    "llrint", readsAll;
+    "llrintf", readsAll;
+    "llrintl", readsAll;
+    "llround", readsAll;
+    "llroundf", readsAll;
+    "llroundl", readsAll;
+    "log", readsAll;
+    "log10", readsAll;
+    "log10f", readsAll;
+    "log10l", readsAll;
+    "log1p", readsAll;
+    "log1pf", readsAll;
+    "log1pl", readsAll;
+    "log2", readsAll;
+    "log2f", readsAll;
+    "log2l", readsAll;
+    "logb", readsAll;
+    "logbf", readsAll;
+    "logbl", readsAll;
+    "logf", readsAll;
+    "logl", readsAll;
+    "lrint", readsAll;
+    "lrintf", readsAll;
+    "lrintl", readsAll;
+    "lround", readsAll;
+    "lroundf", readsAll;
+    "lroundl", readsAll;
+    "modf", readsAll;
+    "modff", readsAll;
+    "modfl", readsAll;
+    "nan", readsAll;
+    "nanf", readsAll;
+    "nanl", readsAll;
+    "nearbyint", readsAll;
+    "nearbyintf", readsAll;
+    "nearbyintl", readsAll;
+    "nextafter", readsAll;
+    "nextafterf", readsAll;
+    "nextafterl", readsAll;
+    "nexttoward", readsAll;
+    "nexttowardf", readsAll;
+    "nexttowardl", readsAll;
+    "pow", readsAll;
+    "powf", readsAll;
+    "powl", readsAll;
+    "remainder", readsAll;
+    "remainderf", readsAll;
+    "remainderl", readsAll;
+    "remquo", readsAll;
+    "remquof", readsAll;
+    "remquol", readsAll;
+    "rint", readsAll;
+    "rintf", readsAll;
+    "rintl", readsAll;
+    "round", readsAll;
+    "roundf", readsAll;
+    "roundl", readsAll;
+    "scalbln", readsAll;
+    "scalblnf", readsAll;
+    "scalblnl", readsAll;
+    "scalbn", readsAll;
+    "scalbnf", readsAll;
+    "scalbnl", readsAll;
+    "sin", readsAll;
+    "sinf", readsAll;
+    "sinh", readsAll;
+    "sinhf", readsAll;
+    "sinhl", readsAll;
+    "sinl", readsAll;
+    "sqrt", readsAll;
+    "sqrtf", readsAll;
+    "sqrtl", readsAll;
+    "tan", readsAll;
+    "tanf", readsAll;
+    "tanh", readsAll;
+    "tanhf", readsAll;
+    "tanhl", readsAll;
+    "tanl", readsAll;
+    "tgamma", readsAll;
+    "tgammaf", readsAll;
+    "tgammal", readsAll;
+    "trunc", readsAll;
+    "truncf", readsAll;
+    "truncl", readsAll;
+    "y0", readsAll;
+    "y1", readsAll;
+    "yn", readsAll;
     "__goblint_assume_join", readsAll;
   ]
 
@@ -580,10 +836,6 @@ let get_invalidate_action name =
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
-
-let effects: (string -> Cil.exp list -> (Cil.lval * ValueDomain.Compound.t) list option) list ref = ref []
-let add_effects f = effects := f :: !effects
-let effects_for fname args = List.filter_map (fun f -> f fname args) !effects
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
 let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]

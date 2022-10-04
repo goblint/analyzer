@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 open Formatcil
 
 (** Instruments a program by inserting asserts either:
@@ -50,7 +50,11 @@ module EvalAssert = struct
       in
 
       let make_assert loc lval =
-        let context = {Invariant.default_context with lval} in
+        let lvals = match lval with
+          | None -> CilLval.Set.top ()
+          | Some lval -> CilLval.(Set.singleton lval)
+        in
+        let context = {Invariant.default_context with lvals} in
         match (ask loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in

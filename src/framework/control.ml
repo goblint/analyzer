@@ -1,7 +1,7 @@
 (** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *)
 
 open Prelude
-open Cil
+open GoblintCil
 open MyCFG
 open Analyses
 open GobConfig
@@ -23,7 +23,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
-            |> lift (get_bool "dbg.print_dead_code") (module DeadBranchLifter)
+            |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -31,6 +31,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
   GobConfig.building_spec := false;
+  Analyses.control_spec_c := (module S1.C);
   (module S1)
 )
 
@@ -81,7 +82,7 @@ struct
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
     let module NH = Hashtbl.Make (Node) in
     let live_nodes : unit NH.t = NH.create 10 in
-    let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
+    let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
     let open BatPrintf in
     let live_lines = ref StringMap.empty in
@@ -147,9 +148,9 @@ struct
       M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
     in
     let warn_file f = StringMap.iter (warn_func f) in
-    if get_bool "dbg.print_dead_code" then (
+    if get_bool "ana.dead-code.lines" then (
       if StringMap.is_empty !dead_lines
-      then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
+      then printf "No lines with dead code found by solver.\n"
       else (
         StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
         let total_dead = !count + uncalled_fn_loc in
@@ -211,8 +212,15 @@ struct
       let set_bad v st =
         Spec.assign {ctx with local = st} (var v) MyCFG.unknown_exp
       in
+      let is_std = function
+        | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
+        | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+          true
+        | _ -> false
+      in
       let add_externs s = function
-        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
+        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) && not (get_bool "exp.hide-std-globals" && is_std v) -> set_bad v s
         | _ -> s
       in
       foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
@@ -237,12 +245,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "Global initializers have no context.")
+        ; control_context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -337,12 +344,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -370,12 +376,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; presub  = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -533,7 +538,7 @@ struct
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "dbg.uncalled" then
+            if get_bool "ana.dead-code.functions" then
               M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
@@ -571,12 +576,11 @@ struct
                 ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
                 ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
                 ; prev_node = MyCFG.dummy_node
-                ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+                ; control_context = (fun () -> ctx_failwith "No context in query context.")
                 ; context = (fun () -> ctx_failwith "No context in query context.")
                 ; edge    = MyCFG.Skip
                 ; local  = local
                 ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
-                ; presub = (fun _ -> raise Not_found)
                 ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
                 ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
                 ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -608,7 +612,7 @@ struct
     let local_xml = solver2source_result lh in
 
     let liveness =
-      if get_bool "dbg.print_dead_code" then
+      if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
         print_dead_code local_xml !uncalled_dead
       else
         fun _ -> true (* TODO: warn about conflicting options *)
@@ -625,12 +629,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
         ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+        ; control_context = (fun () -> ctx_failwith "No context in query context.")
         ; context = (fun () -> ctx_failwith "No context in query context.")
         ; edge    = MyCFG.Skip
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
         ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ()))
-        ; presub = (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -698,4 +701,5 @@ let compute_cfg file =
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let (module CFG) = compute_cfg file in
+  MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info

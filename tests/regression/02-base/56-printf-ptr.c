@@ -4,6 +4,6 @@
 int main() {
   int x = 42;
   printf("&x = %p\n", &x); // doesn't invalidate x despite taking address
-  assert(x == 42);
+  __goblint_check(x == 42);
   return 0;
 }

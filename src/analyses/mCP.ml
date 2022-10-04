@@ -130,10 +130,6 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
-  let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
-
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -156,10 +152,6 @@ struct
         let a', b = assoc_split_eq eq k xs in
         f ((k,v::a')::a) b
     in f [] xs
-
-  let assoc_sub xs name =
-    let n' = find_id name in
-    assoc n' xs
 
   let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
     let spawn_one v d =
@@ -242,51 +234,66 @@ struct
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let anyq = Queries.Any q in
-    match Queries.Hashtbl.find_option querycache anyq with
-    | Some r -> Obj.obj r
-    | None ->
-      let module Result = (val Queries.Result.lattice q) in
-      if Queries.Set.mem anyq asked then
-        Result.top () (* query cycle *)
-      else
-        let asked' = Queries.Set.add anyq asked in
-        let sides = ref [] in
-        let ctx'' = outer_ctx "query" ~sides ctx in
-        let f ~q a (n,(module S:MCPSpec),d) =
-          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
-          (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
-             See https://github.com/goblint/analyzer/pull/214. *)
-          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-            { ctx' with
-              ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
-            }
+    if M.tracing then M.traceli "query" "query %a\n" Queries.Any.pretty anyq;
+    let r = match Queries.Hashtbl.find_option querycache anyq with
+      | Some r ->
+        if M.tracing then M.trace "query" "cached\n";
+        Obj.obj r
+      | None ->
+        let module Result = (val Queries.Result.lattice q) in
+        if Queries.Set.mem anyq asked then (
+          if M.tracing then M.trace "query" "cycle\n";
+          Result.top () (* query cycle *)
+        )
+        else
+          let asked' = Queries.Set.add anyq asked in
+          let sides = ref [] in
+          let ctx'' = outer_ctx "query" ~sides ctx in
+          let f ~q a (n,(module S:MCPSpec),d) =
+            let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
+            (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
+               See https://github.com/goblint/analyzer/pull/214. *)
+            let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+              { ctx' with
+                ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
+              }
+            in
+            (* meet results so that precision from all analyses is combined *)
+            Result.meet a @@ S.query ctx' q
           in
-          (* meet results so that precision from all analyses is combined *)
-          Result.meet a @@ S.query ctx' q
-        in
-        match q with
-        | Queries.WarnGlobal g ->
-          (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
-          let (n, g): V.t = Obj.obj g in
-          f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
-        | Queries.PartAccess a ->
-          Obj.repr (access ctx a)
-        | Queries.IterSysVars (vq, fi) ->
-          (* IterSysVars is special: argument function is lifted for each analysis *)
-          iter (fun ((n,(module S:MCPSpec),d) as t) ->
-              let fi' x = fi (Obj.repr (v_of n x)) in
-              let q' = Queries.IterSysVars (vq, fi') in
-              f ~q:q' () t
-            ) @@ spec_list ctx.local
-        (* | EvalInt e ->
-           (* TODO: only query others that actually respond to EvalInt *)
-           (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
-           f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
-        | _ ->
-          let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
-          do_sideg ctx !sides;
-          Queries.Hashtbl.replace querycache anyq (Obj.repr r);
-          r
+          match q with
+          | Queries.WarnGlobal g ->
+            (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+          | Queries.InvariantGlobal g ->
+            (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+          | Queries.PartAccess a ->
+            Obj.repr (access ctx a)
+          | Queries.IterSysVars (vq, fi) ->
+            (* IterSysVars is special: argument function is lifted for each analysis *)
+            iter (fun ((n,(module S:MCPSpec),d) as t) ->
+                let fi' x = fi (Obj.repr (v_of n x)) in
+                let q' = Queries.IterSysVars (vq, fi') in
+                f ~q:q' () t
+              ) @@ spec_list ctx.local
+          (* | EvalInt e ->
+             (* TODO: only query others that actually respond to EvalInt *)
+             (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
+             f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+          | _ ->
+            let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
+            do_sideg ctx !sides;
+            Queries.Hashtbl.replace querycache anyq (Obj.repr r);
+            r
+    in
+    if M.tracing then (
+      let module Result = (val Queries.Result.lattice q) in
+      M.traceu "query" "-> %a\n" Result.pretty r
+    );
+    r
 
   and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     let querycache = Queries.Hashtbl.create 13 in
@@ -318,7 +325,6 @@ struct
     { ctx with
       ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
     ; emit
-    ; presub = assoc_sub ctx.local
     ; spawn
     ; sideg
     }

@@ -1,7 +1,6 @@
 open Batteries
 open Jsonrpc
-
-exception Failure of Response.Error.Code.t * string
+open GoblintCil
 
 type t = {
   mutable file: Cil.file option;
@@ -34,7 +33,7 @@ module ParamParser (R : Request) = struct
   let parse params =
     let maybe_params =
       params
-      |> Option.map_default Message.Structured.to_json `Null
+      |> Option.map_default Structured.yojson_of_t `Null
       |> R.params_of_yojson
     in
     match maybe_params with
@@ -46,39 +45,66 @@ module ParamParser (R : Request) = struct
       | _ -> Error err
 end
 
-let handle_request (serv: t) (message: Message.either) (id: Id.t) =
-  let req = Hashtbl.find_option registry message.method_ in
-  let response = match req with
-    | Some (module R) ->
-      let module Parser = ParamParser (R) in (
-        match Parser.parse message.params with
-        | Ok params -> (
-            try
-              Maingoblint.reset_stats ();
-              let r =
-                R.process params serv
-                |> R.response_to_yojson
-                |> Response.ok id
-              in
-              Maingoblint.do_stats ();
-              r
-            with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
-        | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
-    | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
+module Function = struct
+  type t = {
+    funName: string;
+    location: CilType.Location.t;
+  } [@@deriving eq, ord, hash, yojson]
+
+  let filterFunctions = function
+    | Cil.GFun (fd, loc) -> Some {funName = fd.svar.vname; location = loc}
+    | _ -> None
+
+  let getFunctionsList files = List.filter_map filterFunctions files
+end
+
+let handle_request (serv: t) (request: Request.t): Response.t =
+  match Hashtbl.find_option registry request.method_ with
+  | Some (module R) ->
+    let module Parser = ParamParser (R) in
+    begin match Parser.parse request.params with
+      | Ok params ->
+        begin try
+            Maingoblint.reset_stats ();
+            let r =
+              R.process params serv
+              |> R.response_to_yojson
+              |> Response.ok request.id
+            in
+            Maingoblint.do_stats ();
+            r
+          with Response.Error.E error ->
+            Response.error request.id error
+        end
+      | Error message ->
+        Response.(Error.make ~code:InvalidParams ~message () |> error request.id)
+    end
+  | _ ->
+    Response.(Error.make ~code:MethodNotFound ~message:request.method_ () |> error request.id)
+
+let handle_packet (serv: t) (packet: Packet.t) =
+  let response_packet: Packet.t option = match packet with
+    | Request request -> Some (Response (handle_request serv request))
+    | Batch_call subpackets ->
+      let responses = List.filter_map (function
+          | `Request request -> Some (handle_request serv request)
+          | _ -> None (* ignore others for now *)
+        ) subpackets in
+      Some (Batch_response responses)
+    | _ -> None (* ignore others for now *)
   in
-  Response.yojson_of_t response |> Yojson.Safe.to_string |> IO.write_line serv.output;
-  IO.flush serv.output
+  match response_packet with
+  | Some response_packet ->
+    Packet.yojson_of_t response_packet |> Yojson.Safe.to_string |> IO.write_line serv.output;
+    IO.flush serv.output
+  | None -> ()
 
 let serve serv =
   serv.input
   |> Lexing.from_channel
-  |> GobYojson.seq_from_lexbuf (Yojson.init_lexer ())
-  |> Seq.iter (fun json ->
-      let message = Message.either_of_yojson json in
-      match message.id with
-      | Some id -> handle_request serv message id
-      | _ -> () (* We just ignore notifications for now. *)
-    )
+  |> Yojson.Safe.seq_from_lexbuf (Yojson.init_lexer ())
+  |> Seq.map Packet.t_of_yojson
+  |> Seq.iter (handle_packet serv)
 
 let make ?(input=stdin) ?(output=stdout) file : t =
   let max_ids =
@@ -116,7 +142,7 @@ let start file =
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     GoblintDir.init ();
-    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge in
+    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_parse_merge in
     begin match s.file with
       | None ->
         let max_ids = MaxIdUtil.get_file_max_ids file in
@@ -131,7 +157,7 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: Cil.global) _ _ = match glob with
+  let eq (glob: Cil.global) _ _ _ = match glob with
     | GFun (fdec, _) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
     | _ -> Unchanged, None
   in
@@ -202,8 +228,22 @@ let () =
     (* TODO: Check options for compatibility with the incremental analysis. *)
     let process (conf, json) _ =
       try
-        GobConfig.set_auto conf (Yojson.Safe.to_string json)
-      with exn -> raise (Failure (InvalidParams, Printexc.to_string exn))
+        GobConfig.set_auto conf (Yojson.Safe.to_string json);
+        Maingoblint.handle_options ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
+  end);
+
+  register (module struct
+    let name = "reset_config"
+    type params = unit [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
+    let process () _ =
+      try
+        GobConfig.json_conf := Options.defaults;
+        Maingoblint.parse_arguments ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
   end);
 
   register (module struct
@@ -211,8 +251,23 @@ let () =
     type params = Yojson.Safe.t [@@deriving of_yojson]
     type response = unit [@@deriving to_yojson]
     let process json _ =
-      try GobConfig.merge json with exn -> (* TODO: Be more specific in what we catch. *)
-        raise (Failure (InvalidParams, Printexc.to_string exn))
+      try
+        GobConfig.merge json;
+        Maingoblint.handle_options ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
+  end);
+
+  register (module struct
+    let name = "read_config"
+    type params = { fname: string } [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
+    let process { fname } _ =
+      try
+        GobConfig.merge_file (Fpath.v fname);
+        Maingoblint.handle_options ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
   end);
 
   register (module struct
@@ -228,6 +283,40 @@ let () =
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () _ = Preprocessor.dependencies_to_yojson ()
   end);
+
+  register (module struct
+    let name = "pre_files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () s =
+      if GobConfig.get_bool "server.reparse" then (
+        GoblintDir.init ();
+        Fun.protect ~finally:GoblintDir.finalize (fun () ->
+            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+          )
+      );
+      Preprocessor.dependencies_to_yojson ()
+  end);
+
+  register (module struct
+    let name = "functions"
+    type params = unit [@@deriving of_yojson]
+    type response = Function.t list [@@deriving to_yojson]
+    let process () serv = Function.getFunctionsList (Option.get serv.file).globals
+  end);
+
+  register (module struct
+    let name = "cfg"
+    type params = { fname: string }  [@@deriving of_yojson]
+    type response = { cfg : string } [@@deriving to_yojson]
+    let process { fname } serv =
+      let fundec = Cilfacade.find_name_fundec fname in
+      let live _ = true in (* TODO: fix this *)
+      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
+      { cfg }
+      (* TODO: also filter and include states info (as json) in the response for the requested function *)
+  end);
+
 
   register (module struct
     let name = "exp_eval"

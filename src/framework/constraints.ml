@@ -1,7 +1,7 @@
 (** How to generate constraints for a solver using specifications described in [Analyses]. *)
 
 open Prelude
-open Cil
+open GoblintCil
 open MyCFG
 open Analyses
 open GobConfig
@@ -33,7 +33,6 @@ struct
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
   let context fd = S.context fd % D.unlift
-  let call_descr = S.call_descr
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
@@ -108,7 +107,6 @@ struct
   let morphstate = S.morphstate
 
   let context fd = C.lift % S.context fd
-  let call_descr f = S.call_descr f % C.unlift
 
   let conv ctx =
     { ctx with context = (fun () -> C.unlift (ctx.context ())) }
@@ -199,7 +197,6 @@ struct
   let morphstate v (d,l) = (S.morphstate v d, l)
 
   let context fd (d,_) = S.context fd d
-  let call_descr f = S.call_descr f
 
   let conv ctx =
     { ctx with local = fst ctx.local
@@ -335,7 +332,6 @@ struct
   let morphstate v (d,m) = S.morphstate v d, m
 
   let context fd (d,m) = S.context fd d (* just the child analysis' context *)
-  let call_descr = S.call_descr
 
   let conv ctx =
     { ctx with local = fst ctx.local
@@ -404,7 +400,6 @@ struct
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
   let context fd = S.context fd % D.unlift
-  let call_descr f = S.call_descr f
 
   let conv ctx =
     { ctx with local = D.unlift ctx.local
@@ -486,12 +481,11 @@ struct
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
-      ; control_context = snd var
+      ; control_context = snd var |> Obj.obj
       ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
@@ -643,7 +637,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn "Using special for defined function %s" f.vname;
+        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg
@@ -743,12 +737,11 @@ struct
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
       ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
       ; prev_node = MyCFG.dummy_node
-      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+      ; control_context = (fun () -> ctx_failwith "No context in query context.")
       ; context = (fun () -> ctx_failwith "No context in query context.")
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = (fun _ -> raise Not_found)
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -935,15 +928,21 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = HoareDomain.Set(Spec.D).t
-     and module G = Spec.G
+    with module G = Spec.G
      and module C = Spec.C
      and module V = Spec.V
 =
 struct
   module D =
   struct
-    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    module C =
+    struct
+      type elt = Spec.D.t
+      let cong = Spec.should_join
+    end
+    module J = SetDomain.Joined (Spec.D)
+    include DisjointDomain.PairwiseSet (Spec.D) (J) (C)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -951,27 +950,6 @@ struct
         BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x
       in
       iter print_one x
-
-    (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
-      let rec loop js = function
-        | [] -> js
-        | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
-            if Spec.should_join x j then Spec.D.join x j, r else j, x::r
-          ) (x,[]) xs in
-          loop (j::js) r
-      in
-      apply_list (loop []) a
-
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
-
-    let binop op a b = op a b |> join_reduce
-
-    let join = binop join
-    let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow
   end
 
   module G = Spec.G
@@ -989,8 +967,6 @@ struct
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
   let morphstate v d = D.map (Spec.morphstate v) d
-
-  let call_descr = Spec.call_descr
 
   let context fd l =
     if D.cardinal l <> 1 then
@@ -1036,7 +1012,7 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
+  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* TODO: handle Invariant path like PathSensitive3? *)
@@ -1126,11 +1102,21 @@ struct
           EM.iter (fun exp tv ->
               match tv with
               | `Lifted tv ->
-                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
+                let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+                let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
               | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()
             ) em;
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->
       (* vars for S *)

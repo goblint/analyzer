@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 void *t_fun(void *arg) {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return NULL;
 }
 

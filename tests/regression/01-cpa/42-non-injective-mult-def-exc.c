@@ -10,6 +10,6 @@ int main() {
   }
 
   x = top * 1073741824u;
-  assert(x != 3221225472u); // UNKNOWN!
+  __goblint_check(x != 3221225472u); // UNKNOWN!
   return 0;
 }

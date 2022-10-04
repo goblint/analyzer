@@ -1,12 +1,20 @@
 include Printable.Std
 
 module TID = ThreadIdDomain.FlagConfiguredTID
+module Pretty = GoblintCil.Pretty
 
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
+
+let current (ask:Queries.ask) =
+  {
+    tid = ask.f Queries.CurrentThreadId;
+    created = ask.f Queries.CreatedThreads;
+    must_joined = ask.f Queries.MustJoinedThreads
+  }
 
 let pretty () {tid; created; must_joined} =
   let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in

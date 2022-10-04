@@ -1,4 +1,6 @@
+open Goblint_lib
 open OUnit2
+open GoblintCil
 open Pretty
 
 (* variables are strings *)

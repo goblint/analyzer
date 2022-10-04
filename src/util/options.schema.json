@@ -129,14 +129,6 @@
       "type": "boolean",
       "default": false
     },
-    "phases": {
-      "title": "phases",
-      "description":
-        "List of phases. Per-phase settings overwrite global ones.",
-      "type": "array",
-      "items": { "$ref": "#" },
-      "default": []
-    },
     "save_run": {
       "title": "save_run",
       "description":
@@ -321,12 +313,13 @@
       "properties": {
         "activated": {
           "title": "ana.activated",
-          "description": "Lists of activated analyses in this phase.",
+          "description": "Lists of activated analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
+            "assert"
           ]
         },
         "path_sens": {
@@ -334,7 +327,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -406,6 +399,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "ana.float",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "title": "ana.float.interval",
+              "description":
+                "Use FloatDomain: (float * float) option.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "file": {
           "title": "ana.file",
           "type": "object",
@@ -442,48 +449,6 @@
                 "Insert extra assertions into Promela code for debugging.",
               "type": "boolean",
               "default": true
-            }
-          },
-          "additionalProperties": false
-        },
-        "arinc": {
-          "title": "ana.arinc",
-          "type": "object",
-          "properties": {
-            "assume_success": {
-              "title": "ana.arinc.assume_success",
-              "description":
-                "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it).",
-              "type": "boolean",
-              "default": true
-            },
-            "simplify": {
-              "title": "ana.arinc.simplify",
-              "description":
-                "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call.",
-              "type": "boolean",
-              "default": true
-            },
-            "validate": {
-              "title": "ana.arinc.validate",
-              "description":
-                "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables.",
-              "type": "boolean",
-              "default": true
-            },
-            "export": {
-              "title": "ana.arinc.export",
-              "description":
-                "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way.",
-              "type": "boolean",
-              "default": true
-            },
-            "merge_globals": {
-              "title": "ana.arinc.merge_globals",
-              "description":
-                "Merge all global return code variables into one.",
-              "type": "boolean",
-              "default": false
             }
           },
           "additionalProperties": false
@@ -591,6 +556,12 @@
               },
               "additionalProperties": false
             },
+            "limit-string-addresses": {
+              "title": "ana.base.limit-string-addresses",
+              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
+              "type": "boolean",
+              "default": true
+            },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",
               "type": "object",
@@ -687,10 +658,31 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
               "default": "protection-read"
+            },
+            "priv": {
+              "title": "ana.base.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.base.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.base.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             },
             "invariant": {
               "title": "ana.base.invariant",
@@ -735,6 +727,12 @@
                 "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                 "kzalloc"
               ]
+            },
+            "unique_address_count": {
+                "title": "ana.malloc.unique_address_count",
+                "description": "Number of unique memory addresses allocated for each malloc node.",
+                "type": "integer",
+                "default": 0
             }
           },
           "additionalProperties": false
@@ -881,6 +879,50 @@
             }
           },
           "additionalProperties": false
+        },
+        "dead-code" : {
+          "title": "ana.dead-code",
+          "type": "object",
+          "properties": {
+            "lines": {
+              "title": "ana.dead-code.lines",
+              "description": "Print information about lines of dead code.",
+              "type": "boolean",
+              "default": true
+            },
+            "branches": {
+              "title": "ana.dead-code.branches",
+              "description": "Print information about dead branches.",
+              "type": "boolean",
+              "default": true
+            },
+            "functions": {
+              "title": "ana.dead-code.functions",
+              "description": "Print information about dead (uncalled) functions.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "extract-pthread" : {
+          "title": "ana.extract-pthread",
+          "type": "object",
+          "properties": {
+            "assume_success": {
+              "title": "ana.extract-pthread.assume_success",
+              "description": "Assume that all POSIX pthread functions succeed.",
+              "type": "boolean",
+              "default": true
+            },
+            "ignore_assign": {
+              "title": "ana.extract-pthread.ignore_assign",
+              "description": "Ignores any assigns in POSIX programs.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1006,23 +1048,12 @@
                   "type": "boolean",
                   "default": false
                 },
-                "only-global": {
-                  "title": "incremental.restart.sided.only-global",
-                  "description": "Restart only constraint system globals (not function entry nodes).",
-                  "type": "boolean",
-                  "default": false
-                },
-                "only-access" : {
-                  "title" : "incremental.restart.sided.only-access",
-                  "description" : "Restart only write-only variables.",
-                  "type" : "boolean",
-                  "default" : false
-                },
-                "destab-with-sides": {
-                  "title" : "incremental.restart.sided.destab-with-sides",
-                  "description" : "TODO BROKEN",
-                  "type" : "boolean",
-                  "default" : true
+                "vars": {
+                  "title": "incremental.restart.sided.vars",
+                  "description": "Side-effected variables to restart. Globals are non-function entry nodes. Write-only is a subset of globals.",
+                  "type": "string",
+                  "enum": ["all", "global", "write-only"],
+                  "default": "all"
                 },
                 "fuel": {
                   "title": "incremental.restart.sided.fuel",
@@ -1162,6 +1193,20 @@
           },
           "additionalProperties": false
         },
+        "null-pointer": {
+          "title": "sem.null-pointer",
+          "type": "object",
+          "properties": {
+            "dereference": {
+              "title": "sem.null-pointer.dereference",
+              "description": "NULL pointer dereference handling. assume_top: assume it results in a top value, assume_none: assume it doesn't happen",
+              "type": "string",
+              "enum": ["assume_top", "assume_none"],
+              "default": "assume_none"
+            }
+          },
+          "additionalProperties": false
+        },
         "malloc": {
           "title": "sem.malloc",
           "type": "object",
@@ -1189,6 +1234,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "assert": {
+          "title": "sem.assert",
+          "type": "object",
+          "properties": {
+            "refine": {
+              "title": "sem.assert.refine",
+              "description": "Standard assert refines state",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1201,7 +1259,7 @@
         "activated": {
           "title": "trans.activated",
           "description":
-            "Lists of activated transformations in this phase. Transformations happen after analyses.",
+            "Lists of activated transformations. Transformations happen after analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1251,6 +1309,20 @@
                 "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true.",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "float": {
+          "title": "annotation.float",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.float.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1448,6 +1520,12 @@
             "Sets the unrolling factor for the loopUnrollingVisitor.",
           "type": "integer",
           "default": 0
+        },
+        "hide-std-globals": {
+          "title": "exp.hide-std-globals",
+          "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false
@@ -1481,12 +1559,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "uncalled": {
-          "title": "dbg.uncalled",
-          "description": "Display uncalled functions.",
-          "type": "boolean",
-          "default": true
         },
         "dump": {
           "title": "dbg.dump",
@@ -1539,12 +1611,6 @@
           "title": "dbg.print_wpoints",
           "description":
             "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3.",
-          "type": "boolean",
-          "default": false
-        },
-        "print_dead_code": {
-          "title": "dbg.print_dead_code",
-          "description": "Print information about dead code",
           "type": "boolean",
           "default": false
         },
@@ -1704,6 +1770,12 @@
           "type": "boolean",
           "default": true
         },
+        "float": {
+          "title": "warn.float",
+          "description": "float warnings",
+          "type": "boolean",
+          "default": true
+        },
         "cast": {
           "title": "warn.cast",
           "description": "Cast (Type_mismatch(bug) warnings",
@@ -1749,6 +1821,12 @@
         "witness": {
           "title": "warn.witness",
           "description": "Witness messages",
+          "type": "boolean",
+          "default": true
+        },
+        "program": {
+          "title": "warn.program",
+          "description": "Program messages",
           "type": "boolean",
           "default": true
         },
@@ -1851,12 +1929,6 @@
               "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
               "type": "boolean",
               "default": true
-            },
-            "narrow-reuse-verify": {
-              "title": "solvers.td3.narrow-reuse-verify",
-              "description": "Instead of reusing value when switching from widening to narrowing phase, just verify that the reuse would be correct by re-evaluating.",
-              "type": "boolean",
-              "default": false
             },
             "restart": {
               "title": "solvers.td3.restart",
@@ -1961,6 +2033,12 @@
             "split-conjunction": {
               "title": "witness.invariant.split-conjunction",
               "description": "Split conjunctive invariant to multiple invariants",
+              "type": "boolean",
+              "default": true
+            },
+            "accessed": {
+              "title": "witness.invariant.accessed",
+              "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
               "default": true
             },

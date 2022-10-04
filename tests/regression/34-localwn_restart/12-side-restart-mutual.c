@@ -30,7 +30,7 @@ int main() {
 
     int x = g;
     int y = h;
-    assert(x <= 10);
-    assert(y <= 10);
+    __goblint_check(x <= 10);
+    __goblint_check(y <= 10);
     return 0;
 }

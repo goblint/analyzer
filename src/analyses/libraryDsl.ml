@@ -1,4 +1,5 @@
 open LibraryDesc
+module Access = LibraryDesc.Access (* avoid spurious dependency cycle due to ocamldep overapprox ambiguity between Access and LibraryDesc.Access *)
 
 (** First-class patterns for arguments matching.
     @see <https://github.com/ocaml-ppx/ppxlib/blob/main/src/ast_pattern.ml> for inspiration from ppxlib. *)
@@ -64,6 +65,12 @@ let rec accs: type k r. (k, r) args_desc -> Accesses.t = fun args_desc args ->
 
 let special ?(attrs:attr list=[]) args_desc special_cont = {
   special = Fun.flip (match_args args_desc) special_cont;
+  accs = accs args_desc;
+  attrs;
+}
+
+let special' ?(attrs:attr list=[]) args_desc special_cont = {
+  special = (fun args -> Fun.flip (match_args args_desc) (special_cont ()) args); (* eta-expanded such that special_cont is re-executed on each call instead of once during LibraryFunctions construction *)
   accs = accs args_desc;
   attrs;
 }

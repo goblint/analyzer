@@ -85,7 +85,7 @@ DNS_Name2IPAddress(const char *name, IPAddr *ip_addrs, int max_addrs)
   max_addrs = MIN(max_addrs, DNS_MAX_ADDRESSES);
 
   for (i = 0; i < max_addrs; i++)
-    ip_addrs[i].family = IPADDR_UNSPEC;
+    ip_addrs[i].family = IPADDR_UNSPEC; // NORACE
 
 // #if 0
   /* Avoid calling getaddrinfo() if the name is an IP address */
@@ -93,7 +93,7 @@ DNS_Name2IPAddress(const char *name, IPAddr *ip_addrs, int max_addrs)
     if (address_family != IPADDR_UNSPEC && ip.family != address_family)
       return DNS_Failure;
     if (max_addrs >= 1)
-      ip_addrs[0] = ip;
+      ip_addrs[0] = ip; // NORACE
     return DNS_Success;
   }
 
@@ -128,8 +128,8 @@ DNS_Name2IPAddress(const char *name, IPAddr *ip_addrs, int max_addrs)
       case AF_INET:
         if (address_family != IPADDR_UNSPEC && address_family != IPADDR_INET4)
           continue;
-        ip_addrs[i].family = IPADDR_INET4;
-        ip_addrs[i].addr.in4 = ntohl(((struct sockaddr_in *)ai->ai_addr)->sin_addr.s_addr);
+        ip_addrs[i].family = IPADDR_INET4; // NORACE
+        ip_addrs[i].addr.in4 = ntohl(((struct sockaddr_in *)ai->ai_addr)->sin_addr.s_addr); // NORACE
         i++;
         break;
 #ifdef FEAT_IPV6
@@ -139,8 +139,8 @@ DNS_Name2IPAddress(const char *name, IPAddr *ip_addrs, int max_addrs)
         /* Don't return an address that would lose a scope ID */
         if (((struct sockaddr_in6 *)ai->ai_addr)->sin6_scope_id != 0)
           continue;
-        ip_addrs[i].family = IPADDR_INET6;
-        memcpy(&ip_addrs[i].addr.in6, &((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr.s6_addr,
+        ip_addrs[i].family = IPADDR_INET6; // NORACE
+        memcpy(&ip_addrs[i].addr.in6, &((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr.s6_addr, // NORACE
                sizeof (ip_addrs->addr.in6));
         i++;
         break;
@@ -151,7 +151,7 @@ DNS_Name2IPAddress(const char *name, IPAddr *ip_addrs, int max_addrs)
   freeaddrinfo(res);
 // #endif
 
-  return !max_addrs || ip_addrs[0].family != IPADDR_UNSPEC ? DNS_Success : DNS_Failure;
+  return !max_addrs || ip_addrs[0].family != IPADDR_UNSPEC ? DNS_Success : DNS_Failure; // NORACE
 }
 
 struct DNS_Async_Instance {

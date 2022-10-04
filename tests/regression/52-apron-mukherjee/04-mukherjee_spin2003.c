@@ -12,7 +12,7 @@ void* T1_Spin(void* arg){
     x = 0;
     x = 1;
 
-    assert(x >= 1);
+    __goblint_check(x >= 1);
     pthread_mutex_unlock(&lock);
     return NULL;
 }
@@ -22,7 +22,7 @@ void* T2_Spin(void* arg){
     x = 0;
     x = 1;
 
-    assert(x >= 1);
+    __goblint_check(x >= 1);
     pthread_mutex_unlock(&lock);
     return NULL;
 }

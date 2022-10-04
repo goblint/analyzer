@@ -230,9 +230,6 @@ struct
     let rec type_may_change_apt a =
       (* With abstract points-to (like in type invariants in accesses).
          Here we implement it in part --- minimum to protect local integers. *)
-      (*       Messages.warn ~msg:("a: "^sprint 80 (d_plainexp () a)) (); *)
-      (*       Messages.warn ~msg:("b: "^sprint 80 (d_plainexp () b)) (); *)
-      (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)
@@ -254,12 +251,7 @@ struct
         | TPtr (t,a) -> t
         | at -> at
       in
-      (*      Messages.warn
-              ( sprint 80 (d_type () at)
-              ^ " : "
-              ^ sprint 80 (d_type () bt)
-              ^ (if bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt then ": yes" else ": no"));
-      *)      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
+      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
               match a with
               | Const _
               | SizeOf _
@@ -275,9 +267,9 @@ struct
               | Lval (Var _,o)
               | AddrOf (Var _,o)
               | StartOf (Var _,o) -> may_change_t_offset o
-              | Lval (Mem e,o)    -> (*Messages.warn "Lval" ;*) may_change_t_offset o || type_may_change_t true e
-              | AddrOf (Mem e,o)  -> (*Messages.warn "Addr" ;*) may_change_t_offset o || type_may_change_t false e
-              | StartOf (Mem e,o) -> (*Messages.warn "Start";*) may_change_t_offset o || type_may_change_t false e
+              | Lval (Mem e,o)    -> may_change_t_offset o || type_may_change_t true e
+              | AddrOf (Mem e,o)  -> may_change_t_offset o || type_may_change_t false e
+              | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
               | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
@@ -318,14 +310,7 @@ struct
           let als = pt e in
           (als, lval_is_not_disjoint bl als)
       in
-      (*      Messages.warn
-              ( sprint 80 (Lval.CilLval.pretty () bl)
-              ^ " in PT("
-              ^ sprint 80 (d_exp () a)
-              ^ ") = "
-              ^ sprint 80 (Queries.LS.pretty () als)
-              ^ (if Queries.LS.is_top als || test then ": yes" else ": no"));
-      *)      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
+      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
       then type_may_change_apt a
       else test ||
            match a with
@@ -352,13 +337,13 @@ struct
     let r =
       if Cil.isConstant b then false
       else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
-      then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
+      then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
+          then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)
     if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
     r
@@ -410,12 +395,7 @@ struct
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
-    (*    let is_local x =
-          match x with (Var v,_) -> not v.vglob | _ -> false
-          in
-          let st =
-    *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
-    (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
+    let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     if M.tracing then (
       M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
       M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (interesting rv);
@@ -529,27 +509,21 @@ struct
       |> remove_reachable ~deep:false ask shallow_args
       |> remove_reachable ~deep:true ask deep_args
 
-  let safe_fn = function
-    | "memcpy" -> true
-    | "__builtin_return_address" -> true
-    | _ -> false
-
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
-    match desc.special args, f.vname with
-    | Unknown, "spinlock_check" ->
+    match desc.special args with
+    | Identity e ->
       begin match lval with
-        | Some x -> assign ctx x (List.hd args)
+        | Some x -> assign ctx x e
         | None -> unknown_fn ctx lval f args
       end
-    | Unknown, x when safe_fn x -> ctx.local
-    | ThreadCreate { arg; _ }, _ ->
+    | ThreadCreate { arg; _ } ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
       end
-    | _, _ -> unknown_fn ctx lval f args
+    | _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =
@@ -610,7 +584,6 @@ struct
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
       if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
     | Queries.Invariant context ->

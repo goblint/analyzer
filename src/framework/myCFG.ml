@@ -1,6 +1,6 @@
 (** Our Control-flow graph implementation. *)
 
-open Cil
+open GoblintCil
 
 (** Re-exported [Node.t] with constructors. See [Node.t] for documentation. *)
 type node = Node.t =
@@ -45,6 +45,14 @@ module NodeH = BatHashtbl.Make (Node)
 
 
 let current_node = Node.current_node
+let current_cfg : (module CfgBidir) ref =
+  let module Cfg =
+  struct
+    let next _ = raise Not_found
+    let prev _ = raise Not_found
+  end
+  in
+  ref (module Cfg: CfgBidir)
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)

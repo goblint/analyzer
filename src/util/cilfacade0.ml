@@ -1,5 +1,5 @@
 (** Cilfacade functions to avoid dependency cycles.*)
-open Cil
+open GoblintCil
 
 let get_labelLoc = function
   | Label (_, loc, _) -> loc

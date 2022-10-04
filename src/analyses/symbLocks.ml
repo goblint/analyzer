@@ -84,13 +84,10 @@ struct
   let special ctx lval f arglist =
     let desc = LF.find f in
     match desc.special arglist, f.vname with
-    | Lock _, _ ->
-      D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | Unlock _, _ ->
-      D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | Unknown, fn when VarEq.safe_fn fn ->
-      Messages.warn "Assume that %s does not change lockset." fn;
-      ctx.local
+    | Lock { lock; _ }, _ ->
+      D.add (Analyses.ask_of_ctx ctx) lock ctx.local
+    | Unlock lock, _ ->
+      D.remove (Analyses.ask_of_ctx ctx) lock ctx.local
     | _, _ ->
       let st =
         match lval with
@@ -158,7 +155,7 @@ struct
         let lock = ILock.from_var_offset (v, o) in
         A.add (`Right lock) xs
       | _ ->
-        Messages.warn "Internal error: found a strange lockstep pattern.";
+        Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";
         xs
     in
     let do_perel e xs =

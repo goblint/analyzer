@@ -79,7 +79,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
   let print_path path =
     List.iter (fun (n1, e, n2) ->
-        ignore (Pretty.printf "  %s =[%s]=> %s\n" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2))
+        ignore (GoblintCil.Pretty.printf "  %s =[%s]=> %s\n" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2))
       ) path
   in
 

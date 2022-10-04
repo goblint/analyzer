@@ -12,6 +12,6 @@ int main() {
     pthread_t id;
     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
 
-    assert(g == 1); // SUCCESS before, unknown after
+    __goblint_check(g == 1); // SUCCESS before, unknown after
     return 0;
 }

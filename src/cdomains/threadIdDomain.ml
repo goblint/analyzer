@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open FlagHelper
 
 module type S =

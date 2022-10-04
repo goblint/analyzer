@@ -3,6 +3,8 @@ open Graphml
 open Svcomp
 open GobConfig
 
+module Stats = GoblintCil.Stats
+
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
@@ -290,12 +292,11 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
         ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
-        ; presub = (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")

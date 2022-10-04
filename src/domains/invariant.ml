@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 (** Symbolic (and fully syntactic) expression "lattice". *)
 module ExpLat =
@@ -39,13 +39,12 @@ let ( && ) = meet
 let ( || ) = join
 
 
-
 type context = {
   path: int option;
-  lval: lval option;
+  lvals: CilLval.Set.t;
 }
 
 let default_context = {
   path = None;
-  lval = None;
+  lvals = CilLval.Set.top ();
 }
