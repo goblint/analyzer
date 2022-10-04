@@ -179,19 +179,11 @@ sig
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
 
-  val is_int: t -> bool
-  (** Checks if the element is a definite integer value. If this function
-    * returns [true], the above [to_int] should return a real value. *)
-
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
-
-  val is_bool: t -> bool
-  (** Checks if the element is a definite boolean value. If this function
-    * returns [true], the above [to_bool] should return a real value. *)
 
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)

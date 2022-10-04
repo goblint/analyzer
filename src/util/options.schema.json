@@ -318,7 +318,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+            "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
             "assert"
           ]
         },
@@ -327,7 +327,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -658,10 +658,31 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
               "default": "protection-read"
+            },
+            "priv": {
+              "title": "ana.base.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.base.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.base.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             },
             "invariant": {
               "title": "ana.base.invariant",
@@ -1159,6 +1180,20 @@
               "type": "string",
               "enum": ["assume_top", "assume_none", "assume_wraparound"],
               "default": "assume_top"
+            }
+          },
+          "additionalProperties": false
+        },
+        "null-pointer": {
+          "title": "sem.null-pointer",
+          "type": "object",
+          "properties": {
+            "dereference": {
+              "title": "sem.null-pointer.dereference",
+              "description": "NULL pointer dereference handling. assume_top: assume it results in a top value, assume_none: assume it doesn't happen",
+              "type": "string",
+              "enum": ["assume_top", "assume_none"],
+              "default": "assume_none"
             }
           },
           "additionalProperties": false
@@ -1989,6 +2024,12 @@
             "split-conjunction": {
               "title": "witness.invariant.split-conjunction",
               "description": "Split conjunctive invariant to multiple invariants",
+              "type": "boolean",
+              "default": true
+            },
+            "accessed": {
+              "title": "witness.invariant.accessed",
+              "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
               "default": true
             },

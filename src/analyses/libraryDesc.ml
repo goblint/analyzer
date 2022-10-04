@@ -41,10 +41,17 @@ type special =
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
+  | Signal of Cil.exp
+  | Broadcast of Cil.exp
+  | Wait of { cond: Cil.exp; mutex: Cil.exp; }
+  | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; (** Unused *) }
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
+  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
   | Abort
+  | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
@@ -103,8 +110,16 @@ let special_of_old classify_name = fun args ->
   | `Malloc e -> Malloc e
   | `Calloc (count, size) -> Calloc { count; size; }
   | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Lock (try_, write, return_on_success) -> Lock { lock = List.hd args; try_; write; return_on_success; }
-  | `Unlock -> Unlock (List.hd args)
+  | `Lock (try_, write, return_on_success) ->
+    begin match args with
+      | [lock] -> Lock { lock ; try_; write; return_on_success; }
+      | _ -> failwith "lock has multiple arguments"
+    end
+  | `Unlock ->
+    begin match args with
+      | [arg] -> Unlock arg
+      | _ -> failwith "unlock has multiple arguments"
+    end
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
   | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
   | `Unknown _ -> Unknown
