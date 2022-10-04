@@ -1,6 +1,6 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 12-apron-unassume-branch.yml
+// SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 12-apron-unassume-branch.yml --set ana.apron.domain polyhedra --enable ana.widen.tokens
 #include <assert.h>
-// TODO: this was supposed to test local widening tokens, but thanks to apron narrowing works without
+// Uses polyhedra instead of octagon such that widening tokens are actually needed by test instead of narrowing.
 int main() {
   int i = 0;
   while (i < 100) {
