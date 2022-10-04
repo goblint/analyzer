@@ -635,9 +635,9 @@ struct
       let st =
         WideningTokens.with_side_tokens' (WideningTokens.TS.of_list uuids) (fun () ->
             VH.fold (fun v v_in st ->
-              (* TODO: is this sideg fine? *)
-              write_global ask ctx.global ctx.sideg st v v_in
-            ) v_ins {ctx.local with apr}
+                (* TODO: is this sideg fine? *)
+                write_global ask ctx.global ctx.sideg st v v_in
+              ) v_ins {ctx.local with apr}
           )
       in
       let apr = AD.remove_vars st.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)

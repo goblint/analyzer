@@ -46,17 +46,17 @@ struct
 
   let invariant_fallback ctx a (gs:V.t -> G.t) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
-    * as x == 0 is true etc *)
+     * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool) =
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
         if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
         (match value with
-        | `Int n ->
-          let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-          Some (x, `Int (ID.cast_to ikind n))
-        | _ -> Some(x, value))
+         | `Int n ->
+           let ikind = Cilfacade.get_ikind_exp (Lval lval) in
+           Some (x, `Int (ID.cast_to ikind n))
+         | _ -> Some(x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
           match value with
@@ -83,7 +83,7 @@ struct
           (* | `Address a -> Some (x, value) *)
           | _ ->
             (* We can't say anything else, exclusion sets are finite, so not
-            * being in one means an infinite number of values *)
+             * being in one means an infinite number of values *)
             if M.tracing then M.tracec "invariant" "Failed! (not a definite value)\n";
             None
         end
@@ -141,21 +141,21 @@ struct
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
         (match eval_rv a gs st (Lval x) with
-        | `Int v ->
-          (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
-            * If there is one domain that knows this to be true and the other does not, we
-            * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
-          if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
-            derived_invariant (BinOp (op, Lval x, rval, typ)) tv
-          else
-            None
-        | _ -> None)
+         | `Int v ->
+           (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
+             * If there is one domain that knows this to be true and the other does not, we
+             * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
+           if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
+             derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+           else
+             None
+         | _ -> None)
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       (* Cases like if (x) are treated like if (x != 0) *)
       | Lval x ->
         (* There are two correct ways of doing it: "if ((int)x != 0)" or "if (x != (typeof(x))0))"
-        * Because we try to avoid casts (and use a more precise address domain) we use the latter *)
+         * Because we try to avoid casts (and use a more precise address domain) we use the latter *)
         helper Ne x (null_val (Cilfacade.typeOf exp)) tv
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
@@ -181,7 +181,7 @@ struct
       let warn_and_top_on_zero x =
         if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
           (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-          ID.top_of ikind)
+           ID.top_of ikind)
         else
           x
       in
@@ -211,8 +211,8 @@ struct
         (* If b must be zero, we have must UB *)
         let b = warn_and_top_on_zero b in
         (* Integer division means we need to add the remainder, so instead of just `a = c*b` we have `a = c*b + a%b`.
-        * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
-        * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
+         * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
+         * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
         let rem =
           let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind BI.zero) = Some true in
           let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind BI.zero) = Some true in
@@ -226,12 +226,12 @@ struct
         (* If b must be zero, we have must UB *)
         let b = warn_and_top_on_zero b in
         (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
-        * The idea is to formulate a' as quotient * divisor + remainder. *)
+         * The idea is to formulate a' as quotient * divisor + remainder. *)
         let a' = ID.add (ID.mul (ID.div a b) b) c in
         let b' = ID.div (ID.sub a c) (ID.div a b) in
         (* However, for [2,4]%2 == 1 this only gives [3,4].
-        * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
-        * If b is negative we have to look at the lower bound. *)
+         * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
+         * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
           match bound a with
           | Some ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some BI.zero
@@ -259,35 +259,35 @@ struct
         let both x = x, x in
         let m = ID.meet a b in
         (match op, ID.to_bool c with
-        | Eq, Some true
-        | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
-        | Eq, Some false
-        | Ne, Some true -> (* def. unequal *)
-          (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
-            * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
-            * Only if a is a definite value, we can exclude it from b: *)
-          (* TODO: This causes inconsistent results:
-             interval not sufficiently refined:
-               inv_bin_int: unequal: (Unknown int([-31,31]),[0,1]) and (0,[0,0]); ikind: int; a': (Not {0}([-31,31]),[-2147483648,2147483647]), b': (0,[0,0])
-               binop: m == 0, a': (Not {0}([-31,31]),[0,1]), b': (0,[0,0]) *)
-          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
-          let a' = excl b a in
-          let b' = excl a b in
-          if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
-          meet_bin a' b'
-        | _, _ -> a, b
+         | Eq, Some true
+         | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
+         | Eq, Some false
+         | Ne, Some true -> (* def. unequal *)
+           (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
+             * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
+             * Only if a is a definite value, we can exclude it from b: *)
+           (* TODO: This causes inconsistent results:
+              interval not sufficiently refined:
+                inv_bin_int: unequal: (Unknown int([-31,31]),[0,1]) and (0,[0,0]); ikind: int; a': (Not {0}([-31,31]),[-2147483648,2147483647]), b': (0,[0,0])
+                binop: m == 0, a': (Not {0}([-31,31]),[0,1]), b': (0,[0,0]) *)
+           let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
+           let a' = excl b a in
+           let b' = excl a b in
+           if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
+           meet_bin a' b'
+         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
         let pred x = BI.sub x BI.one in
         let succ x = BI.add x BI.one in
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
-        | Some l1, Some u1, Some l2, Some u2 ->
-          (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
-          (* TODO: This causes inconsistent results:
-             def_exc and interval in conflict:
-               binop m < 0 with (Not {-1}([-31,31]),[-1,0]) < (0,[0,0]) == (1,[1,1])
-               binop: m < 0, a': (Not {-1, 0}([-31,31]),[-1,-1]), b': (0,[0,0]) *)
-          (match op, ID.to_bool c with
+         | Some l1, Some u1, Some l2, Some u2 ->
+           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
+           (* TODO: This causes inconsistent results:
+              def_exc and interval in conflict:
+                binop m < 0 with (Not {-1}([-31,31]),[-1,0]) < (0,[0,0]) == (1,[1,1])
+                binop: m < 0, a': (Not {-1, 0}([-31,31]),[-1,-1]), b': (0,[0,0]) *)
+           (match op, ID.to_bool c with
             | Le, Some true
             | Gt, Some false -> meet_bin (ID.ending ikind u2) (ID.starting ikind l1)
             | Ge, Some true
@@ -297,7 +297,7 @@ struct
             | Gt, Some true
             | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
             | _, _ -> a, b)
-        | _ -> a, b)
+         | _ -> a, b)
       | BOr | BXor as op->
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
@@ -315,17 +315,17 @@ struct
       let open Stdlib in
       let meet_bin a' b'  = fd_meet_down ~old:a ~c:a', fd_meet_down ~old:b ~c:b' in
       (* Refining the abstract values based on branching is roughly based on the idea in [Symbolic execution of floating-point computations](https://hal.inria.fr/inria-00540299/document)
-        However, their approach is only applicable to the "nearest" rounding mode. Here we use a more general approach covering all possible rounding modes and therefore
-        use the actual `pred c_min`/`succ c_max` for the outer-bounds instead of the middles between `c_min` and `pred c_min`/`c_max` and `succ c_max` as suggested in the paper.
-        This also removes the necessity of computing those expressions with higher precise than in the concrete.
+         However, their approach is only applicable to the "nearest" rounding mode. Here we use a more general approach covering all possible rounding modes and therefore
+         use the actual `pred c_min`/`succ c_max` for the outer-bounds instead of the middles between `c_min` and `pred c_min`/`c_max` and `succ c_max` as suggested in the paper.
+         This also removes the necessity of computing those expressions with higher precise than in the concrete.
       *)
       try
         match op with
         | PlusA  ->
           (* A + B = C, \forall a \in A. a + b_min > pred c_min \land a + b_max < succ c_max
               \land a + b_max > pred c_min \land a + b_min < succ c_max
-            \rightarrow A = [min(pred c_min - b_min, pred c_min - b_max), max(succ c_max - b_max, succ c_max - b_min)]
-            \rightarrow A = [pred c_min - b_max, succ c_max - b_min]
+             \rightarrow A = [min(pred c_min - b_min, pred c_min - b_max), max(succ c_max - b_max, succ c_max - b_min)]
+             \rightarrow A = [pred c_min - b_max, succ c_max - b_min]
           *)
           let reverse_add v v' = (match FD.minimal c, FD.maximal c, FD.minimal v, FD.maximal v with
               | Some c_min, Some c_max, Some v_min, Some v_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
@@ -337,8 +337,8 @@ struct
         | MinusA ->
           (* A - B = C \ forall a \in A. a - b_max > pred c_min \land a - b_min < succ c_max
               \land a - b_min > pred c_min \land a - b_max < succ c_max
-            \rightarrow A = [min(pred c_min + b_max, pred c_min + b_min), max(succ c_max + b_max, succ c_max + b_max)]
-            \rightarrow A = [pred c_min + b_min, succ c_max + b_max]
+             \rightarrow A = [min(pred c_min + b_max, pred c_min + b_min), max(succ c_max + b_max, succ c_max + b_max)]
+             \rightarrow A = [pred c_min + b_min, succ c_max + b_max]
           *)
           let a' = (match FD.minimal c, FD.maximal c, FD.minimal b, FD.maximal b with
               | Some c_min, Some c_max, Some b_min, Some b_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
@@ -348,8 +348,8 @@ struct
               | _ -> a) in
           (* A - B = C \ forall b \in B. a_min - b > pred c_min \land a_max - b < succ c_max
               \land a_max - b > pred c_min \land a_min - b < succ c_max
-            \rightarrow B = [min(a_max - succ c_max, a_min - succ c_max), max(a_min - pred c_min, a_max - pred c_min)]
-            \rightarrow B = [a_min - succ c_max, a_max - pred c_min]
+             \rightarrow B = [min(a_max - succ c_max, a_min - succ c_max), max(a_min - pred c_min, a_max - pred c_min)]
+             \rightarrow B = [a_min - succ c_max, a_max - pred c_min]
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
               | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
@@ -360,9 +360,9 @@ struct
           meet_bin a'  b'
         | Mult   ->
           (* A * B = C \forall a \in A, a > 0. a * b_min > pred c_min \land a * b_max < succ c_max
-            A * B = C \forall a \in A, a < 0. a * b_max > pred c_min \land a * b_min < succ c_max
-            (with negative b reversed <>)
-            \rightarrow A = [min(pred c_min / b_min, pred c_min / b_max, succ c_max / b_min, succ c_max /b_max),
+             A * B = C \forall a \in A, a < 0. a * b_max > pred c_min \land a * b_min < succ c_max
+             (with negative b reversed <>)
+             \rightarrow A = [min(pred c_min / b_min, pred c_min / b_max, succ c_max / b_min, succ c_max /b_max),
                               max(succ c_max / b_min, succ c_max /b_max, pred c_min / b_min, pred c_min / b_max)]
           *)
           let reverse_mul v v' = (match FD.minimal c, FD.maximal c, FD.minimal v, FD.maximal v with
@@ -375,11 +375,11 @@ struct
           meet_bin (reverse_mul b a) (reverse_mul a b)
         | Div ->
           (* A / B = C \forall a \in A, a > 0, b_min > 1. a / b_max > pred c_min \land a / b_min < succ c_max
-            A / B = C \forall a \in A, a < 0, b_min > 1. a / b_min > pred c_min \land a / b_max < succ c_max
-            A / B = C \forall a \in A, a > 0, 0 < b_min, b_max < 1. a / b_max > pred c_min \land a / b_min < succ c_max
-            A / B = C \forall a \in A, a < 0, 0 < b_min, b_max < 1. a / b_min > pred c_min \land a / b_max < succ c_max
-            ... same for negative b
-            \rightarrow A = [min(b_max * pred c_min, b_min * pred c_min, b_min * succ c_max, b_max * succ c_max),
+             A / B = C \forall a \in A, a < 0, b_min > 1. a / b_min > pred c_min \land a / b_max < succ c_max
+             A / B = C \forall a \in A, a > 0, 0 < b_min, b_max < 1. a / b_max > pred c_min \land a / b_min < succ c_max
+             A / B = C \forall a \in A, a < 0, 0 < b_min, b_max < 1. a / b_min > pred c_min \land a / b_max < succ c_max
+             ... same for negative b
+             \rightarrow A = [min(b_max * pred c_min, b_min * pred c_min, b_min * succ c_max, b_max * succ c_max),
                               max(b_max * succ c_max, b_min * succ c_max, b_max * pred c_min, b_min * pred c_min)]
           *)
           let a' = (match FD.minimal c, FD.maximal c, FD.minimal b, FD.maximal b with
@@ -391,9 +391,9 @@ struct
               | _ -> a) in
           (* A / B = C \forall b \in B, b > 0, a_min / b > pred c_min \land a_min / b < succ c_max
               \land a_max / b > pred c_min \land a_max / b < succ c_max
-            A / B = C \forall b \in B, b < 0, a_min / b > pred c_min \land a_min / b < succ c_max
+             A / B = C \forall b \in B, b < 0, a_min / b > pred c_min \land a_min / b < succ c_max
               \land a_max / b > pred c_min \land a_max / b < succ c_max
-            \rightarrow (b != 0) B = [min(a_min / succ c_max, a_max / succ c_max, a_min / pred c_min, a_max / pred c_min),
+             \rightarrow (b != 0) B = [min(a_min / succ c_max, a_max / succ c_max, a_min / pred c_min, a_max / pred c_min),
                                       max(a_min / pred c_min, a_max / pred c_min, a_min / succ c_max, a_max / succ c_max)]
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
@@ -407,18 +407,18 @@ struct
         | Eq | Ne as op ->
           let both x = x, x in
           (match op, ID.to_bool (FD.to_int IBool c) with
-          | Eq, Some true
-          | Ne, Some false -> both (FD.meet a b) (* def. equal: if they compare equal, both values must be from the meet *)
-          | Eq, Some false
-          | Ne, Some true -> (* def. unequal *)
-            (* M.debug ~category:Analyzer "Can't use unequal information about float value in expression \"%a\"." d_plainexp exp; *)
-            a, b (* TODO: no meet_bin? *)
-          | _, _ -> a, b
+           | Eq, Some true
+           | Ne, Some false -> both (FD.meet a b) (* def. equal: if they compare equal, both values must be from the meet *)
+           | Eq, Some false
+           | Ne, Some true -> (* def. unequal *)
+             (* M.debug ~category:Analyzer "Can't use unequal information about float value in expression \"%a\"." d_plainexp exp; *)
+             a, b (* TODO: no meet_bin? *)
+           | _, _ -> a, b
           )
         | Lt | Le | Ge | Gt as op ->
           (match FD.minimal a, FD.maximal a, FD.minimal b, FD.maximal b with
-          | Some l1, Some u1, Some l2, Some u2 ->
-            (match op, ID.to_bool (FD.to_int IBool c) with
+           | Some l1, Some u1, Some l2, Some u2 ->
+             (match op, ID.to_bool (FD.to_int IBool c) with
               | Le, Some true
               | Gt, Some false -> meet_bin (FD.ending (FD.get_fkind a) u2) (FD.starting (FD.get_fkind b) l1)
               | Ge, Some true
@@ -428,7 +428,7 @@ struct
               | Gt, Some true
               | Le, Some false -> meet_bin (FD.starting_after (FD.get_fkind a) l2) (FD.ending_before (FD.get_fkind b) u1)
               | _, _ -> a, b)
-          | _ -> a, b)
+           | _ -> a, b)
         | op ->
           if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
           a, b
@@ -462,24 +462,24 @@ struct
         let invert_binary_op c pretty c_int c_float =
           if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
           (match eval e1 st, eval e2 st with
-          | `Int a, `Int b ->
-            let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
-            let a', b' = inv_bin_int (a, b) ikind (c_int ikind) op in
-            if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
-            let st' = inv_exp (`Int a') e1 st in
-            let st'' = inv_exp (`Int b') e2 st' in
-            st''
-          | `Float a, `Float b ->
-            let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
-            let a', b' = inv_bin_float (a, b) (c_float fkind) op in
-            if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
-            let st' = inv_exp (`Float a') e1 st in
-            let st'' = inv_exp (`Float b') e2 st' in
-            st''
-          (* Mixed `Float and `Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
-          | `Int _, `Float _ | `Float _, `Int _ -> failwith "ill-typed program";
-            (* | `Address a, `Address b -> ... *)
-          | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
+           | `Int a, `Int b ->
+             let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+             let a', b' = inv_bin_int (a, b) ikind (c_int ikind) op in
+             if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
+             let st' = inv_exp (`Int a') e1 st in
+             let st'' = inv_exp (`Int b') e2 st' in
+             st''
+           | `Float a, `Float b ->
+             let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
+             let a', b' = inv_bin_float (a, b) (c_float fkind) op in
+             if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
+             let st' = inv_exp (`Float a') e1 st in
+             let st'' = inv_exp (`Float b') e2 st' in
+             st''
+           (* Mixed `Float and `Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
+           | `Int _, `Float _ | `Float _, `Int _ -> failwith "ill-typed program";
+             (* | `Address a, `Address b -> ... *)
+           | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
           (* use closures to avoid unused casts *)
         in (match c_typed with
             | `Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
@@ -490,46 +490,46 @@ struct
         let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
         let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
         (match c_typed with
-        | `Int c -> update_lval c x (match t with
-            | TPtr _ -> `Address (AD.of_int (module ID) c)
-            | TInt (ik, _)
-            | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
-            | TFloat (fk, _) -> `Float (FD.of_int fk c)
-            | _ -> `Int c) ID.pretty
-        | `Float c -> update_lval c x (match t with
-            (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
-            | TInt (ik, _) -> `Int (FD.to_int ik c)
-            (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
-            | TEnum ({ekind = ik; _}, _) -> `Int (FD.to_int ik c)
-            | TFloat (fk, _) -> `Float (FD.cast_to fk c)
-            | _ -> `Float c) FD.pretty
-        | _ -> failwith "unreachable")
+         | `Int c -> update_lval c x (match t with
+             | TPtr _ -> `Address (AD.of_int (module ID) c)
+             | TInt (ik, _)
+             | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
+             | TFloat (fk, _) -> `Float (FD.of_int fk c)
+             | _ -> `Int c) ID.pretty
+         | `Float c -> update_lval c x (match t with
+             (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
+             | TInt (ik, _) -> `Int (FD.to_int ik c)
+             (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
+             | TEnum ({ekind = ik; _}, _) -> `Int (FD.to_int ik c)
+             | TFloat (fk, _) -> `Float (FD.cast_to fk c)
+             | _ -> `Float c) FD.pretty
+         | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
         (match Cilfacade.typeOf e, FD.get_fkind c with
-        | TFloat (FLongDouble as fk, _), FFloat
-        | TFloat (FDouble as fk, _), FFloat
-        | TFloat (FLongDouble as fk, _), FDouble
-        | TFloat (fk, _), FLongDouble
-        | TFloat (FDouble as fk, _), FDouble
-        | TFloat (FFloat as fk, _), FFloat -> inv_exp (`Float (FD.cast_to fk c)) e st
-        | _ -> fallback ("CastE: incompatible types") st)
+         | TFloat (FLongDouble as fk, _), FFloat
+         | TFloat (FDouble as fk, _), FFloat
+         | TFloat (FLongDouble as fk, _), FDouble
+         | TFloat (fk, _), FLongDouble
+         | TFloat (FDouble as fk, _), FDouble
+         | TFloat (FFloat as fk, _), FFloat -> inv_exp (`Float (FD.cast_to fk c)) e st
+         | _ -> fallback ("CastE: incompatible types") st)
       | CastE ((TInt (ik, _)) as t, e), `Int c
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), `Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e st with
-        | `Int i ->
-          if ID.leq i (ID.cast_to ik i) then
-            match Cilfacade.typeOf e with
-            | TInt(ik_e, _)
-            | TEnum ({ekind = ik_e; _ }, _) ->
-              (* let c' = ID.cast_to ik_e c in *)
-              let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
-              if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-              inv_exp (`Int c') e st
-            | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
-          else
-            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
-        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
+         | `Int i ->
+           if ID.leq i (ID.cast_to ik i) then
+             match Cilfacade.typeOf e with
+             | TInt(ik_e, _)
+             | TEnum ({ekind = ik_e; _ }, _) ->
+               (* let c' = ID.cast_to ik_e c in *)
+               let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
+               if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+               inv_exp (`Int c') e st
+             | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
+           else
+             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
+         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
       | e, _ -> fallback (sprint d_plainexp e ^ " not implemented") st
     in
     if eval_bool exp st = Some (not tv) then raise Analyses.Deadcode (* we already know that the branch is dead *)
