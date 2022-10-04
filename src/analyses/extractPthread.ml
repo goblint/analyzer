@@ -1128,7 +1128,7 @@ module Spec : Analyses.MCPSpec = struct
 
       let arglist' = List.map (stripCasts % constFold false) arglist in
       match (LibraryFunctions.find f).special arglist', f.vname, arglist with
-      | ThreadCreate { thread; start_routine = func }, _, _ ->
+      | ThreadCreate { thread; start_routine = func; _ }, _, _ ->
         let funs_ls =
           let ls = ctx.ask (Queries.ReachableFrom func) in
           Queries.LS.filter

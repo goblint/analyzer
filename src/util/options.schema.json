@@ -318,7 +318,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+            "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
             "assert"
           ]
         },
@@ -2024,6 +2024,12 @@
             "split-conjunction": {
               "title": "witness.invariant.split-conjunction",
               "description": "Split conjunctive invariant to multiple invariants",
+              "type": "boolean",
+              "default": true
+            },
+            "accessed": {
+              "title": "witness.invariant.accessed",
+              "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
               "default": true
             },

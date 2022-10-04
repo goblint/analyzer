@@ -1117,15 +1117,14 @@ struct
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
 
-    let var_invariant v =
+    let var_invariant ?offset v =
       if not (InvariantCil.var_is_heap v) then
-        I.key_invariant v (Arg.find v)
+        I.key_invariant v ?offset (Arg.find v)
       else
         Invariant.none
     in
 
-    match context.lval with
-    | None ->
+    if CilLval.Set.is_top context.Invariant.lvals then (
       if !GU.earlyglobs || ThreadFlag.is_multi ask then (
         let cpa_invariant =
           CPA.fold (fun k v a ->
@@ -1148,9 +1147,18 @@ struct
             Invariant.(a && var_invariant k)
           ) cpa Invariant.none
       )
-    | Some (Var k, _) ->
-      (try var_invariant k with Not_found -> Invariant.none)
-    | _ -> Invariant.none
+    )
+    else (
+      CilLval.Set.fold (fun k a ->
+          let i =
+            match k with
+            | (Var k, offset) ->
+              (try var_invariant ~offset k with Not_found -> Invariant.none)
+            | _ -> Invariant.none
+          in
+          Invariant.(a && i)
+        ) context.lvals Invariant.none
+    )
 
   let query_invariant ctx context =
     if GobConfig.get_bool "ana.base.invariant.enabled" then

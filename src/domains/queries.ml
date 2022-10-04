@@ -71,7 +71,7 @@ type access =
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
 type invariant_context = Invariant.context = {
   path: int option;
-  lval: CilType.Lval.t option;
+  lvals: CilLval.Set.t;
 }
 [@@deriving ord, hash]
 
@@ -113,6 +113,7 @@ type _ t =
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
+  | MayAccessed: AccessDomain.EventSet.t t
 
 type 'a result = 'a
 
@@ -164,6 +165,7 @@ struct
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
+    | MayAccessed -> (module AccessDomain.EventSet)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -214,6 +216,7 @@ struct
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
+    | MayAccessed -> AccessDomain.EventSet.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -261,6 +264,7 @@ struct
     | Any (IterSysVars _) -> 37
     | Any (InvariantGlobal _) -> 38
     | Any (MustProtectedVars _) -> 39
+    | Any MayAccessed -> 40
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -329,6 +333,44 @@ struct
     | _ -> 0
 
   let hash x = 31 * order x + hash_arg x
+
+  let pretty () = function
+    | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
+    | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
+    | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
+    | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
+    | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e
+    | Any (MayEscape vi) -> Pretty.dprintf "MayEscape %a" CilType.Varinfo.pretty vi
+    | Any (MayBePublic x) -> Pretty.dprintf "MayBePublic _"
+    | Any (MayBePublicWithout x) -> Pretty.dprintf "MayBePublicWithout _"
+    | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
+    | Any MustLockset -> Pretty.dprintf "MustLockset"
+    | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
+    | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
+    | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
+    | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
+    | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
+    | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
+    | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
+    | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
+    | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
+    | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
+    | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
+    | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
+    | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
+    | Any (IterVars i) -> Pretty.dprintf "IterVars _"
+    | Any HeapVar -> Pretty.dprintf "HeapVar"
+    | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
+    | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
+    | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
+    | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
+    | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
+    | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
+    | Any (Invariant i) -> Pretty.dprintf "Invariant _"
+    | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
+    | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
+    | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
+    | Any MayAccessed -> Pretty.dprintf "MayAccessed"
 end
 
 
