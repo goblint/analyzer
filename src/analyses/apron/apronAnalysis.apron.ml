@@ -634,7 +634,7 @@ struct
 
       (* TODO: parallel write_global? *)
       let st =
-        WideningTokens.with_side_tokens' (WideningTokens.TS.of_list uuids) (fun () ->
+        WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
             VH.fold (fun v v_in st ->
                 (* TODO: is this sideg fine? *)
                 write_global ask ctx.global ctx.sideg st v v_in

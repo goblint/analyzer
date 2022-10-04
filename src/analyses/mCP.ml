@@ -163,8 +163,14 @@ struct
   let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
     let side_one v dts =
       let side_one_ts ts d =
-        WideningTokens.with_side_tokens ts (fun () ->
+        (* Do side effects with the tokens that were active at the time.
+           Transfer functions have exited the with_side_token wrappers by now. *)
+        let old_side_tokens = !WideningTokens.side_tokens in
+        WideningTokens.side_tokens := ts;
+        Fun.protect (fun () ->
             ctx.sideg v @@ fold_left G.join (G.bot ()) d
+          ) ~finally:(fun () ->
+            WideningTokens.side_tokens := old_side_tokens
           )
       in
       iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokens.TS.equal dts

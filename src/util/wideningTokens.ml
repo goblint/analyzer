@@ -1,57 +1,58 @@
-module Token = Basetype.RawStrings
+(** Widening tokens are a generic and dynamic mechanism for delaying widening.
+    All abstract elements carry a set of tokens, which analyses can add into.
+    Lifted abstract elements are only widened if the token set does not increase,
+    i.e. adding a widening token delays a widening.
+
+    @see <http://www2.in.tum.de/bib/files/mihaila13widening.pdf> Mihaila, B., Sepp, A. & Simon, A. Widening as Abstract Domain. *)
+
+(** Widening token. *)
+module Token = Basetype.RawStrings (* Change to variant type if need other tokens than witness UUIDs. *)
+
+(** Widening token set. *)
 module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
 
-type handler = Token.t -> unit
-let handler: handler ref = ref (fun _ -> failwith "Unhandled token")
+(** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
+let add_ref: (Token.t -> unit) ref = ref (fun _ -> failwith "Unhandled token")
 
-let perform t = !handler t
-
-let handle ~(with_:handler) f =
-  let old_handler = !handler in
-  handler := with_;
-  Fun.protect ~finally:(fun () ->
-      handler := old_handler
-    ) f
+(** Add widening token to local state. *)
+let add t = !add_ref t
 
 
+(** Widening tokens added to side effects.
+    Maintained by {!Lifter} and {!MCP}. *)
 let side_tokens: TS.t ref = ref (TS.bot ())
 
+(** [with_side_token t f] adds widening token [t] to all side effects in [f]. *)
 let with_side_token t f =
   let old_side_tokens = !side_tokens in
   side_tokens := TS.add t old_side_tokens;
-  Fun.protect ~finally:(fun () ->
+  Fun.protect f ~finally:(fun () ->
       side_tokens := old_side_tokens
-    ) f
+    )
 
+(** [with_side_tokens ts f] adds widening tokens [ts] to all side effects in [f]. *)
 let with_side_tokens ts f =
   let old_side_tokens = !side_tokens in
-  side_tokens := ts;
-  Fun.protect ~finally:(fun () ->
-      side_tokens := old_side_tokens
-    ) f
-
-let with_side_tokens' ts f =
-  let old_side_tokens = !side_tokens in
   side_tokens := TS.join ts old_side_tokens;
-  Fun.protect ~finally:(fun () ->
+  Fun.protect f ~finally:(fun () ->
       side_tokens := old_side_tokens
-    ) f
+    )
 
+
+(** Widening tokens in current local state. Maintained by {!Lifter}. *)
 let local_tokens: TS.t ref = ref (TS.bot ())
 
-let with_local_tokens ts f =
-  let old_local_tokens = !local_tokens in
-  local_tokens := ts;
-  Fun.protect ~finally:(fun () ->
-      local_tokens := old_local_tokens
-    ) f
-
+(** [with_local_side_tokens f] adds all widening tokens from local state to all side effects in [f]. *)
 let with_local_side_tokens f =
   with_side_tokens !local_tokens f
+
 
 open Prelude
 open Analyses
 
+(** Lift {!D} to carry widening tokens.
+    All operations delegate to inner domain,
+    except widening tokens are used to delay widenings. *)
 module Dom (D: Lattice.S) =
 struct
   include Lattice.Prod (D) (TS)
@@ -86,6 +87,7 @@ struct
     (d', TS.join t1 t2)
 end
 
+(** Lift {!S} to carry widening tokens with both local and global states. *)
 module Lifter (S: Spec): Spec =
 struct
   module D =
@@ -121,23 +123,29 @@ struct
 
   let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
     { ctx with local = D.unlift ctx.local
-             ; split = (fun d es -> ctx.split (d, snd ctx.local) es)
+             ; split = (fun d es -> ctx.split (d, snd ctx.local) es) (* Split keeps local widening tokens. *)
              ; global = (fun g -> G.unlift (ctx.global g))
-             ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens))
+             ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens)) (* Using side_tokens for side effect. *)
     }
 
   let lift_fun ctx f g h =
-    let ts = ref (snd ctx.local) in
-    let d = handle ~with_:(fun t -> ts := TS.add t !ts) (fun () ->
-        with_local_tokens (snd ctx.local) (fun () ->
-            h (g (conv ctx))
-          )
-      )
+    let new_tokens = ref (snd ctx.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)
+    let old_add = !add_ref in
+    let old_local_tokens = !local_tokens in
+    add_ref := (fun t -> new_tokens := TS.add t !new_tokens);
+    local_tokens := snd ctx.local;
+    let d =
+      Fun.protect (fun () ->
+          h (g (conv ctx))
+        ) ~finally:(fun () ->
+          local_tokens := old_local_tokens;
+          add_ref := old_add
+        )
     in
     (* If transfer function exits via exception, then new tokens are forgotten.
        There's nowhere to put them to potentially pass them to splits.
        Thus, this functor should not be used inside deadcode lifter. *)
-    f d !ts
+    f d !new_tokens
 
   let lift' d ts = (d, ts)
 

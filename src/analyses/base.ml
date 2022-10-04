@@ -2505,7 +2505,7 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      WideningTokens.with_side_tokens' (WideningTokens.TS.of_list uuids) (fun () ->
+      WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.from_var_offset (x, `NoOffset) in
               set (Analyses.ask_of_ctx ctx) ~ctx ~invariant:false ctx.global acc addr x.vtype v

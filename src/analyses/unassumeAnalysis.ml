@@ -202,7 +202,7 @@ struct
       if not !Goblintutil.postsolving then (
         let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
         ctx.emit (Unassume {exp = e; uuids});
-        List.iter WideningTokens.perform uuids
+        List.iter WideningTokens.add uuids
       );
       ctx.local
     | [] ->
