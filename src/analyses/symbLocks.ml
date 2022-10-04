@@ -84,13 +84,10 @@ struct
   let special ctx lval f arglist =
     let desc = LF.find f in
     match desc.special arglist, f.vname with
-    | Lock _, _ ->
-      D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | Unlock _, _ ->
-      D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | Unknown, fn when VarEq.safe_fn fn ->
-      Messages.info ~category:Unsound "Analyzer assuming that %s does not change lockset." fn;
-      ctx.local
+    | Lock { lock; _ }, _ ->
+      D.add (Analyses.ask_of_ctx ctx) lock ctx.local
+    | Unlock lock, _ ->
+      D.remove (Analyses.ask_of_ctx ctx) lock ctx.local
     | _, _ ->
       let st =
         match lval with

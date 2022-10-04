@@ -179,34 +179,12 @@ struct
 
   let special ctx lv f arglist : D.t =
     let desc = LF.find f in
-    match desc.special arglist, f.vname with
-    (* TODO: remove cases *)
-    | _, "_lock_kernel" ->
+    match desc.special arglist with
+    (* TODO: remove Lock/Unlock cases when all those libraryfunctions use librarydescs and don't read mutex contents *)
+    | Lock _
+    | Unlock _ ->
       ctx.local
-    | _, "_unlock_kernel" ->
-      ctx.local
-    | Lock { try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired; _ }, _
-      -> ctx.local
-    | Unlock _, "__raw_read_unlock"
-    | Unlock _, "__raw_write_unlock"  ->
-      ctx.local
-    | Unlock _, _ ->
-      ctx.local
-    | _, "spinlock_check" -> ctx.local
-    | _, "acquire_console_sem" when get_bool "kernel" ->
-      ctx.local
-    | _, "release_console_sem" when get_bool "kernel" ->
-      ctx.local
-    | _, "__builtin_prefetch" | _, "misc_deregister" ->
-      ctx.local
-    | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
-      ctx.local
-    | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
-      ctx.local
-    | Wait _ , _
-    | TimedWait _, _ ->
-      ctx.local
-    | _, _ ->
+    | _ ->
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
           access_one_top ~deref:true ctx kind reach exp (* access dereferenced using special accesses *)
         ) arglist;
