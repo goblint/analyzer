@@ -12,13 +12,13 @@
         ''goblint-dir'' ''.goblint-56-19'''
     task:
       input_files:
-      - 19-apron-unassume-strengthening.c
+      - 25-apron-unassume-strengthening.c
       input_file_hashes:
-        19-apron-unassume-strengthening.c: b2a50e3b423ade600ec2de58fa8ace6ec9a08b85fdc016cbdb7fbe9a3ba80d83
+        25-apron-unassume-strengthening.c: b2a50e3b423ade600ec2de58fa8ace6ec9a08b85fdc016cbdb7fbe9a3ba80d83
       data_model: LP64
       language: C
   location:
-    file_name: 19-apron-unassume-strengthening.c
+    file_name: 25-apron-unassume-strengthening.c
     file_hash: b2a50e3b423ade600ec2de58fa8ace6ec9a08b85fdc016cbdb7fbe9a3ba80d83
     line: 8
     column: 4
