@@ -1106,42 +1106,59 @@ struct
 
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
+    let ask = Analyses.ask_of_ctx ctx in
 
     let module Arg =
     struct
       let context = context
       let scope = Node.find_fundec ctx.node
-      let find v = CPA.find v cpa
+      let find v = get_var ask ctx.global ctx.local v
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
 
-    let cpa_invariant =
-      if CilLval.Set.is_top context.Invariant.lvals then (
-        CPA.fold (fun k v a ->
-            let i =
-              if not (InvariantCil.var_is_heap k) then
-                I.key_invariant k v
-              else
-                Invariant.none
-            in
-            Invariant.(a && i)
-          ) cpa Invariant.none
-      )
-      else (
-        CilLval.Set.fold (fun k a ->
-            let i =
-              match k with
-              | (Var k, offset) when not (InvariantCil.var_is_heap k) ->
-                (try I.key_invariant k ~offset (CPA.find k cpa) with Not_found -> Invariant.none)
-              | _ -> Invariant.none
-            in
-            Invariant.(a && i)
-          ) context.lvals Invariant.none
-      )
+    let var_invariant ?offset v =
+      if not (InvariantCil.var_is_heap v) then
+        I.key_invariant v ?offset (Arg.find v)
+      else
+        Invariant.none
     in
 
-    cpa_invariant
+    if CilLval.Set.is_top context.Invariant.lvals then (
+      if !GU.earlyglobs || ThreadFlag.is_multi ask then (
+        let cpa_invariant =
+          CPA.fold (fun k v a ->
+              if not (is_global ask k) then
+                Invariant.(a && var_invariant k)
+              else
+                a
+            ) cpa Invariant.none
+        in
+        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        let priv_invariant =
+          List.fold_left (fun acc v ->
+              Invariant.(var_invariant v && acc)
+            ) Invariant.none priv_vars
+        in
+        Invariant.(cpa_invariant && priv_invariant)
+      )
+      else (
+        CPA.fold (fun k v a ->
+            Invariant.(a && var_invariant k)
+          ) cpa Invariant.none
+      )
+    )
+    else (
+      CilLval.Set.fold (fun k a ->
+          let i =
+            match k with
+            | (Var k, offset) ->
+              (try var_invariant ~offset k with Not_found -> Invariant.none)
+            | _ -> Invariant.none
+          in
+          Invariant.(a && i)
+        ) context.lvals Invariant.none
+    )
 
   let query_invariant ctx context =
     if GobConfig.get_bool "ana.base.invariant.enabled" then
@@ -2481,49 +2498,34 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, "strcpy"
-    | Unknown, "strncpy"
-    | Unknown, "memcpy"
-    | Unknown, "__builtin___memcpy_chk" ->
-      begin match f.vname, args with
-        | _, [dst; src]
-        | _, [dst; src; _]
-        | "__builtin___memcpy_chk", [dst; src; _; _] ->
-          (* invalidating from interactive *)
-          (* let dest_a, dest_typ = addr_type_of_exp dst in
-             let value = VD.top_value dest_typ in
-             set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
-          (* TODO: reuse addr_type_of_exp for master *)
-          (* assigning from master *)
-          let get_type lval =
-            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-            AD.get_type address
-          in
-          let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
-          let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+    | Memcpy { dest = dst; src }, _
+    | Strcpy { dest = dst; src }, _ ->
+      (* invalidating from interactive *)
+      (* let dest_a, dest_typ = addr_type_of_exp dst in
+          let value = VD.top_value dest_typ in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
+      (* TODO: reuse addr_type_of_exp for master *)
+      (* assigning from master *)
+      let get_type lval =
+        let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+        AD.get_type address
+      in
+      let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
 
-          let dest_typ = get_type dst_lval in
-          let src_typ = get_type src_lval in
+      let dest_typ = get_type dst_lval in
+      let src_typ = get_type src_lval in
 
-          (* When src and destination type coincide, take value from the source, otherwise use top *)
-          let value = if typeSig dest_typ = typeSig src_typ then
-              let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-              eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
-            else
-              VD.top_value (unrollType dest_typ)
-          in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | _ -> failwith "strcpy arguments are strange/complicated."
-      end
-    | Unknown, "__builtin" ->
-      begin match args with
-        | Const (CStr ("invariant",_)) :: ((_ :: _) as args) ->
-          List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
-        | _ -> failwith "Unknown __builtin."
-      end
+      (* When src and destination type coincide, take value from the source, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Abort, _ -> raise Deadcode
-    | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     | ThreadExit { ret_val = exp }, _ ->
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
@@ -2540,14 +2542,9 @@ struct
         | _ -> ()
       end;
       raise Deadcode
-    | Unknown, "__builtin_expect" ->
+    | Identity e, _ ->
       begin match lv with
-        | Some v -> assign ctx v (List.hd args)
-        | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
-      end
-    | Unknown, "spinlock_check" ->
-      begin match lv with
-        | Some x -> assign ctx x (List.hd args)
+        | Some x -> assign ctx x e
         | None -> ctx.local
       end
     (**Floating point classification and trigonometric functions defined in c99*)
@@ -2674,8 +2671,6 @@ struct
         | None ->
           st
       end
-    (* Handling the assertions *)
-    | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | _, _ -> begin
         let st =

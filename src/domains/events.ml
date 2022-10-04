@@ -9,6 +9,7 @@ type t =
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
   | Access of {exp: CilType.Exp.t; lvals: Queries.LS.t; kind: AccessKind.t; reach: bool}
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *)
+  | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
 
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
@@ -19,3 +20,4 @@ let pretty () = function
   | AssignSpawnedThread (lval, tid) -> dprintf "AssignSpawnedThread (%a, %a)" d_lval lval ThreadIdDomain.Thread.pretty tid
   | Access {exp; lvals; kind; reach} -> dprintf "Access {exp=%a; lvals=%a; kind=%a; reach=%B}" CilType.Exp.pretty exp Queries.LS.pretty lvals AccessKind.pretty kind reach
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
+  | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp

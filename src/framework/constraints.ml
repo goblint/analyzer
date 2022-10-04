@@ -1012,7 +1012,7 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
+  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* TODO: handle Invariant path like PathSensitive3? *)
