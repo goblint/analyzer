@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 23-base-unassume-priv2.yml --set solvers.td3.side_widen always
+// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 23-base-unassume-priv2.yml --set solvers.td3.side_widen always --enable ana.widen.tokens
 #include <pthread.h>
 #include <assert.h>
 

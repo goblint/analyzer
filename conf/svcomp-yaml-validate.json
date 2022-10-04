@@ -54,6 +54,9 @@
         "ldv_xzalloc",
         "ldv_calloc"
       ]
+    },
+    "widen": {
+      "tokens": true
     }
   },
   "exp": {

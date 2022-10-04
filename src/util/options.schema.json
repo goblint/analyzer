@@ -923,6 +923,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "widen": {
+          "title": "ana.widen",
+          "type": "object",
+          "properties": {
+            "tokens": {
+              "title": "ana.widen.tokens",
+              "description": "Delay widenings using widening tokens.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

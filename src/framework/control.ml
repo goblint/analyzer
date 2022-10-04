@@ -31,7 +31,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
             (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
                Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
-            |> lift true (module WideningTokens.Lifter)
+            |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
           ) in
   GobConfig.building_spec := false;
   Analyses.control_spec_c := (module S1.C);

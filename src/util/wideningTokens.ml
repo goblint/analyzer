@@ -12,7 +12,10 @@ module Token = Basetype.RawStrings (* Change to variant type if need other token
 module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
 
 (** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
-let add_ref: (Token.t -> unit) ref = ref (fun _ -> failwith "Unhandled token")
+let add_ref: (Token.t -> unit) ref = ref (fun _ ->
+    if GobConfig.get_bool "ana.widen.tokens" then
+      failwith "Unhandled widening token"
+  )
 
 (** Add widening token to local state. *)
 let add t = !add_ref t

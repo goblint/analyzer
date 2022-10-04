@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.base.privatization none --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 24-apron-unassume-priv2.yml  --set solvers.td3.side_widen always
+// SKIP PARAM: --set ana.base.privatization none --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 24-apron-unassume-priv2.yml  --set solvers.td3.side_widen always --enable ana.widen.tokens
 #include <pthread.h>
 #include <assert.h>
 
