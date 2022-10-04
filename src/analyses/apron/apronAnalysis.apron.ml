@@ -502,6 +502,7 @@ struct
     let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+    let exact = GobConfig.get_bool "witness.invariant.exact" in
 
     let ask = Analyses.ask_of_ctx ctx in
     let scope = Node.find_fundec ctx.node in
@@ -541,8 +542,9 @@ struct
     AD.invariant ~scope apr
     |> List.enum
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
-        (* filter one-vars *)
-        if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+        (* filter one-vars and exact *)
+        (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+        if (one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2) && (exact || Lincons1.get_typ lincons1 <> EQ) then
           CilOfApron.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
@@ -571,9 +573,7 @@ struct
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
-    | Queries.Invariant context ->
-      (* TODO: witness.invariant.exact *)
-      query_invariant ctx context
+    | Queries.Invariant context -> query_invariant ctx context
     | _ -> Result.top q
 
 
