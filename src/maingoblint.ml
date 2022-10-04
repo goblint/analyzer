@@ -242,7 +242,6 @@ let preprocess_files () =
   get_string_list "pre.includes" |> List.map Fpath.v |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
-  include_files := find_custom_include (Fpath.v "goblint.h") :: !include_files;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
