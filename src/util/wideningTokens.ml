@@ -62,7 +62,10 @@ struct
 
      TD3 uses equal to check for fixpoint, not leq,
      so should we override this to ignore tokens to avoid potentially
-     unnecessary extra work. *)
+     unnecessary extra work.
+
+     Thus, this domain should not be used inside hashcons lifter,
+     because it would prevent token sets changing. *)
   let equal (d1, t1) (d2, t2) = D.equal d1 d2
   let compare (d1, t1) (d2, t2) = D.compare d1 d2
   let hash (d, t) = D.hash d
@@ -116,7 +119,6 @@ struct
 
   let context fd = S.context fd % D.unlift
 
-  (* TODO: propagate tokens *)
   let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
     { ctx with local = D.unlift ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es)
@@ -132,6 +134,9 @@ struct
           )
       )
     in
+    (* If transfer function exits via exception, then new tokens are forgotten.
+       There's nowhere to put them to potentially pass them to splits.
+       Thus, this functor should not be used inside deadcode lifter. *)
     f d !ts
 
   let lift' d ts = (d, ts)

@@ -11,34 +11,34 @@ let () =
 
   register (
     "pow2" @>>> [
-        "8" @> lazy (
-          let arg = 8 in
-          throughputN 1 [
-            ("pow", pow2_pow, arg);
-            ("lsl", pow2_lsl, arg);
-          ]
-        );
-        "16" @> lazy (
-          let arg = 16 in
-          throughputN 1 [
-            ("pow", pow2_pow, arg);
-            ("lsl", pow2_lsl, arg);
-          ]
-        );
-        "32" @> lazy (
-          let arg = 32 in
-          throughputN 1 [
-            ("pow", pow2_pow, arg);
-            ("lsl", pow2_lsl, arg);
-          ]
-        );
-        "64" @> lazy (
-          let arg = 64 in
-          throughputN 1 [
-            ("pow", pow2_pow, arg);
-            ("lsl", pow2_lsl, arg);
-          ]
-        );
+      "8" @> lazy (
+        let arg = 8 in
+        throughputN 1 [
+          ("pow", pow2_pow, arg);
+          ("lsl", pow2_lsl, arg);
+        ]
+      );
+      "16" @> lazy (
+        let arg = 16 in
+        throughputN 1 [
+          ("pow", pow2_pow, arg);
+          ("lsl", pow2_lsl, arg);
+        ]
+      );
+      "32" @> lazy (
+        let arg = 32 in
+        throughputN 1 [
+          ("pow", pow2_pow, arg);
+          ("lsl", pow2_lsl, arg);
+        ]
+      );
+      "64" @> lazy (
+        let arg = 64 in
+        throughputN 1 [
+          ("pow", pow2_pow, arg);
+          ("lsl", pow2_lsl, arg);
+        ]
+      );
     ]
   )
 
