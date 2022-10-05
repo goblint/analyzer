@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] unassume --set witness.yaml.unassume 17-base-unassume-tauto.yml --enable ana.int.interval
+// PARAM: --set ana.activated[+] unassume --set witness.yaml.unassume 17-base-unassume-tauto.yml --enable ana.int.interval --set ana.base.invariant.unassume fixpoint
 #include <assert.h>
 
 int main() {

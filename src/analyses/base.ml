@@ -2494,9 +2494,17 @@ struct
         with Deadcode -> (* contradiction in unassume *)
           D.bot ()
       in
-      let module DFP = LocalFixpoint.Make (D) in
       if M.tracing then M.traceli "unassume" "base unassuming\n";
-      let r = DFP.lfp f in
+      let r =
+        match get_string "ana.base.invariant.unassume" with
+        | "once" ->
+          f (D.bot ())
+        | "fixpoint" ->
+          let module DFP = LocalFixpoint.Make (D) in
+          DFP.lfp f
+        | _ ->
+          assert false
+      in
       if M.tracing then M.traceu "unassume" "base unassumed\n";
       r
     in

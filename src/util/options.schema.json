@@ -693,6 +693,13 @@
                   "description": "Generate base analysis invariants",
                   "type": "boolean",
                   "default": true
+                },
+                "unassume": {
+                  "title": "ana.base.invariant.unassume",
+                  "description": "How many times to unassume an invariant: once or until fixpoint (at least twice as expensive).",
+                  "type": "string",
+                  "enum": ["once", "fixpoint"],
+                  "default": "once"
                 }
               },
               "additionalProperties": false
