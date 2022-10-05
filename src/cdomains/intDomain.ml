@@ -840,10 +840,9 @@ struct
       else top_bool
 
   let invariant_ikind e ik x =
-    let exact = get_bool "witness.invariant.exact" in
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      if exact then
+      if get_bool "witness.invariant.exact" then
         let x1 = Ints_t.to_bigint x1 in
         Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
       else
@@ -851,8 +850,9 @@ struct
     | Some (x1, x2) ->
       let (min_ik, max_ik) = range ik in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if not exact || Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
-      let i2 = if not exact || Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let i1 = if inexact_type_bounds || Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
+      let i2 = if inexact_type_bounds || Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
       Invariant.(i1 && i2)
     | None -> Invariant.none
 
@@ -1631,8 +1631,9 @@ struct
         let ikr = size ik in
         (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
       in
-      let imin = if (* not exact || *) BI.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
-      let imax = if (* not exact || *) BI.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let imin = if inexact_type_bounds || BI.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || BI.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)

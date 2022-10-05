@@ -2066,6 +2066,12 @@
               "type": "boolean",
               "default": true
             },
+            "inexact-type-bounds": {
+              "title": "witness.invariant.inexact-type-bounds",
+              "description": "Emit inexact invariants matching type bounds.",
+              "type": "boolean",
+              "default": false
+            },
             "exclude-vars": {
               "title": "witness.invariant.exclude-vars",
               "description": "OCaml Str regexes for variables to exclude from invariants.",
