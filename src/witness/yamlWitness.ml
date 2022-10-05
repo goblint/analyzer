@@ -230,7 +230,7 @@ struct
     in
     let task = Entry.task ~input_files ~data_model ~specification in
 
-    let nh = join_contexts lh in (* TODO: make lazy *)
+    let nh = lazy (join_contexts lh) in
 
     let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
@@ -259,7 +259,7 @@ struct
             Cfg.next n
             |> BatList.enum
             |> BatEnum.filter_map (fun (_, next_n) ->
-                let next_local = try NH.find nh next_n with Not_found -> Spec.D.bot () in
+                let next_local = try NH.find (Lazy.force nh) next_n with Not_found -> Spec.D.bot () in
                 match Query.ask_local_node gh next_n next_local MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
@@ -302,7 +302,7 @@ struct
             )
             else
               acc
-          ) nh entries
+          ) (Lazy.force nh) entries
       )
       else
         entries
