@@ -542,7 +542,7 @@ struct
     |> List.enum
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         (* filter one-vars *)
-        if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+        if one_var || Lincons1.num_vars lincons1 >= 2 then
           CilOfApron.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
