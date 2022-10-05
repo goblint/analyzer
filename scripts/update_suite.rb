@@ -140,7 +140,7 @@ class Tests
     warnings[-1] = "term"
     lines = IO.readlines(warnfile)
     lines.each do |l|
-      if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
+      if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
         @vars = $1
         @evals = $2

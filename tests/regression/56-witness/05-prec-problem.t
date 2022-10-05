@@ -1,8 +1,9 @@
   $ goblint --enable witness.yaml.enabled --enable ana.int.interval 05-prec-problem.c
   [Success][Assert] Assertion "y != z" will succeed (05-prec-problem.c:20:5-20:28)
-  Live lines: 12
-  No lines with dead code found by solver.
-  Total lines (logical LoC): 12
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 12
+    dead: 0
+    total: 12
   [Info][Witness] witness generation summary:
     total: 15
 
