@@ -1,4 +1,4 @@
-//PARAM: --enable witness.yaml.enabled --enable ana.int.interval
+//PARAM: --enable ana.int.interval
 #include <stdlib.h>
 
 int foo(int* ptr1, int* ptr2){
