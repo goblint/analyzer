@@ -26,6 +26,9 @@
     },
     "race": {
       "free": false
+    },
+    "dead-code": {
+      "lines": true
     }
   },
   "sem": {
@@ -47,7 +50,7 @@
     "restart": {
       "sided": {
         "enabled": true,
-        "only-access": true,
+        "vars": "write-only",
         "fuel": 1
       },
       "write-only": false
@@ -63,9 +66,6 @@
       "ZSTD_customCalloc",
       "ZSTD_customFree"
     ]
-  },
-  "dbg": {
-    "print_dead_code": true
   },
   "pre": {
     "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
