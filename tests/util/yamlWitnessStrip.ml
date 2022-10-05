@@ -8,6 +8,29 @@ struct
   }
   [@@deriving ord]
 
+  let strip_file_hashes {entry_type} =
+    let stripped_file_hash = "$STRIPPED_FILE_HASH" in
+    let location_strip_file_hash location: Location.t =
+      {location with file_hash = stripped_file_hash}
+    in
+    let target_strip_file_hash target: Target.t =
+      {target with file_hash = stripped_file_hash}
+    in
+    let entry_type: EntryType.t =
+      match entry_type with
+      | LoopInvariant x ->
+        LoopInvariant {x with location = location_strip_file_hash x.location}
+      | PreconditionLoopInvariant x ->
+        PreconditionLoopInvariant {x with location = location_strip_file_hash x.location}
+      | LoopInvariantCertificate x ->
+        LoopInvariantCertificate {x with target = target_strip_file_hash x.target}
+      | PreconditionLoopInvariantCertificate x ->
+        PreconditionLoopInvariantCertificate {x with target = target_strip_file_hash x.target}
+      | _ ->
+        entry_type
+    in
+    {entry_type}
+
   let to_yaml {entry_type} =
     `O ([
         ("entry_type", `String (EntryType.entry_type entry_type));
@@ -34,6 +57,7 @@ let main () =
   in
   let yaml_entries' =
     StrippedEntrySet.elements entries'
+    |> List.map StrippedEntry.strip_file_hashes
     |> List.map StrippedEntry.to_yaml
   in
 

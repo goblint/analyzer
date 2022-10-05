@@ -14,7 +14,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 12
       column: 4
       function: foo
@@ -29,7 +29,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 6
       column: 7
       function: foo
@@ -44,7 +44,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 6
       column: 7
       function: foo
@@ -59,7 +59,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 20
       column: 4
       function: main
@@ -70,7 +70,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 20
       column: 4
       function: main
@@ -81,7 +81,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 19
       column: 8
       function: main
@@ -92,7 +92,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 18
       column: 8
       function: main
@@ -103,7 +103,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 17
       column: 8
       function: main
@@ -114,7 +114,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 12
       column: 4
       function: foo
@@ -125,7 +125,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 12
       column: 4
       function: foo
@@ -136,7 +136,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 6
       column: 7
       function: foo
@@ -147,7 +147,7 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: cf828ba93b8ed3289734bd38dd37f9e9fd808af7d303b61191df6737aa478928
+      file_hash: $STRIPPED_FILE_HASH
       line: 6
       column: 7
       function: foo
