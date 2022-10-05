@@ -2123,6 +2123,27 @@
               "type": "boolean",
               "default": false
             },
+            "entry-types": {
+              "title": "witness.yaml.entry-types",
+              "description": "YAML witness entry types to output/input.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "loop_invariant",
+                  "flow_insensitive_invariant",
+                  "precondition_loop_invariant",
+                  "loop_invariant_certificate",
+                  "precondition_loop_invariant_certificate"
+                ]
+              },
+              "default": [
+                "loop_invariant",
+                "flow_insensitive_invariant",
+                "loop_invariant_certificate",
+                "precondition_loop_invariant_certificate"
+              ]
+            },
             "path": {
               "title": "witness.yaml.path",
               "description": "YAML witness output path",

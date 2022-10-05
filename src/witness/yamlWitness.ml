@@ -118,6 +118,9 @@ let yaml_entries_to_file yaml_entries file =
   let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 4096 + 2048) yaml in
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
+let entry_type_enabled entry_type =
+  List.mem entry_type (GobConfig.get_string_list "witness.yaml.entry-types")
+
 module Query
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
@@ -227,7 +230,7 @@ struct
     in
     let task = Entry.task ~input_files ~data_model ~specification in
 
-    let nh = join_contexts lh in
+    let nh = join_contexts lh in (* TODO: make lazy *)
 
     let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
@@ -275,47 +278,59 @@ struct
         CilLval.Set.top ()
     in
 
-    (* Generate location invariants (wihtout precondition) *)
-    let entries = NH.fold (fun n local acc ->
-        let loc = Node.location n in
-        if is_invariant_node n then (
-          let lvals = local_lvals n local in
-          match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
-          | `Lifted inv ->
-            let invs = WitnessUtil.InvariantExp.process_exp inv in
-            List.fold_left (fun acc inv ->
-                let location_function = (Node.find_fundec n).svar.vname in
-                let location = Entry.location ~location:loc ~location_function in
-                let invariant = Entry.invariant (CilType.Exp.show inv) in
-                let entry = Entry.loop_invariant ~task ~location ~invariant in
-                entry :: acc
-              ) acc invs
-          | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
-            acc
-        )
-        else
-          acc
-      ) nh []
+    let entries = [] in
+
+    (* Generate location invariants (without precondition) *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
+        NH.fold (fun n local acc ->
+            let loc = Node.location n in
+            if is_invariant_node n then (
+              let lvals = local_lvals n local in
+              match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+              | `Lifted inv ->
+                let invs = WitnessUtil.InvariantExp.process_exp inv in
+                List.fold_left (fun acc inv ->
+                    let location_function = (Node.find_fundec n).svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
+                    let invariant = Entry.invariant (CilType.Exp.show inv) in
+                    let entry = Entry.loop_invariant ~task ~location ~invariant in
+                    entry :: acc
+                  ) acc invs
+              | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                acc
+            )
+            else
+              acc
+          ) nh entries
+      )
+      else
+        entries
     in
 
     (* Generate flow-insensitive invariants *)
-    let entries = GHT.fold (fun g v acc ->
-        match g with
-        | `Left g -> (* Spec global *)
-          begin match Query.ask_global gh (InvariantGlobal (Obj.repr g)) with
-            | `Lifted inv ->
-              let invs = WitnessUtil.InvariantExp.process_exp inv in
-              List.fold_left (fun acc inv ->
-                  let invariant = Entry.invariant (CilType.Exp.show inv) in
-                  let entry = Entry.flow_insensitive_invariant ~task ~invariant in
-                  entry :: acc
-                ) acc invs
-            | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
+        GHT.fold (fun g v acc ->
+            match g with
+            | `Left g -> (* Spec global *)
+              begin match Query.ask_global gh (InvariantGlobal (Obj.repr g)) with
+                | `Lifted inv ->
+                  let invs = WitnessUtil.InvariantExp.process_exp inv in
+                  List.fold_left (fun acc inv ->
+                      let invariant = Entry.invariant (CilType.Exp.show inv) in
+                      let entry = Entry.flow_insensitive_invariant ~task ~invariant in
+                      entry :: acc
+                    ) acc invs
+                | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                  acc
+              end
+            | `Right _ -> (* contexts global *)
               acc
-          end
-        | `Right _ -> (* contexts global *)
-          acc
-      ) gh entries
+          ) gh entries
+      )
+      else
+        entries
     in
 
     (* Generate precondition invariants.
@@ -323,96 +338,100 @@ struct
        1. Collect contexts for each function
        2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
        3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states. *)
-
-    (* 1. Collect contexts for each function *)
-    (* TODO: Use [IterSysVars] for this when #391 is merged. *)
-    let fun_contexts : con_inv list FMap.t = FMap.create 103 in
-    LHT.iter (fun ((n, c) as lvar) local ->
-        begin match n with
-          | FunctionEntry f ->
-            let invariant = Query.ask_local gh lvar local (Invariant Invariant.default_context) in
-            FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
-          | _ -> ()
-        end
-      ) lh;
-
-    (* 2. For all contexts and their invariants, find all contexts such that their start state may satisfy the invariant. *)
-    let fc_map : con_inv list FCMap.t = FCMap.create 103 in
-    FMap.iter (fun f con_invs ->
-        List.iter (fun current_c ->
-            begin match current_c.invariant with
-              | `Lifted c_inv ->
-                (* Collect all start states that may satisfy the invariant of current_c *)
-                List.iter (fun c ->
-                    let x = Query.ask_local gh (c.node, c.context) c.state (Queries.EvalInt c_inv) in
-                    if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
-                      failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
-                    else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
-                    else begin
-                      (* Insert c into the list of weaker contexts of f *)
-                      FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
-                    end
-                  ) con_invs;
-              | `Bot | `Top ->
-                (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
-                ()
+    let entries =
+      if entry_type_enabled YamlWitnessType.PreconditionLoopInvariant.entry_type then (
+        (* 1. Collect contexts for each function *)
+        (* TODO: Use [IterSysVars] for this when #391 is merged. *)
+        let fun_contexts : con_inv list FMap.t = FMap.create 103 in
+        LHT.iter (fun ((n, c) as lvar) local ->
+            begin match n with
+              | FunctionEntry f ->
+                let invariant = Query.ask_local gh lvar local (Invariant Invariant.default_context) in
+                FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
+              | _ -> ()
             end
-          ) con_invs;
-      ) fun_contexts;
+          ) lh;
 
-    (** Given [(n,c)] retrieves all [(n,c')], with [c'] such that [(f, c')] may satisfy the precondition generated for [c].*)
-    let find_matching_states ((n, c) : LHT.key) =
-      let f = Node.find_fundec n in
-      let contexts =  FCMap.find fc_map (f, c) in
-      List.filter_map (fun c -> LHT.find_option lh (n, c.context)) contexts
-    in
-
-    (* 3. Generate precondition invariants *)
-    let entries = LHT.fold (fun ((n, c) as lvar) local acc ->
-        if is_invariant_node n then (
-          let fundec = Node.find_fundec n in
-          let pre_lvar = (Node.FunctionEntry fundec, c) in
-          let pre_local = LHT.find lh pre_lvar in
-          let query = Queries.Invariant Invariant.default_context in
-          match Query.ask_local gh pre_lvar pre_local query with
-          | `Lifted c_inv ->
-            let loc = Node.location n in
-            (* Find unknowns for which the preceding start state satisfies the precondtion *)
-            let xs = find_matching_states lvar in
-
-            (* Generate invariants. Give up in case one invariant could not be generated. *)
-            let invs = GobList.fold_while_some (fun acc local ->
-                let lvals = local_lvals n local in
-                match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
-                | `Lifted c -> Some ((`Lifted c)::acc)
-                | `Bot | `Top -> None
-              ) [] xs
-            in
-            begin match invs with
-              | None
-              | Some [] -> acc
-              | Some (x::xs) ->
-                begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
-                  | `Lifted inv ->
-                    let invs = WitnessUtil.InvariantExp.process_exp inv in
-                    let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-                    List.fold_left (fun acc inv ->
-                        let location_function = (Node.find_fundec n).svar.vname in
-                        let location = Entry.location ~location:loc ~location_function in
-                        let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                        let invariant = Entry.invariant (CilType.Exp.show inv) in
-                        let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                        entry :: acc
-                      ) acc invs
-                  | `Bot | `Top -> acc
+        (* 2. For all contexts and their invariants, find all contexts such that their start state may satisfy the invariant. *)
+        let fc_map : con_inv list FCMap.t = FCMap.create 103 in
+        FMap.iter (fun f con_invs ->
+            List.iter (fun current_c ->
+                begin match current_c.invariant with
+                  | `Lifted c_inv ->
+                    (* Collect all start states that may satisfy the invariant of current_c *)
+                    List.iter (fun c ->
+                        let x = Query.ask_local gh (c.node, c.context) c.state (Queries.EvalInt c_inv) in
+                        if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                          failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
+                        else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
+                        else begin
+                          (* Insert c into the list of weaker contexts of f *)
+                          FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
+                        end
+                      ) con_invs;
+                  | `Bot | `Top ->
+                    (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
+                    ()
                 end
-            end
-          | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
-            acc
-        )
-        else
-          acc
-      ) lh entries
+              ) con_invs;
+          ) fun_contexts;
+
+        (** Given [(n,c)] retrieves all [(n,c')], with [c'] such that [(f, c')] may satisfy the precondition generated for [c].*)
+        let find_matching_states ((n, c) : LHT.key) =
+          let f = Node.find_fundec n in
+          let contexts =  FCMap.find fc_map (f, c) in
+          List.filter_map (fun c -> LHT.find_option lh (n, c.context)) contexts
+        in
+
+        (* 3. Generate precondition invariants *)
+        LHT.fold (fun ((n, c) as lvar) local acc ->
+            if is_invariant_node n then (
+              let fundec = Node.find_fundec n in
+              let pre_lvar = (Node.FunctionEntry fundec, c) in
+              let pre_local = LHT.find lh pre_lvar in
+              let query = Queries.Invariant Invariant.default_context in
+              match Query.ask_local gh pre_lvar pre_local query with
+              | `Lifted c_inv ->
+                let loc = Node.location n in
+                (* Find unknowns for which the preceding start state satisfies the precondtion *)
+                let xs = find_matching_states lvar in
+
+                (* Generate invariants. Give up in case one invariant could not be generated. *)
+                let invs = GobList.fold_while_some (fun acc local ->
+                    let lvals = local_lvals n local in
+                    match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+                    | `Lifted c -> Some ((`Lifted c)::acc)
+                    | `Bot | `Top -> None
+                  ) [] xs
+                in
+                begin match invs with
+                  | None
+                  | Some [] -> acc
+                  | Some (x::xs) ->
+                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                      | `Lifted inv ->
+                        let invs = WitnessUtil.InvariantExp.process_exp inv in
+                        let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                        List.fold_left (fun acc inv ->
+                            let location_function = (Node.find_fundec n).svar.vname in
+                            let location = Entry.location ~location:loc ~location_function in
+                            let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                            let invariant = Entry.invariant (CilType.Exp.show inv) in
+                            let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                            entry :: acc
+                          ) acc invs
+                      | `Bot | `Top -> acc
+                    end
+                end
+              | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
+                acc
+            )
+            else
+              acc
+          ) lh entries
+      )
+      else
+        entries
     in
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
@@ -490,6 +509,7 @@ struct
     let cnt_unchecked = ref 0 in
     let cnt_unsupported = ref 0 in
     let cnt_error = ref 0 in
+    let cnt_disabled = ref 0 in
 
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
@@ -526,20 +546,24 @@ struct
             | Confirmed ->
               incr cnt_confirmed;
               M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv;
-              let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
-              let certification = Entry.certification true in
-              let certificate_entry = entry_certificate ~target ~certification in
-              Some certificate_entry
+              Option.map (fun entry_certificate ->
+                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
+                  let certification = Entry.certification true in
+                  let certificate_entry = entry_certificate ~target ~certification in
+                  certificate_entry
+                ) entry_certificate
             | Unconfirmed ->
               incr cnt_unconfirmed;
               M.warn ~category:Witness ~loc:msgLoc "invariant unconfirmed: %s" inv;None
             | Refuted ->
               incr cnt_refuted;
               M.error ~category:Witness ~loc:msgLoc "invariant refuted: %s" inv;
-              let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
-              let certification = Entry.certification false in
-              let certificate_entry = entry_certificate ~target ~certification in
-              Some certificate_entry
+              Option.map (fun entry_certificate ->
+                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
+                  let certification = Entry.certification false in
+                  let certificate_entry = entry_certificate ~target ~certification in
+                  certificate_entry
+                ) entry_certificate
             | ParseError ->
               incr cnt_error;
               M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
@@ -556,7 +580,12 @@ struct
       let validate_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
-        let entry_certificate = Entry.loop_invariant_certificate in
+        let entry_certificate =
+          if entry_type_enabled YamlWitnessType.LoopInvariantCertificate.entry_type then
+            Some Entry.loop_invariant_certificate
+          else
+            None
+        in
         let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt locator loc with
@@ -572,7 +601,12 @@ struct
         let loc = loc_of_location precondition_loop_invariant.location in
         let pre = precondition_loop_invariant.precondition.string in
         let inv = precondition_loop_invariant.loop_invariant.string in
-        let entry_certificate = Entry.precondition_loop_invariant_certificate in
+        let entry_certificate =
+          if entry_type_enabled YamlWitnessType.PreconditionLoopInvariantCertificate.entry_type then
+            Some Entry.precondition_loop_invariant_certificate
+          else
+            None
+        in
         let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt locator loc with
@@ -620,11 +654,15 @@ struct
           None
       in
 
-      match entry.entry_type with
-      | LoopInvariant x ->
+      match entry_type_enabled target_type, entry.entry_type with
+      | true, LoopInvariant x ->
         validate_loop_invariant x
-      | PreconditionLoopInvariant x ->
+      | true, PreconditionLoopInvariant x ->
         validate_precondition_loop_invariant x
+      | false, (LoopInvariant _ | PreconditionLoopInvariant _) ->
+        incr cnt_disabled;
+        M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
+        None
       | _ ->
         incr cnt_unsupported;
         M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
@@ -651,7 +689,8 @@ struct
       (Pretty.dprintf "error: %d" !cnt_error, None);
       (Pretty.dprintf "unchecked: %d" !cnt_unchecked, None);
       (Pretty.dprintf "unsupported: %d" !cnt_unsupported, None);
-      (Pretty.dprintf "total: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error), None);
+      (Pretty.dprintf "disabled: %d" !cnt_disabled, None);
+      (Pretty.dprintf "total: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error + !cnt_disabled), None);
     ];
 
     yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))

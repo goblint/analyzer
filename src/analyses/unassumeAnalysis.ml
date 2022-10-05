@@ -86,6 +86,7 @@ struct
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
       let uuid = entry.metadata.uuid in
+      let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let unassume_nodes_invariant ~loc ~nodes inv =
         let msgLoc: M.Location.t = CilLocation loc in
@@ -172,13 +173,15 @@ struct
           M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
       in
 
-      match entry.entry_type with
-      | LoopInvariant x ->
+      match YamlWitness.entry_type_enabled target_type, entry.entry_type with
+      | true, LoopInvariant x ->
         unassume_loop_invariant x
-      | PreconditionLoopInvariant x ->
+      | true, PreconditionLoopInvariant x ->
         unassume_precondition_loop_invariant x
-      | entry_type ->
-        M.info_noloc ~category:Witness "cannot unassume entry of type %s" (YamlWitnessType.EntryType.entry_type entry_type)
+      | false, (LoopInvariant _ | PreconditionLoopInvariant _) ->
+        M.info_noloc ~category:Witness "disabled entry of type %s" target_type
+      | _ ->
+        M.info_noloc ~category:Witness "cannot unassume entry of type %s" target_type
     in
 
     List.iter (fun yaml_entry ->
