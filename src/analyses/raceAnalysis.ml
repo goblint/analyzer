@@ -154,12 +154,12 @@ struct
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in
     if total > 0 then (
-      ignore (Pretty.printf "\nSummary for all memory locations:\n");
-      ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
-      ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
-      ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
-      ignore (Pretty.printf "\t-------------------\n");
-      ignore (Pretty.printf "\ttotal:       %5d\n" total)
+      M.msg_group Info ~category:Race "Memory locations race summary" [
+        (Pretty.dprintf "safe: %d" !safe, None);
+        (Pretty.dprintf "vulnerable: %d" !vulnerable, None);
+        (Pretty.dprintf "unsafe: %d" !unsafe, None);
+        (Pretty.dprintf "total: %d" total, None);
+      ];
     )
 end
 
