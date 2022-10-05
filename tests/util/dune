@@ -1,0 +1,4 @@
+(executable
+ (name yamlWitnessStrip)
+ (libraries goblint_lib goblint.sites.dune batteries.unthreaded)
+ (preprocess (pps ppx_deriving.std)))
