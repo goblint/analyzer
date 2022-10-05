@@ -76,6 +76,15 @@ struct
 
   let show = Format.asprintf "%a" print
   let compare x y = String.compare (show x) (show y) (* HACK *)
+
+  let num_vars x =
+    (* Apron.Linexpr0.get_size returns some internal nonsense, so we count ourselves. *)
+    let size = ref 0 in
+    Lincons1.iter (fun coeff var ->
+        if not (Apron.Coeff.is_zero coeff) then
+          incr size
+      ) x;
+    !size
 end
 
 module Lincons1Set =
