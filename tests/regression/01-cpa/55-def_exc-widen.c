@@ -1,4 +1,5 @@
 //PARAM: --disable ana.int.def_exc_widen_by_join
+// NOTIMEOUT
 int main(int argc , char **argv )
 {
     char buf[512];

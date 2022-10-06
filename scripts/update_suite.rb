@@ -203,6 +203,8 @@ class Tests
         check.call warnings[idx] != "race"
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
+      when "nocrash", "fixpoint", "notimeout", "cram"
+        check.call true
       end
     end
   end
@@ -281,6 +283,15 @@ class Project
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
+      if obj =~ /NOCRASH/ then
+        tests[-42] = "nocrash"
+      elsif obj =~ /FIXPOINT/ then
+        tests[-42] = "fixpoint"
+      elsif obj =~ /NOTIMEOUT/ then
+        tests[-42] = "notimeout"
+      elsif obj =~ /CRAM/ then
+        tests[-42] = "cram"
+      end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       todo << i if obj =~ /TODO|SKIP/
       tests_line[i] = obj
@@ -313,7 +324,7 @@ class Project
       tests[-1] = "term"
     end
     if tests.empty? then
-      puts "No automatic checks in #{@id}"
+      puts "No automatic checks in #{@id} (maybe NOCRASH/FIXPOINT/NOTIMEOUT/CRAM?)"
     end
     Tests.new(self, tests, tests_line, todo)
   end
