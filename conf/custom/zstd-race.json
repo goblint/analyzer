@@ -1,9 +1,20 @@
 {
   "ana": {
     "activated": [
-      "expRelation", "base", "threadid", "threadflag", "threadreturn",
-      "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-      "symb_locks", "var_eq", "mallocFresh"
+      "expRelation",
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "escape",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "mallocWrapper",
+      "mhp",
+      "symb_locks",
+      "var_eq",
+      "mallocFresh"
     ],
     "ctx_insens": [
       "var_eq"
@@ -44,17 +55,19 @@
     "reluctant": {
       "compare": "leq"
     },
-    "ignore-const-args": [
-      "fprintf"
-    ],
-    "postsolver": {
-      "enabled": true
-    },
     "restart": {
       "sided": {
         "enabled": false
-      },
-      "write-only": true
+      }
+    }
+  },
+  "solvers": {
+    "td3": {
+      "restart": {
+        "wpoint": {
+          "enabled": false
+        }
+      }
     }
   },
   "exp": {
@@ -66,7 +79,12 @@
     ]
   },
   "pre": {
-    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+    "cppflags": [
+      "-DZSTD_NO_INTRINSICS",
+      "-D_FORTIFY_SOURCE=0",
+      "-DGOBLINT_NO_ASSERT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
   },
   "cil": {
     "merge": {

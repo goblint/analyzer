@@ -1,7 +1,8 @@
 {
   "ana": {
     "activated": [
-      "base", "mallocWrapper"
+      "base",
+      "mallocWrapper"
     ],
     "base": {
       "privatization": "none",
@@ -15,7 +16,8 @@
     },
     "malloc": {
       "wrappers": [
-        "ZSTD_customMalloc", "ZSTD_customCalloc"
+        "ZSTD_customMalloc",
+        "ZSTD_customCalloc"
       ]
     },
     "dead-code": {
@@ -44,7 +46,12 @@
     ]
   },
   "pre": {
-    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+    "cppflags": [
+      "-DZSTD_NO_INTRINSICS",
+      "-D_FORTIFY_SOURCE=0",
+      "-DGOBLINT_NO_ASSERT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
   },
   "cil": {
     "merge": {

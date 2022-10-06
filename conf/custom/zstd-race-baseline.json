@@ -1,23 +1,38 @@
 {
   "ana": {
-    "base": {
-      "privatization": "none"
-    },
     "activated": [
-      "expRelation", "base", "threadid", "threadflag", "threadreturn",
-      "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-      "deadlock", "symb_locks", "var_eq", "mallocFresh"
+      "expRelation",
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "escape",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "mallocWrapper",
+      "mhp",
+      "symb_locks",
+      "var_eq",
+      "mallocFresh"
     ],
     "ctx_insens": [
-      "var_eq", "deadlock"
+      "var_eq"
     ],
+    "base": {
+      "privatization": "none",
+      "context": {
+        "non-ptr": false
+      }
+    },
     "thread": {
       "domain": "plain",
       "include-node": false
     },
     "malloc": {
       "wrappers": [
-        "ZSTD_customMalloc", "ZSTD_customCalloc"
+        "ZSTD_customMalloc",
+        "ZSTD_customCalloc"
       ]
     },
     "race": {
@@ -42,7 +57,18 @@
     },
     "ignore-const-args": [
       "fprintf"
-    ]
+    ],
+    "restart": {
+      "sided": {
+        "enabled": true,
+        "vars": "write-only",
+        "fuel": 1
+      },
+      "write-only": false
+    },
+    "postsolver": {
+      "enabled": false
+    }
   },
   "exp": {
     "earlyglobs": true,
@@ -53,7 +79,12 @@
     ]
   },
   "pre": {
-    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+    "cppflags": [
+      "-DZSTD_NO_INTRINSICS",
+      "-D_FORTIFY_SOURCE=0",
+      "-DGOBLINT_NO_ASSERT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
   },
   "cil": {
     "merge": {
@@ -67,16 +98,15 @@
     "integer": false,
     "cast": false,
     "race": true,
-    "deadlock": true,
-    "deadcode": false,
+    "deadcode": true,
     "analyzer": false,
     "unsound": false,
     "imprecise": false,
     "unknown": false,
     "error": false,
     "warning": true,
-    "info": true,
+    "info": false,
     "debug": false,
-    "success": false
+    "success": true
   }
 }
