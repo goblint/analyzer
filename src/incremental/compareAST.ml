@@ -18,10 +18,8 @@ let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename
 
   match existingAssumption with
   | Some now ->
-    (*Printf.printf "Assumption is: %s -> %s\n" original now;*)
     now = name2
   | None ->
-    (*Printf.printf "No assumption when %s, %s, %b\n" name1 name2 (name1 = name2);*)
     name1 = name2 (*Var names differ, but there is no assumption, so this can't be good*)
 
 let rename_mapping_to_string (rename_mapping: rename_mapping) =
@@ -159,8 +157,6 @@ and eq_varinfo2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) = eq_
 
 (* TODO introduce default parameter for rename_mapping *)
 and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
-  (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
-
   let (_, method_rename_mappings) = rename_mapping in
 
   (*When we compare function names, we can directly compare the naming from the rename_mapping if it exists.*)
@@ -190,12 +186,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   let typeCheck = eq_typ a.vtype b.vtype typ_rename_mapping in
   let attrCheck = GobList.equal (eq_attribute rename_mapping) a.vattr b.vattr in
 
-  (*let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in *)
-  (*a.vname = b.vname*)
-  let result = isNamingOk && typeCheck && attrCheck &&
-               a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
-
-  result
+  isNamingOk && typeCheck && attrCheck && a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 
 (* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
