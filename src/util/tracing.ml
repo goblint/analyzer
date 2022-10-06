@@ -8,7 +8,7 @@ open Pretty
 module Strs = Set.Make (String)
 
 
-let tracing = ConfigProfile.profile = "trace"
+let tracing = true
 
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown

@@ -1,6 +1,6 @@
 `protection` privatization:
 
-  $ goblint --enable witness.yaml.enabled --disable witness.invariant.other --set ana.base.privatization protection 01-priv_nr.c
+  $ goblint --enable witness.yaml.enabled --disable witness.invariant.other --set ana.base.privatization protection 01-priv_nr.c --trace global_inits --trace set --trace con --trace update_offset
   [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22:3-22:30)
   [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12:3-12:26)
   [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14:3-14:32)
