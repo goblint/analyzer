@@ -2151,7 +2151,7 @@ struct
      | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-    | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+    | (Var v, offs) when v.vglob ->
       (* Optimization: In case of simple integral types, we not need to evaluate the old value.
           v is not an allocated block, as v directly appears as a variable in the program;
           so no explicit check is required here (unlike in set) *)
@@ -2163,14 +2163,14 @@ struct
       in
       begin match current_val with
         | `Bot -> (* current value is VD `Bot *)
-          begin match Addr.to_var_offset (AD.choose lval_val) with
-            | Some (x,offs) ->
+          begin match AD.to_var_offset lval_val with
+            | [(x,offs)] ->
               let t = v.vtype in
               let iv = VD.bot_value t in (* correct bottom value for top level variable *)
-              if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
+              if M.tracing then M.tracel "set" "init bot value (%a): %a\n" d_plaintype t VD.pretty iv;
               let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
-            | None ->
+            | _ ->
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           end
         | _ ->
