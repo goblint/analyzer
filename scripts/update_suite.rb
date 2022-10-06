@@ -312,6 +312,9 @@ class Project
     when /TERM/
       tests[-1] = "term"
     end
+    if tests.empty? then
+      puts "No automatic checks in #{@id}"
+    end
     Tests.new(self, tests, tests_line, todo)
   end
 
