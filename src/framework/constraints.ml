@@ -690,12 +690,18 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
+    let new_fd = Node.find_fundec v in
+    if not (CilType.Fundec.equal old_fd new_fd) then
+      Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
     M.current_context := Some (Obj.repr c);
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
-        M.current_context := old_context
+        M.current_context := old_context;
+        if not (CilType.Fundec.equal old_fd new_fd) then
+          Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
         let d       = tf (v,c) (e,u) getl sidel getg sideg in
         d

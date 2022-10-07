@@ -332,7 +332,7 @@ struct
 
     let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (CfgTools.numGlobals file)^" globals.");
-      Stats.time "global_inits" do_global_inits file
+      Timing.wrap "global_inits" do_global_inits file
     in
 
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
@@ -463,7 +463,7 @@ struct
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
-          let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
+          let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (
@@ -494,7 +494,7 @@ struct
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
-              Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
+              Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
@@ -645,7 +645,7 @@ struct
       | `Right _ -> (* contexts global *)
         ()
     in
-    Stats.time "warn_global" (GHT.iter warn_global) gh;
+    Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;

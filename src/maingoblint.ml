@@ -90,7 +90,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     complete_option_value !last_complete_option s
   in
   [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
-  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
+  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "dbg.timing.enabled" true), ""
   ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
   ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
   ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
@@ -331,7 +331,7 @@ let preprocess_files () =
       | Unix.WEXITED 0 -> ()
       | process_status -> failwith (GobUnix.string_of_process_status process_status)
     in
-    ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
+    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
   );
   preprocessed
 
@@ -394,11 +394,12 @@ let preprocess_parse_merge () =
   |> merge_parsed
 
 let do_stats () =
-  if get_bool "printstats" then (
+  if get_bool "dbg.timing.enabled" then (
     print_newline ();
     ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
-    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    print_string "Timings:\n";
+    Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 
@@ -406,7 +407,8 @@ let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
   Goblintutil.narrow_reuses := 0;
-  Stats.reset SoftwareTimer
+  Timing.Default.reset ();
+  Timing.Program.reset ()
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
@@ -449,7 +451,7 @@ let do_analyze change_info merged_AST =
         (* Cilfacade.current_file := ast'; *)
     in
 
-    Stats.time "analysis" (control_analyze merged_AST) funs
+    Timing.wrap "analysis" (control_analyze merged_AST) funs
   )
 
 let do_html_output () =

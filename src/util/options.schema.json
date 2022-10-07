@@ -29,12 +29,6 @@
       "type": "boolean",
       "default": false
     },
-    "printstats": {
-      "title": "printstats",
-      "description": "Outputs timing information.",
-      "type": "boolean",
-      "default": false
-    },
     "verify": {
       "title": "verify",
       "description":
@@ -1537,6 +1531,25 @@
           "description": "Prints some status information.",
           "type": "boolean",
           "default": false
+        },
+        "timing": {
+          "title": "dbg.timing",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "dbg.timing.enabled",
+              "description": "Collect and output timing information.",
+              "type": "boolean",
+              "default": false
+            },
+            "tef": {
+              "title": "dbg.timing.tef",
+              "description": "Filename for Trace Event Format (TEF) output. Disabled if empty.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
         },
         "trace": {
           "title": "dbg.trace",
