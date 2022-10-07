@@ -1,5 +1,5 @@
-// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 32-base-unassume-ptr.yml
-// TODO: disjunction in invariant
+// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 32-base-unassume-lor-addr.yml
+// TODO: AD refine in invariant
 int main() {
   int i, j;
   int *p;

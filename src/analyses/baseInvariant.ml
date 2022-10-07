@@ -472,8 +472,80 @@ struct
       | UnOp (Neg, e, _), `Float c -> inv_exp (`Float (unop_FD Neg c)) e st
       | UnOp ((BNot|Neg) as op, e, _), `Int c -> inv_exp (`Int (unop_ID op c)) e st
       (* no equivalent for `Float, as VD.is_safe_cast fails for all float types anyways *)
-      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t), `Int c when (op = Eq || op = Ne) && typeSig (Cilfacade.typeOf c1) = typeSig (Cilfacade.typeOf c2) && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2) ->
-        inv_exp (`Int c) (BinOp (op, c1, c2, t)) st
+      | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), `Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
+        inv_exp (`Int c) (BinOp (op, e1, e2, t)) st
+      | BinOp (LOr, arg1, arg2, typ) as exp, `Int c ->
+        (* copied & modified from eval_rv_base... *)
+        let (let*) = Option.bind in
+        (* split nested LOr Eqs to equality pairs, if possible *)
+        let rec split = function
+          (* copied from above to support pointer equalities with implicit casts inserted *)
+          | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
+            Some [(e1, e2)]
+          | BinOp (Eq, arg1, arg2, _) ->
+            Some [(arg1, arg2)]
+          | BinOp (LOr, arg1, arg2, _) ->
+            let* s1 = split arg1 in
+            let* s2 = split arg2 in
+            Some (s1 @ s2)
+          | _ ->
+            None
+        in
+        (* find common exp from all equality pairs and list of other sides, if possible *)
+        let find_common = function
+          | [] -> assert false
+          | (e1, e2) :: eqs ->
+            let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
+            let eqs_map_remove e = List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in
+            if eqs_for_all_mem e1 then
+              Some (e1, e2 :: eqs_map_remove e1)
+            else if eqs_for_all_mem e2 then
+              Some (e2, e1 :: eqs_map_remove e2)
+            else
+              None
+        in
+        let eqs_st =
+          let* eqs = split exp in
+          let* (e, es) = find_common eqs in
+          let v = eval e st in (* value of common exp *)
+          let vs = List.map (fun e -> eval e st) es in (* values of other sides *)
+          match v with
+          | `Address _ ->
+            (* get definite addrs from vs *)
+            let rec to_definite_ad = function
+              | [] -> AD.empty ()
+              | `Address a :: vs when AD.is_definite a ->
+                AD.union a (to_definite_ad vs)
+              | _ :: vs ->
+                AD.top ()
+            in
+            let definite_ad = to_definite_ad vs in
+            let c' = `Address definite_ad in
+            Some (inv_exp c' e st)
+          | `Int i ->
+            let ik = ID.ikind i in
+            let module BISet = IntDomain.BISet in
+            (* get definite ints from vs *)
+            let rec to_int_id = function
+              | [] -> ID.bot_of ik
+              | `Int i :: vs ->
+                begin match ID.to_int i with
+                  | Some i' -> ID.join i (to_int_id vs)
+                  | None -> ID.top_of ik
+                end
+              | _ :: vs ->
+                ID.top_of ik
+            in
+            let int_id = to_int_id vs in
+            let c' = `Int int_id in
+            Some (inv_exp c' e st)
+          | _ ->
+            None
+        in
+        begin match eqs_st with
+          | Some st -> st
+          | None -> st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
+        end
       | (BinOp (op, e1, e2, _) as e, `Float _)
       | (BinOp (op, e1, e2, _) as e, `Int _) ->
         let invert_binary_op c pretty c_int c_float =

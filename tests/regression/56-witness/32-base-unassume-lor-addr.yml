@@ -6,18 +6,18 @@
     producer:
       name: Goblint
       version: heads/yaml-witness-unassume-0-g9426848d9-dirty
-      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''32-base-unassume-ptr.c''
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''32-base-unassume-lor-addr.c''
         ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable''
         ''dbg.timing.enabled'' ''--set'' ''goblint-dir'' ''.goblint-56-32'''
     task:
       input_files:
-      - 32-base-unassume-ptr.c
+      - 32-base-unassume-lor-addr.c
       input_file_hashes:
-        32-base-unassume-ptr.c: 36ab59c15763945f1d20bc6bc4240e220286b6c8e4cef83742733bf75bc397b0
+        32-base-unassume-lor-addr.c: 36ab59c15763945f1d20bc6bc4240e220286b6c8e4cef83742733bf75bc397b0
       data_model: LP64
       language: C
   location:
-    file_name: 32-base-unassume-ptr.c
+    file_name: 32-base-unassume-lor-addr.c
     file_hash: 36ab59c15763945f1d20bc6bc4240e220286b6c8e4cef83742733bf75bc397b0
     line: 8
     column: 2

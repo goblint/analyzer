@@ -287,6 +287,8 @@ struct
   type int_t = I.int_t
   type t = { v : I.t; ikind : CilType.Ikind.t } [@@deriving eq, ord, hash]
 
+  let ikind {ikind; _} = ikind
+
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
   let lift op x = {x with v = op x.ikind x.v }
