@@ -1,0 +1,87 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 8a156304-0058-4a15-a934-884483183ba8
+    creation_time: 2022-10-07T12:43:24Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''31-base-unassume-mem-ex.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-31'''
+    task:
+      input_files:
+      - 31-base-unassume-mem-ex.c
+      input_file_hashes:
+        31-base-unassume-mem-ex.c: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
+      data_model: LP64
+      language: C
+  location:
+    file_name: 31-base-unassume-mem-ex.c
+    file_hash: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
+    line: 16
+    column: 6
+    function: main
+  loop_invariant:
+    string: i >= 0 && j >= 0
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 1d367e5b-84a7-42e3-8191-11384aeca509
+    creation_time: 2022-10-07T12:43:24Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''31-base-unassume-mem-ex.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-31'''
+    task:
+      input_files:
+      - 31-base-unassume-mem-ex.c
+      input_file_hashes:
+        31-base-unassume-mem-ex.c: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
+      data_model: LP64
+      language: C
+  location:
+    file_name: 31-base-unassume-mem-ex.c
+    file_hash: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
+    line: 23
+    column: 6
+    function: main
+  loop_invariant:
+    string: (p == &i || p == &j) && *p >= 0
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: a5dc6e03-3748-4e52-befc-8c846634e329
+    creation_time: 2022-10-07T12:43:24Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''31-base-unassume-mem-ex.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-31'''
+    task:
+      input_files:
+      - 31-base-unassume-mem-ex.c
+      input_file_hashes:
+        31-base-unassume-mem-ex.c: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
+      data_model: LP64
+      language: C
+  location:
+    file_name: 31-base-unassume-mem-ex.c
+    file_hash: 33f8f073cefa79d294ce1e534a3d6db19a6d27ba83efc6b80e0407921997d659
+    line: 30
+    column: 6
+    function: main
+  loop_invariant:
+    string: '*p >= 0'
+    type: assertion
+    format: C
