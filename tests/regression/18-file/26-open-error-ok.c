@@ -1,15 +1,15 @@
-// PARAM: --set ana.activated[+] "'file'" --enable  ana.file.optimistic
+// PARAM: --set ana.activated[+] "'file'" --enable  ana.file.optimistic --disable warn.info
 
 #include <stdio.h>
 
 int main (){
 	FILE *fp;
-	fp = fopen("test.txt", "w");
+	fp = fopen("test.txt", "w"); // NOWARN
 
 	if(fp!=NULL){
-		fprintf(fp, "Testing...");
-		fclose(fp);
+		fprintf(fp, "Testing..."); // NOWARN
+		fclose(fp); // NOWARN
 	}
-}
+} // NOWARN
 
 // All ok!

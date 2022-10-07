@@ -1,3 +1,10 @@
+(env
+ (_
+  (binaries ../util/yamlWitnessStrip.exe)))
+
 (cram
  (applies_to :whole_subtree)
- (deps %{bin:goblint} (package goblint))) ; need entire package for includes/
+ (deps
+  %{bin:goblint}
+  (package goblint) ; need entire package for includes/
+  %{bin:yamlWitnessStrip}))

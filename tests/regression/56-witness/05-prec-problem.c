@@ -1,4 +1,4 @@
-//PARAM: --enable witness.yaml.enabled --enable ana.int.interval
+//PARAM: --enable ana.int.interval
 #include <stdlib.h>
 
 int foo(int* ptr1, int* ptr2){
@@ -8,7 +8,7 @@ int foo(int* ptr1, int* ptr2){
     } else {
         result = 1;
     }
-    // Look at the generated witness.yml to check whether there are contradictory precondition_loop_invariant[s]
+    // cram test checks for precondition invariant soundness
     return result;
 }
 

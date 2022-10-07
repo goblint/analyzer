@@ -30,7 +30,7 @@ static int ipmi_open(struct inode *inode, struct file *file)
     struct ipmi_file_private *priv;
     priv = kmalloc(sizeof(*priv), GFP_KERNEL);
     mutex_lock(&ipmi_mutex);
-    priv->file = file; // should reach fixpoint from priv side effect from here
+    priv->file = file; // FIXPOINT: should reach fixpoint from priv side effect from here
 
     ipmi_create_user(0, &ipmi_hndlrs, priv, &(priv->user));
     file->private_data = priv;

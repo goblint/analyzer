@@ -1,3 +1,4 @@
+// CRAM
 int main()
 {
   // non-deterministically make all variants live

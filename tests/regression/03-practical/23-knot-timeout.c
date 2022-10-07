@@ -1,5 +1,5 @@
 // PARAM: --disable ana.int.def_exc_widen_by_join
-// Used to timeout without ana.int.def_exc_widen_by_join
+// NOTIMEOUT: Used to timeout without ana.int.def_exc_widen_by_join
 #include<pthread.h>
 
 struct a {

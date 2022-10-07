@@ -105,6 +105,7 @@ struct
     column: int;
     function_: string;
   }
+  [@@deriving ord]
 
   let to_yaml {file_name; file_hash; line; column; function_} =
     `O [
@@ -132,6 +133,7 @@ struct
     type_: string;
     format: string;
   }
+  [@@deriving ord]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -154,6 +156,7 @@ struct
     location: Location.t;
     loop_invariant: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "loop_invariant"
 
@@ -175,6 +178,7 @@ struct
   type t = {
     flow_insensitive_invariant: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "flow_insensitive_invariant"
 
@@ -196,6 +200,7 @@ struct
     loop_invariant: Invariant.t;
     precondition: Invariant.t;
   }
+  [@@deriving ord]
 
   let entry_type = "precondition_loop_invariant"
 
@@ -221,6 +226,7 @@ struct
     type_: string;
     file_hash: string;
   }
+  [@@deriving ord]
 
   let to_yaml {uuid; type_; file_hash} =
     `O [
@@ -244,6 +250,7 @@ struct
     type_: string;
     format: string;
   }
+  [@@deriving ord]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -266,6 +273,7 @@ struct
     target: Target.t;
     certification: Certification.t;
   }
+  [@@deriving ord]
 
   let entry_type = "loop_invariant_certificate"
 
@@ -297,6 +305,7 @@ struct
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | LoopInvariantCertificate of LoopInvariantCertificate.t
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
+  [@@deriving ord]
 
   let entry_type = function
     | LoopInvariant _ -> LoopInvariant.entry_type

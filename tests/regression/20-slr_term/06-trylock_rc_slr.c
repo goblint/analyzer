@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval --set solver slr3t
+// FIXPOINT
 #include <pthread.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
