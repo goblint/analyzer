@@ -92,8 +92,9 @@ struct
   (*After a function call, the domain has to be the same as before and we can not depend on the pointers staying the same*)
   (*-> we determine the arrays a pointer can point to once at the beginning of a function*)
   (*There surely is a better way, because this means that often the wrong one gets chosen*)
+  module VarH = Hashtbl.Make(CilType.Varinfo)
   module VarMap = Map.Make(CilType.Varinfo)
-  let array_map = Hashtbl.create 20
+  let array_map = VarH.create 20
 
   let add_to_array_map fundec arguments =
     let rec pointedArrayMap = function
@@ -107,12 +108,12 @@ struct
           | _ -> pointedArrayMap xs
       )
     in
-    match Hashtbl.find_option array_map fundec.svar with
+    match VarH.find_option array_map fundec.svar with
     | Some _ -> () (*We already have something -> do not change it*)
-    | None -> Hashtbl.add array_map fundec.svar (pointedArrayMap arguments)
+    | None -> VarH.add array_map fundec.svar (pointedArrayMap arguments)
 
   let attributes_varinfo info fundec =
-    let map = Hashtbl.find array_map fundec.svar in
+    let map = VarH.find array_map fundec.svar in
     match VarMap.find_opt info map with
     | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
     | None -> Some (info.vattr, typeAttrs (info.vtype))
@@ -156,7 +157,7 @@ struct
 
   let finalize () =
     Priv.finalize ();
-    Hashtbl.clear array_map
+    VarH.clear array_map
 
   (**************************************************************************
    * Abstract evaluation functions
