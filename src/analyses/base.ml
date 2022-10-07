@@ -93,7 +93,7 @@ struct
   (*-> we determine the arrays a pointer can point to once at the beginning of a function*)
   (*There surely is a better way, because this means that often the wrong one gets chosen*)
   module VarMap = Map.Make(CilType.Varinfo)
-  let array_map = ref VarMap.empty
+  let array_map = Hashtbl.create 20
 
   let add_to_array_map fundec arguments =
     let rec pointedArrayMap = function
@@ -106,17 +106,16 @@ struct
           )
           | _ -> pointedArrayMap xs
       )
-  in
-  match VarMap.find_opt fundec.svar !array_map with
-      (*We already have something -> do not change it*)
-      | Some _ -> ()
-      | None -> array_map := VarMap.add fundec.svar (pointedArrayMap arguments) !array_map
+    in
+    match Hashtbl.find_option array_map fundec.svar with
+    | Some _ -> () (*We already have something -> do not change it*)
+    | None -> Hashtbl.add array_map fundec.svar (pointedArrayMap arguments)
 
-  let attibutes_varinfo info fundec =
-    let map = VarMap.find fundec.svar !array_map in
+  let attributes_varinfo info fundec =
+    let map = Hashtbl.find array_map fundec.svar in
     match VarMap.find_opt info map with
-      | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
-      | None -> Some (info.vattr, typeAttrs (info.vtype))
+    | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+    | None -> Some (info.vattr, typeAttrs (info.vtype))
 
   let project_val ask array_attr p_opt value is_glob =
     let p = if GobConfig.get_bool "annotation.int.enabled" then (
@@ -125,11 +124,11 @@ struct
         else p_opt
       ) else None
     in
-    let a = if GobConfig.get_bool "annotation.array" then array_attr else None in
+    let a = if GobConfig.get_bool "annotation.goblint_array_domain" then array_attr else None in
     VD.project ask p a value
 
   let project ask p_opt cpa fundec =
-    CPA.mapi (fun varinfo value -> project_val ask (attibutes_varinfo varinfo fundec) p_opt value (is_privglob varinfo))
+    CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo))
     cpa
 
 
@@ -156,7 +155,8 @@ struct
     Priv.init ()
 
   let finalize () =
-    Priv.finalize ()
+    Priv.finalize ();
+    Hashtbl.clear array_map
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -2762,7 +2762,7 @@ struct
       | Some n -> Node.find_fundec n
       | None -> failwith "callerfundec not found"
       in
-      let return_val = project_val (Analyses.ask_of_ctx ctx) (attibutes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
       let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)

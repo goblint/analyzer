@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.arrays.unrolling-factor 2  --enable annotation.array
+// PARAM: --set ana.base.arrays.unrolling-factor 2  --enable annotation.goblint_array_domain
 #include <assert.h>
 
 void main(void) {

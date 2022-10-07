@@ -140,19 +140,19 @@ let reduceThreadAnalyses () =
   let hasThreadCreate () =
     ResettableLazy.force functionCallMaps
     |> fun (_,x,_) -> x  (*every function that is called*)
-                      |> FunctionCallMap.exists
-                        (fun var (callers,_) ->
-                           let desc = LibraryFunctions.find var in
-                           match (functionArgs var) with
-                           | None -> false;
-                           | Some args ->
-                             match desc.special args with
-                             | ThreadCreate _ ->
-                               print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
-                               FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
-                               true;
-                             | _ -> false;
-                        )
+    |> FunctionCallMap.exists
+      (fun var (callers,_) ->
+          let desc = LibraryFunctions.find var in
+          match (functionArgs var) with
+          | None -> false;
+          | Some args ->
+            match desc.special args with
+            | ThreadCreate _ ->
+              print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
+              FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
+              true;
+            | _ -> false;
+      )
   in
   if not @@ hasThreadCreate () then (
     print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
@@ -202,15 +202,20 @@ class addTypeAttributeVisitor = object
        info.vattr <- addAttribute (Attr ("goblint_array_domain", [AStr "partitioned"])) info.vattr);
     DoChildren
 
-  (*Set arrays with important types to unroll*)
+  (*Set arrays with important types for thread analysis to unroll*)
   method! vtype typ =
+    let is_important_type (t: typ): bool = match t with
+      | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
+      | TInt (IInt, attr) -> hasAttribute "mutex" attr
+      | _ -> false
+    in
     if is_important_type typ && not @@ hasAttribute "goblint_array_domain" (typeAttrs typ) then
       ChangeTo (typeAddAttributes [Attr ("goblint_array_domain", [AStr "unroll"])] typ)
     else SkipChildren
 end
 
 let selectArrayDomains file =
-  set_bool "annotation.array" true;
+  set_bool "annotation.goblint_array_domain" true;
   let thisVisitor = new addTypeAttributeVisitor in
   ignore (visitCilFileSameGlobals thisVisitor file)
 (*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
@@ -283,19 +288,11 @@ class octagonVariableVisitor(varMap, globals) = object
 end
 
 let topVars n varMap=
-  let rec take n l =
-    if n <= 0 then
-      []
-    else
-      match l with
-      | x :: xs -> x :: take (n-1) xs
-      | [] -> []
-  in
   let compareValueDesc = (fun (_,v1) (_,v2) -> - (compare v1 v2)) in
   varMap
   |> VariableMap.bindings
   |> List.sort compareValueDesc
-  |> take n
+  |> BatList.take n
   |> List.map fst
 
 class octagonFunctionVisitor(list, amount) = object
@@ -335,7 +332,7 @@ let apronOctagonOption factors file =
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
     print_endline @@ "Octagon: " ^ string_of_int cost;
-    set_bool "annotation.track_apron" true;
+    set_bool "annotation.goblint_apron_track" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
