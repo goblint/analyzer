@@ -574,25 +574,34 @@ struct
             | `Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
             | `Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
             | _ -> failwith "unreachable")
-      | Lval x, `Int _(* meet x with c *)
-      | Lval x, `Float _ -> (* meet x with c *)
+      | Lval x, (`Int _ | `Float _ | `Address _) -> (* meet x with c *)
         let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
         let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
-        (match c_typed with
-         | `Int c -> update_lval c x (match t with
-             | TPtr _ -> `Address (AD.of_int (module ID) c)
-             | TInt (ik, _)
-             | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
-             | TFloat (fk, _) -> `Float (FD.of_int fk c)
-             | _ -> `Int c) ID.pretty
-         | `Float c -> update_lval c x (match t with
-             (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
-             | TInt (ik, _) -> `Int (FD.to_int ik c)
-             (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
-             | TEnum ({ekind = ik; _}, _) -> `Int (FD.to_int ik c)
-             | TFloat (fk, _) -> `Float (FD.cast_to fk c)
-             | _ -> `Float c) FD.pretty
-         | _ -> failwith "unreachable")
+        begin match c_typed with
+          | `Int c ->
+            let c' = match t with
+              | TPtr _ -> `Address (AD.of_int (module ID) c)
+              | TInt (ik, _)
+              | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
+              | TFloat (fk, _) -> `Float (FD.of_int fk c)
+              | _ -> `Int c
+            in
+            update_lval c x c' ID.pretty
+          | `Float c ->
+            let c' = match t with
+              (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
+              | TInt (ik, _) -> `Int (FD.to_int ik c)
+              (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
+              | TEnum ({ekind = ik; _}, _) -> `Int (FD.to_int ik c)
+              | TFloat (fk, _) -> `Float (FD.cast_to fk c)
+              | _ -> `Float c
+            in
+            update_lval c x c' FD.pretty
+          | `Address c ->
+            let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
+            update_lval c x c' AD.pretty
+          | _ -> assert false
+        end
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
         (match Cilfacade.typeOf e, FD.get_fkind c with
