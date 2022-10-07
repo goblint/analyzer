@@ -266,11 +266,28 @@ struct
            (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
              * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
              * Only if a is a definite value, we can exclude it from b: *)
-           (* TODO: This causes inconsistent results:
+           (* Used to cause inconsistent results:
               interval not sufficiently refined:
                 inv_bin_int: unequal: (Unknown int([-31,31]),[0,1]) and (0,[0,0]); ikind: int; a': (Not {0}([-31,31]),[-2147483648,2147483647]), b': (0,[0,0])
                 binop: m == 0, a': (Not {0}([-31,31]),[0,1]), b': (0,[0,0]) *)
-           let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
+           let excl a b =
+            match ID.to_int a with
+            | Some x ->
+              let ex1 = ID.of_excl_list ikind [x] in
+              let ex2 =
+                (* Fix previously inconsistent results by excluding interval bounds. *)
+                let top_ik = ID.top_of ikind in
+                match ID.minimal b, ID.maximal b with
+                | Some lb, Some ub ->
+                  let starting = if Z.equal lb x then ID.starting ikind (Z.add lb Z.one) else top_ik in
+                  let ending = if Z.equal ub x then ID.ending ikind (Z.sub ub Z.one) else top_ik in
+                  ID.meet starting ending
+                | _ ->
+                  top_ik
+              in
+              ID.meet ex1 ex2
+            | None -> b
+           in
            let a' = excl b a in
            let b' = excl a b in
            if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
