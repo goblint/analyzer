@@ -34,9 +34,6 @@ struct
   let vdecl ctx (var:varinfo) =
     emit_splits_ctx ctx
 
-  let vdecl ctx (var:varinfo) =
-    emit_splits_ctx ctx
-
   let branch ctx (exp:exp) (tv:bool) =
     emit_splits_ctx ctx
 

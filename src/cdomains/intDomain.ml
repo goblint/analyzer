@@ -597,10 +597,6 @@ struct
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
 
-  let range_opt f = function
-    | None -> None
-    | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range ik)
-
   let starting ik n =
     norm ik @@ Some (n, snd (range ik))
 

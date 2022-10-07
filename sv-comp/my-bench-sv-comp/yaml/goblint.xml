@@ -5,7 +5,7 @@
   <resultfiles>**.yml</resultfiles>
 
   <option name="--conf">conf/svcomp-yaml.json</option>
-  <option name="--enable">printstats</option>
+  <option name="--enable">dbg.timing.enabled</option>
 
   <columns>
     <column title="evals">evals = (\d+)</column>

@@ -16,7 +16,6 @@ let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines"
 
 let init () =
-  Stats.countCalls := true;
   initCIL ();
   removeBranchingOnConstants := false;
   lowerConstants := true;
@@ -28,7 +27,9 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  Frontc.parse (Fpath.to_string fileName) ()
+  let fileName_str = Fpath.to_string fileName in
+  let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
+  Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil ()
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
@@ -238,7 +239,7 @@ class addConstructors cons = object
 end
 
 let getMergedAST fileASTs =
-  let merged = Stats.time "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
+  let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
   merged
