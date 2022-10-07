@@ -3,7 +3,9 @@
 open Prelude.Ana
 open Analyses
 
-module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
+(* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit and type marshal = unit = *)
+(* No signature so others can override module G *)
+module Spec =
 struct
   include Analyses.DefaultSpec
 

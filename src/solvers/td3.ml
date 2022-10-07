@@ -197,7 +197,7 @@ module WP =
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
-          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             if tracing then trace "sol" "Changed\n";
             update_var_event x old tmp;
             HM.replace rho x tmp;
@@ -231,15 +231,15 @@ module WP =
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
-        if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
-        if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
+        if not space || HM.mem wpoint y then (solve y Widen; HM.find rho y) else
+        if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else (* TODO: [HM.mem called y] is not in the TD3 paper, what is it for? optimization? *)
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
           let tmp = eq y (eval l x) (side ~x) in
           HM.remove called y;
-          if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
+          if HM.mem wpoint y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
         )
       and eval l x y =
@@ -778,7 +778,7 @@ module WP =
           List.iter get vs;
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
-        Stats.time "restore" restore ();
+        Timing.wrap "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
@@ -861,7 +861,7 @@ module WP =
               Option.may (VS.iter one_var') (HM.find_option side_infl x)
             )
           in
-          (Stats.time "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
+          (Timing.wrap "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
 
           reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
         else if incr_verify then

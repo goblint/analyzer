@@ -34,6 +34,8 @@ depends: [
   "bigstringaf" {= "0.8.0"}
   "bos" {= "0.2.1"}
   "camlidl" {= "1.09"}
+  "catapult" {= "0.1.1"}
+  "catapult-file" {= "0.1.1"}
   "cmdliner" {= "1.1.1" & with-doc}
   "conf-autoconf" {= "0.1"}
   "conf-gcc" {= "1.0"}
@@ -120,6 +122,10 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-distribution != "alpine" & arch != "arm64"
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
+  [
+    "goblint-cil.2.0.0"
+    "git+https://github.com/goblint/cil.git#bfb977b48d6d92e0ecbdab2e04f2576095506107"
+  ]
   [
     "apron.v0.9.13"
     "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"

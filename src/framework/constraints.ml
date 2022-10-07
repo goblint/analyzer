@@ -690,12 +690,18 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
+    let new_fd = Node.find_fundec v in
+    if not (CilType.Fundec.equal old_fd new_fd) then
+      Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
     M.current_context := Some (Obj.repr c);
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
-        M.current_context := old_context
+        M.current_context := old_context;
+        if not (CilType.Fundec.equal old_fd new_fd) then
+          Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
         let d       = tf (v,c) (e,u) getl sidel getg sideg in
         d
@@ -928,15 +934,21 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = HoareDomain.Set(Spec.D).t
-     and module G = Spec.G
+    with module G = Spec.G
      and module C = Spec.C
      and module V = Spec.V
 =
 struct
   module D =
   struct
-    include HoareDomain.Set (Spec.D) (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
+    module C =
+    struct
+      type elt = Spec.D.t
+      let cong = Spec.should_join
+    end
+    module J = SetDomain.Joined (Spec.D)
+    include DisjointDomain.PairwiseSet (Spec.D) (J) (C)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -944,27 +956,6 @@ struct
         BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x
       in
       iter print_one x
-
-    (* join elements in the same partition (specified by should_join) *)
-    let join_reduce a =
-      let rec loop js = function
-        | [] -> js
-        | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
-            if Spec.should_join x j then Spec.D.join x j, r else j, x::r
-          ) (x,[]) xs in
-          loop (j::js) r
-      in
-      apply_list (loop []) a
-
-    let leq a b =
-      leq a b || leq (join_reduce a) (join_reduce b)
-
-    let binop op a b = op a b |> join_reduce
-
-    let join = binop join
-    let meet = binop meet
-    let widen = binop widen
-    let narrow = binop narrow
   end
 
   module G = Spec.G
@@ -1027,7 +1018,7 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
+  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* TODO: handle Invariant path like PathSensitive3? *)
@@ -1124,6 +1115,14 @@ struct
               | `Top -> (* may be both true and false *)
                 ()
             ) em;
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->
       (* vars for S *)

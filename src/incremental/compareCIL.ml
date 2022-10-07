@@ -101,7 +101,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
           let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) old current in
-          if diffNodes1 = [] then (Changed, None)
+          if diffNodes1 = [] then (Unchanged, None)
           else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1})
 
 let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match old, current with
@@ -201,4 +201,4 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 (** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
     which describes which [global]s are changed, unchanged, removed and added.  *)
 let compareCilFiles ?eq (oldAST: file) (newAST: file) =
-  Stats.time "compareCilFiles" (compareCilFiles ?eq oldAST) newAST
+  Timing.wrap "compareCilFiles" (compareCilFiles ?eq oldAST) newAST

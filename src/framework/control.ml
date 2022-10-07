@@ -109,7 +109,6 @@ struct
           ) file_lines acc
       ) !live_lines 0
     in
-    printf "Live lines: %d\n" live_count;
     let live file fn =
       try StringMap.find fn (StringMap.find file !live_lines)
       with Not_found -> BatISet.empty
@@ -149,14 +148,15 @@ struct
     in
     let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "ana.dead-code.lines" then (
-      if StringMap.is_empty !dead_lines
-      then printf "No lines with dead code found by solver.\n"
-      else (
-        StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
-        let total_dead = !count + uncalled_fn_loc in
-        printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
-      );
-      printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
+      StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
+      let severity: M.Severity.t = if StringMap.is_empty !dead_lines then Info else Warning in
+      let dead_total = !count + uncalled_fn_loc in
+      let total = live_count + dead_total in (* We can only give total LoC if we counted dead code *)
+      M.msg_group severity ~category:Deadcode "Logical lines of code (LLoC) summary" [
+        (Pretty.dprintf "live: %d" live_count, None);
+        (Pretty.dprintf "dead: %d%s" dead_total (if uncalled_fn_loc > 0 then Printf.sprintf " (%d in uncalled functions)" uncalled_fn_loc else ""), None);
+        (Pretty.dprintf "total: %d" total, None);
+      ]
     );
     NH.mem live_nodes
 
@@ -332,7 +332,7 @@ struct
 
     let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (CfgTools.numGlobals file)^" globals.");
-      Stats.time "global_inits" do_global_inits file
+      Timing.wrap "global_inits" do_global_inits file
     in
 
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
@@ -463,7 +463,7 @@ struct
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
-          let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
+          let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (
@@ -494,7 +494,7 @@ struct
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
-              Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
+              Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
@@ -539,7 +539,7 @@ struct
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "ana.dead-code.functions" then
-              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
+              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function '%a' is uncalled: %d LLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
@@ -547,7 +547,7 @@ struct
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
       if get_bool "dbg.debug" && Spec.D.is_bot main_sol then
-        print_endline "NB! Execution does not reach the end of Main.\n";
+        M.warn_noloc ~category:Deadcode "Function 'main' does not return";
 
       if get_bool "dump_globs" then
         print_globals gh;
@@ -645,7 +645,7 @@ struct
       | `Right _ -> (* contexts global *)
         ()
     in
-    Stats.time "warn_global" (GHT.iter warn_global) gh;
+    Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;

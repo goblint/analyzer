@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 
 struct s {
@@ -9,7 +9,7 @@ struct s {
 extern struct s *get_s();
 
 void *t_fun(void *arg) {
-  struct s *s; 
+  struct s *s;
   s = get_s();
   pthread_mutex_lock(&s->mutex);
   s->datum = 5; // NORACE
@@ -31,6 +31,8 @@ int main () {
 
   pthread_mutex_lock(m);
   *d = 8; // NORACE
+  // TODO: var_eq loses d = &s->datum here, so a second identical assign is considered racing
+  // *d = 8; // NORACE
   pthread_mutex_unlock(m);
 
   return 0;

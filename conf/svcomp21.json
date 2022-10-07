@@ -56,6 +56,9 @@
   "sem": {
     "unknown_function": {
       "spawn": false
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
   },
   "witness": {

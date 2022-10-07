@@ -573,11 +573,12 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
     | (`Float x, `Float y) -> `Float (FD.widen x y)
+    (* TODO: symmetric widen, wtf? *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
-        | Some x -> AD.(widen y not_null)
-        | None -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x -> AD.(widen y (join y not_null))
+        | None -> AD.widen y (AD.join y AD.top_ptr))
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -658,11 +659,12 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
     | (`Float x, `Float y) -> `Float (FD.widen x y)
+    (* TODO: symmetric widen, wtf? *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
-        | Some x -> AD.(widen y not_null)
-        | None -> AD.widen y AD.top_ptr)
+        | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | Some x -> AD.(widen y (join y not_null))
+        | None -> AD.widen y (AD.join y AD.top_ptr))
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
@@ -775,17 +777,15 @@ struct
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
-        begin
-        match ask.f (Q.MayPointTo (Lval lval)) with
-        | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
-          begin
-          match Q.LS.choose v with
-          | (var,`Index (i,`NoOffset)) when Basetype.CilExp.equal i Cil.zero && CilType.Varinfo.equal var arr_start_var ->
-            (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
-            add
-          | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
-          end
-        | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
+        begin match ask.f (Q.MayPointTo (Lval lval)) with
+          | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
+            begin match Q.LS.choose v with
+              | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
+                (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
+                add
+              | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
+            end
+          | _ ->  BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
         end
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in
@@ -1204,3 +1204,115 @@ and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and typ
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
+
+
+module type InvariantArg =
+sig
+  val context: Invariant.context
+  val scope: fundec
+  val find: varinfo -> Compound.t
+end
+
+module ValueInvariant (Arg: InvariantArg) =
+struct
+  open Arg
+
+  (* VS is used to detect and break cycles in deref_invariant calls *)
+  module VS = Set.Make (Basetype.Variables)
+
+  let rec ad_invariant ~vs ~offset ~lval x =
+    let c_exp = Cil.(Lval (Option.get lval)) in
+    let i_opt = AD.fold (fun addr acc_opt ->
+        BatOption.bind acc_opt (fun acc ->
+            match addr with
+            | Addr.UnknownPtr ->
+              None
+            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+              let rec offs_to_offset = function
+                | `NoOffset -> NoOffset
+                | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                | `Index (i, offs) ->
+                  (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
+                  let i_definite = BatOption.get (IndexDomain.to_int i) in
+                  let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+                  Index (i_exp, offs_to_offset offs)
+              in
+              let offset = offs_to_offset offs in
+
+              let i =
+                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                else
+                  Invariant.none
+              in
+              let i_deref = deref_invariant ~vs ~lval vi offset (Mem c_exp, NoOffset) in
+
+              Some (Invariant.(acc || (i && i_deref)))
+            | Addr.NullPtr ->
+              let i =
+                let addr_exp = integer 0 in
+                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                else
+                  Invariant.none
+              in
+              Some (Invariant.(acc || i))
+            (* TODO: handle Addr.StrPtr? *)
+            | _ ->
+              None
+          )
+      ) x (Some (Invariant.bot ()))
+    in
+    match i_opt with
+    | Some i -> i
+    | None -> Invariant.none
+
+  and blob_invariant ~vs ~offset ~lval (v, _, _) =
+    vd_invariant ~vs ~offset ~lval v
+
+  and vd_invariant ~vs ~offset ~lval = function
+    | `Int n ->
+      let e = Lval (Option.get lval) in
+      if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+        ID.invariant e n
+      else
+        Invariant.none
+    | `Float n ->
+      let e = Lval (Option.get lval) in
+      if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+        FD.invariant e n
+      else
+        Invariant.none
+    | `Address n -> ad_invariant ~vs ~offset ~lval n
+    | `Blob n -> blob_invariant ~vs ~offset ~lval n
+    | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | _ -> Invariant.none (* TODO *)
+
+  (* TODO: remove duplicate lval arguments? *)
+  and deref_invariant ~vs ~lval vi offset lval' =
+    let v = find vi in
+    key_invariant_lval ~vs ~lval vi offset lval' v
+
+  and key_invariant_lval ~vs ~lval k offset lval' v =
+    if not (VS.mem k vs) then
+      let vs' = VS.add k vs in
+      vd_invariant ~vs:vs' ~offset ~lval:(Some lval') v
+    else
+      Invariant.none
+
+
+  let key_invariant k ?(offset=NoOffset) v = key_invariant_lval ~vs:VS.empty ~lval:None k offset (var k) v
+end
+
+let invariant_global find g =
+  let module Arg =
+  struct
+    let context = Invariant.default_context
+    let scope = dummyFunDec
+    let find = find
+  end
+  in
+  let module I = ValueInvariant (Arg) in
+  I.key_invariant g (find g)
