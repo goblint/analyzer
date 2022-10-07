@@ -108,7 +108,7 @@ struct
         end
       in
 
-      Timing.wrap "deadlock" (iter_lock LS.empty []) g
+      Timing.wrap ~args:[("lock", `String (Lock.show g))] "deadlock" (iter_lock LS.empty []) g
     | _ -> Queries.Result.top q
 end
 
