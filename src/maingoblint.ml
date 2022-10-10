@@ -461,7 +461,7 @@ let do_html_output () =
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
       let command = "java -jar "^ jar ^" --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
-      try match Unix.system command with
+      try match Timing.wrap "g2html" Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed! Command: %s\n" command
       with Unix.Unix_error (e, f, a) ->
