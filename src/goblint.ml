@@ -58,6 +58,7 @@ let main () =
         else
           Analyses.empty_increment_data ()
       in
+      if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_stats ();
       do_html_output ();
