@@ -1111,9 +1111,9 @@ struct
                 let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
                 let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
                 M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
-              | `Bot when exp <> one ->
-                M.error ~loc:(Node g) ~category:Analyzer "both branches over condition '%a' are dead"  d_exp exp
-              | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()
             ) em;
