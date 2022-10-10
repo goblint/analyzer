@@ -139,19 +139,18 @@ let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread
 let reduceThreadAnalyses () =
   let hasThreadCreate () =
     ResettableLazy.force functionCallMaps
-    |> fun (_,x,_) -> x  (*every function that is called*)
-    |> FunctionCallMap.exists
-      (fun var (callers,_) ->
-          let desc = LibraryFunctions.find var in
-          match (functionArgs var) with
-          | None -> false;
-          | Some args ->
-            match desc.special args with
-            | ThreadCreate _ ->
-              print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
-              FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
-              true;
-            | _ -> false;
+    |> (fun (_,x,_) -> x)  (*every function that is called*)
+    |> FunctionCallMap.exists (fun var (callers,_) ->
+        let desc = LibraryFunctions.find var in
+        match functionArgs var with
+        | None -> false;
+        | Some args ->
+          match desc.special args with
+          | ThreadCreate _ ->
+            print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
+            FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
+            true
+          | _ -> false
       )
   in
   if not @@ hasThreadCreate () then (

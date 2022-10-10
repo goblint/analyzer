@@ -99,14 +99,12 @@ struct
   let add_to_array_map fundec arguments =
     let rec pointedArrayMap = function
       | [] -> VarMap.empty
-      | (info,value)::xs -> (
+      | (info,value)::xs ->
         match value with
-          | `Address t when hasAttribute "goblint_array_domain" info.vattr -> (
-            let possibleVars = PreValueDomain.AD.to_var_may t in
-            List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
-          )
-          | _ -> pointedArrayMap xs
-      )
+        | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
+          let possibleVars = PreValueDomain.AD.to_var_may t in
+          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+        | _ -> pointedArrayMap xs
     in
     match VarH.find_option array_map fundec.svar with
     | Some _ -> () (*We already have something -> do not change it*)
@@ -129,8 +127,7 @@ struct
     VD.project ask p a value
 
   let project ask p_opt cpa fundec =
-    CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo))
-    cpa
+    CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
 
   (**************************************************************************
@@ -2760,8 +2757,8 @@ struct
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.int_precision_from_node ()in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let callerFundec = match !MyCFG.current_node with
-      | Some n -> Node.find_fundec n
-      | None -> failwith "callerfundec not found"
+        | Some n -> Node.find_fundec n
+        | None -> failwith "callerfundec not found"
       in
       let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
       let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
