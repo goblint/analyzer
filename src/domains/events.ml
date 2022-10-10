@@ -8,9 +8,24 @@ type t =
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
   | Access of {exp: CilType.Exp.t; lvals: Queries.LS.t; kind: AccessKind.t; reach: bool}
-  | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *)
+  | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *) (* TODO: unused *)
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | Unassume of {exp: CilType.Exp.t; uuids: string list}
+
+(** Should event be emitted after transfer function raises [Deadcode]? *)
+let emit_on_deadcode = function
+  | Unlock _ (* Privatization must still publish. *)
+  | Escape _ (* Privatization must still handle escapes. *)
+  | EnterMultiThreaded (* Privatization must still publish. *)
+  | Access _ -> (* Protection and races must still consider access. *)
+    true
+  | Lock _ (* Doesn't need to publish. *)
+  | SplitBranch _ (* only emitted in split, which is never dead. *)
+  | AssignSpawnedThread _ (* Happens only after live thread spawn. *)
+  | Assign _
+  | UpdateExpSplit _ (* Pointless to split on dead. *)
+  | Unassume _ -> (* Avoid spurious writes. *)
+    false
 
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m

@@ -1,0 +1,58 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e1da1c44-5406-4bce-ab4a-3597a2b36e24
+    creation_time: 2022-10-07T11:52:13Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''34-base-unassume-inc-dec-traces.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-30'''
+    task:
+      input_files:
+      - 34-base-unassume-inc-dec-traces.c
+      input_file_hashes:
+        34-base-unassume-inc-dec-traces.c: 3df8890403a9efa4ab1c824bac7eba729e187ba93605beda5034793b99ab7bf0
+      data_model: LP64
+      language: C
+  location:
+    file_name: 34-base-unassume-inc-dec-traces.c
+    file_hash: 3df8890403a9efa4ab1c824bac7eba729e187ba93605beda5034793b99ab7bf0
+    line: 10
+    column: 4
+    function: t_fun
+  loop_invariant:
+    string: -10 <= g && g <= 10
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 16a70fb8-6f51-4a2c-a2e0-a68a4baf1575
+    creation_time: 2022-10-07T11:52:13Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''34-base-unassume-inc-dec-traces.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-30'''
+    task:
+      input_files:
+      - 34-base-unassume-inc-dec-traces.c
+      input_file_hashes:
+        34-base-unassume-inc-dec-traces.c: 3df8890403a9efa4ab1c824bac7eba729e187ba93605beda5034793b99ab7bf0
+      data_model: LP64
+      language: C
+  location:
+    file_name: 34-base-unassume-inc-dec-traces.c
+    file_hash: 3df8890403a9efa4ab1c824bac7eba729e187ba93605beda5034793b99ab7bf0
+    line: 20
+    column: 4
+    function: t_fun2
+  loop_invariant:
+    string: -10 <= g && g <= 10
+    type: assertion
+    format: C
