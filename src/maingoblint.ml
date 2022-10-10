@@ -460,7 +460,7 @@ let do_html_output () =
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
-      let command = "java -jar "^ jar ^" --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
+      let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
       try match Timing.wrap "g2html" Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed! Command: %s\n" command

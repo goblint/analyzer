@@ -161,7 +161,7 @@
     },
     "jobs": {
       "title": "jobs",
-      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing and g2html.",
       "type": "integer",
       "default": 1
     },
