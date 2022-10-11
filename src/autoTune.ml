@@ -244,9 +244,9 @@ let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
   | BinOp (MinusA, e1,e2, (TInt _)) -> (
       match extractVar e1, extractVar e2 with
-      | Some a, Some b -> Some (Either.Left (a,b))
+      | Some a, Some b -> Some (`Left (a,b))
       | Some a, None
-      | None, Some a -> if isConstant e1 then Some (Either.Right a) else None
+      | None, Some a -> if isConstant e1 then Some (`Right a) else None
       | _,_ -> None
     )
   | _ -> None
@@ -259,10 +259,10 @@ let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then var
         VariableMap.add key v !varMap
 
 let handle varMap v globals = function
-  | Some (Either.Left (a,b)) ->
+  | Some (`Left (a,b)) ->
     addOrCreateVarMapping varMap a v globals;
     addOrCreateVarMapping varMap b v globals;
-  | Some (Either.Right a) ->  addOrCreateVarMapping varMap a v globals;
+  | Some (`Right a) ->  addOrCreateVarMapping varMap a v globals;
   | None -> ()
 
 class octagonVariableVisitor(varMap, globals) = object
@@ -275,7 +275,7 @@ class octagonVariableVisitor(varMap, globals) = object
         handle varMap 5 globals (extractOctagonVars e2) ;
         DoChildren
       )
-    | Lval ((Var info),_) -> handle varMap 1 globals (Some (Either.Right info)) ; SkipChildren
+    | Lval ((Var info),_) -> handle varMap 1 globals (Some (`Right info)) ; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
