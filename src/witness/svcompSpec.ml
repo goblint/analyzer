@@ -1,4 +1,3 @@
-open GoblintCil
 open Batteries
 
 type t =

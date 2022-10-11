@@ -84,7 +84,6 @@ struct
     let live_nodes : unit NH.t = NH.create 10 in
     let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
-    let open BatPrintf in
     let live_lines = ref StringMap.empty in
     let dead_lines = ref StringMap.empty in
     let add_one n v =
