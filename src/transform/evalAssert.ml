@@ -50,7 +50,6 @@ module EvalAssert = struct
       in
 
       let make_assert ~node loc lval =
-        Node.current_node := Some node;
         let lvals = match lval with
           | None -> CilLval.Set.top ()
           | Some lval -> CilLval.(Set.singleton lval)
