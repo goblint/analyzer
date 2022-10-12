@@ -69,33 +69,32 @@ module EvalAssert = struct
       in
 
       let instrument_instructions il s =
-
-          let instrument ~node i loc =
-            let instrument' lval =
-              let lval_arg = if full then None else lval in
-              make_assert ~node loc lval_arg
-            in
-            match i with
-            | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
-            | Set  (lval, _, _, _) when emit_other -> instrument' (Some lval)
-            | Call (lval, _, _, _, _) when emit_other -> instrument' lval
-            | _ -> []
+        let instrument ~node i loc =
+          let instrument' lval =
+            let lval_arg = if full then None else lval in
+            make_assert ~node loc lval_arg
           in
-          let instrument_instructions = function
+          match i with
+          | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
+          | Set  (lval, _, _, _) when emit_other -> instrument' (Some lval)
+          | Call (lval, _, _, _, _) when emit_other -> instrument' lval
+          | _ -> []
+        in
+        let instrument_instructions = function
           | [] -> []
           | [i] when List.length s.succs <= 1 ->
-              let stmt = List.hd s.succs in
-              let loc = Cilfacade.get_stmtLoc stmt in
-              let node = Node.Statement stmt in
-              i :: (instrument ~node i loc)
+            let stmt = List.hd s.succs in
+            let loc = Cilfacade.get_stmtLoc stmt in
+            let node = Node.Statement stmt in
+            i :: (instrument ~node i loc)
           | [i] ->
-              (* More than one successor means that there is some branching is happening, that is not expected for an instruction. *)
-              failwith "Instruction has more than one successor; at most one is expected."
+            (* More than one successor means that there is some branching is happening, that is not expected for an instruction. *)
+            failwith "Instruction has more than one successor; at most one is expected."
           | i1 :: (i2 :: _) ->
-              failwith "There were multiple instructions in one statement, but only one is expected."
-          in
-          instrument_instructions il
+            failwith "There were multiple instructions in one statement, but only one is expected."
         in
+        instrument_instructions il
+      in
 
       let instrument_join s =
         match s.preds with
