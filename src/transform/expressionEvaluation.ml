@@ -52,7 +52,7 @@ struct
     (* Concatenate lines into one *)
     |> List.fold_left (^) ""
 
-  class evaluator (file : Cil.file) (ask : Cil.location -> Queries.ask) =
+  class evaluator (file : Cil.file) (ask : ?node:Node.t -> Cil.location -> Queries.ask) =
     object (self)
 
       val global_variables =
@@ -162,7 +162,7 @@ struct
   let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
   let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte
 
-  let transform (ask : Cil.location -> Queries.ask) (file : Cil.file) =
+  let transform (ask : ?node:Node.t -> Cil.location -> Queries.ask) (file : Cil.file) =
     let query = match !gv_query with
       | Some q -> Ok q
       | _ -> query_from_file (GobConfig.get_string transformation_query_file_name_identifier)

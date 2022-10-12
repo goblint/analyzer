@@ -31,7 +31,7 @@ module EvalAssert = struct
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
 
-  class visitor (ask:Cil.location -> Queries.ask) = object(self)
+  class visitor (ask: ?node:Node.t -> Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
     val full = GobConfig.get_bool "witness.invariant.full"
     (* TODO: handle witness.invariant.loop-head *)
@@ -49,13 +49,13 @@ module EvalAssert = struct
         | _ -> false
       in
 
-      let make_assert loc lval =
+      let make_assert ~node loc lval =
         let lvals = match lval with
           | None -> CilLval.Set.top ()
           | Some lval -> CilLval.(Set.singleton lval)
         in
         let context = {Invariant.default_context with lvals} in
-        match (ask loc).f (Queries.Invariant context) with
+        match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
           let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv ass); ("exp", Fe e)]) es in
@@ -71,10 +71,10 @@ module EvalAssert = struct
       let instrument_instructions il s =
         (* Does this statement have a successor that has only on predecessor? *)
         let unique_succ = s.succs <> [] && (List.hd s.succs).preds |> List.length < 2 in
-        let instrument i loc =
+        let instrument ~node i loc =
           let instrument' lval =
             let lval_arg = if full then None else lval in
-            make_assert loc lval_arg
+            make_assert ~node loc lval_arg
           in
           match i with
           | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
@@ -83,19 +83,15 @@ module EvalAssert = struct
           | _ -> []
         in
         let rec instrument_instructions = function
-          | i1 :: ((i2 :: _) as is) ->
-            (* List contains successor statement, use location of successor for values *)
-            let loc = get_instrLoc i2 in (* TODO: why not using Cilfacade.get_instrLoc? *)
-            i1 :: ((instrument i1 loc) @ instrument_instructions is)
-          | [i] when unique_succ ->
-            (* Last statement in list *)
-            (* Successor of it has only one predecessor, we can query for the value there *)
-            let loc = get_stmtLoc (List.hd s.succs).skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
-            i :: (instrument i loc)
-          | [i] when s.succs <> [] ->
+        | [i] when unique_succ || s.succs <> [] ->
+            (* Successor of it has only one predecessor, we can query for the value there; or *)
             (* Successor has multiple predecessors, results may be imprecise but remain correct *)
-            let loc = get_stmtLoc (List.hd s.succs).skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
-            i :: (instrument i loc)
+            let stmt = List.hd s.succs in
+            let loc = get_stmtLoc stmt.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
+            let node = Node.Statement stmt in
+            i :: (instrument ~node i loc)
+          | i1 :: (i2 :: _) ->
+            failwith "There were multiple instructions in one statement, but only one is expected."
           | x -> x
         in
         instrument_instructions il
@@ -107,7 +103,7 @@ module EvalAssert = struct
           (* exactly two predecessors -> join point, assert locals if they changed *)
           let join_loc = get_stmtLoc s.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if witness.invariant.full is false *)
-          let asserts = make_assert join_loc None in
+          let asserts = make_assert ~node:(Node.Statement s) join_loc None in
           self#queueInstr asserts; ()
         | _ -> ()
       in
@@ -120,12 +116,14 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l,l2) ->
           let vars = Basetype.CilExp.get_vars e in
-          let asserts loc vs = if full then make_assert loc None else List.map (fun x -> make_assert loc (Some (Var x,NoOffset))) vs |> List.concat in
+          let asserts ~node loc vs = if full then make_assert ~node loc None else List.map (fun x -> make_assert ~node loc (Some (Var x,NoOffset))) vs |> List.concat in
           let add_asserts block =
             if block.bstmts <> [] then
               let with_asserts =
-                let b_loc = get_stmtLoc (List.hd block.bstmts).skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
-                let b_assert_instr = asserts b_loc vars in
+                let stmt = List.hd block.bstmts in
+                let node = Node.Statement stmt in
+                let b_loc = get_stmtLoc stmt.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
+                let b_assert_instr = asserts ~node b_loc vars in
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
               block.bstmts <- with_asserts
@@ -138,7 +136,7 @@ module EvalAssert = struct
       in
       ChangeDoChildrenPost (s, instrument_statement)
   end
-  let transform (ask:Cil.location -> Queries.ask) file = begin
+  let transform (ask: ?node:Node.t -> Cil.location -> Queries.ask) file = begin
     visitCilFile (new visitor ask) file;
     let assert_filename = GobConfig.get_string "trans.output" in
     let oc = Stdlib.open_out assert_filename in
