@@ -114,17 +114,6 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
   repeat ();
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
 
-type node_match = { old_node : node; new_node : node; dep_vals_changed : bool }
-let node_match ?(dep_vals_changed = false) old_node new_node =
-  { old_node ; new_node ; dep_vals_changed }
-
-type nodes_diff = {
-  (* the results for these nodes can be reused as-is ... *)
-  matched_nodes : node_match list;
-  (* ... assuming all nodes reachable from these are destabilized *)
-  destabilize_nodes : node list;
-}
-
 
 (** To provide separation of concerns in the implementation,
     the following functions apply to arbitrary digraphs parameterized
@@ -210,11 +199,27 @@ let match_lin_1to1 (type n1 n2 e1 e2)
 (* The remaining functions are specific to Goblint CFGs,
    and use the functions that apply to arbitrary CFGs above *)
 
+type node_match = { old_node : node; new_node : node; same_dep_vals : bool }
+let node_match ?(same_dep_vals = true) old_node new_node =
+  { old_node ; new_node ; same_dep_vals }
+
+type cfg_compare_type = Forward | Diff | OneToOne [@@deriving show]
+
+type nodes_diff = {
+  (* the results for these nodes can be reused as-is ... *)
+  matched_nodes : node_match list;
+  (* ... assuming all nodes reachable from these are destabilized *)
+  destabilize_nodes : node list;
+  (* only used for tracing *)
+  compare_type : cfg_compare_type;
+}
+
 let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
   let same, diff = Stats.time "forwards-compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun_old fun_new) () in
   let unchanged, diffNodes1 = Stats.time "forwards-compare-phase2" (fun () -> reexamine fun_old fun_new same diff (module CfgOld) (module CfgNew)) () in
   { matched_nodes = List.of_seq unchanged |> List.map (fun (o, n) -> node_match o n) ;
-    destabilize_nodes = List.of_seq diffNodes1 }
+    destabilize_nodes = List.of_seq diffNodes1 ;
+    compare_type = Forward }
 
 let linearize_cfg cfg fundec = (* type n = Node.t, type e = edge list *)
   linearize_digraph (module Node) (digraph_of_cfg cfg) (FunctionEntry fundec)
@@ -235,17 +240,16 @@ let nes_can_match_cfg (n1, es1) (n2, es2) =
 let same_deps_cfg rev_cfg_old rev_cfg_new =
   same_deps (module Node) (digraph_of_cfg rev_cfg_old) (digraph_of_cfg rev_cfg_new) Node.equal eq_edge_list
 
-let cfg_matching_of_fuzzy_match rev_cfg_old rev_cfg_new fun_old fun_new fuzzy_match =
+let cfg_matching_of_fuzzy_match cmp_by rev_cfg_old rev_cfg_new fun_old fun_new fuzzy_match =
   let matched_nodes =
     List.map2
-      (fun (o, n) dep_vals_changed -> node_match ~dep_vals_changed o n)
+      (fun (o, n) same_dep_vals -> node_match ~same_dep_vals o n)
       fuzzy_match
       (same_deps_cfg rev_cfg_old rev_cfg_new fuzzy_match)
   in
   (* for fuzzy matches, destabilize the entire function by marking the entry node *)
-  { matched_nodes ; destabilize_nodes = [ Function fun_old ] }
+  { matched_nodes ; destabilize_nodes = [ FunctionEntry fun_old ] ; compare_type = cmp_by }
 
-type cfg_compare_type = Forward | Diff | OneToOne
 let cfg_compare_type_of_string = function
   | "forward" -> Forward
   | "diff" -> Diff
@@ -265,4 +269,4 @@ let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBid
       (match cmp_by with
       | Diff -> match_lin_diff (nes_equal_cfg fun_old fun_new) lin_old lin_new
       | OneToOne | _ -> match_lin_1to1 nes_can_match_cfg lin_old lin_new)
-      |> cfg_matching_of_fuzzy_match CfgOld.prev CfgNew.prev fun_old fun_new
+      |> cfg_matching_of_fuzzy_match cmp_by CfgOld.prev CfgNew.prev fun_old fun_new

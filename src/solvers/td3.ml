@@ -625,7 +625,7 @@ module WP =
             mark_node marked_for_deletion f (Function f);
             add_pseudo_return f (un |> List.map (fun m -> m.old_node));
             un |> List.iter (fun m ->
-              if m.dep_vals_changed then mark_node marked_for_dep_vals_deletion f m.old_node)
+              if not m.same_dep_vals then mark_node marked_for_dep_vals_deletion f m.old_node)
           ) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
