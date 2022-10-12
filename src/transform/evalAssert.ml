@@ -82,7 +82,7 @@ module EvalAssert = struct
           | Call (lval, _, _, _, _) when emit_other -> instrument' lval
           | _ -> []
         in
-        let rec instrument_instructions = function
+        let instrument_instructions = function
         | [i] when unique_succ || s.succs <> [] ->
             (* Successor of it has only one predecessor, we can query for the value there; or *)
             (* Successor has multiple predecessors, results may be imprecise but remain correct *)
