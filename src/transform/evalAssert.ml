@@ -50,6 +50,7 @@ module EvalAssert = struct
       in
 
       let make_assert ~node loc lval =
+        Node.current_node := Some node;
         let lvals = match lval with
           | None -> CilLval.Set.top ()
           | Some lval -> CilLval.(Set.singleton lval)
@@ -80,17 +81,20 @@ module EvalAssert = struct
           | Call (lval, _, _, _, _) when emit_other -> instrument' lval
           | _ -> []
         in
-        let instrument_instructions = function
-          | [] -> []
-          | [i] when List.length s.succs <= 1 ->
+        let instrument_instructions il = match il, s.succs with
+          | [], _ -> []
+          | [i], [succ] -> (* Single successor *)
             let stmt = List.hd s.succs in
             let loc = Cilfacade.get_stmtLoc stmt in
             let node = Node.Statement stmt in
             i :: (instrument ~node i loc)
-          | [i] ->
+          | [i], [] ->
+            (* No successor; do not add an assertion *)
+            [i]
+          | [_], _ :: (_ :: _) ->
             (* More than one successor means that there is some branching is happening, that is not expected for an instruction. *)
             failwith "Instruction has more than one successor; at most one is expected."
-          | i1 :: (i2 :: _) ->
+          | _ :: (_ :: _), _ ->
             failwith "There were multiple instructions in one statement, but only one is expected."
         in
         instrument_instructions il
