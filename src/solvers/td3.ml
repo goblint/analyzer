@@ -99,6 +99,7 @@ module WP =
       let stable = data.stable in
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
+      let remove_wpoint = GobConfig.get_bool "solvers.td3.remove-wpoint" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -215,7 +216,7 @@ module WP =
                 HM.remove stable x;
                 HM.remove superstable x;
                 (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
-              ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+              ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x
               )

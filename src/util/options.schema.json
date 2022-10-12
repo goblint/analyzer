@@ -1954,6 +1954,12 @@
               "type": "boolean",
               "default": true
             },
+            "remove-wpoint": {
+              "title": "solvers.td3.remove-wpoint",
+              "description": "Remove widening points after narrowing phase. Enables a form of local restarting which increases precision of nested loops.",
+              "type": "boolean",
+              "default": true
+            },
             "restart": {
               "title": "solvers.td3.restart",
               "type": "object",
