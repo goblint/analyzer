@@ -69,39 +69,39 @@ module EvalAssert = struct
       in
 
       let instrument_instructions il s =
-        (* Does this statement have a successor that has only on predecessor? *)
-        let unique_succ = s.succs <> [] && (List.hd s.succs).preds |> List.length < 2 in
-        let instrument ~node i loc =
-          let instrument' lval =
-            let lval_arg = if full then None else lval in
-            make_assert ~node loc lval_arg
+
+          let instrument ~node i loc =
+            let instrument' lval =
+              let lval_arg = if full then None else lval in
+              make_assert ~node loc lval_arg
+            in
+            match i with
+            | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
+            | Set  (lval, _, _, _) when emit_other -> instrument' (Some lval)
+            | Call (lval, _, _, _, _) when emit_other -> instrument' lval
+            | _ -> []
           in
-          match i with
-          | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
-          | Set  (lval, _, _, _) when emit_other -> instrument' (Some lval)
-          | Call (lval, _, _, _, _) when emit_other -> instrument' lval
-          | _ -> []
-        in
-        let instrument_instructions = function
-        | [i] when unique_succ || s.succs <> [] ->
-            (* Successor of it has only one predecessor, we can query for the value there; or *)
-            (* Successor has multiple predecessors, results may be imprecise but remain correct *)
-            let stmt = List.hd s.succs in
-            let loc = get_stmtLoc stmt.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
-            let node = Node.Statement stmt in
-            i :: (instrument ~node i loc)
+          let instrument_instructions = function
+          | [] -> []
+          | [i] when List.length s.succs <= 1 ->
+              let stmt = List.hd s.succs in
+              let loc = Cilfacade.get_stmtLoc stmt in
+              let node = Node.Statement stmt in
+              i :: (instrument ~node i loc)
+          | [i] ->
+              (* More than one successor means that there is some branching is happening, that is not expected for an instruction. *)
+              failwith "Instruction has more than one successor; at most one is expected."
           | i1 :: (i2 :: _) ->
-            failwith "There were multiple instructions in one statement, but only one is expected."
-          | x -> x
+              failwith "There were multiple instructions in one statement, but only one is expected."
+          in
+          instrument_instructions il
         in
-        instrument_instructions il
-      in
 
       let instrument_join s =
         match s.preds with
         | [p1; p2] when emit_other ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
-          let join_loc = get_stmtLoc s.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
+          let join_loc = Cilfacade.get_stmtLoc s in
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if witness.invariant.full is false *)
           let asserts = make_assert ~node:(Node.Statement s) join_loc None in
           self#queueInstr asserts; ()
@@ -122,7 +122,7 @@ module EvalAssert = struct
               let with_asserts =
                 let stmt = List.hd block.bstmts in
                 let node = Node.Statement stmt in
-                let b_loc = get_stmtLoc stmt.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
+                let b_loc = Cilfacade.get_stmtLoc stmt in
                 let b_assert_instr = asserts ~node b_loc vars in
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
