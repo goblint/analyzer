@@ -287,7 +287,7 @@ module Timed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  let time str f arg = GoblintCil.Stats.time (M.name ()) (GoblintCil.Stats.time str f) arg
+  let time str f arg = Timing.wrap (M.name ()) (Timing.wrap str f) arg
 
   (* Printable.S *)
   type t = M.t

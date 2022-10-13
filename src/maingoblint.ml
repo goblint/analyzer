@@ -90,7 +90,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     complete_option_value !last_complete_option s
   in
   [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
-  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
+  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "dbg.timing.enabled" true), ""
   ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
   ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
   ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
@@ -130,7 +130,8 @@ let check_arguments () =
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
   if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
-  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated."
+  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
+  if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load")
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -331,7 +332,7 @@ let preprocess_files () =
       | Unix.WEXITED 0 -> ()
       | process_status -> failwith (GobUnix.string_of_process_status process_status)
     in
-    ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
+    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
   );
   preprocessed
 
@@ -394,11 +395,12 @@ let preprocess_parse_merge () =
   |> merge_parsed
 
 let do_stats () =
-  if get_bool "printstats" then (
+  if get_bool "dbg.timing.enabled" then (
     print_newline ();
     ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
-    Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
+    print_string "Timings:\n";
+    Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 
@@ -406,7 +408,8 @@ let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
   Goblintutil.narrow_reuses := 0;
-  Stats.reset SoftwareTimer
+  Timing.Default.reset ();
+  Timing.Program.reset ()
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
@@ -449,7 +452,7 @@ let do_analyze change_info merged_AST =
         (* Cilfacade.current_file := ast'; *)
     in
 
-    Stats.time "analysis" (control_analyze merged_AST) funs
+    Timing.wrap "analysis" (control_analyze merged_AST) funs
   )
 
 let do_html_output () =
@@ -457,8 +460,8 @@ let do_html_output () =
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
-      let command = "java -jar "^ jar ^" --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
-      try match Unix.system command with
+      let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
+      try match Timing.wrap "g2html" Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed! Command: %s\n" command
       with Unix.Unix_error (e, f, a) ->

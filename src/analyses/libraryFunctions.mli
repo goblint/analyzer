@@ -11,3 +11,6 @@ val is_safe_uncalled : string -> bool
 
 (** Find library function descriptor for function. *)
 val find: Cil.varinfo -> LibraryDesc.t
+
+
+val verifier_atomic_var: Cil.varinfo

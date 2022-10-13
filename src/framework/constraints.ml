@@ -690,12 +690,18 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
+    let new_fd = Node.find_fundec v in
+    if not (CilType.Fundec.equal old_fd new_fd) then
+      Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
     M.current_context := Some (Obj.repr c);
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
-        M.current_context := old_context
+        M.current_context := old_context;
+        if not (CilType.Fundec.equal old_fd new_fd) then
+          Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
         let d       = tf (v,c) (e,u) getl sidel getg sideg in
         d
@@ -1012,7 +1018,7 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
+  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* TODO: handle Invariant path like PathSensitive3? *)
@@ -1105,10 +1111,20 @@ struct
                 let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
                 let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
                 M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
-              | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()
             ) em;
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
       end
     | IterSysVars (vq, vf) ->
       (* vars for S *)

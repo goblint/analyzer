@@ -69,6 +69,12 @@ let special ?(attrs:attr list=[]) args_desc special_cont = {
   attrs;
 }
 
+let special' ?(attrs:attr list=[]) args_desc special_cont = {
+  special = (fun args -> Fun.flip (match_args args_desc) (special_cont ()) args); (* eta-expanded such that special_cont is re-executed on each call instead of once during LibraryFunctions construction *)
+  accs = accs args_desc;
+  attrs;
+}
+
 let unknown ?attrs args_desc = special ?attrs args_desc Unknown
 
 let empty____desc = {
