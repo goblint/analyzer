@@ -579,7 +579,13 @@ struct
                 ; context = (fun () -> ctx_failwith "No context in query context.")
                 ; edge    = MyCFG.Skip
                 ; local  = local
-                ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
+                ; global =
+                  (fun g ->
+                    try
+                      EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g))
+                    with Not_found ->
+                      M.warn ~category:MessageCategory.Unsound "Global %a not found during transformation, proceeding with bot." Spec.V.pretty g;
+                      Spec.G.bot ())
                 ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
                 ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
                 ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
