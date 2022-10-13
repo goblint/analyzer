@@ -137,6 +137,10 @@ struct
       st
 
   let no_overflow ctx exp =
+    match Cilfacade.get_ikind_exp exp with
+     | exception Invalid_argument _ -> false
+     | exception Cilfacade.TypeOfError _ -> false
+     | ik ->
     let ik = Cilfacade.get_ikind_exp exp in
     if not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" then false else
     if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then true else

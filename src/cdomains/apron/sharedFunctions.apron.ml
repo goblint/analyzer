@@ -400,7 +400,7 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
+      if M.tracing then M.trace "relation" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
       if exp_is_cons e then
         match check_assert d e no_ov with
         | `True -> ID.of_bool ik true
