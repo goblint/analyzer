@@ -17,7 +17,7 @@ let activated = ref Strs.empty
 let active_dep = Hashtbl.create 9
 let tracevars = ref ([]: string list)
 let tracelocs = ref ([]: int list)
-
+let get_trace_width = ref (fun () -> 80)
 
 let addsystem sys = trace_sys := Strs.add sys !trace_sys
 let activate (sys:string) (subsys: string list): unit =
@@ -85,8 +85,8 @@ let traceTag (sys : string) : Pretty.doc =
   let rec ind (i : int) : string = if (i <= 0) then "" else " " ^ (ind (i-1)) in
   (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
 
-let printtrace sys d: unit =
-  fprint stderr ~width:max_int ((traceTag sys) ++ d);
+let printtrace sys d : unit =
+  fprint stderr ~width:(!get_trace_width ()) (traceTag sys ++ d);
   flush stderr
 
 let gtrace always f sys var ?loc do_subsys fmt =

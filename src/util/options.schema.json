@@ -1749,6 +1749,13 @@
             "Should the analysis print information on which globals are protected by which mutex?",
           "type": "boolean",
           "default": false
+        },
+        "trace_width": {
+          "title": "dbg.trace_width",
+          "description":
+            "Width to pass to the pretty-printer for trace output. Passing 0 sets no maximum width.",
+          "type": "integer",
+          "default": 80
         }
       },
       "additionalProperties": false
