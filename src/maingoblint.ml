@@ -40,6 +40,12 @@ let print_help ch =
   fprintf ch "Some common configurations to start from can be found in conf/examples/*\n";
   exit 0
 
+let _ =
+  (* avoid a circular dependency between Tracing and GobConfig by using a reference *)
+  Tracing.get_trace_width :=
+    fun () ->
+      match get_int "dbg.trace_width" with 0 -> Stdlib.Int.max_int | w -> w
+
 (** [Arg] option specification *)
 let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
