@@ -527,3 +527,16 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
+
+(** Move function definitions to the end of the Cil.file, and add dummy declarations for all of them. *)
+let add_function_declarations (file: Cil.file): unit =
+  let globals = file.globals in
+  let functions, nonfunctions = GobList.split_by_pred (fun g -> match g with GFun _ -> true | _ -> false) globals in
+  let declaration_from_GFun f = match f with
+    | GFun (f, _) ->
+      GVarDecl (f.svar, locUnknown)
+    | _ -> failwith "Expected GFun, but was something else."
+  in
+  let declarations = List.map declaration_from_GFun functions in
+  let globals = nonfunctions @ declarations @ functions in
+  file.globals <- globals

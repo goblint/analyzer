@@ -27,3 +27,12 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
     end
 
 let equal = List.eq
+
+(* Split a list by a preciate. Returns a tuple of two lists.
+   The elements in the first list satisfy the predicate, the elements in the second do not. *)
+let split_by_pred p xs =
+  let rec split xs (ys,nos) = match xs with
+    | [] -> List.rev ys, List.rev nos
+    | h::t -> if p h then split t (h::ys, nos) else split t (ys, h::nos)
+  in
+  split xs ([], [])
