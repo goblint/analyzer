@@ -43,6 +43,7 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
+module TaintS = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -116,6 +117,7 @@ type _ t =
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
+  | Tainted: TaintS.t t
 
 type 'a result = 'a
 
@@ -168,6 +170,7 @@ struct
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
+    | Tainted -> (module TaintS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -219,6 +222,7 @@ struct
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
+    | Tainted -> TaintS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -267,6 +271,7 @@ struct
     | Any (InvariantGlobal _) -> 38
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
+    | Any Tainted -> 41
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -373,6 +378,7 @@ struct
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
+    | Any Tainted -> Pretty.dprintf "Tainted"
 end
 
 

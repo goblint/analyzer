@@ -2247,19 +2247,26 @@ struct
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+    let tainted = f_ask.f Q.Tainted in
+    if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.TaintS.pretty tainted;
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
+      if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
+        let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x && CPA.mem x fun_st.cpa)) st.cpa in
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
-        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+        (* remove all untainted variables from callee cpa. However keep variables for which there is no record yet in caller cpa*)
+        let cpa_tainted = CPA.filter (fun x _ -> (Q.TaintS.mem x tainted) || not (CPA.mem x cpa_local)) cpa_noreturn in
+        if M.tracing then M.trace "taintPC" "callee tainted: %a\n" CPA.pretty cpa_tainted;
+        let cpa' = CPA.fold CPA.add cpa_tainted cpa_local in (* add cpa_noreturn to cpa_local *)
+        if M.tracing then M.trace "taintPC" "both combined: %a\n" CPA.pretty cpa';
         { fun_st with cpa = cpa' }
       in
       let return_var = return_var () in
@@ -2271,7 +2278,7 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node ()in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let callerFundec = match !MyCFG.current_node with
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
