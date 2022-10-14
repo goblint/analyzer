@@ -566,7 +566,7 @@ struct
             Hashtbl.replace h k v') e;
           h
         in
-        let ask loc = (fun (type a) (q: a Queries.t) ->
+        let ask ~node loc = (fun (type a) (q: a Queries.t) ->
             let local = Hashtbl.find_option joined loc in
             match local with
             | None -> Queries.Result.bot q
@@ -574,7 +574,7 @@ struct
               let rec ctx =
                 { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
                 ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-                ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+                ; node   = node
                 ; prev_node = MyCFG.dummy_node
                 ; control_context = (fun () -> ctx_failwith "No context in query context.")
                 ; context = (fun () -> ctx_failwith "No context in query context.")
@@ -589,7 +589,7 @@ struct
               Spec.query ctx q
           )
         in
-        let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in
+        let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
         List.iter (fun name -> Transform.run name ask file) active_transformations
       );
 
