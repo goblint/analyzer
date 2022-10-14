@@ -15,6 +15,11 @@ let name_of_global g = match g with
   | GVarDecl (v,_) -> v.vname
   | _ -> failwith "global constructor not supported"
 
+let name_of_global_col = function
+  | { decls = Some v ; _ }
+  | { def = Some (Var v | Fun { svar = v ; _ }) ; _ } -> v.vname
+  | _ -> "<unknown global>"
+
 type unchanged_global = {
   old: global_col;
   current: global_col
@@ -42,6 +47,34 @@ type change_info = {
 
 let empty_change_info () : change_info =
   {added = []; removed = []; changed = []; unchanged = []; exclude_from_rel_destab = VarinfoSet.empty}
+
+
+module VarInfoSetPretty = Pretty.MakeSetPrinter(VarinfoSet)
+
+let pretty_change_info ci =
+  let open Pretty in
+  let open Goblintutil.Pretty in
+  let pretty_changed_global cg =
+    dprintf "<@[%s@?partially=%b%a@]>"
+      (name_of_global_col cg.old) (Option.is_some cg.diff)
+      (pretty_maybe
+        ~some:(fun nd -> dprintf "@?nodes_diff=%a" (pretty_nodes_diff |> wrap) nd) () |> wrap)
+        cg.diff
+  in
+  let pretty_global_col_list = pretty_list (fun col -> name_of_global_col col |> text) in
+  let pretty_unchanged_global (ug : unchanged_global) = text (name_of_global_col ug.old) in
+  pretty_record [
+    pretty_record_field "changed"
+    @@ pretty_list pretty_changed_global ci.changed ;
+    pretty_record_field "unchanged"
+    @@ pretty_list pretty_unchanged_global ci.unchanged ;
+    pretty_record_field "removed" @@ pretty_global_col_list ci.removed ;
+    pretty_record_field "added" @@ pretty_global_col_list ci.added ;
+    pretty_record_field "excluded" @@
+    dprintf "{@[%a@]}"
+      (VarInfoSetPretty.docSet ~sep:(chr ',' ++ break) (CilType.Varinfo.pretty ()))
+      ci.exclude_from_rel_destab ;
+  ]
 
 (* 'ChangedFunHeader' is used for functions whose varinfo or formal parameters changed. 'Changed' is used only for
  * changed functions whose header is unchanged and changed non-function globals *)

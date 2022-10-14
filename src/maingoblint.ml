@@ -507,7 +507,7 @@ let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
 
-(* Detects changes and renames vids and sids. *)
+(** Detects changes and renames vids and sids. *)
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
@@ -520,15 +520,18 @@ let diff_and_rename current_file =
         Serialize.Cache.load_data ();
         let old_file = Serialize.Cache.(get_data CilFile) in
         let changes = CompareCIL.compareCilFiles old_file current_file in
+        let change_info_fmt = CompareCIL.pretty_change_info |> Goblintutil.Pretty.wrap in
+        Messages.trace "diff-rename" "before update_ids\n%a\n" change_info_fmt changes;
         let max_ids = Serialize.Cache.(get_data VersionData) in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
+        Messages.trace "diff-rename" "after update_ids\n%a\n" change_info_fmt changes;
 
         let restarting = GobConfig.get_string_list "incremental.restart.list" in
         let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
         if not (List.is_empty not_found) then begin
           List.iter
             (fun s ->
-               warn @@ "Should restart " ^ s ^ " but no such global could not be found in the CIL-file.")
+               warn @@ "Should restart " ^ s ^ " but no such global could be found in the CIL-file.")
             not_found;
           flush stderr
         end;

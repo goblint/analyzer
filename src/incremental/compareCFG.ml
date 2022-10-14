@@ -214,6 +214,24 @@ type nodes_diff = {
   compare_type : cfg_compare_type;
 }
 
+let pretty_nodes_diff (nd : nodes_diff) =
+  let open Pretty in
+  let open Goblintutil.Pretty in
+  pretty_record [
+    pretty_record_field "match"
+    @@ pretty_list
+      (fun nm ->
+        dprintf "<@[%a -->@?%a@?same_dep_vals=%b@]>"
+          Node.pretty_trace nm.old_node
+          Node.pretty_trace nm.new_node
+          nm.same_dep_vals)
+      nd.matched_nodes ;
+    pretty_record_field "destabilize"
+    @@ pretty_list (Node.pretty_trace ()) nd.destabilize_nodes ;
+    pretty_record_field "compare_by"
+    @@ text (show_cfg_compare_type nd.compare_type)
+  ]
+
 let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
   let same, diff = Stats.time "forwards-compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun_old fun_new) () in
   let unchanged, diffNodes1 = Stats.time "forwards-compare-phase2" (fun () -> reexamine fun_old fun_new same diff (module CfgOld) (module CfgNew)) () in

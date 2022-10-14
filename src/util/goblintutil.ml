@@ -155,3 +155,19 @@ let jobs () =
   match get_int "jobs" with
   | 0 -> Cpu.numcores ()
   | n -> n
+
+
+(** helpers for Pretty *)
+module Pretty = struct
+  open Pretty
+
+  let wrap x = fun () -> x
+
+  let pretty_maybe ?(none = nil) ~some () x = Option.fold ~none ~some x
+
+  let pretty_record_field name dcontent = dprintf "@[%s =@?%t@]" name (wrap dcontent)
+
+  let pretty_list dcontent xs = dprintf "[@[%a@]]" (docList ~sep:(chr ',' ++ break) dcontent) xs
+
+  let pretty_record cs = dprintf "{@[%a@]}" (docList ~sep:(chr ',' ++ break) Fun.id) cs
+end
