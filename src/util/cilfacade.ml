@@ -528,15 +528,17 @@ let stmt_pretty_short () x =
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
 
-(** Move function definitions to the end of the Cil.file, and add dummy declarations for all of them. *)
+(** Given a [Cil.file], reorders its [globals].
+  This function may be used after a code transformation to ensure that the order of globals yields a compilable program. *)
 let add_function_declarations (file: Cil.file): unit =
   let globals = file.globals in
-  let functions, nonfunctions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
+  let functions, non_functions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
+  let upto_last_type, non_types = GobList.until_last_with (fun g -> match g with GType _ -> true | _ -> false) non_functions in
   let declaration_from_GFun f = match f with
     | GFun (f, _) ->
       GVarDecl (f.svar, locUnknown)
     | _ -> failwith "Expected GFun, but was something else."
   in
-  let declarations = List.map declaration_from_GFun functions in
-  let globals = nonfunctions @ declarations @ functions in
+  let fun_decls = List.map declaration_from_GFun functions in
+  let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
