@@ -62,6 +62,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
           | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
             let edgeList2 = to_edge_list locEdgeList2 in
+            (* TODO: does this safely find nodes that are changed in only some of their multiple incoming edges *)
             (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
             if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
               begin
@@ -96,7 +97,9 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
 (* This is the second phase of the CFG comparison of functions. It removes the nodes from the matching node set 'same'
  * that have an incoming backedge in the new CFG that can be reached from a differing new node. This is important to
  * recognize new dependencies between unknowns that are not contained in the infl from the previous run. *)
+(* TODO: doesn't need to have cubic (!) runtime in the number of nodes in the matching, it could just iterate from diffNodes1 to get linear time *)
 let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgBidir) =
+  let phase2_removed : Node.t NH.t = NH.create 103 in
   let rec repeat () =
     let check_all_nodes_in_same ps n =
       match List.find_opt (fun p -> not (NH.mem same.node2to1 p)) ps with
@@ -106,13 +109,21 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
           let n1 = NH.find same.node2to1 n in
           NH.replace diffNodes1 n1 ();
           NH.remove same.node1to2 n1; NH.remove same.node2to1 n;
+          NH.replace phase2_removed n1 n;
           false
         end in
     let cond n2 = Node.equal n2 (FunctionEntry f2) || check_all_nodes_in_same (List.map snd (CfgNew.prev n2)) n2 in
     let forall = NH.fold (fun n2 n1 acc -> acc && cond n2) same.node2to1 true in
     if not forall then repeat () in
   repeat ();
-  NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
+  NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1, NH.to_seq phase2_removed
+
+(** given a set of nodes, find the set of its elements'
+    immediate successors not contained in that set *)
+let primary_diff_of_set (type a) (set : a NH.t) (module Cfg : CfgForward) =
+  NH.to_seq_keys set
+  |> Seq.flat_map (fun n -> Cfg.next n |> List.to_seq |> Seq.map snd)
+  |> Seq.filter (fun n -> not @@ NH.mem set n)
 
 
 (** To provide separation of concerns in the implementation,
@@ -129,40 +140,46 @@ let digraph_of_cfg (cfg : cfg) : _ digraph =
 (** reverse-postorder *)
 let linearize_digraph (type n e)
     (module N : Hashtbl.HashedType with type t = n)
-    (graph : (n, e) digraph) (start : n) : (n * e list) list =
+    ?(exclude = fun (_ : n) -> false)
+    (graph : (n, e) digraph) (starts : n list) : (n * e list) list =
 
   let module HashtblN = Hashtbl.Make (N) in
   let visited : unit HashtblN.t = HashtblN.create 101 in
 
   let rec go (n : n) (acc : (n * e list) list) : (n * e list) list =
-
-    if HashtblN.mem visited n
+    if HashtblN.mem visited n || exclude n
       then acc
       else begin
         HashtblN.replace visited n () ;
         let es, ns = graph n |> List.split in
-        (* right-fold instead of left-fold is important if order of outbound edges is relevant *)
-        (n, es) :: List.fold_right go ns acc
+        (n, es) :: go_all ns acc
       end
 
-  in go start []
+  (* right-fold instead of left-fold is important if order of outbound edges is relevant *)
+  and go_all (ns : n list) (acc : (n * e list) list) : (n * e list) list =
+    List.fold_right go ns acc in
+
+  go_all starts []
 
 (** For each pair in the given matching, determine whether the dependencies
     of the old node are isomorphic to the dependencies of the new node
-    under the given matching, i.e., [map m (deps v) = deps (m v)].
-    Digraph arguments must be reversed, e.g., made from [CfgBackward.prev]. *)
+    under the given matching [m], i.e., [map m (deps v) = deps (m v)].
+    Digraph arguments must be reversed, e.g., made from [CfgBackward.prev].
+    The call [same_deps (module N) o n eqn eqe m mc] checks all the dependencies of
+    the matches in [mc] against the existing matches in [m]; typically,
+    [mc] would be a subset of [m], since some matches in [m] are known-good.*)
 let same_deps (type n1 n2 e1 e2)
     (module N : Hashtbl.HashedType with type t = n1)
     (rev_digraph_old : (n1, e1) digraph) (rev_digraph_new : (n2, e2) digraph)
     (eq_node : n2 -> n2 -> bool) (eq_edge : e1 -> e2 -> bool)
-    (matching0 : (n1 * n2) list) : bool list =
+    (matching0 : (n1 * n2) Seq.t) (matching_check : (n1 * n2) Seq.t) : bool Seq.t =
 
   let module HashtblN = Hashtbl.Make (N) in
-  let matching = HashtblN.of_seq (List.to_seq matching0) in
+  let matching = HashtblN.of_seq matching0 in
 
   (* TODO: does CFG *edge* need to be the same too? --> yes, if the statement changes, the dependency has changed
      what about the order of inbound edges? --> currently must be the same *)
-  matching0 |> List.map (fun (n_old, n_new) ->
+  matching_check |> Seq.map (fun (n_old, n_new) ->
     let deps_old, deps_new = (rev_digraph_old n_old, rev_digraph_new n_new) in
     List.compare_lengths deps_old deps_new = 0
     && List.for_all2
@@ -172,14 +189,26 @@ let same_deps (type n1 n2 e1 e2)
       deps_old deps_new
     )
 
+type ('n1, 'n2, 'e1, 'e2) match_diff_result = {
+  matched_nodes : ('n1 * 'n2) list ;
+  unmatched_nes_old : ('n1 * 'e1) list ;
+  unmatched_nes_new : ('n2 * 'e2) list ;
+}
+
 (** matches the given linearized digraphs using Myers' diff algorithm *)
 let match_lin_diff (type n1 n2 e1 e2)
     (nes_equal : n1 * e1 list -> n2 * e2 list -> bool) lin_old lin_new =
-  DiffLib.myers nes_equal lin_old lin_new
-  |> DiffLib.unify lin_old lin_new
-  |> List.filter_map (function
-      | DiffLib.UUnchanged ((o, _), (n, _)) -> Some (o, n)
-      | _ -> None)
+  let open DiffLib in
+  let unmatched, matched_nodes =
+    myers nes_equal lin_old lin_new
+    |> unify lin_old lin_new
+    |> List.partition_map Either.(function
+        | UUnchanged ((o, _), (n, _)) -> Right (o, n)
+        | UDelete o -> Left (Left o)
+        | UInsert n -> Left (Right n))
+  in
+  let unmatched_nes_old, unmatched_nes_new = List.partition_map Fun.id unmatched in
+  { matched_nodes ; unmatched_nes_old ; unmatched_nes_new }
 
 (** matches the given linearized digraphs based on their linearized order *)
 let match_lin_1to1 (type n1 n2 e1 e2)
@@ -197,7 +226,7 @@ let match_lin_1to1 (type n1 n2 e1 e2)
 
 
 (* The remaining functions are specific to Goblint CFGs,
-   and use the functions that apply to arbitrary CFGs above *)
+   and use the functions that apply to arbitrary digraphs above *)
 
 type node_match = { old_node : node; new_node : node; same_dep_vals : bool }
 let node_match ?(same_dep_vals = true) old_node new_node =
@@ -211,7 +240,7 @@ type nodes_diff = {
   (* ... assuming all nodes reachable from these are destabilized *)
   destabilize_nodes : node list;
   (* only used for tracing *)
-  compare_type : cfg_compare_type;
+  compare_types : cfg_compare_type list;
 }
 
 let pretty_nodes_diff (nd : nodes_diff) =
@@ -229,18 +258,44 @@ let pretty_nodes_diff (nd : nodes_diff) =
     pretty_record_field "destabilize"
     @@ pretty_list (Node.pretty_trace ()) nd.destabilize_nodes ;
     pretty_record_field "compare_by"
-    @@ text (show_cfg_compare_type nd.compare_type)
+    @@ pretty_list (fun ct -> text @@ show_cfg_compare_type ct) nd.compare_types
   ]
 
-let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
-  let same, diff = Stats.time "forwards-compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun_old fun_new) () in
-  let unchanged, diffNodes1 = Stats.time "forwards-compare-phase2" (fun () -> reexamine fun_old fun_new same diff (module CfgOld) (module CfgNew)) () in
-  { matched_nodes = List.of_seq unchanged |> List.map (fun (o, n) -> node_match o n) ;
-    destabilize_nodes = List.of_seq diffNodes1 ;
-    compare_type = Forward }
+type compare_forwards_result = {
+  (* precise matching *)
+  matched_nodes : (node * node) list ;
+  (* nodes that must be destabilized *)
+  destabilize_nodes : node list ;
+  (* nodes that were matched in phase 1 but removed in phase 2, which form a fuzzy match *)
+  fuzzy_matched_nodes : (node * node) list ;
+  (* in phase 1, nodes from which all nodes in the old CFG are reachable using only unmatched (neither precise nor fuzzy) nodes *)
+  unmatched_origins_old : node list ;
+  (* the same, but in the new CFG *)
+  unmatched_origins_new : node list ;
+}
 
-let linearize_cfg cfg fundec = (* type n = Node.t, type e = edge list *)
-  linearize_digraph (module Node) (digraph_of_cfg cfg) (FunctionEntry fundec)
+let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
+  let same, diff =
+    Stats.time "forwards-compare-phase1"
+      (compareCfgs (module CfgOld) (module CfgNew) fun_old) fun_new
+  in
+  (* immediately create these lists before the underlying hash maps are modified in the second phase *)
+  let unmatched_origins_old = List.of_seq @@ NH.to_seq_keys diff in
+  let unmatched_origins_new = List.of_seq @@ primary_diff_of_set same.node2to1 (module CfgNew) in
+  let unchanged, diff_nodes1, phase2_removed =
+    Stats.time "forwards-compare-phase2"
+      (reexamine fun_old fun_new same diff (module CfgOld)) (module CfgNew)
+  in
+  {
+    matched_nodes = List.of_seq unchanged ;
+    destabilize_nodes = List.of_seq diff_nodes1 ;
+    fuzzy_matched_nodes = List.of_seq phase2_removed ;
+    unmatched_origins_old ;
+    unmatched_origins_new ;
+  }
+
+let linearize_cfg cfg ?exclude starts = (* type n = Node.t, type e = edge list *)
+  linearize_digraph (module Node) ?exclude (digraph_of_cfg cfg) starts
 
 (** pass to [match_lin_diff] for matching CFGs *)
 let nes_equal_cfg fun_old fun_new (n1, es1) (n2, es2) =
@@ -258,7 +313,7 @@ let nes_can_match_cfg (n1, es1) (n2, es2) =
 let same_deps_cfg rev_cfg_old rev_cfg_new =
   same_deps (module Node) (digraph_of_cfg rev_cfg_old) (digraph_of_cfg rev_cfg_new) Node.equal eq_edge_list
 
-let cfg_matching_of_fuzzy_match cmp_by rev_cfg_old rev_cfg_new fun_old fun_new fuzzy_match =
+(* let cfg_matching_of_fuzzy_match cmp_by rev_cfg_old rev_cfg_new fun_old fun_new fuzzy_match =
   let matched_nodes =
     List.map2
       (fun (o, n) same_dep_vals -> node_match ~same_dep_vals o n)
@@ -266,15 +321,15 @@ let cfg_matching_of_fuzzy_match cmp_by rev_cfg_old rev_cfg_new fun_old fun_new f
       (same_deps_cfg rev_cfg_old rev_cfg_new fuzzy_match)
   in
   (* for fuzzy matches, destabilize the entire function by marking the entry node *)
-  { matched_nodes ; destabilize_nodes = [ FunctionEntry fun_old ] ; compare_type = cmp_by }
+  { matched_nodes ; destabilize_nodes = [ FunctionEntry fun_old ] ; compare_type = [cmp_by] } *)
 
-let cfg_compare_type_of_string = function
+(* let cfg_compare_type_of_string = function
   | "forward" -> Forward
   | "diff" -> Diff
   | "1-to-1" -> OneToOne
-  | s -> failwith ("unknown cfg compare type: " ^ s)
+  | s -> failwith ("unknown cfg compare type: " ^ s) *)
 
-let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) fun_old fun_new =
+(* let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) fun_old fun_new =
   let compare_type' = match compare_type with
     | None -> GobConfig.get_string "incremental.compare-cfg.by" |> cfg_compare_type_of_string
     | Some cmp -> cmp
@@ -287,4 +342,100 @@ let compare_fun ?compare_type (module CfgOld : CfgBidir) (module CfgNew : CfgBid
       (match cmp_by with
       | Diff -> match_lin_diff (nes_equal_cfg fun_old fun_new) lin_old lin_new
       | OneToOne | _ -> match_lin_1to1 nes_can_match_cfg lin_old lin_new)
-      |> cfg_matching_of_fuzzy_match cmp_by CfgOld.prev CfgNew.prev fun_old fun_new
+      |> cfg_matching_of_fuzzy_match cmp_by CfgOld.prev CfgNew.prev fun_old fun_new *)
+
+(** for when forwards comparison is not actually run *)
+let dummy_compare_forwards_result fun_old fun_new =
+  {
+    matched_nodes = [] ;
+    destabilize_nodes = [ FunctionEntry fun_old ] ;
+    fuzzy_matched_nodes = [] ;
+    unmatched_origins_old = [ FunctionEntry fun_old ] ;
+    unmatched_origins_new = [ FunctionEntry fun_new ] ;
+  }
+
+let dummy_match_diff_result lin_old lin_new = {
+  matched_nodes = [] ;
+  unmatched_nes_old = lin_old ;
+  unmatched_nes_new = lin_new ;
+}
+
+(** Compose the various types of CFG based comparisons. *)
+let compare_fun_multi (compare_types : cfg_compare_type list)
+    (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) fun_old fun_new =
+
+  (* First compare by precise forwards compare, if enabled.
+     The nodes removed from the precise matching during the second phase will
+     be used to make a fuzzy matching later. *)
+  let cmp_fwd_result, cmp_fwd_used =
+    if List.mem Forward compare_types then
+      compare_forwards (module CfgOld) (module CfgNew) fun_old fun_new, [ Forward ]
+    else dummy_compare_forwards_result fun_old fun_new, []
+  in
+
+  (* Next, compare by ordering the remaining nodes in the CFGs, and fuzzy matching them *)
+  let lin_fuzzy_matches, lin_used =
+
+    if List.mem Diff compare_types || List.mem OneToOne compare_types then
+      (* nodes that have been precisely or fuzzy matched already *)
+      let old_to_new =
+        Seq.append
+          (List.to_seq cmp_fwd_result.matched_nodes)
+          (List.to_seq cmp_fwd_result.fuzzy_matched_nodes)
+      in
+      let new_to_old = Seq.map (fun (x, y) -> y, x) old_to_new in
+      let mk_lin (module Cfg : CfgForward) exclude starts =
+        let exclude_hm = NH.of_seq exclude in
+        linearize_cfg Cfg.next ~exclude:(NH.mem exclude_hm) starts
+      in
+      (* remaining CFG nodes, in order *)
+      let lin_old = mk_lin (module CfgOld) old_to_new cmp_fwd_result.unmatched_origins_old in
+      let lin_new = mk_lin (module CfgNew) new_to_old cmp_fwd_result.unmatched_origins_new in
+
+      (* compare using diff algorithm *)
+      let cmp_diff_result, cmp_diff_used =
+        if List.mem Diff compare_types then
+          match_lin_diff (nes_equal_cfg fun_old fun_new) lin_old lin_new, [ Diff ]
+        else
+          dummy_match_diff_result lin_old lin_new, []
+      in
+
+      (* match the remaining nodes in the order they appear, if possible *)
+      let cmp_1to1_result, cmp_1to1_used =
+        if List.mem OneToOne compare_types then
+          match_lin_1to1
+            nes_can_match_cfg
+            cmp_diff_result.unmatched_nes_old cmp_diff_result.unmatched_nes_new,
+          [ OneToOne ]
+        else [], []
+      in
+
+      [ cmp_diff_result.matched_nodes ; cmp_1to1_result ], (cmp_diff_used @ cmp_1to1_used)
+
+    else [], cmp_fwd_used
+  in
+
+  let fuzzy_matched_nodes =
+    cmp_fwd_result.fuzzy_matched_nodes :: lin_fuzzy_matches
+    |> List.to_seq |> Seq.flat_map List.to_seq |> Seq.memoize (* TODO: no memoize in OCaml < 4.14 *)
+  in
+  let all_matched_nodes =
+    cmp_fwd_result.matched_nodes |> List.to_seq
+    |> Seq.append fuzzy_matched_nodes
+  in
+  let same_dep_vals = same_deps_cfg CfgOld.prev CfgNew.prev all_matched_nodes fuzzy_matched_nodes in
+
+  let matched_nodes =
+    List.rev_append
+      (cmp_fwd_result.matched_nodes |> List.rev_map (fun (o, n) -> node_match o n))
+      (Seq.map2
+        (fun (o, n) same_dep_vals -> node_match ~same_dep_vals o n)
+        fuzzy_matched_nodes same_dep_vals
+      |> List.of_seq)
+
+  in
+  {
+    matched_nodes ;
+    destabilize_nodes = cmp_fwd_result.destabilize_nodes ;
+    compare_types = cmp_fwd_used @ lin_used ;
+  }

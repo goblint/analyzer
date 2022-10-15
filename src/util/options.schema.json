@@ -1002,23 +1002,40 @@
         },
         "compare": {
           "title": "incremental.compare",
-          "description":
-            "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)",
-          "type": "string",
-          "enum": ["ast", "cfg"],
-          "default": "ast"
-        },
-        "compare-cfg": {
-          "title": "incremental.compare-cfg",
-          "description": "options for when incremental.compare is 'cfg'",
+          "description": "Options for incremental comparison.",
           "type": "object",
           "properties": {
             "by": {
-              "title": "incremental.compare-cfg.by",
-              "description": "how CFGs should be compared ('forward'/'diff'/'1-to-1')",
-              "type": "string",
-              "enum": ["forward", "diff", "1-to-1"],
-              "default": "forward"
+              "title": "incremental.compare.by",
+              "description": "Which strategies to use to compare functions. When multiple are enabled, they are composed in a fixed order.",
+              "type": "object",
+              "properties": {
+                "ast": {
+                  "title": "incremental.compare.by.ast",
+                  "description": "Use the abstract syntax trees (AST) of functions to check for changes.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "cfg-forward": {
+                  "title": "incremental.compare.by.cfg-forward",
+                  "description": "Perform a precise matching of CFG nodes to find differences within functions.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "cfg-diff": {
+                  "title": "incremental.compare.by.cfg-diff",
+                  "description": "Compare linearized CFGs using a diff-like heuristic to perform a fuzzy match.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "cfg-1-to-1": {
+                  "title": "incremental.compare.by.cfg-1-to-1",
+                  "description": "Perform a fuzzy match by matching nodes in the order they appear in the linearized CFGs.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

@@ -33,6 +33,28 @@ type changed_global = {
   diff: nodes_diff option
 }
 
+(* TODO: factor this out into one place (probably don't put anything in CompareCFG) *)
+type compare_type = AST | CFG of CompareCFG.cfg_compare_type
+
+(** find which of [incremental.compare.by.ast], [incremental.compare.by.cfg-forward],
+[incremental.compare.by.cfg-diff] or [incremental.compare.by.1-to-1] are enabled *)
+let enabled_comparisons =
+  let cache = ref None in
+  fun () ->
+    let result = match !cache with
+    | Some cs -> cs
+    | None ->
+        List.filter_map
+          (fun (k, v) -> if GobConfig.get_bool @@ "incremental.compare.by." ^ k then Some v else None)
+          ["ast", AST; "cfg-forward", CFG Forward; "cfg-diff", CFG Diff; "cfg-1-to-1", CFG OneToOne]
+    in
+    cache := Some result; result
+
+let enabled_cfg_comparisons () =
+  List.filter_map (function (CFG c) -> Some c | _ -> None) @@ enabled_comparisons ()
+
+let cfg_comparison_enabled () = enabled_cfg_comparisons () <> []
+
 module VarinfoSet = Set.Make(CilType.Varinfo)
 
 type change_info = {
@@ -129,19 +151,32 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : ((cfg * cfg) * (cfg * cf
         | None -> rename_mapping_aware_compare old.slocals current.slocals headerRenameMapping
         | Some _ -> GobList.equal (eq_varinfo2 emptyRenameMapping) old.slocals current.slocals, StringMap.empty
       in
-      let rename_mapping: rename_mapping = (local_rename, global_rename_mapping) in
+      let rename_mapping : rename_mapping = (local_rename, global_rename_mapping) in
 
-      if not sameLocals then
-        (Changed, None)
+      (* Compose the various types of function comparison.
+         First, any functions with different locals are marked as changed. *)
+      if not sameLocals then Changed, None
       else
-        match cfgs with
-        | None -> unchanged_to_change_status (eq_block (old.sbody, old) (current.sbody, current) rename_mapping), None
-        | Some ((cfgOld, cfgOldBack), (cfgNew, cfgNewBack)) ->
-          let module CfgOld : MyCFG.CfgBidir = struct let prev = cfgOldBack let next = cfgOld end in
-          let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
-          let cmp = compare_fun (module CfgOld) (module CfgNew) old current in
-          if cmp.destabilize_nodes = [] then (Unchanged, None)
-          else (Changed, Some cmp)
+        (* Next, compare the ASTs of the functions (if enabled) *)
+        let ast_change_status =
+          if List.mem AST @@ enabled_comparisons () then
+            unchanged_to_change_status (eq_block (old.sbody, old) (current.sbody, current) rename_mapping)
+          else Changed
+        in
+        (* Next, compare the CFGs of the functions (if enabled, and AST differences were found) *)
+        match ast_change_status, cfgs with
+        (* Case 1: functions with unchanged ASTs are definitely unchanged *)
+        | Unchanged, _ -> Unchanged, None
+        (* Case 2: changed AST or AST comparison not enabled but CFG comparison enabled *)
+        | Changed, Some (cfgs_old, cfgs_new) ->
+            let mk_cfg (cfg_back, cfg) = (module struct let prev = cfg_back let next = cfg end : MyCFG.CfgBidir) in
+            let cmp =
+              compare_fun_multi
+                (enabled_cfg_comparisons ()) (mk_cfg cfgs_old) (mk_cfg cfgs_new) old current
+            in
+            if cmp.destabilize_nodes = [] then Unchanged, None else Changed, Some cmp
+        (* Base case: AST comparison was not enabled or found changes and no CFG comparison is enabled. *)
+        | _ -> Changed, None
 
 let eq_glob (old: global_col) (current: global_col) (cfgs : ((cfg * cfg) * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) =
   match old.def, current.def with
@@ -154,9 +189,10 @@ let eq_glob (old: global_col) (current: global_col) (cfgs : ((cfg * cfg) * (cfg 
                              if there is at least one declaration or definition for this global *)
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
-  let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
-    then Some (CfgTools.getCFG oldAST, CfgTools.getCFG newAST)
-    else None in
+  let cfgs =
+    if cfg_comparison_enabled () then Some (CfgTools.getCFG oldAST, CfgTools.getCFG newAST)
+    else None
+  in
 
   let addGlobal map global  =
     try
