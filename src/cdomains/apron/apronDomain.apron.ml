@@ -828,7 +828,7 @@ struct
     else
       y (* env decreased, can't decrease infinitely *)
 
-  (* TODO: check environments in pretty_diff? *)
+      (* TODO: check environments in pretty_diff? *)
 end
 
 module type S2 =
@@ -845,7 +845,7 @@ sig
 end
 
 
-module D2 (Man: Manager) : S2 with module Man = Man =
+module D (Man: Manager)=
 struct
   module DWO = DWithOps (Man) (DHetero (Man))
   include SharedFunctions.AssertionModule (V) (DWO)
@@ -854,7 +854,27 @@ struct
   module Man = Man
 end
 
-module OctagonD2 = D2 (OctagonManager)
+module OctagonD = D (OctagonManager)
+
+module D2 (Man: Manager) : S2 with module Man = Man  =
+struct
+include D (Man)
+
+type marshal = OctagonD.marshal
+
+let marshal t : Oct.t Abstract0.t * string array = 
+  let convert_single (a: t): OctagonD.t =
+  if Oct.manager_is_oct Man.mgr then
+    Oct.Abstract1.to_oct a
+  else
+    let generator = to_lincons_array a in
+      OctagonD.of_lincons_array generator
+  in
+  OctagonD.marshal @@ convert_single t
+
+  let unmarshal (m: marshal) = Oct.Abstract1.of_oct @@ OctagonD.unmarshal m
+
+end
 
 module type S3 =
 sig
@@ -866,7 +886,7 @@ sig
   val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 
-  val to_oct: t -> OctagonD2.t
+  val to_oct: t -> OctagonD.t
 end
 
 
@@ -874,12 +894,12 @@ module D3 (Man: Manager) : S3 =
 struct
   include D2 (Man)
 
-  let to_oct (a: t): OctagonD2.t =
+  let to_oct (a: t): OctagonD.t =
     if Oct.manager_is_oct Man.mgr then
       Oct.Abstract1.to_oct a
     else
       let generator = to_lincons_array a in
-      OctagonD2.of_lincons_array generator
+      OctagonD.of_lincons_array generator
 end
 
 (** Lift [D] to a non-reduced product with box.

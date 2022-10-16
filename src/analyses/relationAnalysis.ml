@@ -625,7 +625,6 @@ struct
         | _ -> false
       in
       let st = RD.keep_filter ctx.local.rel var_filter in
-
       let old_value = PCU.RH.find_default results ctx.node (RD.bot ()) in
       let new_value = RD.join old_value st in
       PCU.RH.replace results ctx.node new_value;
@@ -634,4 +633,19 @@ struct
 
   let init marshal =
     Priv.init ()
+
+  let store_data file =
+    let results = PCU.RH.map (fun _ v -> RD.marshal v) results in
+    let name = RD.name () ^ "(domain: " ^ (RD.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.relation.threshold_widening" then ", th" else "" ) ^ ")" in
+    let results: PCU.dump = {marshalled = results; name } in
+    Serialize.marshal results file
+
+  let finalize () =
+    let file = GobConfig.get_string "exp.relation.prec-dump" in
+    if file <> "" then begin
+      Printf.printf "exp.relation.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
+      Stats.time "relation.prec-dump" store_data (Fpath.v file)
+    end;
+    Priv.finalize ()
+
 end

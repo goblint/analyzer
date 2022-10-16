@@ -2,9 +2,9 @@ open PrecCompareUtil
 open ApronDomain
 
 (* Currently serialization of Apron results only works for octagons. *)
-module OctagonD = ApronDomain.OctagonD2
+module OctagonD = ApronDomain.OctagonD
 module Util =
-  functor (D2: RelationDomain.S2) -> (*ToDo Functor argument is useless and just needed to fit Util interface*)
+  functor (D2: RelationDomain.S2) ->
   struct
     include Util (RelationPrecCompareUtil.MyNode) (D2)
     type marshal = D2.marshal RH.t

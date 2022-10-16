@@ -13,13 +13,14 @@ module type Util =
   functor (D2: RelationDomain.S2) ->
   sig
     include module type of struct include Util (MyNode) (D2) end
-    type marshal
+    type marshal = D2.marshal RH.t
     type dump = marshal dump_gen
     type result = Dom.t RH.t result_gen
 
     val init: unit -> unit
 
     val unmarshal : marshal -> D2.t RH.t
+
   end
 
 module DummyUtil : Util =
@@ -33,4 +34,5 @@ module DummyUtil : Util =
     let init () = ()
 
     let unmarshal (m : marshal) : D2.t RH.t = RH.map (fun _ -> D2.unmarshal) m
+
   end

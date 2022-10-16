@@ -1359,13 +1359,13 @@
           "type": "boolean",
           "default": false
         },
-        "apron": {
-          "title": "exp.apron",
+        "relation": {
+          "title": "exp.relation",
           "type": "object",
           "properties": {
             "prec-dump": {
-              "title": "exp.apron.prec-dump",
-              "description": "File to dump apron precision data to.",
+              "title": "exp.relation.prec-dump",
+              "description": "File to dump relation precision data to.",
               "type": "string",
               "default": ""
             }
