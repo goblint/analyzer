@@ -26,7 +26,7 @@ module EvalAssert = struct
   let surroundByAtomic = true
 
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-  let ass = makeVarinfo true "assert" (TVoid [])
+  let ass = makeVarinfo true "__VERIFIER_assert" (TVoid [])
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
