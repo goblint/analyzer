@@ -22,7 +22,7 @@ int main() {
   } else {
     __goblint_check(ul != 0UL);
   }
-    
+
   unsigned int iu;
   if (iu <= 0UL) {
     __goblint_check(iu == 0UL);
@@ -45,7 +45,7 @@ int main() {
 
   int i;
   if (! (i > 0)) {
-    
+
   } else {
     __goblint_check(i != 0);
   }
