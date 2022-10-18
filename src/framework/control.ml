@@ -39,7 +39,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
 let get_spec (): (module Spec) =
   Lazy.force spec_module
 
-let current_xml : (Node.t -> Yojson.Safe.t) ref = ref (fun _ -> assert false)
+let current_node_state_json : (Node.t -> Yojson.Safe.t) ref = ref (fun _ -> assert false)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
@@ -610,7 +610,7 @@ struct
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let local_xml = solver2source_result lh in
-    current_xml := (fun node -> LT.to_yojson (Result.find local_xml node));
+    current_node_state_json := (fun node -> LT.to_yojson (Result.find local_xml node));
 
     let liveness =
       if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then

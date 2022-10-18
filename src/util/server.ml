@@ -315,20 +315,17 @@ let () =
       let live _ = true in (* TODO: fix this *)
       let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
       { cfg }
-      (* TODO: also filter and include states info (as json) in the response for the requested function *)
   end);
 
   register (module struct
     let name = "node_state"
-    type params = { fname: string }  [@@deriving of_yojson]
+    type params = { nid: string }  [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
-    let process { fname } serv =
-      let f = !Control.current_xml in
-      let n = Node.of_id fname in
+    let process { nid } serv =
+      let f = !Control.current_node_state_json in
+      let n = Node.of_id nid in
       let json = f n in
-      (* ignore @@ Pretty.printf "%s\n" (Yojson.Safe.to_string json); *)
       json
-      (* TODO: also filter and include states info (as json) in the response for the requested function *)
   end);
 
   register (module struct
