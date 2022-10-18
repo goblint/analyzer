@@ -4,6 +4,8 @@
 
 make clean
 
+git tag -m "SV-COMP 2023" svcomp23
+
 dune build --profile=release src/goblint.exe
 rm -f goblint
 cp _build/default/src/goblint.exe goblint
