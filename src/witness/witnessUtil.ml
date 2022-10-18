@@ -86,16 +86,6 @@ struct
       emit_other
 end
 
-module type InvariantS =
-sig
-  val emit_loop_head : bool
-  val emit_after_lock : bool
-  val emit_other : bool
-  val loop_heads : unit NH.t
-  val is_after_lock : Node0.t -> bool
-  val is_invariant_node : Node0.t -> bool
-end
-
 module InvariantExp =
 struct
   module ES = SetDomain.Make (CilType.Exp)

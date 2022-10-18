@@ -594,9 +594,8 @@ struct
               Spec.query ctx q
           )
         in
-        let module WitnessUtil = WitnessUtil.Invariant (struct let file = file end) (Cfg) in
         let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
-        List.iter (fun name -> Transform.run (module WitnessUtil) name ask file) active_transformations
+        List.iter (fun name -> Transform.run name ask file) active_transformations
       );
 
       lh, gh

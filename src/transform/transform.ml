@@ -2,15 +2,15 @@ open Prelude
 open GoblintCil
 
 module type S = sig
-  val transform : (module WitnessUtil.InvariantS) -> (?node:Node.t -> Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)
+  val transform : (?node:Node.t -> Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)
 end
 
 let h = Hashtbl.create 13
 let register name (module T : S) = Hashtbl.add h name (module T : S)
-let run (module U: WitnessUtil.InvariantS) name =
+let run name =
   let module T = (val try Hashtbl.find h name with Not_found -> failwith @@ "Transformation "^name^" does not exist!") in
   if GobConfig.get_bool "dbg.verbose" then print_endline @@ "Starting transformation " ^ name;
-  T.transform (module U)
+  T.transform
 
 module PartialEval = struct
   let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
@@ -33,7 +33,7 @@ module PartialEval = struct
       | Const _ -> SkipChildren
       | _ -> ChangeDoChildrenPost (e, eval)
   end
-  let transform (module U: WitnessUtil.InvariantS) ask file =
+  let transform ask file =
     visitCilFile (new visitor ask) file
 end
 let _ = register "partial" (module PartialEval)

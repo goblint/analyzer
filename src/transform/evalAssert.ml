@@ -21,7 +21,7 @@ open Formatcil
         will be removed and they will fail on the next iteration
 *)
 
-module EvalAssertF (U: WitnessUtil.InvariantS) = struct
+module EvalAssert = struct
   (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
   let surroundByAtomic = true
 
@@ -34,8 +34,20 @@ module EvalAssertF (U: WitnessUtil.InvariantS) = struct
   class visitor (ask: ?node:Node.t -> Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
     val full = GobConfig.get_bool "witness.invariant.full"
+    (* TODO: handle witness.invariant.loop-head *)
+    val emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
+    val emit_other = GobConfig.get_bool "witness.invariant.other"
 
     method! vstmt s =
+      let is_lock exp args =
+        match exp with
+        | Lval(Var v,_) ->
+          let desc = LibraryFunctions.find v in
+          (match desc.special args with
+           | Lock _ -> true
+           | _ -> false)
+        | _ -> false
+      in
 
       let make_assert ~node loc lval =
         let lvals = match lval with
@@ -63,9 +75,9 @@ module EvalAssertF (U: WitnessUtil.InvariantS) = struct
             make_assert ~node loc lval_arg
           in
           match i with
-          | Call (_, exp, args, _, _) when U.emit_after_lock && U.is_after_lock node -> instrument' None
-          | Set  (lval, _, _, _) when U.emit_other -> instrument' (Some lval)
-          | Call (lval, _, _, _, _) when U.emit_other -> instrument' lval
+          | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
+          | Set  (lval, _, _, _) when emit_other -> instrument' (Some lval)
+          | Call (lval, _, _, _, _) when emit_other -> instrument' lval
           | _ -> []
         in
         let instrument_instructions il = match il, s.succs with
@@ -89,7 +101,7 @@ module EvalAssertF (U: WitnessUtil.InvariantS) = struct
 
       let instrument_join s =
         match s.preds with
-        | [p1; p2] when U.emit_other ->
+        | [p1; p2] when emit_other ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
           let join_loc = Cilfacade.get_stmtLoc s in
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if witness.invariant.full is false *)
@@ -120,20 +132,15 @@ module EvalAssertF (U: WitnessUtil.InvariantS) = struct
             else
               ()
           in
-          if U.is_invariant_node (Node.Statement s) then (add_asserts b1; add_asserts b2);
+          if emit_other then (add_asserts b1; add_asserts b2);
           s
         | _ -> s
       in
       ChangeDoChildrenPost (s, instrument_statement)
   end
 
-end
-
-module EvalAssert =
-struct
-  let transform (module U: WitnessUtil.InvariantS) (ask: ?node:Node.t -> Cil.location -> Queries.ask) file =
-    let module E = EvalAssertF (U) in
-    visitCilFile (new E.visitor ask) file;
+  let transform (ask: ?node:Node.t -> Cil.location -> Queries.ask) file = begin
+    visitCilFile (new visitor ask) file;
 
     (* Add function declarations before function definitions.
        This way, asserts may reference functions defined later. *)
@@ -141,7 +148,6 @@ struct
 
     let assert_filename = GobConfig.get_string "trans.output" in
     let oc = Stdlib.open_out assert_filename in
-    dumpFile defaultCilPrinter oc assert_filename file
+    dumpFile defaultCilPrinter oc assert_filename file; end
 end
-
 let _ = Transform.register "assert" (module EvalAssert)
