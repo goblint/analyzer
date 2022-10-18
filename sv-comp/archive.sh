@@ -12,7 +12,8 @@ rm goblint/sv-comp/goblint.zip
 
 zip goblint/sv-comp/goblint.zip \
     goblint/goblint \
-    goblint/conf/svcomp22.json \
+    goblint/conf/svcomp23.json \
+    goblint/includes/assert.h \
     goblint/includes/stdlib.c \
     goblint/includes/pthread.c \
     goblint/includes/sv-comp.c \
