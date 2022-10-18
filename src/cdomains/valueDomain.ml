@@ -1298,7 +1298,7 @@ struct
     | `Address n -> ad_invariant ~vs ~offset ~lval n
     | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
-    | `Blob n when GobConfig.get_bool "witness.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
+    | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
   (* TODO: remove duplicate lval arguments? *)
