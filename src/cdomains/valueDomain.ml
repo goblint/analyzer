@@ -1248,7 +1248,6 @@ struct
               in
               let i_deref =
                 match Cilfacade.typeOfLval (Var vi, offset) with
-                | TVoid _ -> Invariant.none (* TODO: Try to determine type of abstract value and introduce appropriate casts *)
                 | typ ->
                   (* Address set for a void* variable contains pointers to values of non-void type,
                      so insert pointer cast to make invariant expression valid (no field/index on void). *)
