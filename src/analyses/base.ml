@@ -2002,7 +2002,8 @@ struct
           (match eval e1 st, eval e2 st with
            | `Int a, `Int b ->
              let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
-             let a', b' = inv_bin_int (a, b) ikind (c_int ikind) op in
+             let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
+             let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
              if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
              let st' = inv_exp (`Int a') e1 st in
              let st'' = inv_exp (`Int b') e2 st' in
