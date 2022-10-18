@@ -55,6 +55,18 @@
       "arrays": {
         "domain": "partitioned"
       }
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "arrayDomain",
+        "octagon",
+        "wideningThresholds"
+      ]
     }
   },
   "exp": {
