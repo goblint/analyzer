@@ -1,10 +1,5 @@
 {
   "ana": {
-    "base": {
-      "arrays": {
-        "domain": "partitioned"
-      }
-    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -53,14 +48,15 @@
         "ldv_xzalloc",
         "ldv_calloc"
       ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
     }
   },
   "exp": {
     "region-offsets": true
-  },
-  "witness": {
-    "id": "enumerate",
-    "unknown": false
   },
   "solver": "td3",
   "sem": {
@@ -73,5 +69,9 @@
     "null-pointer": {
       "dereference": "assume_none"
     }
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
   }
 }
