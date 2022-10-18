@@ -58,14 +58,15 @@ let find_fundec (node: t) =
   | FunctionEntry fd -> fd
 
 let of_id s =
-  let ix = (Str.search_forward (Str.regexp {|[0-9]+$|}) s 0) in
-  let id = int_of_string (String.sub s ix (String.length s - ix)) in
+  let ix = Str.search_forward (Str.regexp {|[0-9]+$|}) s 0 in
+  let id = int_of_string (Str.string_after s ix) in
+  let prefix = Str.string_before s ix in
   match ix with
-    | 0 -> Statement { dummyStmt with sid = id }
-    | _ -> 
-      let prefix = String.sub s 0 ix in 
-      let fundec = (Cilfacade.find_varinfo_fundec {dummyFunDec.svar with vid = id}) in
-      match prefix with
-        | "ret" ->  Function fundec
-        | _     ->  FunctionEntry fundec
- 
+  | 0 -> Statement { dummyStmt with sid = id }
+  | _ ->
+    let fundec = Cilfacade.find_varinfo_fundec {dummyFunDec.svar with vid = id} in
+    match prefix with
+    | "ret" -> Function fundec
+    | "fun" -> FunctionEntry fundec
+    | _     -> invalid_arg "Node.of_id: invalid prefix"
+
