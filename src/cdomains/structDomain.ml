@@ -28,7 +28,7 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
-  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval option -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval option -> t -> Invariant.t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module Simple (Val: Arg) =
@@ -81,18 +81,15 @@ struct
     match offset with
     (* invariants for all fields *)
     | NoOffset ->
-      let c_lval = Option.get lval in
       fold (fun f v acc ->
-          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-          let i = value_invariant ~offset ~lval:(Some f_lval) v in
+          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) lval in
+          let i = value_invariant ~offset ~lval:f_lval v in
           Invariant.(acc && i)
         ) x (Invariant.top ())
     (* invariant for one field *)
     | Field (f, offset) ->
       let v = get x f in
-      let c_lval = Option.get lval in
-      let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-      value_invariant ~offset ~lval:(Some f_lval) v
+      value_invariant ~offset ~lval v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none

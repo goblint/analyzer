@@ -1221,7 +1221,7 @@ struct
   module VS = Set.Make (Basetype.Variables)
 
   let rec ad_invariant ~vs ~offset ~lval x =
-    let c_exp = Cil.(Lval (Option.get lval)) in
+    let c_exp = Lval lval in
     let i_opt = AD.fold (fun addr acc_opt ->
         BatOption.bind acc_opt (fun acc ->
             match addr with
@@ -1253,7 +1253,7 @@ struct
                      so insert pointer cast to make invariant expression valid (no field/index on void). *)
                   let newt = TPtr (typ, []) in
                   let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
-                  deref_invariant ~vs ~lval vi offset (Mem c_exp, NoOffset)
+                  deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
                 | exception Cilfacade.TypeOfError _ -> (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
                   Invariant.none
               in
@@ -1283,13 +1283,13 @@ struct
 
   and vd_invariant ~vs ~offset ~lval = function
     | `Int n ->
-      let e = Lval (Option.get lval) in
+      let e = Lval lval in
       if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
         ID.invariant e n
       else
         Invariant.none
     | `Float n ->
-      let e = Lval (Option.get lval) in
+      let e = Lval lval in
       if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
         FD.invariant e n
       else
@@ -1300,20 +1300,18 @@ struct
     | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
-  (* TODO: remove duplicate lval arguments? *)
-  and deref_invariant ~vs ~lval vi offset lval' =
+  and deref_invariant ~vs vi ~offset ~lval =
     let v = find vi in
-    key_invariant_lval ~vs ~lval vi offset lval' v
+    key_invariant_lval ~vs vi ~offset ~lval v
 
-  and key_invariant_lval ~vs ~lval k offset lval' v =
+  and key_invariant_lval ?(vs=VS.empty) k ~offset ~lval v =
     if not (VS.mem k vs) then
       let vs' = VS.add k vs in
-      vd_invariant ~vs:vs' ~offset ~lval:(Some lval') v
+      vd_invariant ~vs:vs' ~offset ~lval v
     else
       Invariant.none
 
-
-  let key_invariant k ?(offset=NoOffset) v = key_invariant_lval ~vs:VS.empty ~lval:None k offset (var k) v
+  let key_invariant k ?(offset=NoOffset) v = key_invariant_lval k ~offset ~lval:(var k) v
 end
 
 let invariant_global find g =
