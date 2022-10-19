@@ -57,38 +57,44 @@ let compare_name (a: string) (b: string) =
   let anon_union = "__anonunion_" in
   if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
 
-let rec eq_constant (rename_mapping: rename_mapping) (a: constant) (b: constant)  =
+let rec eq_constant (rename_mapping: rename_mapping) (a: constant) (b: constant) acc =
   match a, b with
   | CInt (val1, kind1, str1), CInt (val2, kind2, str2) -> Cilint.compare_cilint val1 val2 = 0 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
-  | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 rename_mapping (* Ignore name and enuminfo  *)
+  | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp_acc exp1 exp2 rename_mapping acc (* Ignore name and enuminfo  *)
   | a, b -> a = b
 
 
-and eq_exp2 ?(no_const_vals = false) (rename_mapping: rename_mapping) (a: exp) (b: exp) = eq_exp a b rename_mapping
+and eq_exp_acc2 ?(no_const_vals = false) (acc: (typ * typ) list) (rename_mapping: rename_mapping) (a: exp) (b: exp)  = eq_exp_acc a b rename_mapping acc
 
-and eq_exp ?(no_const_vals = false) (a: exp) (b: exp) (rename_mapping: rename_mapping) =
+and eq_exp_acc ?(no_const_vals = false) (a: exp) (b: exp) (rename_mapping: rename_mapping) (acc: (typ * typ) list) =
   match a, b with
-  | Const c1, Const c2 ->  if no_const_vals then true else eq_constant rename_mapping c1 c2
-  | Lval lv1, Lval lv2 -> eq_lval lv1 lv2 rename_mapping
+  | Const c1, Const c2 ->  if no_const_vals then true else eq_constant rename_mapping c1 c2 acc
+  | Lval lv1, Lval lv2 -> eq_lval_acc lv1 lv2 rename_mapping acc
   | SizeOf typ1, SizeOf typ2 -> eq_typ typ1 typ2 rename_mapping
-  | SizeOfE exp1, SizeOfE exp2 -> eq_exp exp1 exp2 rename_mapping
+  | SizeOfE exp1, SizeOfE exp2 -> eq_exp_acc exp1 exp2 rename_mapping acc
   | SizeOfStr str1, SizeOfStr str2 -> str1 = str2 (* possibly, having the same length would suffice *)
   | AlignOf typ1, AlignOf typ2 -> eq_typ typ1 typ2 rename_mapping
-  | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2 rename_mapping
-  | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 == op2 && eq_exp exp1 exp2 rename_mapping && eq_typ typ1 typ2 rename_mapping
-  | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  op1 = op2 && eq_exp left1 left2 rename_mapping && eq_exp right1 right2 rename_mapping && eq_typ typ1 typ2 rename_mapping
-  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 rename_mapping && eq_exp exp1 exp2 rename_mapping
-  | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 rename_mapping
-  | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2 rename_mapping
-  | Real exp1, Real exp2 -> eq_exp exp1 exp2 rename_mapping
-  | Imag exp1, Imag exp2 -> eq_exp exp1 exp2 rename_mapping
-  | Question (b1, t1, f1, typ1), Question (b2, t2, f2, typ2) -> eq_exp b1 b2 rename_mapping && eq_exp t1 t2 rename_mapping && eq_exp f1 f2 rename_mapping && eq_typ typ1 typ2 rename_mapping
+  | AlignOfE exp1, AlignOfE exp2 -> eq_exp_acc exp1 exp2 rename_mapping acc
+  | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 == op2 && eq_exp_acc exp1 exp2 rename_mapping acc && eq_typ typ1 typ2 rename_mapping
+  | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  op1 = op2 && eq_exp_acc left1 left2 rename_mapping acc && eq_exp_acc right1 right2 rename_mapping acc && eq_typ typ1 typ2 rename_mapping
+  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 rename_mapping && eq_exp_acc exp1 exp2 rename_mapping acc
+  | AddrOf lv1, AddrOf lv2 -> eq_lval_acc lv1 lv2 rename_mapping acc
+  | StartOf lv1, StartOf lv2 -> eq_lval_acc lv1 lv2 rename_mapping acc
+  | Real exp1, Real exp2 -> eq_exp_acc exp1 exp2 rename_mapping acc
+  | Imag exp1, Imag exp2 -> eq_exp_acc exp1 exp2 rename_mapping acc
+  | Question (b1, t1, f1, typ1), Question (b2, t2, f2, typ2) -> eq_exp_acc b1 b2 rename_mapping acc && eq_exp_acc t1 t2 rename_mapping acc && eq_exp_acc f1 f2 rename_mapping [] && eq_typ typ1 typ2 rename_mapping
   | AddrOfLabel _, AddrOfLabel _ -> false (* TODO: what to do? *)
   | _, _ -> false
 
-and eq_lhost (a: lhost) (b: lhost) (rename_mapping: rename_mapping) = match a, b with
-    Var v1, Var v2 -> eq_varinfo v1 v2 rename_mapping
-  | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 rename_mapping
+and eq_exp ?(no_const_vals = false) (a: exp) (b: exp) (rename_mapping: rename_mapping) =
+  eq_exp_acc ?no_const_vals:(Some no_const_vals) a b rename_mapping []
+
+and eq_exp2 ?(no_const_vals = false)(rename_mapping: rename_mapping) (a: exp) (b: exp)  =
+  eq_exp_acc a b rename_mapping []
+
+and eq_lhost (a: lhost) (b: lhost) (rename_mapping: rename_mapping) acc= match a, b with
+    Var v1, Var v2 -> eq_varinfo_acc v1 v2 rename_mapping acc
+  | Mem exp1, Mem exp2 -> eq_exp_acc exp1 exp2 rename_mapping acc
   | _, _ -> false
 
 and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physical Hashtbl? *)
@@ -101,7 +107,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
   if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r = match a, b with
     | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2
-    | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && eq_exp lenExp1 lenExp2 rename_mapping &&  GobList.equal (eq_attribute rename_mapping) attr1 attr2
+    | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && eq_exp_acc lenExp1 lenExp2 rename_mapping acc &&  GobList.equal (eq_attribute rename_mapping) attr1 attr2
     | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2
     | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
       -> eq_typ_acc typ1 typ2 acc rename_mapping && GobList.equal (eq_args rename_mapping acc) list1 list2 && varArg1 = varArg2 &&
@@ -140,7 +146,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
 and eq_typ (a: typ) (b: typ) (rename_mapping: rename_mapping) = eq_typ_acc a b [] rename_mapping
 
 and eq_eitems (rename_mapping: rename_mapping) (a: string * exp * location) (b: string * exp * location) = match a, b with
-    (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2 rename_mapping
+    (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp_acc exp1 exp2 rename_mapping []
 (* Ignore location *)
 
 and eq_enuminfo (a: enuminfo) (b: enuminfo) (rename_mapping: rename_mapping) =
@@ -173,9 +179,11 @@ and eq_attrparam (rename_mapping: rename_mapping) (a: attrparam) (b: attrparam) 
 and eq_attribute (rename_mapping: rename_mapping) (a: attribute) (b: attribute) = match a, b with
   | Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && GobList.equal (eq_attrparam rename_mapping) params1 params2
 
-and eq_varinfo2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) = eq_varinfo a b rename_mapping
+and eq_varinfo_acc2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) (acc: (typ * typ) list) = eq_varinfo_acc a b rename_mapping acc
 
-and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
+and eq_varinfo2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) = eq_varinfo_acc a b rename_mapping []
+
+and eq_varinfo_acc (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) (acc: (typ * typ) list)=
   (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
 
   let (_, method_rename_mappings) = rename_mapping in
@@ -215,6 +223,9 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   result
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 
+and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
+  eq_varinfo_acc a b rename_mapping []
+
 (* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
 and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
   a.cstruct = b.cstruct &&
@@ -229,30 +240,33 @@ and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list) (rename_m
   if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
   r
 
-and eq_offset (a: offset) (b: offset) (rename_mapping: rename_mapping) = match a, b with
+and eq_offset (a: offset) (b: offset) (rename_mapping: rename_mapping) acc = match a, b with
     NoOffset, NoOffset -> true
-  | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 [] rename_mapping && eq_offset offset1 offset2 rename_mapping
-  | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp exp1 exp2 rename_mapping && eq_offset offset1 offset2 rename_mapping
+  | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 [] rename_mapping && eq_offset offset1 offset2 rename_mapping acc
+  | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp_acc exp1 exp2 rename_mapping acc && eq_offset offset1 offset2 rename_mapping acc
   | _, _ -> false
 
-and eq_lval (a: lval) (b: lval) (rename_mapping: rename_mapping) = match a, b with
-    (host1, off1), (host2, off2) -> eq_lhost host1 host2 rename_mapping && eq_offset off1 off2 rename_mapping
+and eq_lval_acc (a: lval) (b: lval) (rename_mapping: rename_mapping) acc = match a, b with
+    (host1, off1), (host2, off2) -> eq_lhost host1 host2 rename_mapping acc && eq_offset off1 off2 rename_mapping acc
+
+and eq_lval (a: lval) (b: lval) (rename_mapping: rename_mapping) =
+  eq_lval_acc a b rename_mapping []
 
 let eq_instr (rename_mapping: rename_mapping) (a: instr) (b: instr)  =
   let skip_const_args_funs = GobConfig.get_string_list("incremental.ignore-const-args") in
   let comp_args rename_mapping f1 args1 args2 = match f1 with
     | Lval (Var v1,_) when List.mem v1.vname skip_const_args_funs ->
-      GobList.equal (eq_exp2 rename_mapping ~no_const_vals:true) args1 args2
-    | _ -> GobList.equal (eq_exp2 rename_mapping) args1 args2
+      GobList.equal (eq_exp_acc2 [] rename_mapping ~no_const_vals:true ) args1 args2
+    | _ -> GobList.equal (eq_exp_acc2 [] rename_mapping) args1 args2
   in
   match a, b with
-  | Set (lv1, exp1, _l1, _el1), Set (lv2, exp2, _l2, _el2) -> eq_lval lv1 lv2 rename_mapping && eq_exp exp1 exp2 rename_mapping
+  | Set (lv1, exp1, _l1, _el1), Set (lv2, exp2, _l2, _el2) -> eq_lval_acc lv1 lv2 rename_mapping [] && eq_exp_acc exp1 exp2 rename_mapping []
   | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) ->
-    eq_lval lv1 lv2 rename_mapping && eq_exp f1 f2 rename_mapping && comp_args rename_mapping f1 args1 args2
+    eq_lval_acc lv1 lv2 rename_mapping [] && eq_exp_acc f1 f2 rename_mapping [] && comp_args rename_mapping f1 args1 args2
   | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) ->
-    eq_exp f1 f2 rename_mapping && comp_args rename_mapping f1 args1 args2
-  | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> GobList.equal String.equal tmp1 tmp2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2 rename_mapping) ci1 ci2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2 rename_mapping) dj1 dj2 && GobList.equal String.equal rk1 rk2(* ignore attributes and locations *)
-  | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo v1 v2 rename_mapping
+    eq_exp_acc f1 f2 rename_mapping [] && comp_args rename_mapping f1 args1 args2
+  | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> GobList.equal String.equal tmp1 tmp2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval_acc z1 z2 rename_mapping []) ci1 ci2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp_acc z1 z2 rename_mapping []) dj1 dj2 && GobList.equal String.equal rk1 rk2(* ignore attributes and locations *)
+  | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo_acc v1 v2 rename_mapping []
   | _, _ -> false
 
 let eq_label (a: label) (b: label) = match a, b with
@@ -275,14 +289,14 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   let eq_block' = fun x y -> if cfg_comp then true else eq_block (x, af) (y, bf) rename_mapping in
   match a, b with
   | Instr is1, Instr is2 -> GobList.equal (eq_instr rename_mapping) is1 is2
-  | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2 rename_mapping
+  | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp_acc exp1 exp2 rename_mapping []
   | Return (None, _l1), Return (None, _l2) -> true
   | Return _, Return _ -> false
   | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf)
   | Break _, Break _ -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else true
   | Continue _, Continue _ -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else true
-  | If (exp1, then1, else1, _l1, _el1), If (exp2, then2, else2, _l2, _el2) -> eq_exp exp1 exp2 rename_mapping && eq_block' then1 then2 && eq_block' else1 else2
-  | Switch (exp1, block1, stmts1, _l1, _el1), Switch (exp2, block2, stmts2, _l2, _el2) -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else eq_exp exp1 exp2 rename_mapping && eq_block' block1 block2 && GobList.equal (fun a b -> eq_stmt (a,af) (b,bf) rename_mapping) stmts1 stmts2
+  | If (exp1, then1, else1, _l1, _el1), If (exp2, then2, else2, _l2, _el2) -> eq_exp_acc exp1 exp2 rename_mapping [] && eq_block' then1 then2 && eq_block' else1 else2
+  | Switch (exp1, block1, stmts1, _l1, _el1), Switch (exp2, block2, stmts2, _l2, _el2) -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else eq_exp_acc exp1 exp2 rename_mapping [] && eq_block' block1 block2 && GobList.equal (fun a b -> eq_stmt (a,af) (b,bf) rename_mapping) stmts1 stmts2
   | Loop (block1, _l1, _el1, _con1, _br1), Loop (block2, _l2, _el2, _con2, _br2) -> eq_block' block1 block2
   | Block block1, Block block2 -> eq_block' block1 block2
   | _, _ -> false
@@ -295,8 +309,8 @@ and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) (rename
   a.battrs = b.battrs && GobList.equal (fun x y -> eq_stmt (x, af) (y, bf) rename_mapping) a.bstmts b.bstmts
 
 let rec eq_init (a: init) (b: init) (rename_mapping: rename_mapping) = match a, b with
-  | SingleInit e1, SingleInit e2 -> eq_exp e1 e2 rename_mapping
-  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 rename_mapping && GobList.equal (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 rename_mapping && eq_init i1 i2 rename_mapping) l1 l2
+  | SingleInit e1, SingleInit e2 -> eq_exp_acc e1 e2 rename_mapping []
+  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 rename_mapping && GobList.equal (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 rename_mapping [] && eq_init i1 i2 rename_mapping) l1 l2
   | _, _ -> false
 
 let eq_initinfo (a: initinfo) (b: initinfo) (rename_mapping: rename_mapping) = match a.init, b.init with
