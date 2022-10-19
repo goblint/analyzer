@@ -38,13 +38,12 @@ struct
       end
     (* invariant for one field *)
     | Field (f, offset) ->
+      let c_lval = Option.get lval in
       begin match lift_f with
         | `Lifted f' ->
           let v = Values.cast ~torg:f'.ftype f.ftype v in
-          (* Do not add the field offset to lval here:
-             Otherwise, for pointers to a member type of the union, this would
-             generate an assertion with illegal field offset. *)
-          value_invariant ~offset ~lval:lval v
+          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
+          value_invariant ~offset ~lval:(Some f_lval) v
         | `Top
         | `Bot ->
           Invariant.none
