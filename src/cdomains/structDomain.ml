@@ -90,9 +90,7 @@ struct
     (* invariant for one field *)
     | Field (f, offset) ->
       let v = get x f in
-      let c_lval = Option.get lval in
-      let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-      value_invariant ~offset ~lval:(Some f_lval) v
+      value_invariant ~offset ~lval v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none

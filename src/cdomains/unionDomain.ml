@@ -38,12 +38,10 @@ struct
       end
     (* invariant for one field *)
     | Field (f, offset) ->
-      let c_lval = Option.get lval in
       begin match lift_f with
         | `Lifted f' ->
           let v = Values.cast ~torg:f'.ftype f.ftype v in
-          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-          value_invariant ~offset ~lval:(Some f_lval) v
+          value_invariant ~offset ~lval v
         | `Top
         | `Bot ->
           Invariant.none
