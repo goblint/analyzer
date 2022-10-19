@@ -1186,8 +1186,8 @@ struct
       CilLval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var k, offset) ->
-              (try var_invariant ~offset k with Not_found -> Invariant.none)
+            | (Var v, offset) when not (InvariantCil.var_is_heap v) ->
+              (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
           Invariant.(a && i)
