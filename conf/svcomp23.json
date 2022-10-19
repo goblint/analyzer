@@ -9,6 +9,9 @@
       "enums": false,
       "interval": true
     },
+    "float": {
+      "interval": true
+    },
     "activated": [
       "base",
       "threadid",
