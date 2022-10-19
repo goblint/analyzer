@@ -29,12 +29,12 @@ struct
     | Cil.NoOffset ->
       let c_lval = Option.get lval in
       begin match lift_f with
-        | `Lifted f ->
-          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-          value_invariant ~offset ~lval:(Some f_lval) v
-        | `Top
-        | `Bot ->
-          Invariant.none
+      | `Lifted f ->
+        let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
+        value_invariant ~offset ~lval:(Some f_lval) v
+      | `Top
+      | `Bot ->
+        Invariant.none
       end
     (* invariant for one field *)
     | Field (f, offset) ->
