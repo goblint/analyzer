@@ -1,9 +1,10 @@
+# Generate asserts for coreutil programs in ../bench/coreutils/
 import os
 
 outfile_setting="--set trans.output"
-out_file_name="instrumented_"
-outdir="coreutils_goblint/"
-cmd ="./goblint  --set pre.cppflags[+] \"--std=gnu89\" --set ana.ctx_insens \"['base', 'mallocWrapper']\" --disable witness.invariant.full --set trans.activated[+] \"assert\" "
+out_file_name="instrumented_interval_"
+outdir="goblint-coreutils/"
+cmd ="./goblint  --set pre.cppflags[+] \"--std=gnu89\" --enable ana.int.interval --set ana.ctx_insens \"['base', 'mallocWrapper']\" --disable witness.invariant.full --set trans.activated[+] \"assert\" "
 directory = "../bench/coreutils/"
 
 start_string = """#include <assert.h>
