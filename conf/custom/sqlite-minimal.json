@@ -40,7 +40,11 @@
         "earlyglobs": true
     },
     "result": "json-messages",
-    "printstats": true,
+    "dbg": {
+        "timing": {
+            "enabled": true
+        }
+    },
     "warn": {
         "assert": false,
         "behavior": false,
