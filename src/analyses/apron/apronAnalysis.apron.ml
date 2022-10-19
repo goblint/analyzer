@@ -147,6 +147,7 @@ struct
       )
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+        v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with apr = AD.add_vars st.apr [V.local v_out]} in (* add temporary g#out *)
         let st' = {st with apr = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
@@ -649,7 +650,7 @@ struct
       RH.map (fun _ -> AD.to_oct) m
     in
     let post_process m =
-      let m = Stats.time "convert" convert m in
+      let m = Timing.wrap "convert" convert m in
       RH.map (fun _ v -> OctApron.marshal v) m
     in
     let results = post_process results in
@@ -661,7 +662,7 @@ struct
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
       Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
-      Stats.time "apron.prec-dump" store_data (Fpath.v file)
+      Timing.wrap "apron.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
 end

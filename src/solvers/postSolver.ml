@@ -212,13 +212,13 @@ struct
       if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
-    (GoblintCil.Stats.time "postsolver_iter" (List.iter one_var)) vs;
+    (Timing.wrap "postsolver_iter" (List.iter one_var)) vs;
 
     PS.finalize ~vh ~reachable;
     Goblintutil.postsolving := false
 
   let post xs vs vh =
-    GoblintCil.Stats.time "postsolver" (post xs vs) vh
+    Timing.wrap "postsolver" (post xs vs) vh
 end
 
 (** List of postsolvers. *)

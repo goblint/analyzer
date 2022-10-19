@@ -78,7 +78,9 @@ struct
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let accs = G.access (ctx.global g) in
-          Stats.time "race" (Access.warn_global safe vulnerable unsafe g') accs
+          let (lv, ty) = g' in
+          let mem_loc_str = Pretty.sprint ~width:max_int (Access.d_memo () (ty, lv)) in
+          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)
           ()
       end
@@ -154,12 +156,12 @@ struct
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in
     if total > 0 then (
-      ignore (Pretty.printf "\nSummary for all memory locations:\n");
-      ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
-      ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
-      ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
-      ignore (Pretty.printf "\t-------------------\n");
-      ignore (Pretty.printf "\ttotal:       %5d\n" total)
+      M.msg_group Info ~category:Race "Memory locations race summary" [
+        (Pretty.dprintf "safe: %d" !safe, None);
+        (Pretty.dprintf "vulnerable: %d" !vulnerable, None);
+        (Pretty.dprintf "unsafe: %d" !unsafe, None);
+        (Pretty.dprintf "total: %d" total, None);
+      ];
     )
 end
 
