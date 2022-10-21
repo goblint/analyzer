@@ -1,7 +1,9 @@
+diff --git tests/incremental/11-restart/16-mutex-simple-wrap1-global.c tests/incremental/11-restart/16-mutex-simple-wrap1-global.c
+index 790157639..56476ea1e 100644
 --- tests/incremental/11-restart/16-mutex-simple-wrap1-global.c
 +++ tests/incremental/11-restart/16-mutex-simple-wrap1-global.c
-@@ -7,15 +7,15 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
-
+@@ -7,19 +7,19 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
+ 
  void *t_fun(void *arg) {
    pthread_mutex_lock(&mutex1);
 -  myglobal=myglobal+1; // RACE!
@@ -9,14 +11,18 @@
    pthread_mutex_unlock(&mutex1);
    return NULL;
  }
-
+ 
+ void incr() {
+-  myglobal=myglobal+1; // RACE!
++  myglobal=myglobal+1; // NORACE
+ }
+ 
  void wrap() {
 -  pthread_mutex_lock(&mutex2);
--  myglobal=myglobal+1; // RACE!
--  pthread_mutex_unlock(&mutex2);
 +  pthread_mutex_lock(&mutex1);
-+  myglobal=myglobal+1; // NORACE
+   incr();
+-  pthread_mutex_unlock(&mutex2);
 +  pthread_mutex_unlock(&mutex1);
  }
-
+ 
  int main(void) {

@@ -1,22 +1,16 @@
+diff --git tests/incremental/11-restart/15-mutex-simple-wrap1.c tests/incremental/11-restart/15-mutex-simple-wrap1.c
+index 790157639..4e9ef494e 100644
 --- tests/incremental/11-restart/15-mutex-simple-wrap1.c
 +++ tests/incremental/11-restart/15-mutex-simple-wrap1.c
-@@ -7,15 +7,15 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
-
- void *t_fun(void *arg) {
-   pthread_mutex_lock(&mutex1);
--  myglobal=myglobal+1; // RACE!
-+  myglobal=myglobal+1; // RACE (not enough fuel)
-   pthread_mutex_unlock(&mutex1);
-   return NULL;
+@@ -17,9 +17,9 @@ void incr() {
  }
-
+ 
  void wrap() {
 -  pthread_mutex_lock(&mutex2);
--  myglobal=myglobal+1; // RACE!
--  pthread_mutex_unlock(&mutex2);
 +  pthread_mutex_lock(&mutex1);
-+  myglobal=myglobal+1; // RACE (not enough fuel)
+   incr();
+-  pthread_mutex_unlock(&mutex2);
 +  pthread_mutex_unlock(&mutex1);
  }
-
+ 
  int main(void) {
