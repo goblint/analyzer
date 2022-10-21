@@ -1955,7 +1955,7 @@
               "description":
                 "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
               "type": "string",
-              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
             },
             "space": {

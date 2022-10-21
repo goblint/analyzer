@@ -272,12 +272,30 @@ module WP =
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let op =
-          if HM.mem wpoint y then fun a b ->
+          if side_widen <> "sides-local" && HM.mem wpoint y then fun a b ->
             if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
             let r = S.Dom.widen a (S.Dom.join a b) in
             if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
             r
-          else S.Dom.join
+          else if side_widen = "sides-local" then fun a b ->
+            (if not (S.Dom.leq b a) then
+               let old_sides = HM.find_default sides y VS.empty in
+               match x with
+               | None ->
+                 (if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+                  let r = S.Dom.widen a (S.Dom.join a b) in
+                  if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+                  r)
+               | Some x when VS.mem x old_sides ->
+                 (if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+                  let r = S.Dom.widen a (S.Dom.join a b) in
+                  if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+                  r)
+               | _ -> S.Dom.join a b
+             else
+               a)
+          else
+            S.Dom.join
         in
         let old = HM.find rho y in
         let tmp = op old d in
@@ -305,6 +323,8 @@ module WP =
             wpoint_if false
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
+          | "sides-local" ->
+            wpoint_if false
           | "sides-pp" ->
             (match x with
             | Some x ->
