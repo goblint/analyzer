@@ -9,10 +9,14 @@
       "enums": false,
       "interval": true
     },
+    "float": {
+      "interval": true
+    },
     "activated": [
       "base",
       "threadid",
       "threadflag",
+      "threadreturn",
       "mallocWrapper",
       "mutexEvents",
       "mutex",
@@ -20,6 +24,7 @@
       "race",
       "escape",
       "expRelation",
+      "mhp",
       "assert",
       "var_eq",
       "symb_locks",
@@ -42,13 +47,29 @@
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
-        "kcalloc"
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
       ]
     },
     "base": {
       "arrays": {
         "domain": "partitioned"
       }
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "arrayDomain",
+        "octagon",
+        "wideningThresholds"
+      ]
     }
   },
   "exp": {

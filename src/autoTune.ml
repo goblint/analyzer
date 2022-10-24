@@ -135,7 +135,7 @@ let disableIntervalContextsInRecursiveFunctions () =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread"; "threadflag"; "threadid"; "threadJoins"; "threadreturn"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
 let reduceThreadAnalyses () =
   let hasThreadCreate () =
     ResettableLazy.force functionCallMaps
