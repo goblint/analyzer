@@ -1,4 +1,6 @@
 // PARAM: --set ana.ctx_insens "['base', 'mallocWrapper']"  --enable ana.int.interval --sets solvers.td3.side_widen sides-local
+#include <goblint.h>
+
 int further(int n) {
     // Even sides-local can not save us here :(
     __goblint_check(n <= 1); //TODO
