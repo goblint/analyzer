@@ -27,6 +27,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("mbrtowc", unknown [drop "pwc" [w]; drop "s" [r]; drop "n" []; drop "ps" [w]]);
     ("iswspace", unknown [drop "wc" []]);
     ("iswalnum", unknown [drop "wc" []]);
+    ("iswprint", unknown [drop "wc" []]);
   ]
 
 (** C POSIX library functions.
@@ -48,6 +49,22 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" []; drop "outbuf" [w]; drop "outbytesleft" []]);
     ("iconv_close", unknown [drop "cd" [w]]);
     ("strnlen", unknown [drop "s" [r]; drop "maxlen" []]);
+    ("chmod", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("fchmod", unknown [drop "fd" [r]; drop "mode" []]);
+    ("fchown", unknown [drop "fd" [r]; drop "owner" []; drop "group" []]);
+    ("lchown", unknown [drop "pathname" [r]; drop "owner" []; drop "group" []]);
+    ("clock_gettime", unknown [drop "clockid" []; drop "tp" [w]]);
+    ("gettimeofday", unknown [drop "tv" [w]; drop "tz" [w]]);
+    ("futimens", unknown [drop "fd" [w]; drop "times" []]);
+    ("utimes", unknown [drop "filename" [r]; drop "times" []]);
+    ("linkat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]; drop "flags" []]);
+    ("dirfd", unknown [drop "dirp" [r]]);
+    ("fdopendir", unknown [drop "fd" []]);
+    ("pathconf", unknown [drop "path" [r]; drop "name" []]);
+    ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
+    ("symlink" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
+    ("ftruncate", unknown [drop "fd" [r]; drop "length" []]);
+    ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
   ]
 
 (** Pthread functions. *)
@@ -72,7 +89,10 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     (* ("error", unknown [drop "status" []; drop "errnum" []; drop "format" [w]]); (* TODO: varargs *) *)
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
     ("gettext", unknown [drop "msgid" [r]]);
-
+    ("futimesat", unknown [drop "dirfd" [w]; drop "pathname" [r]; drop "times" []]);
+    ("euidaccess", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("rpmatch", unknown [drop "response" [r]]);
+    ("getpagesize", unknown []);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
