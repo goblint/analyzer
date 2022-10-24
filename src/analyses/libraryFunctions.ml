@@ -20,6 +20,13 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
+    ("ungetc", unknown [drop "c" []; drop "stream" [w]]);
+    (* ("fscanf", unknown [drop "stream" [w]; drop "format" [r]]); (* TODO: How to specify varargs? *) *)
+    ("__freading", unknown [drop "stream" [r]]);
+    ("mbsinit", unknown [drop "ps" [r]]);
+    ("mbrtowc", unknown [drop "pwc" [w]; drop "s" [r]; drop "n" []; drop "ps" [w]]);
+    ("iswspace", unknown [drop "wc" []]);
+    ("iswalnum", unknown [drop "wc" []]);
   ]
 
 (** C POSIX library functions.
@@ -29,6 +36,18 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
+    ("nl_langinfo", unknown [drop "item" []]);
+    ("nl_langinfo_l", unknown [drop "item" []; drop "locale" [r]]);
+    ("getc_unlocked", unknown [drop "stream" [w]]);
+    ("getchar_unlocked", unknown []);
+    ("putc_unlocked", unknown [drop "c" []; drop "stream" [w]]);
+    ("putchar_unlocked", unknown [drop "c" []]);
+    ("lseek", unknown [drop "fd" [w]; drop "offset" []; drop "whence" []]);
+    ("fseeko", unknown [drop "stream" [w]; drop "offset" []; drop "whence" []]);
+    ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
+    ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" []; drop "outbuf" [w]; drop "outbytesleft" []]);
+    ("iconv_close", unknown [drop "cd" [w]]);
+    ("strnlen", unknown [drop "s" [r]; drop "maxlen" []]);
   ]
 
 (** Pthread functions. *)
@@ -41,7 +60,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
   ]
 
-(** GCC builtin functions.
+(** GCC builtin functions and GCC specific extensions.
     These are not builtin versions of functions from other lists. *)
 let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
@@ -50,6 +69,10 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
+    (* ("error", unknown [drop "status" []; drop "errnum" []; drop "format" [w]]); (* TODO: varargs *) *)
+    ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
+    ("gettext", unknown [drop "msgid" [r]]);
+
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -67,6 +90,7 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
     ("release_console_sem", special [] @@ Unlock console_sem);
     ("misc_deregister", unknown [drop "misc" [r_deep]]);
+    ("__ctype_get_mb_cur_max", unknown []);
   ]
 
 (** Goblint functions. *)
