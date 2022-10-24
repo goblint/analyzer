@@ -93,6 +93,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("euidaccess", unknown [drop "pathname" [r]; drop "mode" []]);
     ("rpmatch", unknown [drop "response" [r]]);
     ("getpagesize", unknown []);
+    ("__read_chk", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []; drop "__buflen" []]);
+    ("__read_alias", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -422,6 +424,8 @@ let invalidate_actions = [
     "send", readsAll;(*safe*)
     "snprintf", writes [1];(*keep [1]*)
     "__builtin___snprintf_chk", writes [1];(*keep [1]*)
+    "__builtin___sprintf_chk", writes [1];(*keep [1]*)
+    "__overflow", reads [1];
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
     "strcmp", readsAll;(*safe*)
