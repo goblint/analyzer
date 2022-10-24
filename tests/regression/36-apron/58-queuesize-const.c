@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.apron.domain octagon --enable ana.apron.threshold_widening
 // TODO: why needs threshold widening to succeed when queuesize doesn't?
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 #define CAPACITY 1000
 

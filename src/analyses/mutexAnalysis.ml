@@ -160,7 +160,12 @@ struct
       ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      Mutexes.mem MutexEventsAnalysis.verifier_atomic held_locks
+      Mutexes.mem (LockDomain.Addr.from_var LF.verifier_atomic_var) held_locks
+    | Queries.MustProtectedVars {mutex = m; write} ->
+      let protected = (if write then snd else fst) (G.protected (ctx.global (V.protected m))) in
+      VarSet.fold (fun v acc ->
+          Queries.LS.add (v, `NoOffset) acc
+        ) protected (Queries.LS.empty ())
     | Queries.IterSysVars (Global g, f) ->
       f (Obj.repr (V.protecting g)) (* TODO: something about V.protected? *)
     | WarnGlobal g ->
@@ -206,12 +211,15 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {var_opt; kind} ->
-      (*privatization*)
-      begin match var_opt with
+    | Events.Access {exp; lvals; kind; _} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+      (* must use original (pre-assign, etc) ctx queries *)
+      let old_access var_opt offs_opt =
+        (* TODO: this used to use ctx instead of octx, why? *)
+        (*privatization*)
+        match var_opt with
         | Some v ->
-          if not (Lockset.is_bot ctx.local) then
-            let locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
+          if not (Lockset.is_bot octx.local) then
+            let locks = Lockset.export_locks (Lockset.filter snd octx.local) in
             let write = match kind with
               | Write | Free -> true
               | Read -> false
@@ -235,6 +243,41 @@ struct
                 ) held_locks
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
+      in
+      let module LS = Queries.LS in
+      let has_escaped g = octx.ask (Queries.MayEscape g) in
+      let on_lvals ls =
+        let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+        let f (var, offs) =
+          let coffs = Lval.CilLval.to_ciloffs offs in
+          if CilType.Varinfo.equal var dummyFunDec.svar then
+            old_access None (Some coffs)
+          else
+            old_access (Some var) (Some coffs)
+        in
+        LS.iter f ls
+      in
+      begin match lvals with
+        | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+          (* the case where the points-to set is non top and does not contain unknown values *)
+          on_lvals ls
+        | ls when not (LS.is_top ls) ->
+          (* the case where the points-to set is non top and contains unknown values *)
+          (* now we need to access all fields that might be pointed to: is this correct? *)
+          begin match octx.ask (ReachableUkTypes exp) with
+            | ts when Queries.TS.is_top ts ->
+              ()
+            | ts ->
+              let f = function
+                | TComp (_, _) -> true
+                | _ -> false
+              in
+              if Queries.TS.exists f ts then
+                old_access None None
+          end;
+          on_lvals ls
+        | _ ->
+          old_access None None
       end;
       ctx.local
     | _ ->

@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>

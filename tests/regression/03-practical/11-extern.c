@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 static int glob = 5;
 extern void mywrite(int *x);

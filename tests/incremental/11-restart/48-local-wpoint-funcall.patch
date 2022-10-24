@@ -1,7 +1,7 @@
 --- tests/incremental/11-restart/48-local-wpoint-funcall.c
 +++ tests/incremental/11-restart/48-local-wpoint-funcall.c
 @@ -1,7 +1,7 @@
- #include <assert.h>
+ #include <goblint.h>
 
  int f(int x) {
 -    return 1;

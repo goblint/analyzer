@@ -1,5 +1,5 @@
 // PARAM: --set ana.ctx_insens[+] base
-#include <assert.h>
+#include <goblint.h>
 
 void f(int v, int i){
   __goblint_check(v   == 2);

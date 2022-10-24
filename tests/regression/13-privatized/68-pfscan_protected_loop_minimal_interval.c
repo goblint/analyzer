@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 struct __anonstruct_PQUEUE_63 {
    int occupied ;

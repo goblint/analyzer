@@ -26,6 +26,14 @@ sig
   val thread_join: ?force:bool -> Queries.ask -> (V.t -> G.t) -> Cil.exp -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val thread_return: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
 
+  val invariant_global: (V.t -> G.t) -> V.t -> Invariant.t
+  (** Provides [Queries.InvariantGlobal] result for base.
+
+      Should account for all unprotected/weak values of global variables. *)
+
+  val invariant_vars: Queries.ask -> (V.t -> G.t) -> BaseDomain.BaseComponents (D).t -> varinfo list
+  (** Returns global variables which are privatized. *)
+
   val init: unit -> unit
   val finalize: unit -> unit
 end

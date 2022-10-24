@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set exp.unrolling-factor 5
-#include <assert.h>
+#include <goblint.h>
 
 int global;
 

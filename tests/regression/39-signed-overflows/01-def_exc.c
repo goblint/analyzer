@@ -1,5 +1,5 @@
 // PARAM: --set sem.int.signed_overflow assume_none
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
     int a;

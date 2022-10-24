@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 #define LENGTH 10
 

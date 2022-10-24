@@ -22,6 +22,7 @@ nav:
     - user-guide/configuring.md
     - user-guide/inspecting.md
     - user-guide/annotating.md
+    - user-guide/benchmarking.md
   - 'Developer guide':
     - developer-guide/developing.md
     - developer-guide/firstanalysis.md

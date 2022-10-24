@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.sv-comp.functions --set ana.activated[+] var_eq --set ana.activated[+] region
-#include <assert.h>
+#include <goblint.h>
 
 int isNan(float arg) {
     float x;

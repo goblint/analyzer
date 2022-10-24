@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated[+] var_eq
-#include <assert.h>
+#include <goblint.h>
 
 int global;
 

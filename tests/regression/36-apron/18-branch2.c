@@ -2,7 +2,7 @@
 // Based on 36/09.
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 void main() {
   int i = __VERIFIER_nondet_int(); //rand

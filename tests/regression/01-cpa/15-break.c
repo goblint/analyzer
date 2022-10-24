@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 main () {
   int sum = 0, k = 7;

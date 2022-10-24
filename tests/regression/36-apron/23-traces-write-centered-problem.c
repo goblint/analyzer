@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 25; // matches write in main
 int h = 12; // matches write in main

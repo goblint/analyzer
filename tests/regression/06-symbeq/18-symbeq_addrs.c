@@ -1,6 +1,6 @@
 // PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"
 #include<stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 typedef struct {
   int x,y;

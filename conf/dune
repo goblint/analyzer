@@ -8,6 +8,7 @@
     svcomp.json
     svcomp21.json
     svcomp22.json
+    svcomp23.json
     ; no way to glob here...
   )
 )

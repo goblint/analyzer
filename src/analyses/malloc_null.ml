@@ -217,8 +217,9 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
-    match f.vname, lval with
-    | "malloc", Some lv ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, lval with
+    | Malloc _, Some lv ->
       begin
         match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some (Var v, offs) ->
