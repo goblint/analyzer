@@ -21,7 +21,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [w]]);
-    (* ("fscanf", unknown [drop "stream" [w]; drop "format" [r]]); (* TODO: How to specify varargs? *) *)
+    ("fscanf", unknown ((drop "stream" [w]) :: (drop "format" [r]) :: (VarArgs (drop' [w])))); (* TODO: How to specify varargs? *)
     ("__freading", unknown [drop "stream" [r]]);
     ("mbsinit", unknown [drop "ps" [r]]);
     ("mbrtowc", unknown [drop "pwc" [w]; drop "s" [r]; drop "n" []; drop "ps" [w]]);
@@ -86,7 +86,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
-    (* ("error", unknown [drop "status" []; drop "errnum" []; drop "format" [w]]); (* TODO: varargs *) *)
+    ("error", unknown ((drop "status" []):: (drop "errnum" []) :: (drop "format" [w]) :: (VarArgs (drop' [r]))));
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
     ("gettext", unknown [drop "msgid" [r]]);
     ("futimesat", unknown [drop "dirfd" [w]; drop "pathname" [r]; drop "times" []]);
