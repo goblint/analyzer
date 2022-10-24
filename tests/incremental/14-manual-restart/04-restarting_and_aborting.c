@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 int g = 0;
 
 void foo(){
