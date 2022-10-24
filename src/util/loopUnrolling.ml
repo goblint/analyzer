@@ -308,7 +308,7 @@ class loopUnrollingCallVisitor = object
   inherit nopCilVisitor
 
   method! vinst = function
-    | Call (_,Lval ((Var info), NoOffset),args,_,_) -> (
+    | Call (_,Lval ((Var info), NoOffset),args,_,_) when LibraryFunctions.is_special info -> (
         let desc = LibraryFunctions.find info in
         match desc.special args with
         | Malloc _
