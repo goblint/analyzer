@@ -385,9 +385,9 @@ let merge_parsed parsed =
 
   Cilfacade.rmTemps merged_AST;
 
-  (* create the Control Flow Graph from CIL's AST *)
-  CilCfg.createCFG merged_AST;
-  Cilfacade.current_file := merged_AST;
+  Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
+  CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
+  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling. *)
   merged_AST
 
 let preprocess_parse_merge () =
