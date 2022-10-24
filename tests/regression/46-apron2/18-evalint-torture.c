@@ -3,15 +3,15 @@
 
 // Previously using with MustBeEqual, MayBeEqual and MayBeLess queries:
 // Ran in 3.0-3.5s.
-// ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c
+// ./goblint --set ana.activated[+] apron --enable dbg.timing.enabled ./tests/regression/46-apron2/18-evalint-torture.c
 
 // Without those queries, but with deep-query:
 // Ran in 2.4-2.7s.
-// ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c --enable ana.base.eval.deep-query
+// ./goblint --set ana.activated[+] apron --enable dbg.timing.enabled ./tests/regression/46-apron2/18-evalint-torture.c --enable ana.base.eval.deep-query
 
 // Without those queries and deep-query:
 // Ran in 1.6-1.7s.
-// ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c --disable ana.base.eval.deep-query
+// ./goblint --set ana.activated[+] apron --enable dbg.timing.enabled ./tests/regression/46-apron2/18-evalint-torture.c --disable ana.base.eval.deep-query
 
 #include <goblint.h>
 

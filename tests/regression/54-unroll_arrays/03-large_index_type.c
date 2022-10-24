@@ -3,7 +3,7 @@
 
 typedef long unsigned int size_t;
 
-int main() { 
+int main() {
     int d[];
     size_t num_uint64s;
 
