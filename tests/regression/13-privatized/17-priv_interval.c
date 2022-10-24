@@ -1,6 +1,6 @@
 // PARAM: --set ana.int.interval true
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 int glob1 = 5;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;

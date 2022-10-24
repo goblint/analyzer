@@ -1,5 +1,5 @@
 #include<limits.h>
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
     int x = INT_MAX + 1;

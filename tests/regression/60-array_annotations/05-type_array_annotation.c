@@ -1,4 +1,5 @@
 // PARAM: --set ana.base.arrays.unrolling-factor 4 --enable annotation.goblint_array_domain
+#include <goblint.h>
 
 void t1(void) {
      __attribute__((goblint_array_domain("unroll")))int x[4] ;

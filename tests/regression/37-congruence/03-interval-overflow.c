@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --enable ana.int.congruence --disable ana.int.def_exc
 // Overflow information should be passed from the interval domain to congruences
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 
 int main(){

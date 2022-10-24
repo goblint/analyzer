@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 #define LONGS(x) (((x) + sizeof(unsigned long) - 1)/sizeof(unsigned long))
 #include<stdbool.h>
 

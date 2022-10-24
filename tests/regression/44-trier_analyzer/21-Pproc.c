@@ -1,5 +1,5 @@
 //PARAM: --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 
 extern int printf();
 

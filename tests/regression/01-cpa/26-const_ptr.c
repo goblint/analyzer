@@ -1,5 +1,5 @@
 // SKIP!
-#include <assert.h>
+#include <goblint.h>
 extern void f(int* const*);
 int main()
 {

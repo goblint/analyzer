@@ -1,5 +1,5 @@
 // PARAM: --enable ana.float.interval --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 #include <float.h>
 
 int main()

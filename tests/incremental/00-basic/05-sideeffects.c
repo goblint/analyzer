@@ -1,5 +1,5 @@
 // The patch for this test case is empty on purpose. The problem described does occur in the incremental run even without any changes.
-#include <assert.h>
+#include <goblint.h>
 
 int g = 1;
 

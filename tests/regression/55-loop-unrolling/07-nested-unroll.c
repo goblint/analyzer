@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5
-#include<assert.h>
+#include <goblint.h>
 int main(void) {
     int arr[10][10];
 

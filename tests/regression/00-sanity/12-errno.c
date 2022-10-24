@@ -1,5 +1,5 @@
 #include <errno.h>
-#include <assert.h>
+#include <goblint.h>
 
 int main(){
 	errno = 1;

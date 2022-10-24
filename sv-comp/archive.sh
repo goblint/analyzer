@@ -33,10 +33,10 @@ zip goblint/sv-comp/goblint.zip \
     goblint/lib/libpolkaMPQ.so \
     goblint/lib/LICENSE.APRON \
     goblint/conf/svcomp23.json \
-    goblint/includes/assert.h \
-    goblint/includes/goblint.h \
-    goblint/includes/stdlib.c \
-    goblint/includes/pthread.c \
-    goblint/includes/sv-comp.c \
+    goblint/lib/libc/stub/include/assert.h \
+    goblint/lib/goblint/runtime/include/goblint.h \
+    goblint/lib/libc/stub/src/stdlib.c \
+    goblint/lib/libc/stub/src/pthread.c \
+    goblint/lib/sv-comp/stub/src/sv-comp.c \
     goblint/README.md \
     goblint/LICENSE

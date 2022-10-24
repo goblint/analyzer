@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.structs.domain "keyed"
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 struct FunctionInfo {

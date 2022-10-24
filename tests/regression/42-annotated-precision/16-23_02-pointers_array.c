@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --enable annotation.int.enabled --set ana.int.refinement fixpoint
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) __attribute__((goblint_precision("no-interval")));
 void example1(void) __attribute__((goblint_precision("no-def_exc")));

@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   unsigned long ul;

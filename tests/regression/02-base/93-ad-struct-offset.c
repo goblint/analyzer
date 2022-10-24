@@ -1,5 +1,5 @@
 // SKIP
-#include <assert.h>
+#include <goblint.h>
 struct str{
     int a;
     char c;

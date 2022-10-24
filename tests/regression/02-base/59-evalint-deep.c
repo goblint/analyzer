@@ -3,7 +3,7 @@
 // when evaluated by base's eval_rv and EvalInt jointly
 // runs (as unknown) under 0.1s
 
-#include <assert.h>
+#include <goblint.h>
 void assume_abort_if_not(int cond) {
   if(!cond) {abort();}
 }

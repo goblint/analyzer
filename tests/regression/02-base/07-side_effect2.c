@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 int glob1 = 5;

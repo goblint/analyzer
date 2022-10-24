@@ -210,10 +210,27 @@ let preprocess_files () =
   let cppflags = ref (get_string_list "pre.cppflags") in
 
   (* the base include directory *)
+  (* TODO: any better way? dune executable promotion doesn't add _build sites *)
+  let source_lib_dirs =
+    let source_lib = Fpath.(exe_dir / "lib") in
+    if Sys.file_exists (Fpath.to_string source_lib) && Sys.is_directory (Fpath.to_string source_lib) then (
+      Sys.readdir Fpath.(to_string source_lib)
+      |> Array.to_list
+      |> List.map Fpath.(add_seg source_lib)
+      |> List.filter (fun p -> Sys.is_directory (Fpath.to_string p))
+    )
+    else
+      []
+  in
+  (* TODO: split to include and src *)
   let custom_include_dirs =
     List.map Fpath.v (get_string_list "pre.custom_includes") @
-    Fpath.(exe_dir / "includes") ::
-    List.map Fpath.v Goblint_sites.includes
+    List.map (fun p -> Fpath.(p / "stub" / "include")) source_lib_dirs @
+    List.map Fpath.v Goblint_sites.lib_stub_include @
+    List.map (fun p -> Fpath.(p / "runtime" / "include")) source_lib_dirs @
+    List.map Fpath.v Goblint_sites.lib_runtime_include @
+    List.map (fun p -> Fpath.(p / "stub" / "src")) source_lib_dirs @
+    List.map Fpath.v Goblint_sites.lib_stub_src
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
@@ -244,7 +261,6 @@ let preprocess_files () =
   get_string_list "pre.includes" |> List.map Fpath.v |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
-  include_files := find_custom_include (Fpath.v "goblint.h") :: !include_files;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (

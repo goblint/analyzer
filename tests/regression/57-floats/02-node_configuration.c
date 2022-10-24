@@ -1,5 +1,5 @@
 // PARAM: --enable annotation.float.enabled
-#include <assert.h>
+#include <goblint.h>
 
 int main() __attribute__((goblint_precision("no-float-interval")));
 void test() __attribute__((goblint_precision("float-interval")));

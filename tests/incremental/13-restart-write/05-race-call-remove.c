@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <assert.h>
 
 int g;
 

@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 
 extern int __VERIFIER_nondet_int();
 
