@@ -1242,6 +1242,7 @@ struct
               let i =
                 if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
                   let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                  let addr_exp = Cil.mkCast ~e:addr_exp  ~newt:(TPtr (TVoid [], [])) in
                   Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                 else
                   Invariant.none
