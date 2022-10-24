@@ -385,9 +385,13 @@ module WP =
         let rec destabilize_with_side ~side_fuel x =
           if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pretty_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
 
-          (* is side-effected var (global/function entry)? *)
-          let w = HM.find_default side_dep x VS.empty in
+          (* retrieve and remove (side-effect) dependencies/influences *)
+          let w_side_dep = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
+          let w_infl = HM.find_default infl x VS.empty in
+          HM.replace infl x VS.empty;
+          let w_side_infl = HM.find_default side_infl x VS.empty in
+          HM.remove side_infl x;
 
           let should_restart =
             match restart_write_only, S.Var.is_write_only x with
@@ -400,7 +404,8 @@ module WP =
               | _ -> assert false
           in
 
-          if not (VS.is_empty w) && should_restart then (
+          (* is side-effected var (global/function entry)? *)
+          if not (VS.is_empty w_side_dep) && should_restart then (
             (* restart side-effected var *)
             restart_leaf x;
 
@@ -411,24 +416,19 @@ module WP =
                 HM.remove stable y;
                 HM.remove superstable y;
                 destabilize_with_side ~side_fuel y
-              ) w
+              ) w_side_dep;
           );
 
           (* destabilize eval infl *)
-          let w = HM.find_default infl x VS.empty in
-          HM.replace infl x VS.empty;
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
               destabilize_with_side ~side_fuel y
-            ) w;
+            ) w_infl;
 
           (* destabilize side infl *)
-          let w = HM.find_default side_infl x VS.empty in
-          HM.remove side_infl x;
-
           if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
             let side_fuel' =
               if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then
@@ -443,7 +443,7 @@ module WP =
                 HM.remove stable y;
                 HM.remove superstable y;
                 destabilize_with_side ~side_fuel:side_fuel' y
-              ) w
+              ) w_side_infl
           )
         in
 
