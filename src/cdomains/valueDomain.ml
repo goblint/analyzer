@@ -1240,7 +1240,7 @@ struct
               let offset = offs_to_offset offs in
 
               let cast_to_void_ptr e = 
-                Cil.mkCast ~e  ~newt:(TPtr (TVoid [], []))
+                Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
               in
               let i =
                 if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
