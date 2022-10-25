@@ -528,17 +528,20 @@ let stmt_pretty_short () x =
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
 
-(** Given a [Cil.file], reorders its [globals].
+(** Given a [Cil.file], reorders its [globals], inserts function declarations before function definitions.
     This function may be used after a code transformation to ensure that the order of globals yields a compilable program. *)
 let add_function_declarations (file: Cil.file): unit =
   let globals = file.globals in
   let functions, non_functions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
   let upto_last_type, non_types = GobList.until_last_with (fun g -> match g with GType _ -> true | _ -> false) non_functions in
   let declaration_from_GFun f = match f with
+    | GFun (f, _) when String.starts_with ~prefix:"__builtin" f.svar.vname ->
+      (* Builtin functions should not occur in asserts generated, so there is no need to add declarations for them.*)
+      None 
     | GFun (f, _) ->
-      GVarDecl (f.svar, locUnknown)
+      Some (GVarDecl (f.svar, locUnknown))
     | _ -> failwith "Expected GFun, but was something else."
   in
-  let fun_decls = List.map declaration_from_GFun functions in
+  let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
