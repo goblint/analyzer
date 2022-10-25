@@ -1,6 +1,6 @@
 // PARAM: --set trans.activated[+] "assert"
 
-// Running the assert transformation on this test yields in code that is not compilable by gcc
+// Running the assert transformation on this test used to yield code that cannot be compiled with gcc, due to superfluous offsets on a pointer
 struct s {
     int a;
     int b;
