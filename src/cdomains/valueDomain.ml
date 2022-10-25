@@ -1239,10 +1239,17 @@ struct
               in
               let offset = offs_to_offset offs in
 
+              let cast_to_void_ptr e = 
+                Cil.mkCast ~e  ~newt:(TPtr (TVoid [], []))
+              in
               let i =
                 if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
                   let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  let addr_exp = Cil.mkCast ~e:addr_exp  ~newt:(TPtr (TVoid [], [])) in
+                  let addr_exp, c_exp = if typeSig (typeOf addr_exp) <> typeSig (typeOf c_exp) then
+                    cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
+                  else 
+                    addr_exp, c_exp
+                  in 
                   Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                 else
                   Invariant.none
