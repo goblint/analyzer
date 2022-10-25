@@ -14,7 +14,12 @@
       }
     },
     "incremental": {
-        "compare": "cfg",
+        "compare": {
+            "by": {
+                "ast": false,
+                "cfg-forward": true
+            }
+        },
         "restart": {
             "sided": {
                 "enabled": false

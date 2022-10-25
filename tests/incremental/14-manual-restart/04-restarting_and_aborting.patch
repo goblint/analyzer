@@ -11,11 +11,11 @@ index 21087e88c..f5c13bdb0 100644
  }
 
  int main(){
-diff --git tests/incremental/14-manual-restart/04-restarting_and_aborting.json tests/incremental/14-manual-restart/04-restarting_and_aborting.json
-index 28890d55e..b1e065133 100644
+diff --git tests/incremental/14-manual-restart/04-restarting_and_aborting.json tests/incremental/14-manual-restart/04-restarting_and_aborting.2.json
+index 6154f1d49..7612ab899 100644
 --- tests/incremental/14-manual-restart/04-restarting_and_aborting.json
-+++ tests/incremental/14-manual-restart/04-restarting_and_aborting.json
-@@ -19,7 +19,9 @@
++++ tests/incremental/14-manual-restart/04-restarting_and_aborting.2.json
+@@ -24,7 +24,9 @@
              "sided": {
                  "enabled": false
              },
