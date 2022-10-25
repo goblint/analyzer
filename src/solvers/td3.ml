@@ -385,16 +385,18 @@ module WP =
         (* solve x Widen *)
       in
 
+      (** remove a node and all nodes it influences from the stable and superstable sets,
+          up to and including nodes in [called] *)
       let rec destabilize_normal x =
-        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
-        let w = HM.find_default infl x VS.empty in
-        HM.replace infl x VS.empty;
-        VS.iter (fun y ->
-            if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
-            HM.remove stable y;
-            HM.remove superstable y;
-            if not (HM.mem called y) then destabilize_normal y
-          ) w
+        if tracing then trace "sol2" "destabilize+stable remove %a\n" S.Var.pretty_trace x;
+        HM.remove stable x;
+        HM.remove superstable x;
+
+        if not (HM.mem called x) then (
+          let successors = HM.find_default infl x VS.empty in
+          HM.replace infl x VS.empty;
+          VS.iter destabilize_normal successors;
+        )
       in
 
       start_event ();

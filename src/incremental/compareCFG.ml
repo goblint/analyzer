@@ -274,6 +274,22 @@ type compare_forwards_result = {
   unmatched_origins_new : node list ;
 }
 
+let pretty_compare_forwards_result (cmp : compare_forwards_result) =
+  let open Pretty in
+  let open Goblintutil.Pretty in
+  pretty_record [
+    pretty_record_field "matched_nodes"
+    @@ pretty_list (pretty_tuple2 (Node.pretty_trace ()) (Node.pretty_trace ())) cmp.matched_nodes ;
+    pretty_record_field "destabilize_nodes"
+    @@ pretty_list (Node.pretty_trace ()) cmp.destabilize_nodes ;
+    pretty_record_field "fuzzy_matched_nodes"
+    @@ pretty_list (pretty_tuple2 (Node.pretty_trace ()) (Node.pretty_trace ())) cmp.fuzzy_matched_nodes ;
+    pretty_record_field "unmatched_origins_old"
+    @@ pretty_list (Node.pretty_trace ()) cmp.unmatched_origins_old ;
+    pretty_record_field "unmatched_origins_new"
+    @@ pretty_list (Node.pretty_trace ()) cmp.unmatched_origins_new ;
+  ]
+
 let compare_forwards (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun_old fun_new =
   let same, diff =
     Stats.time "forwards-compare-phase1"
@@ -312,6 +328,16 @@ let nes_can_match_cfg (n1, es1) (n2, es2) =
 
 let same_deps_cfg rev_cfg_old rev_cfg_new =
   same_deps (module Node) (digraph_of_cfg rev_cfg_old) (digraph_of_cfg rev_cfg_new) Node.equal eq_edge_list
+
+let pretty_cfg (module Cfg : CfgForward) fundec =
+  let open Pretty in let open Goblintutil.Pretty in
+  let lin_cfg = linearize_cfg Cfg.next [FunctionEntry fundec] in
+  pretty_list
+    (fun (n, e) ->
+      dprintf "<@[%a -->@?%t@]>"
+      Node.pretty_trace n
+      (Cfg.next n |> List.map snd |> pretty_list (Node.pretty_trace ()) |> wrap))
+    lin_cfg
 
 (* let cfg_matching_of_fuzzy_match cmp_by rev_cfg_old rev_cfg_new fun_old fun_new fuzzy_match =
   let matched_nodes =
@@ -362,7 +388,11 @@ let dummy_match_diff_result lin_old lin_new = {
 
 (** Compose the various types of CFG based comparisons. *)
 let compare_fun_multi (compare_types : cfg_compare_type list)
-    (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) fun_old fun_new =
+    (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) (fun_old : fundec) fun_new =
+
+  Messages.trace "diff-rename" "compareCFG (%s): %s\n" fun_old.svar.vname @@ [%derive.show : cfg_compare_type list] compare_types ;
+  Messages.trace "diff-rename" "fun_old:@?%a\n" (fun () -> pretty_cfg (module CfgOld)) fun_old ;
+  Messages.trace "diff-rename" "fun_new:@?%a\n" (fun () -> pretty_cfg (module CfgNew)) fun_new ;
 
   (* First compare by precise forwards compare, if enabled.
      The nodes removed from the precise matching during the second phase will
@@ -372,6 +402,8 @@ let compare_fun_multi (compare_types : cfg_compare_type list)
       compare_forwards (module CfgOld) (module CfgNew) fun_old fun_new, [ Forward ]
     else dummy_compare_forwards_result fun_old fun_new, []
   in
+
+  Messages.trace "diff-rename" "%a\n" (fun () -> pretty_compare_forwards_result) cmp_fwd_result;
 
   (* Next, compare by ordering the remaining nodes in the CFGs, and fuzzy matching them *)
   let lin_fuzzy_matches, lin_used =
@@ -412,7 +444,7 @@ let compare_fun_multi (compare_types : cfg_compare_type list)
 
       [ cmp_diff_result.matched_nodes ; cmp_1to1_result ], (cmp_diff_used @ cmp_1to1_used)
 
-    else [], cmp_fwd_used
+    else [], []
   in
 
   let fuzzy_matched_nodes =
@@ -434,8 +466,10 @@ let compare_fun_multi (compare_types : cfg_compare_type list)
       |> List.of_seq)
 
   in
-  {
+  let r = {
     matched_nodes ;
     destabilize_nodes = cmp_fwd_result.destabilize_nodes ;
     compare_types = cmp_fwd_used @ lin_used ;
   }
+  in
+  Messages.trace "diff-rename" "%t\n" (fun () -> pretty_nodes_diff r); r

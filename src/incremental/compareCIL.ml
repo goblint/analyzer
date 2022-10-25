@@ -33,8 +33,8 @@ type changed_global = {
   diff: nodes_diff option
 }
 
-(* TODO: factor this out into one place (probably don't put anything in CompareCFG) *)
-type compare_type = AST | CFG of CompareCFG.cfg_compare_type
+(* TODO: factor this out into one place?? no, probably not *)
+type compare_type = AST | CFG of CompareCFG.cfg_compare_type [@@deriving show]
 
 (** find which of [incremental.compare.by.ast], [incremental.compare.by.cfg-forward],
 [incremental.compare.by.cfg-diff] or [incremental.compare.by.1-to-1] are enabled *)
@@ -167,9 +167,9 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : ((cfg * cfg) * (cfg * cf
         match ast_change_status, cfgs with
         (* Case 1: functions with unchanged ASTs are definitely unchanged *)
         | Unchanged, _ -> Unchanged, None
-        (* Case 2: changed AST or AST comparison not enabled but CFG comparison enabled *)
+        (* Case 2: changed AST (or AST comparison not enabled) and CFG comparison enabled *)
         | Changed, Some (cfgs_old, cfgs_new) ->
-            let mk_cfg (cfg_back, cfg) = (module struct let prev = cfg_back let next = cfg end : MyCFG.CfgBidir) in
+            let mk_cfg (cfg, cfg_back) = (module struct let next = cfg let prev = cfg_back end : MyCFG.CfgBidir) in
             let cmp =
               compare_fun_multi
                 (enabled_cfg_comparisons ()) (mk_cfg cfgs_old) (mk_cfg cfgs_new) old current
@@ -193,6 +193,8 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     if cfg_comparison_enabled () then Some (CfgTools.getCFG oldAST, CfgTools.getCFG newAST)
     else None
   in
+
+  Messages.trace "diff-rename" "compareCIL: %s\n" @@ [%derive.show : compare_type list] @@ enabled_comparisons ();
 
   let addGlobal map global  =
     try

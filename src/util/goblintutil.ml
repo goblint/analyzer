@@ -170,4 +170,7 @@ module Pretty = struct
   let pretty_list dcontent xs = dprintf "[@[%a@]]" (docList ~sep:(chr ',' ++ break) dcontent) xs
 
   let pretty_record cs = dprintf "{@[%a@]}" (docList ~sep:(chr ',' ++ break) Fun.id) cs
+
+  let pretty_tuple2 dcontent1 dcontent2 (x, y) =
+    dprintf "(@[@[%a@],@?@[%a@]@])" (dcontent1 |> wrap) x (dcontent2 |> wrap) y
 end
