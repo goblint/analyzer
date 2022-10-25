@@ -271,21 +271,28 @@ module WP =
         assert (S.system y = None);
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
-        let op =
-          if HM.mem wpoint y then fun a b ->
-            if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
-            let r = S.Dom.widen a (S.Dom.join a b) in
-            if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
-            r
-          else S.Dom.join
+        let widen a b =
+          if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+          let r = S.Dom.widen a (S.Dom.join a b) in
+          if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+          r
+        in
+        let old_sides = HM.find_default sides y VS.empty in
+        let op a b = match side_widen with
+          | "sides-local" when not (S.Dom.leq b a) -> (
+              match x with
+              | None -> widen a b
+              | Some x when VS.mem x old_sides -> widen a b
+              | _ -> S.Dom.join a b
+            )
+          | _ when HM.mem wpoint y  -> widen a b
+          | _ -> S.Dom.join a b
         in
         let old = HM.find rho y in
         let tmp = op old d in
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
-          (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-          let old_sides = HM.find_default sides y VS.empty in
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in
@@ -302,8 +309,12 @@ module WP =
           | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
             wpoint_if true
           | "never" -> (* On side-effect cycles, this should terminate via the outer `solver` loop. TODO check. *)
-            wpoint_if false
-          | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
+            ()
+          | "sides-local" -> (* Never make globals widening points in this strategy, the widening check happens by checking sides *)
+            ()
+          | "sides" ->
+            (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
+            (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
           | "sides-pp" ->
             (match x with
