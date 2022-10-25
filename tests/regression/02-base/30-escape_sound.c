@@ -1,6 +1,6 @@
 #include<pthread.h>
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 void *t_fun(void *arg) {
   int *p = (int *) arg;

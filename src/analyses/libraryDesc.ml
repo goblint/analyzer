@@ -113,11 +113,13 @@ let special_of_old classify_name = fun args ->
   | `Lock (try_, write, return_on_success) ->
     begin match args with
       | [lock] -> Lock { lock ; try_; write; return_on_success; }
+      | [] -> failwith "lock has no arguments"
       | _ -> failwith "lock has multiple arguments"
     end
   | `Unlock ->
     begin match args with
       | [arg] -> Unlock arg
+      | [] -> failwith "unlock has no arguments"
       | _ -> failwith "unlock has multiple arguments"
     end
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }

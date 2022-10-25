@@ -618,13 +618,13 @@ struct
       let (min_ik, max_ik) = range ik in
       let threshold = get_bool "ana.int.interval_threshold_widening" in
       let upper_threshold u =
-        let ts = ResettableLazy.force widening_thresholds in
+        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
         let u = Ints_t.to_bigint u in
         let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
         BatOption.map_default Ints_t.of_bigint max_ik t
       in
       let lower_threshold l =
-        let ts = ResettableLazy.force widening_thresholds_desc in
+        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
         let l = Ints_t.to_bigint l in
         let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
         BatOption.map_default Ints_t.of_bigint min_ik t

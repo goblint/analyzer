@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.path_sens[+] threadflag --set ana.apron.domain polyhedra
 // TODO: why does this need path-sensitive threadflag even with mutex-meet to succeed?
 // two-variable relation (with constant total), but needs polyhedra to succeed
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 extern int __VERIFIER_nondet_int();

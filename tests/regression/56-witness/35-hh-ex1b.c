@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --disable solvers.td3.remove-wpoint --set ana.activated[+] unassume --set witness.yaml.unassume 35-hh-ex1b.yml
-
+#include <goblint.h>
 int main() {
   int i = 0;
   while (i < 100) {

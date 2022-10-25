@@ -87,14 +87,47 @@ struct
 
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
-  let project_val p_opt value is_glob =
-    match GobConfig.get_bool "annotation.int.enabled", is_glob, p_opt with
-    | true, true, _ -> VD.project PU.max_int_precision value
-    | true, false, Some p -> VD.project p value
-    | _ -> value
+  (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
+  (*We have to prevent different domains to be used at the same time for the same array*)
+  (*After a function call, the domain has to be the same as before and we can not depend on the pointers staying the same*)
+  (*-> we determine the arrays a pointer can point to once at the beginning of a function*)
+  (*There surely is a better way, because this means that often the wrong one gets chosen*)
+  module VarH = Hashtbl.Make(CilType.Varinfo)
+  module VarMap = Map.Make(CilType.Varinfo)
+  let array_map = VarH.create 20
 
-  let project p_opt cpa =
-    CPA.mapi (fun varinfo value -> project_val p_opt value (is_privglob varinfo)) cpa
+  let add_to_array_map fundec arguments =
+    let rec pointedArrayMap = function
+      | [] -> VarMap.empty
+      | (info,value)::xs ->
+        match value with
+        | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
+          let possibleVars = PreValueDomain.AD.to_var_may t in
+          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+        | _ -> pointedArrayMap xs
+    in
+    match VarH.find_option array_map fundec.svar with
+    | Some _ -> () (*We already have something -> do not change it*)
+    | None -> VarH.add array_map fundec.svar (pointedArrayMap arguments)
+
+  let attributes_varinfo info fundec =
+    let map = VarH.find array_map fundec.svar in
+    match VarMap.find_opt info map with
+    | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+    | None -> Some (info.vattr, typeAttrs (info.vtype))
+
+  let project_val ask array_attr p_opt value is_glob =
+    let p = if GobConfig.get_bool "annotation.int.enabled" then (
+        if is_glob then
+          Some PU.max_int_precision
+        else p_opt
+      ) else None
+    in
+    let a = if GobConfig.get_bool "annotation.goblint_array_domain" then array_attr else None in
+    VD.project ask p a value
+
+  let project ask p_opt cpa fundec =
+    CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
 
   (**************************************************************************
@@ -120,7 +153,8 @@ struct
     Priv.init ()
 
   let finalize () =
-    Priv.finalize ()
+    Priv.finalize ();
+    VarH.clear array_map
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -199,7 +233,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -685,46 +719,7 @@ struct
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
   and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_ask_mustbeequal a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
-
-  (** Evaluate expression using MustBeEqual query.
-      Otherwise just delegate to next eval_rv function. *)
-  and eval_rv_ask_mustbeequal a gs st exp =
-    let eval_next () = eval_rv_base a gs st exp in
-    if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
-    let binop op e1 e2 =
-      let must_be_equal () =
-        let r = Q.must_be_equal a e1 e2 in
-        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
-        r
-      in
-      match op with
-      | MinusA when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_int ik BI.zero)
-      | MinusPI (* TODO: untested *)
-      | MinusPP when must_be_equal () ->
-        let ik = Cilfacade.ptrdiff_ikind () in
-        `Int (ID.of_int ik BI.zero)
-      (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
-      | Le
-      | Ge when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik true)
-      | Ne
-      | Lt
-      | Gt when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik false)
-      | _ -> eval_next ()
-    in
-    let r =
-      match exp with
-      | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
-      | _ -> eval_next ()
-    in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
-    r
+    eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
   and eval_rv_back_up a gs st exp =
     if get_bool "ana.base.eval.deep-query" then
@@ -765,13 +760,6 @@ struct
       )
       else
         (c1, c2)
-    in
-    let binop_case ~arg1 ~arg2 ~op ~typ =
-      let a1 = eval_rv a gs st arg1 in
-      let a2 = eval_rv a gs st arg2 in
-      let t1 = Cilfacade.typeOf arg1 in
-      let t2 = Cilfacade.typeOf arg2 in
-      evalbinop a st op t1 a1 t2 a2 typ
     in
     let r =
       (* query functions were no help ... now try with values*)
@@ -849,10 +837,9 @@ struct
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
-        let a1 = eval_rv a gs st e1 in (* re-evaluate because might be with cast *)
-        let a2 = eval_rv a gs st e2 in
-        evalbinop a st op t1 a1 t2 a2 typ
-      | BinOp (LOr, arg1, arg2, typ) as exp ->
+        (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
+        evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
+      | BinOp (LOr, e1, e2, typ) as exp ->
         let (let*) = Option.bind in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
@@ -927,10 +914,10 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None -> binop_case ~arg1 ~arg2 ~op:LOr ~typ (* fallback to general case *)
+          | None -> evalbinop a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
         end
-      | BinOp (op,arg1,arg2,typ) ->
-        binop_case ~arg1 ~arg2 ~op ~typ
+      | BinOp (op,e1,e2,typ) ->
+        evalbinop a gs st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
@@ -964,6 +951,51 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  and evalbinop (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    evalbinop_mustbeequal a gs st op ~e1 ?t1 ~e2 ?t2 t
+
+  (** Evaluate BinOp using MustBeEqual query as fallback. *)
+  and evalbinop_mustbeequal (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    (* Evaluate structurally using base at first. *)
+    let a1 = eval_rv a gs st e1 in
+    let a2 = eval_rv a gs st e2 in
+    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
+    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
+    let r = evalbinop_base a st op t1 a1 t2 a2 t in
+    if Cil.isIntegralType t then (
+      match r with
+      | `Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
+      | _ ->
+        (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
+        let must_be_equal () =
+          let r = Q.must_be_equal a e1 e2 in
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
+          r
+        in
+        match op with
+        | MinusA when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_int ik BI.zero)
+        | MinusPI (* TODO: untested *)
+        | MinusPP when must_be_equal () ->
+          let ik = Cilfacade.ptrdiff_ikind () in
+          `Int (ID.of_int ik BI.zero)
+        (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
+        | Le
+        | Ge when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik true)
+        | Ne
+        | Lt
+        | Gt when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik false)
+        | _ -> r (* Fallback didn't help. *)
+    )
+    else
+      r (* Avoid fallback, above cases are for ints only. *)
+
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
@@ -1157,8 +1189,8 @@ struct
       CilLval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var k, offset) ->
-              (try var_invariant ~offset k with Not_found -> Invariant.none)
+            | (Var v, offset) when not (InvariantCil.var_is_heap v) ->
+              (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
           Invariant.(a && i)
@@ -1303,7 +1335,7 @@ struct
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top_value typ) cpa
+      CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
     else
       CPA.add variable value cpa
 
@@ -1360,8 +1392,8 @@ struct
               lval_type
       in
       let update_offset old_value =
-        (* Projection to highest Precision *)
-        let projected_value = project_val None value (is_global a x) in
+        (* Projection globals to highest Precision *)
+        let projected_value = project_val a None None value (is_global a x) in
         let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
@@ -1389,7 +1421,7 @@ struct
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
         let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) && offs = `NoOffset then begin
-            VD.bot_value lval_type
+            VD.bot_value ~varAttr:x.vattr lval_type
           end else
             Priv.read_global a priv_getg st x
         in
@@ -1693,7 +1725,7 @@ struct
           begin match Addr.to_var_offset (AD.choose lval_val) with
             | Some (x,offs) ->
               let t = v.vtype in
-              let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+              let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
               let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
@@ -1754,7 +1786,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
+    let init_var v = (AD.from_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
@@ -1877,6 +1909,7 @@ struct
     in
     (* Assign parameters to arguments *)
     let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
+    add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat_map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st) in
@@ -1885,7 +1918,7 @@ struct
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
-    let new_cpa = project (Some p) new_cpa in
+    let new_cpa = project (Analyses.ask_of_ctx ctx) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2247,9 +2280,13 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let return_val = project_val (Some p) return_val (is_privglob (return_varinfo ())) in
-      let cpa' = project (Some p) nst.cpa in
+      let p = PrecisionUtil.int_precision_from_node ()in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let callerFundec = match !MyCFG.current_node with
+        | Some n -> Node.find_fundec n
+        | None -> failwith "callerfundec not found"
+      in
+      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+      let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with

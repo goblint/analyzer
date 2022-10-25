@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.def_exc --disable ana.int.interval
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 int main(){
     unsigned long top;

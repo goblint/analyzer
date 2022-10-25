@@ -42,6 +42,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
 let get_spec (): (module Spec) =
   Lazy.force spec_module
 
+let current_node_state_json : (Node.t -> Yojson.Safe.t) ref = ref (fun _ -> assert false)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
@@ -87,7 +88,6 @@ struct
     let live_nodes : unit NH.t = NH.create 10 in
     let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
-    let open BatPrintf in
     let live_lines = ref StringMap.empty in
     let dead_lines = ref StringMap.empty in
     let add_one n v =
@@ -573,7 +573,7 @@ struct
             Hashtbl.replace h k v') e;
           h
         in
-        let ask loc = (fun (type a) (q: a Queries.t) ->
+        let ask ~node loc = (fun (type a) (q: a Queries.t) ->
             let local = Hashtbl.find_option joined loc in
             match local with
             | None -> Queries.Result.bot q
@@ -581,7 +581,7 @@ struct
               let rec ctx =
                 { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
                 ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-                ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+                ; node   = node
                 ; prev_node = MyCFG.dummy_node
                 ; control_context = (fun () -> ctx_failwith "No context in query context.")
                 ; context = (fun () -> ctx_failwith "No context in query context.")
@@ -596,7 +596,7 @@ struct
               Spec.query ctx q
           )
         in
-        let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in
+        let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
         List.iter (fun name -> Transform.run name ask file) active_transformations
       );
 
@@ -617,6 +617,7 @@ struct
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let local_xml = solver2source_result lh in
+    current_node_state_json := (fun node -> LT.to_yojson (Result.find local_xml node));
 
     let liveness =
       if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
@@ -679,7 +680,7 @@ struct
       Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
-    Result.output (lazy local_xml) gh make_global_fast_xml file
+    Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
 end
 
 (* This function was originally a part of the [AnalyzeCFG] module, but

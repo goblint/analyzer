@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] unassume --set witness.yaml.unassume 18-base-unassume-contra.yml --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int i;

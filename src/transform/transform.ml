@@ -2,7 +2,7 @@ open Prelude
 open GoblintCil
 
 module type S = sig
-  val transform : (Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)
+  val transform : (?node:Node.t -> Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)
 end
 
 let h = Hashtbl.create 13
@@ -14,7 +14,7 @@ let run name =
 
 module PartialEval = struct
   let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
-  class visitor ask = object
+  class visitor (ask: ?node:Node.t -> Cil.location -> Queries.ask) = object
     inherit nopCilVisitor
     method! vstmt s =
       loc := Cilfacade.get_stmtLoc s;

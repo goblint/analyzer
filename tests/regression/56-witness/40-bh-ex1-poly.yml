@@ -20,7 +20,7 @@
   location:
     file_name: 40-bh-ex1-poly.c
     file_hash: 34f781dcae089ecb6b7b2811027395fcb501b8477b7e5016f7b38081724bea28
-    line: 7
+    line: 8
     column: 4
     function: main
   loop_invariant:

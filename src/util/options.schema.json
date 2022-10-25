@@ -161,7 +161,7 @@
     },
     "jobs": {
       "title": "jobs",
-      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing and g2html.",
       "type": "integer",
       "default": 1
     },
@@ -389,6 +389,14 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "interval_threshold_widening_constants": {
+              "title": "ana.int.interval_threshold_widening_constants",
+              "description":
+                "Which constants in the program should be considered as threshold constants (all/comparisons)",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
             }
           },
           "additionalProperties": false
@@ -478,6 +486,28 @@
                 "Do not propagate basic type writes to all struct fields",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "autotune": {
+          "title": "ana.autotune",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.autotune.enabled",
+              "description": "Try to intelligently select analyses based on analysed file",
+              "type": "boolean",
+              "default": false
+            },
+            "activated": {
+              "title": "ana.autotune.activated",
+              "description": "Lists of activated tuning options. By default all are activated",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
+              ]
             }
           },
           "additionalProperties": false
@@ -768,6 +798,14 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "threshold_widening_constants": {
+              "title": "ana.apron.threshold_widening_constants",
+              "description":
+                "Which constants in the programm should be considered as threshold constants",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
             },
             "privatization": {
               "title": "ana.apron.privatization",
@@ -1304,7 +1342,7 @@
             "enabled": {
               "title": "annotation.int.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated IntDomains.",
               "type": "boolean",
               "default": false
             },
@@ -1325,7 +1363,7 @@
             "enabled": {
               "title": "annotation.float.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated FloatDomains.",
               "type": "boolean",
               "default": false
             }
@@ -1355,6 +1393,18 @@
             },
             "default": []
           }
+        },
+        "goblint_array_domain": {
+          "title": "annotation.goblint_array_domain",
+          "description": "Enable manual annotation of arrays with desired domain",
+          "type": "boolean",
+          "default": false
+        },
+        "goblint_apron_track": {
+          "title": "annotation.goblint_apron_track",
+          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1923,9 +1973,9 @@
             "side_widen": {
               "title": "solvers.td3.side_widen",
               "description":
-                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
+                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value, sides-local: Widen with contributions from variables from which multiple side-effects leading to a new value originate.",
               "type": "string",
-              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
             },
             "space": {

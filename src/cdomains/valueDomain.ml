@@ -1,6 +1,5 @@
 open GoblintCil
 open Pretty
-open GobConfig
 open PrecisionUtil
 
 include PreValueDomain
@@ -29,14 +28,14 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
-  val bot_value: typ -> t
+  val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
-  val init_value: typ -> t
-  val top_value: typ -> t
+  val init_value: ?varAttr:attributes -> typ -> t
+  val top_value: ?varAttr:attributes -> typ -> t
   val is_top_value: t -> typ -> bool
-  val zero_init_value: typ -> t
+  val zero_init_value: ?varAttr:attributes -> typ -> t
 
-  val project: int_precision -> t -> t
+  val project: Q.ask -> int_precision option-> ( attributes * attributes ) option -> t -> t
 end
 
 module type Blob =
@@ -108,21 +107,23 @@ struct
     | TNamed ({tname = "pthread_t"; _}, _) -> true
     | _ -> false
 
-  let rec bot_value (t: typ): t =
+  let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TFloat _ -> `Bot
     | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.bot ()) (bot_value ai))
+      let typAttr = typeAttrs ai in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (bot_value ai))
     | TArray (ai, Some exp, _) ->
+      let typAttr = typeAttrs ai in
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
-    | TNamed ({ttype=t; _}, _) -> bot_value t
+    | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
 
   let is_bot_value x =
@@ -139,37 +140,45 @@ struct
     | `Bot -> true
     | `Top -> false
 
-  let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
+  let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
     | t when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.bot ())  (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
+      let typAttr = typeAttrs ai in
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (init_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
+      let typAttr = typeAttrs ai in
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
-    | TNamed ({ttype=t; _}, _) -> init_value t
+    | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
     | _ -> `Top
 
-  let rec top_value (t: typ): t =
+  let rec top_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.top ()) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
+      let typAttr = typeAttrs ai in
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top ()) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
+      let typAttr = typeAttrs ai in
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value t
+      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (top_value ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> `Top
 
   let is_top_value x (t: typ) =
@@ -186,31 +195,33 @@ struct
     | `Top -> true
     | `Bot -> false
 
-    let rec zero_init_value (t:typ): t =
-      match t with
-      | _ when is_mutex_type t -> `Mutex
-      | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-      | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
-      | TPtr _ -> `Address AD.null_ptr
-      | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value fd.ftype) ci)
-      | TComp ({cstruct=false; _} as ci,_) ->
-        let v = try
+  let rec zero_init_value ?(varAttr=[]) (t:typ): t =
+    match t with
+    | _ when is_mutex_type t -> `Mutex
+    | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
+    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
+    | TPtr _ -> `Address AD.null_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=false; _} as ci,_) ->
+      let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
           let firstmember = List.hd ci.cfields in
-          `Lifted firstmember, zero_init_value firstmember.ftype
+          `Lifted firstmember, zero_init_value ~varAttr:firstmember.fattr firstmember.ftype
         with
-          (* Union with no members ò.O *)
+        (* Union with no members ò.O *)
           Failure _ -> Unions.top ()
-        in
-        `Union(v)
-      | TArray (ai, None, _) ->
-        `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
-      | TArray (ai, Some exp, _) ->
-        let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-        `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
-      (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
-      | TNamed ({ttype=t; _}, _) -> zero_init_value t
-      | _ -> `Top
+      in
+      `Union(v)
+    | TArray (ai, None, _) ->
+      let typAttr = typeAttrs ai in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
+    | TArray (ai, Some exp, _) ->
+      let typAttr = typeAttrs ai in
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+    (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
+    | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
+    | _ -> `Top
 
   let tag_name : t -> string = function
     | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `Bot -> "Bot"
@@ -436,8 +447,8 @@ struct
                 | `Struct x when same_struct x -> x
                 | `Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
-                  Structs.(replace (Structs.create (fun fd -> top_value fd.ftype) ci) first (get x first))
-                | _ -> log_top __POS__; Structs.create (fun fd -> top_value fd.ftype) ci
+                  Structs.(replace (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci) first (get x first))
+                | _ -> log_top __POS__; Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci
               )
           else
             `Union (match v with
@@ -999,7 +1010,7 @@ struct
                 else begin
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value fld.ftype), offs
+                    (top_value ~varAttr:fld.fattr fld.ftype), offs
                   | `Field (fldi, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->
@@ -1147,20 +1158,22 @@ struct
 
   let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
 
-  let rec project p (v: t): t =
-    match v with
-    | `Int n ->  `Int (ID.project p n)
+  (*Changes the value: if p is present, change all Integer precisions. If array_attr=(varAttr, typeAttr) is present, change the top level array domain according to the attributes *)
+  let rec project ask p array_attr (v: t): t =
+    match v, p, array_attr with
+    | _, None, None -> v (*Nothing to change*)
     (* as long as we only have one representation, project is a nop*)
-    | `Float n ->  `Float n
-    | `Address n -> `Address (project_addr p n)
-    | `Struct n -> `Struct (Structs.map (fun (x: t) -> project p x) n)
-    | `Union (f, v) -> `Union (f, project p v)
-    | `Array n -> `Array (project_arr p n)
-    | `Blob (v, s, z) -> `Blob (project p v, ID.project p s, z)
-    | `Thread n -> `Thread n
-    | `Mutex -> `Mutex
-    | `Bot -> `Bot
-    | `Top -> `Top
+    | `Float n, _, _ ->  `Float n
+    | `Int n, Some p, _->  `Int (ID.project p n)
+    | `Address n, Some p, _-> `Address (project_addr p n)
+    | `Struct n, _, _ -> `Struct (Structs.map (fun (x: t) -> project ask p None x) n)
+    | `Union (f, v), _, _ -> `Union (f, project ask p None v)
+    | `Array n , _, _ -> `Array (project_arr ask p array_attr n)
+    | `Blob (v, s, z), Some p', _ -> `Blob (project ask p None v, ID.project p' s, z)
+    | `Thread n, _, _ -> `Thread n
+    | `Bot, _, _ -> `Bot
+    | `Top, _, _ -> `Top
+    | _, _, _ -> v (*Nothing to change*)
   and project_addr p a =
     AD.map (fun addr ->
         match addr with
@@ -1171,11 +1184,15 @@ struct
     | `NoOffset -> `NoOffset
     | `Field (field, offs') -> `Field (field, project_offs p offs')
     | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
-  and project_arr p n =
-    let n' = CArrays.map (fun (x: t) -> project p x) n in
-    match CArrays.length n with
-    | None -> n'
-    | Some l -> CArrays.update_length (ID.project p l) n'
+  and project_arr ask p array_attr n =
+    let n = match array_attr with
+      | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n
+      | _ -> n
+    in let n' = CArrays.map (fun (x: t) -> project ask p None x) n in
+    match CArrays.length n, p with
+    | None, _
+    | _, None -> n'
+    | Some l, Some p -> CArrays.update_length (ID.project p l) n'
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
@@ -1184,8 +1201,7 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
-  ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
+and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
 
@@ -1205,7 +1221,7 @@ struct
   module VS = Set.Make (Basetype.Variables)
 
   let rec ad_invariant ~vs ~offset ~lval x =
-    let c_exp = Cil.(Lval (Option.get lval)) in
+    let c_exp = Lval lval in
     let is_opt = AD.fold (fun addr acc_opt ->
         BatOption.bind acc_opt (fun acc ->
             match addr with
@@ -1237,7 +1253,7 @@ struct
                      so insert pointer cast to make invariant expression valid (no field/index on void). *)
                   let newt = TPtr (typ, []) in
                   let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
-                  deref_invariant ~vs ~lval vi offset (Mem c_exp, NoOffset)
+                  deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
                 | exception Cilfacade.TypeOfError _ -> (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
                   Invariant.none
               in
@@ -1259,7 +1275,7 @@ struct
       ) x (Some [])
     in
     match is_opt with
-    | Some [i] -> if get_bool "witness.invariant.exact" then i else Invariant.none
+    | Some [i] -> if GobConfig.get_bool "witness.invariant.exact" then i else Invariant.none
     | Some is -> List.fold_left Invariant.(||) (Invariant.bot ()) is
     | None -> Invariant.none
 
@@ -1268,13 +1284,13 @@ struct
 
   and vd_invariant ~vs ~offset ~lval = function
     | `Int n ->
-      let e = Lval (Option.get lval) in
+      let e = Lval lval in
       if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
         ID.invariant e n
       else
         Invariant.none
     | `Float n ->
-      let e = Lval (Option.get lval) in
+      let e = Lval lval in
       if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
         FD.invariant e n
       else
@@ -1285,20 +1301,18 @@ struct
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
-  (* TODO: remove duplicate lval arguments? *)
-  and deref_invariant ~vs ~lval vi offset lval' =
+  and deref_invariant ~vs vi ~offset ~lval =
     let v = find vi in
-    key_invariant_lval ~vs ~lval vi offset lval' v
+    key_invariant_lval ~vs vi ~offset ~lval v
 
-  and key_invariant_lval ~vs ~lval k offset lval' v =
+  and key_invariant_lval ?(vs=VS.empty) k ~offset ~lval v =
     if not (VS.mem k vs) then
       let vs' = VS.add k vs in
-      vd_invariant ~vs:vs' ~offset ~lval:(Some lval') v
+      vd_invariant ~vs:vs' ~offset ~lval v
     else
       Invariant.none
 
-
-  let key_invariant k ?(offset=NoOffset) v = key_invariant_lval ~vs:VS.empty ~lval:None k offset (var k) v
+  let key_invariant k ?(offset=NoOffset) v = key_invariant_lval k ~offset ~lval:(var k) v
 end
 
 let invariant_global find g =

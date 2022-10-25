@@ -1,5 +1,5 @@
 #include <string.h>
-#include <assert.h>
+#include <goblint.h>
 
 extern void __goblint_unknown(void*); // shallow write
 

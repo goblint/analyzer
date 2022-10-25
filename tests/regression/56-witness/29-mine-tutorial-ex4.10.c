@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set ana.activated[+] unassume --set witness.yaml.unassume 29-mine-tutorial-ex4.10.yml
 // Using Apron polyhedra to have no narrowing.
-
+#include <goblint.h>
 int main() {
   int v = 1; // Not explicitly stated in Miné's example
   while (v <= 50) {

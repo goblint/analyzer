@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 41-as-hybrid.yml
-
+#include <goblint.h>
 int main() {
   int i = 0;
   while (1) {

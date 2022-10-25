@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --enable ana.sv-comp.functions --set ana.activated[+] unassume --set witness.yaml.unassume 28-mine-tutorial-ex4.8.yml
+#include <goblint.h>
 extern _Bool __VERIFIER_nondet_bool();
-
 int main() {
   int v = 0;
   while (__VERIFIER_nondet_bool() == 0) {

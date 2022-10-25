@@ -881,3 +881,12 @@ let find f =
       LibraryDesc.of_old old_accesses (classify name)
     | None ->
       unknown_desc ~f name
+
+
+let is_special fv =
+  if use_special fv.vname then
+    true
+  else
+    match Cilfacade.find_varinfo_fundec fv with
+    | _ -> false
+    | exception Not_found -> true

@@ -130,7 +130,9 @@ let check_arguments () =
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
   if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
-  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated."
+  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
+  if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
+  if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.")
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -208,10 +210,27 @@ let preprocess_files () =
   let cppflags = ref (get_string_list "pre.cppflags") in
 
   (* the base include directory *)
+  (* TODO: any better way? dune executable promotion doesn't add _build sites *)
+  let source_lib_dirs =
+    let source_lib = Fpath.(exe_dir / "lib") in
+    if Sys.file_exists (Fpath.to_string source_lib) && Sys.is_directory (Fpath.to_string source_lib) then (
+      Sys.readdir Fpath.(to_string source_lib)
+      |> Array.to_list
+      |> List.map Fpath.(add_seg source_lib)
+      |> List.filter (fun p -> Sys.is_directory (Fpath.to_string p))
+    )
+    else
+      []
+  in
+  (* TODO: split to include and src *)
   let custom_include_dirs =
     List.map Fpath.v (get_string_list "pre.custom_includes") @
-    Fpath.(exe_dir / "includes") ::
-    List.map Fpath.v Goblint_sites.includes
+    List.map (fun p -> Fpath.(p / "stub" / "include")) source_lib_dirs @
+    List.map Fpath.v Goblint_sites.lib_stub_include @
+    List.map (fun p -> Fpath.(p / "runtime" / "include")) source_lib_dirs @
+    List.map Fpath.v Goblint_sites.lib_runtime_include @
+    List.map (fun p -> Fpath.(p / "stub" / "src")) source_lib_dirs @
+    List.map Fpath.v Goblint_sites.lib_stub_src
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
@@ -242,7 +261,6 @@ let preprocess_files () =
   get_string_list "pre.includes" |> List.map Fpath.v |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
-  include_files := find_custom_include (Fpath.v "goblint.h") :: !include_files;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
@@ -383,9 +401,9 @@ let merge_parsed parsed =
 
   Cilfacade.rmTemps merged_AST;
 
-  (* create the Control Flow Graph from CIL's AST *)
-  Cilfacade.createCFG merged_AST;
-  Cilfacade.current_file := merged_AST;
+  Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
+  CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
+  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling. *)
   merged_AST
 
 let preprocess_parse_merge () =
@@ -459,8 +477,8 @@ let do_html_output () =
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
-      let command = "java -jar "^ jar ^" --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
-      try match Unix.system command with
+      let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
+      try match Timing.wrap "g2html" Unix.system command with
         | Unix.WEXITED 0 -> ()
         | _ -> eprintf "HTML generation failed! Command: %s\n" command
       with Unix.Unix_error (e, f, a) ->

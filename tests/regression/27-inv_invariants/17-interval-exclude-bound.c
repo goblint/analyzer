@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval
+#include <goblint.h>
 
 int main() {
   unsigned int r; // non-neg rand

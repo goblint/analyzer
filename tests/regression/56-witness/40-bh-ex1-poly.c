@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set ana.activated[+] unassume --set witness.yaml.unassume 40-bh-ex1-poly.yml --set sem.int.signed_overflow assume_none
 // TODO: why need to assume no overflow?
+#include <goblint.h>
 int main() {
   int i = 0;
   while (i < 4) {

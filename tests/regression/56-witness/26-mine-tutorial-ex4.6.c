@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 26-mine-tutorial-ex4.6.yml
-
+#include <goblint.h>
 int main() {
   int x = 40;
   while (x != 0) {

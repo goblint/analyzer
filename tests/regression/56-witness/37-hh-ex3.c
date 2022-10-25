@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron --disable solvers.td3.remove-wpoint --set ana.activated[+] unassume --set witness.yaml.unassume 37-hh-ex3.yml
-
+#include <goblint.h>
 int main() {
   int i = 0;
   while (i < 4) {

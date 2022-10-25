@@ -1,4 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --disable ana.int.interval
+#include <goblint.h>
+
 int ARR_SIZE = 10;
 
 int main() {

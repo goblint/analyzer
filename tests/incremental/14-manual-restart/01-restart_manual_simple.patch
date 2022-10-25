@@ -3,7 +3,7 @@ index cbfb0ba70..aa83393ac 100644
 --- tests/incremental/14-manual-restart/01-restart_manual_simple.c
 +++ tests/incremental/14-manual-restart/01-restart_manual_simple.c
 @@ -1,9 +1,9 @@
- #include <assert.h>
+ #include <goblint.h>
 
 -int g = 4;
 +int g = 5;

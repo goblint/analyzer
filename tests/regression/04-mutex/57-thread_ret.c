@@ -4,7 +4,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int myglobal;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
