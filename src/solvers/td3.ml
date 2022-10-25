@@ -516,8 +516,9 @@ module WP =
               List.iter (fun n ->
                   mark_node obsolete_prim f n
                 ) pn;
-            );
-            mark_node obsolete_ret f (Function f);
+            ) else (
+              mark_node obsolete_ret f (Function f);
+            )
           ) part_changed_funs;
 
         let old_ret = HM.create 103 in
