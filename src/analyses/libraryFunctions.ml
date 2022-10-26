@@ -91,7 +91,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
-    ("futimesat", unknown [drop "dirfd" [w]; drop "pathname" [r]; drop "times" []]);
+    ("futimesat", unknown [drop "dirfd" [w]; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []):: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("gettext", unknown [drop "msgid" [r]]);
     ("euidaccess", unknown [drop "pathname" [r]; drop "mode" []]);
