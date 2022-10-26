@@ -20,14 +20,15 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
-    ("ungetc", unknown [drop "c" []; drop "stream" [w]]);
-    ("fscanf", unknown ((drop "stream" [w]) :: (drop "format" [r]) :: (VarArgs (drop' [w])))); (* TODO: How to specify varargs? *)
+    ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
+    ("fscanf", unknown ((drop "stream" [r; w]) :: (drop "format" [r]) :: (VarArgs (drop' [w]))));
     ("__freading", unknown [drop "stream" [r]]);
     ("mbsinit", unknown [drop "ps" [r]]);
-    ("mbrtowc", unknown [drop "pwc" [w]; drop "s" [r]; drop "n" []; drop "ps" [w]]);
+    ("mbrtowc", unknown [drop "pwc" [w]; drop "s" [r]; drop "n" []; drop "ps" [r; w]]);
     ("iswspace", unknown [drop "wc" []]);
     ("iswalnum", unknown [drop "wc" []]);
     ("iswprint", unknown [drop "wc" []]);
+    ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
   ]
 
 (** C POSIX library functions.
@@ -38,32 +39,31 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
     ("nl_langinfo", unknown [drop "item" []]);
-    ("nl_langinfo_l", unknown [drop "item" []; drop "locale" [r]]);
+    ("nl_langinfo_l", unknown [drop "item" []; drop "locale" [r_deep]]);
     ("getc_unlocked", unknown [drop "stream" [w]]);
     ("getchar_unlocked", unknown []);
     ("putc_unlocked", unknown [drop "c" []; drop "stream" [w]]);
     ("putchar_unlocked", unknown [drop "c" []]);
-    ("lseek", unknown [drop "fd" [w]; drop "offset" []; drop "whence" []]);
+    ("lseek", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
     ("fseeko", unknown [drop "stream" [w]; drop "offset" []; drop "whence" []]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
-    ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" []; drop "outbuf" [w]; drop "outbytesleft" []]);
-    ("iconv_close", unknown [drop "cd" [w]]);
+    ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
+    ("iconv_close", unknown [drop "cd" [f]]);
     ("strnlen", unknown [drop "s" [r]; drop "maxlen" []]);
     ("chmod", unknown [drop "pathname" [r]; drop "mode" []]);
-    ("fchmod", unknown [drop "fd" [r]; drop "mode" []]);
-    ("fchown", unknown [drop "fd" [r]; drop "owner" []; drop "group" []]);
+    ("fchmod", unknown [drop "fd" []; drop "mode" []]);
+    ("fchown", unknown [drop "fd" []; drop "owner" []; drop "group" []]);
     ("lchown", unknown [drop "pathname" [r]; drop "owner" []; drop "group" []]);
     ("clock_gettime", unknown [drop "clockid" []; drop "tp" [w]]);
     ("gettimeofday", unknown [drop "tv" [w]; drop "tz" [w]]);
-    ("futimens", unknown [drop "fd" [w]; drop "times" []]);
-    ("utimes", unknown [drop "filename" [r]; drop "times" []]);
+    ("futimens", unknown [drop "fd" []; drop "times" [r]]);
+    ("utimes", unknown [drop "filename" [r]; drop "times" [r]]);
     ("linkat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]; drop "flags" []]);
     ("dirfd", unknown [drop "dirp" [r]]);
     ("fdopendir", unknown [drop "fd" []]);
     ("pathconf", unknown [drop "path" [r]; drop "name" []]);
-    ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("symlink" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
-    ("ftruncate", unknown [drop "fd" [r]; drop "length" []]);
+    ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
   ]
 
@@ -77,7 +77,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
   ]
 
-(** GCC builtin functions and GCC specific extensions.
+(** GCC builtin functions.
     These are not builtin versions of functions from other lists. *)
 let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
@@ -86,10 +86,13 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
-    ("error", unknown ((drop "status" []):: (drop "errnum" []) :: (drop "format" [w]) :: (VarArgs (drop' [r]))));
+  ]
+
+let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
-    ("gettext", unknown [drop "msgid" [r]]);
     ("futimesat", unknown [drop "dirfd" [w]; drop "pathname" [r]; drop "times" []]);
+    ("error", unknown ((drop "status" []):: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
+    ("gettext", unknown [drop "msgid" [r]]);
     ("euidaccess", unknown [drop "pathname" [r]; drop "mode" []]);
     ("rpmatch", unknown [drop "response" [r]]);
     ("getpagesize", unknown []);
@@ -115,7 +118,7 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("release_console_sem", special [] @@ Unlock console_sem);
     ("misc_deregister", unknown [drop "misc" [r_deep]]);
     ("__ctype_get_mb_cur_max", unknown []);
-    ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r]]);
+    ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
   ]
 
 (** Goblint functions. *)
@@ -202,6 +205,7 @@ let library_descs = Hashtbl.of_list (List.concat [
     posix_descs_list;
     pthread_descs_list;
     gcc_descs_list;
+    glibc_desc_list;
     linux_descs_list;
     goblint_descs_list;
     zstd_descs_list;
