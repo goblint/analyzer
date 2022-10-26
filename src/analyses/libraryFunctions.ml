@@ -102,6 +102,8 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
     ("__readlink_alias", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []]);
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
+    ("__ctype_get_mb_cur_max", unknown []);
+    ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -119,8 +121,6 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
     ("release_console_sem", special [] @@ Unlock console_sem);
     ("misc_deregister", unknown [drop "misc" [r_deep]]);
-    ("__ctype_get_mb_cur_max", unknown []);
-    ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
   ]
 
 (** Goblint functions. *)
