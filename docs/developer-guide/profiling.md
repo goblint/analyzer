@@ -68,6 +68,8 @@ It can be used as follows:
 
 For more information, see [Firefox Profiler's documentation](https://profiler.firefox.com/docs/#/./guide-perf-profiling).
 
+An experimental version of Firefox Profiler, which supports collapsing _indirect_ recursion, can be found [here](https://deploy-preview-4232--perf-html.netlify.app/).
+
 
 ## Memtrace
 `memtrace` is a library and tool for profiling OCaml memory usage.
