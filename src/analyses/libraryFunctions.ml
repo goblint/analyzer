@@ -86,6 +86,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
+    ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -100,6 +101,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__read_alias", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []]);
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
     ("__readlink_alias", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []]);
+    ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -431,8 +433,6 @@ let invalidate_actions = [
     "send", readsAll;(*safe*)
     "snprintf", writes [1];(*keep [1]*)
     "__builtin___snprintf_chk", writes [1];(*keep [1]*)
-    "__builtin___sprintf_chk", writes [1];(*keep [1]*)
-    "__overflow", reads [1];
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
     "strcmp", readsAll;(*safe*)
