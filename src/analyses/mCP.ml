@@ -248,7 +248,8 @@ struct
         else
           let asked' = Queries.Set.add anyq asked in
           let sides = ref [] in
-          let ctx'' = outer_ctx "query" ~sides ctx in
+          let emits = ref [] in
+          let ctx'' = outer_ctx "query" ~sides ~emits ctx in
           let f ~q a (n,(module S:MCPSpec),d) =
             let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
             (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
@@ -258,6 +259,7 @@ struct
                 ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
               }
             in
+            List.iter ctx.emit !emits;
             (* meet results so that precision from all analyses is combined *)
             Result.meet a @@ S.query ctx' q
           in
@@ -321,13 +323,15 @@ struct
       | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
     in
     let querycache = Queries.Hashtbl.create 13 in
-    (* TODO: make rec? *)
-    { ctx with
-      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
-    ; emit
-    ; spawn
-    ; sideg
-    }
+    let rec ctx' =
+      { ctx with
+        ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx' q)
+      ; emit
+      ; spawn
+      ; sideg
+      }
+    in
+    ctx'
 
   (* Explicitly polymorphic type required here for recursive call in branch. *)
   and inner_ctx: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) ctx -> int -> Obj.t -> (d, g, c, v) ctx = fun tfname ?splits ?(post_all=[]) ctx n d ->
