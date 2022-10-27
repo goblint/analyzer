@@ -413,7 +413,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let lt = eval_comparison_binop None false eval_lt
   let gt = eval_comparison_binop (Some PlusInfinity) false eval_gt
   let le = eval_comparison_binop None false eval_le
-  let ge = eval_comparison_binop None false eval_ge
+  let ge = eval_comparison_binop (Some PlusInfinity) true eval_ge
   let eq a b =
     Messages.warn
       ~category:Messages.Category.Float

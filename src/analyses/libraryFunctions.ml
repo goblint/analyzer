@@ -161,6 +161,7 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_signbit", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
     ("__builtin_fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
     ("__builtin_isgreater", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isgreater (x,y)) });
+    ("__builtin_isgreaterequal", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isgreaterequal (x,y)) });
     ("fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
     ("fabsf", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FFloat, x)) });
     ("fabsl", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FLongDouble, x)) });
