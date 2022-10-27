@@ -2616,6 +2616,7 @@ struct
           | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
+          | Isgreater (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
         end
       in
       begin match lv with

@@ -20,6 +20,7 @@ type math =
   | Isnan of Cil.exp
   | Isnormal of Cil.exp
   | Signbit of Cil.exp
+  | Isgreater of (Cil.exp * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)
