@@ -522,10 +522,10 @@ let diff_and_rename current_file =
         let old_file = Serialize.Cache.(get_data CilFile) in
         let changes = CompareCIL.compareCilFiles old_file current_file in
         let change_info_fmt = CompareCIL.pretty_change_info |> Goblintutil.Pretty.wrap in
-        Messages.trace "diff-rename" "before update_ids\n%a\n" change_info_fmt changes;
+        if Messages.tracing then Messages.trace "diff-rename" "before update_ids\n%a\n" change_info_fmt changes;
         let max_ids = Serialize.Cache.(get_data VersionData) in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
-        Messages.trace "diff-rename" "after update_ids\n%a\n" change_info_fmt changes;
+        if Messages.tracing then Messages.trace "diff-rename" "after update_ids\n%a\n" change_info_fmt changes;
 
         let restarting = GobConfig.get_string_list "incremental.restart.list" in
         let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in

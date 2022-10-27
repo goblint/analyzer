@@ -390,9 +390,9 @@ let dummy_match_diff_result lin_old lin_new = {
 let compare_fun_multi (compare_types : cfg_compare_type list)
     (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) (fun_old : fundec) fun_new =
 
-  Messages.trace "diff-rename" "compareCFG (%s): %s\n" fun_old.svar.vname @@ [%derive.show : cfg_compare_type list] compare_types ;
-  Messages.trace "diff-rename" "fun_old:@?%a\n" (fun () -> pretty_cfg (module CfgOld)) fun_old ;
-  Messages.trace "diff-rename" "fun_new:@?%a\n" (fun () -> pretty_cfg (module CfgNew)) fun_new ;
+  if Messages.tracing then Messages.trace "diff-rename" "compareCFG (%s): %s\n" fun_old.svar.vname @@ [%derive.show : cfg_compare_type list] compare_types ;
+  if Messages.tracing then Messages.trace "diff-rename" "fun_old:@?%a\n" (fun () -> pretty_cfg (module CfgOld)) fun_old ;
+  if Messages.tracing then Messages.trace "diff-rename" "fun_new:@?%a\n" (fun () -> pretty_cfg (module CfgNew)) fun_new ;
 
   (* First compare by precise forwards compare, if enabled.
      The nodes removed from the precise matching during the second phase will
@@ -403,7 +403,7 @@ let compare_fun_multi (compare_types : cfg_compare_type list)
     else dummy_compare_forwards_result fun_old fun_new, []
   in
 
-  Messages.trace "diff-rename" "%a\n" (fun () -> pretty_compare_forwards_result) cmp_fwd_result;
+  if Messages.tracing then Messages.trace "diff-rename" "%a\n" (fun () -> pretty_compare_forwards_result) cmp_fwd_result;
 
   (* Next, compare by ordering the remaining nodes in the CFGs, and fuzzy matching them *)
   let lin_fuzzy_matches, lin_used =
@@ -472,4 +472,4 @@ let compare_fun_multi (compare_types : cfg_compare_type list)
     compare_types = cmp_fwd_used @ lin_used ;
   }
   in
-  Messages.trace "diff-rename" "%t\n" (fun () -> pretty_nodes_diff r); r
+  if Messages.tracing then Messages.trace "diff-rename" "%t\n" (fun () -> pretty_nodes_diff r); r

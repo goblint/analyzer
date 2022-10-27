@@ -194,7 +194,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     else None
   in
 
-  Messages.trace "diff-rename" "compareCIL: %s\n" @@ [%derive.show : compare_type list] @@ enabled_comparisons ();
+  if Messages.tracing then Messages.trace "diff-rename" "compareCIL: %s\n" @@ [%derive.show : compare_type list] @@ enabled_comparisons ();
 
   let addGlobal map global  =
     try
