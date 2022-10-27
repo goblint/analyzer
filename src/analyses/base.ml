@@ -2600,9 +2600,9 @@ struct
       in
       let result =
         begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> `Float (FD.top_of fk)
+          | Inf fk -> `Float (FD.inf_of fk)
           | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
           | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))

@@ -87,11 +87,14 @@ end
 
 module FloatIntervalImpl(Float_t : CFloatType) = struct
   include Printable.Std (* for default invariant, tag and relift *)
-  type t = Top | Bot | Interval of (Float_t.t * Float_t.t) [@@deriving eq, ord, to_yojson, hash]
+  type t = Top | Bot | NaN | PlusInfinity | MinusInfinity | Interval of (Float_t.t * Float_t.t) [@@deriving eq, ord, to_yojson, hash]
 
   let show = function
     | Top -> "[Top]"
     | Bot -> "[Bot]"
+    | NaN -> "[NaN]"
+    | PlusInfinity -> "[+infinity]"
+    | MinusInfinity -> "[-infinity]"
     | Interval (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.to_string low) (Float_t.to_string high)
 
   include Printable.SimpleShow (
@@ -109,7 +112,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let to_int ik = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "to_int %s" (show Bot)))
-    | Top -> IntDomain.IntDomTuple.top_of ik
+    | Top | NaN | MinusInfinity | PlusInfinity -> IntDomain.IntDomTuple.top_of ik
     (* special treatment for booleans as those aren't "just" truncated *)
     | Interval (l, h) when ik = IBool && (l > Float_t.zero || h < Float_t.zero) -> IntDomain.IntDomTuple.of_bool IBool true
     | Interval (l, h) when ik = IBool && l = h && l = Float_t.zero -> IntDomain.IntDomTuple.of_bool IBool false
@@ -140,6 +143,18 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let is_top = function
     | Top -> true
+    | _ -> false
+
+  let nan () = NaN
+
+  let is_nan = function
+    | NaN -> true
+    | _ -> false
+
+  let inf () = PlusInfinity
+
+  let is_inf = function
+    | PlusInfinity -> true
     | _ -> false
 
   let norm = function
@@ -201,12 +216,20 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot, _ -> true
     | _, Bot -> false
     | Interval (l1, h1), Interval (l2, h2) -> l1 >= l2 && h1 <= h2
+    | NaN, NaN
+    | MinusInfinity, MinusInfinity
+    | PlusInfinity, PlusInfinity -> true
+    | _ -> false
 
   let join v1 v2 =
     match v1, v2 with
     | Top, _ | _, Top -> Top
     | Bot, v | v, Bot -> v
     | Interval (l1, h1), Interval (l2, h2) -> Interval (min l1 l2, max h1 h2)
+    | NaN, NaN -> NaN
+    | MinusInfinity, MinusInfinity -> MinusInfinity
+    | PlusInfinity, PlusInfinity -> PlusInfinity
+    | _ -> Top
 
   let meet v1 v2 =
     match v1, v2 with
@@ -217,6 +240,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       if l <= h
       then Interval (l, h)
       else Bot
+    | NaN, NaN -> NaN
+    | MinusInfinity, MinusInfinity -> MinusInfinity
+    | PlusInfinity, PlusInfinity -> PlusInfinity
+    | _ -> Bot
 
   (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
   let widen v1 v2 = (**TODO: support 'threshold_widening' option *)
@@ -229,6 +256,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       let low = if l1 <= l2 then l1 else Float_t.lower_bound in
       let high = if h1 >= h2 then h1 else Float_t.upper_bound in
       norm @@ Interval (low, high)
+    | NaN, NaN -> NaN
+    | MinusInfinity, MinusInfinity -> MinusInfinity
+    | PlusInfinity, PlusInfinity -> PlusInfinity
+    | _ -> Top
 
   let narrow v1 v2 =
     match v1, v2 with (**we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
@@ -239,6 +270,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       let high = if h1 = Float_t.upper_bound then h2 else h1 in
       norm @@ Interval (low, high)
     | Interval _, Top -> v1
+    | NaN, NaN -> NaN
+    | MinusInfinity, MinusInfinity -> MinusInfinity
+    | PlusInfinity, PlusInfinity -> PlusInfinity
+    | _ -> Bot
 
   (** evaluation of the unary and binary operations *)
   let eval_unop onTop eval_operation op =
@@ -249,6 +284,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
     | Interval v -> eval_operation v
     | Top -> onTop
+    | _ -> onTop (* TODO: Do better *)
 
   let eval_binop eval_operation op1 op2 =
     if is_top op1 then
@@ -275,9 +311,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
            "The result of this operation could be +/-infinity or Nan";
        | _ -> ());
       result
-    | _ -> Top
+    | _ -> Top (* TODO: Do better *)
 
-  let eval_int_binop eval_operation (op1: t) op2 =
+  let eval_comparison_binop max sym eval_operation (op1: t) op2 =
     if is_top op1 then
       Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
         "First operand of comparison could be +/-infinity or Nan";
@@ -288,6 +324,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       match (op1, op2) with
       | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
       | Interval v1, Interval v2 -> eval_operation v1 v2
+      | NaN, _ | _, NaN -> (0,0)
+      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
+      | v1, v2 when Some v1 = max -> if Some v2 <> max || sym then (1,1) else (0,0)
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
@@ -370,22 +409,22 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let mul = eval_binop eval_mul
   let div = eval_binop eval_div
 
-  let lt = eval_int_binop eval_lt
-  let gt = eval_int_binop eval_gt
-  let le = eval_int_binop eval_le
-  let ge = eval_int_binop eval_ge
+  let lt = eval_comparison_binop None false eval_lt
+  let gt = eval_comparison_binop (Some PlusInfinity) false eval_gt
+  let le = eval_comparison_binop None false eval_le
+  let ge = eval_comparison_binop None false eval_ge
   let eq a b =
     Messages.warn
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_int_binop eval_eq a b
+    eval_comparison_binop None false eval_eq a b
   let ne a b =
     Messages.warn
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_int_binop eval_ne a b
+    eval_comparison_binop None false eval_ne a b
 
   let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
   let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
@@ -483,6 +522,9 @@ module type FloatDomain = sig
   val top_of: Cil.fkind -> t
   val bot_of: Cil.fkind -> t
 
+  val nan_of: Cil.fkind -> t
+  val inf_of: Cil.fkind -> t
+
   val ending : Cil.fkind -> float -> t
   val starting : Cil.fkind -> float -> t
   val ending_before : Cil.fkind -> float -> t
@@ -577,6 +619,12 @@ module FloatIntervalImplLifted = struct
   let top () = failwith "top () is not implemented for FloatIntervalImplLifted."
   let is_top = dispatch (F1.is_bot, F2.is_bot)
 
+  let nan_of fkind = dispatch_fkind fkind (F1.nan, F2.nan)
+  let is_nan = dispatch (F1.is_nan, F2.is_nan)
+
+  let inf_of fkind = dispatch_fkind fkind (F1.inf, F2.inf)
+  let is_inf = dispatch (F1.is_inf, F2.is_inf)
+
   let get_fkind = function
     | F32 _ -> FFloat
     | F64 _ -> FDouble
@@ -611,15 +659,20 @@ module FloatIntervalImplLifted = struct
   let minimal = dispatch (F1.minimal, F2.minimal)
   let maximal = dispatch (F1.maximal, F2.maximal)
   let to_int ikind = dispatch (F1.to_int ikind, F2.to_int ikind)
-  let cast_to fkind =
-    let create_interval fkind l h =
-      match l, h with
-      | Some l, Some h -> of_interval fkind (l,h)
-      | Some l, None -> starting fkind l
-      | None, Some h -> ending fkind h
-      | _ -> top_of fkind
-    in
-    dispatch ((fun a -> create_interval fkind (F1.minimal a) (F1.maximal a)), (fun a -> create_interval fkind (F2.minimal a) (F2.maximal a)))
+  let cast_to fkind v =
+    if is_nan v then
+      nan_of fkind
+    else if is_inf v then
+      inf_of fkind
+    else
+      let create_interval fkind l h =
+        match l, h with
+        | Some l, Some h -> of_interval fkind (l,h)
+        | Some l, None -> starting fkind l
+        | None, Some h -> ending fkind h
+        | _ -> top_of fkind
+      in
+      dispatch ((fun a -> create_interval fkind (F1.minimal a) (F1.maximal a)), (fun a -> create_interval fkind (F2.minimal a) (F2.maximal a))) v
 
   let invariant e (x:t) =
     let fk = get_fkind x in
@@ -714,6 +767,12 @@ module FloatDomTupleImpl = struct
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.top_of); }
   let bot_of =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.bot_of); }
+
+  let nan_of =
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.nan_of); }
+
+  let inf_of =
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.inf_of); }
 
   let is_bot =
     exists

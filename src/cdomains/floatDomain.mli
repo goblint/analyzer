@@ -103,6 +103,9 @@ module type FloatDomain = sig
   val top_of: Cil.fkind -> t
   val bot_of: Cil.fkind -> t
 
+  val nan_of: Cil.fkind -> t
+  val inf_of: Cil.fkind -> t
+
   val ending : Cil.fkind -> float -> t
   val starting : Cil.fkind -> float -> t
   val ending_before : Cil.fkind -> float -> t
