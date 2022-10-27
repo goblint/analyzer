@@ -216,11 +216,14 @@ let match_lin_1to1 (type n1 n2 e1 e2)
   (* for each node in the old list, take the first possible node from the new list *)
   let[@tail_mod_cons] rec helper xs ys =
     match xs, ys with
-    | _, [] -> []
+    | [], _ | _, [] -> []
     | (o, _ as x) :: xs', (n, _ as y) :: ys'
         when nes_can_match x y ->
         (o, n) :: helper xs' ys'
-    | xs', _ :: ys' -> helper xs' ys'
+    (* When nothing can be matched:
+      - if the second list has reached its last element, iterate through the first list
+      - otherwise, iterate through the second list until a match can be found *)
+    | _ :: xs', ([_] as ys') | xs', _ :: ys' -> helper xs' ys'
   in
   helper lin_old lin_new
 
