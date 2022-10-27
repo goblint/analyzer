@@ -160,7 +160,8 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : ((cfg * cfg) * (cfg * cf
         (* Next, compare the ASTs of the functions (if enabled) *)
         let ast_change_status =
           if List.mem AST @@ enabled_comparisons () then
-            unchanged_to_change_status (eq_block (old.sbody, old) (current.sbody, current) rename_mapping)
+            unchanged_to_change_status
+              (Stats.time "compareAST" (eq_block (old.sbody, old) (current.sbody, current)) rename_mapping)
           else Changed
         in
         (* Next, compare the CFGs of the functions (if enabled, and AST differences were found) *)

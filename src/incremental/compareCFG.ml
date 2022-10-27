@@ -198,6 +198,9 @@ type ('n1, 'n2, 'e1, 'e2) match_diff_result = {
 (** matches the given linearized digraphs using Myers' diff algorithm *)
 let match_lin_diff (type n1 n2 e1 e2)
     (nes_equal : n1 * e1 list -> n2 * e2 list -> bool) lin_old lin_new =
+
+  () |> Stats.time "match_lin_diff" @@ fun () ->
+
   let open DiffLib in
   let unmatched, matched_nodes =
     myers nes_equal lin_old lin_new
@@ -213,6 +216,9 @@ let match_lin_diff (type n1 n2 e1 e2)
 (** matches the given linearized digraphs based on their linearized order *)
 let match_lin_1to1 (type n1 n2 e1 e2)
     (nes_can_match : n1 * e1 list -> n2 * e2 list -> bool) lin_old lin_new =
+
+  () |> Stats.time "match_lin_1to1" @@ fun () ->
+
   (* for each node in the old list, take the first possible node from the new list *)
   let[@tail_mod_cons] rec helper xs ys =
     match xs, ys with
@@ -393,6 +399,8 @@ let dummy_match_diff_result lin_old lin_new = {
 let compare_fun_multi (compare_types : cfg_compare_type list)
     (module CfgOld : CfgBidir) (module CfgNew : CfgBidir) (fun_old : fundec) fun_new =
 
+  () |> Stats.time "compare_fun_multi" @@ fun () ->
+
   if Messages.tracing then Messages.trace "diff-rename" "compareCFG (%s): %s\n" fun_old.svar.vname @@ [%derive.show : cfg_compare_type list] compare_types ;
   if Messages.tracing then Messages.trace "diff-rename" "fun_old:@?%a\n" (fun () -> pretty_cfg (module CfgOld)) fun_old ;
   if Messages.tracing then Messages.trace "diff-rename" "fun_new:@?%a\n" (fun () -> pretty_cfg (module CfgNew)) fun_new ;
@@ -408,7 +416,7 @@ let compare_fun_multi (compare_types : cfg_compare_type list)
 
   if Messages.tracing then Messages.trace "diff-rename" "%a\n" (fun () -> pretty_compare_forwards_result) cmp_fwd_result;
 
-  (* Next, compare by ordering the remaining nodes in the CFGs, and fuzzy matching them *)
+  (* Next, compare by ordering the remaining nodes in the CFGs, and fuzzy match them *)
   let lin_fuzzy_matches, lin_used =
 
     if List.mem Diff compare_types || List.mem OneToOne compare_types then
