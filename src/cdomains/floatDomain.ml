@@ -327,6 +327,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | NaN, _ | _, NaN -> (0,0)
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
       | v1, v2 when Some v1 = max -> if Some v2 <> max || sym then (1,1) else (0,0)
+      | _, v2 when Some v2 = max -> (0,0) (* first argument cannot be max *)
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool

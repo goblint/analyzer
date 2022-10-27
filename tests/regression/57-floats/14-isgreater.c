@@ -12,5 +12,9 @@ int main(void)
     __goblint_check(x);
     x = !isgreater(1.0, NAN);
     __goblint_check(x);
+    x = !isgreater(1.0, INFINITY);
+    __goblint_check(x);
+    x = !isgreater(INFINITY, INFINITY);
+    __goblint_check(x);
     return 0;
 }
