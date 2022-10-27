@@ -24,6 +24,8 @@ type math =
   | Isgreaterequal of (Cil.exp * Cil.exp)
   | Isless of (Cil.exp * Cil.exp)
   | Islessequal of (Cil.exp * Cil.exp)
+  | Islessgreater of (Cil.exp * Cil.exp)
+  | Isunordered of (Cil.exp * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)

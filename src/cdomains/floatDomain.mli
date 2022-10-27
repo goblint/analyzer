@@ -48,6 +48,8 @@ module type FloatArith = sig
   (** Equal to: [x == y] *)
   val ne : t -> t -> IntDomain.IntDomTuple.t
   (** Not equal to: [x != y] *)
+  val unordered: t -> t -> IntDomain.IntDomTuple.t
+  (** Unordered *)
 
   (** {unary functions returning int} *)
   val isfinite : t -> IntDomain.IntDomTuple.t

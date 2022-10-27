@@ -49,6 +49,8 @@ module type FloatArith = sig
   (** Equal to: [x == y] *)
   val ne : t -> t -> IntDomain.IntDomTuple.t
   (** Not equal to: [x != y] *)
+  val unordered: t -> t -> IntDomain.IntDomTuple.t
+  (** Unordered *)
 
   (** {unary functions returning int} *)
   val isfinite : t -> IntDomain.IntDomTuple.t
@@ -429,6 +431,16 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       "Equality/Inequality between `double` is dangerous!";
     eval_comparison_binop None None false eval_ne a b
 
+  let unordered op1 op2 =
+    let a, b =
+      match (op1, op2) with
+      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+      | NaN, _ | _, NaN -> (1,1)
+      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
+      | _ -> (0, 0)
+    in
+    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+
   let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
   let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
   let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
@@ -609,6 +621,7 @@ module FloatIntervalImplLifted = struct
   let ge = lift2_cmp (F1.ge, F2.ge)
   let eq = lift2_cmp (F1.eq, F2.eq)
   let ne = lift2_cmp (F1.ne, F2.ne)
+  let unordered = lift2_cmp (F1.unordered, F2.unordered)
   let isfinite = dispatch (F1.isfinite, F2.isfinite)
   let isinf = dispatch (F1.isinf, F2.isinf)
   let isnan = dispatch (F1.isnan, F2.isnan)
@@ -859,6 +872,8 @@ module FloatDomTupleImpl = struct
     map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.eq); }
   let ne =
     map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.ne); }
+  let unordered =
+    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.unordered); }
 
   (* fp: unary functions which return an integer *)
   let isfinite =
