@@ -48,6 +48,8 @@ int main(void)
     __goblint_check(isunordered(NAN, NAN));
     __goblint_check(!isunordered(1.0, 0.0));
 
+    float f1 = nan("1");
+    __goblint_check(f1 != f1);
     // Check globals have not been invalidated
     __goblint_check(g == 8);
     return 0;

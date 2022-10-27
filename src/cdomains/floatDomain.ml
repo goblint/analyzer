@@ -315,7 +315,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       result
     | _ -> Top (* TODO: Do better *)
 
-  let eval_comparison_binop min max sym eval_operation (op1: t) op2 =
+  let eval_comparison_binop ?(nanopnan = false) min max sym eval_operation (op1: t) op2 =
     if is_top op1 then
       Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
         "First operand of comparison could be +/-infinity or Nan";
@@ -326,6 +326,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       match (op1, op2) with
       | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
       | Interval v1, Interval v2 -> eval_operation v1 v2
+      | NaN, NaN -> if nanopnan then (1,1) else (0,0)
       | NaN, _ | _, NaN -> (0,0)
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
       | v1, v2 when Some v1 = min -> if Some v2 <> min || sym then (1,1) else (0,0)
@@ -429,7 +430,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_comparison_binop None None false eval_ne a b
+    eval_comparison_binop ~nanopnan:true None None false eval_ne a b
 
   let unordered op1 op2 =
     let a, b =

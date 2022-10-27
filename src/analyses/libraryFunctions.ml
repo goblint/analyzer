@@ -145,6 +145,7 @@ let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     Functions and builtin versions of function and macros defined in math.h. *)
 let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_nan", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FDouble, str)) });
+    ("nan", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FDouble, str)) });
     ("__builtin_nanf", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FFloat, str)) });
     ("__builtin_nanl", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FLongDouble, str)) });
     ("__builtin_inf", special [] @@ Math { fun_args = Inf FDouble});
