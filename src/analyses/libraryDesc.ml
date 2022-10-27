@@ -22,6 +22,8 @@ type math =
   | Signbit of Cil.exp
   | Isgreater of (Cil.exp * Cil.exp)
   | Isgreaterequal of (Cil.exp * Cil.exp)
+  | Isless of (Cil.exp * Cil.exp)
+  | Islessequal of (Cil.exp * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)

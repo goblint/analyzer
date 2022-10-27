@@ -313,7 +313,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       result
     | _ -> Top (* TODO: Do better *)
 
-  let eval_comparison_binop max sym eval_operation (op1: t) op2 =
+  let eval_comparison_binop min max sym eval_operation (op1: t) op2 =
     if is_top op1 then
       Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
         "First operand of comparison could be +/-infinity or Nan";
@@ -326,7 +326,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | Interval v1, Interval v2 -> eval_operation v1 v2
       | NaN, _ | _, NaN -> (0,0)
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
-      | v1, v2 when Some v1 = max -> if Some v2 <> max || sym then (1,1) else (0,0)
+      | v1, v2 when Some v1 = min -> if Some v2 <> min || sym then (1,1) else (0,0)
+      | _, v2 when Some v2 = min -> (0,0) (* first argument cannot be min' *)
+      | v1, v2 when Some v1 = max -> if Some v2 <> max || sym then (0,0) else (0,0)
       | _, v2 when Some v2 = max -> (0,0) (* first argument cannot be max *)
       | _ -> (0, 1)
     in
@@ -410,22 +412,22 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let mul = eval_binop eval_mul
   let div = eval_binop eval_div
 
-  let lt = eval_comparison_binop None false eval_lt
-  let gt = eval_comparison_binop (Some PlusInfinity) false eval_gt
-  let le = eval_comparison_binop None false eval_le
-  let ge = eval_comparison_binop (Some PlusInfinity) true eval_ge
+  let lt = eval_comparison_binop None (Some PlusInfinity) false eval_lt
+  let gt = eval_comparison_binop (Some PlusInfinity) None false eval_gt
+  let le = eval_comparison_binop None (Some PlusInfinity) false eval_le
+  let ge = eval_comparison_binop (Some PlusInfinity) None true eval_ge
   let eq a b =
     Messages.warn
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_comparison_binop None false eval_eq a b
+    eval_comparison_binop None None false eval_eq a b
   let ne a b =
     Messages.warn
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_comparison_binop None false eval_ne a b
+    eval_comparison_binop None None false eval_ne a b
 
   let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
   let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)

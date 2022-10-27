@@ -26,6 +26,17 @@ int main(void)
     __goblint_check(!isgreaterequal(1.0, NAN));
     __goblint_check(isgreaterequal(INFINITY, INFINITY));
 
+    __goblint_check(!isless(2.0, 1.0));
+    __goblint_check(isless(1.0, 2.0));
+    __goblint_check(!isless(INFINITY, 1.0));
+    __goblint_check(!isless(1.0, NAN));
+
+    __goblint_check(!islessequal(2.0, 1.0));
+    __goblint_check(islessequal(1.0, 2.0));
+    __goblint_check(islessequal(1.0, 1.0));
+    __goblint_check(!islessequal(INFINITY, 1.0));
+    __goblint_check(!islessequal(1.0, NAN));
+
     // Check globals have not been invalidated
     __goblint_check(g == 8);
     return 0;
