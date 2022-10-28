@@ -17,6 +17,10 @@ module type FloatArith = sig
   (** Multiplication: [x * y] *)
   val div : t -> t -> t
   (** Division: [x / y] *)
+  val fmax : t -> t -> t
+  (** Maximum *)
+  val fmin : t -> t -> t
+  (** Minimum *)
 
   (** {unary functions} *)
   val fabs : t -> t
@@ -107,6 +111,7 @@ module type FloatDomain = sig
 
   val nan_of: Cil.fkind -> t
   val inf_of: Cil.fkind -> t
+  val minus_inf_of: Cil.fkind -> t
 
   val ending : Cil.fkind -> float -> t
   val starting : Cil.fkind -> float -> t

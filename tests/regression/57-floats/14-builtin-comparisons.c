@@ -50,6 +50,18 @@ int main(void)
 
     float f1 = nan("1");
     __goblint_check(f1 != f1);
+    __goblint_check(isnan(f1));
+
+    __goblint_check(fmax(2,1) == 2.f);
+    __goblint_check(fmax(-INFINITY,0) == 0);
+    __goblint_check(fmax(NAN,-1) == -1.f);
+    __goblint_check(!(fmax(NAN,NAN) == NAN));
+
+    __goblint_check(fmin(2,1) == 1.f);
+    __goblint_check(fmin(-INFINITY,0) == -(1./0.0));
+    __goblint_check(fmin(NAN,-1) == -1.f);
+    __goblint_check(!(fmin(NAN,NAN) == NAN));
+
     // Check globals have not been invalidated
     __goblint_check(g == 8);
     return 0;

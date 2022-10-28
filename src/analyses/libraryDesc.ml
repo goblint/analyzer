@@ -27,6 +27,8 @@ type math =
   | Islessgreater of (Cil.exp * Cil.exp)
   | Isunordered of (Cil.exp * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
+  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
+  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)
   | Atan of (Cil.fkind * Cil.exp)
