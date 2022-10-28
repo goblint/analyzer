@@ -204,6 +204,8 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FDouble, x)) });
     ("tanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FFloat, x)) });
     ("tanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FLongDouble, x)) });
+    ("fegetround", unknown []);
+    ("fesetround", unknown [drop "round" []]); (* Our float domain is rounding agnostic *)
   ]
 
 let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)

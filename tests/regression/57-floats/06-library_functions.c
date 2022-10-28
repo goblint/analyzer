@@ -2,7 +2,8 @@
 #include <goblint.h>
 #include <math.h>
 #include <float.h>
-
+#include <fenv.h>
+int glob = 5;
 int main()
 {
     double dbl_min = 2.2250738585072014e-308;
@@ -83,4 +84,10 @@ int main()
     // unimplemented math.h function, should not invalidate globals:
     j0(0.1);       // NOWARN
     ldexp(0.1, 1); // NOWARN
+
+    int save_round = fegetround();
+    fesetround(FE_TOWARDZERO);
+
+    // Should not invalidate
+    __goblint_check(glob == 5);
 }
