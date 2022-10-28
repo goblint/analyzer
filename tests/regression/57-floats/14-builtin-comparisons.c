@@ -59,9 +59,9 @@ int main(void)
 
     __goblint_check(fmin(2,1) == 1.f);
     double d = -(1./0.0);
-    __goblint_check(fmin(-INFINITY,0) == -(1./0.0));
-    __goblint_check(fmin(-INFINITY,0) != -(-1./0.0));
-    __goblint_check(fmin(-INFINITY,0) == d);
+    __goblint_check(fmin(-INFINITY,0) == -(1./0.0)); // TODO (Requires distinguishing +/- 0)
+    __goblint_check(fmin(-INFINITY,0) != -(-1./0.0)); // TODO (Requires distinguishing +/- 0)
+    __goblint_check(fmin(-INFINITY,0) == d); // TODO (Requires distinguishing +/- 0)
     __goblint_check(fmin(NAN,-1) == -1.f);
     __goblint_check(!(fmin(NAN,NAN) == NAN));
 

@@ -383,11 +383,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     Interval (low, high)
 
   let eval_div (l1, h1) (l2, h2) =
-    if l2 = Float_t.zero && h2 = Float_t.zero && l1 < Float_t.zero && h1 < Float_t.zero  then
-      MinusInfinity
-    else if l2 = Float_t.zero && h2 = Float_t.zero && l1 >= Float_t.zero && h1 >= Float_t.zero  then
-      PlusInfinity
-    else if l2 <= Float_t.zero && h2 >= Float_t.zero then
+    if l2 <= Float_t.zero && h2 >= Float_t.zero then
+      (* even if it is exactly zero, we cannot do anything as we do not distinguish -/+ 0*)
       Top
     else
       let div1u = Float_t.div Up l1 l2 in
