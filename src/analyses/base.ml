@@ -2608,6 +2608,8 @@ struct
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
           | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
           | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Ceil (fk,x) -> `Float (apply_unary fk FD.ceil x)
+          | Floor (fk,x) -> `Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
           | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
           | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)

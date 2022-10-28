@@ -24,6 +24,8 @@ module type FloatArith = sig
   (** Minimum *)
 
   (** {unary functions} *)
+  val ceil: t -> t
+  val floor: t -> t
   val fabs : t -> t
   (** fabs(x) *)
   val acos : t -> t
@@ -348,9 +350,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | NaN, _ | _, NaN -> (0,0)
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
       | v1, v2 when Some v1 = min -> if Some v2 <> min || sym then (1,1) else (0,0)
-      | _, v2 when Some v2 = min -> (0,0) (* first argument cannot be min' *)
+      | _, v2 when Some v2 = min -> (0,0) (* first argument cannot be min *)
       | v1, v2 when Some v1 = max -> if Some v2 <> max || sym then (0,0) else (0,0)
-      | _, v2 when Some v2 = max -> (0,0) (* first argument cannot be max *)
+      | _, v2 when Some v2 = max -> (1,1) (* first argument cannot be max *)
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
@@ -473,7 +475,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let lt = eval_comparison_binop None (Some PlusInfinity) false eval_lt
   let gt = eval_comparison_binop (Some PlusInfinity) None false eval_gt
-  let le = eval_comparison_binop None (Some PlusInfinity) false eval_le
+  let le = eval_comparison_binop None (Some PlusInfinity) true eval_le
   let ge = eval_comparison_binop (Some PlusInfinity) None true eval_ge
   let eq a b =
     Messages.warn
@@ -553,6 +555,22 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when h < Float_t.zero -> neg (Interval (l, h))
     | (l, h) -> Interval (Float_t.zero, max (Float_t.fabs l) (Float_t.fabs h))
 
+  let eval_floor (l,h) =
+    let lf, hf = Float_t.floor l, Float_t.floor h in
+    if Float_t.fabs (Float_t.sub Nearest l lf) < (Float_t.of_float Nearest 1.0) && (Float_t.sub Nearest h hf) < (Float_t.of_float Nearest 1.0) then
+      (* if the difference is less than 1, there is no nearer int and even a more precise type would have the same values *)
+      Interval (lf,hf)
+    else
+      Top
+
+  let eval_ceil (l,h) =
+    let lc, hc = Float_t.ceil l, Float_t.ceil h in
+    if Float_t.fabs (Float_t.sub Nearest l lc) < (Float_t.of_float Nearest 1.0) && (Float_t.sub Nearest h hc) < (Float_t.of_float Nearest 1.0) then
+      (* if the difference is less than 1, there is no nearer int and even a more precise type would have the same values *)
+      Interval (lc,hc)
+    else
+      Top
+
   let eval_acos = function
     | (l, h) when l = h && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
     | (l, h) ->
@@ -611,7 +629,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Interval i -> eval_isnormal i
     | PlusInfinity | MinusInfinity | NaN -> false_zero_IInt
 
-  let signbit = eval_unop unknown_IInt eval_signbit
+  let signbit op =
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Top | NaN -> unknown_IInt
+    | Interval i -> eval_signbit i
+    | PlusInfinity -> false_zero_IInt
+    | MinusInfinity  -> true_nonZero_IInt
 
   let fabs op =
     warn_on_specials_unop op;
@@ -622,6 +646,26 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | NaN -> NaN
     | PlusInfinity -> PlusInfinity
     | MinusInfinity -> PlusInfinity
+
+  let floor op =
+    warn_on_specials_unop op;
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Top -> Top
+    | Interval v -> eval_floor v
+    | NaN -> NaN
+    | PlusInfinity -> PlusInfinity
+    | MinusInfinity -> MinusInfinity
+
+  let ceil op =
+    warn_on_specials_unop op;
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Top -> Top
+    | Interval v -> eval_ceil v
+    | NaN -> NaN
+    | PlusInfinity -> PlusInfinity
+    | MinusInfinity -> MinusInfinity
 
   let acos = eval_unop (top ()) eval_acos
   let asin = eval_unop (top ()) eval_asin
@@ -719,6 +763,8 @@ module FloatIntervalImplLifted = struct
 
   let neg = lift (F1.neg, F2.neg)
   let fabs = lift (F1.fabs, F2.fabs)
+  let floor = lift (F1.floor, F2.floor)
+  let ceil = lift (F1.ceil, F2.ceil)
   let acos = lift (F1.acos, F2.acos)
   let asin = lift (F1.asin, F2.asin)
   let atan = lift (F1.atan, F2.atan)
@@ -949,6 +995,10 @@ module FloatDomTupleImpl = struct
   let neg =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.neg); }
   (* f1: unary functions *)
+  let floor =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.floor); }
+  let ceil =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.ceil); }
   let fabs =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.fabs); }
   let acos =

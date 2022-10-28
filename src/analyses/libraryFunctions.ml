@@ -167,6 +167,12 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_islessequal", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Islessequal (x,y)) });
     ("__builtin_islessgreater", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Islessgreater (x,y)) });
     ("__builtin_isunordered", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isunordered (x,y)) });
+    ("ceil", special [__ "x" []] @@ fun x -> Math { fun_args = (Ceil (FDouble, x)) });
+    ("ceilf", special [__ "x" []] @@ fun x -> Math { fun_args = (Ceil (FFloat, x)) });
+    ("ceill", special [__ "x" []] @@ fun x -> Math { fun_args = (Ceil (FLongDouble, x)) });
+    ("floor", special [__ "x" []] @@ fun x -> Math { fun_args = (Floor (FDouble, x)) });
+    ("floorf", special [__ "x" []] @@ fun x -> Math { fun_args = (Floor (FFloat, x)) });
+    ("floorl", special [__ "x" []] @@ fun x -> Math { fun_args = (Floor (FLongDouble, x)) });
     ("fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
     ("fabsf", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FFloat, x)) });
     ("fabsl", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FLongDouble, x)) });
@@ -756,9 +762,6 @@ let invalidate_actions = [
     "fdim", readsAll;
     "fdimf", readsAll;
     "fdiml", readsAll;
-    "floor", readsAll;
-    "floorf", readsAll;
-    "floorl", readsAll;
     "fma", readsAll;
     "fmaf", readsAll;
     "fmal", readsAll;

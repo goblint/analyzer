@@ -42,15 +42,16 @@ int main()
     __goblint_check(__builtin_signbit(1.0));  // FAIL
     __goblint_check(__builtin_signbit(-1.0)); // SUCCESS
     __goblint_check(__builtin_signbit(0.0));  // UNKNOWN
-    __goblint_check(__builtin_signbit(inf));  // UNKNOWN
-    __goblint_check(__builtin_signbit(-inf)); // UNKNOWN
+    __goblint_check(__builtin_signbit(inf));  // FAIL
+    __goblint_check(__builtin_signbit(-inf)); // SUCCESS
     __goblint_check(__builtin_signbit(nan));  // UNKNOWN
 
     // fabs(x):
     __goblint_check(4. == fabs(-4.));         // SUCCESS
     __goblint_check(0. <= fabs(cos(0.1)));    // SUCCESS
-    __goblint_check(0. <= fabs(-inf));        // UNKNOWN
-    __goblint_check(0. <= fabs(nan));         // UNKNOWN
+    __goblint_check(0. <= fabs(-inf));        // SUCCESS
+    __goblint_check(0. <= fabs(nan));         // FAIL
+    __goblint_check(0. <= inf);
 
     double greater_than_pi = 3.142;
     // acos(x):

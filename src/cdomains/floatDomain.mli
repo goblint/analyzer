@@ -23,6 +23,10 @@ module type FloatArith = sig
   (** Minimum *)
 
   (** {unary functions} *)
+  val ceil: t -> t
+  (* ceil(x) *)
+  val floor: t -> t
+  (* floor(x) *)
   val fabs : t -> t
   (** fabs(x) *)
   val acos : t -> t

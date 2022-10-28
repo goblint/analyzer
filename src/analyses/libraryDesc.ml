@@ -26,6 +26,8 @@ type math =
   | Islessequal of (Cil.exp * Cil.exp)
   | Islessgreater of (Cil.exp * Cil.exp)
   | Isunordered of (Cil.exp * Cil.exp)
+  | Ceil of (Cil.fkind * Cil.exp)
+  | Floor of (Cil.fkind * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
   | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
   | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
