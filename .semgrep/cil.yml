@@ -15,3 +15,17 @@ rules:
     message: use Cilfacade instead
     languages: [ocaml]
     severity: WARNING
+
+  - id: typsig-equal
+    pattern: typeSig $X = typeSig $Y
+    fix: CilType.Typ.equal $X $Y
+    message: use direct comparison instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: typsig-not-equal
+    pattern: typeSig $X <> typeSig $Y
+    fix: not (CilType.Typ.equal $X $Y)
+    message: use direct comparison instead
+    languages: [ocaml]
+    severity: WARNING

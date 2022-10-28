@@ -301,12 +301,13 @@ struct
 
   exception CastError of string
 
-  let typ_eq t1 t2 = match typeSig t1, typeSig t2 with
+  let typ_eq t1 t2 = match t1, t2 with
     (* f() and f(void) are not the same (1. no args specified, 2. specified as no args), but we don't care for function pointer casts TODO why does CIL have type f(void) for function definitions f(){..}? *)
-    | TSFun (r1, None, false, _), TSFun (r2, Some [], false, _)
-    | TSFun (r1, Some [], false, _), TSFun (r2, None, false, _)
-      -> r1 = r2
-    | a, b -> a = b
+    (* TODO: Why do we even need this here, but nowhere else? *)
+    | TFun (r1, None, false, _), TFun (r2, Some [], false, _)
+    | TFun (r1, Some [], false, _), TFun (r2, None, false, _)
+      -> CilType.Typ.equal r1 r2
+    | a, b -> CilType.Typ.equal a b
 
   let cast_addr t a =
     let rec stripVarLenArr = function
@@ -789,14 +790,18 @@ struct
         end
       | _ -> BinOp(MinusPP, exp, StartOf start_of_array_lval, !ptrdiffType)
     in
-    (* Create a typesig from a type, but drop the arraylen attribute *)
-    let typeSigWithoutArraylen t =
-      let attrFilter (attr : attribute) : bool =
-        match attr with
-        | Attr ("arraylen", _) -> false
-        | _ -> true
+    (* "arraylen" attributes are inserted by CIL.
+       Remomve them for comparison. *)
+    let typeWithoutArraylen =
+      let visitor = object
+        inherit Cil.nopCilVisitor
+
+        method! vattr = function
+          | Attr ("arraylen", _) -> ChangeTo []
+          | _ -> DoChildren
+      end
       in
-      typeSigWithAttrs (List.filter attrFilter) t
+      Cil.visitCilType visitor
     in
     match left, offset with
       | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
@@ -814,11 +819,9 @@ struct
                 if Cil.isArrayType (Cilfacade.typeOfLval v') then
                   let expr = ptr in
                   let start_of_array = StartOf v' in
-                  let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
-                  let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
-                  (* Comparing types for structural equality is incorrect here, use typeSig *)
-                  (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
-                  if start_type = expr_type then
+                  let start_type = typeWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                  let expr_type = typeWithoutArraylen (Cilfacade.typeOf ptr) in
+                  if CilType.Typ.equal start_type expr_type then
                     `Lifted (equiv_expr expr v')
                   else
                     (* If types do not agree here, this means that we were looking at pointers that *)
@@ -1245,7 +1248,7 @@ struct
               let i =
                 if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
                   let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  let addr_exp, c_exp = if typeSig (typeOf addr_exp) <> typeSig (typeOf c_exp) then
+                  let addr_exp, c_exp = if not (CilType.Typ.equal (typeOf addr_exp) (typeOf c_exp)) then
                       cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
                     else 
                       addr_exp, c_exp
