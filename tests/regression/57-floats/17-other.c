@@ -1,0 +1,63 @@
+// PARAM: --enable ana.float.interval
+// Taken from CBMC's regression test suite
+// (http://svn.cprover.org/svn/cbmc/trunk/regression/cbmc/).
+#include <math.h>
+#include <goblint.h>
+#include <float.h>
+
+int main()
+{
+  double d;
+
+  // first check constants
+
+  __goblint_check((isnormal(FLT_MAX))); //TODO
+  __goblint_check((isinf(HUGE_VAL))); //TODO
+  __goblint_check((isinf(HUGE_VALF))); //TODO
+//  __goblint_check((isinf(HUGE_VALL))); //TODO
+  __goblint_check((isinf(INFINITY))); //TODO
+  __goblint_check((isnan(NAN))); //TODO
+
+  // check +
+  __goblint_check((isinf(INFINITY+INFINITY))); //TODO
+  __goblint_check((isnan(-INFINITY+INFINITY))); //TODO
+  __goblint_check((INFINITY+INFINITY>0)); //TODO
+  __goblint_check((isnan(NAN+d))); //TODO
+  __goblint_check((isnan(NAN+INFINITY))); //TODO
+
+  // check -
+  __goblint_check((isnan(INFINITY-INFINITY))); //TODO
+  __goblint_check((isinf(-INFINITY-INFINITY))); //TODO
+  __goblint_check((-INFINITY-INFINITY<0)); //TODO
+  __goblint_check((isnan(NAN-d))); //TODO
+  __goblint_check((isnan(NAN-INFINITY))); //TODO
+
+  // check *
+  __goblint_check((isinf(INFINITY*INFINITY))); //TODO
+  __goblint_check((isinf(-INFINITY*INFINITY))); //TODO
+  __goblint_check((INFINITY*INFINITY>0)); //TODO
+  __goblint_check((-INFINITY*INFINITY<0)); //TODO
+  __goblint_check((isnan(NAN*d))); //TODO
+  __goblint_check((isnan(NAN*INFINITY))); //TODO
+  __goblint_check((isnan(INFINITY*0))); //TODO
+  __goblint_check((signbit(1.0*-0.0))); //TODO
+  __goblint_check((!signbit(1.0*0.0))); //TODO
+
+  // check /
+  __goblint_check((isnan(INFINITY/INFINITY))); //TODO
+  __goblint_check((isnan(-INFINITY/INFINITY))); //TODO
+  // work around compiler warning
+  int zero=0;
+  __goblint_check((isinf(INFINITY/zero))); //TODO
+  __goblint_check((0.0/INFINITY==0)); //TODO
+  __goblint_check((1.0/INFINITY==0)); //TODO
+  __goblint_check((signbit(-1.0/INFINITY))); //TODO
+  __goblint_check((signbit(1.0/-INFINITY))); //TODO
+  __goblint_check((INFINITY/-2<0)); //TODO
+  __goblint_check((isinf(1.0/0.0))); //TODO
+  __goblint_check((isinf(INFINITY/2))); //TODO
+  __goblint_check((isnan(0.0/0.0))); //TODO
+  __goblint_check((isnan(NAN/d))); //TODO
+  __goblint_check((isnan(NAN/INFINITY))); //TODO
+  __goblint_check((signbit(-0.0/1))); //TODO
+}

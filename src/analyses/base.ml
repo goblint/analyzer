@@ -1933,11 +1933,17 @@ struct
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
               | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-                let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
-                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-                FD.of_interval (FD.get_fkind c) (l, h)
+                let zero_not_in_a = a_min > 0. || a_max < 0. in
+                let zero_not_in_c = c_min > 0. || c_max < 0. in
+                if zero_not_in_a && zero_not_in_c then
+                  let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
+                  let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                  let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                  FD.of_interval (FD.get_fkind c) (l, h)
+                else
+                  b
               | _ -> b) in
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n\n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in
