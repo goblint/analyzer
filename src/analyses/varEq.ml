@@ -54,11 +54,8 @@ struct
       inherit Cil.nopCilVisitor
 
       method! vexpr e =
-        let t = Cil.unrollType (Cilfacade.typeOf e) in
-        begin match t with
-          | TFloat _ -> raise Exit
-          | _ -> ()
-        end;
+        if Cilfacade.isFloatType (Cilfacade.typeOf e) then
+          raise Exit;
         DoChildren
     end
     in
@@ -359,12 +356,12 @@ struct
       M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
       M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (interesting rv);
       M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
-      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv (isIntegralType lvt || isPointerType lvt);
     );
     if is_global_var ask (Lval lv) = Some false
     && interesting rv
     && is_global_var ask rv = Some false
-    && ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt)
+    && (isIntegralType lvt || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
     else remove ask lv st
   (*    in
