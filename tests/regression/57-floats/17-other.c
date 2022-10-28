@@ -26,11 +26,11 @@ int main()
   __goblint_check((isnan(NAN+INFINITY)));
 
   // check -
-  __goblint_check((isnan(INFINITY-INFINITY))); //TODO
-  __goblint_check((isinf(-INFINITY-INFINITY))); //TODO
-  __goblint_check((-INFINITY-INFINITY<0)); //TODO
-  __goblint_check((isnan(NAN-d))); //TODO
-  __goblint_check((isnan(NAN-INFINITY))); //TODO
+  __goblint_check((isnan(INFINITY-INFINITY)));
+  __goblint_check((isinf(-INFINITY-INFINITY)));
+  __goblint_check((-INFINITY-INFINITY<0));
+  __goblint_check((isnan(NAN-d)));
+  __goblint_check((isnan(NAN-INFINITY)));
 
   // check *
   __goblint_check((isinf(INFINITY*INFINITY))); //TODO

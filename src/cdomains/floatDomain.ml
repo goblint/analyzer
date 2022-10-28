@@ -357,19 +357,19 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       result
     | _ -> Top (* TODO: Do better *)
 
-  let eval_comparison_binop ?(nanopnan = false) min max sym eval_operation (op1: t) op2 =
+  let eval_comparison_binop min max sym eval_operation (op1: t) op2 =
     warn_on_specials_comparison op1 op2;
     let a, b =
       match (op1, op2) with
       | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
       | Interval v1, Interval v2 -> eval_operation v1 v2
-      | NaN, NaN -> if nanopnan then (1,1) else (0,0)
+      | NaN, NaN -> (0,0)
       | NaN, _ | _, NaN -> (0,0)
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
-      | v1, v2 when Some v1 = min -> if Some v2 <> min || sym then (1,1) else (0,0)
-      | _, v2 when Some v2 = min -> (0,0) (* first argument cannot be min *)
-      | v1, v2 when Some v1 = max -> if Some v2 <> max || sym then (0,0) else (0,0)
-      | _, v2 when Some v2 = max -> (1,1) (* first argument cannot be max *)
+      | v1, v2 when v1 = min -> if v2 <> min || sym then (1,1) else (0,0)
+      | _, v2 when v2 = min -> (0,0) (* first argument cannot be min *)
+      | v1, v2 when v1 = max -> if v2 <> max || sym then (0,0) else (0,0)
+      | _, v2 when v2 = max -> (1,1) (* first argument cannot be max *)
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
@@ -476,7 +476,22 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | MinusInfinity, PlusInfinity -> NaN
     | PlusInfinity, MinusInfinity -> NaN
 
-  let sub = eval_binop eval_sub
+  let sub op1 op2 =
+    warn_on_specials_binop op1 op2;
+    match op1, op2 with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | NaN, _ | _, NaN -> NaN
+    | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
+    | Interval v1, Interval v2 -> eval_binop' eval_sub v1 v2
+    | PlusInfinity, MinusInfinity
+    | PlusInfinity, Interval _
+    | Interval _, MinusInfinity -> PlusInfinity
+    | MinusInfinity, Interval _
+    | MinusInfinity, PlusInfinity
+    | Interval _, PlusInfinity -> MinusInfinity
+    | PlusInfinity, PlusInfinity -> NaN
+    | MinusInfinity, MinusInfinity -> NaN
+
   let mul = eval_binop eval_mul
   let div = eval_binop eval_div
 
@@ -502,10 +517,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | v, PlusInfinity | PlusInfinity, v -> v
     | Interval v1, Interval v2 -> Interval (eval_fmin v1 v2)
 
-  let lt = eval_comparison_binop None (Some PlusInfinity) false eval_lt
-  let gt = eval_comparison_binop (Some PlusInfinity) None false eval_gt
-  let le = eval_comparison_binop None (Some PlusInfinity) true eval_le
-  let ge = eval_comparison_binop (Some PlusInfinity) None true eval_ge
+  let lt = eval_comparison_binop MinusInfinity PlusInfinity false eval_lt
+  let gt = eval_comparison_binop PlusInfinity MinusInfinity false eval_gt
+  let le = eval_comparison_binop MinusInfinity PlusInfinity true eval_le
+  let ge = eval_comparison_binop PlusInfinity MinusInfinity true eval_ge
   let eq a b =
     Messages.warn
       ~category:Messages.Category.Float
