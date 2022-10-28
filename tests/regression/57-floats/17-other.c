@@ -11,19 +11,19 @@ int main()
 
   // first check constants
 
-  __goblint_check((isnormal(FLT_MAX))); //TODO
-  __goblint_check((isinf(HUGE_VAL))); //TODO
-  __goblint_check((isinf(HUGE_VALF))); //TODO
-//  __goblint_check((isinf(HUGE_VALL))); //TODO
-  __goblint_check((isinf(INFINITY))); //TODO
-  __goblint_check((isnan(NAN))); //TODO
+  __goblint_check((isnormal(FLT_MAX)));
+  __goblint_check((isinf(HUGE_VAL)));
+  __goblint_check((isinf(HUGE_VALF)));
+//  __goblint_check((isinf(HUGE_VALL)));
+  __goblint_check((isinf(INFINITY)));
+  __goblint_check((isnan(NAN)));
 
   // check +
-  __goblint_check((isinf(INFINITY+INFINITY))); //TODO
-  __goblint_check((isnan(-INFINITY+INFINITY))); //TODO
-  __goblint_check((INFINITY+INFINITY>0)); //TODO
-  __goblint_check((isnan(NAN+d))); //TODO
-  __goblint_check((isnan(NAN+INFINITY))); //TODO
+  __goblint_check((isinf(INFINITY+INFINITY)));
+  __goblint_check((isnan(-INFINITY+INFINITY)));
+  __goblint_check((INFINITY+INFINITY>0));
+  __goblint_check((isnan(NAN+d)));
+  __goblint_check((isnan(NAN+INFINITY)));
 
   // check -
   __goblint_check((isnan(INFINITY-INFINITY))); //TODO

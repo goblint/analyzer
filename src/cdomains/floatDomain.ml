@@ -318,6 +318,23 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top -> onTop
     | _ -> onTop (* TODO: Do better *)
 
+  let eval_binop' eval_operation v1 v2 =
+    let is_exact_before = is_exact (Interval v1) && is_exact (Interval v2) in
+    let result = norm @@ eval_operation v1 v2 in
+    (match result with
+     | Interval (r1, r2) when not (is_exact result) && is_exact_before ->
+       Messages.warn
+         ~category:Messages.Category.Float
+         ~tags:[CWE 1339]
+         "The result of this operation is not exact, even though the inputs were exact";
+     | Top ->
+       Messages.warn
+         ~category:Messages.Category.Float
+         ~tags:[CWE 1339]
+         "The result of this operation could be +/-infinity or Nan";
+     | _ -> ());
+    result
+
   let eval_binop eval_operation op1 op2 =
     warn_on_specials_binop op1 op2;
     match (op1, op2) with
@@ -443,7 +460,22 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | PlusInfinity -> MinusInfinity
     | MinusInfinity -> PlusInfinity
 
-  let add = eval_binop eval_add
+  let add op1 op2 =
+    warn_on_specials_binop op1 op2;
+    match op1, op2 with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | NaN, _ | _, NaN -> NaN
+    | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
+    | Interval v1, Interval v2 -> eval_binop' eval_add v1 v2
+    | PlusInfinity, PlusInfinity
+    | PlusInfinity, Interval _
+    | Interval _, PlusInfinity -> PlusInfinity
+    | MinusInfinity, MinusInfinity
+    | MinusInfinity, Interval _
+    | Interval _, MinusInfinity -> MinusInfinity
+    | MinusInfinity, PlusInfinity -> NaN
+    | PlusInfinity, MinusInfinity -> NaN
+
   let sub = eval_binop eval_sub
   let mul = eval_binop eval_mul
   let div = eval_binop eval_div
