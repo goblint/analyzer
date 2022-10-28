@@ -104,7 +104,7 @@ and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y
 and pretty_length () l = Pretty.num (List.length l)
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
-  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (acc length: %a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r = match a, b with
     | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2
     | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping && eq_exp_acc lenExp1 lenExp2 rename_mapping acc &&  GobList.equal (eq_attribute rename_mapping) attr1 attr2
@@ -235,9 +235,9 @@ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) (rename_mapp
   a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
-  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
+  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s, List length: %d \n" a.fname b.fname (List.length acc);
   let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc rename_mapping && a.fbitfield = b.fbitfield &&  GobList.equal (eq_attribute rename_mapping) a.fattr b.fattr in
-  if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
+  (* if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname; *)
   r
 
 and eq_offset (a: offset) (b: offset) (rename_mapping: rename_mapping) acc = match a, b with
