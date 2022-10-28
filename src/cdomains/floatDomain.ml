@@ -613,10 +613,16 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let signbit = eval_unop unknown_IInt eval_signbit
 
+  let fabs op =
+    warn_on_specials_unop op;
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Top -> Top
+    | Interval v -> eval_fabs v
+    | NaN -> NaN
+    | PlusInfinity -> PlusInfinity
+    | MinusInfinity -> PlusInfinity
 
-
-
-  let fabs = eval_unop (top ()) eval_fabs
   let acos = eval_unop (top ()) eval_acos
   let asin = eval_unop (top ()) eval_asin
   let atan = eval_unop (top ()) eval_atan
