@@ -717,6 +717,12 @@
                   "description": "Generate base analysis invariants",
                   "type": "boolean",
                   "default": true
+                },
+                "blobs": {
+                  "title": "ana.base.invariant.blobs",
+                  "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
