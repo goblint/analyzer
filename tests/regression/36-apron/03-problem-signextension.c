@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron
 // Example from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/signextension-1.c
 
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
 

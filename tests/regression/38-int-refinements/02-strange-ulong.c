@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.int.refinement once
-#include <assert.h>
+#include <goblint.h>
 
 int main();
 

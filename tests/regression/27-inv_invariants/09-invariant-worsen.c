@@ -1,5 +1,5 @@
 // extracted from 01/22
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int a = 1;

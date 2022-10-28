@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[-] escape
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 

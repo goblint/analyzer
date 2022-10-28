@@ -1,6 +1,6 @@
 // Copied & modified from 13/28.
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;

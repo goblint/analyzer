@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.privatization mutex-meet-tid --set ana.path_sens[+] threadflag --set ana.apron.domain polyhedra --enable ana.apron.threshold_widening
 // this requires "used >= capacity - used - 1" as widening threshold to succeed, otherwise that extra lazy downsize branch causes additional widening that loses the constraint
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 #include <limits.h>
 
 extern int __VERIFIER_nondet_int();

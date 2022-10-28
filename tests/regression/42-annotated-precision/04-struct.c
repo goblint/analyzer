@@ -1,5 +1,5 @@
 // PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
-#include<assert.h>
+#include <goblint.h>
 
 struct a {
   char *name;

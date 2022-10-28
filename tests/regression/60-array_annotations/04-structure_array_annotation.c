@@ -1,4 +1,5 @@
 // PARAM: --set ana.base.arrays.unrolling-factor 4 --enable annotation.goblint_array_domain
+#include <goblint.h>
 
 void w(int z[] ){
     if (z[2] == 4) {

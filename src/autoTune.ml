@@ -52,13 +52,17 @@ let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x) -> x 
 
 let findMallocWrappers () =
   let isMalloc f =
-    let desc = LibraryFunctions.find f in
-    match (functionArgs f) with
-    | None -> false
-    | Some args ->
-      match desc.special args with
-      | Malloc _ -> true
-      | _ -> false
+    if LibraryFunctions.is_special f then (
+      let desc = LibraryFunctions.find f in
+      match functionArgs f with
+      | None -> false
+      | Some args ->
+        match desc.special args with
+        | Malloc _ -> true
+        | _ -> false
+    )
+    else
+      false
   in
   ResettableLazy.force functionCallMaps
   |> (fun (x,_,_) -> x)
@@ -135,22 +139,26 @@ let disableIntervalContextsInRecursiveFunctions () =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread"; "threadflag"; "threadid"; "threadJoins"; "threadreturn"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
 let reduceThreadAnalyses () =
   let hasThreadCreate () =
     ResettableLazy.force functionCallMaps
     |> (fun (_,x,_) -> x)  (*every function that is called*)
     |> FunctionCallMap.exists (fun var (callers,_) ->
-        let desc = LibraryFunctions.find var in
-        match functionArgs var with
-        | None -> false;
-        | Some args ->
-          match desc.special args with
-          | ThreadCreate _ ->
-            print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
-            FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
-            true
-          | _ -> false
+        if LibraryFunctions.is_special var then (
+          let desc = LibraryFunctions.find var in
+          match functionArgs var with
+          | None -> false;
+          | Some args ->
+            match desc.special args with
+            | ThreadCreate _ ->
+              print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
+              FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
+              true
+            | _ -> false
+        )
+        else
+          false
       )
   in
   if not @@ hasThreadCreate () then (

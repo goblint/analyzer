@@ -1,5 +1,5 @@
 // SKIP PARAM: --enable ana.int.interval --set ana.activated[+] apron
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
     f1();

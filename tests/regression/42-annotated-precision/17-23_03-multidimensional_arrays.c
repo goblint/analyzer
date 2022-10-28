@@ -1,5 +1,5 @@
 // PARAM: --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --enable annotation.int.enabled --set ana.int.refinement fixpoint
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
     example1();

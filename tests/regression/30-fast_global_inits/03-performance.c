@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --enable exp.fast_global_inits
 // Without fast_global_inits this takes >150s, when it is enabled < 0.1s
-#include <assert.h>
+#include <goblint.h>
 
 int global_array[50][500][20];
 

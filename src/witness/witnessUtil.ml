@@ -63,15 +63,11 @@ struct
     List.exists (fun (edges, from_node) ->
         List.exists (fun (_, edge) ->
             match edge with
-            | Proc (_, Lval (Var fv, NoOffset), args) ->
-              begin match Cilfacade.find_varinfo_fundec fv with
-                | _ -> false (* normal, not special *)
-                | exception Not_found ->
-                  let desc = LibraryFunctions.find fv in
-                  begin match desc.special args with
-                    | Lock _ -> true
-                    | _ -> false
-                  end
+            | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
+              let desc = LibraryFunctions.find fv in
+              begin match desc.special args with
+                | Lock _ -> true
+                | _ -> false
               end
             | _ -> false
           ) edges

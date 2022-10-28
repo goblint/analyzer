@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
 // Copy of 01/52 for Apron
-#include <assert.h>
+#include <goblint.h>
 
 int rec(int i,int* ptr) {
     int top;

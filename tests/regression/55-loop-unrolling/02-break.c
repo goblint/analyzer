@@ -1,5 +1,5 @@
 // PARAM: --set exp.unrolling-factor 5
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
 	int r=5;

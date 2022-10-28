@@ -1,5 +1,5 @@
 // PARAM: --set ana.base.arrays.unrolling-factor 5 --enable annotation.goblint_array_domain --enable ana.int.interval
-
+#include <goblint.h>
 
 int main(void);
 

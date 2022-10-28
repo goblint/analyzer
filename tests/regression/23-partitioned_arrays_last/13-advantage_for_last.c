@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval  --set ana.base.partition-arrays.keep-expr last --set ana.base.arrays.domain partitioned
-#include <assert.h>
+#include <goblint.h>
 
 void main(void) {
   example1();

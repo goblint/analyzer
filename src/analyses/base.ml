@@ -233,7 +233,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -714,46 +714,7 @@ struct
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
   and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_ask_mustbeequal a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
-
-  (** Evaluate expression using MustBeEqual query.
-      Otherwise just delegate to next eval_rv function. *)
-  and eval_rv_ask_mustbeequal a gs st exp =
-    let eval_next () = eval_rv_base a gs st exp in
-    if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
-    let binop op e1 e2 =
-      let must_be_equal () =
-        let r = Q.must_be_equal a e1 e2 in
-        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
-        r
-      in
-      match op with
-      | MinusA when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_int ik BI.zero)
-      | MinusPI (* TODO: untested *)
-      | MinusPP when must_be_equal () ->
-        let ik = Cilfacade.ptrdiff_ikind () in
-        `Int (ID.of_int ik BI.zero)
-      (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
-      | Le
-      | Ge when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik true)
-      | Ne
-      | Lt
-      | Gt when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik false)
-      | _ -> eval_next ()
-    in
-    let r =
-      match exp with
-      | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
-      | _ -> eval_next ()
-    in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
-    r
+    eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
   and eval_rv_back_up a gs st exp =
     if get_bool "ana.base.eval.deep-query" then
@@ -794,13 +755,6 @@ struct
       )
       else
         (c1, c2)
-    in
-    let binop_case ~arg1 ~arg2 ~op ~typ =
-      let a1 = eval_rv a gs st arg1 in
-      let a2 = eval_rv a gs st arg2 in
-      let t1 = Cilfacade.typeOf arg1 in
-      let t2 = Cilfacade.typeOf arg2 in
-      evalbinop a st op t1 a1 t2 a2 typ
     in
     let r =
       (* query functions were no help ... now try with values*)
@@ -878,10 +832,9 @@ struct
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
-        let a1 = eval_rv a gs st e1 in (* re-evaluate because might be with cast *)
-        let a2 = eval_rv a gs st e2 in
-        evalbinop a st op t1 a1 t2 a2 typ
-      | BinOp (LOr, arg1, arg2, typ) as exp ->
+        (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
+        evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
+      | BinOp (LOr, e1, e2, typ) as exp ->
         let (let*) = Option.bind in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
@@ -956,10 +909,10 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None -> binop_case ~arg1 ~arg2 ~op:LOr ~typ (* fallback to general case *)
+          | None -> evalbinop a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
         end
-      | BinOp (op,arg1,arg2,typ) ->
-        binop_case ~arg1 ~arg2 ~op ~typ
+      | BinOp (op,e1,e2,typ) ->
+        evalbinop a gs st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
@@ -993,6 +946,51 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  and evalbinop (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    evalbinop_mustbeequal a gs st op ~e1 ?t1 ~e2 ?t2 t
+
+  (** Evaluate BinOp using MustBeEqual query as fallback. *)
+  and evalbinop_mustbeequal (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    (* Evaluate structurally using base at first. *)
+    let a1 = eval_rv a gs st e1 in
+    let a2 = eval_rv a gs st e2 in
+    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
+    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
+    let r = evalbinop_base a st op t1 a1 t2 a2 t in
+    if Cil.isIntegralType t then (
+      match r with
+      | `Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
+      | _ ->
+        (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
+        let must_be_equal () =
+          let r = Q.must_be_equal a e1 e2 in
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
+          r
+        in
+        match op with
+        | MinusA when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_int ik BI.zero)
+        | MinusPI (* TODO: untested *)
+        | MinusPP when must_be_equal () ->
+          let ik = Cilfacade.ptrdiff_ikind () in
+          `Int (ID.of_int ik BI.zero)
+        (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
+        | Le
+        | Ge when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik true)
+        | Ne
+        | Lt
+        | Gt when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik false)
+        | _ -> r (* Fallback didn't help. *)
+    )
+    else
+      r (* Avoid fallback, above cases are for ints only. *)
+
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =

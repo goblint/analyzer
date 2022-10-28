@@ -121,7 +121,7 @@ class extractInvariantsVisitor (exps) = object
 
   method! vinst (i: instr) =
     match i with
-    | Call (_, Lval (Var f, NoOffset), args, _, _) ->
+    | Call (_, Lval (Var f, NoOffset), args, _, _) when LibraryFunctions.is_special f ->
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Assert { exp; _ } ->

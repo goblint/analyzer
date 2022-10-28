@@ -1,5 +1,5 @@
 // SKIP (just for manually testing that update_suite works)
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int x = 42;

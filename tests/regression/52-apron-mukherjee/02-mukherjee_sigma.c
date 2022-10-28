@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-#include <assert.h>
+#include <goblint.h>
 
 const int SIGMA = 4;
 
