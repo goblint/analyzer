@@ -204,8 +204,6 @@ and eq_varinfo  (a: varinfo) (b: varinfo) ~(acc: (typ * typ) list) ~(rename_mapp
   let typeCheck = eq_typ_acc a.vtype b.vtype ~rename_mapping:typ_rename_mapping ~acc  in
   let attrCheck = GobList.equal (eq_attribute ~rename_mapping ~acc ) a.vattr b.vattr in
 
-  (*let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in *)
-  (*a.vname = b.vname*)
   let result = isNamingOk && typeCheck && attrCheck &&
                a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
 
@@ -221,9 +219,9 @@ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) (rename_mapp
   a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) =
-  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s, List length: %d \n" a.fname b.fname (List.length acc);
+  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
   let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype ~rename_mapping ~acc  && a.fbitfield = b.fbitfield &&  GobList.equal (eq_attribute ~rename_mapping ~acc) a.fattr b.fattr in
-  (* if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname; *)
+  if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
   r
 
 and eq_offset (a: offset) (b: offset) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
