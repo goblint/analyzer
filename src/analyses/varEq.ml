@@ -83,13 +83,13 @@ struct
     let rec offs_equal o1 o2 =
       match o1, o2 with
       | NoOffset, NoOffset -> true
-      | Field (f1, o1), Field (f2,o2) -> CilType.Fieldinfo.equal f1 f2 && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
+      | Field (f1, o1), Field (f2,o2) -> CilType.Fieldinfo.equal f1 f2 && offs_equal o1 o2
       | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2
       | _ -> false
     in
     offs_equal o1 o2
     && match l1, l2 with
-    | Var v1, Var v2 -> CilType.Varinfo.equal v1 v2 && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
+    | Var v1, Var v2 -> CilType.Varinfo.equal v1 v2
     | Mem m1, Mem m2 -> exp_equal m1 m2
     | _ -> false
 
@@ -108,6 +108,25 @@ struct
     |	BinOp (o1,e11,e21,t1),	BinOp(o2,e12,e22,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e11 e12 && exp_equal e21 e22
     |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
     | _ -> false
+
+  let contains_float_subexp e =
+    let visitor = object
+      inherit Cil.nopCilVisitor
+
+      method! vexpr e =
+        let t = Cil.unrollType (Cilfacade.typeOf e) in
+        begin match t with
+          | TFloat _ -> raise Exit
+          | _ -> ()
+        end;
+        DoChildren
+    end
+    in
+    match Cil.visitCilExpr visitor e with
+    | _ -> false
+    | exception Exit -> true
+  let exp_equal e1 e2 =
+    exp_equal e1 e2 && not (contains_float_subexp e1)
 
   (* TODO: what does interesting mean? *)
   let rec interesting x =
