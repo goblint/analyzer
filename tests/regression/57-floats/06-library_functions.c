@@ -11,31 +11,31 @@ int main()
 
     //__buitin_isfinite(x):
     __goblint_check(__builtin_isfinite(1.0)); // SUCCESS
-    __goblint_check(__builtin_isfinite(inf)); // UNKNOWN
-    __goblint_check(__builtin_isfinite(nan)); // UNKNOWN
+    __goblint_check(__builtin_isfinite(inf)); // FAIL
+    __goblint_check(__builtin_isfinite(nan)); // FAIL
 
     //__buitin_isinf(x):
     __goblint_check(__builtin_isinf(1.0)); // FAIL
-    __goblint_check(__builtin_isinf(inf)); // UNKNOWN
-    __goblint_check(__builtin_isinf(nan)); // UNKNOWN
+    __goblint_check(__builtin_isinf(inf)); // SUCCESS
+    __goblint_check(__builtin_isinf(nan)); // FAIL
 
     //__buitin_isinf_sign(x):
     __goblint_check(__builtin_isinf_sign(1.0));  // FAIL
-    __goblint_check(__builtin_isinf_sign(inf));  // UNKNOWN
-    __goblint_check(__builtin_isinf_sign(-inf)); // UNKNOWN
-    __goblint_check(__builtin_isinf_sign(nan));  // UNKNOWN
+    __goblint_check(__builtin_isinf_sign(inf));  // SUCCESS
+    __goblint_check(__builtin_isinf_sign(-inf)); // SUCCESS
+    __goblint_check(__builtin_isinf_sign(nan));  // FAIL
 
     //__buitin_isnan(x):
     __goblint_check(__builtin_isnan(1.0)); // FAIL
-    __goblint_check(__builtin_isnan(inf)); // UNKNOWN
-    __goblint_check(__builtin_isnan(nan)); // UNKNOWN
+    __goblint_check(__builtin_isnan(inf)); // FAIL
+    __goblint_check(__builtin_isnan(nan)); // SUCCESS
 
     //__buitin_isnormal(x):
     __goblint_check(__builtin_isnormal(dbl_min));     // SUCCESS
     __goblint_check(__builtin_isnormal(0.0));         // FAIL
     __goblint_check(__builtin_isnormal(dbl_min / 2)); // FAIL
-    __goblint_check(__builtin_isnormal(inf));         // UNKNOWN
-    __goblint_check(__builtin_isnormal(nan));         // UNKNOWN
+    __goblint_check(__builtin_isnormal(inf));         // FAIL
+    __goblint_check(__builtin_isnormal(nan));         // FAIL
 
     //__buitin_signbit(x):
     __goblint_check(__builtin_signbit(1.0));  // FAIL

@@ -381,7 +381,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     Interval (low, high)
 
   let eval_div (l1, h1) (l2, h2) =
-    if l2 <= Float_t.zero && h2 >= Float_t.zero then Top
+    if l2 = Float_t.zero && h2 = Float_t.zero && l1 < Float_t.zero && h1 < Float_t.zero  then
+      MinusInfinity
+    else if l2 = Float_t.zero && h2 = Float_t.zero && l1 >= Float_t.zero && h1 >= Float_t.zero  then
+      PlusInfinity
+    else if l2 <= Float_t.zero && h2 >= Float_t.zero then
+      Top
     else
       let div1u = Float_t.div Up l1 l2 in
       let div2u = Float_t.div Up l1 h2 in
@@ -475,13 +480,40 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_comparison_binop None None false eval_eq a b
+    warn_on_specials_comparison a b;
+    let l, u =
+      match (a, b) with
+      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
+      | Interval v1, Interval v2 -> eval_eq v1 v2
+      | NaN, NaN -> (0,0)
+      | NaN, _ | _, NaN -> (0,0)
+      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
+      | PlusInfinity, PlusInfinity -> (1,1)
+      | MinusInfinity, MinusInfinity -> (1,1)
+      | _ -> (0, 0)
+    in
+    IntDomain.IntDomTuple.of_interval IBool
+      (Big_int_Z.big_int_of_int l, Big_int_Z.big_int_of_int u)
+
   let ne a b =
     Messages.warn
       ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
-    eval_comparison_binop ~nanopnan:true None None false eval_ne a b
+    warn_on_specials_comparison a b;
+    let l, u =
+      match (a, b) with
+      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
+      | Interval v1, Interval v2 -> eval_ne v1 v2
+      | NaN, NaN -> (1,1)
+      | NaN, _ | _, NaN -> (0,0)
+      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
+      | PlusInfinity, PlusInfinity -> (0,0)
+      | MinusInfinity, MinusInfinity -> (0,0)
+      | _ -> (1, 1)
+    in
+    IntDomain.IntDomTuple.of_interval IBool
+      (Big_int_Z.big_int_of_int l, Big_int_Z.big_int_of_int u)
 
   let unordered op1 op2 =
     let a, b =

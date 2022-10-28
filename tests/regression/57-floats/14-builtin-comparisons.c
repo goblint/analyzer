@@ -58,7 +58,10 @@ int main(void)
     __goblint_check(!(fmax(NAN,NAN) == NAN));
 
     __goblint_check(fmin(2,1) == 1.f);
+    double d = -(1./0.0);
     __goblint_check(fmin(-INFINITY,0) == -(1./0.0));
+    __goblint_check(fmin(-INFINITY,0) != -(-1./0.0));
+    __goblint_check(fmin(-INFINITY,0) == d);
     __goblint_check(fmin(NAN,-1) == -1.f);
     __goblint_check(!(fmin(NAN,NAN) == NAN));
 
