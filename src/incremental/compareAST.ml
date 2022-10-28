@@ -115,7 +115,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
     | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
       ->  eq_typ_acc typ1 typ2 acc rename_mapping && varArg1 = varArg2 &&
           GobList.equal (eq_attribute rename_mapping) attr1 attr2
-    | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2 (* Ignore tname, treferenced *)
+    | TNamed (typinfo1, attr1), TNamed (typinfo2, attr2) -> Messages.tracel "compare_ast" "comparing types %a and %a, list length %d \n" CilType.Typeinfo.pretty typinfo1 CilType.Typeinfo.pretty typinfo2 (List.length acc); eq_typ_acc typinfo1.ttype typinfo2.ttype acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2 (* Ignore tname, treferenced *)
     | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc rename_mapping (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
     | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc rename_mapping (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
     (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
