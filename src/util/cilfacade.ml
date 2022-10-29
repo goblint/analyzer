@@ -488,9 +488,9 @@ let add_function_declarations (file: Cil.file): unit =
   let functions, non_functions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
   let upto_last_type, non_types = GobList.until_last_with (fun g -> match g with GType _ -> true | _ -> false) non_functions in
   let declaration_from_GFun f = match f with
-    | GFun (f, _) when String.starts_with ~prefix:"__builtin" f.svar.vname ->
+    | GFun (f, _) when BatString.starts_with_stdlib ~prefix:"__builtin" f.svar.vname ->
       (* Builtin functions should not occur in asserts generated, so there is no need to add declarations for them.*)
-      None 
+      None
     | GFun (f, _) ->
       Some (GVarDecl (f.svar, locUnknown))
     | _ -> failwith "Expected GFun, but was something else."
