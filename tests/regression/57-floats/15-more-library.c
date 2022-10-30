@@ -19,6 +19,8 @@ int main(void)
     r = __finitef(3.0f);
     r = __finitel(3.0l);
 
+    r = fpclassify(2.0);
+
     __goblint_check(fabs(+3.0) == +3.0);
     __goblint_check(fabs(-3.0) == +3.0);
     __goblint_check(fabs(-0.0) == -0.0);
