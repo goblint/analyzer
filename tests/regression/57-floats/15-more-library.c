@@ -6,6 +6,19 @@ int g = 8;
 
 int main(void)
 {
+    int r = __isnan(3.0);
+    r = __isnanf(3.0f);
+    r = __isnanl(3.0l);
+    r = __signbit(3.0);
+    r = __signbitf(3.0f);
+    r = __signbitl(3.0l);
+    r = __isinf(3.0);
+    r = __isinff(3.0f);
+    r = __isinfl(3.0l);
+    r = __finite(3.0);
+    r = __finitef(3.0f);
+    r = __finitel(3.0l);
+
     __goblint_check(fabs(+3.0) == +3.0);
     __goblint_check(fabs(-3.0) == +3.0);
     __goblint_check(fabs(-0.0) == -0.0);
