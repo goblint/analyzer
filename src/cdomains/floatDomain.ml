@@ -320,7 +320,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top -> onTop
     | _ -> onTop (* TODO: Do better *)
 
-  let eval_binop' eval_operation v1 v2 =
+  let eval_binop eval_operation v1 v2 =
     let is_exact_before = is_exact (Interval v1) && is_exact (Interval v2) in
     let result = norm @@ eval_operation v1 v2 in
     (match result with
@@ -336,28 +336,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
          "The result of this operation could be +/-infinity or Nan";
      | _ -> ());
     result
-
-  let eval_binop eval_operation op1 op2 =
-    warn_on_specials_binop op1 op2;
-    match (op1, op2) with
-    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
-    | Interval v1, Interval v2 ->
-      let is_exact_before = is_exact op1 && is_exact op2 in
-      let result = norm @@ eval_operation v1 v2 in
-      (match result with
-       | Interval (r1, r2) when not (is_exact result) && is_exact_before ->
-         Messages.warn
-           ~category:Messages.Category.Float
-           ~tags:[CWE 1339]
-           "The result of this operation is not exact, even though the inputs were exact";
-       | Top ->
-         Messages.warn
-           ~category:Messages.Category.Float
-           ~tags:[CWE 1339]
-           "The result of this operation could be +/-infinity or Nan";
-       | _ -> ());
-      result
-    | _ -> Top (* TODO: Do better *)
 
   let eval_comparison_binop min max sym eval_operation (op1: t) op2 =
     warn_on_specials_comparison op1 op2;
@@ -469,7 +447,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
     | NaN, _ | _, NaN -> NaN
     | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
-    | Interval v1, Interval v2 -> eval_binop' eval_add v1 v2
+    | Interval v1, Interval v2 -> eval_binop eval_add v1 v2
     | PlusInfinity, PlusInfinity
     | PlusInfinity, Interval _
     | Interval _, PlusInfinity -> PlusInfinity
@@ -485,7 +463,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
     | NaN, _ | _, NaN -> NaN
     | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
-    | Interval v1, Interval v2 -> eval_binop' eval_sub v1 v2
+    | Interval v1, Interval v2 -> eval_binop eval_sub v1 v2
     | PlusInfinity, MinusInfinity
     | PlusInfinity, Interval _
     | Interval _, MinusInfinity -> PlusInfinity
@@ -501,7 +479,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
     | NaN, _ | _, NaN -> NaN
     | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
-    | Interval v1, Interval v2 -> eval_binop' eval_mul v1 v2
+    | Interval v1, Interval v2 -> eval_binop eval_mul v1 v2
     | PlusInfinity, PlusInfinity
     | MinusInfinity, MinusInfinity -> PlusInfinity
     | PlusInfinity, MinusInfinity
@@ -524,7 +502,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
     | NaN, _ | _, NaN -> NaN
     | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
-    | Interval v1, Interval v2 -> eval_binop' eval_div v1 v2
+    | Interval v1, Interval v2 -> eval_binop eval_div v1 v2
     | (PlusInfinity | MinusInfinity), (PlusInfinity | MinusInfinity) -> NaN
     | PlusInfinity, Interval (l, u) when u < Float_t.zero -> MinusInfinity
     | MinusInfinity, Interval (l, u) when l > Float_t.zero -> MinusInfinity
