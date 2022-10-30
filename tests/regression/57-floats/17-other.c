@@ -19,7 +19,6 @@ int main()
 
   __goblint_check((__builtin_isnormal(FLT_MAX)));
 
-  __goblint_check((isnormal(FLT_MAX)));
   __goblint_check((isinf(HUGE_VAL)));
   __goblint_check((isinf(HUGE_VALF)));
 //  __goblint_check((isinf(HUGE_VALL)));
