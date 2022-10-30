@@ -21,6 +21,7 @@ int main(void)
 
     c = ceil(-INFINITY);
     __goblint_check(isinf(INFINITY) && signbit(c));
+    __goblint_check(isinf(INFINITY) && __builtin_signbit(c));
 
     __goblint_check(floor(2.7) == 2.0);
     __goblint_check(floor(-2.7) == -3.0);
