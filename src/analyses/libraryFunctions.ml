@@ -87,6 +87,30 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_sadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_saddl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_saddll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_uadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_uaddl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_uaddll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_sub_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_ssub_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_ssubl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_ssubll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_usub_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_usubl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_usubll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_mul_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_smul_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_smull_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_smulll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_umul_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_umull_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_umulll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_add_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
+    ("__builtin_sub_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
+    ("__builtin_mul_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
