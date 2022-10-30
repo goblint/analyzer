@@ -105,8 +105,8 @@ struct
     let (=) a b = assert_equal b a in
     begin
       fi_zero / fi_one = fi_zero;
-      (FI.of_const 2.) / fi_zero = FI.top ();
-      fi_zero / fi_zero = FI.top ();
+      (FI.of_const 2.) / fi_zero = FI.nan ();
+      fi_zero / fi_zero = FI.nan ();
       (FI.of_const fmax) / (FI.of_const fsmall) = FI.top ();
       (FI.of_const fmin) / (FI.of_const fsmall) = FI.top ();
       FI.top () / FI.top () = FI.top ();
@@ -348,4 +348,3 @@ let test () =
     "float_interval64" >::: FloatIntervalTest64.test ();
     "float_interval_qcheck64" >::: FloatIntervalTest64.test_qcheck ();
   ]
-

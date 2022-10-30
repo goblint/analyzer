@@ -77,6 +77,8 @@ module type FloatDomainBase = sig
 
   val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
 
+  val nan: unit -> t
+
   val of_const : float -> t
   val of_interval : float * float -> t
   val of_string : string -> t
