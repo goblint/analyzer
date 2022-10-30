@@ -379,7 +379,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let eval_neg = function
     | (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
 
-
   let eval_add (l1, h1) (l2, h2) =
     Interval (Float_t.add Down l1 l2, Float_t.add Up h1 h2)
 
@@ -400,7 +399,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     Interval (low, high)
 
   let eval_div (l1, h1) (l2, h2) =
-    if l2 <= Float_t.zero && h2 >= Float_t.zero then
+    if (l1 = Float_t.zero &&  h1 = Float_t.zero) && (l2 = Float_t.zero && h2 = Float_t.zero) then
+      NaN
+    else if l2 <= Float_t.zero && h2 >= Float_t.zero then
       (* even if it is exactly zero, we cannot do anything as we do not distinguish -/+ 0*)
       Top
     else
@@ -492,8 +493,43 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | PlusInfinity, PlusInfinity -> NaN
     | MinusInfinity, MinusInfinity -> NaN
 
-  let mul = eval_binop eval_mul
-  let div = eval_binop eval_div
+  let mul op1 op2 =
+    warn_on_specials_binop op1 op2;
+    match op1, op2 with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | NaN, _ | _, NaN -> NaN
+    | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
+    | Interval v1, Interval v2 -> eval_binop' eval_mul v1 v2
+    | PlusInfinity, PlusInfinity
+    | MinusInfinity, MinusInfinity -> PlusInfinity
+    | PlusInfinity, MinusInfinity
+    | MinusInfinity, PlusInfinity -> MinusInfinity
+    | (PlusInfinity | MinusInfinity), Interval (l,u) when l = Float_t.zero && u = Float_t.zero -> NaN
+    | PlusInfinity, Interval (l, _)
+    | Interval (l, _), PlusInfinity when l > Float_t.zero -> PlusInfinity
+    | Interval (_,u), MinusInfinity
+    | MinusInfinity, Interval (_,u) when u < Float_t.zero -> PlusInfinity
+    | MinusInfinity, Interval (l, _)
+    | Interval (l, _), MinusInfinity when l > Float_t.zero -> MinusInfinity
+    | Interval (_,u), PlusInfinity
+    | PlusInfinity, Interval (_,u) when u < Float_t.zero -> MinusInfinity
+    | _ -> Top
+
+
+  let div op1 op2 =
+    warn_on_specials_binop op1 op2;
+    match op1, op2 with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | NaN, _ | _, NaN -> NaN
+    | Top, _ | _, Top -> Top (* Bot, Top, NaN are handled*)
+    | Interval v1, Interval v2 -> eval_binop' eval_div v1 v2
+    | (PlusInfinity | MinusInfinity), (PlusInfinity | MinusInfinity) -> NaN
+    | PlusInfinity, Interval (l, u) when u < Float_t.zero -> MinusInfinity
+    | MinusInfinity, Interval (l, u) when l > Float_t.zero -> MinusInfinity
+    | PlusInfinity, Interval (l, u) when l > Float_t.zero -> PlusInfinity
+    | MinusInfinity, Interval (l, u) when u < Float_t.zero -> PlusInfinity
+    | Interval (l,u), (PlusInfinity | MinusInfinity) -> Interval (Float_t.zero, Float_t.zero)
+    | _ -> Top
 
   let fmax op1 op2 =
     warn_on_specials_binop op1 op2;
