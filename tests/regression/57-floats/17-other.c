@@ -11,6 +11,14 @@ int main()
 
   // first check constants
 
+
+  // On OS X this gets expanded differently than on Linux where it is equivalent to the one below
+  // Might make sense to check what is needed for OS X support in the future, but this is not a deal-breaker
+  // and not high priority for now.
+  // __goblint_check((isnormal(FLT_MAX)));
+
+  __goblint_check((__builtin_isnormal(FLT_MAX)));
+
   __goblint_check((isnormal(FLT_MAX)));
   __goblint_check((isinf(HUGE_VAL)));
   __goblint_check((isinf(HUGE_VALF)));

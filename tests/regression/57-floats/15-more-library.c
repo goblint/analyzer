@@ -20,7 +20,12 @@ int main(void)
     __goblint_check((c == -0.0) && signbit(c)); //TODO (We do not distinguish +0 and -0)
 
     c = ceil(-INFINITY);
-    __goblint_check(isinf(INFINITY) && signbit(c));
+
+    // On OS X this gets expanded differently than on Linux where it is equivalent to the one below
+    // Might make sense to check what is needed for OS X support in the future, but this is not a deal-breaker
+    // and not high priority for now.
+    // __goblint_check(isinf(INFINITY) && signbit(c));
+
     __goblint_check(isinf(INFINITY) && __builtin_signbit(c));
 
     __goblint_check(floor(2.7) == 2.0);
@@ -30,7 +35,13 @@ int main(void)
     __goblint_check((c == -0.0) && signbit(c)); //TODO (We do not distinguish +0 and -0)
 
     c = floor(-INFINITY);
-    __goblint_check(isinf(INFINITY) && signbit(c));
+
+    // On OS X this gets expanded differently than on Linux where it is equivalent to the one below
+    // Might make sense to check what is needed for OS X support in the future, but this is not a deal-breaker
+    // and not high priority for now.
+    // __goblint_check(isinf(INFINITY) && signbit(c));
+
+    __goblint_check(isinf(INFINITY) && __builtin_signbit(c));
 
     // Check globals have not been invalidated
     __goblint_check(g == 8);
