@@ -52,10 +52,13 @@ struct
       | [arg] -> ctx.emit (Events.Assert arg)
       | _ -> ()
     );
-    ctx.local
+    false
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | Abort -> ctx.local
+    | _ -> false
 
   let startstate v = false
   let threadenter ctx lval f args = [false]
