@@ -8,7 +8,8 @@ module GU = Goblintutil
 include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
-let isCharType = function (* TODO: also unrollType here? *)
+let isCharType t =
+  match Cil.unrollType t with
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
