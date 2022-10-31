@@ -8,8 +8,14 @@ module GU = Goblintutil
 include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
-let isCharType = function
+let isCharType t =
+  match Cil.unrollType t with
   | TInt ((IChar | ISChar | IUChar), _) -> true
+  | _ -> false
+
+let isFloatType t =
+  match Cil.unrollType t with
+  | TFloat _ -> true
   | _ -> false
 
 let init_options () =

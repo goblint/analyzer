@@ -23,4 +23,10 @@ int main(){
     } else {
         __goblint_check(1);
     }
- }
+
+    float *p = &top;
+    float *q = &fs;
+    __goblint_check(*p == *p); //UNKNOWN!
+    __goblint_check(q[1] == q[1]); //UNKNOWN!
+    return 0;
+}
