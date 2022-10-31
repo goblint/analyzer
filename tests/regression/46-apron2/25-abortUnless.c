@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] abortUnless --set ana.activated[+] apron
+//SKIP PARAM: --set ana.activated[+] abortUnless --set ana.activated[+] apron
 #include <goblint.h>
 
 int zero() { return 1; }
