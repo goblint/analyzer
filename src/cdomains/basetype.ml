@@ -164,6 +164,15 @@ struct
     | Lval (Mem e',_) -> (get_vars e')
 end
 
+module CilTyp =
+struct
+  include CilType.Typ
+
+  (** Check equality modulo [TNamed]. *)
+  let equivalent t1 t2 =
+    equal (Cil.unrollTypeDeep t1) (Cil.unrollTypeDeep t2)
+end
+
 module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt

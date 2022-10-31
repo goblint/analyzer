@@ -18,14 +18,14 @@ rules:
 
   - id: typsig-equal
     pattern: typeSig $X = typeSig $Y
-    fix: CilType.Typ.equal $X $Y
+    fix: Basetype.CilTyp.equivalent $X $Y
     message: use direct comparison instead
     languages: [ocaml]
     severity: WARNING
 
   - id: typsig-not-equal
     pattern: typeSig $X <> typeSig $Y
-    fix: not (CilType.Typ.equal $X $Y)
+    fix: not (Basetype.CilTyp.equivalent $X $Y)
     message: use direct comparison instead
     languages: [ocaml]
     severity: WARNING

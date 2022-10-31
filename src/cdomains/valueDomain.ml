@@ -306,8 +306,8 @@ struct
     (* TODO: Why do we even need this here, but nowhere else? *)
     | TFun (r1, None, false, _), TFun (r2, Some [], false, _)
     | TFun (r1, Some [], false, _), TFun (r2, None, false, _)
-      -> CilType.Typ.equal r1 r2
-    | a, b -> CilType.Typ.equal a b
+      -> Basetype.CilTyp.equivalent r1 r2
+    | a, b -> Basetype.CilTyp.equivalent a b
 
   let cast_addr t a =
     let rec stripVarLenArr = function
@@ -821,7 +821,7 @@ struct
                   let start_of_array = StartOf v' in
                   let start_type = typeWithoutArraylen (Cilfacade.typeOf start_of_array) in
                   let expr_type = typeWithoutArraylen (Cilfacade.typeOf ptr) in
-                  if CilType.Typ.equal start_type expr_type then
+                  if Basetype.CilTyp.equivalent start_type expr_type then
                     `Lifted (equiv_expr expr v')
                   else
                     (* If types do not agree here, this means that we were looking at pointers that *)
@@ -1242,17 +1242,17 @@ struct
               in
               let offset = offs_to_offset offs in
 
-              let cast_to_void_ptr e = 
+              let cast_to_void_ptr e =
                 Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
               in
               let i =
                 if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
                   let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  let addr_exp, c_exp = if not (CilType.Typ.equal (typeOf addr_exp) (typeOf c_exp)) then
+                  let addr_exp, c_exp = if not (Basetype.CilTyp.equivalent (typeOf addr_exp) (typeOf c_exp)) then
                       cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
-                    else 
+                    else
                       addr_exp, c_exp
-                  in 
+                  in
                   Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                 else
                   Invariant.none
