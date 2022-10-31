@@ -47,7 +47,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let typ_equal = CilType.Typ.equal
+  let typ_equal = CilType.Typ.equal (* TODO: Used to have equality checking, which ignores attributes. Is that needed? *)
 
   let contains_float_subexp e =
     let visitor = object
