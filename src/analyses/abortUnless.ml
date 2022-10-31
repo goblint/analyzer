@@ -57,10 +57,7 @@ struct
     false
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let desc = LibraryFunctions.find f in
-    match desc.special arglist with
-    | Abort -> ctx.local
-    | _ -> false
+    false
 
   let startstate v = false
   let threadenter ctx lval f args = [false]
