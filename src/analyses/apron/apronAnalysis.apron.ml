@@ -618,6 +618,8 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
+    | Assert exp ->
+      branch ctx exp true
     | _ ->
       st
 
