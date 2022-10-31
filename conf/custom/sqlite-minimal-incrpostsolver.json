@@ -11,6 +11,25 @@
             "base",
             "mallocWrapper"
         ],
+        "malloc": {
+            "wrappers": [
+                "kmalloc",
+                "__kmalloc",
+                "usb_alloc_urb",
+                "__builtin_alloca",
+                "kzalloc",
+                "sqlite3MemMalloc",
+                "mallocWithAlarm",
+                "sqlite3Malloc",
+                "sqlite3_malloc",
+                "sqlite3_malloc64",
+                "sqlite3MallocZero",
+                "sqlite3DbMallocZero",
+                "dbMallocRawFinish",
+                "sqlite3DbMallocRawNN",
+                "sqlite3DbMallocRaw"
+            ]
+        },
         "base": {
             "context": {
                 "non-ptr": false
