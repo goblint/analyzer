@@ -48,7 +48,7 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     if au && lval = None then (
-      (* Assert happens after evaluation of call, so if variables in `arg` are assigned to, asserting might sunsoundly yield bot *)
+      (* Assert happens after evaluation of call, so if variables in `arg` are assigned to, asserting might unsoundly yield bot *)
       (* See test 62/03 *)
       match args with
       | [arg] -> ctx.emit (Events.Assert arg)
