@@ -87,6 +87,30 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_sadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_saddl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_saddll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_uadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_uaddl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_uaddll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_sub_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_ssub_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_ssubl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_ssubll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_usub_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_usubl_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_usubll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_mul_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_smul_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_smull_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_smulll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_umul_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_umull_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_umulll_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
+    ("__builtin_add_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
+    ("__builtin_sub_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
+    ("__builtin_mul_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -145,21 +169,59 @@ let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     Functions and builtin versions of function and macros defined in math.h. *)
 let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_nan", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FDouble, str)) });
+    ("nan", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FDouble, str)) });
     ("__builtin_nanf", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FFloat, str)) });
+    ("nanf", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FFloat, str)) });
     ("__builtin_nanl", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FLongDouble, str)) });
+    ("nanl", special [__ "str" []] @@ fun str -> Math { fun_args = (Nan (FLongDouble, str)) });
     ("__builtin_inf", special [] @@ Math { fun_args = Inf FDouble});
+    ("__builtin_huge_val", special [] @@ Math { fun_args = Inf FDouble}); (* we assume the target format can represent infinities *)
     ("__builtin_inff", special [] @@ Math { fun_args = Inf FFloat});
+    ("__builtin_huge_valf", special [] @@ Math { fun_args = Inf FFloat}); (* we assume the target format can represent infinities *)
     ("__builtin_infl", special [] @@ Math { fun_args = Inf FLongDouble});
+    ("__builtin_huge_vall", special [] @@ Math { fun_args = Inf FLongDouble});  (* we assume the target format can represent infinities *)
     ("__builtin_isfinite", special [__ "x" []] @@ fun x -> Math { fun_args = (Isfinite x) });
+    ("__finite", special [__ "x" []] @@ fun x -> Math { fun_args = (Isfinite x) });
+    ("__finitef", special [__ "x" []] @@ fun x -> Math { fun_args = (Isfinite x) });
+    ("__finitel", special [__ "x" []] @@ fun x -> Math { fun_args = (Isfinite x) });
     ("__builtin_isinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__isinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__isinff", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__isinfl", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
     ("__builtin_isinf_sign", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
     ("__builtin_isnan", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnan x) });
+    ("__isnan", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnan x) });
+    ("__isnanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnan x) });
+    ("__isnanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnan x) });
     ("__builtin_isnormal", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnormal x) });
     ("__builtin_signbit", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
+    ("__signbit", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
+    ("__signbitf", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
+    ("__signbitl", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
     ("__builtin_fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
+    ("__builtin_fabsf", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FFloat, x)) });
+    ("__builtin_fabsl", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FLongDouble, x)) });
+    ("__builtin_isgreater", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isgreater (x,y)) });
+    ("__builtin_isgreaterequal", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isgreaterequal (x,y)) });
+    ("__builtin_isless", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isless (x,y)) });
+    ("__builtin_islessequal", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Islessequal (x,y)) });
+    ("__builtin_islessgreater", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Islessgreater (x,y)) });
+    ("__builtin_isunordered", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Isunordered (x,y)) });
+    ("ceil", special [__ "x" []] @@ fun x -> Math { fun_args = (Ceil (FDouble, x)) });
+    ("ceilf", special [__ "x" []] @@ fun x -> Math { fun_args = (Ceil (FFloat, x)) });
+    ("ceill", special [__ "x" []] @@ fun x -> Math { fun_args = (Ceil (FLongDouble, x)) });
+    ("floor", special [__ "x" []] @@ fun x -> Math { fun_args = (Floor (FDouble, x)) });
+    ("floorf", special [__ "x" []] @@ fun x -> Math { fun_args = (Floor (FFloat, x)) });
+    ("floorl", special [__ "x" []] @@ fun x -> Math { fun_args = (Floor (FLongDouble, x)) });
     ("fabs", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FDouble, x)) });
     ("fabsf", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FFloat, x)) });
     ("fabsl", special [__ "x" []] @@ fun x -> Math { fun_args = (Fabs (FLongDouble, x)) });
+    ("fmax", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Fmax (FDouble, x, y)) });
+    ("fmaxf", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Fmax (FFloat, x, y)) });
+    ("fmaxl", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Fmax (FLongDouble, x, y)) });
+    ("fmin", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Fmin (FDouble, x, y)) });
+    ("fminf", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Fmin (FFloat, x, y)) });
+    ("fminl", special [__ "x" []; __ "y" []] @@ fun x y -> Math { fun_args = (Fmin (FLongDouble, x, y)) });
     ("__builtin_acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FDouble, x)) });
     ("acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FDouble, x)) });
     ("acosf", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos (FFloat, x)) });
@@ -188,6 +250,15 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FDouble, x)) });
     ("tanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FFloat, x)) });
     ("tanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan (FLongDouble, x)) });
+    ("fegetround", unknown []);
+    ("fesetround", unknown [drop "round" []]); (* Our float domain is rounding agnostic *)
+    ("__builtin_fpclassify", unknown [drop "nan" []; drop "infinite" []; drop "normal" []; drop "subnormal" []; drop "zero" []; drop "x" []]); (* TODO: We could do better here *)
+    ("__builtin_fpclassifyf", unknown [drop "nan" []; drop "infinite" []; drop "normal" []; drop "subnormal" []; drop "zero" []; drop "x" []]);
+    ("__builtin_fpclassifyl", unknown [drop "nan" []; drop "infinite" []; drop "normal" []; drop "subnormal" []; drop "zero" []; drop "x" []]);
+    ("__fpclassify", unknown [drop "x" []]);
+    ("__fpclassifyd", unknown [drop "x" []]);
+    ("__fpclassifyf", unknown [drop "x" []]);
+    ("__fpclassifyl", unknown [drop "x" []]);
   ]
 
 let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
@@ -735,15 +806,9 @@ let invalidate_actions = [
     "expm1", readsAll;
     "expm1f", readsAll;
     "expm1l", readsAll;
-    "fabs", readsAll;
-    "fabsf", readsAll;
-    "fabsl", readsAll;
     "fdim", readsAll;
     "fdimf", readsAll;
     "fdiml", readsAll;
-    "floor", readsAll;
-    "floorf", readsAll;
-    "floorl", readsAll;
     "fma", readsAll;
     "fmaf", readsAll;
     "fmal", readsAll;

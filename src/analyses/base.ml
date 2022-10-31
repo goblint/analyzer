@@ -1933,11 +1933,17 @@ struct
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
               | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-                let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
-                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-                FD.of_interval (FD.get_fkind c) (l, h)
+                let zero_not_in_a = a_min > 0. || a_max < 0. in
+                let zero_not_in_c = c_min > 0. || c_max < 0. in
+                if zero_not_in_a && zero_not_in_c then
+                  let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
+                  let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                  let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                  FD.of_interval (FD.get_fkind c) (l, h)
+                else
+                  b
               | _ -> b) in
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n\n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in
@@ -2600,14 +2606,16 @@ struct
       in
       let result =
         begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> `Float (FD.top_of fk)
+          | Inf fk -> `Float (FD.inf_of fk)
           | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
           | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
           | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
           | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Ceil (fk,x) -> `Float (apply_unary fk FD.ceil x)
+          | Floor (fk,x) -> `Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
           | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
           | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)
@@ -2616,6 +2624,14 @@ struct
           | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
+          | Isgreater (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> `Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Fmax (fd, x ,y) -> `Float (apply_binary fd FD.fmax x y)
+          | Fmin (fd, x ,y) -> `Float (apply_binary fd FD.fmin x y)
         end
       in
       begin match lv with
