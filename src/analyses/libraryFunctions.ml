@@ -29,6 +29,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iswalnum", unknown [drop "wc" []]);
     ("iswprint", unknown [drop "wc" []]);
     ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
+    ("puts", unknown [drop "s" [r]]);
   ]
 
 (** C POSIX library functions.
