@@ -131,6 +131,12 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
     ("__ctype_get_mb_cur_max", unknown []);
     ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
+    ("__bad_percpu_size",  special' [] @@ fun () -> Abort); (* these do not have defintions so the linker will fail if they are actually called *)
+    ("__bad_size_call_parameter",  special' [] @@ fun () -> Abort);
+    ("__xchg_wrong_size",  special' [] @@ fun () -> Abort);
+    ("__cmpxchg_wrong_size",  special' [] @@ fun () -> Abort);
+    ("__xadd_wrong_size",  special' [] @@ fun () -> Abort);
+    ("__put_user_bad",  special' [] @@ fun () -> Abort);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
