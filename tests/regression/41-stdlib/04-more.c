@@ -13,6 +13,8 @@ int main() {
     int a = strspn("bla","blu");
     a = strcspn("bla","blu");
 
+    long r =  strtol("bla", 0, 8);
+
     // Should not be invalidated
     __goblint_check(g == 8);
 }

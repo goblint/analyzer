@@ -32,6 +32,11 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("puts", unknown [drop "s" [r]]);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
+    ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w_deep]]);
+    ("strtol", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
+    ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
+    ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
+    ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
   ]
 
 (** C POSIX library functions.
@@ -547,7 +552,6 @@ let invalidate_actions = [
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
-    "strtol", writes [2];
     "geteuid", readsAll;(*safe*)
     "opendir", readsAll;  (*safe*)
     "readdir_r", writesAll;(*unsafe*)
