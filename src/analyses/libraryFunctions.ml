@@ -346,6 +346,10 @@ let classify fn exps: categories =
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "up_read" | "up_write"
   | "up" | "pthread_spin_unlock"
     -> `Unlock
+  | "pthread_setspecific" as x ->
+    (if not (GobConfig.get_bool "sem.unknown_function.invalidate.globals") then
+       failwith "pthread_setspecific is only analyzed soundly when sem.unknown_function.invalidate.globals is set.");
+    `Unknown x
   | x -> `Unknown x
 
 
