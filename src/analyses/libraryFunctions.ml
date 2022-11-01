@@ -41,6 +41,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ctime", unknown [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
+    ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
   ]
 
 (** C POSIX library functions.
