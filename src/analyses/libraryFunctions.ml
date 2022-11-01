@@ -77,6 +77,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("symlink" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("ntohs", unknown [drop "netshort" []]);
   ]
 
 (** Pthread functions. *)
