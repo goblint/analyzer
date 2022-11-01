@@ -37,6 +37,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
     ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
     ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
+    ("mktime", unknown [drop "tm" [r;w]]);
+    ("ctime", unknown [drop "rm" [r]])
   ]
 
 (** C POSIX library functions.
