@@ -111,6 +111,9 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_add_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
     ("__builtin_sub_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
     ("__builtin_mul_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
+    ("__builtin_popcount", unknown [drop "x" []]);
+    ("__builtin_popcountl", unknown [drop "x" []]);
+    ("__builtin_popcountll", unknown [drop "x" []]);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
