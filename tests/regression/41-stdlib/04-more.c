@@ -10,6 +10,9 @@ int main() {
     int r = __builtin_popcountll(5ul);
     puts("blarg");
 
+    int a = strspn("bla","blu");
+    a = strcspn("bla","blu");
+
     // Should not be invalidated
     __goblint_check(g == 8);
 }
