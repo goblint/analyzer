@@ -32,11 +32,11 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("puts", unknown [drop "s" [r]]);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
-    ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w_deep]]);
-    ("strtol", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
-    ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
-    ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
-    ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w_deep]; drop "base" []]);
+    ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w]]);
+    ("strtol", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("mktime", unknown [drop "tm" [r;w]]);
     ("ctime", unknown [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
