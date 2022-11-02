@@ -29,6 +29,19 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iswalnum", unknown [drop "wc" []]);
     ("iswprint", unknown [drop "wc" []]);
     ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
+    ("puts", unknown [drop "s" [r]]);
+    ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
+    ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
+    ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w]]);
+    ("strtol", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("mktime", unknown [drop "tm" [r;w]]);
+    ("ctime", unknown [drop "rm" [r]]);
+    ("clearerr", unknown [drop "stream" [w]]);
+    ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
+    ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
   ]
 
 (** C POSIX library functions.
@@ -65,6 +78,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("symlink" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("ntohs", unknown [drop "netshort" []]);
   ]
 
 (** Pthread functions. *)
@@ -75,6 +89,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
     ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
+    ("pthread_attr_destroy", unknown [drop "attr" [f]]);
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
@@ -114,6 +129,9 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_add_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
     ("__builtin_sub_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
     ("__builtin_mul_overflow_p", unknown [drop "a" []; drop "b" []; drop "c" []]);
+    ("__builtin_popcount", unknown [drop "x" []]);
+    ("__builtin_popcountl", unknown [drop "x" []]);
+    ("__builtin_popcountll", unknown [drop "x" []]);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -148,6 +166,12 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
     ("release_console_sem", special [] @@ Unlock console_sem);
     ("misc_deregister", unknown [drop "misc" [r_deep]]);
+    ("__bad_percpu_size", special [] Abort); (* these do not have definitions so the linker will fail if they are actually called *)
+    ("__bad_size_call_parameter", special [] Abort);
+    ("__xchg_wrong_size", special [] Abort);
+    ("__cmpxchg_wrong_size", special [] Abort);
+    ("__xadd_wrong_size", special [] Abort);
+    ("__put_user_bad", special [] Abort);
   ]
 
 (** Goblint functions. *)
@@ -537,7 +561,6 @@ let invalidate_actions = [
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
-    "strtol", writes [2];
     "geteuid", readsAll;(*safe*)
     "opendir", readsAll;  (*safe*)
     "readdir_r", writesAll;(*unsafe*)
