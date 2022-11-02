@@ -146,12 +146,6 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
     ("__ctype_get_mb_cur_max", unknown []);
     ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
-    ("__bad_percpu_size",  special' [] @@ fun () -> Abort); (* these do not have defintions so the linker will fail if they are actually called *)
-    ("__bad_size_call_parameter",  special' [] @@ fun () -> Abort);
-    ("__xchg_wrong_size",  special' [] @@ fun () -> Abort);
-    ("__cmpxchg_wrong_size",  special' [] @@ fun () -> Abort);
-    ("__xadd_wrong_size",  special' [] @@ fun () -> Abort);
-    ("__put_user_bad",  special' [] @@ fun () -> Abort);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -169,6 +163,12 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("acquire_console_sem", special [] @@ Lock { lock = console_sem; try_ = false; write = true; return_on_success = true });
     ("release_console_sem", special [] @@ Unlock console_sem);
     ("misc_deregister", unknown [drop "misc" [r_deep]]);
+    ("__bad_percpu_size", special [] Abort); (* these do not have definitions so the linker will fail if they are actually called *)
+    ("__bad_size_call_parameter", special [] Abort);
+    ("__xchg_wrong_size", special [] Abort);
+    ("__cmpxchg_wrong_size", special [] Abort);
+    ("__xadd_wrong_size", special [] Abort);
+    ("__put_user_bad", special [] Abort);
   ]
 
 (** Goblint functions. *)
