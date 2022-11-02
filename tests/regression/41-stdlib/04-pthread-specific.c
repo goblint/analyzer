@@ -8,6 +8,8 @@ void *t_fun(void *arg) {
   pthread_setspecific(key,&var);
   int* ptr = (int*)pthread_getspecific(key);
   *ptr = 12;
+  var = 8;
+  *ptr = 12;
   __goblint_check(var == 8); //UNKNOWN!
 }
 
