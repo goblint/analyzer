@@ -71,6 +71,7 @@ depends: [
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocamlbuild" {= "0.14.1"}
   "ocamlfind" {= "1.9.3"}
+  "ocamlgraph" {= "2.0.0"}
   "odoc" {= "2.1.0" & with-doc}
   "odoc-parser" {= "1.0.0" & with-doc}
   "ordering" {= "3.0.3"}

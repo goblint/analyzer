@@ -20,11 +20,12 @@ doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "ocaml" {>= "4.10"}
-  "dune" {>= "3.0"}
+  "dune" {>= "2.9" & >= "3.0"}
   "goblint-cil" {>= "2.0.0"}
   "batteries" {>= "3.4.0"}
   "zarith" {>= "1.8"}
   "yojson" {>= "2.0.0"}
+  "ocamlgraph" {>= "2.0.0"}
   "qcheck-core"
   "ppx_deriving"
   "ppx_deriving_hash"
