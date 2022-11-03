@@ -1255,10 +1255,9 @@ struct
                   Invariant.none
               in
               let i_deref =
-                (* Avoid dereferencing into functions, mutexes, ..., which will lead to errors as they are not added to the hash table *)
-                let noderef t = try isFunctionType t || Cilfacade.is_ignorable_type t with Not_found -> false in
+                (* Avoid dereferencing into functions, mutexes, ..., which are not added to the hash table *)
                 match Cilfacade.typeOfLval (Var vi, offset) with
-                | typ when not (noderef vi.vtype) ->
+                | typ when not (Compound.is_immediate_type typ) ->
                   (* Address set for a void* variable contains pointers to values of non-void type,
                      so insert pointer cast to make invariant expression valid (no field/index on void). *)
                   let newt = TPtr (typ, []) in

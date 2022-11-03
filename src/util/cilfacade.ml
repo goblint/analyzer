@@ -7,23 +7,6 @@ module GU = Goblintutil
 
 include Cilfacade0
 
-(* Some helper functions to avoid flagging race warnings on atomic types, and
- * other irrelevant stuff, such as mutexes and functions. *)
-
-let is_ignorable_type (t: typ): bool =
-  match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
-  | TComp ({ cname = "lock_class_key"; _ }, _) -> true
-  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
-  | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
-  | _ -> false
-
-let is_ignorable = function
-  | None -> false
-  | Some (v,os) ->
-    try isFunctionType v.vtype || is_ignorable_type v.vtype
-    with Not_found -> false
-
 (** Is character type (N1570 6.2.5.15)? *)
 let isCharType t =
   match Cil.unrollType t with
