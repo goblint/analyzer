@@ -1239,30 +1239,34 @@ struct
               in
               let offset = offs_to_offset offs in
 
-              let cast_to_void_ptr e = 
+              let cast_to_void_ptr e =
                 Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
               in
               let i =
                 if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
-                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  let addr_exp, c_exp = if typeSig (typeOf addr_exp) <> typeSig (typeOf c_exp) then
-                      cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
-                    else 
-                      addr_exp, c_exp
-                  in 
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  try
+                    let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                    let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
+                        cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
+                      else
+                        addr_exp, c_exp
+                    in
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  with Cilfacade.TypeOfError _ -> Invariant.none
                 else
                   Invariant.none
               in
               let i_deref =
+                (* Avoid dereferencing into functions, mutexes, ..., which are not added to the hash table *)
                 match Cilfacade.typeOfLval (Var vi, offset) with
-                | typ ->
+                | typ when not (Compound.is_immediate_type typ) ->
                   (* Address set for a void* variable contains pointers to values of non-void type,
                      so insert pointer cast to make invariant expression valid (no field/index on void). *)
                   let newt = TPtr (typ, []) in
                   let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
                   deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
-                | exception Cilfacade.TypeOfError _ -> (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
+                | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
+                | _ ->
                   Invariant.none
               in
 
