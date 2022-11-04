@@ -1,0 +1,90 @@
+{
+    "pre": {
+        "cppflags": [
+            "-DSQLITE_DEBUG",
+            "-DGOBLINT_NO_BSEARCH",
+            "-DGOBLINT_NO_ASSERT"
+        ]
+    },
+    "ana": {
+        "activated": [
+            "base",
+            "mallocWrapper",
+            "escape",
+            "mutexEvents",
+            "mutex",
+            "access",
+            "assert"
+        ],
+        "malloc": {
+            "wrappers": [
+                "kmalloc",
+                "__kmalloc",
+                "usb_alloc_urb",
+                "__builtin_alloca",
+                "kzalloc",
+                "sqlite3MemMalloc",
+                "mallocWithAlarm",
+                "sqlite3Malloc",
+                "sqlite3_malloc",
+                "sqlite3_malloc64",
+                "sqlite3MallocZero",
+                "sqlite3DbMallocZero",
+                "dbMallocRawFinish",
+                "sqlite3DbMallocRawNN",
+                "sqlite3DbMallocRaw"
+            ]
+        },
+        "int": {
+            "def_exc": true
+        },
+        "thread": {
+            "domain": "plain"
+        },
+        "dead-code": {
+            "lines": true
+        }
+    },
+    "sem": {
+        "unknown_function": {
+            "spawn": false
+        }
+    },
+    "exp": {
+        "earlyglobs": true
+    },
+    "result": "json-messages",
+    "dbg": {
+        "timing": {
+            "enabled": true
+        }
+    },
+    "warn": {
+        "assert": false,
+        "behavior": false,
+        "integer": false,
+        "cast": false,
+        "race": true,
+        "deadcode": false,
+        "analyzer": false,
+        "unsound": false,
+        "imprecise": false,
+        "unknown": false,
+        "error": false,
+        "warning": true,
+        "info": false,
+        "debug": false,
+        "success": false
+    },
+    "incremental": {
+        "postsolver": {
+            "enabled": true
+        },
+        "restart": {
+            "sided": {
+                "enabled": false
+            },
+            "write-only": true
+        }
+    }
+}

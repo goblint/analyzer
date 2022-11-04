@@ -9,12 +9,7 @@
     "ana": {
         "activated": [
             "base",
-            "mallocWrapper",
-            "escape",
-            "mutexEvents",
-            "mutex",
-            "access",
-            "assert"
+            "mallocWrapper"
         ],
         "malloc": {
             "wrappers": [
