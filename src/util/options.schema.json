@@ -1824,6 +1824,12 @@
           "type": "boolean",
           "default": true
         },
+        "call": {
+          "title": "warn.call",
+          "description": "function call warnings",
+          "type": "boolean",
+          "default": true
+        },
         "integer": {
           "title": "warn.integer",
           "description": "integer (Overflow, Div_by_zero) warnings",

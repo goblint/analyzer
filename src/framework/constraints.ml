@@ -635,19 +635,33 @@ struct
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      match Cilfacade.find_varinfo_fundec f with
-      | fd when LibraryFunctions.use_special f.vname ->
-        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-        tf_special_call ctx lv f args
-      | fd ->
-        tf_normal_call ctx lv e fd args getl sidel getg sideg
-      | exception Not_found ->
-        tf_special_call ctx lv f args
+      match f.vtype with
+      | TFun (_, params, var_arg, _)  ->
+        let arg_length = List.length args in
+        let p_length = Option.map_default List.length 0 params in
+        if p_length = arg_length || (var_arg && arg_length >= p_length) then
+          begin Some (match Cilfacade.find_varinfo_fundec f with
+              | fd when LibraryFunctions.use_special f.vname ->
+                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+                tf_special_call ctx lv f args
+              | fd ->
+                tf_normal_call ctx lv e fd args getl sidel getg sideg
+              | exception Not_found ->
+                tf_special_call ctx lv f args)
+          end
+        else begin
+          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments. This call will be ignored." CilType.Varinfo.pretty f;
+          None
+        end
+      | _ ->
+        M.warn  ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
+        None
     in
-    if [] = functions then
+    let funs = List.filter_map one_function functions in
+    if [] = funs then begin
+      M.warn ~category:Unsound "No fitting function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
-    else
-      let funs = List.map one_function functions in
+    end else
       common_joins ctx funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
