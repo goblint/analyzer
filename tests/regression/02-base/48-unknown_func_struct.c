@@ -8,10 +8,8 @@ typedef struct list {
     struct list *next;
 } list_t;
 
-// void mutate_list(list_t n){
-//     list_t *next = n.next;
-//     next->val = 42;
-// }
+void mutate_list(list_t n);
+void mutate_list2(list_t* n);
 
 int main(){
     list_t first;

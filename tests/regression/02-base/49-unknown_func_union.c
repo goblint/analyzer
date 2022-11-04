@@ -14,10 +14,7 @@ typedef union either {
     struct list node;
 } either_t;
 
-// void mutate_either(either_t e){
-//     list_t *next = e.node.next;
-//     next->val = 42;
-// }
+void mutate_either(either_t e);
 
 int main(){
     list_t first;
