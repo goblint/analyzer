@@ -640,7 +640,8 @@ struct
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
         (* Check whether number of arguments fits. *)
-        if p_length = arg_length || (var_arg && arg_length >= p_length) then
+        (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
+        if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
