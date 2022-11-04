@@ -639,6 +639,7 @@ struct
       | TFun (_, params, var_arg, _)  ->
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
+        (* Check whether number of arguments fits. *)
         if p_length = arg_length || (var_arg && arg_length >= p_length) then
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
@@ -650,7 +651,8 @@ struct
                 tf_special_call ctx lv f args)
           end
         else begin
-          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments. This call will be ignored." CilType.Varinfo.pretty f;
+          let geq = if var_arg then ">=" else "" in
+          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
           None
         end
       | _ ->
@@ -659,7 +661,7 @@ struct
     in
     let funs = List.filter_map one_function functions in
     if [] = funs then begin
-      M.warn ~category:Unsound "No fitting function to be called at call site. Continuing with state before call.";
+      M.warn ~category:Unsound "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
     end else
       common_joins ctx funs !r !spawns
