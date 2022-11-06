@@ -24,7 +24,7 @@ struct
 
   let of_int ik = lift (I.of_int ik)
   let of_bool ik = lift (I.of_bool ik)
-  let of_interval ik = lift (I.of_interval ik)
+  let of_interval ?(suppress_ovwarn=false) ik = lift (I.of_interval ~suppress_ovwarn ik)
   let of_excl_list ik = lift (I.of_excl_list ik)
   let of_congruence ik = lift (I.of_congruence ik)
   let starting ik = lift (I.starting ik)
