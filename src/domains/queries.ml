@@ -27,8 +27,8 @@ struct
   let of_interval ?(suppress_ovwarn=false) ik = lift (I.of_interval ~suppress_ovwarn ik)
   let of_excl_list ik = lift (I.of_excl_list ik)
   let of_congruence ik = lift (I.of_congruence ik)
-  let starting ?(suppress_ovwarn=false) ik = lift (I.starting ik)
-  let ending ?(suppress_ovwarn=false) ik = lift (I.ending ik)
+  let starting ?(suppress_ovwarn=false) ik = lift (I.starting  ~suppress_ovwarn ik)
+  let ending ?(suppress_ovwarn=false) ik = lift (I.ending  ~suppress_ovwarn ik)
 
   let to_int x = unlift_opt I.to_int x
   let to_bool x = unlift_opt I.to_bool x
