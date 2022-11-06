@@ -936,8 +936,8 @@ struct
       else
         match eval_interval_expr d e with
         | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
-        | (Some min, None) -> ID.starting ik min
-        | (None, Some max) -> ID.ending ik max
+        | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
+        | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
         | (None, None) -> ID.top_of ik
 
   let invariant ~scope x =
