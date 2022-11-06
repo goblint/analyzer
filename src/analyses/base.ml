@@ -2069,7 +2069,7 @@ struct
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
-        (match Cilfacade.typeOf e, FD.get_fkind c with
+        (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
          | TFloat (FLongDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FFloat
          | TFloat (FLongDouble as fk, _), FDouble
@@ -2082,7 +2082,7 @@ struct
         (match eval e st with
          | `Int i ->
            if ID.leq i (ID.cast_to ik i) then
-             match Cilfacade.typeOf e with
+             match unrollType (Cilfacade.typeOf e) with
              | TInt(ik_e, _)
              | TEnum ({ekind = ik_e; _ }, _) ->
                let c' = ID.cast_to ik_e c in
