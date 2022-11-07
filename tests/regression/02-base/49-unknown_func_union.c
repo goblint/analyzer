@@ -15,6 +15,10 @@ typedef union either {
 } either_t;
 
 void mutate_either(either_t e);
+// void mutate_either(either_t e){
+//     list_t *next = e.node.next;
+//     next->val = 42;
+// }
 
 int main(){
     list_t first;

@@ -11,6 +11,11 @@ typedef struct list {
 void mutate_list(list_t n);
 void mutate_list2(list_t* n);
 
+// void mutate_list(list_t n){
+//     list_t *next = n.next;
+//     next->val = 42;
+// }
+
 int main(){
     list_t first;
     list_t second;

@@ -9,6 +9,12 @@ typedef struct arr {
 } arr_t;
 
 int mutate_array(arr_t a);
+// int mutate_array(arr_t a){
+//     int t = rand();
+//     for(int i=0; i<LENGTH; i++) {
+//         *(a.ptrs[i]) = t;
+//     }
+// }
 
 int main(){
     arr_t a;
