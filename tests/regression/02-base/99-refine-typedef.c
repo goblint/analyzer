@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval
+#include <goblint.h>
+
 typedef signed long int __int64_t;
 typedef __int64_t int64_t;
 
