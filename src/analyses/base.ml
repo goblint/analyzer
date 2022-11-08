@@ -1577,38 +1577,14 @@ struct
     let eval_rv = eval_rv
     let eval_rv_address = eval_rv_address
     let eval_lv = eval_lv
+    let convert_offset = convert_offset
 
-    let refine_lv ctx a gs st c x c' pretty exp =
-      let eval e st = eval_rv a gs st e in
-      let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~invariant:true ~ctx in
-      match x with
-      | Var var, o ->
-        (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-        let oldv = get_var a gs st var in
-        let offs = convert_offset a gs st o in
-        let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
-        let v = VD.meet oldv newv in
-        if is_some_bot v then raise Deadcode
-        else (
-          if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
-          let r = set' (Var var,NoOffset) v st in
-          if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
-          r
-        )
-      | Mem _, _ ->
-        (* For accesses via pointers, not yet *)
-        let oldv = eval (Lval x) st in
-        let v = VD.meet oldv c' in
-        if is_some_bot v then raise Deadcode
-        else (
-          if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
-          set' x v st
-        )
-
+    let get_var = get_var
     let get a gs st addrs exp = get a gs st addrs exp
     let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:true gs st lval lval_type value
 
     let map_oldval oldval _ = oldval
+    let eval_rv_lval_refine a gs st exp lval = eval_rv a gs st (Lval lval)
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
@@ -2373,56 +2349,23 @@ struct
           let oa = Analyses.ask_of_ctx octx
           let ost = octx.local
 
-          (* all updates happen in ctx with top values *)
-
-          let refine_lv ctx a gs st c x c' pretty exp =
-            let eval_rv_lval lv st =
-              (* old: *)
-              (* eval_rv a gs st (Lval lv) *)
-
-              (* new, use different ctx for eval_lv (for Mem): *)
-              let eval_lv a gs st lv = eval_lv oa gs ost lv in (* TODO: deduplicate *)
-              let do_offs def o = def in (* HACK: no do_offs blessed here *)
-              eval_rv_base_lval ~eval_lv ~do_offs a gs st exp lv
-            in
-            let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
-            match x with
-            | Var var, o ->
-              (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-              let oldv = get_var a gs st var in
-              let oldv = if VD.is_bot oldv then VD.top_value var.vtype else oldv in
-              let offs = convert_offset oa gs ost o in
-              let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
-              let v = VD.meet oldv newv in
-              if is_some_bot v then raise Deadcode
-              else (
-                if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
-                let r = set' (Var var,NoOffset) v st in
-                if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
-                r
-              )
-            | Mem _, _ ->
-              (* For accesses via pointers, not yet *)
-              let oldv = eval_rv_lval x st in
-              let oldv = if VD.is_bot oldv then VD.top_value (Cilfacade.typeOfLval x) else oldv in
-              let v = VD.meet oldv c' in
-              if is_some_bot v then raise Deadcode
-              else (
-                if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
-                set' x v st
-              )
-
           (* all evals happen in octx with non-top values *)
-          (* must be down here to make evals in refines call the real ones *)
+          let eval_rv a gs st e = eval_rv oa gs ost e
+          let eval_rv_address a gs st e = eval_rv_address oa gs ost e
+          let eval_lv a gs st lv = eval_lv oa gs ost lv
+          let convert_offset a gs st o = convert_offset oa gs ost o
+
+          (* all updates happen in ctx with top values *)
+          let get_var = get_var
           let get a gs st addrs exp = get a gs st addrs exp
           let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:false gs st lval lval_type value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let map_oldval oldval t_lval =
             if VD.is_bot oldval then VD.top_value t_lval else oldval
-
-          let eval_rv a gs st e = eval_rv oa gs ost e
-          let eval_rv_address a gs st e = eval_rv_address oa gs ost e
-          let eval_lv a gs st lv = eval_lv oa gs ost lv
+          let eval_rv_lval_refine a gs st exp lv =
+            (* new, use different ctx for eval_lv (for Mem): *)
+            let do_offs def o = def in (* HACK: no do_offs blessed here *)
+            eval_rv_base_lval ~eval_lv ~do_offs a gs st exp lv
 
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c

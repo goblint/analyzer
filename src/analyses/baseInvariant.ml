@@ -17,13 +17,14 @@ sig
   val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
   val eval_rv_address: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
   val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
+  val convert_offset: Queries.ask -> (V.t -> G.t) -> D.t -> offset -> (fieldinfo, ID.t) Lval.offs
 
+  val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
   val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
   val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> VD.t -> D.t
 
   val map_oldval: VD.t -> typ -> VD.t
-
-  val refine_lv: (D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> 'a -> lval -> VD.t -> (unit -> 'a -> doc) -> exp -> D.t
+  val eval_rv_lval_refine: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> lval -> VD.t
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
@@ -77,6 +78,34 @@ struct
       else if VD.is_bot new_val
       then set a gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
       else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
+
+  let refine_lv ctx a gs st c x c' pretty exp =
+    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~ctx in
+    match x with
+    | Var var, o ->
+      (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
+      let oldv = get_var a gs st var in
+      let oldv = map_oldval oldv var.vtype in
+      let offs = convert_offset a gs st o in
+      let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+      let v = VD.meet oldv newv in
+      if is_some_bot v then raise Analyses.Deadcode
+      else (
+        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        let r = set' (Var var,NoOffset) v st in
+        if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
+        r
+      )
+    | Mem _, _ ->
+      (* For accesses via pointers, not yet *)
+      let oldv = eval_rv_lval_refine a gs st exp x in
+      let oldv = map_oldval oldv (Cilfacade.typeOfLval x) in
+      let v = VD.meet oldv c' in
+      if is_some_bot v then raise Analyses.Deadcode
+      else (
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        set' x v st
+      )
 
   let invariant_fallback ctx a (gs:V.t -> G.t) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
