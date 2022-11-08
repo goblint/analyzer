@@ -12,7 +12,7 @@ module SLR3 =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    open SolverBox.Warrow (S)
+    open SolverBox.Warrow (S.Dom)
 
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
@@ -177,7 +177,7 @@ module Make0 =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    open Box (S)
+    open Box (S.Dom)
 
     let h_find_option h x =
       try Some (HM.find h x)

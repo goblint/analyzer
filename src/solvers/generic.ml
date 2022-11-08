@@ -153,7 +153,7 @@ module DirtyBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
-    open SolverBox.Warrow (S)
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
@@ -228,7 +228,7 @@ module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
-    open SolverBox.Warrow (S)
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
@@ -330,7 +330,7 @@ module PreciseSideEffectBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
-    open SolverBox.Warrow (S)
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =

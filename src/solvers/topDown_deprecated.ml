@@ -13,7 +13,7 @@ module TD3 =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    open SolverBox.Warrow (S)
+    open SolverBox.Warrow (S.Dom)
 
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
