@@ -855,8 +855,6 @@ struct
   type v = Var.t
   type d = Dom.t
 
-  let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
-
   let getG = function
     | `Lifted1 x -> x
     | `Bot -> S.G.bot ()
@@ -943,7 +941,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        let box f x y = if EqSys.Dom.leq y x then EqSys.Dom.narrow x y else EqSys.Dom.widen x (EqSys.Dom.join x y) in
+        let hm, solver_data = Sol'.solve box vs sv in
         Splitter.split_solution hm, solver_data
     end
 

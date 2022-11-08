@@ -511,9 +511,6 @@ sig
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
 
-  (** box --- needed here for transformations *)
-  val box : v -> d -> d -> d
-
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
