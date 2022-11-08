@@ -1,8 +1,6 @@
 include Yaml.Util
 
-let (let*) = Result.bind
-let (let+) r f = Result.map f r
-let (>>=) = Result.bind
+include GobResult.Syntax
 
 let option_map (f: 'a -> ('b, 'e) result) (o: 'a option): ('b option, 'e) result =
   match o with

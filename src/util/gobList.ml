@@ -36,3 +36,14 @@ let until_last_with (pred: 'a -> bool) (xs: 'a list) =
     | h::t -> if pred h then until_last_helper (h::seen@last) [] t else until_last_helper last (h::seen) t
   in
   until_last_helper [] [] xs
+
+
+module Syntax =
+struct
+  let (let+) x f = List.map f x
+  let (and+) = List.cartesian_product
+  let (let*) x f = List.concat_map f x
+  let (and*) = (and+)
+
+  let (>>=) x f= List.concat_map f x
+end
