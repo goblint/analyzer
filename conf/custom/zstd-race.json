@@ -88,7 +88,7 @@
     "race": true,
     "deadcode": true,
     "analyzer": false,
-    "unsound": false,
+    "unsound": true,
     "imprecise": false,
     "unknown": false,
     "error": false,
