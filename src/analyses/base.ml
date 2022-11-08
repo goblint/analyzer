@@ -1573,35 +1573,6 @@ struct
     let eval_rv_address = eval_rv_address
     let eval_lv = eval_lv
 
-    let apply_invariant oldv newv =
-      match oldv, newv with
-      (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
-      (*   `Address (AD.join o n) *)
-      (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
-      (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
-      | _ -> VD.meet oldv newv
-
-    let refine_lv_fallback ctx a gs st lval value tv =
-      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-      let addr = eval_lv a gs st lval in
-      if (AD.is_top addr) then st
-      else
-        let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
-        let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
-        let t_lval = Cilfacade.typeOfLval lval in
-        let state_with_excluded = set a gs st addr t_lval value ~invariant:true ~ctx in
-        let value =  get a gs state_with_excluded addr None in
-        let new_val = apply_invariant oldval value in
-        if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
-        (* make that address meet the invariant, i.e exclusion sets will be joined *)
-        if is_some_bot new_val then (
-          if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
-          raise Analyses.Deadcode
-        )
-        else if VD.is_bot new_val
-        then set a gs st addr t_lval value ~invariant:true ~ctx (* no *_raw because this is not a real assignment *)
-        else set a gs st addr t_lval new_val ~invariant:true ~ctx (* no *_raw because this is not a real assignment *)
-
     let refine_lv ctx a gs st c x c' pretty exp =
       let eval e st = eval_rv a gs st e in
       let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~invariant:true ~ctx in
@@ -1628,6 +1599,11 @@ struct
           if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
           set' x v st
         )
+
+    let get a gs st addrs exp = get a gs st addrs exp
+    let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:true gs st lval lval_type value
+
+    let map_oldval oldval _ = oldval
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
@@ -2392,38 +2368,7 @@ struct
           let oa = Analyses.ask_of_ctx octx
           let ost = octx.local
 
-          let apply_invariant oldv newv =
-            match oldv, newv with
-            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
-            (*   `Address (AD.join o n) *)
-            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
-            (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
-            | _ -> VD.meet oldv newv
-
           (* all updates happen in ctx with top values *)
-
-          let refine_lv_fallback ctx a gs st lval value tv =
-            if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-            let addr = eval_lv oa gs ost lval in
-            if (AD.is_top addr) then st
-            else
-              let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
-              let t_lval = Cilfacade.typeOfLval lval in
-              let oldval = if VD.is_bot oldval then VD.top_value t_lval else oldval in
-              let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
-              let state_with_excluded = set a gs st addr t_lval value ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
-              let value =  get a gs state_with_excluded addr None in
-              let new_val = apply_invariant oldval value in
-              if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
-              (* make that address meet the invariant, i.e exclusion sets will be joined *)
-              if is_some_bot new_val then (
-                if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
-                raise Analyses.Deadcode
-              )
-              else if VD.is_bot new_val
-              (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
-              then set a gs st addr t_lval value ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
-              else set a gs st addr t_lval new_val ~invariant:false ~ctx (* no *_raw because this is not a real assignment *)
 
           let refine_lv ctx a gs st c x c' pretty exp =
             let eval_rv_lval lv st =
@@ -2515,6 +2460,11 @@ struct
 
           (* all evals happen in octx with non-top values *)
           (* must be down here to make evals in refines call the real ones *)
+          let get a gs st addrs exp = get a gs st addrs exp
+          let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:false gs st lval lval_type value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+
+          let map_oldval oldval t_lval =
+            if VD.is_bot oldval then VD.top_value t_lval else oldval
 
           let eval_rv a gs st e = eval_rv oa gs ost e
           let eval_rv_address a gs st e = eval_rv_address oa gs ost e

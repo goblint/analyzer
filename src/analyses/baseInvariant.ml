@@ -18,7 +18,11 @@ sig
   val eval_rv_address: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
   val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
 
-  val refine_lv_fallback: (D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> lval -> VD.t -> bool -> D.t
+  val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
+  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> VD.t -> D.t
+
+  val map_oldval: VD.t -> typ -> VD.t
+
   val refine_lv: (D.t, G.t, _, V.t) Analyses.ctx -> Queries.ask -> (V.t -> G.t) -> D.t -> 'a -> lval -> VD.t -> (unit -> 'a -> doc) -> exp -> D.t
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
@@ -43,6 +47,36 @@ struct
     match x with
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | _ -> VD.is_bot_value x
+
+  let apply_invariant oldv newv =
+    match oldv, newv with
+    (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
+    (*   `Address (AD.join o n) *)
+    (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
+    (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
+    | _ -> VD.meet oldv newv
+
+  let refine_lv_fallback ctx a gs st lval value tv =
+    if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+    let addr = eval_lv a gs st lval in
+    if (AD.is_top addr) then st
+    else
+      let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let t_lval = Cilfacade.typeOfLval lval in
+      let oldval = map_oldval oldval t_lval in
+      let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+      let state_with_excluded = set a gs st addr t_lval value ~ctx in
+      let value =  get a gs state_with_excluded addr None in
+      let new_val = apply_invariant oldval value in
+      if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
+      (* make that address meet the invariant, i.e exclusion sets will be joined *)
+      if is_some_bot new_val then (
+        if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
+        raise Analyses.Deadcode
+      )
+      else if VD.is_bot new_val
+      then set a gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
+      else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let invariant_fallback ctx a (gs:V.t -> G.t) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
