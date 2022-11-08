@@ -10,6 +10,7 @@ type t =
   | Access of {exp: CilType.Exp.t; lvals: Queries.LS.t; kind: AccessKind.t; reach: bool}
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *) (* TODO: unused *)
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
+  | Assert of exp
   | Unassume of {exp: CilType.Exp.t; uuids: string list}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
@@ -24,7 +25,8 @@ let emit_on_deadcode = function
   | AssignSpawnedThread _ (* Happens only after live thread spawn. *)
   | Assign _
   | UpdateExpSplit _ (* Pointless to split on dead. *)
-  | Unassume _ -> (* Avoid spurious writes. *)
+  | Unassume _ (* Avoid spurious writes. *)
+  | Assert _ -> (* Pointless to refine dead. *)
     false
 
 let pretty () = function
@@ -37,4 +39,5 @@ let pretty () = function
   | Access {exp; lvals; kind; reach} -> dprintf "Access {exp=%a; lvals=%a; kind=%a; reach=%B}" CilType.Exp.pretty exp Queries.LS.pretty lvals AccessKind.pretty kind reach
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
   | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp
+  | Assert exp -> dprintf "Assert %a" d_exp exp
   | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids

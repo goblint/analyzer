@@ -27,3 +27,12 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
     end
 
 let equal = List.eq
+
+(** Given a predicate and a list, returns two lists [(l1, l2)].
+    [l1] contains the prefix of the list until the last element that satisfies the predicate, [l2] contains all subsequent elements. The order of elements is preserved. *)
+let until_last_with (pred: 'a -> bool) (xs: 'a list) =
+  let rec until_last_helper last seen = function
+    | [] -> List.rev last, List.rev seen
+    | h::t -> if pred h then until_last_helper (h::seen@last) [] t else until_last_helper last (h::seen) t
+  in
+  until_last_helper [] [] xs

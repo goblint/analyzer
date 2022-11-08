@@ -1,5 +1,6 @@
 // Extracted from zstd
 #include <stddef.h>
+#include <stdlib.h>
 #include <goblint.h>
 
 typedef void* (*ZSTD_allocFunction) (void* opaque, size_t size);

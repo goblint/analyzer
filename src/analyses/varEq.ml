@@ -47,67 +47,23 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let const_equal c1 c2 =
-    match c1, c2 with
-    |	CStr (s1,_)  , CStr (s2,_)	 -> s1 = s2
-    |	CWStr (is1,_), CWStr (is2,_) -> is1 = is2
-    |	CChr c1  , CChr c2   -> c1 = c2
-    |	CInt (v1,k1,_), CInt (v2,k2,_) -> Cilint.compare_cilint v1 v2 = 0 && k1 = k2
-    |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
-    |	CEnum (_,n1,e1), CEnum (_,n2,e2) -> n1 = n2 && e1.ename = e2.ename
-    | _ -> false
+  let typ_equal = CilType.Typ.equal (* TODO: Used to have equality checking, which ignores attributes. Is that needed? *)
 
-  let option_eq f x y =
-    match x, y with
-    | Some x, Some y -> f x y
-    | None, None -> true
-    | _ -> false
+  let contains_float_subexp e =
+    let visitor = object
+      inherit Cil.nopCilVisitor
 
-  let rec typ_equal t1 t2 =
-    let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
-    let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
-    match t1, t2 with
-    | TVoid _, TVoid _ -> true
-    | TInt (k1,_), TInt (k2,_) -> k1 = k2
-    | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
-    | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
-    | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
-    | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (GobList.equal args_eq) arg1 arg2
-    | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
-    | TComp (c1,_), TComp (c2,_) -> CilType.Compinfo.equal c1 c2
-    | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && GobList.equal eitem_eq e1.eitems e2.eitems
-    | TBuiltin_va_list _, TBuiltin_va_list _ -> true
-    | _ -> false
-
-  and lval_equal (l1,o1) (l2,o2) =
-    let rec offs_equal o1 o2 =
-      match o1, o2 with
-      | NoOffset, NoOffset -> true
-      | Field (f1, o1), Field (f2,o2) -> CilType.Fieldinfo.equal f1 f2 && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
-      | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2
-      | _ -> false
+      method! vexpr e =
+        if Cilfacade.isFloatType (Cilfacade.typeOf e) then
+          raise Exit;
+        DoChildren
+    end
     in
-    offs_equal o1 o2
-    && match l1, l2 with
-    | Var v1, Var v2 -> CilType.Varinfo.equal v1 v2 && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
-    | Mem m1, Mem m2 -> exp_equal m1 m2
+    match Cil.visitCilExpr visitor e with
     | _ -> false
-
-  and exp_equal e1 e2 =
-    match e1, e2 with
-    |	Const c1,	Const c2 -> const_equal c1 c2
-    |	AddrOf l1,	AddrOf l2
-    |	StartOf l1,	StartOf l2
-    |	Lval l1 ,	Lval  l2 -> lval_equal l1 l2
-    |	SizeOf t1,	SizeOf t2 -> typ_equal t1 t2
-    |	SizeOfE e1,	SizeOfE e2 -> exp_equal e1 e2
-    |	SizeOfStr s1,	SizeOfStr s2 -> s1 = s2
-    |	AlignOf t1,	AlignOf t2 -> typ_equal t1 t2
-    |	AlignOfE e1,	AlignOfE e2 -> exp_equal e1 e2
-    |	UnOp (o1,e1,t1),	UnOp (o2,e2,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e1 e2
-    |	BinOp (o1,e11,e21,t1),	BinOp(o2,e12,e22,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e11 e12 && exp_equal e21 e22
-    |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
-    | _ -> false
+    | exception Exit -> true
+  let exp_equal e1 e2 =
+    CilType.Exp.equal e1 e2 && not (contains_float_subexp e1)
 
   (* TODO: what does interesting mean? *)
   let rec interesting x =
@@ -400,12 +356,12 @@ struct
       M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
       M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (interesting rv);
       M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
-      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv (isIntegralType lvt || isPointerType lvt);
     );
     if is_global_var ask (Lval lv) = Some false
     && interesting rv
     && is_global_var ask rv = Some false
-    && ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt)
+    && (isIntegralType lvt || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
     else remove ask lv st
   (*    in

@@ -718,6 +718,12 @@
                   "type": "boolean",
                   "default": true
                 },
+                "blobs": {
+                  "title": "ana.base.invariant.blobs",
+                  "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
+                  "type": "boolean",
+                  "default": false
+                },
                 "unassume": {
                   "title": "ana.base.invariant.unassume",
                   "description": "How many times to unassume an invariant: once or until fixpoint (at least twice as expensive).",
@@ -1835,6 +1841,12 @@
         "behavior": {
           "title": "warn.behavior",
           "description": "undefined behavior warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "call": {
+          "title": "warn.call",
+          "description": "function call warnings",
           "type": "boolean",
           "default": true
         },

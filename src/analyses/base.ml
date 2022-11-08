@@ -2083,14 +2083,16 @@ struct
       in
       let result =
         begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> `Float (FD.top_of fk)
+          | Inf fk -> `Float (FD.inf_of fk)
           | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
           | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
           | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
           | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Ceil (fk,x) -> `Float (apply_unary fk FD.ceil x)
+          | Floor (fk,x) -> `Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
           | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
           | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)
@@ -2099,6 +2101,14 @@ struct
           | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
+          | Isgreater (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> `Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Fmax (fd, x ,y) -> `Float (apply_binary fd FD.fmax x y)
+          | Fmin (fd, x ,y) -> `Float (apply_binary fd FD.fmin x y)
         end
       in
       begin match lv with
@@ -2425,6 +2435,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Assert exp ->
+      assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
       Timing.wrap "base unassume" (unassume ctx exp) uuids
     | _ ->

@@ -294,7 +294,7 @@ struct
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
+        ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* see 29/29 on why fallback is needed *)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")

@@ -214,8 +214,8 @@ module type IkindUnawareS =
 sig
   include B
   include Arith with type t:= t
-  val starting   : Cil.ikind -> int_t -> t
-  val ending     : Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
@@ -223,7 +223,7 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
@@ -249,8 +249,8 @@ sig
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
   val widen: Cil.ikind -> t -> t -> t
-  val starting : Cil.ikind -> int_t -> t
-  val ending : Cil.ikind -> int_t -> t
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: Cil.ikind -> int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
@@ -258,7 +258,7 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
@@ -288,12 +288,12 @@ sig
   (** Transform a known boolean value to the default internal representation of the specified ikind. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 
-  val starting   : Cil.ikind -> int_t -> t
-  val ending     : Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
 

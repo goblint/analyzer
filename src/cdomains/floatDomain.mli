@@ -17,8 +17,16 @@ module type FloatArith = sig
   (** Multiplication: [x * y] *)
   val div : t -> t -> t
   (** Division: [x / y] *)
+  val fmax : t -> t -> t
+  (** Maximum *)
+  val fmin : t -> t -> t
+  (** Minimum *)
 
   (** {unary functions} *)
+  val ceil: t -> t
+  (* ceil(x) *)
+  val floor: t -> t
+  (* floor(x) *)
   val fabs : t -> t
   (** fabs(x) *)
   val acos : t -> t
@@ -48,6 +56,8 @@ module type FloatArith = sig
   (** Equal to: [x == y] *)
   val ne : t -> t -> IntDomain.IntDomTuple.t
   (** Not equal to: [x != y] *)
+  val unordered: t -> t -> IntDomain.IntDomTuple.t
+  (** Unordered *)
 
   (** {unary functions returning int} *)
   val isfinite : t -> IntDomain.IntDomTuple.t
@@ -67,6 +77,8 @@ module type FloatDomainBase = sig
   include FloatArith with type t := t
 
   val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+
+  val nan: unit -> t
 
   val of_const : float -> t
   val of_interval : float * float -> t
@@ -102,6 +114,10 @@ module type FloatDomain = sig
 
   val top_of: Cil.fkind -> t
   val bot_of: Cil.fkind -> t
+
+  val nan_of: Cil.fkind -> t
+  val inf_of: Cil.fkind -> t
+  val minus_inf_of: Cil.fkind -> t
 
   val ending : Cil.fkind -> float -> t
   val starting : Cil.fkind -> float -> t

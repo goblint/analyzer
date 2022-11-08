@@ -621,6 +621,8 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
+    | Assert exp ->
+      assert_fn ctx exp true
     | Events.Unassume {exp = e; uuids} ->
       let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
