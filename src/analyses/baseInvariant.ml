@@ -65,7 +65,14 @@ struct
       let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
       let oldval = map_oldval oldval t_lval in
-      let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+      let oldval =
+        if is_some_bot oldval then (
+          if M.tracing then M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval;
+          VD.top ()
+        )
+        else
+          oldval
+      in
       let state_with_excluded = set a gs st addr t_lval value ~ctx in
       let value =  get a gs state_with_excluded addr None in
       let new_val = apply_invariant oldval value in
