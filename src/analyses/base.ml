@@ -844,9 +844,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in
