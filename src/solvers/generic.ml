@@ -196,7 +196,7 @@ module DirtyBoxSolver : GenericEqSolver =
         if not (H.mem sol x) then solve_one x;
         (* do nothing if we have stabilized [x] *)
         let oldd = H.find sol x in
-        let newd = box x oldd d in
+        let newd = box oldd d in
         update_var_event x oldd newd;
         if not (S.Dom.equal oldd newd) then begin
           (* set the new value for [x] *)
@@ -289,7 +289,7 @@ module SoundBoxSolverImpl =
         (* do nothing if we have stabilized [x] *)
         let oldd = H.find sol x in
         (* compute the new value *)
-        let newd = box x oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
+        let newd = box oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
         if not (S.Dom.equal oldd newd) then begin
           update_var_event x oldd newd;
           (* set the new value for [x] *)
@@ -404,7 +404,7 @@ module PreciseSideEffectBoxSolver : GenericEqSolver =
           try S.Dom.join d (VM.find x (H.find sols z))
           with Not_found -> d
         in
-        let newd = box x oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
+        let newd = box oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
         update_var_event x oldd newd;
         if not (S.Dom.equal oldd newd) then begin
           (* set the new value for [x] *)

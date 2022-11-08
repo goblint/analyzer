@@ -66,7 +66,7 @@ module SLR3 =
           let tmp =
             if wpx then
               if HM.mem globals x then S.Dom.widen old tmp
-              else box x old tmp
+              else box old tmp
             else tmp
           in
           if not (S.Dom.equal old tmp) then begin
@@ -401,7 +401,7 @@ module Make0 =
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = if use_box then box x old tmp else tmp in
+          let tmp = if use_box then box old tmp else tmp in
           if not (D.eq tmp old) then begin
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             let _ = X.set_value x tmp in

@@ -193,7 +193,7 @@ module WP =
               if term then
                 match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
               else
-                box x old tmp
+                box old tmp
           in
           if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
