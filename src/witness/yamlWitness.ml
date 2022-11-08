@@ -55,6 +55,14 @@ struct
     format = "C";
   }
 
+  let location_invariant ~task ~location ~(invariant): Entry.t = {
+    entry_type = LocationInvariant {
+        location;
+        location_invariant = invariant;
+      };
+    metadata = metadata ~task ();
+  }
+
   let loop_invariant ~task ~location ~(invariant): Entry.t = {
     entry_type = LoopInvariant {
         location;
