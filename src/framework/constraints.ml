@@ -795,8 +795,8 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
 
     type marshal = unit
 
-    let solve box xs vs =
-      let vh = Sol.solve box xs vs in
+    let solve xs vs =
+      let vh = Sol.solve xs vs in
       Post.post xs vs vh;
       (vh, ())
   end
@@ -941,8 +941,7 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let box f x y = if EqSys.Dom.leq y x then EqSys.Dom.narrow x y else EqSys.Dom.widen x (EqSys.Dom.join x y) in
-        let hm, solver_data = Sol'.solve box vs sv in
+        let hm, solver_data = Sol'.solve vs sv in
         Splitter.split_solution hm, solver_data
     end
 

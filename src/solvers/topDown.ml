@@ -9,6 +9,7 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S)
 
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
@@ -20,7 +21,7 @@ module WP =
 
     module HPM = Hashtbl.Make (P)
 
-    let solve box st vs =
+    let solve st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
       let set    = HM.create  10 in (* y -> xs *)

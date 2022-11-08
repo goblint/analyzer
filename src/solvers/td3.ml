@@ -21,6 +21,7 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -85,7 +86,7 @@ module WP =
     module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
-    let solve box st vs data =
+    let solve st vs data =
       let term  = GobConfig.get_bool "solvers.td3.term" in
       let side_widen = GobConfig.get_string "solvers.td3.side_widen" in
       let space = GobConfig.get_bool "solvers.td3.space" in
@@ -997,7 +998,7 @@ module WP =
       verify_data data;
       {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
-    let solve box st vs =
+    let solve st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
       let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
       if GobConfig.get_bool "incremental.load" then (
@@ -1093,12 +1094,12 @@ module WP =
           data.infl <- HM.create 10
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
-        let result = solve box st vs data in
+        let result = solve st vs data in
         result.rho, result
       )
       else (
         let data = create_empty_data () in
-        let result = solve box st vs data in
+        let result = solve st vs data in
         result.rho, result
       )
   end
