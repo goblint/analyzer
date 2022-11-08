@@ -538,7 +538,7 @@ end
 
 (** A solver is something that can translate a system into a solution (hash-table).
     Incremental solver has data to be marshaled. *)
-module type GenericEqBoxIncrSolverBase =
+module type GenericEqIncrSolverBase =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig
@@ -560,12 +560,12 @@ sig
 end
 
 (** An incremental solver takes the argument about postsolving. *)
-module type GenericEqBoxIncrSolver =
+module type GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
-    GenericEqBoxIncrSolverBase
+    GenericEqIncrSolverBase
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericEqBoxSolver =
+module type GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig

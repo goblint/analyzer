@@ -458,7 +458,7 @@ module Make0 =
 module Make (V: Version) = Make0 (V) (SolverBox.Warrow)
 
 
-module type MyGenericEqBoxSolver =
+module type MyGenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   sig
@@ -472,7 +472,7 @@ module type MyGenericEqBoxSolver =
   end
 
 module PrintInfluence =
-  functor (Sol:MyGenericEqBoxSolver) ->
+  functor (Sol:MyGenericEqSolver) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct

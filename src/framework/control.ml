@@ -503,7 +503,7 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 : GenericEqBoxIncrSolver) =
+        let compare_with (module S2 : GenericEqIncrSolver) =
           let module PostSolverArg2 =
           struct
             include PostSolverArg

@@ -1105,4 +1105,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("td3", (module WP : GenericEqBoxIncrSolver));
+  Selector.add_solver ("td3", (module WP : GenericEqIncrSolver));

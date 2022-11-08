@@ -787,7 +787,7 @@ end
 
 (** Convert a non-incremental solver into an "incremental" solver.
     It will solve from scratch, perform standard postsolving and have no marshal data. *)
-module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolver =
+module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Sol = Sol (S) (VH)
@@ -921,8 +921,8 @@ struct
   include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
 end
 
-(** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
+(** Transforms a [GenericEqIncrSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->

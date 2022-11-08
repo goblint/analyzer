@@ -23,12 +23,12 @@ module Make =
     type marshal = Obj.t (* cannot use Sol.marshal because cannot unpack first-class module in applicative functor *)
 
     let solve xs vs =
-      let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqIncrSolver) in
       let module F = Sol (Arg) (S) (VH) in
       let (vh, marshal) = F.solve xs vs in
       (vh, Obj.repr marshal)
   end
 
 let _ =
-  let module T1 : GenericEqBoxIncrSolver = Make in
+  let module T1 : GenericEqIncrSolver = Make in
   ()

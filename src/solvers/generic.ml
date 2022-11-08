@@ -5,7 +5,7 @@ open Analyses
 let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
-module LoadRunSolver: GenericEqBoxSolver =
+module LoadRunSolver: GenericEqSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     let solve xs vs =
@@ -30,7 +30,7 @@ module LoadRunSolver: GenericEqBoxSolver =
         vh
   end
 
-module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+module LoadRunIncrSolver: GenericEqIncrSolver =
   Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
@@ -149,7 +149,7 @@ struct
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
-module DirtyBoxSolver : GenericEqBoxSolver =
+module DirtyBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
@@ -321,12 +321,12 @@ module SoundBoxSolverImpl =
     let solve xs ys = solveWithStart (H.create 1024, H.create 1024) xs ys |> fst
   end
 
-module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
+module SoundBoxSolver : GenericEqSolver = SoundBoxSolverImpl
 
 
 
 (* use this if you do widenings & narrowings for globals --- outdated *)
-module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
+module PreciseSideEffectBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
