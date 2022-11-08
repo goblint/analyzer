@@ -514,15 +514,7 @@ module TwoPhased =
       N.solve [] iv'
   end
 
-module JustWiden =
-  functor (V:Version) ->
-  functor (S:EqConstrSys) ->
-  functor (HM:Hashtbl.S with type key = S.v) ->
-  struct
-    include Make0 (V) (SolverBox.Warrow) (S) (HM)
-    let solve is iv =
-      solve is iv
-  end
+module JustWiden (V:Version) = Make0 (V) (SolverBox.Widen)
 
 let _ =
   let module W1 = JustWiden (struct let ver = 1 end) in
