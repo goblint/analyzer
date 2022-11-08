@@ -780,57 +780,8 @@ struct
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
       (* Variables and address expressions *)
-      | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
-      (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
-      | Lval (Mem e, ofs) ->
-        (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
-        let rec contains_vla (t:typ) = match t with
-          | TPtr (t, _) -> contains_vla t
-          | TArray(t, None, args) -> true
-          | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
-          | TArray(t, Some exp, args) -> true
-          | _ -> false
-        in
-        let b = Mem e, NoOffset in (* base pointer *)
-        let t = Cilfacade.typeOfLval b in (* static type of base *)
-        let p = eval_lv a gs st b in (* abstract base addresses *)
-        let v = (* abstract base value *)
-          let open Addr in
-          (* pre VLA: *)
-          (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
-          let cast_ok = function
-            | Addr (x, o) ->
-              begin
-                let at = get_type_addr (x, o) in
-                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
-                if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
-                  true
-                else
-                  match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-                  | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                  | _ ->
-                    if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                      begin
-                        (* TODO: Is this ok? *)
-                        M.info ~category:Unsound "Casting involving a VLA is assumed to work";
-                        true
-                      end
-                    else
-                      false
-              end
-            | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
-            | _ -> false
-          in
-          if AD.for_all cast_ok p then
-            get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
-          else
-            VD.top () (* upcasts not! *)
-        in
-        let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-        if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
-        let v' = do_offs v' ofs in (* handle blessed fields? *)
-        v'
+      | Lval lv ->
+        eval_rv_base_lval ~eval_lv ~do_offs a gs st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
@@ -951,6 +902,60 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  and eval_rv_base_lval ~eval_lv ~do_offs (a: Q.ask) (gs:glob_fun) (st: store) (exp: exp) (lv: lval): value =
+    match lv with
+    | (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs
+    (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
+    | (Mem e, ofs) ->
+      (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+      let rec contains_vla (t:typ) = match t with
+        | TPtr (t, _) -> contains_vla t
+        | TArray(t, None, args) -> true
+        | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
+        | TArray(t, Some exp, args) -> true
+        | _ -> false
+      in
+      let b = Mem e, NoOffset in (* base pointer *)
+      let t = Cilfacade.typeOfLval b in (* static type of base *)
+      let p = eval_lv a gs st b in (* abstract base addresses *)
+      let v = (* abstract base value *)
+        let open Addr in
+        (* pre VLA: *)
+        (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+        let cast_ok = function
+          | Addr (x, o) ->
+            begin
+              let at = get_type_addr (x, o) in
+              if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+              if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
+                true
+              else
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
+                | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+                | _ ->
+                  if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                    begin
+                      (* TODO: Is this ok? *)
+                      M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                      true
+                    end
+                  else
+                    false
+            end
+          | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
+          | _ -> false
+        in
+        if AD.for_all cast_ok p then
+          get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
+        else
+          VD.top () (* upcasts not! *)
+      in
+      let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+      if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+      let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+      let v' = do_offs v' ofs in (* handle blessed fields? *)
+      v'
 
   and evalbinop (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
     evalbinop_mustbeequal a gs st op ~e1 ?t1 ~e2 ?t2 t
@@ -2375,61 +2380,10 @@ struct
               (* old: *)
               (* eval_rv a gs st (Lval lv) *)
 
-              (* new, copied from eval_rv_base to use different ctx for eval_lv (for Mem): *)
-              (* TODO: deduplicate *)
+              (* new, use different ctx for eval_lv (for Mem): *)
+              let eval_lv a gs st lv = eval_lv oa gs ost lv in (* TODO: deduplicate *)
               let do_offs def o = def in (* HACK: no do_offs blessed here *)
-              match lv with
-              | (Var v, ofs) -> do_offs (get a gs st (eval_lv oa gs ost (Var v, ofs)) (Some exp)) ofs
-              (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
-              | (Mem e, ofs) ->
-                (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
-                let rec contains_vla (t:typ) = match t with
-                  | TPtr (t, _) -> contains_vla t
-                  | TArray(t, None, args) -> true
-                  | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
-                  | TArray(t, Some exp, args) -> true
-                  | _ -> false
-                in
-                let b = Mem e, NoOffset in (* base pointer *)
-                let t = Cilfacade.typeOfLval b in (* static type of base *)
-                let p = eval_lv oa gs ost b in (* abstract base addresses *)
-                let v = (* abstract base value *)
-                  let open Addr in
-                  (* pre VLA: *)
-                  (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
-                  let cast_ok = function
-                    | Addr (x, o) ->
-                      begin
-                        let at = get_type_addr (x, o) in
-                        if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
-                        if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
-                          true
-                        else
-                          match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-                          | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                          | _ ->
-                            if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                              begin
-                                (* TODO: Is this ok? *)
-                                M.info ~category:Unsound "Casting involving a VLA is assumed to work";
-                                true
-                              end
-                            else
-                              false
-                      end
-                    | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
-                    | _ -> false
-                  in
-                  if AD.for_all cast_ok p then
-                    get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
-                  else
-                    VD.top () (* upcasts not! *)
-                in
-                let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-                if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-                let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
-                let v' = do_offs v' ofs in (* handle blessed fields? *)
-                v'
+              eval_rv_base_lval ~eval_lv ~do_offs a gs st exp lv
             in
             let set' lval v st = set a gs st (eval_lv oa gs ost lval) (Cilfacade.typeOfLval lval) v ~invariant:false ~ctx in (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
             match x with
