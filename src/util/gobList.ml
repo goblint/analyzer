@@ -40,12 +40,16 @@ let until_last_with (pred: 'a -> bool) (xs: 'a list) =
   until_last_helper [] [] xs
 
 
+(** Open this to use applicative functor/monad syntax for {!list}. *)
 module Syntax =
 struct
+  (* Applicative functor. *)
   let (let+) x f = List.map f x
   let (and+) = List.cartesian_product
+
+  (* Monad *)
   let (let*) x f = List.concat_map f x
   let (and*) = (and+)
 
-  let (>>=) x f= List.concat_map f x
+  let (>>=) x f = List.concat_map f x
 end
