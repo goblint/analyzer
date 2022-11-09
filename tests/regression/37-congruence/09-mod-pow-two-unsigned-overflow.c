@@ -10,7 +10,7 @@ int main()
 	{
 		a = a + b * 3;
 		b = b + b * 5;
-		__goblint_checks(a % 16 == 0);
+		__goblint_check(a % 16 == 0);
 	}
 
 	return 0;
