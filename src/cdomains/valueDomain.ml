@@ -1204,7 +1204,7 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
+and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
 

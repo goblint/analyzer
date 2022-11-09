@@ -661,6 +661,22 @@ struct
       YWitness.validate lh gh file
     );
 
+    let module Q = YamlWitness.Query (Spec) (EQSys) (GHT) in 
+    let module NH = BatHashtbl.Make (Node) in 
+    (* copied from Constraints.CompareNode *)
+    let nh = NH.create 113 in
+    LHT.iter (fun (n, _) d ->
+        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
+        NH.replace nh n d'
+      ) lh;
+
+    WarnPostProc.ask := (fun node ->
+        let local = (NH.find nh node) in
+        { Queries.f    = (fun (type a) (q: a Queries.t) -> Q.ask_local_node gh node local q)}
+      );
+    
+  
+
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)
     let gobview = get_bool "gobview" in

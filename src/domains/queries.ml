@@ -32,6 +32,8 @@ struct
 
   let to_int x = unlift_opt I.to_int x
   let to_bool x = unlift_opt I.to_bool x
+  let minimal x = unlift_opt I.minimal x
+  let maximal x = unlift_opt I.maximal x
 
   let is_bot_ikind = function
     | `Bot -> false

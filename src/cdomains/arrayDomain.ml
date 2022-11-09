@@ -7,6 +7,7 @@ module M = Messages
 module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
+module Idx = PreValueDomain.IndexDomain
 
 module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
 
@@ -70,7 +71,7 @@ sig
 end
 
 
-module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module Trivial (Val: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   include Val
   let name () = "trivial arrays"
@@ -103,7 +104,7 @@ let factor () =
   | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
   | x -> x
 
-module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module Unroll (Val: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
   module Base = Lattice.ProdList (Val) (Factor)
@@ -195,7 +196,7 @@ sig
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z):SPartitioned with type value = Val.t and type idx = Idx.t =
+module Partitioned (Val: LatticeWithSmartOps):SPartitioned with type value = Val.t and type idx = Idx.t =
 struct
   (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
   (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
@@ -691,8 +692,14 @@ struct
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
+
+let add_alarm (e, l) w =
+  match (!Node.current_node) with
+  | Some n -> WarnPostProc.NH.replace WarnPostProc.alarmsNH n ((e, l), w);
+  | _ -> failwith "TODO"
+
 (* This is the main array out of bounds check *)
-let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+let array_oob_check (x, l) (e, v) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
@@ -701,27 +708,32 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
       ()
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      add_alarm (e, l) "Must access array past end";
       M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
     | Some true, None ->
+      add_alarm (e, l) "Must access array past end";
       M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
     | Some false, Some true ->
+      add_alarm (e, l) "Must access array past end";
       M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
     | None, Some true ->
+      add_alarm (e, l) "Must access array past end";
       M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
     | _ ->
+      add_alarm (e, l) "Must access array past end";
       M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
   else ()
 
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module TrivialWithLength (Val: Lattice.S): S with type value = Val.t and type idx = Idx.t  =
 struct
-  module Base = Trivial (Val) (Idx)
+  module Base = Trivial (Val)
   include Lattice.Prod (Base) (Idx)
-  type idx = Idx.t
+  type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
@@ -752,15 +764,15 @@ struct
 end
 
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps) : S with type value = Val.t and type idx = Idx.t =
 struct
-  module Base = Partitioned (Val) (Idx)
+  module Base = Partitioned (Val)
   include Lattice.Prod (Base) (Idx)
-  type idx = Idx.t
+  type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
@@ -801,15 +813,15 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module UnrollWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module UnrollWithLength (Val: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  module Base = Unroll (Val) (Idx)
+  module Base = Unroll (Val)
   include Lattice.Prod (Base) (Idx)
-  type idx = Idx.t
+  type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
@@ -840,13 +852,13 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
+module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps):S with type value = Val.t and type idx = Idx.t =
 struct
-  module P = PartitionedWithLength(Val)(Idx)
-  module T = TrivialWithLength(Val)(Idx)
-  module U = UnrollWithLength(Val)(Idx)
+  module P = PartitionedWithLength(Val)
+  module T = TrivialWithLength(Val)
+  module U = UnrollWithLength(Val)
 
-  type idx = Idx.t
+  type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
   module K = struct
