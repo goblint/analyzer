@@ -2317,14 +2317,14 @@ struct
     in
     find n Ints_t.one
 
-  (* From n === k mod (2^a * b), we conclude n === k mod 2^a,
-     for a <= 2^{bitwidth}.
+  (* Handle unsigned overflows. 
+     From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= 2^{bitwidth}.
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
     let max = (snd (Size.range ik)) +: Ints_t.one in
     let m' = find_power_of_two m in
-    if m' >: max then
-      (* if m' > 2 ^ {bitlength}, there is only one value in range *)
+    if m' >=: max then
+      (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
       let c' = c %: max in
       Some (c', Ints_t.zero)
     else
