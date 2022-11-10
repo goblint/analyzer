@@ -1,6 +1,6 @@
 // PARAM: --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 // extracted from ddverify pcwd
-#include <assert.h>
+#include <goblint.h>
 
 // header declarations
 

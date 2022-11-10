@@ -58,6 +58,9 @@ jobs:
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test regression cram
+        run: opam exec -- dune runtest tests/regression
+
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
@@ -101,7 +104,7 @@ jobs:
         run: ./make.sh nat
 
       - name: Test extraction
-        run: cd tests/extraction && ./test.sh
+        run: opam exec -- dune runtest tests/extraction
 
 
   gobview:

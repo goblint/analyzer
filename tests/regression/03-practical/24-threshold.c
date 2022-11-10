@@ -1,7 +1,7 @@
 // PARAM: --enable ana.int.interval --enable ana.int.interval_threshold_widening
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 

@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron
-#include <assert.h>
+#include <goblint.h>
 
 void main() {
   int x, y, z;

@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 typedef struct {
   int re;

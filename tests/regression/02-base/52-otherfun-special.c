@@ -1,6 +1,6 @@
 // SKIP PARAM: --set otherfun '["magic"]'
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 extern void* magic(void* arg);
 int g;

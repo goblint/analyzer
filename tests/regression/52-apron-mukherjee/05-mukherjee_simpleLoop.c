@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set sem.int.signed_overflow assume_none
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 unsigned int x, y, z;
 

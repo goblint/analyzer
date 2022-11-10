@@ -1,6 +1,6 @@
 // PARAM: --enable ana.sv-comp.functions
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int myglobal = 5;
 

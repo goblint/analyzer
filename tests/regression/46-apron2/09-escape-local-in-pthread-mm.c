@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.base.privatization none --set ana.apron.privatization mutex-meet
 // Copy of 45 01 for apron
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 #include <unistd.h>
 

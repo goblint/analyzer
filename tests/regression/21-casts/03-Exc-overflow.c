@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 int main () {
   char a;

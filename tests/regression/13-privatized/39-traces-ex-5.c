@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 2; // matches expected synchronized read
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;

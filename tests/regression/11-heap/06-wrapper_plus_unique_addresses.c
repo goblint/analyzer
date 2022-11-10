@@ -5,7 +5,7 @@
 // the combination of uniqueness analysis and malloc wrapper analysis.
 
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 void *myalloc(size_t n) {
   return malloc(n);

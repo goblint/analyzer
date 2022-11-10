@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 // extracted from sv-benchmarks float-newlib/double_req_bl_0210.c
-#include <assert.h>
+#include <goblint.h>
 
 typedef int __int32_t;
 

@@ -23,7 +23,8 @@ void update (int *p) {
   struct s *s = list_entry(p, struct s, list);
   pthread_mutex_lock(&s->mutex);
   s++;
-  s->datum++; // RACE!
+  // Not actual race: https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1354
+  s->datum++; // RACE
   pthread_mutex_unlock(&s->mutex); // no UB because ERRORCHECK
 }
 

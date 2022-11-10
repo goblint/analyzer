@@ -1,6 +1,6 @@
 //PARAM: --set ana.activated[+] threadJoins
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 int h = 10;
@@ -15,7 +15,7 @@ void *t_benign(void *arg) {
   h++; // RACE!
   pthread_t id2;
   pthread_create(&id2, NULL, t_fun, NULL);
-  __goblint_assume_join(id2, NULL);
+  __goblint_assume_join(id2);
   // t_fun should be in here
   return NULL;
 }

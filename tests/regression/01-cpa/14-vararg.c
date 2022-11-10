@@ -1,6 +1,6 @@
 #include<stdio.h>
 #include<stdarg.h>
-#include<assert.h>
+#include <goblint.h>
 
 int kala (int x, ...) {
   return x;

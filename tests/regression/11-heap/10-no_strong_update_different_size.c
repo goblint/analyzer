@@ -1,6 +1,6 @@
 // PARAM: --set ana.malloc.unique_address_count 2
 
-#include <assert.h>
+#include <goblint.h>
 #include <stdlib.h>
 #include <stdint.h>
 

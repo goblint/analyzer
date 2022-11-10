@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 int g = 1;

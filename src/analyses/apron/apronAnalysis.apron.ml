@@ -91,6 +91,28 @@ struct
     in
     (apr', e', v_ins)
 
+  let read_globals_to_locals_inv (ask: Queries.ask) getg st vs =
+    let v_ins_inv = VH.create (List.length vs) in
+    List.iter (fun v ->
+        let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+        VH.replace v_ins_inv v_in v;
+      ) vs;
+    let apr = AD.add_vars st.apr (List.map V.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
+    let apr' = VH.fold (fun v_in v apr ->
+        read_global ask getg {st with apr = apr} v v_in (* g#in = g; *)
+      ) v_ins_inv apr
+    in
+    let visitor_inv = object
+      inherit nopCilVisitor
+      method! vvrbl (v: varinfo) =
+        match VH.find_option v_ins_inv v with
+        | Some v' -> ChangeTo v'
+        | None -> SkipChildren
+    end
+    in
+    let e_inv e = visitCilExpr visitor_inv e in
+    (apr', e_inv, v_ins_inv)
+
   let read_from_globals_wrapper ask getg st e f =
     let (apr', e', _) = read_globals_to_locals ask getg st e in
     f apr' e' (* no need to remove g#in-s *)
@@ -125,6 +147,7 @@ struct
       )
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+        v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with apr = AD.add_vars st.apr [V.local v_out]} in (* add temporary g#out *)
         let st' = {st with apr = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
@@ -227,7 +250,7 @@ struct
     (* Also, a local *)
     let vname = Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> V.local_name v = vname) locals with
+    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
     | Some v -> any_local_reachable
 
@@ -257,8 +280,8 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
-        | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Arg _) when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_apr;
@@ -340,8 +363,8 @@ struct
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
-        | Some Arg -> true (* keep caller args *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Arg _) -> true (* keep caller args *)
         | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
     in
@@ -392,9 +415,8 @@ struct
       match reachables ask es with
       | None ->
         (* top reachable, so try to invalidate everything *)
-        let fd = Node.find_fundec ctx.node in
         AD.vars st.apr
-        |> List.filter_map (V.to_cil_varinfo fd)
+        |> List.filter_map V.to_cil_varinfo
         |> List.map Cil.var
       | Some rs ->
         Queries.LS.elements rs
@@ -480,25 +502,50 @@ struct
   let query_invariant ctx context =
     let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
-
-    let apr = ctx.local.apr in
-    (* filter variables *)
-    let var_filter v = match V.find_metadata v with
-      | Some (Global _) -> keep_global
-      | Some Local -> keep_local
-      | _ -> false
-    in
-    let apr = AD.keep_filter apr var_filter in
-
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+
+    let ask = Analyses.ask_of_ctx ctx in
     let scope = Node.find_fundec ctx.node in
 
+    let (apr, e_inv) =
+      if ThreadFlag.is_multi ask then (
+        let priv_vars =
+          if keep_global then
+            Priv.invariant_vars ask ctx.global ctx.local
+          else
+            [] (* avoid pointless queries *)
+        in
+        let (apr, e_inv, v_ins_inv) = read_globals_to_locals_inv ask ctx.global ctx.local priv_vars in
+        (* filter variables *)
+        let var_filter v = match V.find_metadata v with
+          | Some (Local v) ->
+            if VH.mem v_ins_inv v then
+              keep_global
+            else
+              keep_local
+          | _ -> false
+        in
+        let apr = AD.keep_filter apr var_filter in
+        (apr, e_inv)
+      )
+      else (
+        (* filter variables *)
+        let var_filter v = match V.find_metadata v with
+          | Some (Global _) -> keep_global
+          | Some (Local _) -> keep_local
+          | _ -> false
+        in
+        let apr = AD.keep_filter ctx.local.apr var_filter in
+        (apr, Fun.id)
+      )
+    in
     AD.invariant ~scope apr
     |> List.enum
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         (* filter one-vars *)
         if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          CilOfApron.cil_exp_of_lincons1 scope lincons1
+          CilOfApron.cil_exp_of_lincons1 lincons1
+          |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
           None
@@ -571,6 +618,8 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
+    | Assert exp ->
+      assert_fn ctx exp true
     | _ ->
       st
 
@@ -583,7 +632,7 @@ struct
       (* filter variables *)
       let var_filter v = match V.find_metadata v with
         | Some (Global _) -> keep_global
-        | Some Local -> keep_local
+        | Some (Local _) -> keep_local
         | _ -> false
       in
       let st = keep_filter ctx.local.apr var_filter in
@@ -603,7 +652,7 @@ struct
       RH.map (fun _ -> AD.to_oct) m
     in
     let post_process m =
-      let m = Stats.time "convert" convert m in
+      let m = Timing.wrap "convert" convert m in
       RH.map (fun _ v -> OctApron.marshal v) m
     in
     let results = post_process results in
@@ -615,7 +664,7 @@ struct
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
       Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
-      Stats.time "apron.prec-dump" store_data (Fpath.v file)
+      Timing.wrap "apron.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
 end

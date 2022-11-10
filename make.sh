@@ -25,7 +25,7 @@ rule() {
       cp _build/default/$TARGET.exe goblint
     ;; release)
       eval $(opam config env)
-      dune build --profile release $TARGET.exe &&
+      dune build --profile=release $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable

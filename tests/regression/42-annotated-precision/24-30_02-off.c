@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.arrays.domain partitioned --disable exp.fast_global_inits --enable annotation.int.enabled --set ana.int.refinement fixpoint
 // This checks that partitioned arrays and fast_global_inits are no longer incompatible
-#include <assert.h>
+#include <goblint.h>
 
 int global_array[50];
 int global_array_multi[50][2][2];

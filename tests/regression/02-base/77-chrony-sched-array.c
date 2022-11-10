@@ -1,7 +1,7 @@
 // PARAM: --set ana.malloc.wrappers '["Malloc", "Realloc", "Malloc2", "Realloc2", "ARR_CreateInstance", "realloc_array", "ARR_GetNewElement"]' --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals
 // extracted from chrony
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 // memory.c
 

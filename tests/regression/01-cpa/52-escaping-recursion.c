@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 int rec(int i,int* ptr) {
     int top;

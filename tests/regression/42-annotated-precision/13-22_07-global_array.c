@@ -1,5 +1,5 @@
 // PARAM: --set ana.base.arrays.domain partitioned --enable annotation.int.enabled --set ana.int.refinement fixpoint
-#include <assert.h>
+#include <goblint.h>
 
 int global_array[50];
 

@@ -17,8 +17,10 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
+      "assert",
       "var_eq",
       "symb_locks",
       "region",
@@ -56,6 +58,9 @@
   "sem": {
     "unknown_function": {
       "spawn": false
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
   },
   "witness": {

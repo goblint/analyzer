@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.congruence
-#include <assert.h>
+#include <goblint.h>
 
 void unsignedCase() {
     unsigned int top;

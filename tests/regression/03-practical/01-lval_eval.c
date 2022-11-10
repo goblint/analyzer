@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 extern unsigned short const   **__ctype_b_loc(void)  __attribute__((__const__)) ;
 
