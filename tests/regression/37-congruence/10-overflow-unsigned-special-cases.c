@@ -27,23 +27,19 @@ int basic(){
 	}
 }
 
-int special(){
+int constant_result(){
 	unsigned int two_pow_18 = 262144;
 	unsigned int two_pow_17 = 131072;
 
 	unsigned int a;
-	unsigned int b;
 
 	if (a % two_pow_18 == two_pow_17)
 	{
-		if (b % two_pow_18 == two_pow_17)
-		{
-			__goblint_check(a % two_pow_18 == two_pow_17);
-			__goblint_check(b % two_pow_18 == two_pow_17);
+		__goblint_check(a % two_pow_18 == two_pow_17);
 
-			unsigned int e = a * b;
-			__goblint_check(e == 0);
-		}
+		// There can only be one result in Z/2^32
+		unsigned int e = a * a;
+		__goblint_check(e == 0);
 	}
 
 	// Hint why the above works:
@@ -51,28 +47,23 @@ int special(){
 }
 
 
-int special2(){
+int constant_result2(){
 	unsigned int two_pow_30 = 1073741824;
 	unsigned int two_pow_18 = 262144;
 	unsigned int two_pow_17 = 131072;
-	unsigned int two_pow_16 = 65536;
 	unsigned int two_pow_15 = 32768;
 
 	unsigned int x = two_pow_17 + two_pow_15;
 
 	unsigned int a;
-	unsigned int b;
 
 	if (a % two_pow_18 == x)
 	{
-		if (b % two_pow_18 == x)
-		{
-			__goblint_check(a % two_pow_18 == x);
-			__goblint_check(b % two_pow_18 == x);
+		__goblint_check(a % two_pow_18 == x);
 
-			unsigned int e = a * b;
-			__goblint_check(e == two_pow_30);
-		}
+		// There can only be one result in Z/2^32
+		unsigned int e = a * a;
+		__goblint_check(e == two_pow_30);
 	}
 
 	// Hint why the above holds:
@@ -82,6 +73,6 @@ int special2(){
 int main()
 {
 	basic();
-	special();
-	special2();
+	constant_result();
+	constant_result2();
 }
