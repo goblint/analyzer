@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set exp.unrolling-factor 5
+// PARAM: --enable ana.int.interval --set exp.unrolling-factor 5 --enable dbg.run_cil_check
 #include <goblint.h>
 
 int global;
