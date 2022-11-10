@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
 // ldv-benchmarks: u__linux-concurrency_safety__drivers---net---ethernet---amd---pcnet32.ko.c
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int debug_value = -1;

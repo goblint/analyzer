@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.context.widen
-#include <assert.h>
+#include <goblint.h>
 
 int f(int x) __attribute__((goblint_context("no-widen"))); // attributes are not permitted in a function definition
 int f(int x) {

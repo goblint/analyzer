@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 
 typedef int int_to_int_fun (int);
 

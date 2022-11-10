@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[-] escape
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 
@@ -15,6 +15,7 @@ int main(void){
 
   pthread_t tid;
   pthread_create(&tid, NULL, t, (void *)&l);
+  l = 42;
   pthread_join(tid, NULL);
 
   __goblint_check(l==42); //UNKNOWN!

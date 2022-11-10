@@ -1,5 +1,5 @@
 // PARAM: --enable dbg.cfg.loop-clusters
-#include <assert.h>
+#include <goblint.h>
 
 int cycle2_1() {
   int r = 1; // variable to prevent CIL simplification

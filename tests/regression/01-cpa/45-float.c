@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.int.def_exc --enable ana.sv-comp.functions --set ana.activated[+] var_eq --set ana.activated[+] region
-#include <assert.h>
+#include <goblint.h>
 
 int isNan(float arg) {
     float x;
@@ -23,4 +23,10 @@ int main(){
     } else {
         __goblint_check(1);
     }
- }
+
+    float *p = &top;
+    float *q = &fs;
+    __goblint_check(*p == *p); //UNKNOWN!
+    __goblint_check(q[1] == q[1]); //UNKNOWN!
+    return 0;
+}

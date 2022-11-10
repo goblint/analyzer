@@ -63,15 +63,11 @@ struct
     List.exists (fun (edges, from_node) ->
         List.exists (fun (_, edge) ->
             match edge with
-            | Proc (_, Lval (Var fv, NoOffset), args) ->
-              begin match Cilfacade.find_varinfo_fundec fv with
-                | _ -> false (* normal, not special *)
-                | exception Not_found ->
-                  let desc = LibraryFunctions.find fv in
-                  begin match desc.special args with
-                    | Lock _ -> true
-                    | _ -> false
-                  end
+            | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
+              let desc = LibraryFunctions.find fv in
+              begin match desc.special args with
+                | Lock _ -> true
+                | _ -> false
               end
             | _ -> false
           ) edges
@@ -134,7 +130,7 @@ struct
     {global_vars}
 
   let parse_cabs (inv: string): (Cabs.expression, string) result =
-    match Frontc.parse_standalone_exp inv with
+    match Timing.wrap "FrontC" Frontc.parse_standalone_exp inv with
     | inv_cabs -> Ok inv_cabs
     | exception (Frontc.ParseError e) ->
       Errormsg.log "\n"; (* CIL prints garbage without \n before *)
@@ -158,7 +154,7 @@ struct
           Cil.useLogicalOperators := old_useLogicalOperators
         ) (fun () ->
           Cil.useLogicalOperators := true;
-          Cabs2cil.convStandaloneExp ~genv ~env inv_cabs
+          Timing.wrap "Cabs2cil" (Cabs2cil.convStandaloneExp ~genv ~env) inv_cabs
         )
     in
 

@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last"
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int fun_5() { return 5; }
 int fun_6() { return 6; }

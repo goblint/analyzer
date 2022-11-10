@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.structs.domain "sets"
 
-#include<assert.h>
+#include <goblint.h>
 
 struct Pair {
     int first;

@@ -1,6 +1,6 @@
 //PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 int main() __attribute__((goblint_precision("no-def_exc","enums")));

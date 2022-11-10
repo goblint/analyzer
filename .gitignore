@@ -87,3 +87,6 @@ gobview_out/*
 # witnesses
 witness.yml
 witness.certificate.yml
+
+# transformations
+transformed.c

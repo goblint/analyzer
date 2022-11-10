@@ -2,7 +2,7 @@
 
 // Both variables x and y are unique and can be strongly (destructively) updated.
 
-#include <assert.h>
+#include <goblint.h>
 #include <stdlib.h>
 #include <stdint.h>
 

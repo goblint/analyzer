@@ -41,6 +41,9 @@ module type S =
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
+    val invariant_vars: Q.ask -> (V.t -> G.t) -> apron_components_t -> varinfo list
+    (** Returns global variables which are privatized. *)
+
     val init: unit -> unit
     val finalize: unit -> unit
   end
@@ -80,12 +83,7 @@ struct
     let apr = st.apr in
     let esc_vars = List.filter (fun var -> match AV.find_metadata var with
         | Some (Global _) -> false
-        | Some Local ->
-          (let fundec = Node.find_fundec node in
-           let r = AV.to_cil_varinfo fundec var in
-           match r with
-           | Some r -> EscapeDomain.EscapedVars.mem r escaped
-           | _ -> false)
+        | Some (Local r) -> EscapeDomain.EscapedVars.mem r escaped
         | _ -> false
       ) (AD.vars apr)
     in
@@ -127,6 +125,7 @@ struct
     {apr = AD.bot (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = ()
+  let invariant_vars ask getg st = []
 
   let init () = ()
   let finalize () = ()
@@ -404,6 +403,7 @@ struct
     {apr = getg (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
+  let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
 
   let finalize () = ()
 end
@@ -428,11 +428,25 @@ struct
     AD.keep_filter oct protected
 end
 
+module PerMutexMeetPrivBase (AD: ApronDomain.S3) =
+struct
+  let invariant_vars ask getg (st: (AD.t, _) ApronDomain.aproncomponents_t) =
+    (* Mutex-meet local states contain precisely the protected global variables,
+       so we can do fewer queries than {!protected_vars}. *)
+    AD.vars st.apr
+    |> List.filter_map (fun var ->
+        match ApronDomain.V.find_metadata var with
+        | Some (Global g) -> Some g
+        | _ -> None
+      )
+end
+
 (** Per-mutex meet. *)
 module PerMutexMeetPriv : S = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
+  include PerMutexMeetPrivBase (AD)
 
   module D = Lattice.Unit
   module G = AD
@@ -832,74 +846,20 @@ module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
-  include ConfCheck.RequireThreadFlagPathSensInit
+  include PerMutexMeetPrivBase (AD)
 
   module NC = Cluster(AD)
   module Cluster = NC
   module LAD = NC.LAD
 
-  module LLock =
-  struct
-    include Printable.Either (Locksets.Lock) (CilType.Varinfo)
-    let mutex m = `Left m
-    let global x = `Right x
-  end
-
-  (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop (LLock) (LAD)
-
-  module LMust = struct
-    include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
-    let name () = "LMust"
-  end
-
-  module D = Lattice.Prod3 (W) (LMust) (L)
-  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LAD)
-  module GThread = Lattice.Prod (LMust) (L)
-  module G =
-  struct
-    include Lattice.Lift2 (GMutex) (GThread) (Printable.DefaultNames)
-
-    let mutex = function
-      | `Bot -> GMutex.bot ()
-      | `Lifted1 x -> x
-      | _ -> failwith "PerMutexMeetPrivTID.mutex"
-    let thread = function
-      | `Bot -> GThread.bot ()
-      | `Lifted2 x -> x
-      | _ -> failwith "PerMutexMeetPrivTID.thread"
-    let create_mutex mutex = `Lifted1 mutex
-    let create_global global = `Lifted1 global
-    let create_thread thread = `Lifted2 thread
-  end
+  include PerMutexTidCommon(struct
+      let exclude_not_started () = GobConfig.get_bool "ana.apron.priv.not-started"
+      let exclude_must_joined () = GobConfig.get_bool "ana.apron.priv.must-joined"
+    end)(LAD)
 
   module AV = ApronDomain.V
-  module TID = ThreadIdDomain.Thread
-
-  module V =
-  struct
-    include Printable.Either (MutexGlobals.V) (TID)
-    let mutex x = `Left (MutexGlobals.V.mutex x)
-    let mutex_inits = `Left MutexGlobals.V.mutex_inits
-    let global x = `Left (MutexGlobals.V.global x)
-    let thread x = `Right x
-  end
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.apron.priv.must-joined" then  ",join"  else "") ^ ")"
-
-
-  let compatible (ask:Q.ask) current must_joined other =
-    match current, other with
-    | `Lifted current, `Lifted other ->
-      if (TID.is_unique current) && (TID.equal current other) then
-        false (* self-read *)
-      else if GobConfig.get_bool "ana.apron.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
-        false (* other is not started yet *)
-      else if GobConfig.get_bool "ana.apron.priv.must-joined" && MHP.must_be_joined other must_joined then
-        false (* accounted for in local information *)
-      else
-        true
-    | _ -> true
 
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ThreadId.get_current ask in
@@ -911,23 +871,7 @@ struct
           acc
       ) v (LAD.bot ())
 
-  let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = ThreadId.get_current ask in
-    let must_joined = ask.f Queries.MustJoinedThreads in
-    GMutex.fold (fun k v acc ->
-        if compatible ask current must_joined k then
-          LAD.join acc v
-        else
-          acc
-      ) v (LAD.bot ())
-
-  let merge_all v =
-    GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
-
   type apron_components_t =  ApronDomain.ApronComponents (AD) (D).t
-
-
-  let startstate () = W.bot (), LMust.top (), L.bot ()
 
   let should_join _ _ = true
 
@@ -1066,20 +1010,17 @@ struct
       )
     )
     else (
-      if ConcDomain.ThreadSet.is_top tids then
-        st (* TODO: why needed? *)
-      else (
+      match ConcDomain.ThreadSet.elements tids with
+      | [tid] ->
+        let lmust',l' = G.thread (getg (V.thread tid)) in
+        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+      | _ ->
+        (* To match the paper more closely, one would have to join in the non-definite case too *)
+        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+        st
+      | exception SetDomain.Unsupported _ ->
         (* elements throws if the thread set is top *)
-        let tids = ConcDomain.ThreadSet.elements tids in
-        match tids with
-        | [tid] ->
-          let lmust',l' = G.thread (getg (V.thread tid)) in
-          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-        | _ ->
-          (* To match the paper more closely, one would have to join in the non-definite case too *)
-          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-          st
-      )
+        st
     )
 
   let thread_return ask getg sideg tid (st: apron_components_t) =

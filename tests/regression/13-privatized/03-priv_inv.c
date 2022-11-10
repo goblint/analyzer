@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 int x = 1;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;

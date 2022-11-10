@@ -23,7 +23,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 3. Continue using Linux instructions (the formulae in brew for `patch libgmp-dev libmpfr-dev` are `gpatch gmp mpfr`, respectively).
 
 ### Windows
-1. Install [WSL](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
+1. Install [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install-win10). Goblint is not compatible with WSL1.
 2. Continue using Linux instructions in WSL.
 
 ### Other

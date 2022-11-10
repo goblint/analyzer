@@ -1,7 +1,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int global = 5;
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;

@@ -3,7 +3,7 @@
 // This only succeeds if we use a different widening strategy (no widening :())
 #include <pthread.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 int x;
 int y;

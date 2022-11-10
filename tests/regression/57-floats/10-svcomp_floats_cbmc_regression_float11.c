@@ -1,5 +1,5 @@
 // PARAM: --enable ana.float.interval
-#include <assert.h>
+#include <goblint.h>
 
 /* the primary purpose of this regression test is not checking the assertions,
     but showing that the invariant does not <<failwith "meet results in empty interval">> anymore*/

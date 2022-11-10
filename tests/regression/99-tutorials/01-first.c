@@ -1,5 +1,5 @@
 // PARAM: --set "ana.activated[+]" signs
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int x;
