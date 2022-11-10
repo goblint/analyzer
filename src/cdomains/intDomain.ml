@@ -2322,9 +2322,13 @@ struct
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
     let max = (snd (Size.range ik)) +: Ints_t.one in
-    let m' = Ints_t.min max (find_power_of_two m) in
-    let res = normalize ik (Some (c, m')) in
-    res
+    let m' = find_power_of_two m in
+    if m' >: max then
+      (* if m' > 2 ^ {bitlength}, there is only one value in range *)
+      let c' = c %: max in
+      Some (c', Ints_t.zero)
+    else
+      normalize ik (Some (c, m'))
 
   let mul ?(no_ov=false) ik x y =
     let no_ov_case (c1, m1) (c2, m2) =
