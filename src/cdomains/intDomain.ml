@@ -2307,20 +2307,24 @@ struct
     if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
-  (* Handle unsigned overflows. 
+  (* Handle unsigned overflows.
      From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= 2^{bitwidth}.
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
-    let max = (snd (Size.range ik)) +: Ints_t.one in
-    (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
-    let tz = Ints_t.trailing_zeros m in
-    let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
-    if m' >=: max then
-      (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
-      let c' = c %: max in
-      Some (c', Ints_t.zero)
+    if m =: Ints_t.zero then
+      normalize ik (Some (c, m))
     else
-      normalize ik (Some (c, m'))
+      (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
+      let tz = Ints_t.trailing_zeros m in
+      let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
+
+      let max = (snd (Size.range ik)) +: Ints_t.one in
+      if m' >=: max then
+        (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
+        let c' = c %: max in
+        Some (c', Ints_t.zero)
+      else
+        normalize ik (Some (c, m'))
 
   let mul ?(no_ov=false) ik x y =
     let no_ov_case (c1, m1) (c2, m2) =
