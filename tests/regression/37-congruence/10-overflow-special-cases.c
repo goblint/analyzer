@@ -15,9 +15,14 @@ int basic(){
 			__goblint_check(a % two_pow_16 == 3);
 			__goblint_check(b % two_pow_16 == 5);
 
-			int e = a * b;
+			unsigned int e = a * b;
 			__goblint_check(e % two_pow_16 == 15);
 			__goblint_check(e == 15); // UNKNOWN!
+
+			// Congruence lost by cast to signed int
+			int e_sign = e;
+			__goblint_check(e_sign % two_pow_16 == 15); //UNKNOWN!
+			__goblint_check(e_sign == 15); // UNKNOWN!
 		}
 	}
 }
@@ -36,7 +41,7 @@ int special(){
 			__goblint_check(a % two_pow_18 == two_pow_17);
 			__goblint_check(b % two_pow_18 == two_pow_17);
 
-			int e = a * b;
+			unsigned int e = a * b;
 			__goblint_check(e == 0);
 		}
 	}
@@ -65,7 +70,7 @@ int special2(){
 			__goblint_check(a % two_pow_18 == x);
 			__goblint_check(b % two_pow_18 == x);
 
-			int e = a * b;
+			unsigned int e = a * b;
 			__goblint_check(e == two_pow_30);
 		}
 	}
@@ -73,9 +78,6 @@ int special2(){
 	// Hint why the above holds:
 	__goblint_check( x * x  == two_pow_30);
 }
-
-
-
 
 int main()
 {
