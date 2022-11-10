@@ -11,6 +11,14 @@ opam_setup() {
   opam switch -y create . --deps-only ocaml-base-compiler.4.14.0 --locked
 }
 
+opam_setup_flambda() {
+  set -x
+  opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
+  opam update
+  # Note: the `--update-invariant` option is needed for replacement of the previous ocaml compiler switch invariant of Goblint
+  opam switch -y create . --deps-only ocaml-variants.4.14.0+options ocaml-options-only-flambda --locked --update-invariant
+}
+
 rule() {
   case $1 in
     # new rules using dune
@@ -77,6 +85,12 @@ rule() {
       echo "For running the regression tests you also need: ruby, gem, curl"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
+    ;; setup-flambda)
+      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
+      echo "For the --html output you also need: javac, ant, dot (graphviz)"
+      echo "For running the regression tests you also need: ruby, gem, curl"
+      echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
+      opam_setup_flambda
     ;; dev)
       eval $(opam env)
       echo "Installing opam packages for development..."
