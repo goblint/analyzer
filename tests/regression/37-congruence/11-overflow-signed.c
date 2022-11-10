@@ -36,7 +36,7 @@ int special(){
 	if (a % two_pow_18 == two_pow_17)
 	{
 		__goblint_check(a % two_pow_18 == two_pow_17);
-	
+
 		unsigned int e = a * a;
 		__goblint_check(e == 0); //UNKNOWN!
 	}
