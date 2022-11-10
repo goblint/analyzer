@@ -2307,22 +2307,14 @@ struct
     if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
-  let find_power_of_two n =
-    let two = Ints_t.of_int 2 in
-    let rec find n acc =
-      if n %: two =: Ints_t.zero then
-        find (n /: two) (two *: acc)
-      else
-        acc
-    in
-    find n Ints_t.one
-
   (* Handle unsigned overflows. 
      From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= 2^{bitwidth}.
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
     let max = (snd (Size.range ik)) +: Ints_t.one in
-    let m' = find_power_of_two m in
+    (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
+    let tz = Ints_t.trailing_zeros m in
+    let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
     if m' >=: max then
       (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
       let c' = c %: max in
