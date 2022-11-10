@@ -1,4 +1,5 @@
 // PARAM: --set exp.unrolling-factor 2 --enable dbg.run_cil_check
+#include <goblint.h>
 
 void main(void)
 {
