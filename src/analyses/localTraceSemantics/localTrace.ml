@@ -96,33 +96,33 @@ let exitstate = startstate
 let assign ctx (lval:lval) (rval:exp) : D.t =
   let state = if D.is_empty ctx.local then (Printf.printf "Kein Graph im Set bei assign\n"; ctx.local) else ctx.local in
   let myEdge = Printf.printf "assign wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-   D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) state (D.empty ())
+   D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) state (D.empty ())
   
 let branch ctx (exp:exp) (tv:bool) : D.t =
   let myEdge = Printf.printf "branch wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-  D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) ctx.local (D.empty ())
+  D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) ctx.local (D.empty ())
 
 let body ctx (f:fundec) : D.t =
   let myEdge = Printf.printf "body wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-  D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) ctx.local (D.empty ())
+  D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) ctx.local (D.empty ())
       
 let return ctx (exp:exp option) (f:fundec) : D.t =
   let myEdge = Printf.printf "return wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-  D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) ctx.local (D.empty ())
+  D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) ctx.local (D.empty ())
 
 let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
   let myEdge = Printf.printf "special wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-  D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) ctx.local (D.empty ())
+  D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) ctx.local (D.empty ())
     
 let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = Printf.printf "enter wurde aufgerufen\n";
   let myEdge = Printf.printf "enter wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-  let state = D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) ctx.local (D.empty ()) in
+  let state = D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) ctx.local (D.empty ()) in
   [ctx.local, state]  (*[D.bot (), D.bot ()] *)
   
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
     let myEdge = Printf.printf "combine wurde aufgerufen\n";({programPoint=ctx.prev_node;sigmar=SigmarMap.empty},ctx.edge,{programPoint=ctx.node;sigmar=SigmarMap.empty}) in
-    D.fold (fun g set  -> let tmp = D.add (LocTraceGraph.add_edge_e g myEdge) set in D.remove g tmp) ctx.local (D.empty ())
+    D.fold (fun g set  -> D.add (LocTraceGraph.add_edge_e g myEdge) set ) ctx.local (D.empty ())
 
     let threadenter ctx lval f args = Printf.printf "threadenter wurde aufgerufen\n";[D.top ()]
     let threadspawn ctx lval f args fctx = Printf.printf "threadspawn wurde aufgerufen\n";ctx.local  
