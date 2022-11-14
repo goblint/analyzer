@@ -106,6 +106,10 @@ struct
     | TNamed ({tname = "pthread_t"; _}, _) -> true
     | _ -> false
 
+  let array_length_idx default length =
+    let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
+    BatOption.map_default (fun x-> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint x) default l
+
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
@@ -114,13 +118,10 @@ struct
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (bot_value ai))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
+      let len = array_length_idx (IndexDomain.bot ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
@@ -147,15 +148,11 @@ struct
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (if can_recover_from_top then (init_value ai) else (bot_value ai)))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if can_recover_from_top then (init_value ai) else (bot_value ai)))
+      let len = array_length_idx (IndexDomain.bot ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
     | _ -> `Top
@@ -168,15 +165,11 @@ struct
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top ()) (if can_recover_from_top then (top_value ai) else (bot_value ai)))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if can_recover_from_top then (top_value ai) else (bot_value ai)))
+      let len = array_length_idx (IndexDomain.top ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> `Top
 
@@ -211,13 +204,10 @@ struct
           Failure _ -> Unions.top ()
       in
       `Union(v)
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+      let len = array_length_idx (IndexDomain.top ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
     | _ -> `Top
