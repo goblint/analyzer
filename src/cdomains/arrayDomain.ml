@@ -37,6 +37,8 @@ let get_domain ~varAttr ~typAttr =
     | _ -> domain_from_string @@ get_string "ana.base.arrays.domain"
   else domain_from_string @@ get_string "ana.base.arrays.domain"
 
+let can_recover_from_top x = x <> TrivialDomain
+
 module type S =
 sig
   include Lattice.S

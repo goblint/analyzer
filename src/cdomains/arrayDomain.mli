@@ -6,6 +6,9 @@ type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
 (** gets the underlying domain: chosen by the attributes in AttributeConfiguredArrayDomain *)
 
+val can_recover_from_top: domain -> bool
+(** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
+
 (** Abstract domains representing arrays. *)
 module type S =
 sig
