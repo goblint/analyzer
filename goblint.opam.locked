@@ -64,10 +64,10 @@ depends: [
   "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
   "ocaml" {= "4.14.0"}
-  "ocaml-base-compiler" {= "4.14.0"}
+  "ocaml-variants" {= "4.14.0+options"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
-  "ocaml-options-vanilla" {= "1"}
+  "ocaml-option-flambda" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocamlbuild" {= "0.14.1"}
   "ocamlfind" {= "1.9.3"}
