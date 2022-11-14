@@ -204,7 +204,6 @@ struct
 
   let name () = "partitioned array"
 
-  let is_not_partitioned = function | Joint _ -> true | _ -> false
   let tag _ = failwith "Std: no tag"
 
   let relift = function
