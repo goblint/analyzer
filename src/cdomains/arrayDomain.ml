@@ -214,8 +214,7 @@ struct
     | Joint v -> v
     | Partitioned (e, (xl, xm, xr)) -> Val.join xl (Val.join xm xr)
 
-  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array and all unpartitioned arrays
-    * have the same three values for Val  *)
+  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array *)
   let normalize = function
     | Joint v -> Joint v
     | (Partitioned (e, (xl, xm, xr)) as p) ->
@@ -234,7 +233,7 @@ struct
   let is_bot (x:t) = Val.is_bot (join_of_all_parts x)
   let top () = Joint (Val.top ())
   let is_top (x:t) = x = top ()
-                       
+  
   let join (x:t) (y:t) =
     match x, y with
     | Joint x, Joint y -> Joint (Val.join x y)
@@ -921,9 +920,9 @@ struct
 
   (* convert to another domain *)
   let index_as_expression i = (`Lifted (Cil.integer i), Idx.of_int IInt (BI.of_int i))
-                              
+
   let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
-      
+
   let partitioned_of_unroll ask u =
     (* We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly useful? *)
     let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ()))) in
@@ -931,18 +930,18 @@ struct
     let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i)) in
     let set_i p (i,v) =  P.set ask p (index_as_expression i) v in
     List.fold_left set_i p @@ List.init (factor ()) get_i
-      
+
   let trivial_of_partitioned ask p =
     let element = (P.get ~checkBounds:false ask p (ExpDomain.top (), Idx.top ()))
     in T.make (Option.value (P.length p) ~default:(Idx.top ())) element
-      
+
   let trivial_of_unroll ask u =
     let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) in
     let element = List.fold_left Val.join (get_i (factor ())) @@ List.init (factor ()) get_i in (*join all single elements and the element at  *)
     T.make (Option.value (U.length u) ~default:(Idx.top ())) element
-      
+
   let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
-      
+
   let unroll_of_partitioned ask p =
     let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i))) in
     (* This could be more precise if we were able to compare this with the partition index, but we can not access it here *)
