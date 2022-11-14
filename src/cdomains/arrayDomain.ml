@@ -443,10 +443,9 @@ struct
       | Joint v ->
         (match i with
          | Some i when not @@ not_allowed_for_part i ->
-          (*TODO: Lifting crap *)
            let l = if equals_zero i then Val.bot () else join_of_all_parts x in
            let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
-          Partitioned (i, (l, a, r))
+           Partitioned (i, (l, a, r))
          | _ -> Joint (Val.join v a)
         )
       | Partitioned (e, (xl, xm, xr)) ->
