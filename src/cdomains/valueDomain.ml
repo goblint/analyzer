@@ -6,7 +6,6 @@ include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
-module Expp = ExpDomain
 module Q = Queries
 module BI = IntOps.BigIntOps
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
@@ -718,7 +717,7 @@ struct
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
-    let array_idx_top = (ExpDomain.top (), ArrIdxDomain.top ()) in
+    let array_idx_top = (None, ArrIdxDomain.top ()) in
     match typ, state with
     |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
@@ -801,9 +800,9 @@ struct
     match left, offset with
       | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
         if not (contains_pointer exp) then
-          `Lifted exp
+          Some exp
         else
-          ExpDomain.top ()
+          None
       | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
         begin
           match v with
@@ -819,19 +818,19 @@ struct
                   (* Comparing types for structural equality is incorrect here, use typeSig *)
                   (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
                   if start_type = expr_type then
-                    `Lifted (equiv_expr expr v')
+                    Some (equiv_expr expr v')
                   else
                     (* If types do not agree here, this means that we were looking at pointers that *)
                     (* contain more than one array access. Those are not supported. *)
-                    ExpDomain.top ()
+                    None
                 else
-                  ExpDomain.top ()
-              with (Cilfacade.TypeOfError _) -> ExpDomain.top ()
+                  None
+              with (Cilfacade.TypeOfError _) -> None
             end
           | _ ->
-            ExpDomain.top ()
+            None
         end
-      | _, _ ->  ExpDomain.top()
+      | _, _ ->  None
 
   let zero_init_calloced_memory orig x t =
     if orig then

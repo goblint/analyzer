@@ -16,10 +16,10 @@ sig
   type value
   (** The abstract domain of values stored in the array. *)
 
-  val get: ?checkBounds:bool -> Queries.ask -> t -> ExpDomain.t * idx -> value
+  val get: ?checkBounds:bool -> Queries.ask -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 
-  val set: Queries.ask -> t -> ExpDomain.t * idx -> value -> t
+  val set: Queries.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
 
