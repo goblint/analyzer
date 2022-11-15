@@ -263,6 +263,14 @@
             }
           },
           "additionalProperties": false
+        },
+        "cstd": {
+          "title": "cil.cstd",
+          "type": "string",
+          "description": "Specify the c standard used for parsing.",
+          "default": "c99",
+          "enum": ["c90", "c99", "c11", "gnu89inline"],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
