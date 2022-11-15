@@ -283,12 +283,34 @@ struct
         CilLval.Set.top ()
     in
 
-    (* Generate location invariants (wihtout precondition) *)
+    (* Generate location invariants (without precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         if is_invariant_node n then (
           let lvals = local_lvals n local in
           match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+          | `Lifted inv ->
+            let invs = WitnessUtil.InvariantExp.process_exp inv in
+            List.fold_left (fun acc inv ->
+                let location_function = (Node.find_fundec n).svar.vname in
+                let location = Entry.location ~location:loc ~location_function in
+                let invariant = Entry.invariant (CilType.Exp.show inv) in
+                let entry = Entry.location_invariant ~task ~location ~invariant in
+                entry :: acc
+              ) acc invs
+          | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+            acc
+        )
+        else
+          acc
+      ) nh []
+    in
+
+    (* Generate loop invariants (without precondition) *)
+    let entries = NH.fold (fun n local acc ->
+        let loc = Node.location n in
+        if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
+          match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
           | `Lifted inv ->
             let invs = WitnessUtil.InvariantExp.process_exp inv in
             List.fold_left (fun acc inv ->
@@ -303,7 +325,7 @@ struct
         )
         else
           acc
-      ) nh []
+      ) nh entries
     in
 
     (* Generate flow-insensitive invariants *)
