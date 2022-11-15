@@ -232,7 +232,9 @@ struct
   let bot () = Joint (Val.bot ())
   let is_bot (x:t) = Val.is_bot (join_of_all_parts x)
   let top () = Joint (Val.top ())
-  let is_top (x:t) = x = top ()
+  let is_top = function
+    | Joint x -> Val.is_top x
+    | _-> false
                        
   let join (x:t) (y:t) =
     match x, y with
