@@ -905,7 +905,7 @@ struct
       let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
       let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
       let intv' = norm ik @@ Some (l', u') in
-      let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
+      let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
       meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
@@ -2753,12 +2753,15 @@ module IntDomTupleImpl = struct
         , map (r.f1 (module I3)) c
         , map (r.f1 (module I4)) d )
 
-  let map2 ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-    refine ik
+  let map2 ?(norefine=false) ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    let r =
       ( opt_map2 (r.f2 (module I1)) xa ya
       , opt_map2 (r.f2 (module I2)) xb yb
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) xd yd )
+    in
+    if norefine then r else refine ik r
+
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
@@ -2827,13 +2830,13 @@ module IntDomTupleImpl = struct
 
   (* f2: binary ops *)
   let join ik =
-    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
 
   let meet ik =
     map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.meet ik)}
 
   let widen ik =
-    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
 
   let narrow ik =
     map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.narrow ik)}

@@ -835,7 +835,7 @@ struct
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
         evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
-        let (let*) = Option.bind in
+        let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
@@ -844,9 +844,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in
