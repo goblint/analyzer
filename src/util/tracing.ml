@@ -32,7 +32,7 @@ let traceIndent () = indent_level := !indent_level + 2
 let traceOutdent () = indent_level := !indent_level - 2
 
 (* Parses a format string to generate a nop-function of the correct type. *)
-let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
+let mygprintf (finish: 'b) (format : ('a, unit, doc, 'b) format4) : 'a =
   let format = string_of_format format in
   let flen    = String.length format in
   let fget    = String.unsafe_get format in
@@ -46,7 +46,7 @@ let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
     skipChars (succ i)
   and collect (acc: doc) (i: int) =
     if i >= flen then begin
-      Obj.magic (())
+      Obj.magic finish
     end else begin
       let c = fget i in
       if c = '%' then begin
@@ -104,7 +104,7 @@ let gtrace always f sys var ?loc do_subsys fmt =
     do_subsys ();
     gprintf (f sys) fmt
   end else
-    mygprintf fmt
+    mygprintf () fmt
 
 let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
 

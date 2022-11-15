@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 struct kala { int x; };
 void inc(int *x) {

@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 int* ptr;
 int nine = 9;
 

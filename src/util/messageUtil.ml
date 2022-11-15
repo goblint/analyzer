@@ -1,15 +1,13 @@
 open GobConfig
 
 let ansi_color_table =
+  let open GobList.Syntax in
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
                 ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
   let modes = [(Fun.id, "0" (* normal *)); (String.uppercase_ascii, "1" (* bold *))] in
-  colors
-  |> List.concat_map (fun (color, color_code) ->
-      List.map (fun (mode_fn, mode_code) ->
-          (mode_fn color, Format.sprintf "\027[%s;%sm" mode_code color_code)
-        ) modes
-    )
+  let+ (color, color_code) = colors
+  and+ (mode_fn, mode_code) = modes in
+  (mode_fn color, Format.sprintf "\027[%s;%sm" mode_code color_code)
 
 let colors_on fd = (* use colors? *)
   let c = get_string "colors" in

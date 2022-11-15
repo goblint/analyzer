@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.apron.privatization mutex-meet-tid
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 #include <unistd.h>
 struct blorg {int x; int y;};

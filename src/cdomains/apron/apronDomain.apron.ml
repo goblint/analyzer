@@ -16,10 +16,10 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
-  let t = WideningThresholds.thresholds_incl_mul2 () in
-  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
-  Array.of_list r
-)
+    let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
+    let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
+    Array.of_list r
+  )
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds_apron
@@ -56,14 +56,16 @@ end
 module VM =
 struct
   type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Local of varinfo (** Var for function local variable (or formal argument). *)
+    | Arg of varinfo (** Var for function formal argument entry value. *)
     | Return (** Var for function return value. *)
     | Global of varinfo
 
   let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
+    | Local x ->
+      (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
+      x.vname ^ "#" ^ string_of_int x.vid
+    | Arg x -> x.vname ^ "#" ^ string_of_int x.vid ^ "#arg"
     | Return -> "#ret"
     | Global g -> g.vname
 end
@@ -73,19 +75,14 @@ struct
   include VarMetadataTbl (VM)
   open VM
 
-  (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
-  let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
-  let local x = make_var ~name:(local_name x) Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let local x = make_var (Local x)
+  let arg x = make_var (Arg x)
   let return = make_var Return
   let global g = make_var (Global g)
 
-  let to_cil_varinfo fundec v =
+  let to_cil_varinfo v =
     match find_metadata v with
-    | Some (Global v) -> Some v
-    | Some (Local) ->
-      let vname = Var.to_string v in
-      List.find_opt (fun v -> local_name v = vname) (fundec.sformals @ fundec.slocals)
+    | Some (Global v | Local v | Arg v) -> Some v
     | _ -> None
 end
 
@@ -182,20 +179,21 @@ let int_of_scalar ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
     None
   else
+    let open GobOption.Syntax in
     match scalar with
     | Float f -> (* octD, boxD *)
       (* bound_texpr on bottom also gives Float even with MPQ *)
-      let f_opt = match round with
+      let+ f = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
         | None when Stdlib.Float.is_integer f-> Some f
         | None -> None
       in
-      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
+      BI.of_bigint (Z.of_float f)
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
-      let z_opt =
+      let+ z =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
           Some n
         else
@@ -205,7 +203,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
             | None -> None
           end
       in
-      Option.map Z_mlgmpidl.z_of_mpzf z_opt
+      Z_mlgmpidl.z_of_mpzf z
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
@@ -355,7 +353,7 @@ module CilOfApron =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
@@ -379,7 +377,7 @@ struct
     in
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo fundec v with
+      match V.to_cil_varinfo v with
       | Some vinfo ->
         (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
@@ -395,11 +393,11 @@ struct
     !expr
 
 
-  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+  let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
     let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+      let cilexp = cil_exp_of_linexpr1 linexpr1 in
       match Lincons1.get_typ lincons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
       | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
@@ -827,7 +825,9 @@ struct
 
   let varinfo_tracked vi =
     (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype
+    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_apron_track") in
+    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_apron_track" || hasTrackAttribute vi.vattr)
+
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
@@ -936,9 +936,9 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr d e with
-        | (Some min, Some max) -> ID.of_interval ik (min, max)
-        | (Some min, None) -> ID.starting ik min
-        | (None, Some max) -> ID.ending ik max
+        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
+        | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
+        | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
         | (None, None) -> ID.top_of ik
 
   let invariant ~scope x =

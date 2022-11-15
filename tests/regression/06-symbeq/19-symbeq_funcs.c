@@ -1,5 +1,5 @@
 // PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"
-#include <assert.h>
+#include <goblint.h>
 
 void inc(int * a){
   (*a)++;

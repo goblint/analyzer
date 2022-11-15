@@ -1,4 +1,4 @@
-#include "assert.h"
+#include <goblint.h>
 int main() {
     int x = -1;
     int m = x % 5;

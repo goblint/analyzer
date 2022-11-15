@@ -232,56 +232,56 @@ let add_propagate side e kind conf ty ls a =
     let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f c lv =
+let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
-  (* f c (mkAddrOf lv); *)
-  f c (AddrOf lv);
-  distribute_access_lval_addr f c lv
+  (* f (mkAddrOf lv); *)
+  f (AddrOf lv);
+  distribute_access_lval_addr f lv
 
-and distribute_access_lval_addr f c lv =
+and distribute_access_lval_addr f lv =
   match lv with
   | (Var v, os) ->
-    distribute_access_offset f c os
+    distribute_access_offset f os
   | (Mem e, os) ->
-    distribute_access_offset f c os;
-    distribute_access_exp f c e
+    distribute_access_offset f os;
+    distribute_access_exp f e
 
-and distribute_access_offset f c = function
+and distribute_access_offset f = function
   | NoOffset -> ()
   | Field (_,os) ->
-    distribute_access_offset f c os
+    distribute_access_offset f os
   | Index (e,os) ->
-    distribute_access_exp f c e;
-    distribute_access_offset f c os
+    distribute_access_exp f e;
+    distribute_access_offset f os
 
-and distribute_access_exp f c = function
+and distribute_access_exp f = function
   (* Variables and address expressions *)
   | Lval lval ->
-    distribute_access_lval f c lval;
+    distribute_access_lval f lval;
 
     (* Binary operators *)
   | BinOp (op,arg1,arg2,typ) ->
-    distribute_access_exp f c arg1;
-    distribute_access_exp f c arg2
+    distribute_access_exp f arg1;
+    distribute_access_exp f arg2
 
   | UnOp (_,e,_)
   | Real e
   | Imag e
   | SizeOfE e
   | AlignOfE e ->
-    distribute_access_exp f c e
+    distribute_access_exp f e
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
-    distribute_access_lval_addr f c lval
+    distribute_access_lval_addr f lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
-    distribute_access_exp f c exp
+    distribute_access_exp f exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f c b;
-    distribute_access_exp f c t;
-    distribute_access_exp f c e
+    distribute_access_exp f b;
+    distribute_access_exp f t;
+    distribute_access_exp f e
   | Const _
   | SizeOf _
   | SizeOfStr _

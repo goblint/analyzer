@@ -20,7 +20,17 @@ type math =
   | Isnan of Cil.exp
   | Isnormal of Cil.exp
   | Signbit of Cil.exp
+  | Isgreater of (Cil.exp * Cil.exp)
+  | Isgreaterequal of (Cil.exp * Cil.exp)
+  | Isless of (Cil.exp * Cil.exp)
+  | Islessequal of (Cil.exp * Cil.exp)
+  | Islessgreater of (Cil.exp * Cil.exp)
+  | Isunordered of (Cil.exp * Cil.exp)
+  | Ceil of (Cil.fkind * Cil.exp)
+  | Floor of (Cil.fkind * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
+  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
+  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)
   | Atan of (Cil.fkind * Cil.exp)
@@ -44,11 +54,14 @@ type special =
   | Signal of Cil.exp
   | Broadcast of Cil.exp
   | Wait of { cond: Cil.exp; mutex: Cil.exp; }
-  | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; }
+  | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; (** Unused *) }
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
+  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
   | Abort
+  | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
@@ -107,8 +120,18 @@ let special_of_old classify_name = fun args ->
   | `Malloc e -> Malloc e
   | `Calloc (count, size) -> Calloc { count; size; }
   | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Lock (try_, write, return_on_success) -> Lock { lock = List.hd args; try_; write; return_on_success; }
-  | `Unlock -> Unlock (List.hd args)
+  | `Lock (try_, write, return_on_success) ->
+    begin match args with
+      | [lock] -> Lock { lock ; try_; write; return_on_success; }
+      | [] -> failwith "lock has no arguments"
+      | _ -> failwith "lock has multiple arguments"
+    end
+  | `Unlock ->
+    begin match args with
+      | [arg] -> Unlock arg
+      | [] -> failwith "unlock has no arguments"
+      | _ -> failwith "unlock has multiple arguments"
+    end
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
   | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
   | `Unknown _ -> Unknown

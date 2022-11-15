@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 17; // matches write in t_fun
 int h = 14; // matches write in t_fun

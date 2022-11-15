@@ -1,5 +1,6 @@
 //PARAM: --enable witness.yaml.enabled --enable ana.int.interval
 #include <stdlib.h>
+#include <goblint.h>
 
 int foo(int* ptr1, int* ptr2){
     int result;

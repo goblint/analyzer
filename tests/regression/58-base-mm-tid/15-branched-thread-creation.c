@@ -2,7 +2,7 @@
 // Inspired by 36/86
 #include <pthread.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 int h;

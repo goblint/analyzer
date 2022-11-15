@@ -192,6 +192,7 @@ let analyze ?(reset=false) (s: t) =
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
+  AutoTune.reset_lazy ();
   Access.reset ();
   s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
@@ -314,9 +315,18 @@ let () =
       let live _ = true in (* TODO: fix this *)
       let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
       { cfg }
-      (* TODO: also filter and include states info (as json) in the response for the requested function *)
   end);
 
+  register (module struct
+    let name = "node_state"
+    type params = { nid: string }  [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process { nid } serv =
+      let f = !Control.current_node_state_json in
+      let n = Node.of_id nid in
+      let json = f n in
+      json
+  end);
 
   register (module struct
     let name = "exp_eval"

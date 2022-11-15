@@ -635,19 +635,36 @@ struct
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      match Cilfacade.find_varinfo_fundec f with
-      | fd when LibraryFunctions.use_special f.vname ->
-        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-        tf_special_call ctx lv f args
-      | fd ->
-        tf_normal_call ctx lv e fd args getl sidel getg sideg
-      | exception Not_found ->
-        tf_special_call ctx lv f args
+      match f.vtype with
+      | TFun (_, params, var_arg, _)  ->
+        let arg_length = List.length args in
+        let p_length = Option.map_default List.length 0 params in
+        (* Check whether number of arguments fits. *)
+        (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
+        if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
+          begin Some (match Cilfacade.find_varinfo_fundec f with
+              | fd when LibraryFunctions.use_special f.vname ->
+                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+                tf_special_call ctx lv f args
+              | fd ->
+                tf_normal_call ctx lv e fd args getl sidel getg sideg
+              | exception Not_found ->
+                tf_special_call ctx lv f args)
+          end
+        else begin
+          let geq = if var_arg then ">=" else "" in
+          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
+          None
+        end
+      | _ ->
+        M.warn  ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
+        None
     in
-    if [] = functions then
+    let funs = List.filter_map one_function functions in
+    if [] = funs then begin
+      M.warn ~category:Unsound "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
-    else
-      let funs = List.map one_function functions in
+    end else
       common_joins ctx funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
@@ -690,12 +707,18 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
+    let new_fd = Node.find_fundec v in
+    if not (CilType.Fundec.equal old_fd new_fd) then
+      Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
     M.current_context := Some (Obj.repr c);
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
-        M.current_context := old_context
+        M.current_context := old_context;
+        if not (CilType.Fundec.equal old_fd new_fd) then
+          Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
         let d       = tf (v,c) (e,u) getl sidel getg sideg in
         d
@@ -1012,7 +1035,7 @@ struct
     let fd1 = D.choose fctx.local in
     map ctx Spec.threadspawn (fun h -> h lval f args (conv fctx fd1))
 
-    let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
+  let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* TODO: handle Invariant path like PathSensitive3? *)
@@ -1105,7 +1128,9 @@ struct
                 let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
                 let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
                 M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
-              | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()
             ) em;

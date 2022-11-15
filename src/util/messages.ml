@@ -5,6 +5,8 @@ module GU = Goblintutil
 
 module Category = MessageCategory
 
+open GobResult.Syntax
+
 
 module Severity =
 struct
@@ -52,8 +54,8 @@ struct
 
   let to_yojson x = CilType.Location.to_yojson (to_cil x)
   let of_yojson x =
-    CilType.Location.of_yojson x
-    |> BatResult.map (fun loc -> CilLocation loc)
+    let+ loc = CilType.Location.of_yojson x in
+    CilLocation loc
 end
 
 module Piece =
@@ -84,11 +86,11 @@ struct
 
   let of_yojson = function
     | (`Assoc l) as json when List.mem_assoc "group_text" l ->
-      group_of_yojson json
-      |> BatResult.map (fun group -> Group group)
+      let+ group = group_of_yojson json in
+      Group group
     | json ->
-      Piece.of_yojson json
-      |> BatResult.map (fun piece -> Single piece)
+      let+ piece = Piece.of_yojson json in
+      Single piece
 end
 
 module Tag =
@@ -112,10 +114,8 @@ struct
 
   let of_yojson = function
     | `Assoc [("Category", category)] ->
-      Category.of_yojson category
-      |> BatResult.map (fun category ->
-          Category category
-        )
+      let+ category = Category.of_yojson category in
+      Category category
     | `Assoc [("CWE", `Int n)] -> Result.Ok (CWE n)
     | _ -> Result.Error "Messages.Tag.of_yojson"
 end
@@ -138,9 +138,6 @@ struct
     severity: Severity.t;
     multipiece: MultiPiece.t;
   } [@@deriving eq, ord, hash, yojson]
-
-  let should_warn {tags; severity; _} =
-    Tags.should_warn tags && Severity.should_warn severity
 end
 
 module Table =
@@ -236,11 +233,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
 
 
 let add m =
-  if !GU.should_warn then (
-    if Message.should_warn m && not (Table.mem m) then (
-      print m;
-      Table.add m
-    )
+  if not (Table.mem m) then (
+    print m;
+    Table.add m
   )
 
 
@@ -253,33 +248,45 @@ let msg_context () =
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
 let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
-  let finish doc =
-    let text = Pretty.sprint ~width:max_int doc in
-    let loc = match loc with
-      | Some node -> Some node
-      | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
+  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+    let finish doc =
+      let text = Pretty.sprint ~width:max_int doc in
+      let loc = match loc with
+        | Some node -> Some node
+        | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
+      in
+      add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
     in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
-  in
-  Pretty.gprintf finish fmt
+    Pretty.gprintf finish fmt
+  )
+  else
+    Tracing.mygprintf () fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  let finish doc =
-    let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
-  in
-  Pretty.gprintf finish fmt
+  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+    let finish doc =
+      let text = Pretty.sprint ~width:max_int doc in
+      add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+    in
+    Pretty.gprintf finish fmt
+  )
+  else
+    Tracing.mygprintf () fmt
 
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  let finish doc msgs =
-    let group_text = Pretty.sprint ~width:max_int doc in
-    let piece_of_msg (doc, loc) =
-      let text = Pretty.sprint ~width:max_int doc in
-      Piece.{loc; text; context = None}
+  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+    let finish doc msgs =
+      let group_text = Pretty.sprint ~width:max_int doc in
+      let piece_of_msg (doc, loc) =
+        let text = Pretty.sprint ~width:max_int doc in
+        Piece.{loc; text; context = None}
+      in
+      add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
     in
-    add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
-  in
-  Pretty.gprintf finish fmt
+    Pretty.gprintf finish fmt
+  )
+  else
+    Tracing.mygprintf (fun msgs -> ()) fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?loc = msg Warning ?loc
