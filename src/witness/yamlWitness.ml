@@ -474,6 +474,8 @@ struct
 end
 
 module Validator
+    (File: WitnessUtil.File)
+    (Cfg: MyCFG.CfgBidir)
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                             and module GVar = GVarF (Spec.V)
@@ -484,6 +486,7 @@ module Validator
 struct
   module Locator = WitnessUtil.Locator (EQSys.LVar)
   module LvarS = Locator.ES
+  module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
   module Query = Query (Spec) (EQSys) (GHT)
@@ -501,10 +504,13 @@ struct
 
   let validate lh gh (file: Cil.file) =
     let locator = Locator.create () in
+    let loop_locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
         if not loc.synthetic then
-          Locator.add locator loc lvar
+          Locator.add locator loc lvar;
+        if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then
+          Locator.add loop_locator loc lvar
       ) lh;
 
     let inv_parser = InvariantParser.create file in
@@ -583,13 +589,28 @@ struct
           None
       in
 
+      let validate_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
+        let loc = loc_of_location location_invariant.location in
+        let inv = location_invariant.location_invariant.string in
+        let entry_certificate = Entry.loop_invariant_certificate in (* TODO: wrong *)
+        let msgLoc: M.Location.t = CilLocation loc in
+
+        match Locator.find_opt locator loc with
+        | Some lvars ->
+          validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+        | None ->
+          incr cnt_error;
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
+          None
+      in
+
       let validate_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
         let entry_certificate = Entry.loop_invariant_certificate in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
@@ -651,6 +672,8 @@ struct
       in
 
       match entry.entry_type with
+      | LocationInvariant x ->
+        validate_location_invariant x
       | LoopInvariant x ->
         validate_loop_invariant x
       | PreconditionLoopInvariant x ->

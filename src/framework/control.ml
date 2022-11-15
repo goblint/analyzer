@@ -663,7 +663,7 @@ struct
     );
 
     if get_string "witness.yaml.validate" <> "" then (
-      let module YWitness = YamlWitness.Validator (Spec) (EQSys) (LHT) (GHT) in
+      let module YWitness = YamlWitness.Validator (struct let file = file end) (Cfg) (Spec) (EQSys) (LHT) (GHT) in
       YWitness.validate lh gh file
     );
 
