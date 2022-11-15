@@ -1216,6 +1216,7 @@ end
 module ValueInvariant (Arg: InvariantArg) =
 struct
   open Arg
+  open GobOption.Syntax
 
   (* VS is used to detect and break cycles in deref_invariant calls *)
   module VS = Set.Make (Basetype.Variables)
@@ -1223,67 +1224,66 @@ struct
   let rec ad_invariant ~vs ~offset ~lval x =
     let c_exp = Lval lval in
     let i_opt = AD.fold (fun addr acc_opt ->
-        BatOption.bind acc_opt (fun acc ->
-            match addr with
-            | Addr.UnknownPtr ->
-              None
-            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-              let rec offs_to_offset = function
-                | `NoOffset -> NoOffset
-                | `Field (f, offs) -> Field (f, offs_to_offset offs)
-                | `Index (i, offs) ->
-                  (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-                  let i_definite = BatOption.get (IndexDomain.to_int i) in
-                  let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-                  Index (i_exp, offs_to_offset offs)
-              in
-              let offset = offs_to_offset offs in
+        let* acc = acc_opt in
+        match addr with
+        | Addr.UnknownPtr ->
+          None
+        | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+          let rec offs_to_offset = function
+            | `NoOffset -> NoOffset
+            | `Field (f, offs) -> Field (f, offs_to_offset offs)
+            | `Index (i, offs) ->
+              (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
+              let i_definite = BatOption.get (IndexDomain.to_int i) in
+              let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+              Index (i_exp, offs_to_offset offs)
+          in
+          let offset = offs_to_offset offs in
 
-              let cast_to_void_ptr e =
-                Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
-              in
-              let i =
-                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
-                  try
-                    let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                    let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
-                        cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
-                      else
-                        addr_exp, c_exp
-                    in
-                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                  with Cilfacade.TypeOfError _ -> Invariant.none
-                else
-                  Invariant.none
-              in
-              let i_deref =
-                (* Avoid dereferencing into functions, mutexes, ..., which are not added to the hash table *)
-                match Cilfacade.typeOfLval (Var vi, offset) with
-                | typ when not (Compound.is_immediate_type typ) ->
-                  (* Address set for a void* variable contains pointers to values of non-void type,
-                     so insert pointer cast to make invariant expression valid (no field/index on void). *)
-                  let newt = TPtr (typ, []) in
-                  let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
-                  deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
-                | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
-                | _ ->
-                  Invariant.none
-              in
-
-              Some (Invariant.(acc || (i && i_deref)))
-            | Addr.NullPtr ->
-              let i =
-                let addr_exp = integer 0 in
-                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                else
-                  Invariant.none
-              in
-              Some (Invariant.(acc || i))
-            (* TODO: handle Addr.StrPtr? *)
+          let cast_to_void_ptr e =
+            Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
+          in
+          let i =
+            if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+              try
+                let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
+                    cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
+                  else
+                    addr_exp, c_exp
+                in
+                Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+              with Cilfacade.TypeOfError _ -> Invariant.none
+            else
+              Invariant.none
+          in
+          let i_deref =
+            (* Avoid dereferencing into functions, mutexes, ..., which are not added to the hash table *)
+            match Cilfacade.typeOfLval (Var vi, offset) with
+            | typ when not (Compound.is_immediate_type typ) ->
+              (* Address set for a void* variable contains pointers to values of non-void type,
+                  so insert pointer cast to make invariant expression valid (no field/index on void). *)
+              let newt = TPtr (typ, []) in
+              let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
+              deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
+            | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
             | _ ->
-              None
-          )
+              Invariant.none
+          in
+
+          Some (Invariant.(acc || (i && i_deref)))
+        | Addr.NullPtr ->
+          let i =
+            let addr_exp = integer 0 in
+            if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+              Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+            else
+              Invariant.none
+          in
+          Some (Invariant.(acc || i))
+        (* TODO: handle Addr.StrPtr? *)
+        | _ ->
+          None
       ) x (Some (Invariant.bot ()))
     in
     match i_opt with
