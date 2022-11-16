@@ -2308,7 +2308,7 @@ struct
     res
 
   (* Handle unsigned overflows.
-     From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= 2^{bitwidth}.
+     From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= bitwidth.
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
     if m =: Ints_t.zero then
