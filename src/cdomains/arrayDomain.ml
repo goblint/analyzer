@@ -8,8 +8,6 @@ module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
 
-module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
-
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
 (* determines the domain based on variable, type and flag *)
@@ -39,14 +37,16 @@ let get_domain ~varAttr ~typAttr =
     | _ -> domain_from_string @@ get_string "ana.base.arrays.domain"
   else domain_from_string @@ get_string "ana.base.arrays.domain"
 
+let can_recover_from_top x = x <> TrivialDomain
+
 module type S =
 sig
   include Lattice.S
   type idx
   type value
 
-  val get: ?checkBounds:bool -> Q.ask -> t -> ExpDomain.t * idx -> value
-  val set: Q.ask -> t -> ExpDomain.t * idx -> value -> t
+  val get: ?checkBounds:bool -> Q.ask -> t -> Basetype.CilExp.t option * idx -> value
+  val set: Q.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
 
@@ -188,53 +188,77 @@ end
 module type SPartitioned =
 sig
   include S
-  val set_with_length: idx option -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
+  val set_with_length: idx option -> Q.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
   val smart_join_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
   val smart_widen_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option)  -> t -> t-> t
   val smart_leq_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z):SPartitioned with type value = Val.t and type idx = Idx.t =
+module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): SPartitioned with type value = Val.t and type idx = Idx.t =
 struct
-  (* Contrary to the description in Michael's master thesis, abstract values here always have the form *)
-  (* (Expp, (Val, Val, Val)). Expp is top when the array is not partitioned. In these cases all three  *)
-  (* values from Val are identical *)
-  module Expp = ExpDomain
-  module Base = Lattice.Prod3 (Val) (Val) (Val)
-  include Lattice.ProdSimple(Expp) (Base)
+  type t = Joint of Val.t | Partitioned of (CilType.Exp.t * (Val.t * Val.t * Val.t)) [@@deriving eq, ord, hash]
 
   type idx = Idx.t
   type value = Val.t
 
   let name () = "partitioned array"
 
-  let is_not_partitioned (e, _) =
-    Expp.is_bot e || Expp.is_top e
+  let tag _ = failwith "Std: no tag"
 
-  let join_of_all_parts (_,(xl, xm, xr)) =
-    let result = Val.join (Val.join xl xm) xr
-    in
-    if Val.is_bot result then
-      Val.top()
-    else
-      result
+  let relift = function
+    | Joint v -> Joint (Val.relift v)
+    | Partitioned (e, (l, m, r)) -> Partitioned (CilType.Exp.relift e, (Val.relift l, Val.relift m, Val.relift r))
 
-  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array and all unpartitioned arrays
-    * have the same three values for Val  *)
-  let normalize ((e, (xl, xm , xr)) as x) =
-    if Val.equal xl xm && Val.equal xm xr then
-      (Expp.top (), (xl, xm, xr))
-    else if Expp.is_top e then
-      (Expp.top(), (join_of_all_parts x, join_of_all_parts x, join_of_all_parts x))
-    else
-      x
+  let join_of_all_parts = function
+    | Joint v -> v
+    | Partitioned (e, (xl, xm, xr)) -> Val.join xl (Val.join xm xr)
 
-  let show ((e,(xl, xm, xr)) as x) =
-    if is_not_partitioned x then
-      "Array (no part.): " ^ Val.show xl
-    else
-      "Array (part. by " ^ Expp.show e ^ "): (" ^
+  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array *)
+  let normalize = function
+    | Joint v -> Joint v
+    | (Partitioned (e, (xl, xm, xr)) as p) ->
+      if Val.equal xl xm && Val.equal xm xr then Joint xl
+      else p
+
+  let leq (x:t) (y:t) =
+    match x, y with
+    | Joint x, Joint y -> Val.leq x y
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Val.leq xl y && Val.leq xm y && Val.leq xr y
+    | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
+      CilType.Exp.equal e e' && Val.leq xl yl && Val.leq xm ym && Val.leq xr yr
+    | Joint x, Partitioned _ -> Val.is_bot x
+
+  let bot () = Joint (Val.bot ())
+  let is_bot (x:t) = Val.is_bot (join_of_all_parts x)
+  let top () = Joint (Val.top ())
+  let is_top = function
+    | Joint x -> Val.is_top x
+    | _-> false
+
+  let join (x:t) (y:t) =
+    match x, y with
+    | Joint x, Joint y -> Joint (Val.join x y)
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.join xl y, Val.join xm y, Val.join xr y))
+    | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.join x yl, Val.join x ym, Val.join x yr))
+    | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
+      if CilType.Exp.equal e e' then Partitioned (e,(Val.join xl yl, Val.join xm ym, Val.join xr yr))
+      else Joint (Val.join (join_of_all_parts x) (join_of_all_parts y))
+
+  let widen (x:t) (y:t) = match x,y with
+    | Joint x, Joint y -> Joint (Val.widen x y)
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
+    | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
+    | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
+      if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
+      else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
+
+  let arbitrary () = failwith "no arbitray"
+
+  let show = function
+    | Joint x ->  "Array (no part.): " ^ Val.show x
+    | Partitioned (e,(xl, xm, xr)) ->
+      "Array (part. by " ^ CilType.Exp.show e ^ "): (" ^
       Val.show xl ^ " -- " ^
       Val.show xm ^ " -- " ^
       Val.show xr ^ ")"
@@ -242,43 +266,39 @@ struct
   let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let printXml f ((e, (xl, xm, xr)) as x) =
-    if is_not_partitioned x then
-      let join_over_all = Val.join (Val.join xl xm) xr in
-      BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml join_over_all
-    else
+  let printXml f = function
+    | Joint x -> BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
+    | Partitioned (e,(xl, xm, xr)) ->
       BatPrintf.fprintf f "<value>\n<map>\n
           <key>Partitioned By</key>\n%a\n
           <key>l</key>\n%a\n\n
           <key>m</key>\n%a\n\n
           <key>r</key>\n%a\n\n
-        </map></value>\n" Expp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
+        </map></value>\n" CilType.Exp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
 
-  let to_yojson ((e, (l, m, r)) as x) =
-    if is_not_partitioned x then
-      let join_over_all = Val.join (Val.join l m) r in
-      `Assoc [ ("any", Val.to_yojson join_over_all) ]
-    else
-      let e' = Expp.to_yojson e in
-      let l' = Val.to_yojson l in
-      let m' = Val.to_yojson m in
-      let r' = Val.to_yojson r in
-      `Assoc [ ("partitioned by", e'); ("l", l'); ("m", m'); ("r", r') ]
+  let to_yojson = function
+    | Joint x -> `Assoc [ ("any", Val.to_yojson x) ]
+    | Partitioned (e,(xl, xm, xr)) ->
+      `Assoc [ ("partitioned_by", CilType.Exp.to_yojson e);
+               ("l", Val.to_yojson xl);
+               ("m", Val.to_yojson xm);
+               ("r", Val.to_yojson xr) ]
 
-  let get ?(checkBounds=true) (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) =
-    match e, i with
-    | `Lifted e', `Lifted i' ->
+  let get ?(checkBounds=true) (ask:Q.ask) (x:t) (i,_) =
+    match x, i with
+    | Joint v, _ -> v
+    | Partitioned (e, (xl, xm, xr)), Some i' ->
       begin
-        if Q.must_be_equal ask e' i' then xm
+        if Q.must_be_equal ask e i' then xm
         else
           begin
-            let contributionLess = match Q.may_be_less ask i' e' with        (* (may i < e) ? xl : bot *)
+            let contributionLess = match Q.may_be_less ask i' e with        (* (may i < e) ? xl : bot *)
               | false -> Val.bot ()
               | _ -> xl in
-            let contributionEqual = match Q.may_be_equal ask i' e' with      (* (may i = e) ? xm : bot *)
+            let contributionEqual = match Q.may_be_equal ask i' e with      (* (may i = e) ? xm : bot *)
               | false -> Val.bot ()
               | _ -> xm in
-            let contributionGreater =  match Q.may_be_less ask e' i' with    (* (may i > e) ? xr : bot *)
+            let contributionGreater =  match Q.may_be_less ask e i' with    (* (may i > e) ? xr : bot *)
               | false -> Val.bot ()
               | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
@@ -286,11 +306,9 @@ struct
       end
     | _ -> join_of_all_parts x
 
-  let get_vars_in_e (e, _) =
-    match e with
-    | `Top
-    | `Bot -> []
-    | `Lifted exp -> Basetype.CilExp.get_vars exp
+  let get_vars_in_e = function
+    | Partitioned (e, _) -> Basetype.CilExp.get_vars e
+    | _ -> []
 
   (* expressions containing globals or array accesses are not suitable for partitioning *)
   let not_allowed_for_part e =
@@ -321,56 +339,49 @@ struct
       | Lval(Mem e, o) -> offset_contains_array_access o || contains_array_access e
       | Lval(Var _, o) -> offset_contains_array_access o
     in
-    match e with
-    | `Top
-    | `Bot -> true
-    | `Lifted exp ->
-      let vars = Basetype.CilExp.get_vars exp in
-      List.exists (fun x -> x.vglob) vars || contains_array_access exp
+    let vars = Basetype.CilExp.get_vars e in
+    List.exists (fun x -> x.vglob) vars || contains_array_access e
 
 
-  let map f (e, (xl, xm, xr)) =
-    normalize @@ (e, (f xl, f xm, f xr))
+  let map f = function
+    | Joint v -> Joint (f v)
+    | Partitioned (e,(xl, xm, xr)) -> normalize @@ Partitioned (e,(f xl, f xm, f xr))
 
-  let fold_left f a (_, ((xl:value), (xm:value), (xr:value))) =
-    f (f (f a xl) xm) xr
+  let fold_left f a = function
+    | Joint x -> f a x
+    | Partitioned (_, (xl,xm,xr)) -> f (f (f a xl) xm) xr
 
-  let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
+  let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) x (v:varinfo) (movement_for_exp: exp -> int option) =
     normalize @@
-    let move (i:int option) =
+    let move (i:int option) (e, (xl,xm, xr)) =
       match i with
       | Some 0   ->
-        (e, (xl, xm, xr))
+        Partitioned (e, (xl, xm, xr))
       | Some 1   ->
-        (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
+        Partitioned (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
       | Some -1  ->
-        (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
+        Partitioned (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
       | Some x when x > 1 ->
-        (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
+        Partitioned (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
       | Some x when x < -1 ->
-        (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
+        Partitioned (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
       | _ ->
         begin
           let nval = join_of_all_parts x in
-          let default = (Expp.top (), (nval, nval, nval)) in
+          let default = Joint nval in
           if replace_with_const then
-            match e with
-            | `Lifted e' ->
-              begin
-                let n = ask.f (Q.EvalInt e') in
-                match Q.ID.to_int n with
-                | Some i ->
-                  (`Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i), (xl, xm, xr))
-                | _ -> default
-              end
+            let n = ask.f (Q.EvalInt e) in
+            match Q.ID.to_int n with
+            | Some i ->
+              Partitioned ((Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i), (xl, xm, xr))
             | _ -> default
           else
             default
         end
     in
-    match e with
-    | `Lifted exp ->
-      let is_affected = Basetype.CilExp.occurs v exp in
+    match x with
+    | Partitioned (e, (xl,xm, xr)) ->
+      let is_affected = Basetype.CilExp.occurs v e in
       if not is_affected then
         x
       else
@@ -382,45 +393,43 @@ struct
               begin
                 match Idx.to_int l with
                 | Some i ->
-                  let b = Q.may_be_less ask exp (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
+                  let b = Q.may_be_less ask e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
                   not b (* !(e <_{may} length) => e >=_{must} length *)
                 | None -> false
               end
             | _ -> false
           in
           let e_must_less_zero =
-            Q.eval_int_binop (module Q.MustBool) Lt ask exp Cil.zero (* TODO: untested *)
+            Q.eval_int_binop (module Q.MustBool) Lt ask e Cil.zero (* TODO: untested *)
           in
           if e_must_bigger_max_index then
             (* Entire array is covered by left part, dropping partitioning. *)
-            Expp.top(),(xl, xl, xl)
+            Joint xl
           else if e_must_less_zero then
             (* Entire array is covered by right value, dropping partitioning. *)
-            Expp.top(),(xr, xr, xr)
+            Joint xr
           else
             (* If we can not drop partitioning, move *)
-            move (movement_for_exp exp)
+            move (movement_for_exp e) (e, (xl,xm, xr))
         end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
-  let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
-    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
-    if i = `Lifted MyCFG.all_array_index_exp then
+  let set_with_length length (ask:Q.ask) x (i,_) a =
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
+    if i = Some MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)
-       let r =  Val.join xm a in
-       (Expp.top(), (r, r, r)))
+       let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in
+       let r =  Val.join o a in
+       Joint r)
     else
       normalize @@
       let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
       let exp_value e =
-        match e with
-        | `Lifted e' ->
-          let n = ask.f (Q.EvalInt e') in
-          Option.map BI.of_bigint (Q.ID.to_int n)
-        |_ -> None
+        let n = ask.f (Q.EvalInt e) in
+        Option.map BI.of_bigint (Q.ID.to_int n)
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
       let equals_maxIndex e =
@@ -434,47 +443,48 @@ struct
         | _ -> false
       in
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
-      if is_not_partitioned x then
-        if not_allowed_for_part i then
-          let result = Val.join a (join_of_all_parts x) in
-          (e, (result, result, result))
-        else
-          let l = if equals_zero i then Val.bot () else join_of_all_parts x in
-          let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
-          (i, (l, a, r))
-      else
+      match x with
+      | Joint v ->
+        (match i with
+         | Some i when not @@ not_allowed_for_part i ->
+           let l = if equals_zero i then Val.bot () else join_of_all_parts x in
+           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
+           Partitioned (i, (l, a, r))
+         | _ -> Joint (Val.join v a)
+        )
+      | Partitioned (e, (xl, xm, xr)) ->
         let isEqual = Q.must_be_equal ask in
-        match e, i with
-        | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
+        match i with
+        | Some i' when not use_last || not_allowed_for_part i' -> begin
             let default =
               let left =
-                match Q.may_be_less ask i' e' with     (* (may i < e) ? xl : bot *) (* TODO: untested *)
+                match Q.may_be_less ask i' e with     (* (may i < e) ? xl : bot *) (* TODO: untested *)
                 | false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
-                match Q.may_be_equal ask i' e' with    (* (may i = e) ? xm : bot *)
+                match Q.may_be_equal ask i' e with    (* (may i = e) ? xm : bot *)
                 | false -> xm
                 | _ -> Val.join xm a in
               let right =
-                match Q.may_be_less ask e' i' with     (* (may i > e) ? xr : bot *) (* TODO: untested *)
+                match Q.may_be_less ask e i' with     (* (may i > e) ? xr : bot *) (* TODO: untested *)
                 | false -> xr
                 | _ -> lubIfNotBot xr in
-              (e, (left, middle, right))
+              Partitioned (e, (left, middle, right))
             in
-            if isEqual e' i' then
+            if isEqual e i' then
               (*  e = _{must} i => update strongly *)
-              (e, (xl, a, xr))
-            else if Cil.isConstant e' && Cil.isConstant i' then
-              match Cil.getInteger e', Cil.getInteger i' with
+              Partitioned (e, (xl, a, xr))
+            else if Cil.isConstant e && Cil.isConstant i' then
+              match Cil.getInteger e, Cil.getInteger i' with
               | Some (e'': Cilint.cilint), Some i'' ->
                 let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
                 let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
 
                 if BI.equal  i'' (BI.add e'' BI.one) then
                   (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
-                  (i, (Val.join xl xm, a, xr))
+                  Partitioned (i', (Val.join xl xm, a, xr))
                 else if BI.equal e'' (BI.add i'' BI.one) then
-                  (i, (xl, a, Val.join xm xr))
+                  Partitioned (i', (xl, a, Val.join xm xr))
                 else
                   default
               | _ ->
@@ -482,75 +492,65 @@ struct
             else
               default
           end
-        | `Lifted e', `Lifted i' ->
-          if isEqual e' i' then
-            (e,(xl,a,xr))
+        | Some i' ->
+          if isEqual e i' then
+            Partitioned (e, (xl, a, xr))
           else
-            let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-                  (match Q.may_be_equal ask e' i' with (* TODO: untested *)
+            let left = if equals_zero i' then Val.bot () else Val.join xl @@ Val.join
+                  (match Q.may_be_equal ask e i' with (* TODO: untested *)
                    | false -> Val.bot()
                    | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
                   (
-                    let t = Cilfacade.typeOf e' in
+                    let t = Cilfacade.typeOf e in
                     let ik = Cilfacade.get_ikind t in
-                    match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik 1, t)) i' with
+                    match Q.must_be_equal ask (BinOp(PlusA, e, Cil.kinteger ik 1, t)) i' with
                     | true -> xm
                     | _ ->
                       begin
-                        match Q.may_be_less ask e' i' with (* TODO: untested *)
+                        match Q.may_be_less ask e i' with (* TODO: untested *)
                         | false-> Val.bot()
                         | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
                       end
                   )
             in
-            let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-                  (match Q.may_be_equal ask e' i' with (* TODO: untested *)
+            let right = if equals_maxIndex i' then Val.bot () else  Val.join xr @@  Val.join
+                  (match Q.may_be_equal ask e i' with (* TODO: untested *)
                    | false -> Val.bot()
                    | _ -> xm)
 
                   (
-                    let t = Cilfacade.typeOf e' in
+                    let t = Cilfacade.typeOf e in
                     let ik = Cilfacade.get_ikind t in
-                    match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
+                    match Q.must_be_equal ask (BinOp(PlusA, e, Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
                     | true -> xm
                     | _ ->
                       begin
-                        match Q.may_be_less ask i' e' with (* TODO: untested *)
+                        match Q.may_be_less ask i' e with (* TODO: untested *)
                         | false -> Val.bot()
                         | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
                       end
                   )
             in
             (* The new thing is partitioned according to i so we can strongly update *)
-            (i,(left, a, right))
+            Partitioned (i',(left, a, right))
         | _ ->
           (* If the expression used to write is not known, all segments except the empty ones will be affected *)
-          (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
+          Partitioned (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
 
   let set = set_with_length None
 
-  let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
-    normalize @@ let new_e = Expp.join e1 e2 in
-    if Expp.is_top new_e then
-      (* At least one of them was not partitioned, or e <> f *)
-      let join_over_all = Val.join (join_of_all_parts x1) (join_of_all_parts x2) in
-      (new_e, (join_over_all, join_over_all, join_over_all))
-    else
-      (new_e, (Val.join xl1 xl2, Val.join xm1 xm2, Val.join xr1 xr2))
 
-  (* leq needs not be given explicitly, leq from product domain works here *)
-
-  let make ?(varAttr=[]) ?(typAttr=[])  i v =
+  let make ?(varAttr=[]) ?(typAttr=[]) i v:t =
     if Idx.to_int i = Some BI.one  then
-      (`Lifted (Cil.integer 0), (v, v, v))
+      Partitioned ((Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
-      (Expp.top(), (Val.bot(), Val.bot(), Val.bot()))
+      Joint (Val.bot ())
     else
-      (Expp.top(), (v, v, v))
+      Joint v
 
   let length _ = None
 
-  let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
+  let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 x1_eval_int x2_eval_int =
     normalize @@
     let must_be_length_minus_one v = match length with
       | Some l ->
@@ -564,59 +564,59 @@ struct
     in
     let must_be_zero v = v = Some BI.zero in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
-    match e1, e2 with
-    | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
-      (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
-    | `Lifted e1e, `Lifted e2e ->
+    match x1, x2 with
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) when Basetype.CilExp.equal e1 e2 ->
+      Partitioned (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
       if get_string "ana.base.partition-arrays.keep-expr" = "last" || get_bool "ana.base.partition-arrays.smart-join" then
         let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
-        let e1e_in_state_of_x2 = x2_eval_int e1e in
-        let e2e_in_state_of_x1 = x1_eval_int e2e in
-        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compare e1e e2e < 0 in (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
-        if e1e_is_better then (* first try if the result can be partitioned by e1e *)
-          if must_be_zero e1e_in_state_of_x2  then
-            (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
-          else if must_be_length_minus_one e1e_in_state_of_x2  then
-            (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
-          else if must_be_zero e2e_in_state_of_x1 then
-            (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
-          else if must_be_length_minus_one e2e_in_state_of_x1 then
-            (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+        let e1_in_state_of_x2 = x2_eval_int e1 in
+        let e2_in_state_of_x1 = x1_eval_int e2 in
+        (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
+        (* It is mostly SOME order to ensure commutativity of join *)
+        let e1_is_better = (not (Cil.isConstant e1) && Cil.isConstant e2) || Basetype.CilExp.compare e1 e2 < 0 in
+        if e1_is_better then (* first try if the result can be partitioned by e1e *)
+          if must_be_zero e1_in_state_of_x2  then
+            Partitioned (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+          else if must_be_length_minus_one e1_in_state_of_x2  then
+            Partitioned (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+          else if must_be_zero e2_in_state_of_x1 then
+            Partitioned (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+          else if must_be_length_minus_one e2_in_state_of_x1 then
+            Partitioned (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
           else
-            (Expp.top (), (op_over_all, op_over_all, op_over_all))
+            Joint op_over_all
         else  (* first try if the result can be partitioned by e2e *)
-        if must_be_zero e2e_in_state_of_x1 then
-          (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
-        else if must_be_length_minus_one e2e_in_state_of_x1 then
-          (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
-        else if must_be_zero e1e_in_state_of_x2 then
-          (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
-        else if must_be_length_minus_one e1e_in_state_of_x2 then
-          (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+        if must_be_zero e2_in_state_of_x1 then
+          Partitioned (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+        else if must_be_length_minus_one e2_in_state_of_x1 then
+          Partitioned (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+        else if must_be_zero e1_in_state_of_x2 then
+          Partitioned (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+        else if must_be_length_minus_one e1_in_state_of_x2 then
+          Partitioned (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
         else
-          (Expp.top (), (op_over_all, op_over_all, op_over_all))
+          Joint op_over_all
       else
-        (Expp.top (), (op_over_all, op_over_all, op_over_all))
-    | `Top, `Top ->
-      (Expp.top (), (op_over_all, op_over_all, op_over_all))
-    | `Top, `Lifted e2e ->
-      if must_be_zero (x1_eval_int e2e) then
-        (e2, (xl2, op xm1 xm2, op xr1 xr2))
-      else if must_be_length_minus_one (x1_eval_int e2e) then
-        (e2, (op xl1 xl2, op xm1 xm2, xr2))
+        Joint op_over_all
+    | Joint _, Joint _ ->
+      Joint op_over_all
+    | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
+      if must_be_zero (x1_eval_int e2) then
+        Partitioned (e2, (xl2, op x1 xm2, op x1 xr2))
+      else if must_be_length_minus_one (x1_eval_int e2) then
+        Partitioned (e2, (op x1 xl2, op x1 xm2, xr2))
       else
-        (Expp.top (), (op_over_all, op_over_all, op_over_all))
-    | `Lifted e1e, `Top ->
-      if must_be_zero (x2_eval_int e1e) then
-        (e1, (xl1, op xm1 xm2, op xr1 xr2))
-      else if must_be_length_minus_one (x2_eval_int e1e) then
-        (e1, (op xl1 xl2, op xm1 xm2, xr1))
+        Joint op_over_all
+    | Partitioned (e1, (xl1, xm1, xr1)), Joint x2 ->
+      if must_be_zero (x2_eval_int e1) then
+        Partitioned (e1, (xl1, op xm1 x2, op xr1 x2))
+      else if must_be_length_minus_one (x2_eval_int e1) then
+        Partitioned (e1, (op xl1 x2, op xm1 x2, xr1))
       else
-        (Expp.top (), (op_over_all, op_over_all, op_over_all))
-    | _ ->
-      failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
+        Joint op_over_all
 
   let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
     smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
@@ -624,7 +624,7 @@ struct
   let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
     smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
-  let smart_leq_with_length length x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
+  let smart_leq_with_length length x1_eval_int x2_eval_int x1 x2 =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
     let must_be_zero v = (v = Some BI.zero) in
     let must_be_length_minus_one v =  match length with
@@ -637,60 +637,68 @@ struct
         end
       | None -> false
     in
-    match e1, e2 with
-    | `Top, `Top ->
-      (* Those asserts ensure that for both arguments all segments are equal (as it should be) *)
-      assert(Val.equal xl1 xm1); assert(Val.equal xm1 xr1); assert(Val.equal xl2 xm2); assert(Val.equal xm2 xr2);
-      leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))    (* TODO: should the inner joins also be smart joins? *)
-    | `Lifted _, `Top -> leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2))
-    | `Lifted e1e, `Lifted e2e ->
-      if Basetype.CilExp.equal e1e e2e then
+    match x1, x2 with
+    | Joint x1, Joint x2 ->
+      leq' x1 x2
+    | Partitioned (e1, (xl1, xm1, xr1)), Joint x2 ->
+      (* leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2)) *)
+      leq' xl1 x2 && leq' xm1 x2 && leq' xr1 x2
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
         leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
-      else if must_be_zero (x1_eval_int e2e) then
+      else if must_be_zero (x1_eval_int e2) then
         (* A read will never be from xl2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
         leq' l xm2 && leq' l xr2
-      else if must_be_length_minus_one (x1_eval_int e2e) then
+      else if must_be_length_minus_one (x1_eval_int e2) then
         (* A read will never be from xr2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
         leq' l xl2 && leq' l xm2
       else
         false
-    | `Top, `Lifted e2e ->
-      if must_be_zero (x1_eval_int e2e) then
-        leq' xm1 xm2 && leq' xr1 xr2
-      else if must_be_length_minus_one (x1_eval_int e2e) then
-        leq' xl1 xl2 && leq' xm1 xm2
+    | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
+      if must_be_zero (x1_eval_int e2) then
+        leq' x1 xm2 && leq' x1 xr2
+      else if must_be_length_minus_one (x1_eval_int e2) then
+        leq' x1 xl2 && leq' x1 xm2
       else
         false
-    | _ ->
-      failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
   let smart_join = smart_join_with_length None
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet (e1,v1) (e2,v2) = normalize @@
-    match e1,e2 with
-    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
-      (* partitioned according to two different expressions -> meet can not be element-wise *)
-      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
-      (* TODO: do smart things if the relationship between e1e and e2e is known *)
-      (e1,v1)
-    | _ -> meet (e1,v1) (e2,v2)
+  let meet x y = match x,y with
+    | Joint x, Joint y -> Joint (Val.meet x y)
+    | Joint x, Partitioned (e, (xl, xm, xr))
+    | Partitioned (e, (xl, xm, xr)), Joint x ->
+      Partitioned (e, (Val.meet x xl, Val.meet x xm, Val.meet x xr))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
+        Partitioned (e1, (Val.meet xl1 xl2, Val.meet xm1 xm2, Val.meet xr1 xr2))
+      else
+        (* partitioned according to two different expressions -> meet can not be element-wise *)
+        (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+        (* TODO: do smart things if the relationship between e1e and e2e is known *)
+        x
 
-  let narrow (e1,v1) (e2,v2) = normalize @@
-    match e1,e2 with
-    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
-      (* partitioned according to two different expressions -> narrow can not be element-wise *)
-      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
-      (* TODO: do smart things if the relationship between e1e and e2e is known *)
-      (e1,v1)
-    | _ -> narrow (e1,v1) (e2,v2)
+  let narrow x y = match x,y with
+    | Joint x, Joint y -> Joint (Val.narrow x y)
+    | Joint x, Partitioned (e, (xl, xm, xr))
+    | Partitioned (e, (xl, xm, xr)), Joint x ->
+      Partitioned (e, (Val.narrow x xl, Val.narrow x xm, Val.narrow x xr))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
+        Partitioned (e1, (Val.narrow xl1 xl2, Val.narrow xm1 xm2, Val.narrow xr1 xr2))
+      else
+        (* partitioned according to two different expressions -> narrow can not be element-wise *)
+        (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+        x
 
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
+
 (* This is the main array out of bounds check *)
 let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
@@ -720,7 +728,7 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
@@ -759,7 +767,7 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
@@ -808,7 +816,7 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
@@ -870,8 +878,8 @@ struct
 
   (* Simply call appropriate function for component that is not None *)
   let get ?(checkBounds=true) a x (e,i) = unop' (fun x ->
-      if e = `Top then
-        let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
+      if e = None then
+        let e' = BatOption.map (fun x -> Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x) (Idx.to_int i) in
         P.get ~checkBounds a x (e', i)
       else
         P.get ~checkBounds a x (e, i)
@@ -905,10 +913,10 @@ struct
     | UnrolledDomain -> (None, None, Some (U.make i v))
 
   (* convert to another domain *)
-  let index_as_expression i = (`Lifted (Cil.integer i), Idx.of_int IInt (BI.of_int i))
-                              
+  let index_as_expression i = (Some (Cil.integer i), Idx.of_int IInt (BI.of_int i))
+
   let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
-      
+
   let partitioned_of_unroll ask u =
     (* We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly useful? *)
     let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ()))) in
@@ -916,22 +924,22 @@ struct
     let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i)) in
     let set_i p (i,v) =  P.set ask p (index_as_expression i) v in
     List.fold_left set_i p @@ List.init (factor ()) get_i
-      
+
   let trivial_of_partitioned ask p =
-    let element = (P.get ~checkBounds:false ask p (ExpDomain.top (), Idx.top ()))
+    let element = (P.get ~checkBounds:false ask p (None, Idx.top ()))
     in T.make (Option.value (P.length p) ~default:(Idx.top ())) element
-      
+
   let trivial_of_unroll ask u =
     let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) in
     let element = List.fold_left Val.join (get_i (factor ())) @@ List.init (factor ()) get_i in (*join all single elements and the element at  *)
     T.make (Option.value (U.length u) ~default:(Idx.top ())) element
-      
+
   let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
-      
+
   let unroll_of_partitioned ask p =
     let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i))) in
     (* This could be more precise if we were able to compare this with the partition index, but we can not access it here *)
-    let rest = (P.get ~checkBounds:false ask p (ExpDomain.top (), Idx.top ())) in
+    let rest = (P.get ~checkBounds:false ask p (None, Idx.top ())) in
     let u = U.make (Option.value (P.length p) ~default:(Idx.top ())) (Val.bot ()) in
     let set_i u (i,v) =  U.set ask u (index_as_expression i) v in
     set_i (List.fold_left set_i u unrolledValues) (factor (), rest)

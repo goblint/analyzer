@@ -183,7 +183,7 @@ struct
     ) file_loc_es
 
   let find_opt (file_loc_es: t) (loc: Cil.location): ES.t option =
-    let (let*) = Option.bind in (* TODO: move to general library *)
+    let open GobOption.Syntax in
     let* loc_es = FileH.find_option file_loc_es loc.file in
     let* (_, es) = LocM.find_first_opt (fun loc' ->
         CilType.Location.compare loc loc' <= 0 (* allow inexact match *)

@@ -5,6 +5,8 @@ module GU = Goblintutil
 
 module Category = MessageCategory
 
+open GobResult.Syntax
+
 
 module Severity =
 struct
@@ -52,8 +54,8 @@ struct
 
   let to_yojson x = CilType.Location.to_yojson (to_cil x)
   let of_yojson x =
-    CilType.Location.of_yojson x
-    |> BatResult.map (fun loc -> CilLocation loc)
+    let+ loc = CilType.Location.of_yojson x in
+    CilLocation loc
 end
 
 module Piece =
@@ -84,11 +86,11 @@ struct
 
   let of_yojson = function
     | (`Assoc l) as json when List.mem_assoc "group_text" l ->
-      group_of_yojson json
-      |> BatResult.map (fun group -> Group group)
+      let+ group = group_of_yojson json in
+      Group group
     | json ->
-      Piece.of_yojson json
-      |> BatResult.map (fun piece -> Single piece)
+      let+ piece = Piece.of_yojson json in
+      Single piece
 end
 
 module Tag =
@@ -112,10 +114,8 @@ struct
 
   let of_yojson = function
     | `Assoc [("Category", category)] ->
-      Category.of_yojson category
-      |> BatResult.map (fun category ->
-          Category category
-        )
+      let+ category = Category.of_yojson category in
+      Category category
     | `Assoc [("CWE", `Int n)] -> Result.Ok (CWE n)
     | _ -> Result.Error "Messages.Tag.of_yojson"
 end
