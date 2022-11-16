@@ -1,0 +1,8 @@
+--- tests/incremental/02-cfg-comparison/02-added-return-after-exit.c
++++ tests/incremental/02-cfg-comparison/02-added-return-after-exit.c
+@@ -3,4 +3,5 @@ void main() {
+   __goblint_check(y==0);
+   y++;
+   exit(0);
++  return;
+ }
