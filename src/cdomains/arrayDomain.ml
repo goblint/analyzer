@@ -226,7 +226,7 @@ struct
     | Joint x, Joint y -> Val.leq x y
     | Partitioned (e,(xl, xm, xr)), Joint y -> Val.leq xl y && Val.leq xm y && Val.leq xr y
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
-        CilType.Exp.equal e e' && Val.leq xl yl && Val.leq xm ym && Val.leq xr yr
+      CilType.Exp.equal e e' && Val.leq xl yl && Val.leq xm ym && Val.leq xr yr
     | Joint x, Partitioned _ -> Val.is_bot x
 
   let bot () = Joint (Val.bot ())
@@ -235,23 +235,23 @@ struct
   let is_top = function
     | Joint x -> Val.is_top x
     | _-> false
-                       
+
   let join (x:t) (y:t) =
     match x, y with
     | Joint x, Joint y -> Joint (Val.join x y)
     | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.join xl y, Val.join xm y, Val.join xr y))
     | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.join x yl, Val.join x ym, Val.join x yr))
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
-        if CilType.Exp.equal e e' then Partitioned (e,(Val.join xl yl, Val.join xm ym, Val.join xr yr))
-        else Joint (Val.join (join_of_all_parts x) (join_of_all_parts y))
+      if CilType.Exp.equal e e' then Partitioned (e,(Val.join xl yl, Val.join xm ym, Val.join xr yr))
+      else Joint (Val.join (join_of_all_parts x) (join_of_all_parts y))
 
   let widen (x:t) (y:t) = match x,y with
     | Joint x, Joint y -> Joint (Val.widen x y)
     | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
     | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
-        if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
-        else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
+      if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
+      else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
 
   let arbitrary () = failwith "no arbitray"
 
@@ -280,8 +280,8 @@ struct
     | Joint x -> `Assoc [ ("any", Val.to_yojson x) ]
     | Partitioned (e,(xl, xm, xr)) ->
       `Assoc [ ("partitioned_by", CilType.Exp.to_yojson e);
-              ("l", Val.to_yojson xl);
-              ("m", Val.to_yojson xm);
+               ("l", Val.to_yojson xl);
+               ("m", Val.to_yojson xm);
                ("r", Val.to_yojson xr) ]
 
   let get ?(checkBounds=true) (ask:Q.ask) (x:t) (i,_) =
