@@ -29,7 +29,7 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  let increment = Analyses.empty_increment_data ()
+  let increment = None
 
   (*
     1. x := g
