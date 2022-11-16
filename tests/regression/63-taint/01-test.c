@@ -1,3 +1,4 @@
+#include <goblint.h>
 
 int x;
 int a;

@@ -6,26 +6,21 @@ struct
   include Analyses.DefaultSpec
 
   let name () = "taintPartialContexts"
-  module D = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All" end)
+  module D = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
   module C = D
 
-  let is_global (v:varinfo) : bool = (** Unused*)
-    foldGlobals !Cilfacade.current_file (fun acc global -> 
-      match global with
-      | GVar (gv, _, _) when not (BaseUtil.is_static gv) -> acc || v == gv
-      | _ -> acc
-      ) false
+  let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
+    match offs with
+    | NoOffset -> `NoOffset
+    | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
+    | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
 
   let taint_lval ctx (lval:lval) : D.t =
     let d = ctx.local in
-    match lval with
-    | (Var v, _) -> D.add v d
-    | (Mem e, _) -> 
-      let targets = Queries.LS.elements (ctx.ask (Queries.MayPointTo e)) in
-      List.fold_left (fun accD targ -> 
-        match (Lval.CilLval.to_lval targ) with
-        | (Var v, _) -> D.add v accD
-        | _ -> accD) d targets
+    (match lval with 
+    | (Var v, offs) -> D.add (v, resolve offs) d
+    | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
+    )
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -38,10 +33,13 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let locals = D.of_list (f.sformals @ f.slocals) in
-    let locals_noweak = D.filter (fun v -> not (ctx.ask (Queries.IsMultiple v))) locals in
-    if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n - locals: %a\n - locals_noweak: %a\n" f.svar.vname D.pretty ctx.local D.pretty locals D.pretty locals_noweak;
-    D.diff ctx.local locals_noweak
+    let d = ctx.local in
+    let locals = (f.sformals @ f.slocals) in
+    let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
+    let d_return = if D.is_top d then d else D.filter (fun (v, _) -> not (List.mem v locals_noweak)) d in
+    if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a\n" f.svar.vname D.pretty d D.pretty d_return;
+    d_return
+
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, (D.bot ())] (** Entering a function, all globals count as untouched *)
@@ -81,7 +79,7 @@ struct
       match addr with 
       | AddrOf x -> (
         match x with 
-        | (Var v, _) -> D.add v accD
+        | (Var v, offs) -> D.add (v, resolve offs) accD
         | _ -> accD) (** Shallow; don't need to follow pointers *)
       | _ -> accD
     ) d shallow_addrs
@@ -90,13 +88,8 @@ struct
       match addr with 
       | AddrOf x -> (
         match x with 
-        | (Var v, _) -> D.add v accD
-        | (Mem e, _) ->
-          let reachables = Queries.LS.elements (ctx.ask (Queries.ReachableFrom e)) in
-          List.fold_left (fun accD' targ -> 
-            match (Lval.CilLval.to_lval targ) with
-            | (Var v, _) -> D.add v accD'
-            | _ -> accD') accD reachables)
+        | (Var v, offs) -> D.add (v, resolve offs) accD
+        | (Mem e, _) -> D.union (ctx.ask (Queries.ReachableFrom e)) accD)
       | _ -> accD
     ) d deep_addrs
     in
@@ -109,10 +102,15 @@ struct
 
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
     match q with
-    | Tainted -> (ctx.local : Queries.TaintS.t)
+    | MayBeTainted -> (ctx.local : Queries.LS.t)
     | _ -> Queries.Result.top q
 
 end
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
+
+module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" end)
+
+let conv_varset (lval_set : Spec.D.t) : VS.t = 
+  if Spec.D.is_top lval_set then VS.top () else VS.of_list (List.map (fun (v, _) -> v) (Spec.D.elements lval_set))

@@ -1,4 +1,6 @@
 //PARAM --set "ana.activated[+]" taintPartialContexts -- disable ana.base.context.int
+#include <goblint.h>
+
 int g;
 
 int identity (int a) {
