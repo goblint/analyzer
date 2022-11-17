@@ -952,6 +952,19 @@ struct
     (*let show_interval i = "[" ^ (Ints_t.to_string (fst i)) ^ ", " ^ (Ints_t.to_string (snd j)) ^ "]" in
     List.fold_left (fun acc i -> (show_interval )) [] x*)
 
+  (* Helper Functions *)
+  let min_list l = List.fold_left min (List.hd l)
+  let max_list l = List.fold_left max (List.hd l)
+  let list_of_tuple2 (x, y) = [x ; y] 
+
+  let canonize x = failwith "Not implemented yet"
+  let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
+      List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
+  let binary_op ik x y op = match x, y with
+    | [], _ -> []
+    | _, [] -> []
+    | _::_, _::_ -> canonize (List.map op (cartesian_product x y))
+
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let equal_to_interval i (a,b) = 
