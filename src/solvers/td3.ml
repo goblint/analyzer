@@ -16,10 +16,24 @@ open Messages
 open CompareCIL
 open GoblintCil
 
+module type Hooks =
+sig
+  module S: EqConstrSys
+  module HM: Hashtbl.S with type key = S.v
+
+  val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
+  val delete_marked: unit HM.t -> unit
+  val stable_remove: S.v -> unit
+
+  module type PS = PostSolver.S with module S = S and module VH = HM
+  val postsolvers: (module PS) list
+end
+
 module WP =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
+  functor (Hooks: Hooks with module S = S and module HM = HM) ->
   struct
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
@@ -270,7 +284,7 @@ module WP =
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
         init x;
-        assert (S.system x <> None);
+        assert (Hooks.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
           if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace x;
           HM.replace stable x ();
@@ -329,6 +343,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
                 HM.remove superstable x;
+                Hooks.stable_remove x;
                 (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
               ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
@@ -340,7 +355,7 @@ module WP =
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
 
-        match S.system x with
+        match Hooks.system x with
         | None -> S.Dom.bot ()
         | Some f ->
           if skip_unchanged_rhs then
@@ -379,8 +394,8 @@ module WP =
             (eval_rhs_event x;
              f get set)
       and simple_solve l x y =
-        if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
-        if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
+        if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (Hooks.system y <> None);
+        if Hooks.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
         if not space || HM.mem wpoint y then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else (* TODO: [HM.mem called y] is not in the TD3 paper, what is it for? optimization? *)
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
@@ -415,10 +430,10 @@ module WP =
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
-        if S.system y <> None then (
+        if Hooks.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
-        assert (S.system y = None);
+        assert (Hooks.system y = None);
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let widen a b =
@@ -508,6 +523,7 @@ module WP =
             if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             HM.remove superstable y;
+            Hooks.stable_remove x;
             if not (HM.mem called y) then destabilize_normal y
           ) w
       in
@@ -579,6 +595,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
+                Hooks.stable_remove x;
                 destabilize_with_side ~side_fuel y
               ) w_side_dep;
           );
@@ -589,6 +606,7 @@ module WP =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
+              Hooks.stable_remove x;
               destabilize_with_side ~side_fuel y
             ) w_infl;
 
@@ -606,6 +624,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
+                Hooks.stable_remove x;
                 destabilize_with_side ~side_fuel:side_fuel' y
               ) w_side_infl
           )
@@ -750,6 +769,7 @@ module WP =
         delete_marked dep_vals; (* very basic fix for incremental runs with aborting such that unknowns of function
                                    return nodes with changed rhs but same id are actually evaluated and not looked up
                                    (this is probably not sufficient / desirable for inefficient matchings) *)
+        Hooks.delete_marked marked_for_deletion;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
         if restart_sided then (
@@ -777,6 +797,7 @@ module WP =
                   HM.remove stable y;
                   HM.remove superstable y;
                   HM.remove dep_vals y;
+                  Hooks.stable_remove x;
                   destabilize_normal y
                 ) w
             )
@@ -796,7 +817,7 @@ module WP =
           (fun g ->
              S.iter_vars get g
                (fun v ->
-                  if S.system v <> None then
+                  if Hooks.system v <> None then
                     ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
                   else if HM.mem stable v then
                     destabilize_leaf v)
@@ -916,7 +937,7 @@ module WP =
       in
       let rec eq check x =
         HM.replace visited x ();
-        match S.system x with
+        match Hooks.system x with
         | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pretty_trace x; S.Dom.bot ())
         | Some f -> f (get ~check) (check_side x)
       and get ?(check=false) x =
@@ -926,7 +947,7 @@ module WP =
           let d1 = HM.find rho x in
           let d2 = eq check x in (* just to reach unrestored variables *)
           if check then (
-            if not (HM.mem stable x) && S.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
+            if not (HM.mem stable x) && Hooks.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
             if not (S.Dom.leq d2 d1) then
               ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
           );
@@ -1141,7 +1162,7 @@ module WP =
         end
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
-        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
+        let postsolvers = Hooks.postsolvers @ (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
 
         let init_reachable ~vh =
           if incr_verify then
@@ -1161,5 +1182,25 @@ module WP =
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep; dep_vals})
   end
 
+module WP2 =
+  functor (Arg: IncrSolverArg) ->
+  functor (S:EqConstrSys) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
+  struct
+    module Hooks =
+    struct
+      module S = S
+      module HM = HM
+
+      let system = S.system
+      let delete_marked _ = ()
+      let stable_remove _ = ()
+
+      module type PS = PostSolver.S with module S = S and module VH = HM
+      let postsolvers = []
+    end
+    include WP (Arg) (S) (HM) (Hooks)
+  end
+
 let _ =
-  Selector.add_solver ("td3", (module WP : GenericEqBoxIncrSolver));
+  Selector.add_solver ("td3", (module WP2 : GenericEqBoxIncrSolver));
