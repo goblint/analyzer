@@ -115,7 +115,7 @@ struct
   let print_stats _ =
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
-    Printf.printf "runtime: %s\n" (string_of_time ());
+    Printf.printf "runtime: %s\n" (GobSys.string_of_time ());
     Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
@@ -126,7 +126,7 @@ struct
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
     print_newline ();
-    Option.may (write_csv [string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
+    Option.may (write_csv [GobSys.string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)

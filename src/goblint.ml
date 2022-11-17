@@ -37,7 +37,7 @@ let main () =
     GoblintDir.init ();
 
     if get_bool "dbg.verbose" then (
-      print_endline (localtime ());
+      print_endline (GobUnix.localtime ());
       print_endline Goblintutil.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in

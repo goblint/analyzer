@@ -527,7 +527,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)

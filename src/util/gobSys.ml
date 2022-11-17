@@ -20,3 +20,15 @@ let rmdir_if_empty dirname =
     Unix.rmdir (Fpath.to_string dirname)
   with Unix.Unix_error (Unix.ENOTEMPTY, _, _) ->
     ()
+
+
+(* Sys.time gives runtime in seconds as float *)
+let split_time () = (* gives CPU time in h,m,s,ms *)
+  let f = Sys.time () in
+  let i = int_of_float f in
+  let ms = int_of_float (Float.modulo f 1.0 *. 1000.) in
+  i / 3600, i / 60 mod 60, i mod 60, ms
+
+let string_of_time () = (* CPU time as hh:mm:ss.ms *)
+  let h,m,s,ms = split_time () in
+  Printf.sprintf "%02d:%02d:%02d.%03d" h m s ms
