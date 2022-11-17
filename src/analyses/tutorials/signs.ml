@@ -9,6 +9,8 @@ struct
   include Printable.Std
 
   type t = Neg | Zero | Pos [@@deriving eq, ord, hash, to_yojson]
+
+  let elems = [Neg;Zero;Pos]
   let name () = "signs"
   let show x = match x with
     | Neg -> "-"
@@ -22,12 +24,12 @@ struct
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if compare_cilint i zero_cilint < 0 then Zero
-    else if compare_cilint i zero_cilint > 0 then Zero
+    if compare_cilint i zero_cilint < 0 then Neg
+    else if compare_cilint i zero_cilint > 0 then Pos
     else Zero
 
   let gt x y = match x, y with
-    | Pos, Neg | Zero, Neg -> true (* TODO: Maybe something missing? *)
+    | Pos, Neg | Zero, Neg | Pos, Zero -> true (* TODO: Maybe something missing? *)
     | _ -> false
 
 end
@@ -36,12 +38,10 @@ end
  * We then lift the above operations to the lattice. *)
 module SL =
 struct
-  include Lattice.Flat (Signs) (Printable.DefaultNames)
-  let of_int i = `Lifted (Signs.of_int i)
+  include SetDomain.FiniteSet (Signs) (Signs)
+  let of_int i = singleton (Signs.of_int i)
 
-  let gt x y = match x, y with
-    | `Lifted x, `Lifted y -> Signs.gt x y
-    | _ -> false
+  let gt x y = for_all (fun a -> for_all (fun b -> Signs.gt a b) y ) x
 end
 
 module Spec : Analyses.MCPSpec =
@@ -59,9 +59,10 @@ struct
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with
-    | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
-    | Lval (Var x, NoOffset) -> D.find x d
-    | _ -> SL.top ()
+    | Const (CInt (i, _, _)) -> 
+      SL.of_int i(* TODO: Fix me! *)
+    | Lval (Var x, NoOffset) ->  D.find x d
+    | _ ->  SL.top ()
 
 
   (* Transfer functions: we only implement assignments here.
@@ -69,7 +70,7 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let d = ctx.local in
     match lval with
-    | (Var x, NoOffset) when not x.vaddrof -> D.add x (eval d rval) d
+    | (Var x, NoOffset) when not x.vaddrof ->  D.add x (eval d rval) d
     | _ -> D.top ()
 
 
