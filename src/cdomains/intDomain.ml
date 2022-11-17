@@ -1103,7 +1103,11 @@ struct
 
   let sub ?no_ov _ik _x _y = failwith "Not implemented yet"
 
-  let mul ?no_ov _ik _x _y = failwith "Not implemented yet"
+  let mul ?no_ov _ik _x _y = 
+    let op = fun a b -> 
+      let products = List.map ( * ) (cartesian_product (list_of_tuple2 a) (list_of_tuple2 b)) in
+      (min_list products, max_list products) in
+      binary_op ik x y op
 
   let div ?no_ov _ik _x _y = failwith "Not implemented yet"
 
