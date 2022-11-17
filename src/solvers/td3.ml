@@ -21,6 +21,8 @@ sig
   module S: EqConstrSys
   module HM: Hashtbl.S with type key = S.v
 
+  (* TODO: print_data *)
+
   val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
   val delete_marked: unit HM.t -> unit
   val stable_remove: S.v -> unit
@@ -50,7 +52,6 @@ module WP =
       var_messages: Message.t HM.t; (** Messages from right-hand sides of variables. Used for incremental postsolving. *)
       rho_write: S.Dom.t HM.t HM.t; (** Side effects from variables to write-only variables with values. Used for fast incremental restarting of write-only variables. *)
       dep: VS.t HM.t; (** Dependencies of variables. Inverse of [infl]. Used for fast pre-reachable pruning in incremental postsolving. *)
-      dep_vals: (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t; (** Dependencies of variables and values encountered at last eval of RHS. *)
     }
 
     type marshal = solver_data
@@ -67,13 +68,12 @@ module WP =
       var_messages = HM.create 10;
       rho_write = HM.create 10;
       dep = HM.create 10;
-      dep_vals = HM.create 10;
     }
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n|dep_vals|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.rho_write) (HM.length data.dep) (HM.length data.dep_vals)
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.rho_write) (HM.length data.dep)
 
     let verify_data data =
       if GobConfig.get_bool "solvers.td3.verify" then (
@@ -100,7 +100,6 @@ module WP =
         var_messages = HM.copy data.var_messages;
         rho_write = HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
         dep = HM.copy data.dep;
-        dep_vals = HM.copy data.dep_vals;
       }
 
     (* This hack is for fixing hashconsing.
@@ -167,11 +166,7 @@ module WP =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      let dep_vals = HM.create (HM.length data.dep_vals) in
-      HM.iter (fun k (value,deps) ->
-          HM.replace dep_vals (S.Var.relift k) (S.Dom.relift value, List.map (fun (var,value) -> (S.Var.relift var,S.Dom.relift value)) deps)
-        ) data.dep_vals;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep; dep_vals}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
@@ -239,18 +234,9 @@ module WP =
       let rho_write = data.rho_write in
       let dep = data.dep in
 
-      let skip_unchanged_rhs =
-        let enabled = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
-        if enabled && (restart_sided || restart_wpoint || restart_once) then
-          (M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs"; false)
-        else
-          enabled
-      in
-      let dep_vals = data.dep_vals in
-
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n|dep_vals|=%d\n"
-            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length rho_write) (HM.length dep) (HM.length dep_vals);
+          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
+            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length rho_write) (HM.length dep);
           print_context_stats rho
       in
 
@@ -354,45 +340,9 @@ module WP =
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
-
         match Hooks.system x with
         | None -> S.Dom.bot ()
-        | Some f ->
-          if skip_unchanged_rhs then
-            let all_deps_unchanged =
-              match HM.find_option dep_vals x with
-              | None -> None
-              | Some (oldv, deps) ->
-                let deps_inorder = List.rev deps in
-                if List.for_all (fun (var, value) -> S.Dom.equal (get var) value) deps_inorder then
-                  Some oldv
-                else
-                  None
-            in
-            match all_deps_unchanged with
-            | Some oldv ->
-              trace "sol2" "All deps unchanged for %a, not evaluating RHS\n" S.Var.pretty_trace x;
-              oldv
-            | _ ->
-              (
-                (* This needs to be done here as a local wrapper around get to avoid polluting dep_vals during earlier checks *)
-                let get y =
-                  let tmp = get y in
-                  let (oldv,curr_dep_vals) = HM.find dep_vals x in
-                  (HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals));
-                   tmp)
-                in
-                eval_rhs_event x;
-                (* Reset dep_vals to [] *)
-                HM.replace dep_vals x (S.Dom.bot (),[]);
-                let res = f get set in
-                (* Insert old value of last RHS evaluation *)
-                HM.replace dep_vals x (res, snd (HM.find dep_vals x));
-                res
-              )
-          else
-            (eval_rhs_event x;
-             f get set)
+        | Some f -> f get set
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (Hooks.system y <> None);
         if Hooks.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
@@ -766,9 +716,6 @@ module WP =
         delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
         delete_marked dep;
-        delete_marked dep_vals; (* very basic fix for incremental runs with aborting such that unknowns of function
-                                   return nodes with changed rhs but same id are actually evaluated and not looked up
-                                   (this is probably not sufficient / desirable for inefficient matchings) *)
         Hooks.delete_marked marked_for_deletion;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
@@ -796,7 +743,6 @@ module WP =
                   if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
-                  HM.remove dep_vals y;
                   Hooks.stable_remove x;
                   destabilize_normal y
                 ) w
@@ -1010,10 +956,6 @@ module WP =
           filter_vs_hm side_dep;
           filter_vs_hm dep;
 
-          VH.filteri_inplace (fun k v ->
-              VH.mem reachable k
-            ) dep_vals;
-
           VH.filteri_inplace (fun x w ->
               if VH.mem reachable x then (
                 VH.filteri_inplace (fun y _ ->
@@ -1179,7 +1121,7 @@ module WP =
       print_data data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep; dep_vals})
+      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 module WP2 =
@@ -1187,19 +1129,114 @@ module WP2 =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    let current_dep_vals: (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t ref = ref (HM.create 0)
+
     module Hooks =
     struct
       module S = S
       module HM = HM
 
-      let system = S.system
-      let delete_marked _ = ()
-      let stable_remove _ = ()
+      (* let skip_unchanged_rhs =
+        let enabled = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
+        if enabled && (restart_sided || restart_wpoint || restart_once) then
+          (M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs"; false)
+        else
+          enabled
+      in *)
+
+      let system x =
+        match S.system x with
+        | None -> None
+        | Some f (* when skip_unchanged_rhs *) ->
+          let dep_vals = !current_dep_vals in
+          let f' get set =
+            let all_deps_unchanged =
+              match HM.find_option dep_vals x with
+              | None -> None
+              | Some (oldv, deps) ->
+                let deps_inorder = List.rev deps in
+                if List.for_all (fun (var, value) -> S.Dom.equal (get var) value) deps_inorder then
+                  Some oldv
+                else
+                  None
+            in
+            match all_deps_unchanged with
+            | Some oldv ->
+              trace "sol2" "All deps unchanged for %a, not evaluating RHS\n" S.Var.pretty_trace x;
+              oldv
+            | _ ->
+              (
+                (* This needs to be done here as a local wrapper around get to avoid polluting dep_vals during earlier checks *)
+                let get y =
+                  let tmp = get y in
+                  let (oldv,curr_dep_vals) = HM.find dep_vals x in
+                  (HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals));
+                    tmp)
+                in
+                (* eval_rhs_event x; *)
+                (* Reset dep_vals to [] *)
+                HM.replace dep_vals x (S.Dom.bot (),[]);
+                let res = f get set in
+                (* Insert old value of last RHS evaluation *)
+                HM.replace dep_vals x (res, snd (HM.find dep_vals x));
+                res
+              )
+          in
+          Some f'
+        (* | Some f ->
+          Some (fun get set ->
+              (* eval_rhs_event x; *)
+              f get set
+            ) *)
+
+      let delete_marked marked_for_deletion =
+        HM.iter (fun x _ -> HM.remove !current_dep_vals x) marked_for_deletion
+        (* very basic fix for incremental runs with aborting such that unknowns of function
+                                   return nodes with changed rhs but same id are actually evaluated and not looked up
+                                   (this is probably not sufficient / desirable for inefficient matchings) *)
+
+      let stable_remove x =
+        HM.remove !current_dep_vals x
 
       module type PS = PostSolver.S with module S = S and module VH = HM
-      let postsolvers = []
+
+      module IncrPrune: PS =
+      struct
+        include PostSolver.Unit (S) (HM)
+
+        let finalize ~vh ~reachable =
+          VH.filteri_inplace (fun k v ->
+              VH.mem reachable k
+            ) !current_dep_vals
+      end
+      let postsolvers = [(module IncrPrune: PS)]
     end
-    include WP (Arg) (S) (HM) (Hooks)
+
+    module WP = WP (Arg) (S) (HM) (Hooks)
+
+    type marshal = WP.marshal * (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t (* TODO: record *)
+    (** Dependencies of variables and values encountered at last eval of RHS. *)
+
+    let copy_marshal (wp_data, dep_vals) =
+      (WP.copy_marshal wp_data, HM.copy dep_vals)
+
+    let relift_marshal (wp_data, dep_vals) =
+      let dep_vals' = HM.create (HM.length dep_vals) in
+      HM.iter (fun k (value,deps) ->
+          HM.replace dep_vals (S.Var.relift k) (S.Dom.relift value, List.map (fun (var,value) -> (S.Var.relift var,S.Dom.relift value)) deps)
+        ) dep_vals;
+      (WP.relift_marshal wp_data, dep_vals')
+
+    let solve box st vs marshal =
+      match marshal with
+      | Some (wp_data, dep_vals) ->
+        current_dep_vals := dep_vals;
+        let (rho, wp_data') = WP.solve box st vs (Some wp_data) in
+        (rho, (wp_data', !current_dep_vals))
+      | None ->
+        current_dep_vals := HM.create 10;
+        let (rho, wp_data') = WP.solve box st vs None in
+        (rho, (wp_data', !current_dep_vals))
   end
 
 let _ =
