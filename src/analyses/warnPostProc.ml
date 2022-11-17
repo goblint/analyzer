@@ -12,13 +12,14 @@ module Idx = PreValueDomain.IndexDomain
 
 module Cond = Printable.Prod (ExpDomain) (Idx)
 
-module DAnt = SetDomain.ToppedSet(Printable.Prod (Cond) (Printable.Strings)) (struct let topname = "top" end)
+module D = SetDomain.ToppedSet(Printable.Prod (Cond) (Printable.Strings)) (struct let topname = "top" end)
 
 module NH = Hashtbl.Make (Node)
 
 let alarmsNH = NH.create 100
 
 module CondSet = SetDomain.ToppedSet(Cond) (struct let topname = "top" end)
+module AlarmSet = SetDomain.ToppedSet(Printable.Strings) (struct let topname = "top" end)
 
 let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
 
@@ -64,38 +65,13 @@ end
 
 module HM = Hashtbl.Make (V)
 
+let antSolHM = ref (HM.create 10)
+
 let hoistHM = HM.create 10
 
 let sinkHM = HM.create 10
 
 module LocSet = SetDomain.ToppedSet(V) (struct let topname = "top" end)
-
-module DAv =
-struct
-  include SetDomain.ToppedSet(Printable.Prod3 (Cond) (Cond) (V)) (struct let topname = "top" end)
-
-  let conds_in s = fold (fun (c,cr,p) conds -> CondSet.add c conds) s (CondSet.empty ())
-
-  let rep_cond s = fold (fun (c,cr,p) conds -> CondSet.add cr conds) s (CondSet.empty ())
-
-  let rep_loc s = fold (fun (c,cr,p) conds -> LocSet.add p conds) s (LocSet.empty ())
-
-  let meet' pm x y =
-    match x, y with
-    | `Top, _ -> y
-    | _, `Top -> x
-    | `Lifted _, `Lifted _ ->
-      let inter = inter x y in
-      let conds = CondSet.inter (conds_in x) (conds_in y) in
-      (* let merge_info c pm x y =  *)
-      CondSet.fold (fun cond acc ->
-        let cx = filter (fun (c,_,_) -> Cond.equal c cond) inter in
-        let r = if is_empty cx then (cond,cond,pm) else choose cx in
-        add r acc
-        ) conds (empty ())
-
-end
-
 
 (* Anticipable Alarm Conditions Analysis *)
 module Ant =
@@ -105,13 +81,15 @@ struct
 
   type v = V.t
  
-  module Dom = DAnt
+  module Dom = D
 
   type d = Dom.t
 
   let box _ _ _ = failwith "TODO"
 
-  let conds_in s = Dom.fold (fun (x,y) conds -> CondSet.add x conds) s (CondSet.empty ())
+  let conds_in s = Dom.fold (fun (cond,alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+
+  let rel_alarms c s = Dom.fold (fun (c, alarm) acc -> AlarmSet.add alarm acc) s (AlarmSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
@@ -166,7 +144,6 @@ struct
           let next_nodes = List.map snd (CFG.next node) in
           let next_values = List.map (fun node -> get (`L node)) next_nodes in
           List.fold_left Dom.meet (Dom.top ()) next_values
-          (* ignore @@ Pretty.printf "meet: %a" Dom.pretty c; c *)
       in
       Some f
 
@@ -183,11 +160,13 @@ struct
 
   type v = V.t
 
-  module Dom = DAv
+  module Dom = D
 
   type d = Dom.t
 
   let box _ _ _ = failwith "TODO"
+
+  let conds_in s = Dom.fold (fun (cond,alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
@@ -207,10 +186,16 @@ struct
           match exp with
           | `Lifted exp -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars
           | _ -> false in
-          Dom.filter (fun ((exp, _), _, _) -> node_contains_exp_def exp) x
+          Dom.filter (fun ((exp, _), _) -> node_contains_exp_def exp) x
       | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
+
+  let gen node x = CondSet.fold (fun cond acc ->
+    let ant = HM.find !antSolHM node in
+    let rel_alarms = Ant.rel_alarms cond ant in
+    AlarmSet.fold (fun alarm acc -> Dom.add (cond, alarm) acc) rel_alarms acc
+    ) x (Dom.empty ())
 
   let gen_entry node x =
     match HM.find_option hoistHM (`L node) with
@@ -218,10 +203,7 @@ struct
     | Some set ->
       match CondSet.is_empty set with
       | true -> Dom.empty ()
-      | false -> CondSet.fold (fun cond acc ->
-          let elem = (cond, cond, (`L node)) in
-          Dom.add elem acc)
-          set (Dom.empty ())
+      | false -> gen (`L node) set
 
   let gen_exit node =
     match HM.find_option hoistHM (`G node) with
@@ -229,7 +211,7 @@ struct
     | Some set ->
       match CondSet.is_empty set with
       | true -> Dom.empty ()
-      | false -> CondSet.fold (fun cond acc -> Dom.add (cond, cond, (`G node)) acc) set (Dom.empty ())
+      | false -> gen (`G node) set
 
   let system = function
   (* AvIn *)
@@ -241,7 +223,7 @@ struct
           let module CFG = (val !MyCFG.current_cfg) in
           let prev_nodes = List.map snd (CFG.prev node) in
           let prev_values = List.map (fun node -> get (`G node)) prev_nodes in
-          List.fold_left (Dom.meet' (`L node)) (Dom.top ()) prev_values
+          List.fold_left Dom.meet (Dom.top ()) prev_values
     in
     Some f
   (* AvOut *)
@@ -263,6 +245,22 @@ struct
   let iter_vars _ _ _ = ()
 end
 
+let array_oob_warn idx_before_end idx_after_start node =
+  (* For an explanation of the warning types check the Pull Request #255 *)
+  match(idx_after_start, idx_before_end) with
+  | Some true, Some true -> (* Certainly in bounds on both sides.*)
+    ()
+  | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end" ~loc:node
+  | Some true, None ->
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end" ~loc:node
+  | Some false, Some true ->
+    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start" ~loc:node
+  | None, Some true ->
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start" ~loc:node
+  | _ ->
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds" ~loc:node
+
 module Spec =
 struct
   include Analyses.IdentitySpec
@@ -281,7 +279,10 @@ struct
     | Events.Access {exp=e; lvals; kind; reach} -> failwith "TODO"
     | _ -> ctx.local
 
-  (* let tuplesOf (x,y) =  *)
+  let init _ =
+    NH.clear alarmsNH;
+    HM.clear hoistHM;
+    HM.clear sinkHM
 
   let finalize _ = 
     let fd = Cilfacade.find_name_fundec "main" in
@@ -297,7 +298,9 @@ struct
     let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
     let (solution, _) = Solver.solve Ant.box [] [start_node] in
 
-    HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution;
+    antSolHM := solution;
+
+    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
     let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
       match exp with
@@ -338,36 +341,52 @@ struct
       | `G node -> HM.replace hoistHM k @@ hoist_exit node
         ) solution;
 
-    print_endline "hoist";
-    
-    HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM;
+    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
 
     let end_node = `G (Node.Function fd) in
     let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
     let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
 
-    HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av;
+    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
 
     let conds_entry node = 
       let av_in = HM.find solution_av (`L node) in
       let av_in' = Av.Dom.union av_in @@ Av.gen_entry node av_in in
-      DAv.conds_in (Av.kill node av_in') in
+      Av.conds_in (Av.kill node av_in') in
 
     let conds_exit node = 
       let module CFG = (val !MyCFG.current_cfg) in
       let next_nodes = List.map snd (CFG.next node) in
-      let av_in_conds = List.fold (fun acc node -> CondSet.inter acc (DAv.conds_in @@ HM.find solution_av (`L node))) (CondSet.top ()) next_nodes in
-      let av_out_conds = DAv.conds_in @@ HM.find solution_av (`G node) in
+      let av_in_conds = List.fold (fun acc node -> CondSet.inter acc (Av.conds_in @@ HM.find solution_av (`L node))) (CondSet.top ()) next_nodes in
+      let av_out_conds = Av.conds_in @@ HM.find solution_av (`G node) in
       CondSet.diff av_out_conds av_in_conds in
 
+    (* Update hashtable of sinked conditions *)
     HM.iter (fun k v ->
       match k with
       | `L node -> HM.replace sinkHM k @@ conds_entry node
       | `G node -> HM.replace sinkHM k @@ conds_exit node
         ) solution_av;
 
-    print_endline "sink";
-    HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM;
+    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
+
+    (* Print repositioned warnings *)
+    HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
+      match exp with
+      | `Lifted exp ->
+          let exp_v node =
+            let q = (!ask node).f (EvalInt exp) in
+            let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+            let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+            and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+            array_oob_warn idx_before_end idx_after_start (M.Location.Node node)
+          in
+          begin match k with
+          | `L node -> exp_v node
+          | `G node -> exp_v node
+          end
+      | _ -> failwith "TODO"
+      ) s) sinkHM;
 
 end
 

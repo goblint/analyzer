@@ -698,32 +698,40 @@ let add_alarm (e, l) w =
   | Some n -> WarnPostProc.NH.replace WarnPostProc.alarmsNH n ((e, l), w);
   | _ -> failwith "TODO"
 
+let array_oob idx_before_end idx_after_start (e, l) =
+  match(idx_after_start, idx_before_end) with
+  | Some true, Some true -> ()
+  | Some true, Some false -> add_alarm (e, l) "Must access array past end"
+  | Some true, None -> add_alarm (e, l) "May access array past end"
+  | Some false, Some true -> add_alarm (e, l) "Must access array before start"
+  | None, Some true -> add_alarm (e, l) "May access array before start"
+  | _ -> add_alarm (e, l) "May access array out of bounds"
+
+let array_oob_warn idx_before_end idx_after_start =
+  (* For an explanation of the warning types check the Pull Request #255 *)
+  match(idx_after_start, idx_before_end) with
+  | Some true, Some true -> (* Certainly in bounds on both sides.*)
+    ()
+  | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+  | Some true, None ->
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+  | Some false, Some true ->
+    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+  | None, Some true ->
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+  | _ ->
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+
 (* This is the main array out of bounds check *)
 let array_oob_check (x, l) (e, v) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
-    (* For an explanation of the warning types check the Pull Request #255 *)
-    match(idx_after_start, idx_before_end) with
-    | Some true, Some true -> (* Certainly in bounds on both sides.*)
-      ()
-    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-      add_alarm (e, l) "Must access array past end";
-      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
-    | Some true, None ->
-      add_alarm (e, l) "Must access array past end";
-      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
-    | Some false, Some true ->
-      add_alarm (e, l) "Must access array past end";
-      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
-    | None, Some true ->
-      add_alarm (e, l) "Must access array past end";
-      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
-    | _ ->
-      add_alarm (e, l) "Must access array past end";
-      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+    if List.mem "warnPostProcess" @@ GobConfig.get_string_list "ana.activated"
+      then array_oob idx_before_end idx_after_start (e, l)
+      else array_oob_warn idx_before_end idx_after_start
   else ()
-
 
 module TrivialWithLength (Val: Lattice.S): S with type value = Val.t and type idx = Idx.t  =
 struct
