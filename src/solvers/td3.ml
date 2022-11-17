@@ -1269,12 +1269,12 @@ module DepVals: GenericEqBoxIncrSolver =
       }
 
     let relift_marshal {base; dep_vals} =
-      let base = Base.relift_marshal base in
-      let dep_vals = HM.create (HM.length dep_vals) in
+      let base' = Base.relift_marshal base in
+      let dep_vals' = HM.create (HM.length dep_vals) in
       HM.iter (fun k (value,deps) ->
-          HM.replace dep_vals (S.Var.relift k) (S.Dom.relift value, List.map (fun (var,value) -> (S.Var.relift var,S.Dom.relift value)) deps)
+          HM.replace dep_vals' (S.Var.relift k) (S.Dom.relift value, List.map (fun (var,value) -> (S.Var.relift var,S.Dom.relift value)) deps)
         ) dep_vals;
-      {base; dep_vals}
+      {base = base'; dep_vals = dep_vals'}
 
     let solve box st vs marshal =
       let base_marshal = match marshal with
