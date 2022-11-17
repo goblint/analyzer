@@ -1132,6 +1132,8 @@ module WP1: GenericEqBoxIncrSolver =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    include Generic.SolverStats (S) (HM)
+
     module Hooks =
     struct
       module S = S
@@ -1139,7 +1141,16 @@ module WP1: GenericEqBoxIncrSolver =
 
       let print_data () = ()
 
-      let system = S.system
+      let system x =
+        match S.system x with
+        | None -> None
+        | Some f ->
+          let f' get set =
+            eval_rhs_event x;
+            f get set
+          in
+          Some f'
+
       let delete_marked _ = ()
       let stable_remove _ = ()
 
@@ -1155,6 +1166,8 @@ module WP2: GenericEqBoxIncrSolver =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    include Generic.SolverStats (S) (HM)
+
     let current_dep_vals: (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t ref = ref (HM.create 0)
 
     module Hooks =
@@ -1194,7 +1207,7 @@ module WP2: GenericEqBoxIncrSolver =
                   (HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals));
                     tmp)
                 in
-                (* eval_rhs_event x; *)
+                eval_rhs_event x;
                 (* Reset dep_vals to [] *)
                 HM.replace dep_vals x (S.Dom.bot (),[]);
                 let res = f get set in
