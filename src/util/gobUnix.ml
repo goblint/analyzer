@@ -1,4 +1,3 @@
-open Prelude
 open Unix
 
 let string_of_process_status = function
