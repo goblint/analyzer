@@ -951,6 +951,7 @@ struct
   let canonize x = failwith "Not implemented yet"
   let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
       List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
+
   let binary_op ik x y op = match x, y with
     | [], _ -> []
     | _, [] -> []
@@ -1089,7 +1090,9 @@ struct
 
   let logor _x = failwith "Not implemented yet"
 
-  let add ?no_ov _ik _x _y = failwith "Not implemented yet"
+  let add ?no_ov ik x y = 
+    let op = fun ((al, au),(bl, bu)) -> (Ints_t.add al bl, Ints_t.add au bu) in
+      binary_op ik x y op
 
   let sub ?no_ov _ik _x _y = failwith "Not implemented yet"
 
