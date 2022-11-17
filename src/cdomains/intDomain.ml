@@ -956,7 +956,11 @@ struct
     | [`Eq] ->  `Eq 
     | ys -> if for_all (fun x -> x == `Neq) xs  then `Neq else `Top  
     
-  let leq (x: t) (y: t) = failwith "Not implemented yet"
+  let leq (x: t) (y: t) = match x, y with
+    | [], _ -> true
+    | _, [] -> false
+    | _::_, _::_ -> let includes = fun (al, au) (bl, bu) -> al <= bl && au >= bu in
+      List.for_all (List.exists includes y) x   
 
   let join ik (x: t) (y: t): t = failwith "Not implemented yet"
 
