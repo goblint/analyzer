@@ -21,7 +21,7 @@ sig
   module S: EqConstrSys
   module HM: Hashtbl.S with type key = S.v
 
-  (* TODO: print_data *)
+  val print_data: unit -> unit
 
   val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
   val delete_marked: unit HM.t -> unit
@@ -71,9 +71,11 @@ module WP =
     }
 
     let print_data data str =
-      if GobConfig.get_bool "dbg.verbose" then
+      if GobConfig.get_bool "dbg.verbose" then (
         Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.rho_write) (HM.length data.dep)
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.rho_write) (HM.length data.dep);
+        Hooks.print_data ()
+      )
 
     let verify_data data =
       if GobConfig.get_bool "solvers.td3.verify" then (
@@ -237,6 +239,7 @@ module WP =
       let () = print_solver_stats := fun () ->
           Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
             (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length rho_write) (HM.length dep);
+          Hooks.print_data ();
           print_context_stats rho
       in
 
@@ -1134,6 +1137,8 @@ module WP1: GenericEqBoxIncrSolver =
       module S = S
       module HM = HM
 
+      let print_data () = ()
+
       let system = S.system
       let delete_marked _ = ()
       let stable_remove _ = ()
@@ -1156,6 +1161,9 @@ module WP2: GenericEqBoxIncrSolver =
     struct
       module S = S
       module HM = HM
+
+      let print_data () =
+        Printf.printf "|dep_vals|=%d\n" (HM.length !current_dep_vals)
 
       let system x =
         match S.system x with
