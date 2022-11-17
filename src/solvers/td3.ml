@@ -22,16 +22,23 @@ sig
   module HM: Hashtbl.S with type key = S.v
 
   val print_data: unit -> unit
+  (** Print additional solver data statistics. *)
 
   val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
+  (** Wrap [S.system]. Always use this hook instead of [S.system]! *)
+
   val delete_marked: unit HM.t -> unit
+  (** Incrementally delete additional solver data. *)
+
   val stable_remove: S.v -> unit
+  (** Remove additional solver data when variable removed from [stable]. *)
 
   module type PS = PostSolver.S with module S = S and module VH = HM
   val postsolvers: (module PS) list
+  (** Additional postsolvers for additional solver data. *)
 end
 
-module WP =
+module Base =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1127,7 +1134,8 @@ module WP =
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
-module WP1: GenericEqBoxIncrSolver =
+(** TD3 with no hooks. *)
+module Basic: GenericEqBoxIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1158,17 +1166,21 @@ module WP1: GenericEqBoxIncrSolver =
       let postsolvers = []
     end
 
-    include WP (Arg) (S) (HM) (Hooks)
+    include Base (Arg) (S) (HM) (Hooks)
   end
 
-module WP2: GenericEqBoxIncrSolver =
+(** TD3 with eval skipping using [dep_vals]. *)
+module DepVals: GenericEqBoxIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Generic.SolverStats (S) (HM)
 
-    let current_dep_vals: (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t ref = ref (HM.create 0)
+    type dep_vals = (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t
+
+    let current_dep_vals: dep_vals ref = ref (HM.create 0)
+    (** Reference to current [dep_vals] in hooks. *)
 
     module Hooks =
     struct
@@ -1219,10 +1231,12 @@ module WP2: GenericEqBoxIncrSolver =
           Some f'
 
       let delete_marked marked_for_deletion =
-        HM.iter (fun x _ -> HM.remove !current_dep_vals x) marked_for_deletion
         (* very basic fix for incremental runs with aborting such that unknowns of function
-                                   return nodes with changed rhs but same id are actually evaluated and not looked up
-                                   (this is probably not sufficient / desirable for inefficient matchings) *)
+           return nodes with changed rhs but same id are actually evaluated and not looked up
+           (this is probably not sufficient / desirable for inefficient matchings) *)
+        HM.iter (fun x _ ->
+            HM.remove !current_dep_vals x
+          ) marked_for_deletion
 
       let stable_remove x =
         HM.remove !current_dep_vals x
@@ -1241,31 +1255,38 @@ module WP2: GenericEqBoxIncrSolver =
       let postsolvers = [(module IncrPrune: PS)]
     end
 
-    module WP = WP (Arg) (S) (HM) (Hooks)
+    module Base = Base (Arg) (S) (HM) (Hooks)
 
-    type marshal = WP.marshal * (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t (* TODO: record *)
-    (** Dependencies of variables and values encountered at last eval of RHS. *)
+    type marshal = {
+      base: Base.marshal;
+      dep_vals: dep_vals; (** Dependencies of variables and values encountered at last eval of RHS. *)
+    }
 
-    let copy_marshal (wp_data, dep_vals) =
-      (WP.copy_marshal wp_data, HM.copy dep_vals)
+    let copy_marshal {base; dep_vals} =
+      {
+        base = Base.copy_marshal base;
+        dep_vals = HM.copy dep_vals;
+      }
 
-    let relift_marshal (wp_data, dep_vals) =
-      let dep_vals' = HM.create (HM.length dep_vals) in
+    let relift_marshal {base; dep_vals} =
+      let base = Base.relift_marshal base in
+      let dep_vals = HM.create (HM.length dep_vals) in
       HM.iter (fun k (value,deps) ->
           HM.replace dep_vals (S.Var.relift k) (S.Dom.relift value, List.map (fun (var,value) -> (S.Var.relift var,S.Dom.relift value)) deps)
         ) dep_vals;
-      (WP.relift_marshal wp_data, dep_vals')
+      {base; dep_vals}
 
     let solve box st vs marshal =
-      match marshal with
-      | Some (wp_data, dep_vals) ->
-        current_dep_vals := dep_vals;
-        let (rho, wp_data') = WP.solve box st vs (Some wp_data) in
-        (rho, (wp_data', !current_dep_vals))
-      | None ->
-        current_dep_vals := HM.create 10;
-        let (rho, wp_data') = WP.solve box st vs None in
-        (rho, (wp_data', !current_dep_vals))
+      let base_marshal = match marshal with
+        | Some {base; dep_vals} ->
+          current_dep_vals := dep_vals;
+          Some base
+        | None ->
+          current_dep_vals := HM.create 10;
+          None
+      in
+      let (rho, base_marshal') = Base.solve box st vs base_marshal in
+      (rho, {base = base_marshal'; dep_vals = !current_dep_vals})
   end
 
 let after_config () =
@@ -1275,14 +1296,14 @@ let after_config () =
   let skip_unchanged_rhs = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
   if skip_unchanged_rhs then (
     if restart_sided || restart_wpoint || restart_once then (
-      M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs";
-      Selector.add_solver ("td3", (module WP1: GenericEqBoxIncrSolver))
+      M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
+      Selector.add_solver ("td3", (module Basic: GenericEqBoxIncrSolver))
     )
     else
-      Selector.add_solver ("td3", (module WP2: GenericEqBoxIncrSolver))
+      Selector.add_solver ("td3", (module DepVals: GenericEqBoxIncrSolver))
   )
   else
-    Selector.add_solver ("td3", (module WP1: GenericEqBoxIncrSolver))
+    Selector.add_solver ("td3", (module Basic: GenericEqBoxIncrSolver))
 
 let () =
   AfterConfig.register after_config
