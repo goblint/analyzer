@@ -33,9 +33,8 @@ sig
   val stable_remove: S.v -> unit
   (** Remove additional solver data when variable removed from [stable]. *)
 
-  module type PS = PostSolver.S with module S = S and module VH = HM
-  val postsolvers: (module PS) list
-  (** Additional postsolvers for additional solver data. *)
+  val prune: reachable:unit HM.t -> unit
+  (** Prune unreachable additional solver data. *)
 end
 
 module Base =
@@ -1114,7 +1113,8 @@ module Base =
         end
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
-        let postsolvers = Hooks.postsolvers @ (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
+        (* Only put postsolvers defined in here with [S] from [CurrentVarEqConstrSys]! *)
+        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
 
         let init_reachable ~vh =
           if incr_verify then
@@ -1161,9 +1161,7 @@ module Basic: GenericEqBoxIncrSolver =
 
       let delete_marked _ = ()
       let stable_remove _ = ()
-
-      module type PS = PostSolver.S with module S = S and module VH = HM
-      let postsolvers = []
+      let prune ~reachable = ()
     end
 
     include Base (Arg) (S) (HM) (Hooks)
@@ -1241,18 +1239,10 @@ module DepVals: GenericEqBoxIncrSolver =
       let stable_remove x =
         HM.remove !current_dep_vals x
 
-      module type PS = PostSolver.S with module S = S and module VH = HM
-
-      module IncrPrune: PS =
-      struct
-        include PostSolver.Unit (S) (HM)
-
-        let finalize ~vh ~reachable =
-          VH.filteri_inplace (fun k v ->
-              VH.mem reachable k
-            ) !current_dep_vals
-      end
-      let postsolvers = [(module IncrPrune: PS)]
+      let prune ~reachable =
+        HM.filteri_inplace (fun x _ ->
+            HM.mem reachable x
+          ) !current_dep_vals
     end
 
     module Base = Base (Arg) (S) (HM) (Hooks)
