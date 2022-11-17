@@ -923,6 +923,122 @@ struct
   let project ik p t = t
 end
 
+module IntervalSetFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list =
+struct
+  let name () = "IntervalSets"
+
+  type int_t = Ints_t.t
+
+  type t = (Ints_t.t * Ints_t.t) list [@@deriving eq, hash, ord]
+
+  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
+
+  let top () = failwith @@ "top () not implemented for " ^ (name ())
+
+  let top_of ik = failwith "Not implemented yet"
+   
+  let bot () = failwith "Not implemented yet"
+  
+  let bot_of ik = bot () (*what is there to improve ?*)
+
+  let show x = failwith "Not implemented yet"
+    (*let show_interval i = "[" ^ (Ints_t.to_string (fst i)) ^ ", " ^ (Ints_t.to_string (snd j)) ^ "]" in
+    List.fold_left (fun acc i -> (show_interval )) [] x*)
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
+  let equal_to_interval i (a,b) = 
+    if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
+  
+  let equal_to i xs = match map (equal_to_interval i) xs with
+    | [] -> failwith "unsupported: equal_to with bottom"
+    | [`Eq] ->  `Eq 
+    | ys -> if for_all (fun x -> x == `Neq) xs  then `Neq else `Top  
+    
+  let leq (x: t) (y: t) = failwith "Not implemented yet"
+
+  let join ik (x: t) (y: t): t = failwith "Not implemented yet"
+
+  let meet ik (x: t) (y: t): t = failwith "Not implemented yet"
+
+  let to_int _x = failwith "Not implemented yet"
+
+  let to_bool _x = failwith "Not implemented yet"
+  
+  let rem _x = failwith "Not implemented yet"
+  
+  let lt _x = failwith "Not implemented yet"
+
+  let le _x = failwith "Not implemented yet"
+  
+  let gt _x = failwith "Not implemented yet"
+
+  let ge _x = failwith "Not implemented yet"
+  
+  let eq _x = failwith "Not implemented yet"
+
+  let ne _x = failwith "Not implemented yet"
+
+  let bitand _x _y = failwith "Not implemented yet"
+
+  let bitor _x _y = failwith "Not implemented yet"
+
+  let bitnot _x _y = failwith "Not implemented yet"
+
+  let bitxor _x _y = failwith "Not implemented yet"
+
+  let shift_left _x _y = failwith "Not implemented yet"
+
+  let shift_right _x _y = failwith "Not implemented yet"
+
+  let lognot _x = failwith "Not implemented yet"
+
+  let logand _x = failwith "Not implemented yet"
+
+  let logor _x = failwith "Not implemented yet"
+
+  let add ?no_ov _ik _x _y = failwith "Not implemented yet"
+
+  let sub ?no_ov _ik _x _y = failwith "Not implemented yet"
+
+  let mul ?no_ov _ik _x _y = failwith "Not implemented yet"
+
+  let div ?no_ov _ik _x _y = failwith "Not implemented yet"
+
+  let neg ?no_ov _x = failwith "Not implemented yet"
+
+  let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
+
+  let narrow _x _y _z  = failwith "Not implemented yet"
+
+  let widen _x  = failwith "Not implemented yet"
+
+  let starting _ik x = failwith "Not implemented yet"
+
+  let ending _ik x = failwith "Not implemented yet"
+  
+  let of_int _ik _x = failwith "Not implemented yet"
+
+  let of_bool _ik _x = failwith "Not implemented yet"
+  
+  let of_interval _ik _x = failwith "Not implemented yet"
+  
+  let invariant_ikind _ik = failwith "Not implemented yet"
+  
+  
+  let refine_with_congruence _x =  failwith "Not implemented yet"
+
+  let refine_with_interval _x = failwith "Not implemented yet"
+
+  let refine_with_incl_list _x = failwith "Not implemented yet"
+
+  let refine_with_excl_list _x = failwith "Not implemented yet"
+
+  let project _ik _ip _x = failwith "Not implemented yet"
+  
+  let arbitrary _ik = failwith "Not implemented yet"
+
+end
 
 module IntIkind = struct let ikind () = Cil.IInt end
 module Interval =  IntervalFunctor (BI)
@@ -2926,3 +3042,5 @@ struct
 end
 
 let of_const (i, ik, str) = IntDomTuple.of_int ik i
+
+
