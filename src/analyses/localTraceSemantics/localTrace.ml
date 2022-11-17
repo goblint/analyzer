@@ -6,7 +6,13 @@ type edge = MyCFG.edge
 module EdgePrinter = Printable.SimplePretty(Edge)
 module SigmarMap = Map.Make(CilType.Varinfo)
 
-type varDomain = Int of Cilint.cilint
+type varDomain = 
+Int of Cilint.cilint * ikind (* Eventuell ikind mit rein nehmen *)
+| Float of float * fkind
+| Address of varinfo 
+(* struct hat eine Liste von Variabeln und deren Typ + Wert*)
+(* Struct of ( (varinfo * varDomain) list) *)  
+
 type node = {
   programPoint : MyCFG.node;
   sigmar : varDomain SigmarMap.t;
@@ -27,9 +33,11 @@ let hash n = match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid
 let equal n1 n2 = (compare n1 n2) = 0
 let show n = 
   let show_valuedomain vd =
-    match vd with Int(cili) -> Big_int_Z.string_of_big_int cili
+    match vd with Int(cili, ik) -> "Integer of "^(Big_int_Z.string_of_big_int cili)^" with ikind: "^(CilType.Ikind.show ik)
+    | Float(f, fk) -> "Float of "^(string_of_float f)^" with fkind: "^(CilType.Fkind.show fk)
+    | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
 in
-  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(SigmarMap.fold (fun vinfo vd s -> "vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)) s "")^"]}"
+  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
 end
 
@@ -101,14 +109,19 @@ in if D.is_empty tmp then (Printf.printf "Obwohl leerer Graph hinzugefügt, ist 
 
 let exitstate = startstate
 
+let eval sigOld graph vinfo (rval: exp) = 
+  match rval with (* SigmarMap scheint automatisch bestehende varinfo-Werte zu ersetzen *)
+| Const(CInt(c, ik, _)) -> SigmarMap.add vinfo (Int (c, ik)) sigOld
+| Const(CReal(f, fk, _)) -> SigmarMap.add vinfo (Float (f, fk)) sigOld
+| AddrOf (Var(v), NoOffset) -> SigmarMap.add vinfo (Address(v)) sigOld
+| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
 let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
-let myEdge =
-  match lval, rval with
-  | (Var x, _), Const(CInt(c, _, _)) ->
-  ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar= SigmarMap.add x (Int (c)) oldSigmar})
-| _, _ -> ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge =  match lval with (Var x, _) -> ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=eval oldSigmar g x rval})
+  | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+  
 in
   D.add (LocTraceGraph.add_edge_e g myEdge) set 
 in
@@ -177,11 +190,3 @@ end
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
-
-
-(* module G = Imperative.Graph.Abstract(struct type t = int * int end) *)
-
-(* module locTraceGraph = ConcreteBidirectionalLabeled (node_old) (edge_old) *)
-
-(* and now: https://ocamlgraph.lri.fr/index.en.html
-   using https://ocamlgraph.lri.fr/doc/Imperative.Digraph.ConcreteBidirectionalLabeled.html *)
