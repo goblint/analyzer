@@ -315,6 +315,21 @@ class octagonFunctionVisitor(list, amount) = object
 
 end
 
+let congruenceOption factors file =
+  let locals, globals = factors.integralVars in
+  let cost = (locals + globals) * (factors.instructions / 12) + 5 * factors.functionCalls in
+  let value = 5 * locals + globals in
+  let activate () =
+    print_endline @@ "Congruence: " ^ string_of_int cost;
+    set_bool "ana.int.congruence" true;
+    print_endline "Enabled congruence domain.";
+  in
+  {
+    value;
+    cost;
+    activate;
+  }
+
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
@@ -429,6 +444,7 @@ let chooseConfig file =
   print_endline @@ "File: " ^ string_of_int fileCompplexity;
 
   let options = [] in
+  let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
   let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
