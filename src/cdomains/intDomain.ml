@@ -1101,7 +1101,9 @@ struct
     let op = fun ((al, au),(bl, bu)) -> (Ints_t.add al bl, Ints_t.add au bu) in
       binary_op ik x y op
 
-  let sub ?no_ov _ik _x _y = failwith "Not implemented yet"
+  let neg ?no_ov _x = failwith "Not implemented yet"
+
+  let sub ?no_ov ik x y = add ik x (neg y)
 
   let mul ?no_ov _ik _x _y = 
     let op = fun a b -> 
@@ -1111,7 +1113,6 @@ struct
 
   let div ?no_ov _ik _x _y = failwith "Not implemented yet"
 
-  let neg ?no_ov _x = failwith "Not implemented yet"
 
   let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
 
@@ -1119,7 +1120,7 @@ struct
 
   let widen _x  = failwith "Not implemented yet"
 
-  let starting ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)]
+  let starting ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)] 
 
   let ending ik n = match norm ik @@ Some (fst (range ik), n) with Some (x,y) -> [(x,y)]
   
