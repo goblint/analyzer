@@ -2,9 +2,6 @@
 module All = struct
   include (Batteries : module type of Batteries with module Format := Batteries.Format)
   module Format = Batteries.Legacy.Format
-  let comp2 f g a b = f (g a) (g b)
-  let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
-  let str_remove m s = String.nreplace ~str:s ~sub:m ~by:""
 
   (* Sys.time gives runtime in seconds as float *)
   let split_time () = (* gives CPU time in h,m,s,ms *)

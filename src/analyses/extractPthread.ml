@@ -748,7 +748,7 @@ module Codegen = struct
       |> List.of_enum
       |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
       |> List.unique
-      |> List.sort (compareBy PmlResTbl.get)
+      |> List.sort (BatOrd.map_comp PmlResTbl.get compare)
       |> List.concat_map process_def
     in
     let fun_ret_defs =
@@ -768,7 +768,7 @@ module Codegen = struct
           escape body
       in
       Tbls.FunCallTbl.to_list ()
-      |> List.group (compareBy (fst % fst))
+      |> List.group (BatOrd.map_comp (fst % fst) compare)
       |> List.concat_map fun_map
     in
     let globals = List.map Variable.show_def @@ Variables.get_globals () in
