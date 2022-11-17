@@ -332,7 +332,7 @@ class loopUnrollingCallVisitor = object
 
 end
 
-let loop_unrolling_factor loopStatement func =
+let loop_unrolling_factor loopStatement func totalLoops =
   let configFactor = get_int "exp.unrolling-factor" in
   let unrollFunctionCalled = try
       let thisVisitor = new loopUnrollingCallVisitor in
@@ -349,7 +349,7 @@ let loop_unrolling_factor loopStatement func =
   if AutoTune0.isActivated "loopUnrollHeuristic" then
     match fixedLoop with
     | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else 100 / loopStats.instructions
-    | _ -> targetFactor
+    | _ -> if totalLoops < 5 then max 10 targetFactor else targetFactor (*unroll at least 10 times if there are only few loops*)
   else
     configFactor
 
@@ -432,7 +432,7 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
     | _ -> ChangeDoChildrenPost(rename_labels s, after)
 end
 
-class loopUnrollingVisitor(func) = object
+class loopUnrollingVisitor(func, totalLoops) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
   inherit nopCilVisitor
 
@@ -440,7 +440,7 @@ class loopUnrollingVisitor(func) = object
     match s.skind with
     | Loop (b,loc, loc2, break , continue) ->
       let duplicate_and_rem_labels s =
-        let factor = loop_unrolling_factor s func in
+        let factor = loop_unrolling_factor s func totalLoops in
         if(factor > 0) then (
           print_endline @@ "unrolling loop at " ^ CilType.Location.show loc ^" with factor " ^ string_of_int factor;
           annotateArrays b;
@@ -465,7 +465,7 @@ class loopUnrollingVisitor(func) = object
     | _ -> DoChildren
 end
 
-let unroll_loops fd =
+let unroll_loops fd totalLoops =
   Cil.populateLabelAlphaTable fd;
-  let thisVisitor = new loopUnrollingVisitor(fd) in
+  let thisVisitor = new loopUnrollingVisitor(fd, totalLoops) in
   ignore (visitCilFunction thisVisitor fd)

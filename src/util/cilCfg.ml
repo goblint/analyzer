@@ -22,6 +22,23 @@ let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
 
+
+class countLoopsVisitor(count) = object
+  inherit nopCilVisitor
+
+  method! vstmt stmt = match stmt.skind with
+    | Loop _ -> count := !count + 1; DoChildren
+    | _ -> DoChildren
+
+end 
+
+let loopCount file = 
+  let count = ref 0 in
+  let visitor = new countLoopsVisitor(count) in
+  ignore (visitCilFileSameGlobals visitor file);
+  !count
+
+
 let createCFG (fileAST: file) =
   (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
   (* needs to be in its own block. end_basic_blocks does that.                                                        *)
@@ -36,11 +53,13 @@ let createCFG (fileAST: file) =
    * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.
    * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
 
+  let loops = loopCount fileAST in
+
   iterGlobals fileAST (fun glob ->
       match glob with
       | GFun(fd,_) ->
         (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd;
+        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd loops;
         prepareCFG fd;
         computeCFGInfo fd true
       | _ -> ()
