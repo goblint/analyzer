@@ -79,6 +79,8 @@ struct
   (* SV-COMP and witness generation *)
   module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT)
 
+  module Query = ResultQuery.Query (Spec) (EQSys) (GHT)
+
   (* print out information about dead code *)
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
     let module NH = Hashtbl.Make (Node) in
@@ -571,28 +573,7 @@ struct
             match local with
             | None -> Queries.Result.bot q
             | Some local ->
-              let rec ctx =
-                { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-                ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-                ; node   = node
-                ; prev_node = MyCFG.dummy_node
-                ; control_context = (fun () -> ctx_failwith "No context in query context.")
-                ; context = (fun () -> ctx_failwith "No context in query context.")
-                ; edge    = MyCFG.Skip
-                ; local  = local
-                ; global =
-                    (fun g ->
-                       try
-                         EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g))
-                       with Not_found ->
-                         M.warn ~category:MessageCategory.Unsound "Global %a not found during transformation, proceeding with bot." Spec.V.pretty g;
-                         Spec.G.bot ())
-                ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-                ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-                ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-                }
-              in
-              Spec.query ctx q
+              Query.ask_local_node gh node local q
           )
         in
         let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
@@ -630,25 +611,9 @@ struct
 
     let warn_global g v =
       (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-        ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "No context in query context.")
-        ; context = (fun () -> ctx_failwith "No context in query context.")
-        ; edge    = MyCFG.Skip
-        ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
-        ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ()))
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-        }
-      in
       match g with
       | `Left g -> (* Spec global *)
-        Spec.query ctx (WarnGlobal (Obj.repr g))
+        Query.ask_global gh (WarnGlobal (Obj.repr g))
       | `Right _ -> (* contexts global *)
         ()
     in

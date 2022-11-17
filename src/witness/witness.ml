@@ -279,29 +279,13 @@ struct
     Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
     Svcomp.task := Some (module Task)
 
+  module Query = ResultQuery.Query (Spec) (EQSys) (GHT)
+
   let determine_result lh gh entrystates (module Task:Task): (module WitnessTaskResult) =
     let get: node * Spec.C.t -> Spec.D.t =
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
     in
-    let ask_local (lvar:EQSys.LVar.t) local =
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = fst lvar
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
-        ; context = (fun () -> snd lvar)
-        ; edge    = MyCFG.Skip
-        ; local  = local
-        ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* see 29/29 on why fallback is needed *)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        }
-      in
-      Spec.query ctx
-    in
+    let ask_local lvar = Query.ask_local gh lvar in (* eta-expanad for query polymorphism *)
     let ask_indices lvar =
       let local = get lvar in
       let indices = ref [] in
