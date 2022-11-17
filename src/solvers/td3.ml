@@ -1124,7 +1124,28 @@ module WP =
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
-module WP2 =
+module WP1: GenericEqBoxIncrSolver =
+  functor (Arg: IncrSolverArg) ->
+  functor (S:EqConstrSys) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
+  struct
+    module Hooks =
+    struct
+      module S = S
+      module HM = HM
+
+      let system = S.system
+      let delete_marked _ = ()
+      let stable_remove _ = ()
+
+      module type PS = PostSolver.S with module S = S and module VH = HM
+      let postsolvers = []
+    end
+
+    include WP (Arg) (S) (HM) (Hooks)
+  end
+
+module WP2: GenericEqBoxIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1136,18 +1157,10 @@ module WP2 =
       module S = S
       module HM = HM
 
-      (* let skip_unchanged_rhs =
-        let enabled = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
-        if enabled && (restart_sided || restart_wpoint || restart_once) then
-          (M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs"; false)
-        else
-          enabled
-      in *)
-
       let system x =
         match S.system x with
         | None -> None
-        | Some f (* when skip_unchanged_rhs *) ->
+        | Some f ->
           let dep_vals = !current_dep_vals in
           let f' get set =
             let all_deps_unchanged =
@@ -1183,11 +1196,6 @@ module WP2 =
               )
           in
           Some f'
-        (* | Some f ->
-          Some (fun get set ->
-              (* eval_rhs_event x; *)
-              f get set
-            ) *)
 
       let delete_marked marked_for_deletion =
         HM.iter (fun x _ -> HM.remove !current_dep_vals x) marked_for_deletion
@@ -1239,5 +1247,21 @@ module WP2 =
         (rho, (wp_data', !current_dep_vals))
   end
 
-let _ =
-  Selector.add_solver ("td3", (module WP2 : GenericEqBoxIncrSolver));
+let after_config () =
+  let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
+  let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
+  let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
+  let skip_unchanged_rhs = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
+  if skip_unchanged_rhs then (
+    if restart_sided || restart_wpoint || restart_once then (
+      M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs";
+      Selector.add_solver ("td3", (module WP1: GenericEqBoxIncrSolver))
+    )
+    else
+      Selector.add_solver ("td3", (module WP2: GenericEqBoxIncrSolver))
+  )
+  else
+    Selector.add_solver ("td3", (module WP1: GenericEqBoxIncrSolver))
+
+let () =
+  AfterConfig.register after_config
