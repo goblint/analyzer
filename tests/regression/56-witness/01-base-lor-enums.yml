@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
@@ -22,11 +22,11 @@
     line: 17
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: (x == 1 || x == 3) || x == 6
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
@@ -50,11 +50,11 @@
     line: 18
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: (x == 1 || x == 3) || x == 7
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
@@ -78,11 +78,11 @@
     line: 29
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: y == 11 || y == x
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
@@ -106,11 +106,11 @@
     line: 30
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: (y == 1 || y == 3) || y == 6 || y == 11
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
@@ -134,7 +134,7 @@
     line: 31
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: y == 42 || y == x
     type: assertion
     format: C

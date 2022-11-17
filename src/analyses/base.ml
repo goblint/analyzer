@@ -510,7 +510,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -645,7 +645,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -791,7 +791,7 @@ struct
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
         evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
-        let (let*) = Option.bind in
+        let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
@@ -800,9 +800,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in

@@ -55,6 +55,14 @@ struct
     format = "C";
   }
 
+  let location_invariant ~task ~location ~(invariant): Entry.t = {
+    entry_type = LocationInvariant {
+        location;
+        location_invariant = invariant;
+      };
+    metadata = metadata ~task ();
+  }
+
   let loop_invariant ~task ~location ~(invariant): Entry.t = {
     entry_type = LoopInvariant {
         location;
@@ -282,12 +290,39 @@ struct
 
     (* Generate location invariants (without precondition) *)
     let entries =
-      if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
+      if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
         NH.fold (fun n local acc ->
             let loc = Node.location n in
             if is_invariant_node n then (
               let lvals = local_lvals n local in
               match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+              | `Lifted inv ->
+                let invs = WitnessUtil.InvariantExp.process_exp inv in
+                List.fold_left (fun acc inv ->
+                    let location_function = (Node.find_fundec n).svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
+                    let invariant = Entry.invariant (CilType.Exp.show inv) in
+                    let entry = Entry.location_invariant ~task ~location ~invariant in
+                    entry :: acc
+                  ) acc invs
+              | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                acc
+            )
+            else
+              acc
+          ) (Lazy.force nh) entries
+      )
+      else
+        entries
+    in
+
+    (* Generate loop invariants (without precondition) *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
+        NH.fold (fun n local acc ->
+            let loc = Node.location n in
+            if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
+              match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
               | `Lifted inv ->
                 let invs = WitnessUtil.InvariantExp.process_exp inv in
                 List.fold_left (fun acc inv ->
@@ -463,6 +498,8 @@ struct
 end
 
 module Validator
+    (File: WitnessUtil.File)
+    (Cfg: MyCFG.CfgBidir)
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                             and module GVar = GVarF (Spec.V)
@@ -473,6 +510,7 @@ module Validator
 struct
   module Locator = WitnessUtil.Locator (EQSys.LVar)
   module LvarS = Locator.ES
+  module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
   module Query = Query (Spec) (EQSys) (GHT)
@@ -490,10 +528,13 @@ struct
 
   let validate lh gh (file: Cil.file) =
     let locator = Locator.create () in
+    let loop_locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
         if not loc.synthetic then
-          Locator.add locator loc lvar
+          Locator.add locator loc lvar;
+        if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then
+          Locator.add loop_locator loc lvar
       ) lh;
 
     let inv_parser = InvariantParser.create file in
@@ -577,6 +618,26 @@ struct
           None
       in
 
+      let validate_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
+        let loc = loc_of_location location_invariant.location in
+        let inv = location_invariant.location_invariant.string in
+        let entry_certificate = (* TODO: wrong *)
+          if entry_type_enabled YamlWitnessType.LoopInvariantCertificate.entry_type then
+            Some Entry.loop_invariant_certificate
+          else
+            None
+        in
+        let msgLoc: M.Location.t = CilLocation loc in
+
+        match Locator.find_opt locator loc with
+        | Some lvars ->
+          validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+        | None ->
+          incr cnt_error;
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
+          None
+      in
+
       let validate_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
@@ -588,7 +649,7 @@ struct
         in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
@@ -655,11 +716,13 @@ struct
       in
 
       match entry_type_enabled target_type, entry.entry_type with
+      | true, LocationInvariant x ->
+        validate_location_invariant x
       | true, LoopInvariant x ->
         validate_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         validate_precondition_loop_invariant x
-      | false, (LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None

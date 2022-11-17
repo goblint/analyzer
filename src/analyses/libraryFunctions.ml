@@ -42,6 +42,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clearerr", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
   ]
 
 (** C POSIX library functions.

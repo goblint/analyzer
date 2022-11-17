@@ -1,4 +1,4 @@
-// PARAM: --set exp.unrolling-factor 5
+// PARAM: --set exp.unrolling-factor 5  --enable dbg.run_cil_check
 #include <goblint.h>
 
 int main(void) {
