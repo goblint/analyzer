@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: dc8526c7-69d5-4ec2-b90c-670bd19c6f1a
@@ -20,11 +20,11 @@
     line: 16
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: i == 2
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 48ab49c6-c030-446d-9b31-673979f1cbd0
@@ -46,7 +46,7 @@
     line: 16
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: j == 3
     type: assertion
     format: C

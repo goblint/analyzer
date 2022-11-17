@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: ddb9942d-998c-425d-a74f-228044bc38fb
@@ -21,11 +21,11 @@
     line: 14
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: '*p >= 0'
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: ddb9942d-998c-425d-a74f-228044bc38fb
@@ -48,7 +48,7 @@
     line: 14
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: '*p <= 10'
     type: assertion
     format: C

@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: d2a65147-2d04-49f8-8f27-fe3a7c8553b7
@@ -22,7 +22,7 @@
     line: 8
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: p == &i || p == &j
     type: assertion
     format: C

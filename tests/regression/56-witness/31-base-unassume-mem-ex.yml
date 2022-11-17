@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 8a156304-0058-4a15-a934-884483183ba8
@@ -23,11 +23,11 @@
     line: 16
     column: 6
     function: main
-  loop_invariant:
+  location_invariant:
     string: i >= 0 && j >= 0
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 1d367e5b-84a7-42e3-8191-11384aeca509
@@ -52,11 +52,11 @@
     line: 23
     column: 6
     function: main
-  loop_invariant:
+  location_invariant:
     string: (p == &i || p == &j) && *p >= 0
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: a5dc6e03-3748-4e52-befc-8c846634e329
@@ -81,7 +81,7 @@
     line: 30
     column: 6
     function: main
-  loop_invariant:
+  location_invariant:
     string: '*p >= 0'
     type: assertion
     format: C

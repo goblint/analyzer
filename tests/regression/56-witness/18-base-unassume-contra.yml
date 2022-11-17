@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: e9cde5db-0c69-4413-ad46-7a15b93f1834
@@ -22,7 +22,7 @@
     line: 7
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: i + 1 <= i
     type: assertion
     format: C

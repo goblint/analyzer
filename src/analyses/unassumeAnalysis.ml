@@ -25,6 +25,7 @@ struct
   module Locator = WitnessUtil.Locator (Node)
 
   let locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
+  let loop_locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
 
   type inv = {
     exp: Cil.exp;
@@ -38,6 +39,7 @@ struct
 
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
+    loop_locator := Locator.create (); (* TODO: add Locator.clear *)
     let module Cfg = (val !MyCFG.current_cfg) in
     let module WitnessInvariant = WitnessUtil.Invariant (struct let file = !Cilfacade.current_file end) (Cfg) in
 
@@ -49,6 +51,8 @@ struct
         (* TODO: filter synthetic like in Validator *)
         if WitnessInvariant.is_invariant_node node then
           Locator.add !locator (Node.location node) node;
+        if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
+          Locator.add !loop_locator (Node.location node) node;
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
           ) (Cfg.prev node)
@@ -110,12 +114,24 @@ struct
           M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
+      let unassume_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
+        let loc = loc_of_location location_invariant.location in
+        let inv = location_invariant.location_invariant.string in
+        let msgLoc: M.Location.t = CilLocation loc in
+
+        match Locator.find_opt !locator loc with
+        | Some nodes ->
+          unassume_nodes_invariant ~loc ~nodes inv
+        | None ->
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
+      in
+
       let unassume_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt !locator loc with
+        match Locator.find_opt !loop_locator loc with
         | Some nodes ->
           unassume_nodes_invariant ~loc ~nodes inv
         | None ->
@@ -174,11 +190,13 @@ struct
       in
 
       match YamlWitness.entry_type_enabled target_type, entry.entry_type with
+      | true, LocationInvariant x ->
+        unassume_location_invariant x
       | true, LoopInvariant x ->
         unassume_loop_invariant x
       | true, PreconditionLoopInvariant x ->
         unassume_precondition_loop_invariant x
-      | false, (LoopInvariant _ | PreconditionLoopInvariant _) ->
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _) ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
         M.info_noloc ~category:Witness "cannot unassume entry of type %s" target_type

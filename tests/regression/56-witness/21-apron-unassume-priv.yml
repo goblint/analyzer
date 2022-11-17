@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 85b0932e-717e-47ea-b7a0-6ed5ca294047
@@ -23,7 +23,7 @@
     line: 12
     column: 2
     function: t_fun
-  loop_invariant:
+  location_invariant:
     string: '0 <= g && g <= 10'
     type: assertion
     format: C

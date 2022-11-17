@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
@@ -22,11 +22,11 @@
     line: 8
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: 0 <= i
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
@@ -50,11 +50,11 @@
     line: 8
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: i <= j
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
@@ -78,7 +78,7 @@
     line: 8
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: j <= 42
     type: assertion
     format: C
