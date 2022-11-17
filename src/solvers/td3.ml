@@ -1177,6 +1177,7 @@ module DepVals: GenericEqBoxIncrSolver =
   struct
     include Generic.SolverStats (S) (HM)
 
+    (* TODO: more efficient inner data structure than assoc list, https://github.com/goblint/analyzer/pull/738#discussion_r876016079 *)
     type dep_vals = (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t
 
     let current_dep_vals: dep_vals ref = ref (HM.create 0)
@@ -1200,6 +1201,7 @@ module DepVals: GenericEqBoxIncrSolver =
               match HM.find_option dep_vals x with
               | None -> None
               | Some (oldv, deps) ->
+                (* TODO: is this reversal necessary? https://github.com/goblint/analyzer/pull/738#discussion_r876703516 *)
                 let deps_inorder = List.rev deps in
                 if List.for_all (fun (var, value) -> S.Dom.equal (get var) value) deps_inorder then
                   Some oldv
@@ -1208,25 +1210,23 @@ module DepVals: GenericEqBoxIncrSolver =
             in
             match all_deps_unchanged with
             | Some oldv ->
-              trace "sol2" "All deps unchanged for %a, not evaluating RHS\n" S.Var.pretty_trace x;
+              if M.tracing then M.trace "sol2" "All deps unchanged for %a, not evaluating RHS\n" S.Var.pretty_trace x;
               oldv
-            | _ ->
-              (
-                (* This needs to be done here as a local wrapper around get to avoid polluting dep_vals during earlier checks *)
-                let get y =
-                  let tmp = get y in
-                  let (oldv,curr_dep_vals) = HM.find dep_vals x in
-                  (HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals));
-                    tmp)
-                in
-                eval_rhs_event x;
-                (* Reset dep_vals to [] *)
-                HM.replace dep_vals x (S.Dom.bot (),[]);
-                let res = f get set in
-                (* Insert old value of last RHS evaluation *)
-                HM.replace dep_vals x (res, snd (HM.find dep_vals x));
-                res
-              )
+            | None ->
+              (* This needs to be done here as a local wrapper around get to avoid polluting dep_vals during earlier checks *)
+              let get y =
+                let tmp = get y in
+                let (oldv,curr_dep_vals) = HM.find dep_vals x in
+                HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals));
+                tmp
+              in
+              eval_rhs_event x;
+              (* Reset dep_vals to [] *)
+              HM.replace dep_vals x (S.Dom.bot (),[]);
+              let res = f get set in
+              (* Insert old value of last RHS evaluation *)
+              HM.replace dep_vals x (res, snd (HM.find dep_vals x));
+              res
           in
           Some f'
 
@@ -1297,6 +1297,7 @@ let after_config () =
   if skip_unchanged_rhs then (
     if restart_sided || restart_wpoint || restart_once then (
       M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
+      (* TODO: fix DepVals with restarting, https://github.com/goblint/analyzer/pull/738#discussion_r876005821 *)
       Selector.add_solver ("td3", (module Basic: GenericEqBoxIncrSolver))
     )
     else
