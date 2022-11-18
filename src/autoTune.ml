@@ -368,14 +368,6 @@ let wideningOption factors file =
       print_endline "Enabled widening thresholds";
   }
 
-let congruenceOption factors file = 
-  {
-    value = 8000;
-    cost = 8000;
-    activate = fun () ->
-      print_endline "Congruence enabled for whole file";
-      set_bool "ana.int.congruence" true;
-  }
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
@@ -437,7 +429,6 @@ let chooseConfig file =
   print_endline @@ "File: " ^ string_of_int fileCompplexity;
 
   let options = [] in
-  let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
   let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
