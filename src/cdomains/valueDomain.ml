@@ -14,7 +14,7 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: Q.ask -> (Events.t -> unit) -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
+  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
@@ -832,7 +832,7 @@ struct
       x (* This already contains some value *)
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (ask: Q.ask) (emit: Events.t -> unit) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
+  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
       match x, offs with
       | `Blob((va, _, orig) as c), `Index (_, ox) ->
@@ -892,7 +892,7 @@ struct
               begin
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask emit f x offs exp v t
+            | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
