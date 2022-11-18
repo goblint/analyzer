@@ -7,11 +7,9 @@ module EdgePrinter = Printable.SimplePretty(Edge)
 module SigmarMap = Map.Make(CilType.Varinfo)
 
 type varDomain = 
-Int of Cilint.cilint * ikind (* Eventuell ikind mit rein nehmen *)
+Int of Cilint.cilint * ikind 
 | Float of float * fkind
-| Address of varinfo 
-(* struct hat eine Liste von Variabeln und deren Typ + Wert*)
-(* Struct of ( (varinfo * varDomain) list) *)  
+| Address of varinfo   
 
 type node = {
   programPoint : MyCFG.node;
@@ -86,6 +84,29 @@ LocTraceGraph.fold_vertex (fun {programPoint=p1;sigmar=s1} sigmap -> if NodeImpl
 
 end
 
+(* Graph-printing modules for exporting *)
+module GPrinter = struct
+  include LocTraceGraph
+  let vertex_name v = NodeImpl.show v
+
+  let get_subgraph v = None
+  
+  let graph_attributes g = []
+
+  let default_vertex_attributes g = []
+
+  let vertex_attributes v = []
+  let default_edge_attributes g = []
+
+  let edge_attributes e = [] (*[`Comment(EdgeImpl.show e)]*)
+end
+module DotExport = Graph.Graphviz.Dot(GPrinter)
+(* let export_graph g filename =
+  let file = open_out filename in
+  DotExport.output_graph file g;
+  close_out file
+*)
+
 module GraphSet = SetDomain.Make(LocalTraces)
 
 (* Creates a copy of a set of graph - is this necessary? *)
@@ -110,11 +131,42 @@ in if D.is_empty tmp then (Printf.printf "Obwohl leerer Graph hinzugefügt, ist 
 let exitstate = startstate
 
 let eval sigOld graph vinfo (rval: exp) = 
-  match rval with (* SigmarMap scheint automatisch bestehende varinfo-Werte zu ersetzen *)
-| Const(CInt(c, ik, _)) -> SigmarMap.add vinfo (Int (c, ik)) sigOld
-| Const(CReal(f, fk, _)) -> SigmarMap.add vinfo (Float (f, fk)) sigOld
-| AddrOf (Var(v), NoOffset) -> SigmarMap.add vinfo (Address(v)) sigOld
-| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+  let nopVal = (Int((Big_int_Z.big_int_of_int (-13)),IInt), false) 
+in let get_binop_int op =
+(match op with 
+| PlusA -> Big_int_Z.add_big_int
+| MinusA -> Big_int_Z.sub_big_int
+| Mult -> Big_int_Z.mult_big_int
+| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+in
+let get_binop_float op =
+  (match op with 
+  | PlusA -> Float.add
+  | MinusA -> Float.sub
+  | Mult -> Float.mul
+  | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+in
+  let rec eval_helper subexp =
+  (match subexp with
+| Const(CInt(c, ik, _)) -> (Int (c, ik), true)
+| Const(CReal(f, fk, _)) -> (Float (f, fk), true)
+| Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else nopVal
+| AddrOf (Var(v), NoOffset) -> (Address(v), true)
+| UnOp(Neg, unopExp, _) -> 
+  (match eval_helper unopExp with (Int(i,ik), true) ->(Int (Big_int_Z.minus_big_int i, ik), true)
+    |(Float(f, fk), true) -> (Float(-. f, fk), true)
+    |(_, _) -> nopVal) 
+|UnOp(LNot, unopExp,_) -> 
+  (match eval_helper unopExp with (Int(i,ik), true) -> (Int(Big_int_Z.big_int_of_int (lnot (Big_int_Z.int_of_big_int i)), ik), true)
+  |_,_ -> nopVal)
+| BinOp(op, binopExp1, binopExp2,_) ->
+  (match (eval_helper binopExp1, eval_helper binopExp2) with ((Int(i1, ik1), true),(Int(i2, ik2), true)) -> if CilType.Ikind.equal ik1 ik2 then (Int((get_binop_int op) i1 i2, ik1), true) else nopVal
+  | ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Float((get_binop_float op) f1 f2, fk1), true) else nopVal
+  | _,_ -> nopVal) 
+| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+in let (result,success) = eval_helper rval 
+in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated."; sigOld)
+
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
 let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
