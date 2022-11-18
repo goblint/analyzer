@@ -279,7 +279,10 @@ struct
   let ge x y = of_bool (compare x y >= 0)
 end
 
-module BigIntOps = IntOpsDecorator(BigIntOpsBase)
+module BigIntOps = struct
+  include IntOpsDecorator(BigIntOpsBase)
+  let trailing_zeros x = Z.trailing_zeros x
+end
 module NIntOps = IntOpsDecorator(NIntOpsBase)
 module Int32Ops = IntOpsDecorator(Int32OpsBase)
 module Int64Ops = IntOpsDecorator(Int64OpsBase)

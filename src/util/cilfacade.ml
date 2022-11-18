@@ -8,8 +8,14 @@ module GU = Goblintutil
 include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
-let isCharType = function
+let isCharType t =
+  match Cil.unrollType t with
   | TInt ((IChar | ISChar | IUChar), _) -> true
+  | _ -> false
+
+let isFloatType t =
+  match Cil.unrollType t with
+  | TFloat _ -> true
   | _ -> false
 
 let init_options () =
@@ -296,32 +302,32 @@ let locs = Hashtbl.create 200
 
 (** Visitor to count locs appearing inside a fundec. *)
 class countFnVisitor = object
-    inherit nopCilVisitor
-    method! vstmt s =
-      match s.skind with
-      | Return (_, loc)
-      | Goto (_, loc)
-      | ComputedGoto (_, loc)
-      | Break loc
-      | Continue loc
-      | If (_,_,_,loc,_)
-      | Switch (_,_,_,loc,_)
-      | Loop (_,loc,_,_,_)
-        -> Hashtbl.replace locs loc.line (); DoChildren
-      | _ ->
-        DoChildren
+  inherit nopCilVisitor
+  method! vstmt s =
+    match s.skind with
+    | Return (_, loc)
+    | Goto (_, loc)
+    | ComputedGoto (_, loc)
+    | Break loc
+    | Continue loc
+    | If (_,_,_,loc,_)
+    | Switch (_,_,_,loc,_)
+    | Loop (_,loc,_,_,_)
+      -> Hashtbl.replace locs loc.line (); DoChildren
+    | _ ->
+      DoChildren
 
-    method! vinst = function
-      | Set (_,_,loc,_)
-      | Call (_,_,_,loc,_)
-      | Asm (_,_,_,_,_,loc)
-        -> Hashtbl.replace locs loc.line (); SkipChildren
-      | _ -> SkipChildren
+  method! vinst = function
+    | Set (_,_,loc,_)
+    | Call (_,_,_,loc,_)
+    | Asm (_,_,_,_,_,loc)
+      -> Hashtbl.replace locs loc.line (); SkipChildren
+    | _ -> SkipChildren
 
-    method! vvdec _ = SkipChildren
-    method! vexpr _ = SkipChildren
-    method! vlval _ = SkipChildren
-    method! vtype _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let fnvis = new countFnVisitor
@@ -346,16 +352,16 @@ module StmtH = Hashtbl.Make (CilType.Stmt)
 
 let stmt_fundecs: fundec StmtH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = StmtH.create 113 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          List.iter (fun stmt ->
-              StmtH.replace h stmt fd
-            ) fd.sallstmts
-        | _ -> ()
-      );
-    h
-  )
+      let h = StmtH.create 113 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            List.iter (fun stmt ->
+                StmtH.replace h stmt fd
+              ) fd.sallstmts
+          | _ -> ()
+        );
+      h
+    )
 
 let pseudo_return_to_fun = StmtH.create 113
 
@@ -369,14 +375,14 @@ module VarinfoH = Hashtbl.Make (CilType.Varinfo)
 
 let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 111 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar fd
-        | _ -> ()
-      );
-    h
-  )
+      let h = VarinfoH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar fd
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find [fundec] by the function's [varinfo] (has the function name and type). *)
 let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
@@ -386,14 +392,14 @@ module StringH = Hashtbl.Make (Printable.Strings)
 
 let name_fundecs: fundec StringH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = StringH.create 111 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          StringH.replace h fd.svar.vname fd
-        | _ -> ()
-      );
-    h
-  )
+      let h = StringH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            StringH.replace h fd.svar.vname fd
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find [fundec] by the function's name. *)
 (* TODO: why unused? *)
@@ -408,19 +414,19 @@ type varinfo_role =
 
 let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 113 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
-          List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
-          List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
-        | GVar (vi, _, _)
-        | GVarDecl (vi, _) ->
-          VarinfoH.replace h vi Global
-        | _ -> ()
-      );
-    h
-  )
+      let h = VarinfoH.create 113 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
+            List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
+            List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+          | GVar (vi, _, _)
+          | GVarDecl (vi, _) ->
+            VarinfoH.replace h vi Global
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find the role of the [varinfo]. *)
 let find_varinfo_role vi = VarinfoH.find (ResettableLazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
@@ -449,15 +455,15 @@ let find_scope_fundec vi =
 let original_names: string VarinfoH.t ResettableLazy.t =
   (* only invert environment map when necessary (e.g. witnesses) *)
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 113 in
-    Hashtbl.iter (fun original_name (envdata, _) ->
-        match envdata with
-        | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
-          VarinfoH.replace h vi original_name
-        | _ -> ()
-      ) Cabs2cil.environment;
-    h
-  )
+      let h = VarinfoH.create 113 in
+      Hashtbl.iter (fun original_name (envdata, _) ->
+          match envdata with
+          | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
+            VarinfoH.replace h vi original_name
+          | _ -> ()
+        ) Cabs2cil.environment;
+      h
+    )
 
 (** Find the original name (in input source code) of the [varinfo].
     If it was renamed by CIL, then returns the original name before renaming.
@@ -480,3 +486,21 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
+
+(** Given a [Cil.file], reorders its [globals], inserts function declarations before function definitions.
+    This function may be used after a code transformation to ensure that the order of globals yields a compilable program. *)
+let add_function_declarations (file: Cil.file): unit =
+  let globals = file.globals in
+  let functions, non_functions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
+  let upto_last_type, non_types = GobList.until_last_with (fun g -> match g with GType _ -> true | _ -> false) non_functions in
+  let declaration_from_GFun f = match f with
+    | GFun (f, _) when BatString.starts_with_stdlib ~prefix:"__builtin" f.svar.vname ->
+      (* Builtin functions should not occur in asserts generated, so there is no need to add declarations for them.*)
+      None
+    | GFun (f, _) ->
+      Some (GVarDecl (f.svar, locUnknown))
+    | _ -> failwith "Expected GFun, but was something else."
+  in
+  let fun_decls = List.filter_map declaration_from_GFun functions in
+  let globals = upto_last_type @ fun_decls @ non_types @ functions in
+  file.globals <- globals

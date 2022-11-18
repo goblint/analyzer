@@ -26,7 +26,7 @@ module EvalAssert = struct
   let surroundByAtomic = true
 
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-  let ass = makeVarinfo true "assert" (TVoid [])
+  let ass = makeVarinfo true "__VERIFIER_assert" (TVoid [])
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
@@ -138,8 +138,14 @@ module EvalAssert = struct
       in
       ChangeDoChildrenPost (s, instrument_statement)
   end
+
   let transform (ask: ?node:Node.t -> Cil.location -> Queries.ask) file = begin
     visitCilFile (new visitor ask) file;
+
+    (* Add function declarations before function definitions.
+       This way, asserts may reference functions defined later. *)
+    Cilfacade.add_function_declarations file;
+
     let assert_filename = GobConfig.get_string "trans.output" in
     let oc = Stdlib.open_out assert_filename in
     dumpFile defaultCilPrinter oc assert_filename file; end

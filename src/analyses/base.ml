@@ -505,7 +505,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -640,7 +640,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -835,7 +835,7 @@ struct
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
         evalbinop a emit gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
-        let (let*) = Option.bind in
+        let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
@@ -844,9 +844,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in
@@ -1933,11 +1933,17 @@ struct
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
               | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-                let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
-                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-                FD.of_interval (FD.get_fkind c) (l, h)
+                let zero_not_in_a = a_min > 0. || a_max < 0. in
+                let zero_not_in_c = c_min > 0. || c_max < 0. in
+                if zero_not_in_a && zero_not_in_c then
+                  let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
+                  let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                  let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                  FD.of_interval (FD.get_fkind c) (l, h)
+                else
+                  b
               | _ -> b) in
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n\n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in
@@ -2063,7 +2069,7 @@ struct
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
-        (match Cilfacade.typeOf e, FD.get_fkind c with
+        (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
          | TFloat (FLongDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FFloat
          | TFloat (FLongDouble as fk, _), FDouble
@@ -2076,7 +2082,7 @@ struct
         (match eval e st with
          | `Int i ->
            if ID.leq i (ID.cast_to ik i) then
-             match Cilfacade.typeOf e with
+             match unrollType (Cilfacade.typeOf e) with
              | TInt(ik_e, _)
              | TEnum ({ekind = ik_e; _ }, _) ->
                let c' = ID.cast_to ik_e c in
@@ -2600,14 +2606,16 @@ struct
       in
       let result =
         begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> `Float (FD.top_of fk)
+          | Inf fk -> `Float (FD.inf_of fk)
           | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
           | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
           | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
           | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Ceil (fk,x) -> `Float (apply_unary fk FD.ceil x)
+          | Floor (fk,x) -> `Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
           | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
           | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)
@@ -2616,6 +2624,14 @@ struct
           | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
+          | Isgreater (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> `Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Fmax (fd, x ,y) -> `Float (apply_binary fd FD.fmax x y)
+          | Fmin (fd, x ,y) -> `Float (apply_binary fd FD.fmin x y)
         end
       in
       begin match lv with
@@ -2810,6 +2826,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.emit ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Assert exp ->
+      assert_fn ctx exp true
     | _ ->
       ctx.local
 end

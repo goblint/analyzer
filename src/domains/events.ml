@@ -11,6 +11,7 @@ type t =
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *)
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | ArrayIndex of {exp: CilType.Exp.t;  value: PreValueDomain.IndexDomain.t;}
+  | Assert of exp
 
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
@@ -23,3 +24,4 @@ let pretty () = function
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
   | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp
   | ArrayIndex {exp; value} -> dprintf "ArrayIndex {exp=%a, value=%a}" CilType.Exp.pretty exp PreValueDomain.IndexDomain.pretty value
+  | Assert exp -> dprintf "Assert %a" d_exp exp

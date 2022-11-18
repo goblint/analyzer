@@ -30,6 +30,8 @@ module type CFloatType = sig
 
   val neg: t -> t
   val fabs: t -> t
+  val floor: t -> t
+  val ceil: t -> t
   val add: round_mode -> t -> t -> t
   val sub: round_mode -> t -> t -> t
   val mul: round_mode -> t -> t -> t
@@ -39,4 +41,3 @@ end
 
 module CDouble : CFloatType
 module CFloat : CFloatType
-

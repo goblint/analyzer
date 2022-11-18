@@ -717,6 +717,12 @@
                   "description": "Generate base analysis invariants",
                   "type": "boolean",
                   "default": true
+                },
+                "blobs": {
+                  "title": "ana.base.invariant.blobs",
+                  "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
@@ -1797,6 +1803,13 @@
             "Should the analysis print information on which globals are protected by which mutex?",
           "type": "boolean",
           "default": false
+        },
+        "run_cil_check" : {
+          "title": "dbg.run_cil_check",
+          "description":
+            "Should the analysis call Check.checkFile after creating the CFG (helpful to verify that transformations respect CIL's invariants.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1815,6 +1828,12 @@
         "behavior": {
           "title": "warn.behavior",
           "description": "undefined behavior warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "call": {
+          "title": "warn.call",
+          "description": "function call warnings",
           "type": "boolean",
           "default": true
         },
@@ -1981,6 +2000,12 @@
             "narrow-reuse": {
               "title": "solvers.td3.narrow-reuse",
               "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
+              "type": "boolean",
+              "default": true
+            },
+            "remove-wpoint": {
+              "title": "solvers.td3.remove-wpoint",
+              "description": "Remove widening points after narrowing phase. Enables a form of local restarting which increases precision of nested loops.",
               "type": "boolean",
               "default": true
             },
