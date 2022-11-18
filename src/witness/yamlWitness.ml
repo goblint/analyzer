@@ -159,7 +159,7 @@ struct
 
     let local_lvals n local =
       if GobConfig.get_bool "witness.invariant.accessed" then (
-        match R.ask_local_node n local MayAccessed with
+        match R.ask_local_node n ~local MayAccessed with
         | `Top ->
           CilLval.Set.top ()
         | (`Lifted _) as es ->
@@ -175,8 +175,7 @@ struct
             Cfg.next n
             |> BatList.enum
             |> BatEnum.filter_map (fun (_, next_n) ->
-                let next_local = NH.find (Lazy.force nh) next_n in
-                match R.ask_local_node next_n next_local MayAccessed with
+                match R.ask_local_node next_n MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
             |> BatEnum.fold AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
@@ -199,7 +198,7 @@ struct
         let loc = Node.location n in
         if is_invariant_node n then (
           let lvals = local_lvals n local in
-          match R.ask_local_node n local (Invariant {Invariant.default_context with lvals}) with
+          match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
           | `Lifted inv ->
             let invs = WitnessUtil.InvariantExp.process_exp inv in
             List.fold_left (fun acc inv ->
@@ -249,7 +248,7 @@ struct
     LHT.iter (fun ((n, c) as lvar) local ->
         begin match n with
           | FunctionEntry f ->
-            let invariant = R.ask_local lvar local (Invariant Invariant.default_context) in
+            let invariant = R.ask_local lvar ~local (Invariant Invariant.default_context) in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
           | _ -> ()
         end
@@ -263,7 +262,7 @@ struct
               | `Lifted c_inv ->
                 (* Collect all start states that may satisfy the invariant of current_c *)
                 List.iter (fun c ->
-                    let x = R.ask_local (c.node, c.context) c.state (Queries.EvalInt c_inv) in
+                    let x = R.ask_local (c.node, c.context) ~local:c.state (Queries.EvalInt c_inv) in
                     if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                       failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
                     else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
@@ -291,9 +290,8 @@ struct
         if is_invariant_node n then (
           let fundec = Node.find_fundec n in
           let pre_lvar = (Node.FunctionEntry fundec, c) in
-          let pre_local = LHT.find lh pre_lvar in
           let query = Queries.Invariant Invariant.default_context in
-          match R.ask_local pre_lvar pre_local query with
+          match R.ask_local pre_lvar query with
           | `Lifted c_inv ->
             let loc = Node.location n in
             (* Find unknowns for which the preceding start state satisfies the precondtion *)
@@ -302,7 +300,7 @@ struct
             (* Generate invariants. Give up in case one invariant could not be generated. *)
             let invs = GobList.fold_while_some (fun acc local ->
                 let lvals = local_lvals n local in
-                match R.ask_local_node n local (Invariant {Invariant.default_context with lvals}) with
+                match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
                 | `Lifted c -> Some ((`Lifted c)::acc)
                 | `Bot | `Top -> None
               ) [] xs
@@ -414,12 +412,11 @@ struct
         | Ok inv_cabs ->
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
-              let d = LHT.find lh lvar in
               let fundec = Node.find_fundec n in
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
-                  let x = ask_local lvar d (Queries.EvalInt inv_exp) in
+                  let x = ask_local lvar (Queries.EvalInt inv_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     Option.get (VR.result_of_enum (VR.bot ()))
                   else (
@@ -493,13 +490,13 @@ struct
           begin match InvariantParser.parse_cabs pre with
             | Ok pre_cabs ->
 
-              let precondition_holds ((n, c) as lvar) =
+              let precondition_holds (n, c) =
                 let fundec = Node.find_fundec n in
-                let pre_d = LHT.find lh (FunctionEntry fundec, c) in
+                let pre_lvar = (Node.FunctionEntry fundec, c) in
 
                 match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
                 | Ok pre_exp ->
-                  let x = ask_local lvar pre_d (Queries.EvalInt pre_exp) in
+                  let x = ask_local pre_lvar (Queries.EvalInt pre_exp) in
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     true
                   else (

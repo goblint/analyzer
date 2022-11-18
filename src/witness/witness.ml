@@ -282,9 +282,8 @@ struct
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
     in
     let ask_indices lvar =
-      let local = get lvar in
       let indices = ref [] in
-      ignore ((ask_local lvar local) (Queries.IterVars (fun i ->
+      ignore (ask_local lvar (Queries.IterVars (fun i ->
           indices := i :: !indices
         )));
       !indices
@@ -333,7 +332,7 @@ struct
       let prev = NHT.create 100 in
       let next = NHT.create 100 in
       LHT.iter (fun lvar local ->
-          ignore ((ask_local lvar local) (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
+          ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
               let lvar' = (fst lvar, snd lvar, i) in
               let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
               NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
@@ -374,7 +373,7 @@ struct
 
     let find_invariant (n, c, i) =
       let context = {Invariant.default_context with path = Some i} in
-      ask_local (n, c) (get (n, c)) (Invariant context)
+      ask_local (n, c) (Invariant context)
     in
 
     match Task.specification with

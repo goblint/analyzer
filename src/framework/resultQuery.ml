@@ -75,8 +75,8 @@ sig
   val lh: Spec.D.t LHT.t
   val nh: Spec.D.t NH.t Lazy.t
 
-  val ask_local: EQSys.LVar.t -> Spec.D.t -> 'a Queries.t -> 'a Queries.result
-  val ask_local_node: Node.t -> Spec.D.t -> 'a Queries.t -> 'a Queries.result
+  val ask_local: EQSys.LVar.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
+  val ask_local_node: Node.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
   val ask_global: 'a Queries.t -> 'a Queries.result
 end
 
@@ -96,7 +96,17 @@ struct
 
   module Query = Query (SpecSys)
 
-  let ask_local lvar local q = Query.ask_local gh lvar local q
-  let ask_local_node node local q = Query.ask_local_node gh node local q
+  let ask_local lvar ?local q =
+    let local = match local with
+      | Some local -> local
+      | None -> try LHT.find lh lvar with Not_found -> Spec.D.bot ()
+    in
+    Query.ask_local gh lvar local q
+  let ask_local_node node ?local q =
+    let local = match local with
+      | Some local -> local
+      | None -> try NH.find (Lazy.force nh) node with Not_found -> Spec.D.bot ()
+    in
+    Query.ask_local_node gh node local q
   let ask_global q = Query.ask_global gh q
 end
