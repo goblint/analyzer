@@ -74,6 +74,10 @@ sig
   val gh: EQSys.G.t GHT.t
   val lh: Spec.D.t LHT.t
   val nh: Spec.D.t NH.t Lazy.t
+
+  val ask_local: EQSys.LVar.t -> Spec.D.t -> 'a Queries.t -> 'a Queries.result
+  val ask_local_node: Node.t -> Spec.D.t -> 'a Queries.t -> 'a Queries.result
+  val ask_global: 'a Queries.t -> 'a Queries.result
 end
 
 module Make (SpecSysSol: SpecSysSol): SpecSysSol2 with module SpecSys = SpecSysSol.SpecSys =
@@ -89,4 +93,10 @@ struct
         ) lh;
       nh
     )
+
+  module Query = Query (SpecSys)
+
+  let ask_local lvar local q = Query.ask_local gh lvar local q
+  let ask_local_node node local q = Query.ask_local_node gh node local q
+  let ask_global q = Query.ask_global gh q
 end

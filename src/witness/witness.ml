@@ -281,7 +281,6 @@ struct
     let get: node * Spec.C.t -> Spec.D.t =
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
     in
-    let ask_local lvar = Query.ask_local gh lvar in (* eta-expanad for query polymorphism *)
     let ask_indices lvar =
       let local = get lvar in
       let indices = ref [] in

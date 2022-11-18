@@ -159,7 +159,7 @@ struct
 
     let local_lvals n local =
       if GobConfig.get_bool "witness.invariant.accessed" then (
-        match Query.ask_local_node gh n local MayAccessed with
+        match R.ask_local_node n local MayAccessed with
         | `Top ->
           CilLval.Set.top ()
         | (`Lifted _) as es ->
@@ -176,7 +176,7 @@ struct
             |> BatList.enum
             |> BatEnum.filter_map (fun (_, next_n) ->
                 let next_local = NH.find (Lazy.force nh) next_n in
-                match Query.ask_local_node gh next_n next_local MayAccessed with
+                match R.ask_local_node next_n next_local MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
             |> BatEnum.fold AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
@@ -199,7 +199,7 @@ struct
         let loc = Node.location n in
         if is_invariant_node n then (
           let lvals = local_lvals n local in
-          match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+          match R.ask_local_node n local (Invariant {Invariant.default_context with lvals}) with
           | `Lifted inv ->
             let invs = WitnessUtil.InvariantExp.process_exp inv in
             List.fold_left (fun acc inv ->
@@ -221,7 +221,7 @@ struct
     let entries = GHT.fold (fun g v acc ->
         match g with
         | `Left g -> (* Spec global *)
-          begin match Query.ask_global gh (InvariantGlobal (Obj.repr g)) with
+          begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
             | `Lifted inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
@@ -249,7 +249,7 @@ struct
     LHT.iter (fun ((n, c) as lvar) local ->
         begin match n with
           | FunctionEntry f ->
-            let invariant = Query.ask_local gh lvar local (Invariant Invariant.default_context) in
+            let invariant = R.ask_local lvar local (Invariant Invariant.default_context) in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
           | _ -> ()
         end
@@ -263,7 +263,7 @@ struct
               | `Lifted c_inv ->
                 (* Collect all start states that may satisfy the invariant of current_c *)
                 List.iter (fun c ->
-                    let x = Query.ask_local gh (c.node, c.context) c.state (Queries.EvalInt c_inv) in
+                    let x = R.ask_local (c.node, c.context) c.state (Queries.EvalInt c_inv) in
                     if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                       failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
                     else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
@@ -293,7 +293,7 @@ struct
           let pre_lvar = (Node.FunctionEntry fundec, c) in
           let pre_local = LHT.find lh pre_lvar in
           let query = Queries.Invariant Invariant.default_context in
-          match Query.ask_local gh pre_lvar pre_local query with
+          match R.ask_local pre_lvar pre_local query with
           | `Lifted c_inv ->
             let loc = Node.location n in
             (* Find unknowns for which the preceding start state satisfies the precondtion *)
@@ -302,7 +302,7 @@ struct
             (* Generate invariants. Give up in case one invariant could not be generated. *)
             let invs = GobList.fold_while_some (fun acc local ->
                 let lvals = local_lvals n local in
-                match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+                match R.ask_local_node n local (Invariant {Invariant.default_context with lvals}) with
                 | `Lifted c -> Some ((`Lifted c)::acc)
                 | `Bot | `Top -> None
               ) [] xs
@@ -393,8 +393,6 @@ struct
       ) lh;
 
     let inv_parser = InvariantParser.create file in
-
-    let ask_local = Query.ask_local gh in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in

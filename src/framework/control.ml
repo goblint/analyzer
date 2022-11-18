@@ -627,7 +627,7 @@ struct
       (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
       match g with
       | `Left g -> (* Spec global *)
-        Query.ask_global gh (WarnGlobal (Obj.repr g))
+        R.ask_global (WarnGlobal (Obj.repr g))
       | `Right _ -> (* contexts global *)
         ()
     in
