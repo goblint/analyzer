@@ -68,7 +68,8 @@
         "noRecursiveIntervals",
         "enums",
         "octagon",
-        "wideningThresholds"
+        "wideningThresholds",
+        "loopUnrollHeuristic"
       ]
     }
   },
