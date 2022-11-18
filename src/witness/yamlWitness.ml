@@ -122,8 +122,9 @@ let yaml_entries_to_file yaml_entries file =
 module Make
     (File: WitnessUtil.File)
     (Cfg: MyCFG.CfgBidir)
-    (SpecSys: SpecSys) =
+    (SpecSysSol: ResultQuery.SpecSysSol2) =
 struct
+  open SpecSysSol
   open SpecSys
 
   module NH = BatHashtbl.Make (Node)
@@ -134,16 +135,7 @@ struct
 
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
 
-  (* copied from Constraints.CompareNode *)
-  let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
-    let nh = NH.create 113 in
-    LHT.iter (fun (n, _) d ->
-        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
-        NH.replace nh n d'
-      ) lh;
-    nh
-
-  let write lh gh =
+  let write () =
     let input_files = GobConfig.get_string_list "files" in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "LP64"
@@ -155,8 +147,6 @@ struct
       ) !Svcomp.task
     in
     let task = Entry.task ~input_files ~data_model ~specification in
-
-    let nh = join_contexts lh in
 
     let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
@@ -185,7 +175,7 @@ struct
             Cfg.next n
             |> BatList.enum
             |> BatEnum.filter_map (fun (_, next_n) ->
-                let next_local = NH.find nh next_n in
+                let next_local = NH.find (Lazy.force nh) next_n in
                 match Query.ask_local_node gh next_n next_local MayAccessed with
                 | `Top -> None
                 | `Lifted _ as es -> Some es)
@@ -224,7 +214,7 @@ struct
         )
         else
           acc
-      ) nh []
+      ) (Lazy.force nh) []
     in
 
     (* Generate flow-insensitive invariants *)

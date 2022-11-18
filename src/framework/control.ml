@@ -604,6 +604,15 @@ struct
     in
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let module SpecSysSol: SpecSysSol =
+    struct
+      module SpecSys = SpecSys
+      let lh = lh
+      let gh = gh
+    end
+    in
+    let module R: ResultQuery.SpecSysSol2 = ResultQuery.Make (SpecSysSol) in
+
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> LT.to_yojson (Result.find local_xml node));
 
@@ -631,8 +640,8 @@ struct
       WResult.write lh gh entrystates;
 
     if get_bool "witness.yaml.enabled" then (
-      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (SpecSys) in
-      YWitness.write lh gh
+      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (R) in
+      YWitness.write ()
     );
 
     if get_string "witness.yaml.validate" <> "" then (

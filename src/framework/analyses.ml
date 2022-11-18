@@ -709,3 +709,12 @@ sig
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
   module GHT: BatHashtbl.S with type key = EQSys.GVar.t
 end
+
+module type SpecSysSol =
+sig
+  module SpecSys: SpecSys
+  open SpecSys
+
+  val gh: EQSys.G.t GHT.t
+  val lh: SpecSys.Spec.D.t LHT.t (* explicit SpecSys to avoid spurious module cycle *)
+end
