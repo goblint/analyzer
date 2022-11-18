@@ -265,11 +265,6 @@ struct
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 
-  let event ctx (event: Events.t) octx =
-    match event with
-    | ArrayIndex {exp; value} -> D.add (exp, value) ctx.local
-    | Events.Access {exp=e; lvals; kind; reach} -> failwith "TODO"
-    | _ -> ctx.local
 
   let init _ =
     NH.clear alarmsNH;
