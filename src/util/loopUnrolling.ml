@@ -348,8 +348,8 @@ let loop_unrolling_factor loopStatement func totalLoops =
   let fixedLoop = fixedLoopSize loopStatement func in
   if AutoTune0.isActivated "loopUnrollHeuristic" then
     match fixedLoop with
-    | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else 100 / loopStats.instructions
-    | _ -> if totalLoops < 5 then max 10 targetFactor else targetFactor (*unroll at least 10 times if there are only few loops*)
+    | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else if totalLoops < 17 then max (100 / loopStats.instructions) 10 else 100 / loopStats.instructions
+    | _ -> if totalLoops < 17 then max 10 targetFactor else targetFactor (*unroll at least 10 times if there are only few loops*)
   else
     configFactor
 
