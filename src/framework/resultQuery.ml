@@ -1,13 +1,9 @@
 open Analyses
 
-module Query
-    (Spec : Spec)
-    (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                            and module GVar = GVarF (Spec.V)
-                            and module D = Spec.D
-                            and module G = GVarG (Spec.G) (Spec.C))
-    (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+module Query (SpecSys: SpecSys) =
 struct
+  open SpecSys
+
   let ask_local (gh: EQSys.G.t GHT.t) (lvar:EQSys.LVar.t) local =
     (* build a ctx for using the query system *)
     let rec ctx =

@@ -45,13 +45,21 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t) ref = ref (fun _ -> asse
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
 struct
 
-  (* The Equation system *)
-  module EQSys = FromSpec (Spec) (Cfg) (Inc)
+  module SpecSys: SpecSys =
+  struct
+    (* Must be created in module, because cannot be wrapped in a module later. *)
+    module Spec = Spec
 
-  (* Hashtbl for locals *)
-  module LHT   = BatHashtbl.Make (EQSys.LVar)
-  (* Hashtbl for globals *)
-  module GHT   = BatHashtbl.Make (EQSys.GVar)
+    (* The Equation system *)
+    module EQSys = FromSpec (Spec) (Cfg) (Inc)
+
+    (* Hashtbl for locals *)
+    module LHT   = BatHashtbl.Make (EQSys.LVar)
+    (* Hashtbl for globals *)
+    module GHT   = BatHashtbl.Make (EQSys.GVar)
+  end
+
+  open SpecSys
 
   (* The solver *)
   module PostSolverArg =
@@ -67,7 +75,7 @@ struct
   end
   module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
-  module CompareGlobSys = Constraints.CompareGlobSys (Spec) (EQSys) (LHT) (GHT)
+  module CompareGlobSys = Constraints.CompareGlobSys (SpecSys)
 
   (* Triple of the function, context, and the local value. *)
   module RT = Analyses.ResultType2 (Spec)
@@ -77,9 +85,9 @@ struct
   module Result = Analyses.Result (LT) (struct let result_name = "analysis" end)
 
   (* SV-COMP and witness generation *)
-  module WResult = Witness.Result (Cfg) (Spec) (EQSys) (LHT) (GHT)
+  module WResult = Witness.Result (Cfg) (SpecSys)
 
-  module Query = ResultQuery.Query (Spec) (EQSys) (GHT)
+  module Query = ResultQuery.Query (SpecSys)
 
   (* print out information about dead code *)
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
@@ -623,12 +631,12 @@ struct
       WResult.write lh gh entrystates;
 
     if get_bool "witness.yaml.enabled" then (
-      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (Spec) (EQSys) (LHT) (GHT) in
+      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (SpecSys) in
       YWitness.write lh gh
     );
 
     if get_string "witness.yaml.validate" <> "" then (
-      let module YWitness = YamlWitness.Validator (Spec) (EQSys) (LHT) (GHT) in
+      let module YWitness = YamlWitness.Validator (SpecSys) in
       YWitness.validate lh gh file
     );
 

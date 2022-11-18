@@ -258,14 +258,9 @@ let print_task_result (module TaskResult:TaskResult): unit =
 
 open Analyses
 module Result (Cfg : CfgBidir)
-              (Spec : Spec)
-              (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                                  and module GVar = GVarF (Spec.V)
-                                  and module D = Spec.D
-                                  and module G = GVarG (Spec.G) (Spec.C))
-              (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
-              (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+              (SpecSys: SpecSys) =
 struct
+  open SpecSys
   open Svcomp
   let init file =
     (* TODO: toggle analyses based on specification *)
@@ -279,7 +274,7 @@ struct
     Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
     Svcomp.task := Some (module Task)
 
-  module Query = ResultQuery.Query (Spec) (EQSys) (GHT)
+  module Query = ResultQuery.Query (SpecSys)
 
   let determine_result lh gh entrystates (module Task:Task): (module WitnessTaskResult) =
     let get: node * Spec.C.t -> Spec.D.t =

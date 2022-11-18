@@ -122,20 +122,15 @@ let yaml_entries_to_file yaml_entries file =
 module Make
     (File: WitnessUtil.File)
     (Cfg: MyCFG.CfgBidir)
-    (Spec : Spec)
-    (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                            and module GVar = GVarF (Spec.V)
-                            and module D = Spec.D
-                            and module G = GVarG (Spec.G) (Spec.C))
-    (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
-    (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+    (SpecSys: SpecSys) =
 struct
+  open SpecSys
 
   module NH = BatHashtbl.Make (Node)
   module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
   module FMap = BatHashtbl.Make (CilType.Fundec)
   module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
-  module Query = ResultQuery.Query (Spec) (EQSys) (GHT)
+  module Query = ResultQuery.Query (SpecSys)
 
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
 
@@ -377,20 +372,15 @@ struct
   include Lattice.Chain (ChainParams)
 end
 
-module Validator
-    (Spec : Spec)
-    (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                            and module GVar = GVarF (Spec.V)
-                            and module D = Spec.D
-                            and module G = GVarG (Spec.G) (Spec.C))
-    (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
-    (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+module Validator (SpecSys: SpecSys) =
 struct
+  open SpecSys
+
   module Locator = WitnessUtil.Locator (EQSys.LVar)
   module LvarS = Locator.ES
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
-  module Query = ResultQuery.Query (Spec) (EQSys) (GHT)
+  module Query = ResultQuery.Query (SpecSys)
 
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
