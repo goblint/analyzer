@@ -888,8 +888,8 @@ struct
             | `Array x ->
               let e = determine_offset ask l o exp v in
               begin match e with
-                | `Lifted e -> emit (ArrayIndex {exp=e; value=idx})
-                | `Top -> ()
+                | Some exp -> emit (ArrayIndex {exp=exp; value=idx})
+                | None -> ()
               end;
               do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v t
             | `Address _ ->

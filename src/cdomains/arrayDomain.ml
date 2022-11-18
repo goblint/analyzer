@@ -706,13 +706,16 @@ let add_alarm (e, l) w =
   | _ -> failwith "TODO"
 
 let array_oob idx_before_end idx_after_start (e, l) =
-  match(idx_after_start, idx_before_end) with
-  | Some true, Some true -> ()
-  | Some true, Some false -> add_alarm (e, l) "Must access array past end"
-  | Some true, None -> add_alarm (e, l) "May access array past end"
-  | Some false, Some true -> add_alarm (e, l) "Must access array before start"
-  | None, Some true -> add_alarm (e, l) "May access array before start"
-  | _ -> add_alarm (e, l) "May access array out of bounds"
+  match e with
+  | None -> ()
+  | Some exp ->
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> ()
+    | Some true, Some false -> add_alarm (exp, l) "Must access array past end"
+    | Some true, None -> add_alarm (exp, l) "May access array past end"
+    | Some false, Some true -> add_alarm (exp, l) "Must access array before start"
+    | None, Some true -> add_alarm (exp, l) "May access array before start"
+    | _ -> add_alarm (exp, l) "May access array out of bounds"
 
 let array_oob_warn idx_before_end idx_after_start =
   (* For an explanation of the warning types check the Pull Request #255 *)
@@ -747,7 +750,7 @@ struct
   type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e : Basetype.CilExp.t option), v) =
     if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
@@ -786,7 +789,7 @@ struct
   type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: Basetype.CilExp.t option), v) =
     if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
@@ -835,7 +838,7 @@ struct
   type idx = PreValueDomain.IndexDomain.t
   type value = Val.t
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) ((e: Basetype.CilExp.t option), v) =
     if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l

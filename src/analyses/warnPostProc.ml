@@ -10,7 +10,7 @@ open Node0
 
 module Idx = PreValueDomain.IndexDomain
 
-module Cond = Printable.Prod (ExpDomain) (Idx)
+module Cond = Printable.Prod (Basetype.CilExp) (Idx)
 
 module D = SetDomain.ToppedSet(Printable.Prod (Cond) (Printable.Strings)) (struct let topname = "top" end)
 
@@ -106,16 +106,12 @@ struct
           (* TODO: other lval cases *)
           | _ -> acc
           ) [] xs in
-        let node_contains_exp_def (exp : ExpDomain.t) =
-          match exp with
-          | `Lifted exp -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars
-          | _ -> false in
-          Dom.filter (fun ((exp, _), alarm) -> node_contains_exp_def exp) x
+          Dom.filter (fun ((exp, _), alarm) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
       | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
 
-  let process (alarm : ((ExpDomain.t * Idx.t) * string)) y = alarm
+  let process (alarm : ((CilType.Exp.t * Idx.t) * string)) y = alarm
 
   let gen' node x =
     let module CFG = (val !MyCFG.current_cfg) in
@@ -182,11 +178,7 @@ struct
           (* TODO: other lval cases *)
           | _ -> acc
           ) [] xs in
-        let node_contains_exp_def (exp : ExpDomain.t) =
-          match exp with
-          | `Lifted exp -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars
-          | _ -> false in
-          Dom.filter (fun ((exp, _), _) -> node_contains_exp_def exp) x
+          Dom.filter (fun ((exp, _), _) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
       | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
@@ -303,18 +295,15 @@ struct
     (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
     let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
-      match exp with
-      | `Lifted exp ->
-        let q = (!ask node).f (EvalInt exp) in
-        let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-        (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
-        let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-        and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        begin match (idx_before_end, idx_after_start) with
-        | Some true, Some true -> false (* Certainly in bounds on both sides.*)
-        | _ -> true
-        end
-      | _ -> failwith "TODO"
+      let q = (!ask node).f (EvalInt exp) in
+      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+      (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
+      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+      begin match (idx_before_end, idx_after_start) with
+      | Some true, Some true -> false (* Certainly in bounds on both sides.*)
+      | _ -> true
+      end
       ) cs in
       
     let hoist_entry node =
@@ -372,20 +361,17 @@ struct
 
     (* Print repositioned warnings *)
     HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
-      match exp with
-      | `Lifted exp ->
-          let exp_v node =
-            let q = (!ask node).f (EvalInt exp) in
-            let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-            let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-            and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-            array_oob_warn idx_before_end idx_after_start (M.Location.Node node)
-          in
-          begin match k with
-          | `L node -> exp_v node
-          | `G node -> exp_v node
-          end
-      | _ -> failwith "TODO"
+        let exp_v node =
+          let q = (!ask node).f (EvalInt exp) in
+          let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+          let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+          and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+          array_oob_warn idx_before_end idx_after_start (M.Location.Node node)
+        in
+        begin match k with
+        | `L node -> exp_v node
+        | `G node -> exp_v node
+        end
       ) s) sinkHM;
 
 end
