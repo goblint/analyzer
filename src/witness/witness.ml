@@ -255,28 +255,29 @@ let print_svcomp_result (s: string): unit =
 let print_task_result (module TaskResult:TaskResult): unit =
   print_svcomp_result (Result.to_string TaskResult.result)
 
+let init (module Cfg: CfgBidir) file =
+  (* TODO: toggle analyses based on specification *)
+  let module Task = struct
+    let file = file
+    let specification = Svcomp.Specification.of_option ()
+
+    module Cfg = Cfg
+  end
+  in
+  Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
+  Svcomp.task := Some (module Task)
 
 open Analyses
 module Result (Cfg : CfgBidir)
-              (SpecSys: SpecSys) =
+              (R: ResultQuery.SpecSysSol2) =
 struct
+  open R
   open SpecSys
   open Svcomp
-  let init file =
-    (* TODO: toggle analyses based on specification *)
-    let module Task = struct
-      let file = file
-      let specification = Svcomp.Specification.of_option ()
-
-      module Cfg = Cfg
-    end
-    in
-    Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
-    Svcomp.task := Some (module Task)
 
   module Query = ResultQuery.Query (SpecSys)
 
-  let determine_result lh gh entrystates (module Task:Task): (module WitnessTaskResult) =
+  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
     let get: node * Spec.C.t -> Spec.D.t =
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
     in
@@ -546,9 +547,9 @@ struct
       )
 
 
-  let write lh gh entrystates =
+  let write entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Timing.wrap "determine" (determine_result lh gh entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.wrap "determine" (determine_result entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
@@ -558,11 +559,11 @@ struct
       Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)
     )
 
-  let write lh gh entrystates =
+  let write entrystates =
     match !Goblintutil.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
-    | _ -> write lh gh entrystates
+    | _ -> write entrystates
 
-  let write lh gh entrystates =
-    Timing.wrap "witness" (write lh gh) entrystates
+  let write entrystates =
+    Timing.wrap "witness" write entrystates
 end

@@ -84,9 +84,6 @@ struct
   (* Analysis result structure---a hashtable from program points to [LT] *)
   module Result = Analyses.Result (LT) (struct let result_name = "analysis" end)
 
-  (* SV-COMP and witness generation *)
-  module WResult = Witness.Result (Cfg) (SpecSys)
-
   module Query = ResultQuery.Query (SpecSys)
 
   (* print out information about dead code *)
@@ -310,7 +307,7 @@ struct
 
     (* real beginning of the [analyze] function *)
     if get_bool "ana.sv-comp.enabled" then
-      WResult.init file; (* TODO: move this out of analyze_loop *)
+      Witness.init (module Cfg) file; (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
@@ -604,14 +601,14 @@ struct
     in
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
     let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
-    let module SpecSysSol: SpecSysSol =
+    let module SpecSysSol: SpecSysSol with module SpecSys = SpecSys =
     struct
       module SpecSys = SpecSys
       let lh = lh
       let gh = gh
     end
     in
-    let module R: ResultQuery.SpecSysSol2 = ResultQuery.Make (SpecSysSol) in
+    let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (SpecSysSol) in
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> LT.to_yojson (Result.find local_xml node));
@@ -636,8 +633,11 @@ struct
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
-    if get_bool "ana.sv-comp.enabled" then
-      WResult.write lh gh entrystates;
+    if get_bool "ana.sv-comp.enabled" then (
+      (* SV-COMP and witness generation *)
+      let module WResult = Witness.Result (Cfg) (R) in
+      WResult.write entrystates
+    );
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (R) in
@@ -645,8 +645,8 @@ struct
     );
 
     if get_string "witness.yaml.validate" <> "" then (
-      let module YWitness = YamlWitness.Validator (SpecSys) in
-      YWitness.validate lh gh file
+      let module YWitness = YamlWitness.Validator (R) in
+      YWitness.validate file
     );
 
     let marshal = Spec.finalize () in

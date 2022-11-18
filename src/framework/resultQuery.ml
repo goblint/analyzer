@@ -76,7 +76,7 @@ sig
   val nh: Spec.D.t NH.t Lazy.t
 end
 
-module Make (SpecSysSol: SpecSysSol): SpecSysSol2 =
+module Make (SpecSysSol: SpecSysSol): SpecSysSol2 with module SpecSys = SpecSysSol.SpecSys =
 struct
   include SpecSysSol
   open SpecSys

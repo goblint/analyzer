@@ -122,9 +122,9 @@ let yaml_entries_to_file yaml_entries file =
 module Make
     (File: WitnessUtil.File)
     (Cfg: MyCFG.CfgBidir)
-    (SpecSysSol: ResultQuery.SpecSysSol2) =
+    (R: ResultQuery.SpecSysSol2) =
 struct
-  open SpecSysSol
+  open R
   open SpecSys
 
   module NH = BatHashtbl.Make (Node)
@@ -362,8 +362,9 @@ struct
   include Lattice.Chain (ChainParams)
 end
 
-module Validator (SpecSys: SpecSys) =
+module Validator (R: ResultQuery.SpecSysSol2) =
 struct
+  open R
   open SpecSys
 
   module Locator = WitnessUtil.Locator (EQSys.LVar)
@@ -383,7 +384,7 @@ struct
     synthetic = false;
   }
 
-  let validate lh gh (file: Cil.file) =
+  let validate (file: Cil.file) =
     let locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
