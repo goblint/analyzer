@@ -295,10 +295,9 @@ struct
         (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
         let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
         and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        begin match (idx_before_end, idx_after_start) with
+        match (idx_before_end, idx_after_start) with
         | Some true, Some true -> false (* Certainly in bounds on both sides.*)
         | _ -> true
-        end
       ) cs in
       
     let hoist_entry node =
