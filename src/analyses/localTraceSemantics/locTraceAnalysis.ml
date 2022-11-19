@@ -2,6 +2,10 @@ open Prelude.Ana
 open Analyses
 open LocTraceDS
   
+(* Custom exceptions for eval-function *)
+exception Division_by_zero_Int
+exception Division_by_zero_Float
+
 (* Analysis framework for local traces *)
 module Spec : Analyses.MCPSpec =
 struct
@@ -34,7 +38,7 @@ in let get_binop_int op =
 | PlusA -> Big_int_Z.add_big_int
 | MinusA -> Big_int_Z.sub_big_int
 | Mult -> Big_int_Z.mult_big_int
-| Div -> Big_int_Z.div_big_int
+| Div -> fun  x1 x2 -> if x2 = Big_int_Z.zero_big_int then raise Division_by_zero_Int else Big_int_Z.div_big_int x1 x2
 | Mod -> Big_int_Z.mod_big_int
 | Shiftlt -> fun x1 x2 -> Big_int_Z.shift_left_big_int x1 (Big_int_Z.int_of_big_int x2)
 | Shiftrt -> fun x1 x2 -> Big_int_Z.shift_right_big_int x1 (Big_int_Z.int_of_big_int x2)
@@ -46,7 +50,7 @@ let get_binop_float op =
   | PlusA -> Float.add
   | MinusA -> Float.sub
   | Mult -> Float.mul
-  | Div -> Float.div
+  | Div -> fun x1 x2 -> if x2 = 0. then raise Division_by_zero_Float else Float.div x1 x2
   | Mod -> Float.modulo
   (*| Lt -> fun x1 x2 -> if x1 < x2 then 1. else 0. *)
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
@@ -83,11 +87,16 @@ in
 in let (result,success) = eval_helper rval 
 in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed."; SigmarMap.remove vinfo sigOld)
 
+let eval_catch_exceptions sigOld vinfo rval stateEdge =
+try eval sigOld vinfo rval with 
+Division_by_zero_Int -> print_string ("The CFG edge <"^(EdgeImpl.show stateEdge)^" definitely contains an Integer division by zero.\n"); SigmarMap.remove vinfo sigOld
+| Division_by_zero_Float -> print_string ("The CFG edge <"^(EdgeImpl.show stateEdge)^" definitely contains a Float division by zero.\n"); SigmarMap.remove vinfo sigOld
+
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
 let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
-let myEdge =  match lval with (Var x, _) -> ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=eval oldSigmar x rval})
+let myEdge =  match lval with (Var x, _) -> ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=eval_catch_exceptions oldSigmar x rval ctx.edge})
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   
 in
