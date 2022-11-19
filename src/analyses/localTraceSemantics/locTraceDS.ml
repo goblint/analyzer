@@ -1,27 +1,31 @@
 open Prelude.Ana
 open Graph
 
+(* Pure edge type *)
 type edge = MyCFG.edge
-module EdgePrinter = Printable.SimplePretty(Edge)
+
 module SigmarMap = Map.Make(CilType.Varinfo)
 
+(* Value domain for variables contained in sigmar mapping.
+   The supported types are: Integer, Float and Address of a variable *)
 type varDomain = 
 Int of Cilint.cilint * ikind 
 | Float of float * fkind
 | Address of varinfo   
 
+(* Pure node type *)
 type node = {
   programPoint : MyCFG.node;
   sigmar : varDomain SigmarMap.t;
 }
 
+(* Module wrap for node implementing necessary functions for ocamlgraph *)
 module NodeImpl =
 struct 
-(* TODO: Implement functions *)
 type t = node
 
 let compare n1 n2 = match (n1, n2) with
-({programPoint=p1;sigmar=s1},{programPoint=p2;sigmar=s2}) -> String.compare (Node.show_id p1) (Node.show_id p2) (* sigmar erstmal ignoriert *)
+({programPoint=p1;sigmar=s1},{programPoint=p2;sigmar=s2}) -> String.compare (Node.show_id p1) (Node.show_id p2)
 
 let hash n = match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid
 | {programPoint=Function(fd);sigmar=s} -> fd.svar.vid
@@ -38,9 +42,11 @@ in
 
 end
 
+module EdgePrinter = Printable.SimplePretty(Edge)
+
+(* Module wrap for edge implementing necessary functions for ocamlgraph *)
 module EdgeImpl =
 struct
-(* TODO: Implement functions *)  
 type t = edge
 let default = Edge.Skip
 let compare e1 e2 =
@@ -49,15 +55,16 @@ Edge.compare e1 e2
 let show e = EdgePrinter.show e
 
 end
+
+(* ocamlgraph datastructure *)
 module LocTraceGraph = Persistent.Digraph.ConcreteBidirectionalLabeled (NodeImpl) (EdgeImpl)
 
 
-(* Eigentliche Datenstruktur *)
+(* Module wrap for graph datastructure implementing necessary functions for analysis framework *)
 module LocalTraces =
-(* TODO implement functions for graph*)
 struct
 include Printable.Std
-type t = LocTraceGraph.t (* Hier kommt der Graph rein *)
+type t = LocTraceGraph.t
 let name () = "traceDataStruc"
 
 let show (g:t) =
@@ -72,18 +79,25 @@ let equal g1 g2 =
 LocTraceGraph.fold_edges_e (fun e b -> (LocTraceGraph.mem_edge_e g2 e) && b ) g1 false 
   in tmp
 
+(* Dummy hash function *)
 let hash g1 = 42
 
 let compare g1 g2 = if equal g1 g2 then 0 else 43
 
+(* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 
-let get_sigmar g (progPoint:MyCFG.node) =  (* TODO implement get_node*)
+(* Retrieves the sigmar mapping in a graph of a given node *)
+let get_sigmar g (progPoint:MyCFG.node) =  
 LocTraceGraph.fold_vertex (fun {programPoint=p1;sigmar=s1} sigmap -> if NodeImpl.equal {programPoint=p1;sigmar=s1} {programPoint=progPoint;sigmar=SigmarMap.empty} then s1 else sigmap) g SigmarMap.empty
 
 end
 
-(* Graph-printing modules for exporting *)
+(* Set domain for analysis framework *)
+module GraphSet = SetDomain.Make(LocalTraces)
+
+
+(* TODO Graph-printing modules for exporting *)
 module GPrinter = struct
   include LocTraceGraph
   let vertex_name v = NodeImpl.show v
@@ -105,6 +119,4 @@ module DotExport = Graph.Graphviz.Dot(GPrinter)
   DotExport.output_graph file g;
   close_out file
 *)
-
-module GraphSet = SetDomain.Make(LocalTraces)
 

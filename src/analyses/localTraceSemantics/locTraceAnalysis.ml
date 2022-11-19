@@ -2,26 +2,32 @@ open Prelude.Ana
 open Analyses
 open LocTraceDS
   
-
+(* Analysis framework for local traces *)
 module Spec : Analyses.MCPSpec =
 struct
 include Analyses.DefaultSpec
-module D = GraphSet (* Graphstruktur muss vom Typ Lattice.S sein ..*)
+module D = GraphSet
 
-module C = Lattice.Unit (* und was ist Modul C? *)
+module C = Lattice.Unit 
 
 let context fundec l =
   ()
 
 let name () = "localTraces"
 
+(* start state is a set of one empty graph *)
 let startstate v = let g = D.empty () in let tmp = Printf.printf "Leerer Graph wird erstellt\n";D.add LocTraceGraph.empty g
-in if D.is_empty tmp then (Printf.printf "Obwohl leerer Graph hinzugefügt, ist Ergebnis immer noch leer\n"; tmp) else tmp (* ein leerer Graph sollte initial mit drin sein. *)
+in if D.is_empty tmp then (Printf.printf "Obwohl leerer Graph hinzugefügt, ist Ergebnis immer noch leer\n"; tmp) else tmp
+
 
 let exitstate = startstate
 
-(* eval needs to be checked on overflow and div by 0 --> maybe I should define some custom exceptions? *)
+(* Evaluates the effects of an assignment to sigmar *)
+(* TODO eval needs to be checked on overflow and div by 0 --> custom exception managment could be useful *)
 let eval sigOld vinfo (rval: exp) = 
+  (* dummy value 
+     This is used whenever an expression contains a variable that is not in sigmar (e.g. a global)
+      In this case vinfo is considered to have an unknown value *)
   let nopVal = (Int((Big_int_Z.big_int_of_int (-13)),IInt), false) 
 in let get_binop_int op =
 (match op with 
@@ -75,7 +81,7 @@ in
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 in let (result,success) = eval_helper rval 
-in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated."; sigOld)
+in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed."; SigmarMap.remove vinfo sigOld)
 
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
