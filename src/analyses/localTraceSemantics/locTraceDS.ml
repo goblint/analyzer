@@ -91,6 +91,10 @@ let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 let get_sigmar g (progPoint:MyCFG.node) =  
 LocTraceGraph.fold_vertex (fun {programPoint=p1;sigmar=s1} sigmap -> if NodeImpl.equal {programPoint=p1;sigmar=s1} {programPoint=progPoint;sigmar=SigmarMap.empty} then s1 else sigmap) g SigmarMap.empty
 
+(* Applies an gEdge to graph 
+   Explicit function for future improvements *)
+let extend_by_gEdge gr gEdge =
+  LocTraceGraph.add_edge_e gr gEdge 
 end
 
 (* Set domain for analysis framework *)

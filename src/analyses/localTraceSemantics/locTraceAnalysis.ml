@@ -91,7 +91,7 @@ let myEdge =  match lval with (Var x, _) -> ({programPoint=ctx.prev_node;sigmar=
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
   
@@ -100,7 +100,7 @@ let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
 
@@ -109,7 +109,7 @@ let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
       
@@ -118,7 +118,7 @@ let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
 
@@ -127,7 +127,7 @@ let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
     
@@ -136,7 +136,7 @@ let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
 let state =   D.fold fold_helper ctx.local (D.empty ())
 in
@@ -148,7 +148,7 @@ in
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocTraceGraph.add_edge_e g myEdge) set 
+  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
 
