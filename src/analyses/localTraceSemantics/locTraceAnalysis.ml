@@ -5,6 +5,10 @@ open LocTraceDS
 (* Custom exceptions for eval-function *)
 exception Division_by_zero_Int
 exception Division_by_zero_Float
+exception Overflow_addition_Int
+
+(* Constants *)
+let intMax = 2147483647
 
 (* Analysis framework for local traces *)
 module Spec : Analyses.MCPSpec =
@@ -33,9 +37,9 @@ let eval sigOld vinfo (rval: exp) =
      This is used whenever an expression contains a variable that is not in sigmar (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
   let nopVal = (Int((Big_int_Z.big_int_of_int (-13)),IInt), false) 
-in let get_binop_int op =
+in let get_binop_int op ik =
 (match op with 
-| PlusA -> Big_int_Z.add_big_int
+| PlusA -> fun x1 x2 -> if (CilType.Ikind.equal ik IInt) && (Big_int_Z.add_big_int x1 x2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Big_int_Z.add_big_int x1 x2
 | MinusA -> Big_int_Z.sub_big_int
 | Mult -> Big_int_Z.mult_big_int
 | Div -> fun  x1 x2 -> if x2 = Big_int_Z.zero_big_int then raise Division_by_zero_Int else Big_int_Z.div_big_int x1 x2
@@ -52,7 +56,6 @@ let get_binop_float op =
   | Mult -> Float.mul
   | Div -> fun x1 x2 -> if x2 = 0. then raise Division_by_zero_Float else Float.div x1 x2
   | Mod -> Float.modulo
-  (*| Lt -> fun x1 x2 -> if x1 < x2 then 1. else 0. *)
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 in
   let rec eval_helper subexp =
@@ -61,25 +64,34 @@ in
 | Const(CReal(f, fk, _)) -> (Float (f, fk), true)
 | Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else nopVal
 | AddrOf (Var(v), NoOffset) -> (Address(v), true)
+
+(* unop expressions *)
+(* for type Integer *)
 | UnOp(Neg, unopExp, TInt(unopIk, _)) -> 
   (match eval_helper unopExp with (Int(i,_), true) ->(Int (Big_int_Z.minus_big_int i, unopIk), true)
     |(_, false) -> nopVal
     |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
+|UnOp(LNot, unopExp,TInt(unopIk, _)) -> 
+  (match eval_helper unopExp with (Int(i,_), true) -> (Int(Big_int_Z.big_int_of_int (lnot (Big_int_Z.int_of_big_int i)), unopIk), true)
+    | (_, false) -> nopVal
+    |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+(* for type float *)
 | UnOp(Neg, unopExp, TFloat(unopFk, _)) -> 
       (match eval_helper unopExp with (Float(f, _), true) -> (Float(-. f, unopFk), true)
         | (_, false) -> nopVal
         |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)     
-|UnOp(LNot, unopExp,TInt(unopIk, _)) -> 
-  (match eval_helper unopExp with (Int(i,_), true) -> (Int(Big_int_Z.big_int_of_int (lnot (Big_int_Z.int_of_big_int i)), unopIk), true)
-  | (_, false) -> nopVal
-  |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
-| BinOp(op, binopExp1, binopExp2,TInt(unopIk, _)) ->
-  (match (eval_helper binopExp1, eval_helper binopExp2) with ((Int(i1, ik1), true),(Int(i2, ik2), true)) -> if CilType.Ikind.equal ik1 ik2 then (Int((get_binop_int op) i1 i2, unopIk), true) else nopVal
+
+(* binop expressions *)
+(* for type Integer *)
+| BinOp(op, binopExp1, binopExp2,TInt(biopIk, _)) ->
+  (match (eval_helper binopExp1, eval_helper binopExp2) with 
+  | ((Int(i1, ik1), true),(Int(i2, ik2), true)) -> if CilType.Ikind.equal ik1 ik2 then (Int((get_binop_int op biopIk) i1 i2, biopIk), true) else nopVal
   | (_, (_,false)) -> nopVal
   | ((_,false), _) -> nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
-| BinOp(op, binopExp1, binopExp2,TFloat(unopFk, _)) ->
-    (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Float((get_binop_float op) f1 f2, unopFk), true) else nopVal
+(* for type Float *)
+| BinOp(op, binopExp1, binopExp2,TFloat(biopFk, _)) ->
+    (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Float((get_binop_float op) f1 f2, biopFk), true) else nopVal
     | (_, (_,false)) -> nopVal
   | ((_,false), _) -> nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
@@ -87,10 +99,12 @@ in
 in let (result,success) = eval_helper rval 
 in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed."; SigmarMap.remove vinfo sigOld)
 
+(* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge =
 try eval sigOld vinfo rval with 
-Division_by_zero_Int -> print_string ("The CFG edge <"^(EdgeImpl.show stateEdge)^" definitely contains an Integer division by zero.\n"); SigmarMap.remove vinfo sigOld
-| Division_by_zero_Float -> print_string ("The CFG edge <"^(EdgeImpl.show stateEdge)^" definitely contains a Float division by zero.\n"); SigmarMap.remove vinfo sigOld
+Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); SigmarMap.remove vinfo sigOld
+| Division_by_zero_Float -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains a Float division by zero.\n"); SigmarMap.remove vinfo sigOld
+| Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); SigmarMap.remove vinfo sigOld
 
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
