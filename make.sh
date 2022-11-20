@@ -17,9 +17,6 @@ opam_setup_flambda() {
   opam update
   # Note: the `--update-invariant` option is needed for replacement of the previous ocaml compiler switch invariant of Goblint
   opam switch -y create . --deps-only ocaml-variants.4.14.0+options ocaml-option-flambda --locked --update-invariant
-  # Run eval here, so that we don't forget to run it manually
-  cwd = $(pwd)
-  eval $(opam env --switch=$cwd)
 }
 
 rule() {
