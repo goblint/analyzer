@@ -6,9 +6,13 @@ open LocTraceDS
 exception Division_by_zero_Int
 exception Division_by_zero_Float
 exception Overflow_addition_Int
+exception Overflow_multiplication_Int
+exception Underflow_multiplication_Int
+exception Underflow_subtraction_Int
 
 (* Constants *)
 let intMax = 2147483647
+let intMin = -2147483648
 
 (* Analysis framework for local traces *)
 module Spec : Analyses.MCPSpec =
@@ -40,8 +44,9 @@ let eval sigOld vinfo (rval: exp) =
 in let get_binop_int op ik =
 (match op with 
 | PlusA -> fun x1 x2 -> if (CilType.Ikind.equal ik IInt) && (Big_int_Z.add_big_int x1 x2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Big_int_Z.add_big_int x1 x2
-| MinusA -> Big_int_Z.sub_big_int
-| Mult -> Big_int_Z.mult_big_int
+| MinusA -> fun x1 x2 -> if (CilType.Ikind.equal ik IInt) && (Big_int_Z.sub_big_int x1 x2 < Big_int_Z.big_int_of_int intMin) then raise Underflow_subtraction_Int else Big_int_Z.sub_big_int x1 x2
+| Mult -> fun x1 x2 -> if (CilType.Ikind.equal ik IInt) && (Big_int_Z.mult_big_int x1 x2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_multiplication_Int 
+else if (CilType.Ikind.equal ik IInt) && (Big_int_Z.mult_big_int x1 x2 < Big_int_Z.big_int_of_int intMin) then raise Underflow_multiplication_Int else Big_int_Z.mult_big_int x1 x2
 | Div -> fun  x1 x2 -> if x2 = Big_int_Z.zero_big_int then raise Division_by_zero_Int else Big_int_Z.div_big_int x1 x2
 | Mod -> Big_int_Z.mod_big_int
 | Shiftlt -> fun x1 x2 -> Big_int_Z.shift_left_big_int x1 (Big_int_Z.int_of_big_int x2)
@@ -49,7 +54,7 @@ in let get_binop_int op ik =
 | Lt -> fun x1 x2 -> if x1 < x2 then Big_int_Z.big_int_of_int 1 else Big_int_Z.big_int_of_int 0
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 in
-let get_binop_float op =
+let get_binop_float op fk =
   (match op with 
   | PlusA -> Float.add
   | MinusA -> Float.sub
@@ -82,6 +87,12 @@ in
         |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)     
 
 (* binop expressions *)
+(* comparison operators for float s.t. float binop float -> int *)
+| BinOp(Lt, binopExp1, binopExp2,TInt(biopIk, _)) ->
+  (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Int((if f1 < f2 then Big_int_Z.big_int_of_int 1 else Big_int_Z.big_int_of_int 0), biopIk), true) else nopVal
+  | (_, (_,false)) -> nopVal
+| ((_,false), _) -> nopVal
+|(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 (* for type Integer *)
 | BinOp(op, binopExp1, binopExp2,TInt(biopIk, _)) ->
   (match (eval_helper binopExp1, eval_helper binopExp2) with 
@@ -90,8 +101,9 @@ in
   | ((_,false), _) -> nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 (* for type Float *)
+(* normal operators for float s.t. float binop float -> float *)
 | BinOp(op, binopExp1, binopExp2,TFloat(biopFk, _)) ->
-    (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Float((get_binop_float op) f1 f2, biopFk), true) else nopVal
+    (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Float((get_binop_float op biopFk) f1 f2, biopFk), true) else nopVal
     | (_, (_,false)) -> nopVal
   | ((_,false), _) -> nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
@@ -105,7 +117,9 @@ try eval sigOld vinfo rval with
 Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); SigmarMap.remove vinfo sigOld
 | Division_by_zero_Float -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains a Float division by zero.\n"); SigmarMap.remove vinfo sigOld
 | Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); SigmarMap.remove vinfo sigOld
-
+| Underflow_subtraction_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer subtraction that underflows.\n"); SigmarMap.remove vinfo sigOld
+| Overflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that overflows.\n"); SigmarMap.remove vinfo sigOld
+| Underflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that underflows.\n"); SigmarMap.remove vinfo sigOld
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
 let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
