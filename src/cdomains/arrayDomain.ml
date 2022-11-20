@@ -236,7 +236,7 @@ struct
     | Joint x -> Val.is_top x
     | _-> false
 
-  let join (x:t) (y:t) =
+  let join (x:t) (y:t) = normalize @@
     match x, y with
     | Joint x, Joint y -> Joint (Val.join x y)
     | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.join xl y, Val.join xm y, Val.join xr y))
@@ -245,7 +245,7 @@ struct
       if CilType.Exp.equal e e' then Partitioned (e,(Val.join xl yl, Val.join xm ym, Val.join xr yr))
       else Joint (Val.join (join_of_all_parts x) (join_of_all_parts y))
 
-  let widen (x:t) (y:t) = match x,y with
+  let widen (x:t) (y:t) = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.widen x y)
     | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
     | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
