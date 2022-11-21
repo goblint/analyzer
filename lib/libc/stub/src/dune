@@ -1,0 +1,5 @@
+(install
+ (section (site (goblint lib_stub_src)))
+ (files
+  stdlib.c
+  pthread.c))

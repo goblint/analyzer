@@ -1,6 +1,6 @@
 // PARAM: --disable sem.unknown_function.spawn --enable ana.int.interval
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int cmp1(const void *a, const void *b) {
   __goblint_check(1); // reachable

@@ -64,6 +64,14 @@ struct
   }
 
   (* non-standard extension *)
+  let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
+    entry_type = FlowInsensitiveInvariant {
+        flow_insensitive_invariant = invariant;
+      };
+    metadata = metadata ~task ();
+  }
+
+  (* non-standard extension *)
   let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
     entry_type = PreconditionLoopInvariant {
         location;
@@ -155,6 +163,26 @@ struct
       }
     in
     Spec.query ctx
+
+  let ask_global (gh: EQSys.G.t GHT.t) =
+    (* copied from Control for WarnGlobal *)
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+      ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> ctx_failwith "No context in query context.")
+      ; context = (fun () -> ctx_failwith "No context in query context.")
+      ; edge    = MyCFG.Skip
+      ; local  = Spec.startstate dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *) (* TODO: is this startstate bad? *)
+      ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) (* TODO: how can be missing? *)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+      }
+    in
+    Spec.query ctx
 end
 
 module Make
@@ -210,29 +238,85 @@ struct
         false
     in
 
+    let local_lvals n local =
+      if GobConfig.get_bool "witness.invariant.accessed" then (
+        match Query.ask_local_node gh n local MayAccessed with
+        | `Top ->
+          CilLval.Set.top ()
+        | (`Lifted _) as es ->
+          let lvals = AccessDomain.EventSet.fold (fun e lvals ->
+              match e with
+              | {var_opt = Some var; offs_opt = Some offs; kind = Write} ->
+                CilLval.Set.add (Var var, offs) lvals
+              | _ ->
+                lvals
+            ) es (CilLval.Set.empty ())
+          in
+          let lvals =
+            Cfg.next n
+            |> BatList.enum
+            |> BatEnum.filter_map (fun (_, next_n) ->
+                let next_local = NH.find nh next_n in
+                match Query.ask_local_node gh next_n next_local MayAccessed with
+                | `Top -> None
+                | `Lifted _ as es -> Some es)
+            |> BatEnum.fold AccessDomain.EventSet.union (AccessDomain.EventSet.empty ())
+            |> fun es -> AccessDomain.EventSet.fold (fun e lvals ->
+                match e with
+                | {var_opt = Some var; offs_opt = Some offs; kind = Read} ->
+                  CilLval.Set.add (Var var, offs) lvals
+                | _ ->
+                  lvals
+              ) es lvals
+          in
+          lvals
+      )
+      else
+        CilLval.Set.top ()
+    in
+
     (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
-        if is_invariant_node n then begin
-          begin match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
-            | `Lifted inv ->
-              let invs = WitnessUtil.InvariantExp.process_exp inv in
-              List.fold_left (fun acc inv ->
-                  let location_function = (Node.find_fundec n).svar.vname in
-                  let location = Entry.location ~location:loc ~location_function in
-                  let invariant = Entry.invariant (CilType.Exp.show inv) in
-                  let entry = Entry.loop_invariant ~task ~location ~invariant in
-                  entry :: acc
-                ) acc invs
-            | `Bot | `Top -> (* TODO: 0 for bot? *)
-              acc
-          end
-        end else begin
+        if is_invariant_node n then (
+          let lvals = local_lvals n local in
+          match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+          | `Lifted inv ->
+            let invs = WitnessUtil.InvariantExp.process_exp inv in
+            List.fold_left (fun acc inv ->
+                let location_function = (Node.find_fundec n).svar.vname in
+                let location = Entry.location ~location:loc ~location_function in
+                let invariant = Entry.invariant (CilType.Exp.show inv) in
+                let entry = Entry.loop_invariant ~task ~location ~invariant in
+                entry :: acc
+              ) acc invs
+          | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+            acc
+        )
+        else
           acc
-        end
       ) nh []
     in
 
+    (* Generate flow-insensitive invariants *)
+    let entries = GHT.fold (fun g v acc ->
+        match g with
+        | `Left g -> (* Spec global *)
+          begin match Query.ask_global gh (InvariantGlobal (Obj.repr g)) with
+            | `Lifted inv ->
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
+                  let invariant = Entry.invariant (CilType.Exp.show inv) in
+                  let entry = Entry.flow_insensitive_invariant ~task ~invariant in
+                  entry :: acc
+                ) acc invs
+            | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+              acc
+          end
+        | `Right _ -> (* contexts global *)
+          acc
+      ) gh entries
+    in
 
     (* Generate precondition invariants.
        We do this in three steps:
@@ -285,51 +369,49 @@ struct
 
     (* 3. Generate precondition invariants *)
     let entries = LHT.fold (fun ((n, c) as lvar) local acc ->
-        if is_invariant_node n then begin
+        if is_invariant_node n then (
           let fundec = Node.find_fundec n in
           let pre_lvar = (Node.FunctionEntry fundec, c) in
           let pre_local = LHT.find lh pre_lvar in
           let query = Queries.Invariant Invariant.default_context in
-          begin match Query.ask_local gh pre_lvar pre_local query with
-            | `Lifted c_inv ->
-              let loc = Node.location n in
-              (* Find unknowns for which the preceding start state satisfies the precondtion *)
-              let xs = find_matching_states lvar in
+          match Query.ask_local gh pre_lvar pre_local query with
+          | `Lifted c_inv ->
+            let loc = Node.location n in
+            (* Find unknowns for which the preceding start state satisfies the precondtion *)
+            let xs = find_matching_states lvar in
 
-              (* Generate invariants. Give up in case one invariant could not be generated. *)
-              let invs = GobList.fold_while_some
-                  (fun acc local ->
-                     match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
-                     | `Lifted c -> Some ((`Lifted c)::acc)
-                     | `Bot | `Top -> None)
-                  [] xs
-              in
-              begin match invs with
-                | None
-                | Some [] -> acc
-                | Some (x::xs) ->
-                  begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
-                    | `Lifted inv ->
-                      let invs = WitnessUtil.InvariantExp.process_exp inv in
-                      let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-                      List.fold_left (fun acc inv ->
-                          let location_function = (Node.find_fundec n).svar.vname in
-                          let location = Entry.location ~location:loc ~location_function in
-                          let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                          let invariant = Entry.invariant (CilType.Exp.show inv) in
-                          let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                          entry :: acc
-                        ) acc invs
-                    | `Bot | `Top -> acc
-                  end
-              end
-            | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
-              acc
-          end
-        end else begin
-          (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+            (* Generate invariants. Give up in case one invariant could not be generated. *)
+            let invs = GobList.fold_while_some (fun acc local ->
+                let lvals = local_lvals n local in
+                match Query.ask_local_node gh n local (Invariant {Invariant.default_context with lvals}) with
+                | `Lifted c -> Some ((`Lifted c)::acc)
+                | `Bot | `Top -> None
+              ) [] xs
+            in
+            begin match invs with
+              | None
+              | Some [] -> acc
+              | Some (x::xs) ->
+                begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                  | `Lifted inv ->
+                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                    List.fold_left (fun acc inv ->
+                        let location_function = (Node.find_fundec n).svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                        let invariant = Entry.invariant (CilType.Exp.show inv) in
+                        let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                        entry :: acc
+                      ) acc invs
+                  | `Bot | `Top -> acc
+                end
+            end
+          | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
+            acc
+        )
+        else
           acc
-        end
       ) lh entries
     in
 

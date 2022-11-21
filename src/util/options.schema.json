@@ -29,12 +29,6 @@
       "type": "boolean",
       "default": false
     },
-    "printstats": {
-      "title": "printstats",
-      "description": "Outputs timing information.",
-      "type": "boolean",
-      "default": false
-    },
     "verify": {
       "title": "verify",
       "description":
@@ -167,7 +161,7 @@
     },
     "jobs": {
       "title": "jobs",
-      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing and g2html.",
       "type": "integer",
       "default": 1
     },
@@ -318,7 +312,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+            "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
             "assert"
           ]
         },
@@ -327,7 +321,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -395,6 +389,14 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "interval_threshold_widening_constants": {
+              "title": "ana.int.interval_threshold_widening_constants",
+              "description":
+                "Which constants in the program should be considered as threshold constants (all/comparisons)",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
             }
           },
           "additionalProperties": false
@@ -484,6 +486,28 @@
                 "Do not propagate basic type writes to all struct fields",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "autotune": {
+          "title": "ana.autotune",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.autotune.enabled",
+              "description": "Try to intelligently select analyses based on analysed file",
+              "type": "boolean",
+              "default": false
+            },
+            "activated": {
+              "title": "ana.autotune.activated",
+              "description": "Lists of activated tuning options. By default all are activated",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
+              ]
             }
           },
           "additionalProperties": false
@@ -658,10 +682,31 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
               "default": "protection-read"
+            },
+            "priv": {
+              "title": "ana.base.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.base.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.base.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             },
             "invariant": {
               "title": "ana.base.invariant",
@@ -672,6 +717,12 @@
                   "description": "Generate base analysis invariants",
                   "type": "boolean",
                   "default": true
+                },
+                "blobs": {
+                  "title": "ana.base.invariant.blobs",
+                  "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
@@ -740,6 +791,14 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "threshold_widening_constants": {
+              "title": "ana.apron.threshold_widening_constants",
+              "description":
+                "Which constants in the programm should be considered as threshold constants",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
             },
             "invariant": {
               "title": "ana.apron.invariant",
@@ -1194,6 +1253,20 @@
           },
           "additionalProperties": false
         },
+        "null-pointer": {
+          "title": "sem.null-pointer",
+          "type": "object",
+          "properties": {
+            "dereference": {
+              "title": "sem.null-pointer.dereference",
+              "description": "NULL pointer dereference handling. assume_top: assume it results in a top value, assume_none: assume it doesn't happen",
+              "type": "string",
+              "enum": ["assume_top", "assume_none"],
+              "default": "assume_none"
+            }
+          },
+          "additionalProperties": false
+        },
         "malloc": {
           "title": "sem.malloc",
           "type": "object",
@@ -1286,7 +1359,7 @@
             "enabled": {
               "title": "annotation.int.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated IntDomains.",
               "type": "boolean",
               "default": false
             },
@@ -1307,7 +1380,7 @@
             "enabled": {
               "title": "annotation.float.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated FloatDomains.",
               "type": "boolean",
               "default": false
             }
@@ -1337,6 +1410,18 @@
             },
             "default": []
           }
+        },
+        "goblint_array_domain": {
+          "title": "annotation.goblint_array_domain",
+          "description": "Enable manual annotation of arrays with desired domain",
+          "type": "boolean",
+          "default": false
+        },
+        "goblint_apron_track": {
+          "title": "annotation.goblint_apron_track",
+          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1534,6 +1619,25 @@
           "type": "boolean",
           "default": false
         },
+        "timing": {
+          "title": "dbg.timing",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "dbg.timing.enabled",
+              "description": "Collect and output timing information.",
+              "type": "boolean",
+              "default": false
+            },
+            "tef": {
+              "title": "dbg.timing.tef",
+              "description": "Filename for Trace Event Format (TEF) output. Disabled if empty.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
         "trace": {
           "title": "dbg.trace",
           "type": "object",
@@ -1730,6 +1834,13 @@
             "Should the analysis print information on which globals are protected by which mutex?",
           "type": "boolean",
           "default": false
+        },
+        "run_cil_check" : {
+          "title": "dbg.run_cil_check",
+          "description":
+            "Should the analysis call Check.checkFile after creating the CFG (helpful to verify that transformations respect CIL's invariants.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1748,6 +1859,12 @@
         "behavior": {
           "title": "warn.behavior",
           "description": "undefined behavior warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "call": {
+          "title": "warn.call",
+          "description": "function call warnings",
           "type": "boolean",
           "default": true
         },
@@ -1886,9 +2003,9 @@
             "side_widen": {
               "title": "solvers.td3.side_widen",
               "description":
-                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
+                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value, sides-local: Widen with contributions from variables from which multiple side-effects leading to a new value originate.",
               "type": "string",
-              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
             },
             "space": {
@@ -1914,6 +2031,12 @@
             "narrow-reuse": {
               "title": "solvers.td3.narrow-reuse",
               "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
+              "type": "boolean",
+              "default": true
+            },
+            "remove-wpoint": {
+              "title": "solvers.td3.remove-wpoint",
+              "description": "Remove widening points after narrowing phase. Enables a form of local restarting which increases precision of nested loops.",
               "type": "boolean",
               "default": true
             },
@@ -2020,6 +2143,12 @@
             "split-conjunction": {
               "title": "witness.invariant.split-conjunction",
               "description": "Split conjunctive invariant to multiple invariants",
+              "type": "boolean",
+              "default": true
+            },
+            "accessed": {
+              "title": "witness.invariant.accessed",
+              "description": "Only emit invariants for locally accessed variables",
               "type": "boolean",
               "default": true
             },

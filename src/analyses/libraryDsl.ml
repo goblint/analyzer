@@ -19,7 +19,7 @@ struct
   let nil: _ t = fun x k ->
     match x with
     | [] -> k
-    | _ -> fail "nil"
+    | _ -> fail "Library function is called with more arguments than expected."
 
   let ( ^:: ) (p1: _ t) (p2: _ t): _ t = fun x k ->
     match x with
@@ -65,6 +65,12 @@ let rec accs: type k r. (k, r) args_desc -> Accesses.t = fun args_desc args ->
 
 let special ?(attrs:attr list=[]) args_desc special_cont = {
   special = Fun.flip (match_args args_desc) special_cont;
+  accs = accs args_desc;
+  attrs;
+}
+
+let special' ?(attrs:attr list=[]) args_desc special_cont = {
+  special = (fun args -> Fun.flip (match_args args_desc) (special_cont ()) args); (* eta-expanded such that special_cont is re-executed on each call instead of once during LibraryFunctions construction *)
   accs = accs args_desc;
   attrs;
 }

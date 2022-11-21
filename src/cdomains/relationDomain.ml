@@ -14,16 +14,17 @@ end
 (* TODO: Why renamed VM -> RelVM? *)
 module RelVM =
 struct
-  (* TODO: Add varinfos from master. *)
   type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Local of varinfo (** Var for function local variable (or formal argument). *)
+    | Arg of varinfo (** Var for function formal argument entry value. *)
     | Return (** Var for function return value. *)
     | Global of varinfo
 
   let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
+    | Local x ->
+      (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
+      x.vname ^ "#" ^ string_of_int x.vid
+    | Arg x -> x.vname ^ "#" ^ string_of_int x.vid ^ "#arg"
     | Return -> "#ret"
     | Global g -> g.vname
 end
@@ -63,12 +64,11 @@ sig
   val vh: vartable
   val make_var: ?name:string -> RelVM.t -> t
   val find_metadata: t -> RelVM.t Option.t
-  val local_name: varinfo -> string
   val local: varinfo -> t
   val arg: varinfo -> t
   val return: t
   val global: varinfo -> t
-  val to_cil_varinfo: fundec -> t -> varinfo Option.t
+  val to_cil_varinfo: t -> varinfo Option.t
 end
 
 module V (Var: Var): (RV with type t = Var.t and type vartable = RelVM.t VarMetadataTbl (RelVM) (Var).VH.t) =
@@ -80,19 +80,14 @@ struct
 
   type vartable = RelVM.t VMT.VH.t
 
-  (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
-  let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
-  let local x = make_var ~name:(local_name x) Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let local x = make_var (Local x)
+  let arg x = make_var (Arg x)
   let return = make_var Return
   let global g = make_var (Global g)
 
-  let to_cil_varinfo fundec v =
+  let to_cil_varinfo v =
     match find_metadata v with
-    | Some (Global v) -> Some v
-    | Some (Local) ->
-      let vname = Var.to_string v in
-      List.find_opt (fun v -> local_name v = vname) (fundec.sformals @ fundec.slocals)
+    | Some (Global v | Local v | Arg v) -> Some v
     | _ -> None
 end
 

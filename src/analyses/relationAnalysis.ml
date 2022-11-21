@@ -12,7 +12,7 @@ struct
   module D = RelationDomain.RelComponents (RD) (Priv.D)
   module G = Priv.G
   module C = D
-  module V = 
+  module V =
   struct
     include Priv.V
     include StdV
@@ -56,8 +56,8 @@ struct
     let v_ins = VH.create 10 in
     let visitor = object
       inherit nopCilVisitor
-      method! vvrbl (v: varinfo) =
-        if v.vglob || ThreadEscape.has_escaped ask v then (
+      method! vlval = function
+        | (Var v, NoOffset) when v.vglob || ThreadEscape.has_escaped ask v ->
           let v_in =
             if VH.mem v_ins v then
               VH.find v_ins v
@@ -66,9 +66,8 @@ struct
               VH.replace v_ins v v_in;
               v_in
           in
-          ChangeTo v_in
-        )
-        else
+          ChangeTo (Var v_in, NoOffset)
+        | _ ->
           SkipChildren
     end
     in
@@ -80,6 +79,28 @@ struct
       ) v_ins rel
     in
     (rel', e', v_ins)
+
+  let read_globals_to_locals_inv (ask: Queries.ask) getg st vs =
+    let v_ins_inv = VH.create (List.length vs) in
+    List.iter (fun v ->
+        let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+        VH.replace v_ins_inv v_in v;
+      ) vs;
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
+    let rel' = VH.fold (fun v_in v rel ->
+        read_global ask getg {st with rel} v v_in (* g#in = g; *)
+      ) v_ins_inv rel
+    in
+    let visitor_inv = object
+      inherit nopCilVisitor
+      method! vvrbl (v: varinfo) =
+        match VH.find_option v_ins_inv v with
+        | Some v' -> ChangeTo v'
+        | None -> SkipChildren
+    end
+    in
+    let e_inv e = visitCilExpr visitor_inv e in
+    (rel', e_inv, v_ins_inv)
 
   let read_from_globals_wrapper ask getg st e f =
     let (rel', e', _) = read_globals_to_locals ask getg st e in
@@ -115,6 +136,7 @@ struct
       )
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+        v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
         let st' = {st with rel = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "relation" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
@@ -246,7 +268,8 @@ struct
     (* Also, a local *)
     let vname = RD.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> RV.local_name v = vname) locals with
+    match List.find_opt (fun v -> RelVM.var_name (Local v) = vname) locals with (* TODO: optimize *)
+    (* match List.find_opt (fun v -> RV.local_name v = vname) locals with *)
     | None -> true
     | Some v -> any_local_reachable
 
@@ -276,8 +299,8 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let filtered_new_rel = RD.remove_filter_pt_with new_rel (fun var ->
         match RV.find_metadata var with
-        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals *)
-        | Some Arg when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       )
     in
@@ -359,8 +382,8 @@ struct
     let new_fun_rel = RD.remove_vars_pt_with new_fun_rel arg_vars in (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
-        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
-        | Some Arg -> true (* keep caller args *)
+        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Arg _) -> true (* keep caller args *)
         | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
     in
@@ -409,9 +432,8 @@ struct
       match reachables ask es with
       | None ->
         (* top reachable, so try to invalidate everything *)
-        let fd = Node.find_fundec ctx.node in
         RD.vars st.rel
-        |> List.filter_map (RV.to_cil_varinfo fd)
+        |> List.filter_map RV.to_cil_varinfo
         |> List.map Cil.var
       | Some rs ->
         Queries.LS.elements rs
@@ -517,22 +539,54 @@ struct
   let query_invariant ctx context =
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
-
-    let rel = ctx.local.rel in
-    (* filter variables *)
-    let var_filter v = match RV.find_metadata v with
-      | Some (Global _) -> keep_global
-      | Some Local -> keep_local
-      | _ -> false
-    in
-    let rel = RD.keep_filter rel var_filter in
-
     let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+
+    let ask = Analyses.ask_of_ctx ctx in
     let scope = Node.find_fundec ctx.node in
-    RD.invariant ~scope rel
+
+    let (apr, e_inv) =
+      if ThreadFlag.is_multi ask then (
+        let priv_vars =
+          if keep_global then
+            Priv.invariant_vars ask ctx.global ctx.local
+          else
+            [] (* avoid pointless queries *)
+        in
+        let (rel, e_inv, v_ins_inv) = read_globals_to_locals_inv ask ctx.global ctx.local priv_vars in
+        (* filter variables *)
+        let var_filter v = match RV.find_metadata v with
+          | Some (Local v) ->
+            if VH.mem v_ins_inv v then
+              keep_global
+            else
+              keep_local
+          | _ -> false
+        in
+        let rel = RD.keep_filter rel var_filter in
+        (rel, e_inv)
+      )
+      else (
+        (* filter variables *)
+        let var_filter v = match RV.find_metadata v with
+          | Some (Global _) -> keep_global
+          | Some (Local _) -> keep_local
+          | _ -> false
+        in
+        let apr = RD.keep_filter ctx.local.rel var_filter in
+        (apr, Fun.id)
+      )
+    in
+    RD.invariant ~scope apr
     |> List.enum
     |> Enum.filter_map (fun lincons1 ->
         (* filter one-vars *)
+        (* if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+          CilOfApron.cil_exp_of_lincons1 lincons1
+          |> Option.map e_inv
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
+        else
+          None *)
+        (* TODO: restore method from master *)
         let expr = RD.cons_to_cil_exp ~scope lincons1 in
         if Option.is_some expr && (one_var || two_or_more_vars @@ Option.get expr)  then
           Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp) expr
@@ -609,6 +663,8 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx relx) relx.global relx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
+    | Assert exp ->
+      assert_fn ctx exp true
     | _ ->
       st
 
@@ -621,7 +677,7 @@ struct
       (* filter variables *)
       let var_filter v = match RV.find_metadata v with
         | Some (Global _) -> keep_global
-        | Some Local -> keep_local
+        | Some (Local _) -> keep_local
         | _ -> false
       in
       let st = RD.keep_filter ctx.local.rel var_filter in

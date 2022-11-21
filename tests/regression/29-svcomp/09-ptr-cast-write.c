@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
     unsigned char a = 200;

@@ -90,8 +90,17 @@ struct
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+  let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
+    let desc = LibraryFunctions.find f in
+    match desc.special args, f.vname, args with
+    | _, "pthread_setspecific" , [key; pt_value] ->
+      let escaped = reachable (Analyses.ask_of_ctx ctx) pt_value in
+      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
+      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
+      D.join ctx.local (D.join escaped extra)
+    | _ -> ctx.local
 
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()

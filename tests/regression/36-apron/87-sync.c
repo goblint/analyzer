@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 int h;

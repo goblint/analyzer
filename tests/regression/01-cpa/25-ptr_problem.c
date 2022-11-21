@@ -1,6 +1,6 @@
 // SKIP
 // Out of bound accesses
-#include <assert.h>
+#include <goblint.h>
 int main()
 {
   int x, y, z[2];

@@ -19,7 +19,7 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
-    let t = WideningThresholds.thresholds_incl_mul2 () in
+    let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
     let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
     Array.of_list r
   )
@@ -484,7 +484,7 @@ struct
 
   let get_cons_size (c: Apron.Lincons1.t) = Apron.Linexpr0.get_size c.lincons0.linexpr0
 
-  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 scope cons
+  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 cons
 end
 
 module AOps (Tracked: Tracked) (Man: Manager) =
@@ -862,7 +862,7 @@ include D (Man)
 
 type marshal = OctagonD.marshal
 
-let marshal t : Oct.t Abstract0.t * string array = 
+let marshal t : Oct.t Abstract0.t * string array =
   let convert_single (a: t): OctagonD.t =
   if Oct.manager_is_oct Man.mgr then
     Oct.Abstract1.to_oct a

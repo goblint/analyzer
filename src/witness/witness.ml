@@ -3,8 +3,6 @@ open Graphml
 open Svcomp
 open GobConfig
 
-module Stats = GoblintCil.Stats
-
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
@@ -296,7 +294,7 @@ struct
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
+        ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* see 29/29 on why fallback is needed *)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
@@ -571,14 +569,14 @@ struct
 
   let write lh gh entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.wrap "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
     (* TODO: use witness.enabled elsewhere as well *)
     if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
       let witness_path = get_string "witness.path" in
-      Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+      Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)
     )
 
   let write lh gh entrystates =
@@ -587,5 +585,5 @@ struct
     | _ -> write lh gh entrystates
 
   let write lh gh entrystates =
-    Stats.time "witness" (write lh gh) entrystates
+    Timing.wrap "witness" (write lh gh) entrystates
 end

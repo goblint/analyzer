@@ -6,7 +6,9 @@ let rec combine_short l1 l2 = match l1, l2 with
   | _, _ -> []
 
 let assoc_eq_opt (eq: 'a -> 'a -> bool) (x: 'a) (ys: ('a * 'b) list) : ('b option) =
-  Option.map Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
+  let open GobOption.Syntax in
+  let+ (_, y) = List.find_opt (fun (x', _) -> eq x x') ys in
+  y
 
 let rec fold_left3 f acc l1 l2 l3 = match l1, l2, l3 with
   | [], [], [] -> acc
@@ -27,3 +29,27 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
     end
 
 let equal = List.eq
+
+(** Given a predicate and a list, returns two lists [(l1, l2)].
+    [l1] contains the prefix of the list until the last element that satisfies the predicate, [l2] contains all subsequent elements. The order of elements is preserved. *)
+let until_last_with (pred: 'a -> bool) (xs: 'a list) =
+  let rec until_last_helper last seen = function
+    | [] -> List.rev last, List.rev seen
+    | h::t -> if pred h then until_last_helper (h::seen@last) [] t else until_last_helper last (h::seen) t
+  in
+  until_last_helper [] [] xs
+
+
+(** Open this to use applicative functor/monad syntax for {!list}. *)
+module Syntax =
+struct
+  (* Applicative functor. *)
+  let (let+) x f = List.map f x
+  let (and+) = List.cartesian_product
+
+  (* Monad *)
+  let (let*) x f = List.concat_map f x
+  let (and*) = (and+)
+
+  let (>>=) x f = List.concat_map f x
+end

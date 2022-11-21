@@ -1,5 +1,5 @@
 //PARAM: --disable ana.int.interval --set sem.int.signed_overflow assume_wraparound
-#include <assert.h>
+#include <goblint.h>
 
 int main(){
     int a = 0;

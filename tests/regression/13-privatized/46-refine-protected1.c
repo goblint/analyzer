@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0;
 
@@ -12,6 +12,14 @@ void *t_fun(void *arg) {
 
 int main() {
   pthread_t id;
+  int top;
+
+  if(top) {
+    pthread_mutex_lock(&A);
+    g = 1;
+    pthread_mutex_unlock(&A);
+  }
+
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
@@ -21,8 +29,5 @@ int main() {
     __goblint_check(!g);
   pthread_mutex_unlock(&A);
 
-  pthread_mutex_lock(&A);
-  g = 1;
-  pthread_mutex_unlock(&A);
   return 0;
 }

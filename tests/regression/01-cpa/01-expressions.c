@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int glob1;
 int glob2 = 9;

@@ -87,14 +87,47 @@ struct
 
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
-  let project_val p_opt value is_glob =
-    match GobConfig.get_bool "annotation.int.enabled", is_glob, p_opt with
-    | true, true, _ -> VD.project PU.max_int_precision value
-    | true, false, Some p -> VD.project p value
-    | _ -> value
+  (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
+  (*We have to prevent different domains to be used at the same time for the same array*)
+  (*After a function call, the domain has to be the same as before and we can not depend on the pointers staying the same*)
+  (*-> we determine the arrays a pointer can point to once at the beginning of a function*)
+  (*There surely is a better way, because this means that often the wrong one gets chosen*)
+  module VarH = Hashtbl.Make(CilType.Varinfo)
+  module VarMap = Map.Make(CilType.Varinfo)
+  let array_map = VarH.create 20
 
-  let project p_opt cpa =
-    CPA.mapi (fun varinfo value -> project_val p_opt value (is_privglob varinfo)) cpa
+  let add_to_array_map fundec arguments =
+    let rec pointedArrayMap = function
+      | [] -> VarMap.empty
+      | (info,value)::xs ->
+        match value with
+        | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
+          let possibleVars = PreValueDomain.AD.to_var_may t in
+          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+        | _ -> pointedArrayMap xs
+    in
+    match VarH.find_option array_map fundec.svar with
+    | Some _ -> () (*We already have something -> do not change it*)
+    | None -> VarH.add array_map fundec.svar (pointedArrayMap arguments)
+
+  let attributes_varinfo info fundec =
+    let map = VarH.find array_map fundec.svar in
+    match VarMap.find_opt info map with
+    | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+    | None -> Some (info.vattr, typeAttrs (info.vtype))
+
+  let project_val ask array_attr p_opt value is_glob =
+    let p = if GobConfig.get_bool "annotation.int.enabled" then (
+        if is_glob then
+          Some PU.max_int_precision
+        else p_opt
+      ) else None
+    in
+    let a = if GobConfig.get_bool "annotation.goblint_array_domain" then array_attr else None in
+    VD.project ask p a value
+
+  let project ask p_opt cpa fundec =
+    CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
 
   (**************************************************************************
@@ -120,7 +153,8 @@ struct
     Priv.init ()
 
   let finalize () =
-    Priv.finalize ()
+    Priv.finalize ();
+    VarH.clear array_map
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -199,7 +233,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -416,7 +450,12 @@ struct
       in
       let f = function
         | Addr.Addr (x, o) -> f_addr (x, o)
-        | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
+        | Addr.NullPtr ->
+          begin match get_string "sem.null-pointer.dereference" with
+            | "assume_none" -> VD.bot ()
+            | "assume_top" -> top
+            | _ -> assert false
+          end
         | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in
@@ -466,7 +505,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -601,7 +640,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -675,46 +714,7 @@ struct
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
   and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_ask_mustbeequal a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
-
-  (** Evaluate expression using MustBeEqual query.
-      Otherwise just delegate to next eval_rv function. *)
-  and eval_rv_ask_mustbeequal a gs st exp =
-    let eval_next () = eval_rv_base a gs st exp in
-    if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
-    let binop op e1 e2 =
-      let must_be_equal () =
-        let r = Q.must_be_equal a e1 e2 in
-        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
-        r
-      in
-      match op with
-      | MinusA when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_int ik BI.zero)
-      | MinusPI (* TODO: untested *)
-      | MinusPP when must_be_equal () ->
-        let ik = Cilfacade.ptrdiff_ikind () in
-        `Int (ID.of_int ik BI.zero)
-      (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
-      | Le
-      | Ge when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik true)
-      | Ne
-      | Lt
-      | Gt when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik false)
-      | _ -> eval_next ()
-    in
-    let r =
-      match exp with
-      | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
-      | _ -> eval_next ()
-    in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
-    r
+    eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
   and eval_rv_back_up a gs st exp =
     if get_bool "ana.base.eval.deep-query" then
@@ -755,13 +755,6 @@ struct
       )
       else
         (c1, c2)
-    in
-    let binop_case ~arg1 ~arg2 ~op ~typ =
-      let a1 = eval_rv a gs st arg1 in
-      let a2 = eval_rv a gs st arg2 in
-      let t1 = Cilfacade.typeOf arg1 in
-      let t2 = Cilfacade.typeOf arg2 in
-      evalbinop a st op t1 a1 t2 a2 typ
     in
     let r =
       (* query functions were no help ... now try with values*)
@@ -839,11 +832,10 @@ struct
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
-        let a1 = eval_rv a gs st e1 in (* re-evaluate because might be with cast *)
-        let a2 = eval_rv a gs st e2 in
-        evalbinop a st op t1 a1 t2 a2 typ
-      | BinOp (LOr, arg1, arg2, typ) as exp ->
-        let (let*) = Option.bind in
+        (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
+        evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
+      | BinOp (LOr, e1, e2, typ) as exp ->
+        let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
@@ -852,9 +844,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in
@@ -917,10 +909,10 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None -> binop_case ~arg1 ~arg2 ~op:LOr ~typ (* fallback to general case *)
+          | None -> evalbinop a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
         end
-      | BinOp (op,arg1,arg2,typ) ->
-        binop_case ~arg1 ~arg2 ~op ~typ
+      | BinOp (op,e1,e2,typ) ->
+        evalbinop a gs st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
@@ -954,6 +946,51 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  and evalbinop (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    evalbinop_mustbeequal a gs st op ~e1 ?t1 ~e2 ?t2 t
+
+  (** Evaluate BinOp using MustBeEqual query as fallback. *)
+  and evalbinop_mustbeequal (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    (* Evaluate structurally using base at first. *)
+    let a1 = eval_rv a gs st e1 in
+    let a2 = eval_rv a gs st e2 in
+    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
+    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
+    let r = evalbinop_base a st op t1 a1 t2 a2 t in
+    if Cil.isIntegralType t then (
+      match r with
+      | `Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
+      | _ ->
+        (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
+        let must_be_equal () =
+          let r = Q.must_be_equal a e1 e2 in
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
+          r
+        in
+        match op with
+        | MinusA when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_int ik BI.zero)
+        | MinusPI (* TODO: untested *)
+        | MinusPP when must_be_equal () ->
+          let ik = Cilfacade.ptrdiff_ikind () in
+          `Int (ID.of_int ik BI.zero)
+        (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
+        | Le
+        | Ge when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik true)
+        | Ne
+        | Lt
+        | Gt when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik false)
+        | _ -> r (* Fallback didn't help. *)
+    )
+    else
+      r (* Avoid fallback, above cases are for ints only. *)
+
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
@@ -1101,117 +1138,77 @@ struct
 
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
-    let scope = Node.find_fundec ctx.node in
+    let ask = Analyses.ask_of_ctx ctx in
 
-    (* VS is used to detect and break cycles in deref_invariant calls *)
-    let module VS = Set.Make (Basetype.Variables) in
+    let module Arg =
+    struct
+      let context = context
+      let scope = Node.find_fundec ctx.node
+      let find v = get_var ask ctx.global ctx.local v
+    end
+    in
+    let module I = ValueDomain.ValueInvariant (Arg) in
 
-    let rec ad_invariant ~vs ~offset c x =
-      let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
-      let i_opt = AD.fold (fun addr acc_opt ->
-          BatOption.bind acc_opt (fun acc ->
-              match addr with
-              | Addr.UnknownPtr ->
-                None
-              | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-                let rec offs_to_offset = function
-                  | `NoOffset -> NoOffset
-                  | `Field (f, offs) -> Field (f, offs_to_offset offs)
-                  | `Index (i, offs) ->
-                    (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-                    let i_definite = BatOption.get (ValueDomain.IndexDomain.to_int i) in
-                    let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-                    Index (i_exp, offs_to_offset offs)
-                in
-                let offset = offs_to_offset offs in
-
-                let i =
-                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
-                    let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                  else
-                    Invariant.none
-                in
-                let i_deref = deref_invariant ~vs c vi offset (Mem c_exp, NoOffset) in
-
-                Some (Invariant.(acc || (i && i_deref)))
-              | Addr.NullPtr ->
-                let i =
-                  let addr_exp = integer 0 in
-                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
-                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                  else
-                    Invariant.none
-                in
-                Some (Invariant.(acc || i))
-              (* TODO: handle Addr.StrPtr? *)
-              | _ ->
-                None
-            )
-        ) x (Some (Invariant.bot ()))
-      in
-      match i_opt with
-      | Some i -> i
-      | None -> Invariant.none
-
-    and blob_invariant ~vs ~offset c (v, _, _) =
-      vd_invariant ~vs ~offset c v
-
-    and vd_invariant ~vs ~offset c = function
-      | `Int n ->
-        let e = Lval (BatOption.get c.Invariant.lval) in
-        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
-          ID.invariant e n
-        else
-          Invariant.none
-      | `Float n ->
-        let e = Lval (BatOption.get c.Invariant.lval) in
-        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
-          FD.invariant e n
-        else
-          Invariant.none
-      | `Address n -> ad_invariant ~vs ~offset c n
-      | `Blob n -> blob_invariant ~vs ~offset c n
-      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
-      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
-      | _ -> Invariant.none (* TODO *)
-
-    and deref_invariant ~vs c vi offset lval =
-      let v = CPA.find vi cpa in
-      key_invariant_lval ~vs c vi offset lval v
-
-    and key_invariant_lval ~vs c k offset lval v =
-      if not (VS.mem k vs) then
-        let vs' = VS.add k vs in
-        let key_context: Invariant.context = {c with lval=Some lval} in
-        vd_invariant ~vs:vs' ~offset key_context v
+    let var_invariant ?offset v =
+      if not (InvariantCil.var_is_heap v) then
+        I.key_invariant v ?offset (Arg.find v)
       else
         Invariant.none
     in
 
-    let cpa_invariant =
-      let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v in
-      match context.lval with
-      | None ->
-        CPA.fold (fun k v a ->
-            let i =
-              if not (InvariantCil.var_is_heap k) then
-                key_invariant k v
+    if CilLval.Set.is_top context.Invariant.lvals then (
+      if !GU.earlyglobs || ThreadFlag.is_multi ask then (
+        let cpa_invariant =
+          CPA.fold (fun k v a ->
+              if not (is_global ask k) then
+                Invariant.(a && var_invariant k)
               else
-                Invariant.none
-            in
-            Invariant.(a && i)
+                a
+            ) cpa Invariant.none
+        in
+        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        let priv_invariant =
+          List.fold_left (fun acc v ->
+              Invariant.(var_invariant v && acc)
+            ) Invariant.none priv_vars
+        in
+        Invariant.(cpa_invariant && priv_invariant)
+      )
+      else (
+        CPA.fold (fun k v a ->
+            Invariant.(a && var_invariant k)
           ) cpa Invariant.none
-      | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-        (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
-      | _ -> Invariant.none
-    in
-
-    cpa_invariant
+      )
+    )
+    else (
+      CilLval.Set.fold (fun k a ->
+          let i =
+            match k with
+            | (Var v, offset) when not (InvariantCil.var_is_heap v) ->
+              (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
+            | _ -> Invariant.none
+          in
+          Invariant.(a && i)
+        ) context.lvals Invariant.none
+    )
 
   let query_invariant ctx context =
     if GobConfig.get_bool "ana.base.invariant.enabled" then
       query_invariant ctx context
+    else
+      Invariant.none
+
+  let query_invariant_global ctx g =
+    if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
+      (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
+         Otherwise, the values of globals in single-threaded mode are not accounted for. *)
+      (* TODO: account for single-threaded values without earlyglobs. *)
+      match g with
+      | `Left g' -> (* priv *)
+        Priv.invariant_global (priv_getg ctx.global) g'
+      | `Right _ -> (* thread return *)
+        Invariant.none
+    )
     else
       Invariant.none
 
@@ -1326,11 +1323,14 @@ struct
       let vf' x = vf (Obj.repr (V.priv x)) in
       Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
     | Q.Invariant context -> query_invariant ctx context
+    | Q.InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      query_invariant_global ctx g
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top_value typ) cpa
+      CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
     else
       CPA.add variable value cpa
 
@@ -1387,8 +1387,8 @@ struct
               lval_type
       in
       let update_offset old_value =
-        (* Projection to highest Precision *)
-        let projected_value = project_val None value (is_global a x) in
+        (* Projection globals to highest Precision *)
+        let projected_value = project_val a None None value (is_global a x) in
         let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
@@ -1416,7 +1416,7 @@ struct
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
         let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) && offs = `NoOffset then begin
-            VD.bot_value lval_type
+            VD.bot_value ~varAttr:x.vattr lval_type
           end else
             Priv.read_global a priv_getg st x
         in
@@ -1933,11 +1933,17 @@ struct
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
               | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-                let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
-                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-                FD.of_interval (FD.get_fkind c) (l, h)
+                let zero_not_in_a = a_min > 0. || a_max < 0. in
+                let zero_not_in_c = c_min > 0. || c_max < 0. in
+                if zero_not_in_a && zero_not_in_c then
+                  let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
+                  let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                  let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                  FD.of_interval (FD.get_fkind c) (l, h)
+                else
+                  b
               | _ -> b) in
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n\n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in
@@ -2000,7 +2006,8 @@ struct
           (match eval e1 st, eval e2 st with
            | `Int a, `Int b ->
              let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
-             let a', b' = inv_bin_int (a, b) ikind (c_int ikind) op in
+             let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
+             let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
              if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
              let st' = inv_exp (`Int a') e1 st in
              let st'' = inv_exp (`Int b') e2 st' in
@@ -2062,7 +2069,7 @@ struct
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
-        (match Cilfacade.typeOf e, FD.get_fkind c with
+        (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
          | TFloat (FLongDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FFloat
          | TFloat (FLongDouble as fk, _), FDouble
@@ -2075,7 +2082,7 @@ struct
         (match eval e st with
          | `Int i ->
            if ID.leq i (ID.cast_to ik i) then
-             match Cilfacade.typeOf e with
+             match unrollType (Cilfacade.typeOf e) with
              | TInt(ik_e, _)
              | TEnum ({ekind = ik_e; _ }, _) ->
                let c' = ID.cast_to ik_e c in
@@ -2198,7 +2205,7 @@ struct
           begin match Addr.to_var_offset (AD.choose lval_val) with
             | Some (x,offs) ->
               let t = v.vtype in
-              let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+              let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
               let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
@@ -2259,7 +2266,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
+    let init_var v = (AD.from_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
@@ -2285,16 +2292,15 @@ struct
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-        begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
-            (* Evaluate exp and cast the resulting value to the void-pointer-type.
-               Casting to the right type here avoids precision loss on joins. *)
-            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-            ctx.sideg (V.thread tid) (G.create_thread rv);
-          | _ -> ()
-        end;
-        set ~ctx ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
-  (* lval_raw:None, and rval_raw:None is correct here *)
+        let st' = set ~ctx ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv in
+        match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+          (* Evaluate exp and cast the resulting value to the void-pointer-type.
+              Casting to the right type here avoids precision loss on joins. *)
+          let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+          ctx.sideg (V.thread tid) (G.create_thread rv);
+          Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st'
+        | _ -> st'
 
   let vdecl ctx (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
@@ -2383,6 +2389,7 @@ struct
     in
     (* Assign parameters to arguments *)
     let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
+    add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat_map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st) in
@@ -2391,7 +2398,7 @@ struct
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
-    let new_cpa = project (Some p) new_cpa in
+    let new_cpa = project (Analyses.ask_of_ctx ctx) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2531,68 +2538,53 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, "strcpy"
-    | Unknown, "strncpy"
-    | Unknown, "memcpy"
-    | Unknown, "__builtin___memcpy_chk" ->
-      begin match f.vname, args with
-        | _, [dst; src]
-        | _, [dst; src; _]
-        | "__builtin___memcpy_chk", [dst; src; _; _] ->
-          (* invalidating from interactive *)
-          (* let dest_a, dest_typ = addr_type_of_exp dst in
-             let value = VD.top_value dest_typ in
-             set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
-          (* TODO: reuse addr_type_of_exp for master *)
-          (* assigning from master *)
-          let get_type lval =
-            let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-            AD.get_type address
-          in
-          let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
-          let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+    | Memcpy { dest = dst; src }, _
+    | Strcpy { dest = dst; src }, _ ->
+      (* invalidating from interactive *)
+      (* let dest_a, dest_typ = addr_type_of_exp dst in
+          let value = VD.top_value dest_typ in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
+      (* TODO: reuse addr_type_of_exp for master *)
+      (* assigning from master *)
+      let get_type lval =
+        let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+        AD.get_type address
+      in
+      let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
 
-          let dest_typ = get_type dst_lval in
-          let src_typ = get_type src_lval in
+      let dest_typ = get_type dst_lval in
+      let src_typ = get_type src_lval in
 
-          (* When src and destination type coincide, take value from the source, otherwise use top *)
-          let value = if typeSig dest_typ = typeSig src_typ then
-              let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-              eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
-            else
-              VD.top_value (unrollType dest_typ)
-          in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | _ -> failwith "strcpy arguments are strange/complicated."
-      end
-    | Unknown, "__builtin" ->
-      begin match args with
-        | Const (CStr ("invariant",_)) :: ((_ :: _) as args) ->
-          List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
-        | _ -> failwith "Unknown __builtin."
-      end
+      (* When src and destination type coincide, take value from the source, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Abort, _ -> raise Deadcode
-    | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     | ThreadExit { ret_val = exp }, _ ->
       begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
         | `Lifted tid ->
-          let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-          ctx.sideg (V.thread tid) (G.create_thread rv);
-          (* TODO: emit thread return event so other analyses are aware? *)
-          (* TODO: publish still needed? *)
-          publish_all ctx `Return (* like normal return *)
+          (
+            let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+            ctx.sideg (V.thread tid) (G.create_thread rv);
+            (* TODO: emit thread return event so other analyses are aware? *)
+            (* TODO: publish still needed? *)
+            publish_all ctx `Return; (* like normal return *)
+            match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+            | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+              ignore @@ Priv.thread_return (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) tid st
+            | _ -> ())
         | _ -> ()
       end;
       raise Deadcode
-    | Unknown, "__builtin_expect" ->
+    | Identity e, _ ->
       begin match lv with
-        | Some v -> assign ctx v (List.hd args)
-        | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
-      end
-    | Unknown, "spinlock_check" ->
-      begin match lv with
-        | Some x -> assign ctx x (List.hd args)
+        | Some x -> assign ctx x e
         | None -> ctx.local
       end
     (**Floating point classification and trigonometric functions defined in c99*)
@@ -2614,14 +2606,16 @@ struct
       in
       let result =
         begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> `Float (FD.top_of fk)
+          | Inf fk -> `Float (FD.inf_of fk)
           | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
           | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
           | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
           | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Ceil (fk,x) -> `Float (apply_unary fk FD.ceil x)
+          | Floor (fk,x) -> `Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
           | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
           | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)
@@ -2630,6 +2624,14 @@ struct
           | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
+          | Isgreater (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> `Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Fmax (fd, x ,y) -> `Float (apply_binary fd FD.fmax x y)
+          | Fmin (fd, x ,y) -> `Float (apply_binary fd FD.fmin x y)
         end
       in
       begin match lv with
@@ -2654,7 +2656,11 @@ struct
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
       in
-      invalidate_ret_lv st'
+      let st' = invalidate_ret_lv st' in
+      Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
+    | Unknown, "__goblint_assume_join" ->
+      let id = List.hd args in
+      Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
     | Malloc size, _ -> begin
         match lv with
         | Some lv ->
@@ -2715,8 +2721,6 @@ struct
         | None ->
           st
       end
-    (* Handling the assertions *)
-    | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | _, _ -> begin
         let st =
@@ -2766,9 +2770,13 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let return_val = project_val (Some p) return_val (is_privglob (return_varinfo ())) in
-      let cpa' = project (Some p) nst.cpa in
+      let p = PrecisionUtil.int_precision_from_node ()in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let callerFundec = match !MyCFG.current_node with
+        | Some n -> Node.find_fundec n
+        | None -> failwith "callerfundec not found"
+      in
+      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+      let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
@@ -2818,6 +2826,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Assert exp ->
+      assert_fn ctx exp true
     | _ ->
       ctx.local
 end

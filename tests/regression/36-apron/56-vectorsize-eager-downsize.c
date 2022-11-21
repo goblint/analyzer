@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.relation.privatization mutex-meet-tid --set ana.path_sens[+] threadflag --set ana.apron.domain polyhedra
 // TODO: why doesn't mutex-meet succeed?
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 #include <limits.h>
 
 extern int __VERIFIER_nondet_int();

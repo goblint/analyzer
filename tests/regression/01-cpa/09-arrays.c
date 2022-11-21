@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int fun_5() { return 5; }
 int fun_6() { return 6; }

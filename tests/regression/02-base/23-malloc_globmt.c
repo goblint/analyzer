@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int *x;
 int *y;

@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.relation.privatization mutex-meet-tid --set ana.base.arrays.domain partitioned
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 #include <unistd.h>
 

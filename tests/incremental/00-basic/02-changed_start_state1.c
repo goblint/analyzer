@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 int g = 1;
 

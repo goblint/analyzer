@@ -17,7 +17,8 @@ struct
 
   let varinfo_tracked vi =
     (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype
+    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_apron_track") in
+    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_apron_track" || hasTrackAttribute vi.vattr)
 end
 
 module Var =
@@ -36,20 +37,21 @@ let int_of_scalar ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
     None
   else
+    let open GobOption.Syntax in
     match scalar with
     | Float f -> (* octD, boxD *)
       (* bound_texpr on bottom also gives Float even with MPQ *)
-      let f_opt = match round with
+      let+ f_opt = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
         | None when Stdlib.Float.is_integer f-> Some f
         | None -> None
       in
-      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
+      BI.of_bigint (Z.of_float f)
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
-      let z_opt =
+      let+ z =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
           Some n
         else
@@ -59,7 +61,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
             | None -> None
           end
       in
-      Option.map Z_mlgmpidl.z_of_mpzf z_opt
+      Z_mlgmpidl.z_of_mpzf z
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
@@ -236,7 +238,7 @@ module CilOfApron (V: SV) =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
@@ -260,7 +262,7 @@ struct
     in
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo fundec v with
+      match V.to_cil_varinfo v with
       | Some vinfo ->
         (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
@@ -276,11 +278,11 @@ struct
     !expr
 
 
-  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+  let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
     let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+      let cilexp = cil_exp_of_linexpr1 linexpr1 in
       match Lincons1.get_typ lincons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
       | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
@@ -379,9 +381,9 @@ struct
 
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (env d) e false with
-    | texpr1 -> 
+    | texpr1 ->
       Bounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp _ -> 
+    | exception Convert.Unsupported_CilExp _ ->
       (None, None)
 
   let check_assert d e no_ov =
@@ -408,9 +410,9 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr d e with
-        | (Some min, Some max) -> ID.of_interval ik (min, max)
-        | (Some min, None) -> ID.starting ik min
-        | (None, Some max) -> ID.ending ik max
+        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
+        | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
+        | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
         | (None, None) -> ID.top_of ik
 
 end

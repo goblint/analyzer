@@ -228,12 +228,12 @@ struct
       in Array.iteri (fun i x -> row.(i) <- x /: div) row;
       Vector.of_array @@ row
     in
-    let vec_to_constraint vec env = 
+    let vec_to_constraint vec env =
       let vars, _ = Environment.vars env
-      in let dim_to_str var = 
+      in let dim_to_str var =
            let vl =  Vector.nth vec (Environment.dim_of_var env var)
            in let var_str = Var.to_string var
-           in if vl = of_int 1 then "+" ^ var_str 
+           in if vl = of_int 1 then "+" ^ var_str
            else if vl = of_int (-1) then "-" ^ var_str
            else if vl <: of_int (-1) then Mpqf.to_string vl ^ var_str
            else if vl >: of_int 1 then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
@@ -251,9 +251,9 @@ struct
     match t.d with
     | None -> "Bottom Env"
     | Some m when Matrix.is_empty m -> "⊤"
-    | Some m -> 
+    | Some m ->
       let constraint_list = List.init (Matrix.num_rows m) (fun i -> vec_to_constraint (conv_to_ints @@ Matrix.get_row m i) t.env)
-      in Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]") 
+      in Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]")
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -594,7 +594,7 @@ struct
 
   type consSet = SharedFunctions.Lincons1Set.elt
 
-  let invariant ~scope t = 
+  let invariant ~scope t =
     if Option.is_none t.d then [] else (
       let m = Option.get t.d in
       let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
@@ -611,7 +611,7 @@ struct
         )
       |> List.of_enum)
 
-  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 scope cons
+  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 cons
 
   let env (t: Bounds.t) = t.env
 

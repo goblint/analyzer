@@ -1,6 +1,14 @@
 open IntOps
 open GoblintCil
 
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
+
+val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
+(** gets the underlying domain: chosen by the attributes in AttributeConfiguredArrayDomain *)
+
+val can_recover_from_top: domain -> bool
+(** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
+
 (** Abstract domains representing arrays. *)
 module type S =
 sig
@@ -11,14 +19,14 @@ sig
   type value
   (** The abstract domain of values stored in the array. *)
 
-  val get: Queries.ask -> t -> ExpDomain.t * idx -> value
+  val get: ?checkBounds:bool -> Queries.ask -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 
-  val set: Queries.ask -> t -> ExpDomain.t * idx -> value -> t
+  val set: Queries.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
 
-  val make: idx -> value -> t
+  val make: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> idx -> value -> t
   (** [make l e] creates an abstract representation of an array of length [l]
     * containing the element [e]. *)
 
@@ -43,6 +51,8 @@ sig
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
   val update_length: idx -> t -> t
+
+  val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> Queries.ask -> t -> t
 end
 
 module type LatticeWithSmartOps =
@@ -68,10 +78,10 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type va
   * uses three values from Val to represent the elements of the array to the left,
   * at, and to the right of the expression. The Idx domain is required only so to
   * have a signature that allows for choosing an array representation at runtime.
-   *)
+*)
 
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
-(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on the value of ana.base.arrays.domain. *)
+module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
+(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
