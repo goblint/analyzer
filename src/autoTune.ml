@@ -130,7 +130,7 @@ let disableIntervalContextsInRecursiveFunctions () =
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
         print_endline ("function " ^ (f.vname) ^" is recursive, disable interval context");
-        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "apron.no-context"])];
+        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "relation.no-context"])];
       )
     )
 
@@ -339,14 +339,14 @@ let apronOctagonOption factors file =
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
     print_endline @@ "Octagon: " ^ string_of_int cost;
-    set_bool "annotation.goblint_apron_track" true;
+    set_bool "annotation.goblint_relation_track" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
     print_endline "Enabled octagon domain for:";
     print_endline @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
-    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_apron_track",[])) info.vattr) allVars
+    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
   {
     value = 50 * (List.length allVars) ;

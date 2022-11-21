@@ -18,9 +18,9 @@ struct
     isIntegralType typ && not (is_pthread_int_type typ)
 
   let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_apron_track") in
-    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_apron_track" || hasTrackAttribute vi.vattr)
+    (* no vglob check here, because globals are allowed in relation, but just have to be handled separately *)
+    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_relation_track") in
+    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
 end
 
 module Var =

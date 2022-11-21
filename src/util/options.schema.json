@@ -1394,7 +1394,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "apron.no-context", "apron.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -1417,9 +1417,9 @@
           "type": "boolean",
           "default": false
         },
-        "goblint_apron_track": {
-          "title": "annotation.goblint_apron_track",
-          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
+        "goblint_relation_track": {
+          "title": "annotation.goblint_relation_track",
+          "description": "Let relation track variables only if they have the attribute goblint_relation_track",
           "type": "boolean",
           "default": false
         }
