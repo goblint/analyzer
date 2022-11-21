@@ -413,7 +413,16 @@ let chooseFromOptions costTarget options =
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
 let chooseConfig file =
-  if isActivated "congruence" then
+  let factors = collectFactors visitCilFileSameGlobals file in
+  let fileCompplexity = estimateComplexity factors file in
+
+  print_endline "Collected factors:";
+  printFactors factors;
+  print_endline "";
+  print_endline "Complexity estimates:";
+  print_endline @@ "File: " ^ string_of_int fileCompplexity;
+
+  if fileCompplexity < totalTarget && isActivated "congruence" then
     addModAttributes file;
 
   if isActivated "noRecursiveIntervals" then
@@ -433,15 +442,6 @@ let chooseConfig file =
 
   if isActivated "arrayDomain" then
     selectArrayDomains file;
-
-  let factors = collectFactors visitCilFileSameGlobals file in
-  let fileCompplexity = estimateComplexity factors file in
-
-  print_endline "Collected factors:";
-  printFactors factors;
-  print_endline "";
-  print_endline "Complexity estimates:";
-  print_endline @@ "File: " ^ string_of_int fileCompplexity;
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
