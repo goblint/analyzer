@@ -196,6 +196,12 @@ struct
 
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
+    let module FileCfg: FileCfg =
+    struct
+      let file = file
+      module Cfg = Cfg
+    end
+    in
 
     Goblintutil.should_warn := false; (* reset for server mode *)
 
@@ -608,7 +614,7 @@ struct
       let gh = gh
     end
     in
-    let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (SpecSysSol) in
+    let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (FileCfg) (SpecSysSol) in
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> LT.to_yojson (Result.find local_xml node));
@@ -635,18 +641,18 @@ struct
 
     if get_bool "ana.sv-comp.enabled" then (
       (* SV-COMP and witness generation *)
-      let module WResult = Witness.Result (Cfg) (R) in
+      let module WResult = Witness.Result (R) in
       WResult.write entrystates
     );
 
     if get_bool "witness.yaml.enabled" then (
-      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (R) in
+      let module YWitness = YamlWitness.Make (R) in
       YWitness.write ()
     );
 
     if get_string "witness.yaml.validate" <> "" then (
       let module YWitness = YamlWitness.Validator (R) in
-      YWitness.validate file
+      YWitness.validate ()
     );
 
     let marshal = Spec.finalize () in

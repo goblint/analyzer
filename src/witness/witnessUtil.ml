@@ -51,13 +51,15 @@ sig
   val file: Cil.file
 end
 
-module Invariant (File: File) (Cfg: MyCFG.CfgBidir) =
+module Invariant (FileCfg: Analyses.FileCfg) =
 struct
+  open FileCfg
+
   let emit_loop_head = GobConfig.get_bool "witness.invariant.loop-head"
   let emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
   let emit_other = GobConfig.get_bool "witness.invariant.other"
 
-  let loop_heads = find_loop_heads (module Cfg) File.file
+  let loop_heads = find_loop_heads (module Cfg) file
 
   let is_after_lock to_node =
     List.exists (fun (edges, from_node) ->

@@ -119,16 +119,13 @@ let yaml_entries_to_file yaml_entries file =
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
 
-module Make
-    (File: WitnessUtil.File)
-    (Cfg: MyCFG.CfgBidir)
-    (R: ResultQuery.SpecSysSol2) =
+module Make (R: ResultQuery.SpecSysSol2) =
 struct
   open R
   open SpecSys
 
   module NH = BatHashtbl.Make (Node)
-  module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
+  module WitnessInvariant = WitnessUtil.Invariant (FileCfg)
   module FMap = BatHashtbl.Make (CilType.Fundec)
   module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
   module Query = ResultQuery.Query (SpecSys)
@@ -172,7 +169,7 @@ struct
             ) es (CilLval.Set.empty ())
           in
           let lvals =
-            Cfg.next n
+            FileCfg.Cfg.next n
             |> BatList.enum
             |> BatEnum.filter_map (fun (_, next_n) ->
                 match R.ask_local_node next_n MayAccessed with
@@ -382,7 +379,7 @@ struct
     synthetic = false;
   }
 
-  let validate (file: Cil.file) =
+  let validate () =
     let locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
@@ -390,7 +387,7 @@ struct
           Locator.add locator loc lvar
       ) lh;
 
-    let inv_parser = InvariantParser.create file in
+    let inv_parser = InvariantParser.create FileCfg.file in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in

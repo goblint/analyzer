@@ -6,12 +6,11 @@ open GobConfig
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
-  let module Cfg = Task.Cfg in
-  let module Invariant = WitnessUtil.Invariant (struct let file = Task.file end) (Cfg) in
+  let module Invariant = WitnessUtil.Invariant (Task) in
 
   let module TaskResult =
     (val if get_bool "witness.stack" then
-        (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
+        (module StackTaskResult (Task.Cfg) (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
     )
@@ -268,8 +267,7 @@ let init (module Cfg: CfgBidir) file =
   Svcomp.task := Some (module Task)
 
 open Analyses
-module Result (Cfg : CfgBidir)
-              (R: ResultQuery.SpecSysSol2) =
+module Result (R: ResultQuery.SpecSysSol2) =
 struct
   open R
   open SpecSys
@@ -366,7 +364,7 @@ struct
     let module Arg =
     struct
       open MyARG
-      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
+      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))
       include Intra (ArgIntra) (Arg)
     end
     in
