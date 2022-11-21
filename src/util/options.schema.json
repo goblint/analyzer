@@ -1,15 +1,15 @@
 {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "type": "object",
-    "properties": {
-      "files": {
-        "title": "files",
-        "description": "Files to analyze.",
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "default": []
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "properties": {
+    "files": {
+      "title": "files",
+      "description": "Files to analyze.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
     },
     "outfile": {
       "title": "outfile",
@@ -282,28 +282,28 @@
           "title": "server.enabled",
           "description": "Enable server mode",
           "type": "boolean",
-        "default": false
+          "default": false
+        },
+        "mode": {
+          "title": "server.mode",
+          "description": "Server transport mode",
+          "type": "string",
+          "enum": ["stdio", "unix"],
+          "default": "stdio"
+        },
+        "unix-socket": {
+          "title": "server.unix-socket",
+          "description": "The path to the UNIX socket",
+          "type": "string",
+          "default": "goblint.sock"
+        },
+        "reparse": {
+          "title": "server.reparse",
+          "description": "Reparse source files before each analysis run",
+          "type": "boolean",
+          "default": false
+        }
       },
-      "mode": {
-        "title": "server.mode",
-        "description": "Server transport mode",
-        "type": "string",
-        "enum": ["stdio", "unix"],
-        "default": "stdio"
-      },
-      "unix-socket": {
-        "title": "server.unix-socket",
-        "description": "The path to the UNIX socket",
-        "type": "string",
-        "default": "goblint.sock"
-      },
-      "reparse": {
-        "title": "server.reparse",
-        "description": "Reparse source files before each analysis run",
-        "type": "boolean",
-        "default": false
-      }
-    },
       "additionalProperties": false
     },
     "ana": {
@@ -424,302 +424,302 @@
               "default": false
             }
           },
-            "additionalProperties": false
+          "additionalProperties": false
+        },
+        "spec": {
+          "title": "ana.spec",
+          "type": "object",
+          "properties": {
+            "file": {
+              "title": "ana.spec.file",
+              "description": "Path to the specification file.",
+              "type": "string",
+              "default": ""
+            }
           },
-          "spec": {
-            "title": "ana.spec",
-            "type": "object",
-            "properties": {
-              "file": {
-                "title": "ana.spec.file",
-                "description": "Path to the specification file.",
-                "type": "string",
-                "default": ""
-              }
+          "additionalProperties": false
+        },
+        "pml": {
+          "title": "ana.pml",
+          "type": "object",
+          "properties": {
+            "debug": {
+              "title": "ana.pml.debug",
+              "description":
+                "Insert extra assertions into Promela code for debugging.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "opt": {
+          "title": "ana.opt",
+          "type": "object",
+          "properties": {
+            "hashcons": {
+              "title": "ana.opt.hashcons",
+              "description":
+                "Should we try to save memory and speed up equality by hashconsing?",
+              "type": "boolean",
+              "default": true
             },
-            "additionalProperties": false
+            "equal": {
+              "title": "ana.opt.equal",
+              "description":
+                "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags).",
+              "type": "boolean",
+              "default": true
+            }
           },
-          "pml": {
-            "title": "ana.pml",
-            "type": "object",
-            "properties": {
-              "debug": {
-                "title": "ana.pml.debug",
-                "description":
-                  "Insert extra assertions into Promela code for debugging.",
-                "type": "boolean",
-                "default": true
-              }
+          "additionalProperties": false
+        },
+        "mutex": {
+          "title": "ana.mutex",
+          "type": "object",
+          "properties": {
+            "disjoint_types": {
+              "title": "ana.mutex.disjoint_types",
+              "description":
+                "Do not propagate basic type writes to all struct fields",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "sv-comp": {
+          "title": "ana.sv-comp",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.sv-comp.enabled",
+              "description": "SV-COMP mode",
+              "type": "boolean",
+              "default": false
             },
-            "additionalProperties": false
+            "functions": {
+              "title": "ana.sv-comp.functions",
+              "description": "Handle SV-COMP __VERIFIER* functions",
+              "type": "boolean",
+              "default": false
+            }
           },
-          "opt": {
-            "title": "ana.opt",
-            "type": "object",
-            "properties": {
-              "hashcons": {
-                "title": "ana.opt.hashcons",
-                "description":
-                  "Should we try to save memory and speed up equality by hashconsing?",
-                "type": "boolean",
-                "default": true
-              },
-              "equal": {
-                "title": "ana.opt.equal",
-                "description":
-                  "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags).",
-                "type": "boolean",
-                "default": true
-              }
-            },
-            "additionalProperties": false
-          },
-          "mutex": {
-            "title": "ana.mutex",
-            "type": "object",
-            "properties": {
-              "disjoint_types": {
-                "title": "ana.mutex.disjoint_types",
-                "description":
-                  "Do not propagate basic type writes to all struct fields",
-                "type": "boolean",
-                "default": true
-              }
-            },
-            "additionalProperties": false
-          },
-          "sv-comp": {
-            "title": "ana.sv-comp",
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "title": "ana.sv-comp.enabled",
-                "description": "SV-COMP mode",
-                "type": "boolean",
-                "default": false
-              },
-              "functions": {
-                "title": "ana.sv-comp.functions",
-                "description": "Handle SV-COMP __VERIFIER* functions",
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "additionalProperties": false
-          },
-          "specification": {
-            "title": "ana.specification",
-            "description": "SV-COMP specification (path or string)",
-            "type": "string",
-            "default": ""
-          },
-          "wp": {
-            "title": "ana.wp",
-            "description":
-              "Weakest precondition feasibility analysis for SV-COMP violations",
-            "type": "boolean",
-            "default": false
-          },
-          "arrayoob": {
-            "title": "ana.arrayoob",
-            "description": "Array out of bounds check",
-            "type": "boolean",
-            "default": false
-          },
-          "base": {
-            "title": "ana.base",
-            "type": "object",
-            "properties": {
-              "context": {
-                "title": "ana.base.context",
-                "type": "object",
-                "properties": {
-                  "non-ptr": {
-                    "title": "ana.base.context.non-ptr",
-                    "description": "Non-address values in function contexts.",
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "int": {
-                    "title": "ana.base.context.int",
-                    "description": "Integer values in function contexts.",
+          "additionalProperties": false
+        },
+        "specification": {
+          "title": "ana.specification",
+          "description": "SV-COMP specification (path or string)",
+          "type": "string",
+          "default": ""
+        },
+        "wp": {
+          "title": "ana.wp",
+          "description":
+            "Weakest precondition feasibility analysis for SV-COMP violations",
+          "type": "boolean",
+          "default": false
+        },
+        "arrayoob": {
+          "title": "ana.arrayoob",
+          "description": "Array out of bounds check",
+          "type": "boolean",
+          "default": false
+        },
+        "base": {
+          "title": "ana.base",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "ana.base.context",
+              "type": "object",
+              "properties": {
+                "non-ptr": {
+                  "title": "ana.base.context.non-ptr",
+                  "description": "Non-address values in function contexts.",
                   "type": "boolean",
                   "default": true
-              },
-              "interval": {
-                "title": "ana.base.context.interval",
-                "description":
-                  "Integer values of the Interval domain in function contexts.",
+                },
+                "int": {
+                  "title": "ana.base.context.int",
+                  "description": "Integer values in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "interval": {
+                  "title": "ana.base.context.interval",
+                  "description":
+                    "Integer values of the Interval domain in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
               },
               "additionalProperties": false
-          },
-          "limit-string-addresses": {
-            "title": "ana.base.limit-string-addresses",
-            "description": "Limit abstract address sets to keep at most one distinct string pointer.",
+            },
+            "limit-string-addresses": {
+              "title": "ana.base.limit-string-addresses",
+              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
               "type": "boolean",
               "default": true
             },
-              "partition-arrays": {
-                "title": "ana.base.partition-arrays",
-                "type": "object",
-                "properties": {
-                  "keep-expr": {
-                    "title": "ana.base.partition-arrays.keep-expr",
-                    "description":
-                      "When using the partitioning which expression should be used for partitioning ('first', 'last')",
-                    "type": "string",
-                    "enum": ["first", "last"],
-                    "default": "first"
-                  },
-                  "partition-by-const-on-return": {
-                    "title": "ana.base.partition-arrays.partition-by-const-on-return",
-                    "description":
-                      "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
-                    "type": "boolean",
-                    "default": false
-                  },
-                  "smart-join": {
-                    "title": "ana.base.partition-arrays.smart-join",
-                    "description":
-                      "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
-                    "type": "boolean",
-                    "default": false
-                  }
+            "partition-arrays": {
+              "title": "ana.base.partition-arrays",
+              "type": "object",
+              "properties": {
+                "keep-expr": {
+                  "title": "ana.base.partition-arrays.keep-expr",
+                  "description":
+                    "When using the partitioning which expression should be used for partitioning ('first', 'last')",
+                  "type": "string",
+                  "enum": ["first", "last"],
+                  "default": "first"
                 },
-                "additionalProperties": false
-              },
-              "arrays":{
-                "title": "ana.base.arrays",
-                "type": "object",
-                "properties": {
-                  "domain": {
-                    "title": "ana.base.arrays.domain",
-                    "description":
-                      "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
-                    "type": "string",
-                    "enum": ["trivial", "partitioned", "unroll"],
-                    "default": "trivial"
-                  },
-                  "unrolling-factor": {
-                    "title": "ana.base.arrays.unrolling-factor",
-                    "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
-                    "type": "integer",
-                    "default": 0
-                  }
+                "partition-by-const-on-return": {
+                  "title": "ana.base.partition-arrays.partition-by-const-on-return",
+                  "description":
+                    "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
+                  "type": "boolean",
+                  "default": false
                 },
-                "additionalProperties": false
+                "smart-join": {
+                  "title": "ana.base.partition-arrays.smart-join",
+                  "description":
+                    "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
+                  "type": "boolean",
+                  "default": false
+                }
               },
-              "structs": {
-                "title": "ana.base.structs",
-                "type": "object",
-                "properties": {
-                  "domain": {
-                    "title": "ana.base.structs.domain",
-                    "description":
-                      "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
-                    "type": "string",
-                    "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
-                    "default": "simple"
-                  },
-                  "key": {
-                    "title": "ana.base.structs.key",
-                    "type": "object",
-                    "properties": {
-                      "forward": {
-                        "title": "ana.base.structs.key.forward",
-                        "description":
-                          "Whether the struct key should be picked going from first field to last.",
-                        "type": "boolean",
-                        "default": true
-                      },
-                      "avoid-ints": {
-                        "title": "ana.base.structs.key.avoid-ints",
-                        "description":
-                          "Whether integers should be avoided for key.",
-                        "type": "boolean",
-                        "default": true
-                      },
-                      "prefer-ptrs": {
-                        "title": "ana.base.structs.key.prefer-ptrs",
-                        "description":
-                          "Whether pointers should be preferred for key.",
-                        "type": "boolean",
-                        "default": true
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "additionalProperties": false
-              },
-              "privatization": {
-                "title": "ana.base.privatization",
-                "description":
-                  "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
-                "type": "string",
-                "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
-                "default": "protection-read"
-              },
-              "invariant": {
-                "title": "ana.base.invariant",
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "title": "ana.base.invariant.enabled",
-                    "description": "Generate base analysis invariants",
-                    "type": "boolean",
-                    "default": true
-                  }
-                },
-                "additionalProperties": false
-              },
-              "eval": {
-                "title": "ana.base.eval",
-                "type": "object",
-                "properties": {
-                  "deep-query": {
-                    "title": "ana.base.eval.deep-query",
-                    "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
-                    "type": "boolean",
-                    "default": true
-                  }
-                },
-                "additionalProperties": false
-              }
+              "additionalProperties": false
             },
-            "additionalProperties": false
-          },
-          "malloc": {
-            "title": "ana.malloc",
-            "type": "object",
-            "properties": {
-              "wrappers": {
-                "title": "ana.malloc.wrappers",
-                "description":
-                  "Loads a list of known malloc wrapper functions.",
-                "type": "array",
-                "items": { "type": "string" },
-                "default": [
-                  "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
-                  "kzalloc"
-                ]
-              },
-              "unique_address_count": {
-                  "title": "ana.malloc.unique_address_count",
-                  "description": "Number of unique memory addresses allocated for each malloc node.",
+            "arrays":{
+              "title": "ana.base.arrays",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.arrays.domain",
+                  "description":
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                  "type": "string",
+                  "enum": ["trivial", "partitioned", "unroll"],
+                  "default": "trivial"
+                },
+                "unrolling-factor": {
+                  "title": "ana.base.arrays.unrolling-factor",
+                  "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
                   "type": "integer",
                   "default": 0
-              }
+                }
+              },
+              "additionalProperties": false
             },
-            "additionalProperties": false
+            "structs": {
+              "title": "ana.base.structs",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.structs.domain",
+                  "description":
+                    "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
+                  "type": "string",
+                  "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
+                  "default": "simple"
+                },
+                "key": {
+                  "title": "ana.base.structs.key",
+                  "type": "object",
+                  "properties": {
+                    "forward": {
+                      "title": "ana.base.structs.key.forward",
+                      "description":
+                        "Whether the struct key should be picked going from first field to last.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "avoid-ints": {
+                      "title": "ana.base.structs.key.avoid-ints",
+                      "description":
+                        "Whether integers should be avoided for key.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "prefer-ptrs": {
+                      "title": "ana.base.structs.key.prefer-ptrs",
+                      "description":
+                        "Whether pointers should be preferred for key.",
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "privatization": {
+              "title": "ana.base.privatization",
+              "description":
+                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+              "type": "string",
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "default": "protection-read"
+            },
+            "invariant": {
+              "title": "ana.base.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.invariant.enabled",
+                  "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "eval": {
+              "title": "ana.base.eval",
+              "type": "object",
+              "properties": {
+                "deep-query": {
+                  "title": "ana.base.eval.deep-query",
+                  "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
           },
-          "apron": {
-            "title": "ana.apron",
-            "type": "object",
-            "properties": {
+          "additionalProperties": false
+        },
+        "malloc": {
+          "title": "ana.malloc",
+          "type": "object",
+          "properties": {
+            "wrappers": {
+              "title": "ana.malloc.wrappers",
+              "description":
+                "Loads a list of known malloc wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
+                "kzalloc"
+              ]
+            },
+            "unique_address_count": {
+                "title": "ana.malloc.unique_address_count",
+                "description": "Number of unique memory addresses allocated for each malloc node.",
+                "type": "integer",
+                "default": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "apron": {
+          "title": "ana.apron",
+          "type": "object",
+          "properties": {
             "strengthening": {
               "title": "ana.apron.strengthening",
               "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
@@ -755,75 +755,75 @@
               "additionalProperties": false
             }
           },
-            "additionalProperties": false
-          },
-          "relation": {
-            "title": "ana.relation",
-            "type": "object",
-            "properties": {
-              "context": {
-                "title": "ana.relation.context",
-                "description": "Entire relation in function contexts.",
-                "type": "boolean",
-                "default": true
-              },
-              "privatization": {
-                "title": "ana.relation.privatization",
-                "description":
-                  "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
-                "type": "string",
-                "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
-                "default": "mutex-meet"
-              },
-              "priv": {
-                "title": "ana.relation.priv",
-                "type": "object",
-                "properties": {
-                  "not-started": {
-                    "title": "ana.relation.priv.not-started",
-                    "description":
-                      "Exclude writes from threads that may not be started yet",
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "must-joined": {
-                    "title": "ana.relation.priv.must-joined",
-                    "description":
-                      "Exclude writes from threads that must have been joined",
-                    "type": "boolean",
-                    "default": true
-                  }
-                },
-                "additionalProperties": false
-              },
-              "invariant": {
-                "title": "ana.relation.invariant",
-                "type": "object",
-                "properties": {
-                  "one-var": {
-                    "title": "ana.relation.invariant.one-var",
-                    "description": "Generate invariants with only one variable",
-                    "type": "boolean",
-                    "default": false
-                  },
-                  "local": {
-                    "title": "ana.relation.invariant.local",
-                    "description": "Keep local variables in invariants",
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "global": {
-                    "title": "ana.relation.invariant.global",
-                    "description": "Keep global variables in invariants",
-                    "type": "boolean",
-                    "default": true
-                  }
-                },
-                "additionalProperties": false
-              }
+          "additionalProperties": false
+        },
+        "relation": {
+          "title": "ana.relation",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "ana.relation.context",
+              "description": "Entire relation in function contexts.",
+              "type": "boolean",
+              "default": true
             },
-                "additionalProperties": false
+            "privatization": {
+              "title": "ana.relation.privatization",
+              "description":
+                "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+              "type": "string",
+              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "default": "mutex-meet"
+            },
+            "priv": {
+              "title": "ana.relation.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.relation.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.relation.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "invariant": {
+              "title": "ana.relation.invariant",
+              "type": "object",
+              "properties": {
+                "one-var": {
+                  "title": "ana.relation.invariant.one-var",
+                  "description": "Generate invariants with only one variable",
+                  "type": "boolean",
+                  "default": false
+                },
+                "local": {
+                  "title": "ana.relation.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.relation.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
           },
+          "additionalProperties": false
+        },
         "affeq": {
           "title": "ana.affeq",
           "type": "object",
@@ -873,20 +873,20 @@
                 "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
-              }
-            },
-            "additionalProperties": false
+            }
           },
-          "race": {
-            "title": "ana.race",
-            "type": "object",
-            "properties": {
-              "free": {
-                "title": "ana.race.free",
-                "description": "Consider memory free as racing write.",
-                "type": "boolean",
-                "default": true
-              }
+          "additionalProperties": false
+        },
+        "race": {
+          "title": "ana.race",
+          "type": "object",
+          "properties": {
+            "free": {
+              "title": "ana.race.free",
+              "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            }
           },
           "additionalProperties": false
         },
@@ -1008,24 +1008,24 @@
               "default": "equal"
             }
           },
-            "additionalProperties": false
-          },
-          "compare": {
-            "title": "incremental.compare",
-            "description":
-              "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)",
-            "type": "string",
-            "enum": ["ast", "cfg"],
-            "default": "ast"
-          },
-          "force-reanalyze": {
-            "title": "incremental.force-reanalyze",
-            "type": "object",
-            "properties": {
-              "funs": {
-                "title": "incremental.force-reanalyze.funs",
-                "description":
-                  "List of functions that are to be re-analayzed from scratch",
+          "additionalProperties": false
+        },
+        "compare": {
+          "title": "incremental.compare",
+          "description":
+            "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)",
+          "type": "string",
+          "enum": ["ast", "cfg"],
+          "default": "ast"
+        },
+        "force-reanalyze": {
+          "title": "incremental.force-reanalyze",
+          "type": "object",
+          "properties": {
+            "funs": {
+              "title": "incremental.force-reanalyze.funs",
+              "description":
+                "List of functions that are to be re-analayzed from scratch",
               "type": "array",
               "items": {
                 "type": "string"
@@ -1337,9 +1337,9 @@
             },
             "default": []
           }
-              }
-            },
-            "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     },
     "exp": {
       "title": "Experimental",
