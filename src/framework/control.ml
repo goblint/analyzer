@@ -594,8 +594,6 @@ struct
       lh, gh
     in
 
-    Generic.write_cfgs := CfgTools.dead_code_cfg (module FileCfg);
-
     (* Use "normal" constraint solving *)
     let timeout_reached () =
       M.error "Timeout reached!";
