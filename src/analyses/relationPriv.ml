@@ -24,7 +24,7 @@ module type S =
     val read_global: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo -> varinfo -> RD.t
 
     (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
-      * the state when following conditional guards. *)
+       the state when following conditional guards. *)
     val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> varinfo -> varinfo -> relation_components_t
 
     val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
@@ -88,8 +88,8 @@ struct
         | _ -> false
       ) (RD.vars rel)
     in
-    let apr_local = RD.remove_vars rel esc_vars in
-    { st with rel = apr_local }
+    let rel_local = RD.remove_vars rel esc_vars in
+    { st with rel = rel_local }
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
@@ -114,13 +114,13 @@ struct
 
   let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
     let rel = st.rel in
-    let apr_local = RD.remove_filter rel (fun var ->
+    let rel_local = RD.remove_filter rel (fun var ->
         match AV.find_metadata var with
         | Some (Global _) -> true
         | _ -> false
       )
     in
-    {st with rel = apr_local}
+    {st with rel = rel_local}
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
     {rel = RD.bot (); priv = startstate ()}
@@ -178,7 +178,7 @@ struct
   end
   module AV =
   struct
-    include RelationDomain.VarMetadataTbl (VM)(RD.Var)
+    include RelationDomain.VarMetadataTbl (VM) (RD.Var)
 
 
     let local g = make_var (Local g)
@@ -478,24 +478,24 @@ struct
     rel_local'
 
   let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x: relation_components_t =
-    let apr = st.rel in
+    let rel = st.rel in
     (* lock *)
-    let apr = RD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let rel = RD.meet rel (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* write *)
     let g_var = AV.global g in
     let x_var = AV.local x in
-    let apr_local = RD.add_vars apr [g_var] in
-    let apr_local = RD.assign_var apr_local g_var x_var in
+    let rel_local = RD.add_vars rel [g_var] in
+    let rel_local = RD.assign_var rel_local g_var x_var in
     (* unlock *)
-    let apr_side = RD.keep_vars apr_local [g_var] in
-    sideg (V.global g) apr_side;
-    let apr_local' =
+    let rel_side = RD.keep_vars rel_local [g_var] in
+    sideg (V.global g) rel_side;
+    let rel_local' =
       if is_unprotected ask g then
-        RD.remove_vars apr_local [g_var]
+        RD.remove_vars rel_local [g_var]
       else
-        apr_local
+        rel_local
     in
-    {st with rel = apr_local'}
+    {st with rel = rel_local'}
 
   let lock ask getg (st: relation_components_t) m =
     (* TODO: somehow actually unneeded here? *)
@@ -591,13 +591,13 @@ end
 
 module type ClusterArg = functor (RD: RelationDomain.RD) ->
 sig
-  module LAD: Lattice.S
+  module LRD: Lattice.S
 
-  val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
-  val keep_global: varinfo -> LAD.t -> LAD.t
+  val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LRD.t -> LRD.t
+  val keep_global: varinfo -> LRD.t -> LRD.t
 
-  val lock: RD.t -> LAD.t -> LAD.t -> RD.t
-  val unlock: W.t -> RD.t -> LAD.t
+  val lock: RD.t -> LRD.t -> LRD.t -> RD.t
+  val unlock: W.t -> RD.t -> LRD.t
 
   val name: unit -> string
 end
@@ -605,9 +605,8 @@ end
 (** No clustering. *)
 module NoCluster:ClusterArg = functor (RD: RelationDomain.RD) ->
 struct
-  module AD = RD
   open CommonPerMutex(RD)
-  module LAD = AD
+  module LRD = RD
 
   let keep_only_protected_globals = keep_only_protected_globals
 
@@ -695,12 +694,12 @@ struct
     include Printable.Std
     include SetDomain.Make (CilType.Varinfo)
   end
-  module LAD = MapDomain.MapBot (VS) (RD)
+  module LRD = MapDomain.MapBot (VS) (RD)
 
   let keep_only_protected_globals ask m octs =
     (* normal (strong) mapping: contains only still fully protected *)
     (* must filter by protection to avoid later meeting with non-protecting *)
-    LAD.filter (fun gs _ ->
+    LRD.filter (fun gs _ ->
         VS.for_all (is_protected_by ask m) gs
       ) octs
 
@@ -708,20 +707,20 @@ struct
     let g_var = V.global g in
     (* normal (strong) mapping: contains only still fully protected *)
     let g' = VS.singleton g in
-    let oct = LAD.find g' octs in
-    LAD.singleton g' (RD.keep_vars oct [g_var])
+    let oct = LRD.find g' octs in
+    LRD.singleton g' (RD.keep_vars oct [g_var])
 
   let lock_get_m oct local_m get_m =
-    let joined = LAD.join local_m get_m in
-    if M.tracing then M.traceli "relationpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD.pretty get_m LAD.pretty joined;
-    let r = LAD.fold (fun _ -> RD.meet) joined (RD.bot ()) in (* bot is top with empty env *)
+    let joined = LRD.join local_m get_m in
+    if M.tracing then M.traceli "relationpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LRD.pretty get_m LRD.pretty joined;
+    let r = LRD.fold (fun _ -> RD.meet) joined (RD.bot ()) in (* bot is top with empty env *)
     if M.tracing then M.trace "relationpriv" "meet=%a\n" RD.pretty r;
     let r = RD.meet oct r in
     if M.tracing then M.traceu "relationpriv" "-> %a\n" RD.pretty r;
     r
 
   let lock oct local_m get_m =
-    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a\n" LAD.pretty local_m;
+    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a\n" LRD.pretty local_m;
     let r = lock_get_m oct local_m get_m in
     (* is_bot check commented out because it's unnecessarily expensive *)
     (* if RD.is_bot_env r then
@@ -744,7 +743,7 @@ struct
     let oct_side_cluster gs =
       RD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
-    LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
+    LRD.add_list_fun clusters oct_side_cluster (LRD.empty ())
 
   let name = ClusteringArg.name
 end
@@ -757,19 +756,19 @@ struct
   open CommonPerMutex(RD)
 
   module VS = DCCluster.VS
-  module LAD1 = DCCluster.LAD
-  module LAD = Lattice.Prod (LAD1) (LAD1) (* second component is only used between keep_* and lock for additional weak mapping *)
+  module LRD1 = DCCluster.LRD
+  module LRD = Lattice.Prod (LRD1) (LRD1) (* second component is only used between keep_* and lock for additional weak mapping *)
 
   let name = ClusteringArg.name
 
   let filter_map' f m =
-    LAD1.fold (fun k v acc ->
+    LRD1.fold (fun k v acc ->
         match f k v with
         | Some (k', v') ->
-          LAD1.add k' (RD.join (LAD1.find k' acc) v') acc
+          LRD1.add k' (RD.join (LRD1.find k' acc) v') acc
         | None ->
           acc
-      ) m (LAD1.empty ())
+      ) m (LRD1.empty ())
 
   let keep_only_protected_globals ask m (octs, _) =
     let lad = DCCluster.keep_only_protected_globals ask m octs in
@@ -804,7 +803,7 @@ struct
     (lad, lad_weak)
 
   let lock oct (local_m, _) (get_m, get_m') =
-    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
+    if M.tracing then M.traceli "relationpriv" "cluster lock: local=%a\n" LRD1.pretty local_m;
     let r =
       let locked = DCCluster.lock_get_m oct local_m get_m in
       if RD.is_bot_env locked then (
@@ -821,7 +820,7 @@ struct
     r
 
   let unlock w oct_side =
-    (DCCluster.unlock w oct_side, LAD1.bot ())
+    (DCCluster.unlock w oct_side, LRD1.bot ())
 end
 
 (** Per-mutex meet with TIDs. *)
@@ -833,7 +832,7 @@ struct
 
   module NC = Cluster(RD)
   module Cluster = NC
-  module LAD = NC.LAD
+  module LRD = NC.LRD
 
   module LLock =
   struct
@@ -843,7 +842,7 @@ struct
   end
 
   (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop (LLock) (LAD)
+  module L = MapDomain.MapBot_LiftTop (LLock) (LRD)
 
   module LMust = struct
     include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
@@ -851,7 +850,7 @@ struct
   end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
-  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LAD)
+  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LRD)
   module GThread = Lattice.Prod (LMust) (L)
   module G =
   struct
@@ -903,23 +902,23 @@ struct
     let must_joined = ask.f Queries.MustJoinedThreads in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
-          LAD.join acc (Cluster.keep_only_protected_globals ask m v)
+          LRD.join acc (Cluster.keep_only_protected_globals ask m v)
         else
           acc
-      ) v (LAD.bot ())
+      ) v (LRD.bot ())
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
-          LAD.join acc v
+          LRD.join acc v
         else
           acc
-      ) v (LAD.bot ())
+      ) v (LRD.bot ())
 
   let merge_all v =
-    GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
+    GMutex.fold (fun _ v acc -> LRD.join acc v) v (LRD.bot ())
 
   type relation_components_t =  RelationDomain.RelComponents (RD) (D).t
 
@@ -930,32 +929,32 @@ struct
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
-    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
+    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LRD.pretty get_m;
     let r =
       if not inits then
         get_m
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
-        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
-        LAD.join get_m get_mutex_inits'
+        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
+        LRD.join get_m get_mutex_inits'
     in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" LAD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
     r
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
-    if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LAD.pretty get_mutex_global_g;
+    if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
       if not inits then
         get_mutex_global_g
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
         let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
-        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
-        LAD.join get_mutex_global_g get_mutex_inits'
+        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a\n" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
+        LRD.join get_mutex_global_g get_mutex_inits'
     in
-    if M.tracing then M.traceu "relationpriv" "-> %a\n" LAD.pretty r;
+    if M.tracing then M.traceu "relationpriv" "-> %a\n" LRD.pretty r;
     r
 
   let read_global ask getg (st: relation_components_t) g x: RD.t =
@@ -964,7 +963,7 @@ struct
     let lm = LLock.global g in
     (* lock *)
     let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt lm l) in
+    let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let rel = Cluster.lock rel local_m tmp in
     (* read *)
@@ -987,7 +986,7 @@ struct
     let rel = st.rel in
     (* lock *)
     let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt lm l) in
+    let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let rel = Cluster.lock rel local_m tmp in
     (* write *)
@@ -1016,11 +1015,11 @@ struct
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
       let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
-      let local_m = BatOption.default (LAD.bot ()) (L.find_opt lm l) in
+      let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
       let local_m = Cluster.keep_only_protected_globals ask m local_m in
       let rel = Cluster.lock rel local_m get_m in
-      {st with rel = rel}
+      {st with rel}
     )
     else
       st (* sound w.r.t. recursive lock *)
