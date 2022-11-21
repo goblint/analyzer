@@ -46,10 +46,8 @@ int main(){
 	unsigned int r;
 	if(top > 0 && top < 10) {
 		r = 3 * top;
-		r = r;
 	} else {
 		r = 3;
-		r = r;
 	}
 
 	if(r % 3 != 0) {
