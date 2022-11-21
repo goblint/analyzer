@@ -1,3 +1,7 @@
+(** Abstract states in the newly added domain are represented by structs containing a matrix and an apron environment.
+    Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
+    The apron environment is hereby used to organize the order of columns and variables. *)
+
 open Prelude.Ana
 module M = Messages
 open Apron
@@ -14,6 +18,8 @@ end
 module Var = SharedFunctions.Var
 module V = RelationDomain.V(Var)
 
+(** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
+    Furthermore, it provides the function get_coeff_vec that parses an apron expression into a vector of coefficients if the apron expression has an affine form. *)
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
   include SharedFunctions.EnvOps
@@ -177,6 +183,7 @@ struct
   let get_coeff_vec t texp = Timing.wrap "coeff_vec" (get_coeff_vec t) texp
 end
 
+(** As it is specifically used for the new affine equality domain, it can only provide bounds if the expression contains known constants only and in that case, min and max are the same. *)
 module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc) (Mx).t) =
 struct
   include VarManagement (Vc) (Mx)
@@ -529,7 +536,10 @@ struct
 
   let substitute_exp t var exp ov = Timing.wrap "substitution" (substitute_exp t var exp) ov
 
-  (** Assert a constraint expression. *)
+  (** Assert a constraint expression.
+
+      Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
+      We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
   let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c (of_int 0) then bot_env else t
     in

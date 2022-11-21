@@ -2,6 +2,8 @@ open Prelude.Ana
 module Array = Batteries.Array
 module M = Messages
 
+(** Abstracts the functions of the Mpqf module for rationals from Apron that implements multi-precision rationals.
+    One could later exchange "Mpqf" with a different module that provides the functions specified by this interface. *)
 module type RatOps =
 sig
   type t
@@ -18,6 +20,8 @@ sig
   val get_num: t -> IntOps.BigIntOps.t
 end
 
+(** It provides more readable infix operators for the functions of RatOps.
+    It is designed to be included by modules that make use of RatOps's functions. *)
 module ConvenienceOps (A: RatOps) =
 struct
   let ( *: ) = A.mul
@@ -32,6 +36,7 @@ struct
   let of_int x = A.of_int x
 end
 
+(** High-level abstraction of a vector. *)
 module type Vector =
 sig
   type num
@@ -104,6 +109,7 @@ sig
   val copy_pt_with: t -> t
 end
 
+(** Some functions inside have the suffix _pt_with, which means that the function could have potential side effects. *)
 module type AbstractVector =
   functor (A: RatOps) ->
   sig
@@ -111,7 +117,8 @@ module type AbstractVector =
   end
 
 
-
+(** Reuses most of the already existing List functions such as map2, rev, etc. and adds some for vector manipulations (e.g. insert_val remove_val...).
+    None of its functions has side-effects. *)
 module ListVector: AbstractVector =
   functor (A: RatOps) ->
   struct
@@ -181,6 +188,7 @@ module ListVector: AbstractVector =
     let map2i_pt_with = map2i
   end
 
+(** High-level abstraction of a matrix. *)
 module type Matrix =
 sig
   type num
@@ -253,12 +261,16 @@ sig
 
 end
 
+(** Some functions inside have the suffix _pt_with, which means that the function could have potential side effects. *)
 module type AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   sig
     include Matrix with type vec := V(A).t and type num := A.t
   end
 
+(** In contrast to ListVector, it does not include the functions of List directly but uses them to provide unique ones.
+    It also includes various normalize functions that transform a matrix into reduced row echelon form.
+    These are in general not efficient as they perform a full Gauss-Jordan elimination that is slow for lists. *)
 module ListMatrix : AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   struct
@@ -408,6 +420,8 @@ module ListMatrix : AbstractMatrix =
   end
 
 
+(** Provides more efficient side-effecting functions than ListVector.
+    Provides a copy function since the array data structure it contains is mutable. *)
 module ArrayVector: AbstractVector =
   functor (A: RatOps) ->
   struct
@@ -486,6 +500,9 @@ module ArrayVector: AbstractVector =
 
 open Batteries.Array
 
+(** Provides more efficient side-effecting functions than ListMatrix.
+    Similar to ListMatrix, it provides a normalization function to reduce a matrix into reduced row echelon form.
+    However, its normalization functions are faster not only because they use faster side-effect functions but also because they exploit that the input matrix/matrices are in reduced row echelon form already. *)
 module ArrayMatrix: AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   struct

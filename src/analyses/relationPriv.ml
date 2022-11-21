@@ -1,3 +1,5 @@
+(** Has been modified to work with any domain that uses the functions provided relationDomain. *)
+
 open Prelude.Ana
 open Analyses
 open RelationDomain

@@ -1,6 +1,9 @@
+(** Interfaces/implementations that generalize the apronDomain and affineEqualityDomain. *)
+
 open Prelude
 open GoblintCil
 
+(** Abstracts the extended apron Var. *)
 module type Var =
 sig
   type t
@@ -117,6 +120,10 @@ sig
   val vars : t -> var list
   val add_vars : t -> var list -> t
   val remove_vars : t -> var list -> t
+
+  (** Some of the functions end with the suffix _pt_with which indicates that the function could have potential side effects.
+      In that case, the functions are supposed to return their modified input. *)
+
   val remove_vars_pt_with : t -> var list -> t
   val remove_filter : t -> (var -> bool) -> t
   val remove_filter_pt_with: t -> (var -> bool) -> t
@@ -124,6 +131,10 @@ sig
   val keep_vars : t -> var list -> t
   val keep_filter : t -> (var -> bool) -> t
   val forget_vars : t -> var list -> t
+
+  (** Lazy bool ov parameter has been added to functions where functions of the Convert module are used.
+      This is to also to make used of the improved overflow handling. *)
+
   val assign_exp : t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
   val assign_var_parallel_pt_with : t -> (var * var) list -> t

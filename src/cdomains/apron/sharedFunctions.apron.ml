@@ -1,3 +1,5 @@
+(** Functions and modules that are shared among the original apronDomain and the new affineEqualityDomain. *)
+
 open GoblintCil
 open Prelude
 open Apron
@@ -27,6 +29,7 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
+(** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
 module type ConvBounds =
 sig
   type t
@@ -300,6 +303,8 @@ struct
   include CilOfApron (V)
 end
 
+(** A few code elements for environment changes from functions as remove_vars etc. have been moved to sharedFunctions as they are needed in a similar way inside affineEqualityDomain.
+    A module that includes various methods used by variable handling operations such as add_vars, remove_vars etc. in apronDomain and affineEqualityDomain. *)
 module EnvOps =
 struct
   let vars env =
@@ -338,6 +343,8 @@ struct
 
 end
 
+(** A more specific module type for RelationDomain.RelD2 with ConvBounds integrated and various apron elements.
+    It is designed to be the interface for the D2 modules in affineEqualityDomain and apronDomain and serves as a functor argument for AssertionModule. *)
 module type AssertionRelS =
 sig
   type t

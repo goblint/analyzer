@@ -1,3 +1,5 @@
+(** Contains most of the implementation of the original apronDomain, but now solely operates with functions provided by relationDomain. *)
+
 open Prelude.Ana
 open Analyses
 open RelationDomain
@@ -157,6 +159,11 @@ struct
     (* Ignoring all other assigns *)
     | _ ->
       st
+
+
+  (** An extended overflow handling inside relationAnalysis for expression assignments when overflows are assumed to occur.
+      Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
+      If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
 
   let no_overflow ctx exp =
     match Cilfacade.get_ikind_exp exp with
