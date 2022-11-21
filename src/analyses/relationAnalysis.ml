@@ -700,7 +700,7 @@ struct
     let file = GobConfig.get_string "exp.relation.prec-dump" in
     if file <> "" then begin
       Printf.printf "exp.relation.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
-      Stats.time "relation.prec-dump" store_data (Fpath.v file)
+      Timing.wrap "relation.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
 

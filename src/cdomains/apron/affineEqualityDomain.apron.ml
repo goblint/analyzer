@@ -40,7 +40,7 @@ struct
     Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
     Matrix.add_empty_columns m ch.dim
 
-  let dim_add ch m = Stats.time "dim add" (dim_add ch) m
+  let dim_add ch m = Timing.wrap "dim add" (dim_add ch) m
 
   let dim_remove (ch: Apron.Dim.change) m del =
     if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
@@ -48,7 +48,7 @@ struct
       let m' = if not del then let m = Matrix.copy_pt m in Array.fold_left (fun y x -> Matrix.reduce_col_pt_with y x) m ch.dim else m in
       Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
 
-  let dim_remove ch m del = Stats.time "dim remove" (dim_remove ch m) del
+  let dim_remove ch m del = Timing.wrap "dim remove" (dim_remove ch m) del
 
   let change_d t new_env add del =
     if Environment.equal t.env new_env then t else
@@ -58,7 +58,7 @@ struct
       | None -> bot_env
       | Some m -> {d = Some (if add then dim_add dim_change m else dim_remove dim_change m del); env = new_env}
 
-  let change_d t new_env add del = Stats.time "dimension change" (change_d t new_env add) del
+  let change_d t new_env add del = Timing.wrap "dimension change" (change_d t new_env add) del
 
   let add_vars t vars =
     let vs' =
@@ -69,7 +69,7 @@ struct
     let env' = Environment.add t.env vs' [||] in
     change_d t env' true false
 
-  let add_vars t vars = Stats.time "add_vars" (add_vars t) vars
+  let add_vars t vars = Timing.wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars del =
     let vs' =
@@ -81,11 +81,11 @@ struct
     let env' = Environment.remove t.env vs' in
     change_d t env' false del
 
-  let drop_vars t vars = Stats.time "drop_vars" (drop_vars t) vars
+  let drop_vars t vars = Timing.wrap "drop_vars" (drop_vars t) vars
 
   let remove_vars t vars = drop_vars t vars false
 
-  let remove_vars t vars = Stats.time "remove_vars" (remove_vars t) vars
+  let remove_vars t vars = Timing.wrap "remove_vars" (remove_vars t) vars
 
   let remove_vars_pt_with t vars =
     remove_vars t vars
@@ -94,7 +94,7 @@ struct
     let env' = remove_filter t.env f in
     change_d t env' false false
 
-  let remove_filter t f = Stats.time "remove_filter" (remove_filter t) f
+  let remove_filter t f = Timing.wrap "remove_filter" (remove_filter t) f
 
   let remove_filter_pt_with t f =
     remove_filter t f
@@ -103,13 +103,13 @@ struct
     let env' = keep_filter t.env f in
     change_d t env' false false
 
-  let keep_filter t f = Stats.time "keep_filter" (keep_filter t) f
+  let keep_filter t f = Timing.wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let env' = keep_vars t.env vs in
     change_d t env' false false
 
-  let keep_vars t vs = Stats.time "keep_vars" (keep_vars t) vs
+  let keep_vars t vs = Timing.wrap "keep_vars" (keep_vars t) vs
 
   let vars t = vars t.env
 
@@ -174,7 +174,7 @@ struct
     | exception NotLinear -> None
     | x -> Some(x)
 
-  let get_coeff_vec t texp = Stats.time "coeff_vec" (get_coeff_vec t) texp
+  let get_coeff_vec t texp = Timing.wrap "coeff_vec" (get_coeff_vec t) texp
 end
 
 module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc) (Mx).t) =
@@ -198,7 +198,7 @@ struct
     | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
     | _ -> res
 
-  let bound_texpr d texpr1 = Stats.time "bounds calculation" (bound_texpr d) texpr1
+  let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
 
 module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
@@ -307,7 +307,7 @@ struct
     if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s \n" (show t1) (show t2) (show res) ;
     res
 
-  let meet t1 t2 = Stats.time "meet" (meet t1) t2
+  let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in
@@ -318,7 +318,7 @@ struct
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
       Matrix.is_covered_by m2 m1')
 
-  let leq a b = Stats.time "leq" (leq a) b
+  let leq a b = Timing.wrap "leq" (leq a) b
 
   let leq t1 t2 =
     let res = leq t1 t2 in
@@ -376,7 +376,7 @@ struct
       | x, y when Matrix.equal x y -> {d = Some x; env = a.env}
       | x, y  -> {d = Some(lin_disjunc 0 0 (Matrix.copy_pt x) (Matrix.copy_pt y)); env = a.env}
 
-  let join a b = Stats.time "join" (join a) b
+  let join a b = Timing.wrap "join" (join a) b
 
   let join a b =
     let res = join a b in
@@ -397,7 +397,7 @@ struct
     let j0 = Environment.dim_of_var env var in
     if imp then Matrix.reduce_col_pt_with x j0 else Matrix.reduce_col x j0
 
-  let remove_rels_with_var x var env imp = Stats.time "remove_rels_with_var" (remove_rels_with_var x var env) imp
+  let remove_rels_with_var x var env imp = Timing.wrap "remove_rels_with_var" (remove_rels_with_var x var env) imp
 
   let forget_vars t vars =
     if is_bot t || is_top_env t then t
@@ -415,7 +415,7 @@ struct
     if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
     res
 
-  let forget_vars t vars = Stats.time "forget_vars" (forget_vars t) vars
+  let forget_vars t vars = Timing.wrap "forget_vars" (forget_vars t) vars
 
   let assign_texpr (t: VarManagement(Vc)(Mx).t) var texp =
     let assign_invertible_rels x var b env =
@@ -431,7 +431,7 @@ struct
       let opt_m = Matrix.normalize_pt_with @@ recalc_entries x reduced_a
       in if Option.is_none opt_m then bot () else {d = opt_m; env = env}
     in
-    let assign_invertible_rels x var b env = Stats.time "assign_invertible" (assign_invertible_rels x var b) env in
+    let assign_invertible_rels x var b env = Timing.wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
       let b_length = Vector.length b in
       let neg_vec = Vector.mapi_pt_with (fun i z -> if i < b_length - 1 then of_int (-1) *: z else z) b
@@ -440,7 +440,7 @@ struct
       if Option.is_none opt_m then bot () else
         {d = opt_m; env = env}
     in
-    (* let assign_uninvertible_rel x var b env = Stats.time "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
+    (* let assign_uninvertible_rel x var b env = Timing.wrap "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> of_int 0
     in let affineEq_vec = get_coeff_vec t texp
     in if is_bot t then t else let m = Option.get t.d in
@@ -451,7 +451,7 @@ struct
           in assign_uninvertible_rel new_m var v t.env
       | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env false); env = t.env}
 
-  let assign_texpr t var texp = Stats.time "assign_texpr" (assign_texpr t var) texp
+  let assign_texpr t var texp = Timing.wrap "assign_texpr" (assign_texpr t var) texp
 
   let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
@@ -498,7 +498,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s \n" (show t) (show res);
     res
 
-  let assign_var_parallel t vv's = Stats.time "var_parallel" (assign_var_parallel t) vv's
+  let assign_var_parallel t vv's = Timing.wrap "var_parallel" (assign_var_parallel t) vv's
 
   let assign_var_parallel_pt_with t vv's =
     assign_var_parallel t vv's
@@ -527,7 +527,7 @@ struct
     in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res);
     res
 
-  let substitute_exp t var exp ov = Stats.time "substitution" (substitute_exp t var exp) ov
+  let substitute_exp t var exp ov = Timing.wrap "substitution" (substitute_exp t var exp) ov
 
   (** Assert a constraint expression. *)
   let meet_tcons t tcons expr =
@@ -569,7 +569,7 @@ struct
         | _, _ -> t end
     | None -> t
 
-  let meet_tcons t tcons expr = Stats.time "meet_tcons" (meet_tcons t tcons) expr
+  let meet_tcons t tcons expr = Timing.wrap "meet_tcons" (meet_tcons t tcons) expr
 
   let unify a b =
     meet a b
@@ -588,7 +588,7 @@ struct
         d
     end
 
-  let assert_cons d e negate no_ov = Stats.time "assert_cons" (assert_cons d e negate) no_ov
+  let assert_cons d e negate no_ov = Timing.wrap "assert_cons" (assert_cons d e negate) no_ov
 
   let relift t = t
 
