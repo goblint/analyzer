@@ -312,6 +312,9 @@ struct
       else
         None
     in
+    if get_bool "ana.warn-postprocess.enabled" then (
+      WarnPostProc.init ();
+    );
     Spec.init marshal;
     Access.init file;
 
@@ -667,8 +670,8 @@ struct
       YWitness.validate lh gh file
     );
 
-    let module Q = YamlWitness.Query (Spec) (EQSys) (GHT) in 
-    let module NH = BatHashtbl.Make (Node) in 
+    let module Q = YamlWitness.Query (Spec) (EQSys) (GHT) in
+    let module NH = BatHashtbl.Make (Node) in
     (* copied from Constraints.CompareNode *)
     let nh = NH.create 113 in
     LHT.iter (fun (n, _) d ->
@@ -680,8 +683,10 @@ struct
         let local = (NH.find nh node) in
         { Queries.f    = (fun (type a) (q: a Queries.t) -> Q.ask_local_node gh node local q)}
       );
-    
-  
+
+    if get_bool "ana.warn-postprocess.enabled" then (
+      WarnPostProc.finalize ()
+    );
 
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)

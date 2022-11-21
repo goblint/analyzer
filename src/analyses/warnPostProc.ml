@@ -253,122 +253,104 @@ let array_oob_warn idx_before_end idx_after_start node =
   | _ ->
     M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds" ~loc:node
 
-module Spec =
-struct
-  include Analyses.IdentitySpec
 
-  let name () = "warnPostProcess"
-  
-  module D = SetDomain.Make(Printable.Prod (CilType.Exp) (Idx))
-  module C = D
+let init _ =
+  NH.clear alarmsNH;
+  HM.clear hoistHM;
+  HM.clear sinkHM
 
-  let startstate v = D.bot ()
-  let exitstate  v = D.bot ()
+let finalize _ = 
+  let fd = Cilfacade.find_name_fundec "main" in
+  let start_node = `L (Node.FunctionEntry fd) in
+  let module IncrSolverArg =
+    struct
+      let should_prune = false
+      let should_verify = false
+      let should_warn = false
+      let should_save_run = false
+    end
+  in
+  let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
+  let (solution, _) = Solver.solve Ant.box [] [start_node] in
 
+  antSolHM := solution;
 
-  let init _ =
-    NH.clear alarmsNH;
-    HM.clear hoistHM;
-    HM.clear sinkHM
+  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
-  let finalize _ = 
-    let fd = Cilfacade.find_name_fundec "main" in
-    let start_node = `L (Node.FunctionEntry fd) in
-    let module IncrSolverArg =
-      struct
-        let should_prune = false
-        let should_verify = false
-        let should_warn = false
-        let should_save_run = false
-      end
-    in
-    let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
-    let (solution, _) = Solver.solve Ant.box [] [start_node] in
+  let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
+      let q = (!ask node).f (EvalInt exp) in
+      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+      (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
+      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+      match (idx_before_end, idx_after_start) with
+      | Some true, Some true -> false (* Certainly in bounds on both sides.*)
+      | _ -> true
+    ) cs in
+    
+  let hoist_entry node =
+    let module CFG = (val !MyCFG.current_cfg) in
+    let prev_nodes = List.map snd (CFG.prev node) in
+    let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
+    let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
+    filter_always_true node @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
 
-    antSolHM := solution;
+  let hoist_exit node =
+    let module CFG = (val !MyCFG.current_cfg) in
+    let next_nodes = List.map snd (CFG.next node) in
+    let node' = List.hd next_nodes in
+    filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
+    (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
+    (Ant.kill node @@ HM.find solution (`G node)) in
 
-    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
+  (* Update hashtable of hoisted conditions *)
+  HM.iter (fun k v ->
+    match k with
+    | `L Function _ -> ()
+    | `G Function _ -> ()
+    | `L node -> HM.replace hoistHM k @@ hoist_entry node
+    | `G node -> HM.replace hoistHM k @@ hoist_exit node
+      ) solution;
 
-    let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
+  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
+
+  let end_node = `G (Node.Function fd) in
+  let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
+  let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
+
+  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
+
+  let conds_entry node = 
+    let av_in = HM.find solution_av (`L node) in
+    let av_in' = Av.Dom.union av_in @@ Av.gen_entry node av_in in
+    Av.conds_in (Av.kill node av_in') in
+
+  let conds_exit node = 
+    let module CFG = (val !MyCFG.current_cfg) in
+    let next_nodes = List.map snd (CFG.next node) in
+    let av_in_conds = List.fold (fun acc node -> CondSet.inter acc (Av.conds_in @@ HM.find solution_av (`L node))) (CondSet.top ()) next_nodes in
+    let av_out_conds = Av.conds_in @@ HM.find solution_av (`G node) in
+    CondSet.diff av_out_conds av_in_conds in
+
+  (* Update hashtable of sinked conditions *)
+  HM.iter (fun k v ->
+    match k with
+    | `L node -> HM.replace sinkHM k @@ conds_entry node
+    | `G node -> HM.replace sinkHM k @@ conds_exit node
+      ) solution_av;
+
+  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
+
+  (* Print repositioned warnings *)
+  HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
+      let exp_v node =
         let q = (!ask node).f (EvalInt exp) in
         let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-        (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
         let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
         and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        match (idx_before_end, idx_after_start) with
-        | Some true, Some true -> false (* Certainly in bounds on both sides.*)
-        | _ -> true
-      ) cs in
-      
-    let hoist_entry node =
-      let module CFG = (val !MyCFG.current_cfg) in
-      let prev_nodes = List.map snd (CFG.prev node) in
-      let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
-      let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
-      filter_always_true node @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
-
-    let hoist_exit node =
-      let module CFG = (val !MyCFG.current_cfg) in
-      let next_nodes = List.map snd (CFG.next node) in
-      let node' = List.hd next_nodes in
-      filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
-      (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
-      (Ant.kill node @@ HM.find solution (`G node)) in
-
-    (* Update hashtable of hoisted conditions *)
-    HM.iter (fun k v ->
+        array_oob_warn idx_before_end idx_after_start (M.Location.Node node)
+      in
       match k with
-      | `L Function _ -> ()
-      | `G Function _ -> ()
-      | `L node -> HM.replace hoistHM k @@ hoist_entry node
-      | `G node -> HM.replace hoistHM k @@ hoist_exit node
-        ) solution;
-
-    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
-
-    let end_node = `G (Node.Function fd) in
-    let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
-    let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
-
-    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
-
-    let conds_entry node = 
-      let av_in = HM.find solution_av (`L node) in
-      let av_in' = Av.Dom.union av_in @@ Av.gen_entry node av_in in
-      Av.conds_in (Av.kill node av_in') in
-
-    let conds_exit node = 
-      let module CFG = (val !MyCFG.current_cfg) in
-      let next_nodes = List.map snd (CFG.next node) in
-      let av_in_conds = List.fold (fun acc node -> CondSet.inter acc (Av.conds_in @@ HM.find solution_av (`L node))) (CondSet.top ()) next_nodes in
-      let av_out_conds = Av.conds_in @@ HM.find solution_av (`G node) in
-      CondSet.diff av_out_conds av_in_conds in
-
-    (* Update hashtable of sinked conditions *)
-    HM.iter (fun k v ->
-      match k with
-      | `L node -> HM.replace sinkHM k @@ conds_entry node
-      | `G node -> HM.replace sinkHM k @@ conds_exit node
-        ) solution_av;
-
-    (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
-
-    (* Print repositioned warnings *)
-    HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
-        let exp_v node =
-          let q = (!ask node).f (EvalInt exp) in
-          let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-          let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-          and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-          array_oob_warn idx_before_end idx_after_start (M.Location.Node node)
-        in
-        match k with
-        | `L node -> exp_v node
-        | `G node -> exp_v node
-      ) s) sinkHM;
-
-end
-
-
-
-let _ = MCP.register_analysis (module Spec : MCPSpec)
+      | `L node -> exp_v node
+      | `G node -> exp_v node
+    ) s) sinkHM;

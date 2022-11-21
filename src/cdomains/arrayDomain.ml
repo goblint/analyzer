@@ -738,7 +738,7 @@ let array_oob_check (x, l) (e, v) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
-    if List.mem "warnPostProcess" @@ GobConfig.get_string_list "ana.activated"
+    if get_bool "ana.warn-postprocess.enabled"
       then array_oob idx_before_end idx_after_start (e, l)
       else array_oob_warn idx_before_end idx_after_start
   else ()

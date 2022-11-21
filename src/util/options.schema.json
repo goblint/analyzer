@@ -961,6 +961,20 @@
             }
           },
           "additionalProperties": false
+        }, 
+        "warn-postprocess": {
+          "title": "ana.warn-postprocess",
+          "description": "Warnings postprocessing",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.warn-postproce.enabled",
+              "description": "Enable warning postprocessing.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
