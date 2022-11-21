@@ -7,12 +7,14 @@ sig
   val compare : t -> t -> int
   val of_string : string -> t
   val to_string : t -> string
-  val  hash : t -> int
+  val hash : t -> int
   val equal : t -> t -> bool
 end
 
+(* TODO: Why renamed VM -> RelVM? *)
 module RelVM =
 struct
+  (* TODO: Add varinfos from master. *)
   type t =
     | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
     | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
@@ -98,7 +100,7 @@ module type LinCons =
 sig
   type t
   val get_size: t -> int
-  val to_cil_exp: t -> exp Option.t
+  val to_cil_exp: t -> exp option
 end
 
 module type Tracked =
@@ -158,60 +160,60 @@ type ('a, 'b) relcomponents_t = {
 
 module RelComponents (D3: S3) (PrivD: Lattice.S):
 sig
-  module AD: S3
+  module RD: S3
   include Lattice.S with type t = (D3.t, PrivD.t) relcomponents_t
 end =
 struct
-  module AD = D3
-  type t = (AD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson]
+  module RD = D3
+  type t = (RD.t, PrivD.t) relcomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
 
   let show r =
-    let first  = AD.show r.rel in
+    let first  = RD.show r.rel in
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    AD.pretty () r.rel
+    RD.pretty () r.rel
     ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (RD.name ())) RD.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let name () = AD.name () ^ " * " ^ PrivD.name ()
+  let name () = RD.name () ^ " * " ^ PrivD.name ()
 
   let of_tuple(rel, priv):t = {rel; priv}
   let to_tuple r = (r.rel, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.pair (AD.arbitrary ()) (PrivD.arbitrary ()) in
+    let tr = QCheck.pair (RD.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = {rel = AD.bot (); priv = PrivD.bot ()}
-  let is_bot {rel; priv} = AD.is_bot rel && PrivD.is_bot priv
-  let top () = {rel = AD.top (); priv = PrivD.bot ()}
-  let is_top {rel; priv} = AD.is_top rel && PrivD.is_top priv
+  let bot () = {rel = RD.bot (); priv = PrivD.bot ()}
+  let is_bot {rel; priv} = RD.is_bot rel && PrivD.is_bot priv
+  let top () = {rel = RD.top (); priv = PrivD.bot ()}
+  let is_top {rel; priv} = RD.is_top rel && PrivD.is_top priv
 
   let leq {rel=x1; priv=x3 } {rel=y1; priv=y3} =
-    AD.leq x1 y1 && PrivD.leq x3 y3
+    RD.leq x1 y1 && PrivD.leq x3 y3
 
   let pretty_diff () (({rel=x1; priv=x3}:t),({rel=y1; priv=y3}:t)): Pretty.doc =
-    if not (AD.leq x1 y1) then
-      AD.pretty_diff () (x1,y1)
+    if not (RD.leq x1 y1) then
+      RD.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
 
   let op_scheme op1 op3 {rel=x1; priv=x3} {rel=y1; priv=y3}: t =
     {rel = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme AD.join PrivD.join
-  let meet = op_scheme AD.meet PrivD.meet
-  let widen = op_scheme AD.widen PrivD.widen
-  let narrow = op_scheme AD.narrow PrivD.narrow
+  let join = op_scheme RD.join PrivD.join
+  let meet = op_scheme RD.meet PrivD.meet
+  let widen = op_scheme RD.widen PrivD.widen
+  let narrow = op_scheme RD.narrow PrivD.narrow
 end
 
 
