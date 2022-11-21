@@ -32,13 +32,17 @@ let hash n = match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid
 | {programPoint=FunctionEntry(fd);sigmar=s} -> fd.svar.vid
 
 let equal n1 n2 = (compare n1 n2) = 0
-let show n = 
+
+let show_sigmar s = 
   let show_valuedomain vd =
     match vd with Int(cili, ik) -> "Integer of "^(Big_int_Z.string_of_big_int cili)^" with ikind: "^(CilType.Ikind.show ik)
     | Float(f, fk) -> "Float of "^(string_of_float f)^" with fkind: "^(CilType.Fkind.show fk)
-    | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
-in
-  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
+    | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)  
+in SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s ""
+
+let show n = 
+  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(show_sigmar s)^"]}"
+
 
 end
 
@@ -76,7 +80,7 @@ end)
 
 let equal g1 g2 = 
   let tmp =
-LocTraceGraph.fold_edges_e (fun e b -> (LocTraceGraph.mem_edge_e g2 e) && b ) g1 false 
+LocTraceGraph.fold_edges_e (fun e b -> (LocTraceGraph.mem_edge_e g2 e) && b ) g1 true 
   in tmp
 
 (* Dummy hash function *)
@@ -123,4 +127,3 @@ module DotExport = Graph.Graphviz.Dot(GPrinter)
   DotExport.output_graph file g;
   close_out file
 *)
-

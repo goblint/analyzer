@@ -67,49 +67,49 @@ in
   (match subexp with
 | Const(CInt(c, ik, _)) -> (Int (c, ik), true)
 | Const(CReal(f, fk, _)) -> (Float (f, fk), true)
-| Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else nopVal
+| Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else (print_string ("Return nopVal at Lval for vinfo "^(CilType.Varinfo.show vinfo)^" because varinfo "^(CilType.Varinfo.show var)^" is not contained in sigmar ["^(NodeImpl.show_sigmar sigOld)^"]\n");nopVal)
 | AddrOf (Var(v), NoOffset) -> (Address(v), true)
 
 (* unop expressions *)
 (* for type Integer *)
 | UnOp(Neg, unopExp, TInt(unopIk, _)) -> 
   (match eval_helper unopExp with (Int(i,_), true) ->(Int (Big_int_Z.minus_big_int i, unopIk), true)
-    |(_, false) -> nopVal
+    |(_, false) -> print_string "Return nopVal at UnOp(Neg,_,Int)\n";nopVal
     |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 |UnOp(LNot, unopExp,TInt(unopIk, _)) -> 
   (match eval_helper unopExp with (Int(i,_), true) -> (Int(Big_int_Z.big_int_of_int (lnot (Big_int_Z.int_of_big_int i)), unopIk), true)
-    | (_, false) -> nopVal
+    | (_, false) -> print_string "Return nopVal at UnOp(LNot,_)\n";nopVal
     |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 (* for type float *)
 | UnOp(Neg, unopExp, TFloat(unopFk, _)) -> 
       (match eval_helper unopExp with (Float(f, _), true) -> (Float(-. f, unopFk), true)
-        | (_, false) -> nopVal
+        | (_, false) -> print_string "Return nopVal at UnOp(Neg,_,Float)\n";nopVal
         |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)     
 
 (* binop expressions *)
 (* comparison operators for float s.t. float binop float -> int *)
 | BinOp(Lt, binopExp1, binopExp2,TInt(biopIk, _)) ->
   (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Int((if f1 < f2 then Big_int_Z.big_int_of_int 1 else Big_int_Z.big_int_of_int 0), biopIk), true) else nopVal
-  | (_, (_,false)) -> nopVal
-| ((_,false), _) -> nopVal
+  | (_, (_,false)) -> print_string "Return nopVal at BinOp(Lt,_,Int)\n";nopVal
+| ((_,false), _) -> print_string "Return nopVal at BinOp(Lt,_,Int)'\n";nopVal
 |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 (* for type Integer *)
 | BinOp(op, binopExp1, binopExp2,TInt(biopIk, _)) ->
   (match (eval_helper binopExp1, eval_helper binopExp2) with 
   | ((Int(i1, ik1), true),(Int(i2, ik2), true)) -> if CilType.Ikind.equal ik1 ik2 then (Int((get_binop_int op biopIk) i1 i2, biopIk), true) else nopVal
-  | (_, (_,false)) -> nopVal
-  | ((_,false), _) -> nopVal
+  | (_, (_,false)) -> print_string "Return nopVal at BinOp(op,_,Int)\n";nopVal
+  | ((_,false), _) -> print_string "Return nopVal at BinOp(op,_,Int)'\n";nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 (* for type Float *)
 (* normal operators for float s.t. float binop float -> float *)
 | BinOp(op, binopExp1, binopExp2,TFloat(biopFk, _)) ->
     (match (eval_helper binopExp1, eval_helper binopExp2) with ((Float(f1, fk1), true),(Float(f2, fk2),true)) -> if CilType.Fkind.equal fk1 fk2 then (Float((get_binop_float op biopFk) f1 f2, biopFk), true) else nopVal
-    | (_, (_,false)) -> nopVal
-  | ((_,false), _) -> nopVal
+    | (_, (_,false)) -> print_string "Return nopVal at BinOp(Lt,_,Float)\n";nopVal
+  | ((_,false), _) -> print_string "Return nopVal at BinOp(Lt,_,Float)'\n";nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 in let (result,success) = eval_helper rval 
-in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed."; SigmarMap.remove vinfo sigOld)
+in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed.\n"; SigmarMap.remove vinfo sigOld)
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge =
