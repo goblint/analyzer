@@ -254,13 +254,11 @@ let print_svcomp_result (s: string): unit =
 let print_task_result (module TaskResult:TaskResult): unit =
   print_svcomp_result (Result.to_string TaskResult.result)
 
-let init (module Cfg: CfgBidir) file =
+let init (module FileCfg: MyCFG.FileCfg) =
   (* TODO: toggle analyses based on specification *)
   let module Task = struct
-    let file = file
+    include FileCfg
     let specification = Svcomp.Specification.of_option ()
-
-    module Cfg = Cfg
   end
   in
   Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);

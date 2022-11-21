@@ -313,7 +313,7 @@ struct
 
     (* real beginning of the [analyze] function *)
     if get_bool "ana.sv-comp.enabled" then
-      Witness.init (module Cfg) file; (* TODO: move this out of analyze_loop *)
+      Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
@@ -594,7 +594,7 @@ struct
       lh, gh
     in
 
-    Generic.write_cfgs := CfgTools.dead_code_cfg file (module Cfg:CfgBidir);
+    Generic.write_cfgs := CfgTools.dead_code_cfg (module FileCfg);
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
@@ -627,7 +627,7 @@ struct
     in
 
     if get_bool "exp.cfgdot" then
-      CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
+      CfgTools.dead_code_cfg (module FileCfg) liveness;
 
     let warn_global g v =
       (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)

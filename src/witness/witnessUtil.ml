@@ -19,7 +19,7 @@ let find_main_entry entrystates =
   | _, _ :: _ -> failwith "some other_entry_nodes"
   | [main_entry], [] -> main_entry
 
-let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
+let find_loop_heads (module FileCfg: FileCfg): unit NH.t =
   let loop_heads = NH.create 100 in
   let global_visited_nodes = NH.create 100 in
 
@@ -32,11 +32,11 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
       let new_path_visited_nodes = NS.add node path_visited_nodes in
       List.iter (fun (_, to_node) ->
           iter_node new_path_visited_nodes to_node
-        ) (Cfg.next node)
+        ) (FileCfg.Cfg.next node)
     end
   in
 
-  Cil.iterGlobals file (function
+  Cil.iterGlobals FileCfg.file (function
       | GFun (fd, _) ->
         let entry_node = FunctionEntry fd in
         iter_node NS.empty entry_node
@@ -46,12 +46,7 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
   loop_heads
 
 
-module type File =
-sig
-  val file: Cil.file
-end
-
-module Invariant (FileCfg: Analyses.FileCfg) =
+module Invariant (FileCfg: MyCFG.FileCfg) =
 struct
   open FileCfg
 
@@ -59,7 +54,7 @@ struct
   let emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
   let emit_other = GobConfig.get_bool "witness.invariant.other"
 
-  let loop_heads = find_loop_heads (module Cfg) file
+  let loop_heads = find_loop_heads (module FileCfg)
 
   let is_after_lock to_node =
     List.exists (fun (edges, from_node) ->

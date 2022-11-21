@@ -68,7 +68,7 @@ module NH = BatHashtbl.Make (Node)
 
 module type SpecSysSol2 =
 sig
-  module FileCfg: FileCfg
+  module FileCfg: MyCFG.FileCfg
   module SpecSys: SpecSys
   open SpecSys
 
@@ -81,7 +81,7 @@ sig
   val ask_global: 'a Queries.t -> 'a Queries.result
 end
 
-module Make (FileCfg: FileCfg) (SpecSysSol: SpecSysSol): SpecSysSol2 with module SpecSys = SpecSysSol.SpecSys =
+module Make (FileCfg: MyCFG.FileCfg) (SpecSysSol: SpecSysSol): SpecSysSol2 with module SpecSys = SpecSysSol.SpecSys =
 struct
   module FileCfg = FileCfg
   include SpecSysSol

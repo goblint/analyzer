@@ -699,12 +699,6 @@ struct
 end
 
 
-module type FileCfg =
-sig
-  val file: Cil.file
-  module Cfg: MyCFG.CfgBidir
-end
-
 module type SpecSys =
 sig
   module Spec: Spec

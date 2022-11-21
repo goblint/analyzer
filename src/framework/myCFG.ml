@@ -59,3 +59,10 @@ let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *
 let dummy_node = FunctionEntry Cil.dummyFunDec
 
 let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
+
+
+module type FileCfg =
+sig
+  val file: Cil.file
+  module Cfg: CfgBidir
+end
