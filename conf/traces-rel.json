@@ -40,9 +40,11 @@
       }
     },
     "relation" : {
-      "one-var": true,
-      "local": true,
-      "global": true
+      "invariant": {
+        "one-var": true,
+        "local": true,
+        "global": true
+      }
     }
   },
   "sem": {
