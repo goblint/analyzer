@@ -9,6 +9,8 @@ open VectorMatrix
 
 module Mpqf = struct
   include Mpqf
+  let zero = of_int 0
+  let one = of_int 1
 
   let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
 

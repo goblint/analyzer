@@ -13,9 +13,12 @@ sig
   val div : t -> t -> t
   val neg : t -> t
   val abs : t -> t
+  val equal: t -> t -> bool
   val cmp : t -> t -> int
   val to_string:  t -> string
   val of_int: int -> t
+  val zero: t
+  val one: t
   val get_den: t -> IntOps.BigIntOps.t
   val get_num: t -> IntOps.BigIntOps.t
 end
@@ -28,7 +31,8 @@ struct
   let (+:) = A.add
   let (-:) = A.sub
   let (/:) = A.div
-  let (=:) x y = A.cmp x y = 0
+  let (=:) x y = A.equal x y
+  let (<>:) x y = not (A.equal x y)
   let (<:) x y = A.cmp x y < 0
   let (>:) x y = A.cmp x y > 0
   let (<=:) x y = A.cmp x y <= 0
@@ -134,21 +138,20 @@ module ListVector: AbstractVector =
       in
       "["^list_str t^"\n"
 
-    let equal v1 v2 =
-      Stdlib.compare v1 v2 = 0
+    let equal = GobList.equal (=:)
 
     let keep_vals v n =
-      List.filteri (fun i x -> i < n) v
+      List.filteri (fun i x -> i < n) v (* TODO: take? *)
 
     let remove_val v n =
-      if n < 0 || n >= List.length v then failwith "Entry does not exist"
-      else List.filteri (fun i x -> i <> n) v
+      if n < 0 || List.compare_length_with v n <= 0 then failwith "Entry does not exist"
+      else List.filteri (fun i x -> i <> n) v (* TODO: split_at? *)
 
     let set_val (v: A.t List.t) n (new_val: A.t) =
-      if n < 0 || n >= List.length v then failwith "Entry does not exist"
-      else List.mapi (fun i x -> if i = n then new_val else x) v
+      if n < 0 || List.compare_length_with v n <= 0 then failwith "Entry does not exist"
+      else List.mapi (fun i x -> if i = n then new_val else x) v (* TODO: split_at? *)
 
-    let rec insert_val n vl v =
+    let rec insert_val n vl v = (* TODO: split_at? *)
       match v with
       | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
       | x :: xs -> if n > 0 then x :: insert_val (n-1) vl xs else vl :: x :: xs
@@ -156,7 +159,7 @@ module ListVector: AbstractVector =
     let apply_with_c op c v =
       List.map (fun x -> op x c) v
 
-    let zero_vec size = List.init size (fun i -> of_int 0)
+    let zero_vec size = List.init size (fun i -> A.zero)
 
     let of_list l = l
 
@@ -166,7 +169,7 @@ module ListVector: AbstractVector =
 
     let findi f v = let (n, _) = List.findi (fun i x -> f x) v in n
 
-    let find2i f r s = let f' (x,y) = f x y in findi f' (List.combine r s)
+    let find2i f r s = let f' (x,y) = f x y in findi f' (List.combine r s) (* TODO: add GobList.find2i? *)
 
     let to_array v = Array.of_list v
 
@@ -195,7 +198,7 @@ sig
   type vec
   type t
 
-  val empty: unit -> t
+  val empty: unit -> t (* TODO: needs unit? *)
 
   val is_empty: t -> bool
 
@@ -278,8 +281,7 @@ module ListMatrix : AbstractMatrix =
     module V = V(A)
     type t = V.t list
 
-    let show x =
-      List.fold_left (^) "" (List.map (V.show) x)
+    let show x = String.concat "" (List.map V.show x)
 
     let empty () = []
 
@@ -287,7 +289,7 @@ module ListMatrix : AbstractMatrix =
       m = empty ()
 
     let add_empty_column m pos =
-      List.map (fun y -> V.insert_val pos (of_int 0) y) m
+      List.map (fun y -> V.insert_val pos A.zero y) m
 
     let add_empty_columns m cols =
       Array.fold_left (fun m'  x -> add_empty_column m' x) m cols
@@ -302,9 +304,9 @@ module ListMatrix : AbstractMatrix =
       List.length m
 
     let remove_row m n =
-      if n < 0 || n >= num_rows m then failwith "Entry does not exist"
+      if n < 0 || n >= num_rows m then failwith "Entry does not exist" (* TODO: compare_num_rows? *)
       else
-        List.filteri (fun i x -> n <> i) m
+        List.filteri (fun i x -> n <> i) m (* TODO: split_at? *)
 
     let get_col m n =
       V.of_list (List.map (fun x -> V.nth x n) m)
@@ -320,8 +322,7 @@ module ListMatrix : AbstractMatrix =
       | [] -> 0
       | x :: xs -> V.length x
 
-    let equal m1 m2 =
-      Stdlib.compare m1 m2 = 0
+    let equal = GobList.equal V.equal
 
     let subtract_rows_c row1 row2 c =
       V.map2 (fun x y -> x -: (y *: c)) row1 row2
@@ -338,7 +339,7 @@ module ListMatrix : AbstractMatrix =
       Array.fold_lefti (fun y i x -> del_col y (x - i)) m cols
 
     let reduce_col m col_n =
-      match List.findi (fun i x -> V.nth x col_n <> of_int 0)  (List.rev m) with
+      match List.findi (fun i x -> V.nth x col_n <>: A.zero)  (List.rev m) with
       | exception Not_found -> m
       | (i, _) -> let len_i = List.length m - (i + 1)
         in reduce_row_to_zero m len_i col_n
@@ -347,14 +348,14 @@ module ListMatrix : AbstractMatrix =
       List.map2i f m (V.to_list v)
 
     let remove_zero_rows m =
-      List.filter (fun x -> V.exists (fun y -> y <> of_int 0) x) m
+      List.filter (fun x -> V.exists (fun y -> y <>: A.zero) x) m
 
     let normalize t =
       let exception NoSolution in
       let rec create_rref new_t curr_row =
         if curr_row >= num_rows new_t then new_t else
           let row = List.nth new_t curr_row in
-          match V.findi (fun x -> x <> of_int 0) row with
+          match V.findi (fun x -> x <>: A.zero) row with
           | exception Not_found -> create_rref (remove_row new_t curr_row) curr_row
           | i -> if V.compare_length_with row (i + 1) <= 0 then raise NoSolution
             else let p = V.map (fun x -> x /: (V.nth row i)) row in
@@ -364,7 +365,7 @@ module ListMatrix : AbstractMatrix =
       in
       match create_rref t 0 with
       | c -> let sort v1 v2 =
-               let f = V.findi (fun x -> x =: of_int 1) in
+               let f = V.findi (fun x -> x =: A.one) in
                let i1, i2 = (f v1), (f v2) in Int.compare i1 i2
         in Some (List.sort sort c)
       | exception NoSolution -> None
@@ -399,8 +400,8 @@ module ListMatrix : AbstractMatrix =
     let map2_pt_with f m v =
       let v' = let a_length, b_length = num_rows m, V.length v in
         match Int.compare a_length b_length with
-        | -1 -> V.keep_vals v a_length
-        |  1 -> V.append v @@ V.zero_vec (a_length - b_length)
+        | r when r < 0 -> V.keep_vals v a_length
+        | r when r > 0 -> V.append v @@ V.zero_vec (a_length - b_length)
         | _ -> v
       in
       map2 f m v'
@@ -408,8 +409,8 @@ module ListMatrix : AbstractMatrix =
     let map2i_pt_with f m v =
       let v' = let a_length, b_length = num_rows m, V.length v in
         match Int.compare a_length b_length with
-        | -1 -> V.keep_vals v a_length
-        |  1 -> V.append v @@ V.zero_vec (a_length - b_length)
+        | r when r < 0 -> V.keep_vals v a_length
+        | r when r > 0 -> V.append v @@ V.zero_vec (a_length - b_length)
         | _ -> v
       in
       map2i f m v'
@@ -438,20 +439,18 @@ module ArrayVector: AbstractVector =
       in
       "["^list_str t^"\n"
 
-    let equal v1 v2 =
-      if Array.length v1 <> Array.length v2 then false else
-        not @@ Array.exists2 (<>) v1 v2
+    let equal = Array.equal (=:)
 
     let keep_vals v n =
       if n >= Array.length v then v else
-        Array.filteri (fun i x -> i < n) v
+        Array.filteri (fun i x -> i < n) v (* TODO: take? *)
 
     let compare_length_with v len =
-      Stdlib.compare (Array.length v) len
+      Int.compare (Array.length v) len
 
     let remove_val v n =
       if n >= Array.length v then failwith "n outside of Array range" else
-        Array.init (Array.length v - 1) (fun i -> if i < n then Array.get v i else Array.get v (i + 1))
+        Array.init (Array.length v - 1) (fun i -> if i < n then Array.get v i else Array.get v (i + 1)) (* TODO: remove_at? *)
 
     let set_val_with v n new_val =
       if n >= Array.length v then failwith "n outside of Array range" else
@@ -463,21 +462,21 @@ module ArrayVector: AbstractVector =
 
     let insert_val n new_val v =
       if n > Array.length v then failwith "n too large" else
-        Array.init (Array.length v + 1) (fun i -> if i < n then Array.get v i else if i = n then new_val else Array.get v (i -1))
+        Array.init (Array.length v + 1) (fun i -> if i < n then Array.get v i else if i = n then new_val else Array.get v (i -1)) (* insert? *)
 
     let apply_with_c f c v =
       Array.map (fun x -> f x c) v
 
-    let zero_vec n = Array.make n (of_int 0)
+    let zero_vec n = Array.make n A.zero
 
     let nth = Array.get
 
-    let map2i f v1 v2 = let f' i (v'1, v'2) = f i v'1 v'2 in Array.mapi f' (Array.combine v1 v2)
+    let map2i f v1 v2 = let f' i (v'1, v'2) = f i v'1 v'2 in Array.mapi f' (Array.combine v1 v2) (* TODO: iter2i? *)
 
     let map2i_pt_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f i x y) v1 v2; v1
 
     let find2i f v1 v2 = let f' (v'1, v'2) = f v'1 v'2 in
-      Array.findi f' (Array.combine v1 v2)
+      Array.findi f' (Array.combine v1 v2) (* TODO: iter2i? *)
 
     let to_array v = v
 
@@ -515,7 +514,7 @@ module ArrayMatrix: AbstractMatrix =
       Array.fold_left (^) "" (Array.map (fun v -> V.show @@ V.of_array v) x)
 
     let empty () =
-      Array.make_matrix 0 0 (of_int 0)
+      Array.make_matrix 0 0 A.zero
 
     let num_rows m =
       Array.length m
@@ -527,7 +526,7 @@ module ArrayMatrix: AbstractMatrix =
       if is_empty m then 0 else Array.length m.(0)
 
     let copy m =
-      let cp = Array.make_matrix (num_rows m) (num_cols m) (of_int 0) in
+      let cp = Array.make_matrix (num_rows m) (num_cols m) A.zero in
       Array.iteri (fun i x -> Array.blit x 0 cp.(i) 0 (num_cols m)) m; cp
 
     let copy m = Timing.wrap "copy" (copy) m
@@ -536,7 +535,7 @@ module ArrayMatrix: AbstractMatrix =
       if is_empty m then m else
         let nc = Array.length m.(0) in
         if n > nc then failwith "n too large" else
-          let new_matrix = create_matrix (Array.length m) (Array.length m.(0) + 1) (of_int 0) in
+          let new_matrix = create_matrix (Array.length m) (Array.length m.(0) + 1) A.zero in
           Array.iteri (fun i r -> if n = 0 then Array.blit r 0 new_matrix.(i) 1 (nc - 1) else
                           Array.blit r 0 new_matrix.(i) 0 n; if n <> nc then Array.blit r n new_matrix.(i) (n + 1) (nc - n)) m;
           new_matrix
@@ -545,7 +544,7 @@ module ArrayMatrix: AbstractMatrix =
       let nnc = Array.length cols in
       if is_empty m || nnc = 0 then m else
         let nr, nc = num_rows m, num_cols m in
-        let m' = create_matrix nr (nc + nnc) (of_int 0) in
+        let m' = create_matrix nr (nc + nnc) A.zero in
         for i = 0 to nr - 1 do
           let offset = ref 0 in
           for j = 0 to nc - 1 do
@@ -559,7 +558,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let append_row m row  =
       let size = num_rows m in
-      let new_matrix = create_matrix (size + 1) (num_cols m) (of_int 0) in
+      let new_matrix = create_matrix (size + 1) (num_cols m) A.zero in
       for i = 0 to size - 1 do
         new_matrix.(i) <- m.(i)
       done;
@@ -570,7 +569,7 @@ module ArrayMatrix: AbstractMatrix =
       V.of_array m.(n)
 
     let remove_row m n =
-      let new_matrix = create_matrix (num_rows m - 1) (num_cols m) (of_int 0) in
+      let new_matrix = create_matrix (num_rows m - 1) (num_cols m) A.zero in
       if not @@ is_empty new_matrix then
         if n = 0 then
           Array.blit m 1 new_matrix 0 (num_rows m - 1)
@@ -598,26 +597,25 @@ module ArrayMatrix: AbstractMatrix =
     let append_matrices m1 m2  =
       Array.append m1 m2
 
-    let equal m1 m2 =
-      Array.equal (=) m1 m2
+    let equal = Array.equal (Array.equal (=:))
 
-    let equal m1 m2 = Timing.wrap "map2_pt_with" (equal m1) m2
+    let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
     let reduce_col_pt_with m j =
       if not @@ is_empty m then
         (let r = ref (-1) in
          for i' = 0 to num_rows m - 1 do
            let rev_i' = num_rows m - i' - 1 in
-           if !r < 0 && m.(rev_i').(j) <> of_int 0 then r := rev_i';
+           if !r < 0 && m.(rev_i').(j) <>: A.zero then r := rev_i';
            if !r <> rev_i' then
              let g = m.(rev_i').(j) in
-             if g <> of_int 0 then
+             if g <>: A.zero then
                let s = g /: m.(!r).(j) in
                for j' = 0 to num_cols m - 1 do
                  m.(rev_i').(j') <- m.(rev_i').(j') -: s *: m.(!r).(j')
                done
          done;
-         if !r >= 0 then Array.fill m.(!r) 0 (num_cols m) (of_int 0));
+         if !r >= 0 then Array.fill m.(!r) 0 (num_cols m) A.zero);
       m
 
     let reduce_col_pt_with m j  = Timing.wrap "reduce_col_pt_with" (reduce_col_pt_with m) j
@@ -627,7 +625,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let del_col m j =
       if is_empty m then m else
-        let new_matrix = Array.make_matrix (num_rows m) (num_cols m - 1) (of_int 0) in
+        let new_matrix = Array.make_matrix (num_rows m) (num_cols m - 1) A.zero in
         for i = 0 to num_rows m - 1 do
           new_matrix.(i) <- Array.remove_at j m.(i)
         done; new_matrix
@@ -637,8 +635,8 @@ module ArrayMatrix: AbstractMatrix =
       if n_c = 0 || is_empty m then m
       else
         let m_r, m_c = num_rows m, num_cols m in
-        if m_c - n_c = 0 then empty () else
-          let m' = Array.create_matrix m_r (m_c - n_c) (of_int 0) in
+        if m_c = n_c then empty () else
+          let m' = Array.create_matrix m_r (m_c - n_c) A.zero in
           for i = 0 to m_r - 1 do
             let offset = ref 0 in
             for j = 0 to (m_c - n_c) - 1 do
@@ -656,7 +654,7 @@ module ArrayMatrix: AbstractMatrix =
       Array.map2 f' m (Array.combine range_array (V.to_array v))
 
     let remove_zero_rows m =
-      Array.filter (fun x -> Array.exists (fun y -> y <> of_int 0) x) m
+      Array.filter (fun x -> Array.exists (fun y -> y <>: A.zero) x) m
 
     let rref_with m =
       (*Based on Cousot - Principles of Abstract Interpretation (2021)*)
@@ -674,22 +672,22 @@ module ArrayMatrix: AbstractMatrix =
           try (
             for j = i to num_cols -2 do
               for k = i to num_rows -1 do
-                if m.(k).(j) <> of_int 0 then
+                if m.(k).(j) <>: A.zero then
                   (
                     if k <> i then swap_rows k i;
                     let piv = m.(i).(j) in
                     Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i);
                     for l = 0 to num_rows-1 do
-                      if l <> i && m.(l).(j) <> of_int 0 then (
-                        let is_only_zero = ref 1 in
+                      if l <> i && m.(l).(j) <>: A.zero then (
+                        let is_only_zero = ref true in
                         let m_lj = m.(l).(j) in
                         for k = 0 to num_cols - 2 do
                           m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j);
-                          if m.(l).(k) <> of_int 0 then is_only_zero := 0;
+                          if m.(l).(k) <>: A.zero then is_only_zero := false;
                         done;
                         let k_end = num_cols - 1 in
                         m.(l).(k_end) <- m.(l).(k_end) -: m.(i).(k_end) *: m_lj /: m.(i).(j);
-                        if !is_only_zero = 1 && m.(l).(k_end) <> of_int 0 then raise Unsolvable;
+                        if !is_only_zero && m.(l).(k_end) <>: A.zero then raise Unsolvable;
                       )
                     done;
                     raise Found
@@ -705,25 +703,25 @@ module ArrayMatrix: AbstractMatrix =
     let rref_with m = Timing.wrap "rref_with" rref_with m
 
     let init_with_vec v =
-      let new_matrix = Array.make_matrix 1 (V.length v) (of_int 0) in
+      let new_matrix = Array.make_matrix 1 (V.length v) A.zero in
       new_matrix.(0) <- (V.to_array v); new_matrix
 
 
     let reduce_col_with_vec m j v =
       for i = 0 to num_rows m - 1 do
-        if m.(i).(j) <> of_int 0 then
+        if m.(i).(j) <>: A.zero then
           let beta = m.(i).(j) /: v.(j) in
           Array.iteri (fun j' x ->  m.(i).(j') <- x -: beta *: v.(j')) m.(i)
       done
 
     let get_pivot_positions m =
       let pivot_elements = Array.make (num_rows m) 0
-      in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z = of_int 1) x) m; pivot_elements
+      in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z =: A.one) x) m; pivot_elements
 
     let rref_vec m pivot_positions v =
       let insert = ref (-1) in
       for j = 0 to Array.length v -2 do
-        if v.(j) <> of_int 0 then
+        if v.(j) <>: A.zero then
           match Array.bsearch  Int.ord pivot_positions j with
           | `At i -> let beta = v.(j) /: m.(i).(j) in
             Array.iteri (fun j' x -> v.(j') <- x -: beta *: m.(i).(j')) v
@@ -733,11 +731,11 @@ module ArrayMatrix: AbstractMatrix =
 
       done;
       if !insert < 0 then (
-        if v.(Array.length v -1) <> of_int 0 then None
+        if v.(Array.length v - 1) <>: A.zero then None
         else Some m
       )
       else
-        let new_m = Array.create_matrix (num_rows m + 1) (num_cols m) (of_int 0)
+        let new_m = Array.create_matrix (num_rows m + 1) (num_cols m) A.zero
         in let (i, j) = Array.pivot_split Int.ord pivot_positions !insert in
         if i = 0 && j = 0 then (new_m.(0) <- v; Array.blit m 0 new_m 1 (num_rows m))
         else if i = num_rows m && j = num_rows m then (Array.blit m 0  new_m 0 j; new_m.(j) <- v)
@@ -751,7 +749,7 @@ module ArrayMatrix: AbstractMatrix =
       (*If m is empty then v is simply normalized and returned*)
       let v = V.to_array v in
       if is_empty m then
-        match Array.findi (fun x -> x <> of_int 0) v with
+        match Array.findi (fun x -> x <>: A.zero) v with
         | exception Not_found -> None
         | i -> if i = Array.length v - 1 then None else
             let v_i = v.(i) in
@@ -772,8 +770,9 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to num_rows s_m - 1 do
           let pivot_elements = get_pivot_positions !b in
           let res = rref_vec !b pivot_elements s_m.(i) in
-          (if Option.is_none res then raise Unsolvable else
-          b := Option.get res)
+          match res with
+          | None -> raise Unsolvable
+          | Some res -> b := res
         done;
         Some !b
       )
@@ -796,17 +795,17 @@ module ArrayMatrix: AbstractMatrix =
       if num_rows m1 > num_rows m2 then false else
         let p2 = lazy (get_pivot_positions m2) in
         try (
-          for i = 0 to num_rows m1 -1 do
-            if Array.exists2 (<>) m1.(i) m2.(i) then
+          for i = 0 to num_rows m1 - 1 do
+            if Array.exists2 (<>:) m1.(i) m2.(i) then
               let m1_i = Array.copy m1.(i) in
-              for j = 0 to Array.length m1_i -2 do
-                if m1_i.(j) <>  of_int 0 then
+              for j = 0 to Array.length m1_i - 2 do
+                if m1_i.(j) <>: A.zero then
                   match Array.bsearch Int.ord (Lazy.force p2) j with
                   | `At pos -> let beta =  m1_i.(j) in
                     Array.iteri (fun j' x -> m1_i.(j') <- m1_i.(j') -: beta *: m2.(pos).(j') ) m1_i
                   | _ -> raise Exit;
               done;
-              if m1_i. (num_cols m1 - 1) <> of_int 0 then
+              if m1_i. (num_cols m1 - 1) <>: A.zero then
                 raise Exit
           done;
           true
