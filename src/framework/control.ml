@@ -45,7 +45,7 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t) ref = ref (fun _ -> asse
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
 struct
 
-  module SpecSys: SpecSys =
+  module SpecSys: SpecSys with module Spec = Spec =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
