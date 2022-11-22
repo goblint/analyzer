@@ -593,14 +593,13 @@ struct
         let loc = loc_of_location location_invariant.location in
         let inv = location_invariant.location_invariant.string in
         let entry_certificate = Entry.loop_invariant_certificate in (* TODO: Wrong, because there's no location_invariant_certificate, but this is the closest thing for now. *)
-        let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt locator loc with
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
+          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
           None
       in
 
@@ -608,14 +607,13 @@ struct
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
         let entry_certificate = Entry.loop_invariant_certificate in
-        let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt loop_locator loc with
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
+          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
           None
       in
 
