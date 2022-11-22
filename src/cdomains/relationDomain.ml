@@ -36,8 +36,7 @@ struct
     VH.find_option vh var
 end
 
-(* TODO: Why renamed VM -> RelVM? *)
-module RelVM =
+module VM =
 struct
   type t =
     | Local of varinfo (** Var for function local variable (or formal argument). *)
@@ -60,8 +59,8 @@ sig
   type vartable
 
   val vh: vartable
-  val make_var: ?name:string -> RelVM.t -> t
-  val find_metadata: t -> RelVM.t Option.t
+  val make_var: ?name:string -> VM.t -> t
+  val find_metadata: t -> VM.t Option.t
   val local: varinfo -> t
   val arg: varinfo -> t
   val return: t
@@ -69,14 +68,14 @@ sig
   val to_cil_varinfo: t -> varinfo Option.t
 end
 
-module V (Var: Var): (RV with type t = Var.t and type vartable = RelVM.t VarMetadataTbl (RelVM) (Var).VH.t) =
+module V (Var: Var): (RV with type t = Var.t and type vartable = VM.t VarMetadataTbl (VM) (Var).VH.t) =
 struct
   type t = Var.t
-  module VMT = VarMetadataTbl (RelVM) (Var)
+  module VMT = VarMetadataTbl (VM) (Var)
   include VMT
-  open RelVM
+  open VM
 
-  type vartable = RelVM.t VMT.VH.t
+  type vartable = VM.t VMT.VH.t
 
   let local x = make_var (Local x)
   let arg x = make_var (Arg x)

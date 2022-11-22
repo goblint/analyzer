@@ -201,7 +201,7 @@ struct
       (* TODO: don't go through CIL exp? *)
       let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType) in
       let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType) in
-      let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in
+      let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
       let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
       rel
     | _
@@ -241,7 +241,7 @@ struct
           assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
               if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" d_varinfo v d_exp e' d_plainexp e';
               if M.tracing then M.trace "relation" "st: %a\n" RD.pretty apr';
-              let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask e') in (* TODO: no_overflow on wrapped *)
+              let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask simplified_e) in
               if M.tracing then M.traceu "relation" "-> %a\n" RD.pretty r;
               r
             )
@@ -256,7 +256,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv rel' e' (not b) (no_overflow ask e') (* TODO: no_overflow on wrapped *)
+        RD.assert_inv rel' e' (not b) (no_overflow ask e)
       )
     in
     if RD.is_bot_env res then raise Deadcode;
@@ -276,8 +276,7 @@ struct
     (* Also, a local *)
     let vname = RD.Var.to_string var in
     let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> RelVM.var_name (Local v) = vname) locals with (* TODO: optimize *)
-    (* match List.find_opt (fun v -> RV.local_name v = vname) locals with *)
+    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
     | Some v -> any_local_reachable
 
@@ -300,7 +299,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let new_rel = List.fold_left (fun new_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-            RD.assign_exp rel' var e' (no_overflow ask e') (* TODO: no_overflow on wrapped *)
+            RD.assign_exp rel' var e' (no_overflow ask e)
           )
       ) new_rel arg_assigns
     in
@@ -339,7 +338,7 @@ struct
         match e with
         | Some e ->
           assign_from_globals_wrapper ask ctx.global {st with rel = rel'} e (fun rel' e' ->
-              RD.assign_exp rel' RV.return e' (no_overflow ask e') (* TODO: no_overflow on wrapped *)
+              RD.assign_exp rel' RV.return e' (no_overflow ask e)
             )
         | None ->
           rel' (* leaves V.return unconstrained *)
@@ -381,7 +380,7 @@ struct
     let new_fun_rel = List.fold_left (fun new_fun_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_fun_rel} e (fun rel' e' ->
             (* not an assign, but still works? *)
-            RD.substitute_exp rel' var e' (no_overflow ask e') (* TODO: no_overflow on wrapped *)
+            RD.substitute_exp rel' var e' (no_overflow ask e)
           )
       ) new_fun_rel arg_substitutes
     in

@@ -6,7 +6,7 @@ include RelationAnalysis
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module Man = (val ApronDomain.get_manager ()) in
-    let module AD = ApronDomain.D3 (Man) in
+    let module AD = ApronDomain.D2 (Man) in
     let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in
     let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): ApronDomain.S3) else (module AD)) in
     let module RD: RelationDomain.RD =
@@ -15,7 +15,6 @@ let spec_module: (module MCPSpec) Lazy.t =
       module V = ApronDomain.V
       include AD
       type var = ApronDomain.Var.t
-      module LinCons = SharedFunctions.Lincons1 (* TODO: why is this duplicated? already defined in ApronDomain *)
     end
     in
     let module Priv = (val RelationPriv.get_priv ()) in
