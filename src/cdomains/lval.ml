@@ -429,7 +429,7 @@ struct
       | Field _, Index _ -> -1
       | Index _, Field _ ->  1
   end
-  type elttype =
+  type r =
     | MyAddr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
     | MyNullPtr (** NULL pointer. *)
     | MyUnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
@@ -440,9 +440,9 @@ struct
   struct
     include Normal (Idx)
     type elt = t
-    type t = elttype [@@deriving eq, ord, hash]
+    type t = r [@@deriving eq, ord, hash]
 
-    let show x = ""
+    let show x = failwith ""
 
     let pretty _= failwith ""
 
