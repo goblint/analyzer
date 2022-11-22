@@ -97,8 +97,7 @@ end
 module type LinCons =
 sig
   type t
-  val get_size: t -> int
-  val to_cil_exp: t -> exp option
+  val num_vars: t -> int
 end
 
 module type Tracked =
@@ -152,11 +151,9 @@ module type S3 =
 sig
   include S2
 
-  type consSet
-
-  val cons_to_cil_exp:  scope:Cil.fundec -> consSet -> exp Option.t
-
-  val invariant: scope:Cil.fundec -> t -> consSet list
+  module LinCons: LinCons (* TODO: ungeneralize, same for both apron and affeq *)
+  val cons_to_cil_exp: LinCons.t -> exp option
+  val invariant: t -> LinCons.t list
 end
 
 type ('a, 'b) relcomponents_t = {

@@ -16,7 +16,7 @@ let spec_module: (module MCPSpec) Lazy.t =
       module V = ApronDomain.V
       include AD
       type var = ApronDomain.Var.t
-      type consSet = SharedFunctions.Lincons1Set.elt
+      module LinCons = SharedFunctions.Lincons1 (* TODO: why is this duplicated? already defined in ApronDomain *)
     end
     in
     let module Priv = (val RelationPriv.get_priv ()) in

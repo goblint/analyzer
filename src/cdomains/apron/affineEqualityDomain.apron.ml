@@ -604,9 +604,9 @@ struct
 
   let relift t = t
 
-  type consSet = SharedFunctions.Lincons1Set.elt
+  module LinCons = SharedFunctions.Lincons1
 
-  let invariant ~scope t =
+  let invariant t =
     if Option.is_none t.d then [] else (
       let m = Option.get t.d in
       let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
@@ -623,7 +623,7 @@ struct
         )
       |> List.of_enum)
 
-  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 cons
+  let cons_to_cil_exp = Convert.cil_exp_of_lincons1
 
   let env (t: Bounds.t) = t.env
 

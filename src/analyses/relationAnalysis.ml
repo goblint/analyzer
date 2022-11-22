@@ -525,27 +525,6 @@ struct
       | Some lv -> invalidate_one ask ctx st' lv
       | None -> st'
 
-  (* TODO: remove, use get_cons_size *)
-  let two_or_more_vars expr =
-    (*Checks if a CIL expression contains more than two distinct variables*)
-    let exception Two_Distinct_Vars in
-    let rec find_vars ex =
-      match ex with
-      | Lval (Var v, NoOffset) when RD.Tracked.varinfo_tracked v -> Some v
-      | Const _ -> None
-      | exp -> begin match exp with
-          | UnOp (_, e, _) -> find_vars e
-          | BinOp (_, e1, e2, _) -> begin match find_vars e1, find_vars e2 with
-              | Some v1, Some v2 ->  if v1 = v2 then Some v1 else raise Two_Distinct_Vars
-              | Some x, None | None, Some x-> Some x
-              | _, _ -> None end
-          | CastE (_, e) -> find_vars e
-          | _ -> None end
-    in
-    match find_vars expr with
-    | exception Two_Distinct_Vars -> true
-    | _ -> false
-
 
   let query_invariant ctx context =
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
@@ -587,20 +566,14 @@ struct
         (apr, Fun.id)
       )
     in
-    RD.invariant ~scope apr
+    RD.invariant apr
     |> List.enum
-    |> Enum.filter_map (fun lincons1 ->
+    |> Enum.filter_map (fun (lincons: RD.LinCons.t) ->
         (* filter one-vars *)
-        (* if one_var || Lincons1.num_vars lincons1 >= 2 then
-          CilOfApron.cil_exp_of_lincons1 lincons1
+        if one_var || RD.LinCons.num_vars lincons >= 2 then
+          RD.cons_to_cil_exp lincons
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
-        else
-          None *)
-        (* TODO: restore method from master *)
-        let expr = RD.cons_to_cil_exp ~scope lincons1 in
-        if Option.is_some expr && (one_var || two_or_more_vars @@ Option.get expr)  then
-          Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp) expr
         else
           None
       )

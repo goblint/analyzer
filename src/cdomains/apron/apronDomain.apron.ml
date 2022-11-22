@@ -241,9 +241,8 @@ sig
   val to_lincons_array : t -> Lincons1.earray
   val of_lincons_array : Lincons1.earray -> t
 
-  val cons_to_cil_exp:  scope:Cil.fundec -> Lincons1Set.elt -> exp Option.t
-
-  val invariant: scope:Cil.fundec -> t -> Lincons1Set.elt list
+  val cons_to_cil_exp: Lincons1.t -> exp option
+  val invariant: t -> Lincons1.t list
 end
 
 module type AOps =
@@ -480,11 +479,8 @@ struct
     A.of_lincons_array Man.mgr a.array_env a
   let unify (a:t) (b:t) = A.unify Man.mgr a b
 
-  type consSet = Lincons1Set.elt
-
-  let get_cons_size (c: Apron.Lincons1.t) = Apron.Linexpr0.get_size c.lincons0.linexpr0
-
-  let cons_to_cil_exp ~scope cons = Convert.cil_exp_of_lincons1 cons
+  module LinCons = Lincons1
+  let cons_to_cil_exp = Convert.cil_exp_of_lincons1
 end
 
 module AOps (Tracked: Tracked) (Man: Manager) =
@@ -505,7 +501,7 @@ sig
   val is_bot_env: t -> bool
 
   val unify: t -> t -> t
-  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
+  val invariant: t -> Lincons1.t list
   val pretty_diff: unit -> t * t -> Pretty.doc
 end
 
@@ -522,7 +518,7 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant ~scope _ = []
+  let invariant _ = []
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -558,7 +554,7 @@ sig
   include SPrintable
   include Lattice.S with type t := t
 
-  val invariant: scope:Cil.fundec -> t -> Lincons1Set.elt list
+  val invariant: t -> Lincons1Set.elt list
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
@@ -614,7 +610,7 @@ struct
           d
       end
 
-  let invariant ~scope x =
+  let invariant x =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let x = A.copy Man.mgr x in
@@ -838,7 +834,7 @@ sig
   include module type of AOps (Tracked) (Man)
   include SLattice with type t = Man.mt A.t
 
-  include S3 with type t = Man.mt A.t and type var = Var.t and type consSet = Lincons1Set.elt
+  include S3 with type t = Man.mt A.t and type var = Var.t and module LinCons = Lincons1
 
   val exp_is_cons : exp -> bool
   val assert_cons : t -> exp -> bool -> bool Lazy.t -> t
@@ -993,7 +989,7 @@ struct
   let assert_inv (b, d) e n no_ov = (BoxD.assert_inv b e n no_ov, D.assert_inv d e n no_ov)
   let eval_int (_, d) = D.eval_int d
 
-  let invariant ~scope (b, d) =
+  let invariant (b, d) =
     (* diff via lincons *)
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
     let lcd = D.to_lincons_array d in
