@@ -386,6 +386,10 @@ module NormalLatRepr (Idx: IntDomain.Z) =
 struct
   include NormalLat (Idx)
   module Offset = struct
+
+    (* Offset type for representative without abstract values for index offsets.
+       Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
+       since different integer domains may be active at different program points. *)
     type t = NoOffset | Field of CilType.Fieldinfo.t * t | Index of unit * t  [@@deriving eq, ord, hash]
 
     let rec show = function
