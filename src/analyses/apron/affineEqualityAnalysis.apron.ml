@@ -12,10 +12,15 @@ let spec_module: (module MCPSpec) Lazy.t =
       module Var = AffineEqualityDomain.Var
       module V = AffineEqualityDomain.V
       include AD
-    end in
+    end
+    in
     let module Priv = (val RelationPriv.get_priv ()) in
-    let module Spec = struct include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)
-      let name () = "affeq" end in
+    let module Spec =
+    struct
+      include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)
+      let name () = "affeq"
+    end
+    in
     (module Spec)
   )
 

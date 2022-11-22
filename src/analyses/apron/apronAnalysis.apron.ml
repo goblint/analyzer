@@ -1,5 +1,4 @@
 (** Analysis using Apron for integer variables. *)
-open Prelude.Ana
 open Analyses
 
 include RelationAnalysis
