@@ -187,10 +187,10 @@ struct
         | _, _ -> false
 
   let no_overflow ctx exp = lazy (
-      let res = no_overflow ctx exp in
-      if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
-      res
-    )
+    let res = no_overflow ctx exp in
+    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
+    res
+  )
 
 
   let assert_type_bounds ask rel x =
