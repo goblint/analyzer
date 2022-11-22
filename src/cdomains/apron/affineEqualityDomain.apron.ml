@@ -9,12 +9,14 @@ open VectorMatrix
 
 module Mpqf = struct
   include Mpqf
+  let compare = cmp
   let zero = of_int 0
   let one = of_int 1
 
   let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
 
   let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
+  let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
 end
 
 module Var = SharedFunctions.Var

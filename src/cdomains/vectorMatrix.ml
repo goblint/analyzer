@@ -6,15 +6,13 @@ module M = Messages
     One could later exchange "Mpqf" with a different module that provides the functions specified by this interface. *)
 module type RatOps =
 sig
-  type t
+  type t [@@deriving eq, ord, hash]
   val add : t -> t -> t
   val sub : t -> t -> t
   val mul : t -> t -> t
   val div : t -> t -> t
   val neg : t -> t
   val abs : t -> t
-  val equal: t -> t -> bool
-  val cmp : t -> t -> int
   val to_string:  t -> string
   val of_int: int -> t
   val zero: t
@@ -33,10 +31,10 @@ struct
   let (/:) = A.div
   let (=:) x y = A.equal x y
   let (<>:) x y = not (A.equal x y)
-  let (<:) x y = A.cmp x y < 0
-  let (>:) x y = A.cmp x y > 0
-  let (<=:) x y = A.cmp x y <= 0
-  let (>=:) x y = A.cmp x y >= 0
+  let (<:) x y = A.compare x y < 0
+  let (>:) x y = A.compare x y > 0
+  let (<=:) x y = A.compare x y <= 0
+  let (>=:) x y = A.compare x y >= 0
   let of_int x = A.of_int x
 end
 
@@ -44,11 +42,9 @@ end
 module type Vector =
 sig
   type num
-  type t
+  type t [@@deriving eq, ord, hash]
 
   val show: t -> string
-
-  val equal:  t ->  t -> bool
 
   val keep_vals: t -> int ->  t
 
@@ -128,7 +124,7 @@ module ListVector: AbstractVector =
   struct
     include List
     include ConvenienceOps (A)
-    type t = A.t List.t
+    type t = A.t list [@@deriving eq, ord, hash]
 
     let show t =
       let rec list_str l =
@@ -137,8 +133,6 @@ module ListVector: AbstractVector =
         | x :: xs -> (A.to_string x) ^" "^(list_str xs)
       in
       "["^list_str t^"\n"
-
-    let equal = GobList.equal (=:)
 
     let keep_vals v n =
       List.filteri (fun i x -> i < n) v (* TODO: take? *)
@@ -196,7 +190,7 @@ module type Matrix =
 sig
   type num
   type vec
-  type t
+  type t [@@deriving eq, ord, hash]
 
   val empty: unit -> t (* TODO: needs unit? *)
 
@@ -225,8 +219,6 @@ sig
   val num_rows: t -> int
 
   val num_cols: t -> int
-
-  val equal: t -> t -> bool
 
   val reduce_col: t -> int -> t
 
@@ -279,7 +271,7 @@ module ListMatrix : AbstractMatrix =
   struct
     include ConvenienceOps(A)
     module V = V(A)
-    type t = V.t list
+    type t = V.t list [@@deriving eq, ord, hash]
 
     let show x = String.concat "" (List.map V.show x)
 
@@ -321,8 +313,6 @@ module ListMatrix : AbstractMatrix =
       match m with
       | [] -> 0
       | x :: xs -> V.length x
-
-    let equal = GobList.equal V.equal
 
     let subtract_rows_c row1 row2 c =
       V.map2 (fun x y -> x -: (y *: c)) row1 row2
@@ -428,7 +418,8 @@ module ArrayVector: AbstractVector =
   struct
     include ConvenienceOps (A)
     include Array
-    type t = A.t array
+    type t = A.t array [@@deriving eq, ord]
+    let hash = Array.fold_left (fun acc a -> 31 * acc + A.hash a) 0 (* TODO: array in ppx_deriving_hash *)
 
     let show t =
       let t = Array.to_list t in
@@ -438,8 +429,6 @@ module ArrayVector: AbstractVector =
         | x :: xs -> (A.to_string x) ^" "^(list_str xs)
       in
       "["^list_str t^"\n"
-
-    let equal = Array.equal (=:)
 
     let keep_vals v n =
       if n >= Array.length v then v else
@@ -508,7 +497,9 @@ module ArrayMatrix: AbstractMatrix =
     include ConvenienceOps(A)
     module V = V(A)
 
-    type t = A.t array array
+    type t = A.t array array [@@deriving eq, ord]
+
+    let hash = Array.fold_left (Array.fold_left (fun acc a -> 31 * acc + A.hash a)) 0
 
     let show x =
       Array.fold_left (^) "" (Array.map (fun v -> V.show @@ V.of_array v) x)
@@ -596,8 +587,6 @@ module ArrayMatrix: AbstractMatrix =
 
     let append_matrices m1 m2  =
       Array.append m1 m2
-
-    let equal = Array.equal (Array.equal (=:))
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
