@@ -11,14 +11,20 @@ type ('a, 'b) offs = [
 
 
 (** Subinterface of IntDomain.Z which is sufficient for Printable (but not Lattice) Offset. *)
-module type IdxDomain =
+module type IdxPrintable =
 sig
   include Printable.S
   val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
   val to_int: t -> IntOps.BigIntOps.t option
 end
 
-module OffsetPrintable (Idx: IdxDomain) =
+module type IdxDomain =
+sig
+  include IdxPrintable
+  include Lattice.S with type t := t
+end
+
+module OffsetPrintable (Idx: IdxPrintable) =
 struct
   type t = (fieldinfo, Idx.t) offs
   include Printable.Std
@@ -105,7 +111,7 @@ struct
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 end
 
-module Offset (Idx: IntDomain.Z) =
+module Offset (Idx: IdxDomain) =
 struct
   include OffsetPrintable (Idx)
 
@@ -173,7 +179,7 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Normal (Idx: IdxDomain) =
+module Normal (Idx: IdxPrintable) =
 struct
   type field = fieldinfo
   type idx = Idx.t
@@ -318,7 +324,7 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Idx: IntDomain.Z) =
+module NormalLat (Idx: IdxDomain) =
 struct
   include Normal (Idx)
   module Offs = Offset (Idx)
@@ -382,25 +388,38 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: IntDomain.Z) =
+module NormalLatRepr (Idx: IdxDomain) =
 struct
   include NormalLat (Idx)
 
+  module UnitIdxDomain =
+  struct
+    include Lattice.Unit
+    let equal_to _ _ = `Top
+    let to_int _ = None
+  end
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
-    include Normal (Idx)
     type elt = t
 
-    let rec of_elt_offset: Offs.t -> Offs.t =
+    (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
+       Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
+       since different integer domains may be active at different program points. *)
+    include Normal (UnitIdxDomain)
+
+    let rec of_elt_offset (*: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs *) =
       function
       | `NoOffset -> `NoOffset
       | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* all indices to same bucket *)
-    let of_elt = function
+      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+
+    let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
-      | a -> a (* everything else is kept separate, including strings if not limited *)
+      | StrPtr x -> StrPtr x
+      | NullPtr -> NullPtr
+      | UnknownPtr -> UnknownPtr
   end
 end
 
