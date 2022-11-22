@@ -592,7 +592,7 @@ struct
       let validate_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
         let loc = loc_of_location location_invariant.location in
         let inv = location_invariant.location_invariant.string in
-        let entry_certificate = Entry.loop_invariant_certificate in (* TODO: wrong *)
+        let entry_certificate = Entry.loop_invariant_certificate in (* TODO: Wrong, because there's no location_invariant_certificate, but this is the closest thing for now. *)
         let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt locator loc with
