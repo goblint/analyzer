@@ -44,7 +44,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
     match scalar with
     | Float f -> (* octD, boxD *)
       (* bound_texpr on bottom also gives Float even with MPQ *)
-      let+ f_opt = match round with
+      let+ f = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
         | None when Stdlib.Float.is_integer f-> Some f
