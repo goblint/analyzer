@@ -604,8 +604,6 @@ struct
 
   let relift t = t
 
-  module LinCons = SharedFunctions.Lincons1
-
   let invariant t =
     if Option.is_none t.d then [] else (
       let m = Option.get t.d in
@@ -623,7 +621,7 @@ struct
         )
       |> List.of_enum)
 
-  let cons_to_cil_exp = Convert.cil_exp_of_lincons1
+  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   let env (t: Bounds.t) = t.env
 

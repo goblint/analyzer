@@ -151,9 +151,8 @@ module type S3 =
 sig
   include S2
 
-  module LinCons: LinCons (* TODO: ungeneralize, same for both apron and affeq *)
-  val cons_to_cil_exp: LinCons.t -> exp option
-  val invariant: t -> LinCons.t list
+  val cil_exp_of_lincons1: Apron.Lincons1.t -> exp option
+  val invariant: t -> Apron.Lincons1.t list
 end
 
 type ('a, 'b) relcomponents_t = {

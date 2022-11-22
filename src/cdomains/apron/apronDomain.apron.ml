@@ -241,7 +241,7 @@ sig
   val to_lincons_array : t -> Lincons1.earray
   val of_lincons_array : Lincons1.earray -> t
 
-  val cons_to_cil_exp: Lincons1.t -> exp option
+  val cil_exp_of_lincons1: Lincons1.t -> exp option
   val invariant: t -> Lincons1.t list
 end
 
@@ -479,8 +479,7 @@ struct
     A.of_lincons_array Man.mgr a.array_env a
   let unify (a:t) (b:t) = A.unify Man.mgr a b
 
-  module LinCons = Lincons1
-  let cons_to_cil_exp = Convert.cil_exp_of_lincons1
+  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 end
 
 module AOps (Tracked: Tracked) (Man: Manager) =
@@ -834,7 +833,7 @@ sig
   include module type of AOps (Tracked) (Man)
   include SLattice with type t = Man.mt A.t
 
-  include S3 with type t = Man.mt A.t and type var = Var.t and module LinCons = Lincons1
+  include S3 with type t = Man.mt A.t and type var = Var.t
 
   val exp_is_cons : exp -> bool
   val assert_cons : t -> exp -> bool -> bool Lazy.t -> t
@@ -985,7 +984,7 @@ struct
   let to_lincons_array (_, d) = D.to_lincons_array d
   let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
 
-  let cons_to_cil_exp =  D.cons_to_cil_exp
+  let cil_exp_of_lincons1 = D.cil_exp_of_lincons1
   let assert_inv (b, d) e n no_ov = (BoxD.assert_inv b e n no_ov, D.assert_inv d e n no_ov)
   let eval_int (_, d) = D.eval_int d
 

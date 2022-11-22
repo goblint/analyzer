@@ -568,10 +568,10 @@ struct
     in
     RD.invariant apr
     |> List.enum
-    |> Enum.filter_map (fun (lincons: RD.LinCons.t) ->
+    |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars *)
-        if one_var || RD.LinCons.num_vars lincons >= 2 then
-          RD.cons_to_cil_exp lincons
+        if one_var || SharedFunctions.Lincons1.num_vars lincons1 >= 2 then
+          RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
