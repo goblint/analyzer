@@ -927,7 +927,6 @@ end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
-  (* : GenericGlobSolver *)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
