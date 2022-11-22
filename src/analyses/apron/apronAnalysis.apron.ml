@@ -17,10 +17,15 @@ let spec_module: (module MCPSpec) Lazy.t =
       include AD
       type var = ApronDomain.Var.t
       type consSet = SharedFunctions.Lincons1Set.elt
-    end in
+    end
+    in
     let module Priv = (val RelationPriv.get_priv ()) in
-    let module Spec = struct include SpecFunctor (Priv) (RD) (ApronPrecCompareUtil.Util)
-      let name () = "apron" end in
+    let module Spec =
+    struct
+      include SpecFunctor (Priv) (RD) (ApronPrecCompareUtil.Util)
+      let name () = "apron"
+    end
+    in
     (module Spec)
   )
 
@@ -32,6 +37,10 @@ let after_config () =
   MCP.register_analysis (module Spec : MCPSpec);
   GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
 
+let _ =
+  AfterConfig.register after_config
+
+
 let () =
   Printexc.register_printer
     (function
@@ -40,6 +49,3 @@ let () =
         Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
       | _ -> None (* for other exceptions *)
     )
-
-let _ =
-  AfterConfig.register after_config

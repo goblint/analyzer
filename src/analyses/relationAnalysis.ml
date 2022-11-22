@@ -6,11 +6,11 @@ open RelationDomain
 
 module M = Messages
 
-module SpecFunctor (CPriv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
+module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
   include Analyses.DefaultSpec
 
-  module Priv = CPriv (RD)
+  module Priv = Priv (RD)
   module D = RelationDomain.RelComponents (RD) (Priv.D)
   module G = Priv.G
   module C = D
@@ -35,8 +35,8 @@ struct
     else
       D.bot () (* just like startstate, heterogeneous RD.bot () means top over empty set of variables *)
 
-  let exitstate  _ = { RelationDomain.rel = RD.bot (); RelationDomain.priv = Priv.startstate () }
-  let startstate _ = { RelationDomain.rel = RD.bot (); RelationDomain.priv = Priv.startstate () }
+  let exitstate  _ = { rel = RD.bot (); priv = Priv.startstate () }
+  let startstate _ = { rel = RD.bot (); priv = Priv.startstate () }
 
   (* Functions for manipulating globals as temporary locals. *)
 
@@ -44,7 +44,7 @@ struct
     if ThreadFlag.is_multi ask then
       Priv.read_global ask getg st g x
     else (
-      let rel = st.RelationDomain.rel in
+      let rel = st.rel in
       let g_var = RV.global g in
       let x_var = RV.local x in
       let rel' = RD.add_vars rel [g_var] in
@@ -74,10 +74,10 @@ struct
     end
     in
     let e' = visitCilExpr visitor e in
-    let rel = RD.add_vars st.RelationDomain.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
         if M.tracing then M.trace "relation" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
-        read_global ask getg {st with RelationDomain.rel = rel} v v_in (* g#in = g; *)
+        read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins rel
     in
     (rel', e', v_ins)
@@ -119,12 +119,12 @@ struct
     if ThreadFlag.is_multi ask then
       Priv.write_global ask getg sideg st g x
     else (
-      let rel = st.RelationDomain.rel in
+      let rel = st.rel in
       let g_var = RV.global g in
       let x_var = RV.local x in
       let rel' = RD.add_vars rel [g_var] in
       let rel' = RD.assign_var rel' g_var x_var in
-      {st with RelationDomain.rel = rel'}
+      {st with rel = rel'}
     )
 
   let rec assign_to_global_wrapper (ask:Queries.ask) getg sideg st lv f =
@@ -264,6 +264,7 @@ struct
 
 
   (* Function call transfer functions. *)
+
   let any_local_reachable fundec reachable_from_args =
     let locals = fundec.sformals @ fundec.slocals in
     let locals_id = List.map (fun v -> v.vid) locals in
@@ -407,16 +408,18 @@ struct
           unify_st
       in
       let new_unify_st_rel = RD.remove_vars_pt_with unify_st'.rel [RV.return] in
-      {RelationDomain.rel = new_unify_st_rel; RelationDomain.priv = unify_st'.priv}
+      {unify_st' with rel = new_unify_st_rel}
     )
     else
       unify_st
+
 
   let invalidate_one ask ctx st lv =
     assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
         let rel' = RD.forget_vars st.rel [RV.local v] in
         assert_type_bounds rel' v ctx (* re-establish type bounds after forget *)
       )
+
 
   (* Give the set of reachables from argument. *)
   let reachables (ask: Queries.ask) es =
@@ -522,6 +525,7 @@ struct
       | Some lv -> invalidate_one ask ctx st' lv
       | None -> st'
 
+  (* TODO: remove, use get_cons_size *)
   let two_or_more_vars expr =
     (*Checks if a CIL expression contains more than two distinct variables*)
     let exception Two_Distinct_Vars in
@@ -657,17 +661,17 @@ struct
   let threadspawn ctx lval f args fctx =
     ctx.local
 
-  let event ctx e relx =
+  let event ctx e octx =
     let st = ctx.local in
     match e with
     | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx relx) relx.global st addr
+      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
       Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx relx) relx.global relx.sideg st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
@@ -710,5 +714,4 @@ struct
       Timing.wrap "relation.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
-
 end
