@@ -1,4 +1,5 @@
 // PARAM: --enable annotation.int.enabled
+// This option enables ALL int domains for globals
 #include <stdlib.h>
 #include <goblint.h>
 struct slotvec {
