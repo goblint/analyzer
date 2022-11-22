@@ -12,6 +12,7 @@ module Mpqf = struct
   let compare = cmp
   let zero = of_int 0
   let one = of_int 1
+  let mone = of_int (-1)
 
   let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
 
@@ -31,9 +32,10 @@ struct
   module Matrix = Mx(Mpqf) (Vec)
 
   type t = {
-    d :  Matrix.t Option.t;
+    d :  Matrix.t option;
     env : Environment.t
   }
+  [@@deriving eq, ord, hash]
 
   let empty_env = Environment.make [||] [||]
 
@@ -127,8 +129,8 @@ struct
 
   include ConvenienceOps(Mpqf)
 
-  let get_c v = match Vector.findi (fun x -> x <> (of_int 0)) v with
-    | exception Not_found -> Some (of_int 0)
+  let get_c v = match Vector.findi (fun x -> x <>: Mpqf.zero) v with
+    | exception Not_found -> Some Mpqf.zero
     | i when Vector.compare_length_with v (i + 1) = 0 -> Some (Vector.nth v i)
     | _ -> None
 
@@ -138,9 +140,9 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg = Vector.map_pt_with (fun x -> (of_int (-1)) *: x) in
+    let neg = Vector.map_pt_with (fun x -> Mpqf.mone *: x) in
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
-        Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0
+        Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
     in
     let rec convert_texpr texp =
       begin match texp with
@@ -155,9 +157,9 @@ struct
                          | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
         | Var x ->
           let zero_vec_cp = Vector.copy_pt_with zero_vec in
-          let entry_only v = Vector.set_val_pt_with v(Environment.dim_of_var t.env x) (of_int 1) in
+          let entry_only v = Vector.set_val_pt_with v(Environment.dim_of_var t.env x) Mpqf.one in
           begin match t.d with
-            | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) = of_int 1) m in
+            | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
               begin match row with
                 | Some v when is_const_vec v ->
                   Vector.set_val_pt_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
@@ -196,7 +198,7 @@ struct
     let texpr = Texpr1.to_expr texpr in
     match get_coeff_vec t texpr  with
     | Some v -> begin match get_c v with
-        | Some c when Mpqf.get_den c = IntOps.BigIntOps.of_int 1 ->
+        | Some c when Mpqf.get_den c = IntOps.BigIntOps.one ->
           let int_val = Mpqf.get_num c
           in Some int_val, Some int_val
         | _ -> None, None end
@@ -244,15 +246,15 @@ struct
       in let dim_to_str var =
            let vl =  Vector.nth vec (Environment.dim_of_var env var)
            in let var_str = Var.to_string var
-           in if vl = of_int 1 then "+" ^ var_str
-           else if vl = of_int (-1) then "-" ^ var_str
-           else if vl <: of_int (-1) then Mpqf.to_string vl ^ var_str
-           else if vl >: of_int 1 then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
+           in if vl =: Mpqf.one then "+" ^ var_str
+           else if vl =: Mpqf.mone then "-" ^ var_str
+           else if vl <: Mpqf.mone then Mpqf.to_string vl ^ var_str
+           else if vl >: Mpqf.one then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
            else ""
       in
       let c_to_str vl =
-        if vl >: of_int 0 then "-" ^ Mpqf.to_string vl
-        else if vl <: of_int 0 then "+" ^ Mpqf.to_string vl
+        if vl >: Mpqf.zero then "-" ^ Mpqf.to_string vl
+        else if vl <: Mpqf.zero then "+" ^ Mpqf.to_string vl
         else ""
       in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
@@ -268,17 +270,6 @@ struct
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
-  let equal t1 t2 =
-    Environment.equal t1.env t2.env &&
-    match t1.d, t2.d with
-    | None, None -> true
-    | Some x1, Some x2 -> Matrix.equal x1 x2
-    | _ -> false
-
-  let hash t =
-    Hashtbl.hash t
-
-  let compare t1 t2 = Stdlib.compare t1 t2
 
   let name () = "affeq"
 
@@ -297,7 +288,7 @@ struct
 
   let is_top _ = false
 
-  let is_top_env t = (not @@ Environment.equal empty_env t.env) && Option.is_some t.d && Matrix.is_empty (Option.get t.d)
+  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists Matrix.is_empty t.d
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -321,7 +312,7 @@ struct
   let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
-    let env_comp = Environment.compare t1.env t2.env in
+    let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot t1 || is_top_env t2 then true else
     if is_bot t2 || is_top_env t1 then false else (
@@ -350,7 +341,7 @@ struct
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then (a, b, max) else
             let a_rev, b_rev = Vector.rev_pt_with col_a,  Vector.rev_pt_with col_b in
-            let i = Vector.find2i (fun x y -> x <> y) a_rev b_rev in
+            let i = Vector.find2i (fun x y -> x <>: y) a_rev b_rev in
             let (x, y) = Vector.nth a_rev i, Vector.nth b_rev i in
             let r, diff = Vector.length a_rev - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
@@ -363,12 +354,12 @@ struct
         in
         let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
         let nth_zero v i =  match Vector.nth v i with
-          | exception Invalid_argument _ -> of_int 0
+          | exception Invalid_argument _ -> Mpqf.zero
           | x -> x
         in
         let a_rs, b_rs = nth_zero col_a r, nth_zero col_b r in
-        if Mpqf.get_den a_rs <> (IntOps.BigIntOps.of_int 1) || Mpqf.get_den b_rs <> (IntOps.BigIntOps.of_int 1) then failwith "Matrix not in rref form" else
-          begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with
+        if not (Z.equal (Mpqf.get_den a_rs) Z.one) || not (Z.equal (Mpqf.get_den b_rs) Z.one) then failwith "Matrix not in rref form" else
+          begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with (* TODO: is it safe to go through floats? *)
             | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
             | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
             | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
@@ -445,14 +436,14 @@ struct
     let assign_invertible_rels x var b env = Timing.wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
       let b_length = Vector.length b in
-      let neg_vec = Vector.mapi_pt_with (fun i z -> if i < b_length - 1 then of_int (-1) *: z else z) b
-      in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) (of_int 1)
+      let neg_vec = Vector.mapi_pt_with (fun i z -> if i < b_length - 1 then Mpqf.mone *: z else z) b
+      in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) Mpqf.one
       in let opt_m = Matrix.rref_vec_with x var_vec in
       if Option.is_none opt_m then bot () else
         {d = opt_m; env = env}
     in
     (* let assign_uninvertible_rel x var b env = Timing.wrap "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
-    let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> of_int 0
+    let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <>: Mpqf.zero
     in let affineEq_vec = get_coeff_vec t texp
     in if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
@@ -473,8 +464,8 @@ struct
 
   let assign_exp t var exp no_ov =
     let res = assign_exp t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %s\n no_ov: %b -> \n %s\n"
-        (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (Lazy.force no_ov) (show res) ;
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s\n"
+        (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
     res
   let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
     let t = add_vars t [v; v'] in
@@ -489,7 +480,7 @@ struct
   let assign_var_parallel t vv's =
     let assigned_vars = List.map (function (v, _) -> v) vv's in
     let t = add_vars t assigned_vars in
-    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in
+    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
@@ -535,7 +526,7 @@ struct
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
-    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res);
+    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s\n" (show t) (Var.to_string var) d_exp exp (show res);
     res
 
   let substitute_exp t var exp ov = Timing.wrap "substitution" (substitute_exp t var exp) ov
@@ -545,12 +536,12 @@ struct
       Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
       We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
   let meet_tcons t tcons expr =
-    let check_const cmp c = if cmp c (of_int 0) then bot_env else t
+    let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
     in
     let exception NotRefinable in
     let meet_vec e =
       (*Flip the sign of the const. val in coeff vec*)
-      let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
+      let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e in
       let res = if is_bot t then bot () else
           let opt_m = Matrix.rref_vec_with (Matrix.copy_pt @@ Option.get t.d) flip_e
           in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
@@ -560,9 +551,9 @@ struct
       | Some (ev, min, max) ->
         begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
           | exception Convert.Unsupported_CilExp _ -> overflow_res res
-          | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
-            if min = BI.of_int 0 && b_min = b_max then raise NotRefinable
-            else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+          | Some b_min, Some b_max ->
+            if Z.equal min Z.zero && Z.equal b_min b_max then raise NotRefinable
+            else if (Z.compare b_min min < 0 && Z.compare b_max min < 0) || (Z.compare b_max max > 0 && Z.compare b_min max > 0) then
               (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then bot () else raise NotRefinable)
             else res
           | _, _ -> overflow_res res end
@@ -605,8 +596,9 @@ struct
   let relift t = t
 
   let invariant t =
-    if Option.is_none t.d then [] else (
-      let m = Option.get t.d in
+    match t.d with
+    | None -> []
+    | Some m ->
       let earray = Lincons1.array_make t.env (Matrix.num_rows m) in
       for i = 0 to Lincons1.array_length earray do
         let row = Matrix.get_row m i in
@@ -619,7 +611,7 @@ struct
       |> Enum.map (fun (lincons0: Lincons0.t) ->
           Lincons1.{lincons0; env = array_env}
         )
-      |> List.of_enum)
+      |> List.of_enum
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
