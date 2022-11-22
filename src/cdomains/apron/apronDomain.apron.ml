@@ -848,11 +848,11 @@ struct
   let marshal t : Oct.t Abstract0.t * string array =
     (* TODO: why does this duplicate to_oct below? *)
     let convert_single (a: t): OctagonD.t =
-    if Oct.manager_is_oct Man.mgr then
-      Oct.Abstract1.to_oct a
-    else
-      let generator = to_lincons_array a in
-      OctagonD.of_lincons_array generator
+      if Oct.manager_is_oct Man.mgr then
+        Oct.Abstract1.to_oct a
+      else
+        let generator = to_lincons_array a in
+        OctagonD.of_lincons_array generator
     in
     OctagonD.marshal @@ convert_single t
 
