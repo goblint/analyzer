@@ -165,45 +165,44 @@ struct
       Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
       If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
 
-  let no_overflow ctx exp =
+  let no_overflow (ask: Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-     | exception Invalid_argument _ -> false
-     | exception Cilfacade.TypeOfError _ -> false
-     | ik ->
-    if not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" then false else
-    if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then true else
-      let eval_int ctx exp =
-        match ctx.ask (Queries.EvalInt exp) with
-        | `Lifted x when IntDomain.IntDomTuple.to_int x <> None -> IntDomain.IntDomTuple.to_int x
-        | _ -> None
-      in
-      let int_min, int_max = IntDomain.Size.range ik in
-      match IntOps.BigIntOps.to_int64 int_min, IntOps.BigIntOps.to_int64 int_max with
-      | exception Failure _ -> false
-      | int_min, int_max ->
-        let min = eval_int ctx (BinOp (Lt, kinteger64 ik int_min, exp , intType)) in
-        let max = eval_int ctx (BinOp (Lt,  exp, kinteger64 ik int_max, intType)) in
-        match min, max with
-        | Some (x), _ when x = (IntOps.BigIntOps.of_int 1) -> true
-        | _, Some (x) when x = (IntOps.BigIntOps.of_int 1) -> true
+    | exception Invalid_argument _ -> false (* TODO: why this? *)
+    | exception Cilfacade.TypeOfError _ -> false
+    | ik ->
+      if IntDomain.should_wrap ik then
+        false (* TODO: why this? *)
+      else if IntDomain.should_ignore_overflow ik then
+        true
+      else
+        let eval_int exp = Queries.ID.to_bool (ask.f (EvalInt exp)) in
+        (* TODO: duplicates assert_type_bounds *)
+        let type_min, type_max = IntDomain.Size.range ik in
+        (* TODO: why not Le? *)
+        let min = eval_int (BinOp (Lt, kintegerCilint ik type_min, exp, intType)) in
+        let max = eval_int (BinOp (Lt, exp, kintegerCilint ik type_max, intType)) in
+        match min, max with (* TODO: don't need both? *)
+        | Some true, _
+        | _, Some true -> true
         | _, _ -> false
 
-  let no_overflow ctx exp =
-    let res = no_overflow ctx exp in
-    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %s\n" res
-        (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)); res
+  let no_overflow ctx exp = lazy (
+      let res = no_overflow ctx exp in
+      if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a\n" res d_exp exp;
+      res
+    )
 
 
-  let assert_type_bounds rel x ctx =
+  let assert_type_bounds ask rel x =
     assert (RD.Tracked.varinfo_tracked x);
     match Cilfacade.get_ikind x.vtype with
     | ik when not (IntDomain.should_ignore_overflow ik) -> (* don't add type bounds for signed when assume_none *)
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
-      let e1 = (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) in
-      let e2 = (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) in
-      let rel = RD.assert_inv rel e1 false (lazy(no_overflow ctx e1)) in
-      let rel = RD.assert_inv rel e2 false (lazy(no_overflow ctx e2)) in
+      let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType) in
+      let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType) in
+      let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in
+      let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
       rel
     | _
     | exception Invalid_argument _ ->
@@ -242,7 +241,7 @@ struct
           assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
               if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" d_varinfo v d_exp e' d_plainexp e';
               if M.tracing then M.trace "relation" "st: %a\n" RD.pretty apr';
-              let r = RD.assign_exp apr' (RV.local v) e' (lazy(no_overflow ctx e')) in
+              let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask e') in (* TODO: no_overflow on wrapped *)
               if M.tracing then M.traceu "relation" "-> %a\n" RD.pretty r;
               r
             )
@@ -254,9 +253,10 @@ struct
 
   let branch ctx e b =
     let st = ctx.local in
-    let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun rel' e' ->
+    let ask = Analyses.ask_of_ctx ctx in
+    let res = assign_from_globals_wrapper ask ctx.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv rel' e' (not b) (lazy(no_overflow ctx e'))
+        RD.assert_inv rel' e' (not b) (no_overflow ask e') (* TODO: no_overflow on wrapped *)
       )
     in
     if RD.is_bot_env res then raise Deadcode;
@@ -300,7 +300,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let new_rel = List.fold_left (fun new_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_rel} e (fun rel' e' ->
-            RD.assign_exp rel' var e' (lazy(no_overflow ctx e'))
+            RD.assign_exp rel' var e' (no_overflow ask e') (* TODO: no_overflow on wrapped *)
           )
       ) new_rel arg_assigns
     in
@@ -317,12 +317,13 @@ struct
 
   let body ctx f =
     let st = ctx.local in
+    let ask = Analyses.ask_of_ctx ctx in
     let formals = List.filter RD.Tracked.varinfo_tracked f.sformals in
     let locals = List.filter RD.Tracked.varinfo_tracked f.slocals in
     let new_rel = RD.add_vars st.rel (List.map RV.local (formals @ locals)) in
     (* TODO: do this after local_assigns? *)
     let new_rel = List.fold_left (fun new_rel x ->
-        assert_type_bounds new_rel x ctx
+        assert_type_bounds ask new_rel x
       ) new_rel (formals @ locals)
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
@@ -337,8 +338,8 @@ struct
         let rel' = RD.add_vars st.rel [RV.return] in
         match e with
         | Some e ->
-          assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with rel = rel'} e (fun rel' e' ->
-              RD.assign_exp rel' RV.return e' (lazy(no_overflow ctx e'))
+          assign_from_globals_wrapper ask ctx.global {st with rel = rel'} e (fun rel' e' ->
+              RD.assign_exp rel' RV.return e' (no_overflow ask e') (* TODO: no_overflow on wrapped *)
             )
         | None ->
           rel' (* leaves V.return unconstrained *)
@@ -380,7 +381,7 @@ struct
     let new_fun_rel = List.fold_left (fun new_fun_rel (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with rel = new_fun_rel} e (fun rel' e' ->
             (* not an assign, but still works? *)
-            RD.substitute_exp rel' var e' (lazy(no_overflow ctx e'))
+            RD.substitute_exp rel' var e' (no_overflow ask e') (* TODO: no_overflow on wrapped *)
           )
       ) new_fun_rel arg_substitutes
     in
@@ -417,7 +418,7 @@ struct
   let invalidate_one ask ctx st lv =
     assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
         let rel' = RD.forget_vars st.rel [RV.local v] in
-        assert_type_bounds rel' v ctx (* re-establish type bounds after forget *)
+        assert_type_bounds ask rel' v (* re-establish type bounds after forget *) (* TODO: no_overflow on wrapped *)
       )
 
 
@@ -459,9 +460,10 @@ struct
     else
       (* copied from branch *)
       let st = ctx.local in
-      let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let res = assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
           (* not an assign, but must remove g#in-s still *)
-          RD.assert_inv apr' e' false (lazy(no_overflow ctx e))
+          RD.assert_inv apr' e' false (no_overflow ask e)
         )
       in
       if RD.is_bot_env res then raise Deadcode;
@@ -581,7 +583,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let no_overflow ctx' exp' =
-      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in
+      IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in (* TODO: separate no_overflow? *)
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
