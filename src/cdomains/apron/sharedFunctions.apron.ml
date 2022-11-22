@@ -26,6 +26,7 @@ end
 module Var =
 struct
   include Var
+
   let equal x y = Var.compare x y = 0
 end
 
@@ -394,14 +395,6 @@ struct
     in
     assert_cons d e' negate no_ov
 
-
-  let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp d (env d) e false with
-    | texpr1 ->
-      Bounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp _ ->
-      (None, None)
-
   let check_assert d e no_ov =
     if is_bot_env (assert_inv d e false no_ov) then
       `False
@@ -409,6 +402,14 @@ struct
       `True
     else
       `Top
+
+  (** Evaluate non-constraint expression as interval. *)
+  let eval_interval_expr d e =
+    match Convert.texpr1_of_cil_exp d (env d) e false with
+    | texpr1 ->
+      Bounds.bound_texpr d texpr1
+    | exception Convert.Unsupported_CilExp _ ->
+      (None, None)
 
   (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int d e no_ov =

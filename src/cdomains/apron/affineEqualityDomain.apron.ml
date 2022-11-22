@@ -593,12 +593,10 @@ struct
 
   let assert_cons d e negate no_ov =
     let no_ov = Lazy.force no_ov in
-    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %s \n %b" (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () e)) no_ov;
-    begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-      | tcons1 -> meet_tcons d tcons1 e
-      | exception Convert.Unsupported_CilExp _ ->
-        d
-    end
+    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %a %b" d_exp e no_ov;
+    match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
+    | tcons1 -> meet_tcons d tcons1 e
+    | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_cons d e negate no_ov = Timing.wrap "assert_cons" (assert_cons d e negate) no_ov
 
