@@ -385,22 +385,85 @@ end
 module NormalLatRepr (Idx: IntDomain.Z) =
 struct
   include NormalLat (Idx)
+  module Offset = struct
+    type t = NoOffset | Field of CilType.Fieldinfo.t * t | Index of unit * t  [@@deriving eq, ord, hash]
+
+    let is_first_field x = match x.fcomp.cfields with
+      | [] -> false
+      | f :: _ -> CilType.Fieldinfo.equal f x
+
+    let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
+      | NoOffset -> `MustZero
+      | Index (_, o)  -> (match cmp_zero_offset o with
+          | `MustNonzero -> `MustNonzero
+          | _ -> `MayZero)
+      | Field (x, o) ->
+        if is_first_field x then cmp_zero_offset o else `MustNonzero
+
+    let rec equal x y =
+      match x, y with
+      | NoOffset , NoOffset -> true
+      | NoOffset, x
+      | x, NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
+      | Field (f1,o1), Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
+      | Index (_,o1), Index (_,o2) -> equal o1 o2
+      | _ -> false
+
+    let rec hash = function (* special cases not used for AddressDomain any more due to splitting *)
+      | NoOffset -> 1
+      | Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
+      | Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
+      | Index (_,o) -> hash o (* index might become top during fp -> might be zero offset *)
+
+    let rec compare o1 o2 = match o1, o2 with
+      | NoOffset, NoOffset -> 0
+      | NoOffset, x
+      | x, NoOffset when cmp_zero_offset x = `MustZero -> 0 (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
+      | Field (f1,o1), Field (f2,o2) ->
+        let c = CilType.Fieldinfo.compare f1 f2 in
+        if c=0 then compare o1 o2 else c
+      | Index (_,o1), Index (_,o2) ->
+        compare o1 o2
+      | NoOffset, _ -> -1
+      | _, NoOffset -> 1
+      | Field _, Index _ -> -1
+      | Index _, Field _ ->  1
+  end
+  type elttype =
+    | MyAddr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
+    | MyNullPtr (** NULL pointer. *)
+    | MyUnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+    | MyStrPtr of string option [@@deriving eq, ord, hash]
 
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
     include Normal (Idx)
     type elt = t
+    type t = elttype [@@deriving eq, ord, hash]
 
-    let rec of_elt_offset: Offs.t -> Offs.t =
+    let show x = ""
+
+    let pretty _= failwith ""
+
+    let printXml _ = failwith ""
+
+    let to_yojson _ = failwith ""
+
+    let arbitrary _ = failwith ""
+
+    let rec of_elt_offset: Offs.t -> Offset.t =
       function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (Idx.top (), of_elt_offset o) (* all indices to same bucket *)
+      | `NoOffset -> NoOffset
+      | `Field (f,o) -> Field (f, of_elt_offset o)
+      | `Index (_,o) -> Index ((), of_elt_offset o) (* all indices to same bucket *)
     let of_elt = function
-      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
-      | a -> a (* everything else is kept separate, including strings if not limited *)
+      | Addr (v, o) -> MyAddr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> MyStrPtr None (* all strings together if limited *)
+      | UnknownPtr -> MyUnknownPtr
+      | StrPtr a -> MyStrPtr a
+      | NullPtr -> MyNullPtr
+
   end
 end
 
