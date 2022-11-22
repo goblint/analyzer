@@ -388,6 +388,11 @@ struct
   module Offset = struct
     type t = NoOffset | Field of CilType.Fieldinfo.t * t | Index of unit * t  [@@deriving eq, ord, hash]
 
+    let rec show = function
+      | NoOffset -> ""
+      | Field (f, o) -> "." ^ f.fname ^ show o
+      | Index ((), o) -> "[?]" ^ show o ^ ")"
+
     let is_first_field x = match x.fcomp.cfields with
       | [] -> false
       | f :: _ -> CilType.Fieldinfo.equal f x
@@ -442,15 +447,14 @@ struct
     type elt = t
     type t = r [@@deriving eq, ord, hash]
 
-    let show x = failwith ""
+    let show = function
+      | MyAddr (v, o) -> v.vname ^ (Offset.show o)
+      | MyNullPtr -> "NULL"
+      | MyUnknownPtr -> "?"
+      | MyStrPtr (Some s) -> s
+      | MyStrPtr None -> "(unknown string)"
 
-    let pretty _= failwith ""
-
-    let printXml _ = failwith ""
-
-    let to_yojson _ = failwith ""
-
-    let arbitrary _ = failwith ""
+    include Printable.SimpleShow (struct type nonrec t = t let show = show end)
 
     let rec of_elt_offset: Offs.t -> Offset.t =
       function
@@ -464,6 +468,7 @@ struct
       | StrPtr a -> MyStrPtr a
       | NullPtr -> MyNullPtr
 
+    let arbitrary _ = failwith "arbitrary not implemented for Lval.R"
   end
 end
 
