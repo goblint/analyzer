@@ -8,21 +8,6 @@ module M = Messages
 
 module BI = IntOps.BigIntOps
 
-module Tracked: RelationDomain.Tracked =
-struct
-  let is_pthread_int_type = function
-    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
-    | _ -> false
-
-  let type_tracked typ =
-    isIntegralType typ && not (is_pthread_int_type typ)
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in relation, but just have to be handled separately *)
-    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_relation_track") in
-    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
-end
-
 module Var =
 struct
   include Var
@@ -30,11 +15,33 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
-(** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
-module type ConvBounds =
-sig
-  type t
-  val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
+module Lincons1 =
+struct
+  include Lincons1
+
+  let show = Format.asprintf "%a" print
+  let compare x y = String.compare (show x) (show y) (* HACK *)
+
+  let num_vars x =
+    (* Apron.Linexpr0.get_size returns some internal nonsense, so we count ourselves. *)
+    let size = ref 0 in
+    Lincons1.iter (fun coeff var ->
+        if not (Apron.Coeff.is_zero coeff) then
+          incr size
+      ) x;
+    !size
+end
+
+module Lincons1Set =
+struct
+  include Set.Make (Lincons1)
+
+  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> of_enum
 end
 
 let int_of_scalar ?round (scalar: Scalar.t) =
@@ -69,36 +76,13 @@ let int_of_scalar ?round (scalar: Scalar.t) =
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
+
+module type ConvertArg =
+sig
+  val allow_global: bool
+end
+
 module type SV =  RelationDomain.RV with type t = Var.t
-
-module Lincons1 =
-struct
-  include Lincons1
-
-  let show = Format.asprintf "%a" print
-  let compare x y = String.compare (show x) (show y) (* HACK *)
-
-  let num_vars x =
-    (* Apron.Linexpr0.get_size returns some internal nonsense, so we count ourselves. *)
-    let size = ref 0 in
-    Lincons1.iter (fun coeff var ->
-        if not (Apron.Coeff.is_zero coeff) then
-          incr size
-      ) x;
-    !size
-end
-
-module Lincons1Set =
-struct
-  include Set.Make (Lincons1)
-
-  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
-    Array.enum lincons0_array
-    |> Enum.map (fun (lincons0: Lincons0.t) ->
-        Lincons1.{lincons0; env = array_env}
-      )
-    |> of_enum
-end
 
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
@@ -109,9 +93,11 @@ type unsupported_cilExp =
   | BinOp_not_supported (** BinOp constructor not supported. *)
 [@@deriving show { with_path = false }]
 
-module type ConvertArg =
+(** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
+module type ConvBounds =
 sig
-  val allow_global: bool
+  type t
+  val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
 end
 
 (** Conversion from CIL expressions to Apron. *)
@@ -231,19 +217,26 @@ struct
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
 
-  let rec determine_bounds_one_var expr =
-    match expr with
-    | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v -> let i_min, i_max = IntDomain.Size.range (Cilfacade.get_ikind_exp expr)
-      in Some (expr, i_min, i_max)
+  (* TODO: why returns exp if name has "var" *)
+  let rec determine_bounds_one_var = function
+    | Lval (Var v, NoOffset) as expr when Tracked.varinfo_tracked v ->
+      let i_min, i_max = IntDomain.Size.range (Cilfacade.get_ikind_exp expr) in
+      Some (expr, i_min, i_max)
     | Const _ -> None
-    | exp -> begin match exp with
-        | UnOp (_, e, _) -> determine_bounds_one_var e
-        | BinOp (_, e1, e2, _) -> begin match determine_bounds_one_var e1, determine_bounds_one_var e2 with
-            | Some (ev1, min, max), Some(ev2, _, _) ->  if ev1 = ev2 then Some (ev1, min, max) else None
-            | Some(x), None | None, Some(x)  -> Some (x)
-            | _, _ -> None end
-        | CastE (_, e) -> determine_bounds_one_var e
-        | _ -> None end
+    | UnOp (_, e, _) -> determine_bounds_one_var e
+    | BinOp (_, e1, e2, _) ->
+      begin match determine_bounds_one_var e1, determine_bounds_one_var e2 with
+        | Some (ev1, min, max), Some(ev2, _, _) ->
+          if CilType.Exp.equal ev1 ev2 then
+            Some (ev1, min, max)
+          else
+            None
+        | Some x, None
+        | None, Some x -> Some x
+        | _, _ -> None
+      end
+    | CastE (_, e) -> determine_bounds_one_var e
+    | _ -> None
 end
 
 (** Conversion from Apron to CIL expressions. *)
@@ -322,6 +315,9 @@ struct
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
     List.of_enum (Array.enum ivs)
 
+  (* TODO: add_vars? *)
+  (* TODO: remove_vars? *)
+
   let remove_filter env f =
     let vs' =
       vars env
@@ -332,6 +328,8 @@ struct
     Environment.remove env vs'
 
   let keep_vars env vs =
+    (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
+        make a new env with just the desired vs. *)
     let vs' =
       vs
       |> List.enum
@@ -367,6 +365,21 @@ sig
   val assert_cons: t -> exp -> bool -> bool Lazy.t -> t
 end
 
+module Tracked: RelationDomain.Tracked =
+struct
+  let is_pthread_int_type = function
+    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
+    | _ -> false
+
+  let type_tracked typ =
+    isIntegralType typ && not (is_pthread_int_type typ)
+
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in relation, but just have to be handled separately *)
+    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_relation_track") in
+    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
+end
+
 module AssertionModule (V: SV) (AD: AssertionRelS) =
 struct
   include AD
@@ -383,6 +396,7 @@ struct
     (* expression *)
     | _ -> false
 
+  (* TODO: move logic-handling assert_cons from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
   let assert_inv d e negate no_ov =
@@ -405,7 +419,7 @@ struct
 
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp d (env d) e false with
+    match Convert.texpr1_of_cil_exp d (env d) e false with (* why implicit false no_ov false here? *)
     | texpr1 ->
       Bounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp _ ->

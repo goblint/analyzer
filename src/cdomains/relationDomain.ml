@@ -14,6 +14,28 @@ sig
   val equal : t -> t -> bool
 end
 
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) (Var: Var) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata (var: Var.t) =
+    VH.find_option vh var
+end
+
 (* TODO: Why renamed VM -> RelVM? *)
 module RelVM =
 struct
@@ -31,33 +53,6 @@ struct
     | Return -> "#ret"
     | Global g -> g.vname
 end
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-
-module VarMetadataTbl =
-  functor (VM: VarMetadata) ->
-  functor (Var: Var) ->
-  struct
-    module VH = Hashtbl.Make (Var)
-
-    let vh = VH.create 113
-
-    let make_var ?name metadata =
-      let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-      let var = Var.of_string name in
-      VH.replace vh var metadata;
-      var
-
-    let find_metadata (var: Var.t) =
-      VH.find_option vh var
-  end
-
-
 
 module type RV =
 sig

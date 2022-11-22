@@ -143,7 +143,7 @@ sig
   val keep_filter_with : t -> (Var.t -> bool) -> unit
   val forget_vars_with : t -> Var.t list -> unit
   val assign_exp_with : t -> Var.t -> exp -> bool Lazy.t -> unit
-  val assign_exp_parallel_with : t -> (Var.t * exp) list -> bool -> unit
+  val assign_exp_parallel_with : t -> (Var.t * exp) list -> bool -> unit (* TODO: why this one isn't lazy? *)
   val assign_var_with : t -> Var.t -> Var.t -> unit
   val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
   val substitute_exp_with : t -> Var.t -> exp -> bool Lazy.t-> unit
@@ -315,23 +315,16 @@ struct
     A.change_environment_with Man.mgr nd env' false
 
   let remove_filter_with nd f =
-    let env = A.env nd in
-    let vs' =
-      vars nd
-      |> List.enum
-      |> Enum.filter f
-      |> Array.of_enum
-    in
-    let env' = Environment.remove env vs' in
+    let env' = EnvOps.remove_filter (A.env nd) f in
     A.change_environment_with Man.mgr nd env' false
 
   let keep_vars_with nd vs =
-    let env = EnvOps.keep_vars (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env false
+    let env' = EnvOps.keep_vars (A.env nd) vs in
+    A.change_environment_with Man.mgr nd env' false
 
   let keep_filter_with nd f =
-    let env = EnvOps.keep_filter (A.env nd) f in
-    A.change_environment_with Man.mgr nd env false
+    let env' = EnvOps.keep_filter (A.env nd) f in
+    A.change_environment_with Man.mgr nd env' false
 
   let forget_vars_with nd vs =
     (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
@@ -346,11 +339,6 @@ struct
     | exception Convert.Unsupported_CilExp _ ->
       if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
-
-  let assign_exp d v e no_ov =
-    let nd = copy d in
-    assign_exp_with nd v e no_ov;
-    nd
 
   let assign_exp_parallel_with nd ves no_ov =
     (* TODO: non-_with version? *)
@@ -456,6 +444,7 @@ struct
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     let res = A.meet_tcons_array Man.mgr d earray in
+    (* TODO: why this special case? *)
     match Man.name () with
     | "ApronAffEq" ->
       let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
@@ -552,8 +541,7 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
-
-  val invariant: t -> Lincons1Set.elt list
+  val invariant: t -> Lincons1.t list
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
@@ -565,9 +553,12 @@ struct
 
   include Tracked
 
-  (** Assert a constraint expression. *)
+  (** Assert a constraint expression.
+
+      LAnd, LOr, LNot are directly supported by Apron domain in order to
+      confirm logic-containing Apron invariants from witness while deep-query is disabled *)
   let rec assert_cons d e negate (ov: bool Lazy.t) =
-    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
+    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in (* TODO: why ignores no_ov argument? *)
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
@@ -827,16 +818,13 @@ struct
 end
 
 module type S2 =
-(*ToDo ExS3 or better extend RelationDomain.S3 directly?*)
+(* TODO: ExS3 or better extend RelationDomain.S3 directly?*)
 sig
   module Man: Manager
   include module type of AOps (Tracked) (Man)
   include SLattice with type t = Man.mt A.t
 
   include S3 with type t = Man.mt A.t and type var = Var.t
-
-  val exp_is_cons : exp -> bool
-  val assert_cons : t -> exp -> bool -> bool Lazy.t -> t
 end
 
 
@@ -853,23 +841,22 @@ module OctagonD = D (OctagonManager)
 
 module D2 (Man: Manager) : S2 with module Man = Man  =
 struct
-include D (Man)
+  include D (Man)
 
-type marshal = OctagonD.marshal
+  type marshal = OctagonD.marshal
 
-let marshal t : Oct.t Abstract0.t * string array =
-  (* TODO: why does this duplicate to_oct below? *)
-  let convert_single (a: t): OctagonD.t =
-  if Oct.manager_is_oct Man.mgr then
-    Oct.Abstract1.to_oct a
-  else
-    let generator = to_lincons_array a in
+  let marshal t : Oct.t Abstract0.t * string array =
+    (* TODO: why does this duplicate to_oct below? *)
+    let convert_single (a: t): OctagonD.t =
+    if Oct.manager_is_oct Man.mgr then
+      Oct.Abstract1.to_oct a
+    else
+      let generator = to_lincons_array a in
       OctagonD.of_lincons_array generator
-  in
-  OctagonD.marshal @@ convert_single t
+    in
+    OctagonD.marshal @@ convert_single t
 
   let unmarshal (m: marshal) = Oct.Abstract1.of_oct @@ OctagonD.unmarshal m
-
 end
 
 module type S3 =
