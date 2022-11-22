@@ -451,7 +451,7 @@ struct
       | MyAddr (v, o) -> v.vname ^ (Offset.show o)
       | MyNullPtr -> "NULL"
       | MyUnknownPtr -> "?"
-      | MyStrPtr (Some s) -> s
+      | MyStrPtr (Some s) -> "\"" ^ s ^ "\""
       | MyStrPtr None -> "(unknown string)"
 
     include Printable.SimpleShow (struct type nonrec t = t let show = show end)
