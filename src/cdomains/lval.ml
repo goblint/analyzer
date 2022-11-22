@@ -442,7 +442,7 @@ struct
     | ReprAddr of CilType.Varinfo.t * ReprOffset.t (** Pointer to offset of a variable. *)
     | ReprNullPtr (** NULL pointer. *)
     | ReprUnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | ReprMyStrPtr of string option [@@deriving eq, ord, hash]
+    | ReprStrPtr of string option [@@deriving eq, ord, hash]
 
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
@@ -455,8 +455,8 @@ struct
       | ReprAddr (v, o) -> v.vname ^ (ReprOffset.show o)
       | ReprNullPtr -> "NULL"
       | ReprUnknownPtr -> "?"
-      | ReprMyStrPtr (Some s) -> "\"" ^ s ^ "\""
-      | ReprMyStrPtr None -> "(unknown string)"
+      | ReprStrPtr (Some s) -> "\"" ^ s ^ "\""
+      | ReprStrPtr None -> "(unknown string)"
 
     include Printable.SimpleShow (struct type nonrec t = t let show = show end)
 
@@ -467,9 +467,9 @@ struct
       | `Index (_,o) -> Index ((), of_elt_offset o) (* all indices to same bucket *)
     let of_elt = function
       | Addr (v, o) -> ReprAddr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> ReprMyStrPtr None (* all strings together if limited *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> ReprStrPtr None (* all strings together if limited *)
       | UnknownPtr -> ReprUnknownPtr
-      | StrPtr a -> ReprMyStrPtr a
+      | StrPtr a -> ReprStrPtr a
       | NullPtr -> ReprNullPtr
 
     let arbitrary _ = failwith "arbitrary not implemented for Lval.R"
