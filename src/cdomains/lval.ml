@@ -385,7 +385,7 @@ end
 module NormalLatRepr (Idx: IntDomain.Z) =
 struct
   include NormalLat (Idx)
-  module Offset = struct
+  module ReprOffset = struct
 
     (* Offset type for representative without abstract values for index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
@@ -439,10 +439,10 @@ struct
       | Index _, Field _ ->  1
   end
   type r =
-    | MyAddr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
-    | MyNullPtr (** NULL pointer. *)
-    | MyUnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | MyStrPtr of string option [@@deriving eq, ord, hash]
+    | ReprAddr of CilType.Varinfo.t * ReprOffset.t (** Pointer to offset of a variable. *)
+    | ReprNullPtr (** NULL pointer. *)
+    | ReprUnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+    | ReprMyStrPtr of string option [@@deriving eq, ord, hash]
 
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
@@ -452,25 +452,25 @@ struct
     type t = r [@@deriving eq, ord, hash]
 
     let show = function
-      | MyAddr (v, o) -> v.vname ^ (Offset.show o)
-      | MyNullPtr -> "NULL"
-      | MyUnknownPtr -> "?"
-      | MyStrPtr (Some s) -> "\"" ^ s ^ "\""
-      | MyStrPtr None -> "(unknown string)"
+      | ReprAddr (v, o) -> v.vname ^ (ReprOffset.show o)
+      | ReprNullPtr -> "NULL"
+      | ReprUnknownPtr -> "?"
+      | ReprMyStrPtr (Some s) -> "\"" ^ s ^ "\""
+      | ReprMyStrPtr None -> "(unknown string)"
 
     include Printable.SimpleShow (struct type nonrec t = t let show = show end)
 
-    let rec of_elt_offset: Offs.t -> Offset.t =
+    let rec of_elt_offset: Offs.t -> ReprOffset.t =
       function
       | `NoOffset -> NoOffset
       | `Field (f,o) -> Field (f, of_elt_offset o)
       | `Index (_,o) -> Index ((), of_elt_offset o) (* all indices to same bucket *)
     let of_elt = function
-      | Addr (v, o) -> MyAddr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
-      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> MyStrPtr None (* all strings together if limited *)
-      | UnknownPtr -> MyUnknownPtr
-      | StrPtr a -> MyStrPtr a
-      | NullPtr -> MyNullPtr
+      | Addr (v, o) -> ReprAddr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> ReprMyStrPtr None (* all strings together if limited *)
+      | UnknownPtr -> ReprUnknownPtr
+      | StrPtr a -> ReprMyStrPtr a
+      | NullPtr -> ReprNullPtr
 
     let arbitrary _ = failwith "arbitrary not implemented for Lval.R"
   end
