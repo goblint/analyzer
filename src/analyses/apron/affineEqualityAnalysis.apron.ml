@@ -6,7 +6,7 @@ include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = AffineEqualityDomain.D2 (val VectorMatrix.get_vector ()) (val VectorMatrix.get_matrix ()) in
+    let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
     let module RD: RelationDomain.RD =
     struct
       module Var = AffineEqualityDomain.Var

@@ -883,23 +883,6 @@
           },
           "additionalProperties": false
         },
-        "affeq": {
-          "title": "ana.affeq",
-          "type": "object",
-          "properties": {
-            "matrix":{
-              "title": "ana.affeq.matrix",
-              "description": "Which matrix should be used for the affine equality analysis",
-              "type": "string",
-              "enum": [
-                "list",
-                "array"
-              ],
-              "default": "array"
-            }
-          },
-          "additionalProperties": false
-        },
         "context": {
           "title": "ana.context",
           "type": "object",

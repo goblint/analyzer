@@ -1,4 +1,4 @@
-//SKIP PARAM:  --set ana.activated[+] "affeq" --set ana.affeq.matrix "array" --set sem.int.signed_overflow assume_none --set ana.relation.privatization mutex-meet
+//SKIP PARAM:  --set ana.activated[+] "affeq" --set sem.int.signed_overflow assume_none --set ana.relation.privatization mutex-meet
 
 #include <assert.h>
 extern int __VERIFIER_nondet_int();

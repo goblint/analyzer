@@ -615,30 +615,3 @@ module ArrayMatrix: AbstractMatrix =
 
     let copy_pt = copy
   end
-
-
-let vector =
-  lazy (
-    let options =
-      ["array", (module ArrayVector: AbstractVector);]
-    in
-    let matrix = (GobConfig.get_string "ana.affeq.matrix") in
-    match List.assoc_opt matrix options with
-    | Some man -> man
-    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.affeq.matrix setting."
-  )
-
-let get_vector () = Lazy.force vector
-
-let matrix =
-  lazy (
-    let options =
-      ["array", (module ArrayMatrix: AbstractMatrix);]
-    in
-    let matrix = (GobConfig.get_string "ana.affeq.matrix") in
-    match List.assoc_opt matrix options with
-    | Some man -> man
-    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.affeq.matrix setting."
-  )
-
-let get_matrix () = Lazy.force matrix

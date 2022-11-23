@@ -9,9 +9,6 @@
       "enums": false,
       "interval": true
     },
-    "affeq": {
-      "matrix": "list"
-    },
     "activated": [
       "base",
       "threadid",
