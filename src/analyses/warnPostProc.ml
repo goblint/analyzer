@@ -12,14 +12,37 @@ module Idx = PreValueDomain.IndexDomain
 
 module Cond = Printable.Prod (Basetype.CilExp) (Idx)
 
-module D = SetDomain.ToppedSet(Printable.Prod (Cond) (Printable.Strings)) (struct let topname = "top" end)
+module Alarm = Printable.Prod (Printable.Strings) (Node)
 
 module NH = Hashtbl.Make (Node)
 
 let alarmsNH = NH.create 100
 
 module CondSet = SetDomain.ToppedSet(Cond) (struct let topname = "top" end)
-module AlarmSet = SetDomain.ToppedSet(Printable.Strings) (struct let topname = "top" end)
+module AlarmSet = SetDomain.ToppedSet(Alarm) (struct let topname = "top" end)
+
+module D =
+struct
+  include SetDomain.ToppedSet(Printable.Prod (Cond) (Alarm)) (struct let topname = "top" end)
+
+  let conds_in s = 
+    match s with
+    | `Lifted _ -> fold (fun (cond, alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+    | _ -> CondSet.empty ()
+
+  let tuples_of c s = filter (fun (cond, alarm) -> Cond.equal c cond) s
+
+  let meet x y =
+    
+    let conds = CondSet.inter (conds_in x) (conds_in y) in
+
+    begin match x, y with
+    | `Top, _ -> y
+    | _, `Top -> x
+    | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (tuples_of c x) (tuples_of c y))) conds (empty ())
+    end
+
+end
 
 let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
 
@@ -89,7 +112,7 @@ struct
 
   let conds_in s = Dom.fold (fun (cond,alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
 
-  let rel_alarms c s = Dom.fold (fun (c, alarm) acc -> AlarmSet.add alarm acc) s (AlarmSet.empty ())
+  let rel_alarms c s = Dom.fold (fun (cond,alarm) alarms -> AlarmSet.add alarm alarms) s (AlarmSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
@@ -111,7 +134,7 @@ struct
       end
     | _ -> Dom.empty ()
 
-  let process (alarm : ((CilType.Exp.t * Idx.t) * string)) y = alarm
+  let process (alarm : (Cond.t * Alarm.t)) y = alarm
 
   let gen' node x =
     let module CFG = (val !MyCFG.current_cfg) in
@@ -270,6 +293,9 @@ let finalize _ =
       let should_save_run = false
     end
   in
+  
+  (* NH.iter (fun k (cond, a) -> ignore (Pretty.printf "%a->%a, %a\n" Node.pretty_trace k Cond.pretty cond Alarm.pretty a)) alarmsNH; *)
+
   let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
   let (solution, _) = Solver.solve Ant.box [] [start_node] in
 

@@ -702,7 +702,7 @@ end
 
 let add_alarm (e, l) w =
   match (!Node.current_node) with
-  | Some n -> WarnPostProc.NH.replace WarnPostProc.alarmsNH n ((e, l), w);
+  | Some n -> WarnPostProc.NH.replace WarnPostProc.alarmsNH n ((e, l), (w, n));
   | _ -> failwith "TODO"
 
 let array_oob idx_before_end idx_after_start (e, l) =
