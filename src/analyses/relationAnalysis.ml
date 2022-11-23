@@ -24,8 +24,8 @@ struct
 
   module PCU = PCU(RD)
 
-  (* Result map used for comparison of results *)
-  let results = PCU.RH.create 103 (*ToDO Remove this*)
+  (* Result map used for comparison of results for relational traces paper. *)
+  let results = PCU.RH.create 103
 
   let should_join = Priv.should_join
 
