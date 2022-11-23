@@ -165,8 +165,6 @@ sig
   val remove_filter_with: t -> (Var.t -> bool) -> unit
 
   val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
-
-  val copy_pt : t -> t
 end
 
 (** Default implementations of pure functions from [copy] and imperative functions. *)
@@ -215,13 +213,7 @@ end
 
 module AOpsImperativePT(AImp: AOpsImperativeCopy): AOpsPT with type t = AImp.t =
 struct
-  open AImp
-  type nonrec t = t
-
-  let remove_vars_with t vars = remove_vars_with t vars
-  let remove_filter_with t f = remove_filter_with t f
-  let assign_var_parallel_with t vars = assign_var_parallel_with t vars
-  let copy_pt = copy
+  include AImp
 end
 
 (** Extra functions that don't have the pure-imperative correspondence. *)

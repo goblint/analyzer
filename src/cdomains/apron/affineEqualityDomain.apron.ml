@@ -46,7 +46,7 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let copy_pt t = {t with d = Option.map Matrix.copy t.d}
+  let copy t = {t with d = Option.map Matrix.copy t.d}
 
   let dim_add (ch: Apron.Dim.change) m =
     Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;

@@ -117,7 +117,7 @@ sig
   val remove_vars_with : t -> var list -> unit
   val remove_filter : t -> (var -> bool) -> t
   val remove_filter_with: t -> (var -> bool) -> unit
-  val copy_pt: t -> t
+  val copy: t -> t
   val keep_vars : t -> var list -> t
   val keep_filter : t -> (var -> bool) -> t
   val forget_vars : t -> var list -> t

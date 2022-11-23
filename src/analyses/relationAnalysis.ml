@@ -343,7 +343,7 @@ struct
           rel' (* leaves V.return unconstrained *)
       )
       else
-        RD.copy_pt st.rel
+        RD.copy st.rel
     in
     let local_vars =
       f.sformals @ f.slocals
