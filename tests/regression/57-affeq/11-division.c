@@ -1,4 +1,4 @@
-//SKIP PARAM: --set ana.activated[+] affeq   --set ana.apron.domain "affeq" --enable ana.int.interval
+//SKIP PARAM: --set ana.activated[+] affeq --enable ana.int.interval
 int main() {
   int two = 2;
   int three = 3;
