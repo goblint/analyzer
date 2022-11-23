@@ -375,5 +375,4 @@ let finalize _ =
       match k with
       | `L node -> exp_v node
       | `G node -> exp_v node
-      ) s
-    ) sinkHM;
+    ) s) sinkHM;
