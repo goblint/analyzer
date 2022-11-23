@@ -799,7 +799,20 @@ struct
   module Man = Man
 end
 
+
 module OctagonD = D (OctagonManager)
+
+module type S3 =
+sig
+  include SLattice
+  include AOps with type t := t
+
+  module Tracked: RelationDomain.Tracked
+
+  val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
+  val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
+end
+
 
 module D2 (Man: Manager) : S2 with module Man = Man  =
 struct
@@ -818,17 +831,6 @@ struct
     OctagonD.marshal @@ convert_single t
 
   let unmarshal (m: marshal) = Oct.Abstract1.of_oct @@ OctagonD.unmarshal m
-end
-
-module type S3 =
-sig
-  include SLattice
-  include AOps with type t := t
-
-  module Tracked: RelationDomain.Tracked
-
-  val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
-  val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
 (** Lift [D] to a non-reduced product with box.

@@ -406,7 +406,7 @@ struct
         | None ->
           unify_st
       in
-      RD.remove_vars_with unify_st'.rel [RV.return];
+      RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'
     )
     else
