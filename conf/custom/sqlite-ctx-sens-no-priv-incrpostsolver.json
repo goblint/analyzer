@@ -9,7 +9,10 @@
     "ana": {
         "activated": [
             "base",
-            "mallocWrapper"
+            "mallocWrapper",
+            "threadid",
+            "escape",
+            "threadflag"
         ],
         "malloc": {
             "wrappers": [
