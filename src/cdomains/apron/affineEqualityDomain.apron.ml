@@ -129,7 +129,7 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg = Vector.map_pt_with (fun x -> Mpqf.mone *: x) in
+    let neg v = Vector.map_with (fun x -> Mpqf.mone *: x) v; v in
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
         Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
     in
@@ -146,12 +146,12 @@ struct
                          | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
         | Var x ->
           let zero_vec_cp = Vector.copy_pt_with zero_vec in
-          let entry_only v = Vector.set_val_pt_with v(Environment.dim_of_var t.env x) Mpqf.one in
+          let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
           begin match t.d with
             | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
               begin match row with
                 | Some v when is_const_vec v ->
-                  Vector.set_val_pt_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
+                  Vector.set_val_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1)); zero_vec_cp
                 | _ -> entry_only zero_vec_cp end
             | None -> entry_only zero_vec_cp end
         | Unop (u, e, _, _) ->
@@ -161,13 +161,13 @@ struct
             | Sqrt -> raise NotLinear end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
-            | Add ->  Vector.map2_pt_with (+:)(convert_texpr e1) (convert_texpr e2)
-            | Sub -> Vector.map2_pt_with (+:) (convert_texpr  e1) (neg @@ convert_texpr e2)
+            | Add -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (convert_texpr e2); v1
+            | Sub -> let v1 = convert_texpr e1 in Vector.map2_with (+:) v1 (neg @@ convert_texpr e2); v1
             | Mul ->
               let x1, x2 = convert_texpr e1, convert_texpr e2 in
               begin match get_c x1, get_c x2 with
-                | _, Some c -> Vector.apply_with_c_pt_with ( *:) c x1
-                | Some c, _ -> Vector.apply_with_c_pt_with ( *:) c x2
+                | _, Some c -> Vector.apply_with_c_with ( *:) c x1; x1
+                | Some c, _ -> Vector.apply_with_c_with ( *:) c x2; x2
                 | _, _ -> raise NotLinear end
             | _ -> raise NotLinear end
       end
@@ -322,22 +322,26 @@ struct
         let case_two a r col_b =
           let a_r = Matrix.get_row a r in
           let mapping = Matrix.map2i_pt_with (fun i x y -> if i < r then
-                                                 Vector.map2_pt_with (fun u j -> u +: y *: j) x a_r else x) a col_b
+                                                 Vector.map2_with (fun u j -> u +: y *: j) x a_r; x) a col_b
           in Matrix.remove_row mapping r
         in
         let case_three a b col_a col_b max =
           let col_a, col_b = Vector.copy_pt_with col_a, Vector.copy_pt_with col_b in
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then (a, b, max) else
-            let a_rev, b_rev = Vector.rev_pt_with col_a,  Vector.rev_pt_with col_b in
+            let a_rev, b_rev = (Vector.rev_with col_a; col_a), (Vector.rev_with col_b; col_b) in
             let i = Vector.find2i (fun x y -> x <>: y) a_rev b_rev in
             let (x, y) = Vector.nth a_rev i, Vector.nth b_rev i in
             let r, diff = Vector.length a_rev - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-            let sub_col = Vector.rev_pt_with @@ Vector.map2_pt_with (fun x y -> x -: y) a_rev b_rev in
+            let sub_col =
+              Vector.map2_with (fun x y -> x -: y) a_rev b_rev;
+              Vector.rev_with a_rev;
+              a_rev
+            in
             let multiply_by_t m t =
-              Matrix.map2i_pt_with (fun i' x c -> if i' <= max then let beta = c /: diff in
-                                       Vector.map2_pt_with (fun u j -> u -: (beta *: j)) x t else x) m sub_col
+              Matrix.map2i_pt_with (fun i' x c -> if i' <= max then (let beta = c /: diff in
+                                       Vector.map2_with (fun u j -> u -: (beta *: j)) x t); x) m sub_col
             in
             Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
         in
@@ -413,21 +417,21 @@ struct
       let j0 = Environment.dim_of_var env var in
       let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
       let b0 = Vector.nth b j0 in
-      let reduced_a = Vector.apply_with_c_pt_with (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
-      let recalc_entries m rd_a = Matrix.map2_pt_with (fun x y -> Vector.map2i_pt_with (fun j z d ->
+      Vector.apply_with_c_with (/:) b0 a_j0; (*Corresponds to Axj0/Bj0*)
+      let recalc_entries m rd_a = Matrix.map2_pt_with (fun x y -> Vector.map2i_with (fun j z d ->
           if j = j0 then y
           else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
-          else z +: y *: d) x b) m rd_a
+          else z +: y *: d) x b; x) m rd_a
       in
-      let opt_m = Matrix.normalize_pt_with @@ recalc_entries x reduced_a
+      let opt_m = Matrix.normalize_pt_with @@ recalc_entries x a_j0
       in if Option.is_none opt_m then bot () else {d = opt_m; env = env}
     in
     let assign_invertible_rels x var b env = Timing.wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
       let b_length = Vector.length b in
-      let neg_vec = Vector.mapi_pt_with (fun i z -> if i < b_length - 1 then Mpqf.mone *: z else z) b
-      in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) Mpqf.one
-      in let opt_m = Matrix.rref_vec_with x var_vec in
+      Vector.mapi_with (fun i z -> if i < b_length - 1 then Mpqf.mone *: z else z) b;
+      Vector.set_val_with b (Environment.dim_of_var env var) Mpqf.one;
+      let opt_m = Matrix.rref_vec_with x b in
       if Option.is_none opt_m then bot () else
         {d = opt_m; env = env}
     in
@@ -530,9 +534,9 @@ struct
     let exception NotRefinable in
     let meet_vec e =
       (*Flip the sign of the const. val in coeff vec*)
-      let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e in
+      Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
       let res = if is_bot t then bot () else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy_pt @@ Option.get t.d) flip_e
+          let opt_m = Matrix.rref_vec_with (Matrix.copy_pt @@ Option.get t.d) e
           in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
       let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
       match Convert.determine_bounds_one_var expr with

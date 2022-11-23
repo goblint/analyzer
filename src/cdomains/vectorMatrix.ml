@@ -52,13 +52,13 @@ sig
 
   val set_val: t -> int -> num ->  t
 
-  val set_val_pt_with: t -> int -> num -> t
+  val set_val_with: t -> int -> num -> unit
 
   val insert_val: int -> num ->  t ->  t
 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
-  val apply_with_c_pt_with: (num -> num -> num) -> num -> t -> t
+  val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
 
   val zero_vec: int -> t
 
@@ -68,13 +68,13 @@ sig
 
   val map2: (num -> num -> num) -> t -> t -> t
 
-  val map2_pt_with: (num -> num -> num) -> t -> t -> t
+  val map2_with: (num -> num -> num) -> t -> t -> unit
 
   val findi: (num -> bool) ->  t -> int
 
   val map: (num -> num) -> t -> t
 
-  val map_pt_with: (num -> num) -> t -> t
+  val map_with: (num -> num) -> t -> unit
 
   val compare_length_with: t -> int -> int
 
@@ -90,15 +90,15 @@ sig
 
   val rev: t -> t
 
-  val rev_pt_with: t -> t
+  val rev_with: t -> unit
 
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
-  val map2i_pt_with: (int -> num -> num -> num) -> t -> t -> t
+  val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
 
   val mapi: (int -> num -> num) -> t -> t
 
-  val mapi_pt_with: (int -> num -> num) -> t -> t
+  val mapi_with: (int -> num -> num) -> t -> unit
 
   val find2i: (num -> num -> bool) -> t -> t -> int
 
@@ -246,7 +246,7 @@ module ArrayVector: AbstractVector =
 
     let map2i f v1 v2 = let f' i (v'1, v'2) = f i v'1 v'2 in Array.mapi f' (Array.combine v1 v2) (* TODO: iter2i? *)
 
-    let map2i_pt_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f i x y) v1 v2; v1
+    let map2i_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f i x y) v1 v2
 
     let find2i f v1 v2 = let f' (v'1, v'2) = f v'1 v'2 in
       Array.findi f' (Array.combine v1 v2) (* TODO: iter2i? *)
@@ -255,19 +255,17 @@ module ArrayVector: AbstractVector =
 
     let of_array v = v
 
-    let set_val_pt_with v i a = v.(i) <- a; v
+    let apply_with_c_with f c v = Array.modify (fun x -> f x c) v
 
-    let apply_with_c_pt_with f c v = Array.modify (fun x -> f x c) v; v
+    let rev_with v = Array.rev_in_place v
 
-    let rev_pt_with v = Array.rev_in_place v; v
+    let map_with f v = Array.modify f v
 
-    let map_pt_with f v = Array.modify f v; v
-
-    let map2_pt_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f x y) v1 v2; v1
+    let map2_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f x y) v1 v2
 
     let copy_pt_with v = Array.copy v
 
-    let mapi_pt_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v; v
+    let mapi_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v
   end
 
 open Batteries.Array
