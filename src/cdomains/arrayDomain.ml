@@ -668,7 +668,7 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet x y = match x,y with
+  let meet x y = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.meet x y)
     | Joint x, Partitioned (e, (xl, xm, xr))
     | Partitioned (e, (xl, xm, xr)), Joint x ->
@@ -682,7 +682,7 @@ struct
         (* TODO: do smart things if the relationship between e1e and e2e is known *)
         x
 
-  let narrow x y = match x,y with
+  let narrow x y = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.narrow x y)
     | Joint x, Partitioned (e, (xl, xm, xr))
     | Partitioned (e, (xl, xm, xr)), Joint x ->
