@@ -315,6 +315,21 @@ class octagonFunctionVisitor(list, amount) = object
 
 end
 
+let congruenceOption factors file =
+  let locals, globals = factors.integralVars in
+  let cost = (locals + globals) * (factors.instructions / 12) + 5 * factors.functionCalls in
+  let value = 5 * locals + globals in
+  let activate () =
+    print_endline @@ "Congruence: " ^ string_of_int cost;
+    set_bool "ana.int.congruence" true;
+    print_endline "Enabled congruence domain.";
+  in
+  {
+    value;
+    cost;
+    activate;
+  }
+
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
@@ -398,7 +413,16 @@ let chooseFromOptions costTarget options =
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
 let chooseConfig file =
-  if isActivated "congruence" then
+  let factors = collectFactors visitCilFileSameGlobals file in
+  let fileCompplexity = estimateComplexity factors file in
+
+  print_endline "Collected factors:";
+  printFactors factors;
+  print_endline "";
+  print_endline "Complexity estimates:";
+  print_endline @@ "File: " ^ string_of_int fileCompplexity;
+
+  if fileCompplexity < totalTarget && isActivated "congruence" then
     addModAttributes file;
 
   if isActivated "noRecursiveIntervals" then
@@ -419,16 +443,8 @@ let chooseConfig file =
   if isActivated "arrayDomain" then
     selectArrayDomains file;
 
-  let factors = collectFactors visitCilFileSameGlobals file in
-  let fileCompplexity = estimateComplexity factors file in
-
-  print_endline "Collected factors:";
-  printFactors factors;
-  print_endline "";
-  print_endline "Complexity estimates:";
-  print_endline @@ "File: " ^ string_of_int fileCompplexity;
-
   let options = [] in
+  let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
   let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
