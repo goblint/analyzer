@@ -139,7 +139,7 @@ struct
     in
     let rec convert_texpr texp =
       begin match texp with
-      (*If x is a constant, replace it with its const. val. immediately*)
+        (*If x is a constant, replace it with its const. val. immediately*)
         | Cst x -> let of_union union =
                      let open Coeff in
                      match union with
@@ -326,7 +326,7 @@ struct
         let case_two a r col_b =
           let a_r = Matrix.get_row a r in
           Matrix.map2i_with (fun i x y -> if i < r then
-                                                 Vector.map2_with (fun u j -> u +: y *: j) x a_r; x) a col_b;
+                                Vector.map2_with (fun u j -> u +: y *: j) x a_r; x) a col_b;
           Matrix.remove_row a r
         in
         let case_three a b col_a col_b max =
@@ -345,7 +345,7 @@ struct
             in
             let multiply_by_t m t =
               Matrix.map2i_with (fun i' x c -> if i' <= max then (let beta = c /: diff in
-                                       Vector.map2_with (fun u j -> u -: (beta *: j)) x t); x) m sub_col;
+                                                                  Vector.map2_with (fun u j -> u -: (beta *: j)) x t); x) m sub_col;
               m
             in
             Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
