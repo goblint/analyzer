@@ -106,10 +106,10 @@ sig
 
   val of_array: num array -> t
 
-  val copy_pt_with: t -> t
+  val copy: t -> t
 end
 
-(** Some functions inside have the suffix _pt_with, which means that the function could have potential side effects. *)
+(** Some functions inside have the suffix _with, which means that the function has side effects. *)
 module type AbstractVector =
   functor (A: RatOps) ->
   sig
@@ -184,11 +184,11 @@ sig
 
   val is_covered_by: t -> t -> bool
 
-  val copy_pt: t -> t
+  val copy: t -> t
 
 end
 
-(** Some functions inside have the suffix _pt_with, which means that the function could have potential side effects. *)
+(** Some functions inside have the suffix _with, which means that the function has side effects. *)
 module type AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   sig
@@ -263,7 +263,7 @@ module ArrayVector: AbstractVector =
 
     let map2_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f x y) v1 v2
 
-    let copy_pt_with v = Array.copy v
+    let copy v = Array.copy v
 
     let mapi_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v
   end
@@ -613,6 +613,4 @@ module ArrayMatrix: AbstractMatrix =
         done
 
     let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v
-
-    let copy_pt = copy
   end

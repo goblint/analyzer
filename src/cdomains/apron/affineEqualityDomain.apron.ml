@@ -46,7 +46,7 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let copy_pt t = t
+  let copy_pt t = t (* TODO: why doesn't copy? *)
 
   let dim_add (ch: Apron.Dim.change) m =
     Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
@@ -57,7 +57,7 @@ struct
   let dim_remove (ch: Apron.Dim.change) m del =
     if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
       Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
-      let m' = if not del then let m = Matrix.copy_pt m in Array.fold_left (fun y x -> Matrix.reduce_col_with y x; y) m ch.dim else m in
+      let m' = if not del then let m = Matrix.copy m in Array.fold_left (fun y x -> Matrix.reduce_col_with y x; y) m ch.dim else m in
       Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
 
   let dim_remove ch m del = Timing.wrap "dim remove" (dim_remove ch m) del
@@ -145,7 +145,7 @@ struct
                          | Mpqf x -> x
                          | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
         | Var x ->
-          let zero_vec_cp = Vector.copy_pt_with zero_vec in
+          let zero_vec_cp = Vector.copy zero_vec in
           let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
           begin match t.d with
             | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
@@ -288,7 +288,7 @@ struct
       | x, y when is_top_env t1-> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
       | x, y when is_top_env t2 -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
       | x, y ->
-        let rref_matr = Matrix.rref_matrix_with (Matrix.copy_pt x) (Matrix.copy_pt y) in
+        let rref_matr = Matrix.rref_matrix_with (Matrix.copy x) (Matrix.copy y) in
         if Option.is_none rref_matr then bot () else
           {d = rref_matr; env = sup_env}
 
@@ -326,7 +326,7 @@ struct
           Matrix.remove_row a r
         in
         let case_three a b col_a col_b max =
-          let col_a, col_b = Vector.copy_pt_with col_a, Vector.copy_pt_with col_b in
+          let col_a, col_b = Vector.copy col_a, Vector.copy col_b in
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then (a, b, max) else
             let a_rev, b_rev = (Vector.rev_with col_a; col_a), (Vector.rev_with col_b; col_b) in
@@ -368,9 +368,9 @@ struct
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = Some (lin_disjunc 0 0 (Matrix.copy_pt mod_x) (Matrix.copy_pt mod_y)); env = sup_env}
+        {d = Some (lin_disjunc 0 0 (Matrix.copy mod_x) (Matrix.copy mod_y)); env = sup_env}
       | x, y when Matrix.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = Some(lin_disjunc 0 0 (Matrix.copy_pt x) (Matrix.copy_pt y)); env = a.env}
+      | x, y  -> {d = Some(lin_disjunc 0 0 (Matrix.copy x) (Matrix.copy y)); env = a.env}
 
   let join a b = Timing.wrap "join" (join a) b
 
@@ -404,7 +404,7 @@ struct
           begin match vars' with
             |            [] -> m
             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
-        in {d = Some (Matrix.remove_zero_rows @@ rem_vars (Matrix.copy_pt m) vars); env = t.env}
+        in {d = Some (Matrix.remove_zero_rows @@ rem_vars (Matrix.copy m) vars); env = t.env}
 
   let forget_vars t vars =
     let res = forget_vars t vars in
@@ -442,7 +442,7 @@ struct
     in if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
       | Some v when is_top_env t -> if is_invertible v then t else assign_uninvertible_rel m var v t.env
-      | Some v -> if is_invertible v then let t' = assign_invertible_rels (Matrix.copy_pt m) var v t.env in {d = t'.d; env = t'.env}
+      | Some v -> if is_invertible v then let t' = assign_invertible_rels (Matrix.copy m) var v t.env in {d = t'.d; env = t'.env}
         else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env false
           in assign_uninvertible_rel new_m var v t.env
       | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env false); env = t.env}
@@ -481,7 +481,7 @@ struct
     | Some m when not @@ is_top_env multi_t -> let replace_col m x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
                                                  let col_x = Matrix.get_col m dim_x in
                                                  Matrix.set_col_with m col_x dim_y in
-      let m_cp = Matrix.copy_pt m in
+      let m_cp = Matrix.copy m in
       let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m_cp primed_vars assigned_vars in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
       let x = Option.get res.d in
@@ -536,7 +536,7 @@ struct
       (*Flip the sign of the const. val in coeff vec*)
       Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
       let res = if is_bot t then bot () else
-          let opt_m = Matrix.rref_vec_with (Matrix.copy_pt @@ Option.get t.d) e
+          let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e
           in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
       let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
       match Convert.determine_bounds_one_var expr with
