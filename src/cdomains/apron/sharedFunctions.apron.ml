@@ -315,8 +315,23 @@ struct
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
     List.of_enum (Array.enum ivs)
 
-  (* TODO: add_vars? *)
-  (* TODO: remove_vars? *)
+  let add_vars env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+    in
+    Environment.add env vs' [||]
+
+  let remove_vars env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    Environment.remove env vs'
 
   let remove_filter env f =
     let vs' =

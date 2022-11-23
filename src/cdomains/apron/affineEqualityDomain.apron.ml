@@ -73,24 +73,13 @@ struct
   let change_d t new_env add del = Timing.wrap "dimension change" (change_d t new_env add) del
 
   let add_vars t vars =
-    let vs' =
-      vars
-      |> List.enum
-      |> Enum.filter (fun v -> not (Environment.mem_var t.env v))
-      |> Array.of_enum in
-    let env' = Environment.add t.env vs' [||] in
+    let env' = add_vars t.env vars in
     change_d t env' true false
 
   let add_vars t vars = Timing.wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars del =
-    let vs' =
-      vars
-      |> List.enum
-      |> Enum.filter (fun v -> Environment.mem_var t.env v)
-      |> Array.of_enum
-    in
-    let env' = Environment.remove t.env vs' in
+    let env' = remove_vars t.env vars in
     change_d t env' false del
 
   let drop_vars t vars = Timing.wrap "drop_vars" (drop_vars t) vars

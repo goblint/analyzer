@@ -293,25 +293,11 @@ struct
   let mem_var d v = Environment.mem_var (A.env d) v
 
   let add_vars_with nd vs =
-    let env = A.env nd in
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> not (Environment.mem_var env v))
-      |> Array.of_enum
-    in
-    let env' = Environment.add env vs' [||] in
+    let env' = EnvOps.add_vars (A.env nd) vs in
     A.change_environment_with Man.mgr nd env' false
 
   let remove_vars_with nd vs =
-    let env = A.env nd in
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> Environment.mem_var env v)
-      |> Array.of_enum
-    in
-    let env' = Environment.remove env vs' in
+    let env' = EnvOps.remove_vars (A.env nd) vs in
     A.change_environment_with Man.mgr nd env' false
 
   let remove_filter_with nd f =
