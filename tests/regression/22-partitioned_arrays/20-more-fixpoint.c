@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.arrays.domain partitioned 
+// PARAM: --set ana.base.arrays.domain partitioned
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -8,7 +8,7 @@ pthread_mutex_t m;
 
 int arr[2];
 void g() {
-  int x = arr;
+  int x = 8;
   if (!(arr[0] <= arr[0])) {x = 5;}
 }
 
@@ -27,7 +27,7 @@ int main(void) {
   pthread_create(&tid1, NULL, &nop, NULL);
 
   f(1);
-  
+
   pthread_mutex_lock(&m);
   arr[1]--;
   g();
