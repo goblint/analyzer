@@ -117,74 +117,6 @@ module type AbstractVector =
   end
 
 
-(** Reuses most of the already existing List functions such as map2, rev, etc. and adds some for vector manipulations (e.g. insert_val remove_val...).
-    None of its functions has side-effects. *)
-module ListVector: AbstractVector =
-  functor (A: RatOps) ->
-  struct
-    include List
-    include ConvenienceOps (A)
-    type t = A.t list [@@deriving eq, ord, hash]
-
-    let show t =
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
-      in
-      "["^list_str t^"\n"
-
-    let keep_vals v n =
-      List.filteri (fun i x -> i < n) v (* TODO: take? *)
-
-    let remove_val v n =
-      if n < 0 || List.compare_length_with v n <= 0 then failwith "Entry does not exist"
-      else List.filteri (fun i x -> i <> n) v (* TODO: split_at? *)
-
-    let set_val (v: A.t List.t) n (new_val: A.t) =
-      if n < 0 || List.compare_length_with v n <= 0 then failwith "Entry does not exist"
-      else List.mapi (fun i x -> if i = n then new_val else x) v (* TODO: split_at? *)
-
-    let rec insert_val n vl v = (* TODO: split_at? *)
-      match v with
-      | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
-      | x :: xs -> if n > 0 then x :: insert_val (n-1) vl xs else vl :: x :: xs
-
-    let apply_with_c op c v =
-      List.map (fun x -> op x c) v
-
-    let zero_vec size = List.init size (fun i -> A.zero)
-
-    let of_list l = l
-
-    let to_list v = v
-
-    let exists = exists
-
-    let findi f v = let (n, _) = List.findi (fun i x -> f x) v in n
-
-    let find2i f r s = let f' (x,y) = f x y in findi f' (List.combine r s) (* TODO: add GobList.find2i? *)
-
-    let to_array v = Array.of_list v
-
-    let of_array v = Array.to_list v
-
-    let set_val_pt_with = set_val
-    let apply_with_c_pt_with = apply_with_c
-
-    let map2_pt_with = map2
-
-    let map_pt_with = map
-
-    let rev_pt_with = rev
-
-    let copy_pt_with v = v
-
-    let mapi_pt_with = mapi
-
-    let map2i_pt_with = map2i
-  end
-
 (** High-level abstraction of a matrix. *)
 module type Matrix =
 sig
@@ -263,156 +195,8 @@ module type AbstractMatrix =
     include Matrix with type vec := V(A).t and type num := A.t
   end
 
-(** In contrast to ListVector, it does not include the functions of List directly but uses them to provide unique ones.
-    It also includes various normalize functions that transform a matrix into reduced row echelon form.
-    These are in general not efficient as they perform a full Gauss-Jordan elimination that is slow for lists. *)
-module ListMatrix : AbstractMatrix =
-  functor (A: RatOps) (V: AbstractVector) ->
-  struct
-    include ConvenienceOps(A)
-    module V = V(A)
-    type t = V.t list [@@deriving eq, ord, hash]
 
-    let show x = String.concat "" (List.map V.show x)
-
-    let empty () = []
-
-    let is_empty m =
-      m = empty ()
-
-    let add_empty_column m pos =
-      List.map (fun y -> V.insert_val pos A.zero y) m
-
-    let add_empty_columns m cols =
-      Array.fold_left (fun m'  x -> add_empty_column m' x) m cols
-
-    let append_row m row  =
-      List.append m [row]
-
-    let get_row m n =
-      List.nth m n
-
-    let num_rows m =
-      List.length m
-
-    let remove_row m n =
-      if n < 0 || n >= num_rows m then failwith "Entry does not exist" (* TODO: compare_num_rows? *)
-      else
-        List.filteri (fun i x -> n <> i) m (* TODO: split_at? *)
-
-    let get_col m n =
-      V.of_list (List.map (fun x -> V.nth x n) m)
-
-    let set_col m new_col n =
-      List.mapi (fun i r -> V.set_val r n (V.nth new_col i)) m
-
-    let append_matrices m1 m2  =
-      List.append m1 m2
-
-    let num_cols m =
-      match m with
-      | [] -> 0
-      | x :: xs -> V.length x
-
-    let subtract_rows_c row1 row2 c =
-      V.map2 (fun x y -> x -: (y *: c)) row1 row2
-
-    let reduce_row_to_zero m row_n col_n =
-      let red_row = get_row m row_n in
-      let c = V.nth red_row col_n in
-      List.map (fun x -> subtract_rows_c x red_row ((V.nth x col_n) /: c)) m
-
-    let del_col m col_n =
-      List.map (fun x -> V.remove_val x col_n) m
-
-    let del_cols m cols =
-      Array.fold_lefti (fun y i x -> del_col y (x - i)) m cols
-
-    let reduce_col m col_n =
-      match List.findi (fun i x -> V.nth x col_n <>: A.zero)  (List.rev m) with
-      | exception Not_found -> m
-      | (i, _) -> let len_i = List.length m - (i + 1)
-        in reduce_row_to_zero m len_i col_n
-
-    let map2i f m v =
-      List.map2i f m (V.to_list v)
-
-    let remove_zero_rows m =
-      List.filter (fun x -> V.exists (fun y -> y <>: A.zero) x) m
-
-    let normalize t =
-      let exception NoSolution in
-      let rec create_rref new_t curr_row =
-        if curr_row >= num_rows new_t then new_t else
-          let row = List.nth new_t curr_row in
-          match V.findi (fun x -> x <>: A.zero) row with
-          | exception Not_found -> create_rref (remove_row new_t curr_row) curr_row
-          | i -> if V.compare_length_with row (i + 1) <= 0 then raise NoSolution
-            else let p = V.map (fun x -> x /: (V.nth row i)) row in
-              let col = get_col new_t i in
-              let res = map2i (fun row_i y z -> if row_i <> curr_row then subtract_rows_c y p z else p) new_t col
-              in create_rref res (curr_row + 1)
-      in
-      match create_rref t 0 with
-      | c -> let sort v1 v2 =
-               let f = V.findi (fun x -> x =: A.one) in
-               let i1, i2 = (f v1), (f v2) in Int.compare i1 i2
-        in Some (List.sort sort c)
-      | exception NoSolution -> None
-
-    let normalize t =
-      let res = normalize t in
-      if M.tracing then M.tracel "norm" "normalize: %s -> %s \n" (show t) (if Option.is_none res then "None" else show @@ Option.get res); res
-
-    let is_covered_by m1 m2 =
-      let m_c = append_matrices m1 m2 in
-      match normalize m_c with
-      | Some x when equal x m2 -> true
-      | _ -> false
-
-    let find_opt =
-      List.find_opt
-
-    let map2 f m v =
-      List.map2 f m (V.to_list v)
-
-    let init_with_vec v =
-      [v]
-
-    let normalize_pt_with = normalize
-
-    let reduce_col_pt_with = reduce_col
-
-    let copy_pt t = t
-
-    let set_col_with = set_col
-
-    let map2_pt_with f m v =
-      let v' = let a_length, b_length = num_rows m, V.length v in
-        match Int.compare a_length b_length with
-        | r when r < 0 -> V.keep_vals v a_length
-        | r when r > 0 -> V.append v @@ V.zero_vec (a_length - b_length)
-        | _ -> v
-      in
-      map2 f m v'
-
-    let map2i_pt_with f m v =
-      let v' = let a_length, b_length = num_rows m, V.length v in
-        match Int.compare a_length b_length with
-        | r when r < 0 -> V.keep_vals v a_length
-        | r when r > 0 -> V.append v @@ V.zero_vec (a_length - b_length)
-        | _ -> v
-      in
-      map2i f m v'
-
-    let rref_vec_with m v = normalize @@ append_matrices m (init_with_vec v)
-
-    let rref_matrix_with m1 m2 = normalize @@ append_matrices m1 m2
-  end
-
-
-(** Provides more efficient side-effecting functions than ListVector.
-    Provides a copy function since the array data structure it contains is mutable. *)
+(** Array-based vector implementation. *)
 module ArrayVector: AbstractVector =
   functor (A: RatOps) ->
   struct
@@ -488,9 +272,9 @@ module ArrayVector: AbstractVector =
 
 open Batteries.Array
 
-(** Provides more efficient side-effecting functions than ListMatrix.
-    Similar to ListMatrix, it provides a normalization function to reduce a matrix into reduced row echelon form.
-    However, its normalization functions are faster not only because they use faster side-effect functions but also because they exploit that the input matrix/matrices are in reduced row echelon form already. *)
+(** Array-based matrix implementation.
+    It provides a normalization function to reduce a matrix into reduced row echelon form.
+    Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
 module ArrayMatrix: AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   struct
@@ -836,8 +620,7 @@ module ArrayMatrix: AbstractMatrix =
 let vector =
   lazy (
     let options =
-      ["list", (module ListVector: AbstractVector);
-       "array", (module ArrayVector: AbstractVector);]
+      ["array", (module ArrayVector: AbstractVector);]
     in
     let matrix = (GobConfig.get_string "ana.affeq.matrix") in
     match List.assoc_opt matrix options with
@@ -850,8 +633,7 @@ let get_vector () = Lazy.force vector
 let matrix =
   lazy (
     let options =
-      ["list", (module ListMatrix: AbstractMatrix);
-       "array", (module ArrayMatrix: AbstractMatrix);]
+      ["array", (module ArrayMatrix: AbstractMatrix);]
     in
     let matrix = (GobConfig.get_string "ana.affeq.matrix") in
     match List.assoc_opt matrix options with

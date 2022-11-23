@@ -1,6 +1,7 @@
-//SKIP PARAM: --set ana.activated[+] affeq  --set ana.affeq.matrix "list" --sem.int.signed_overflow "assume_none"  --enable ana.int.interval
+//SKIP PARAM: --set ana.activated[+] affeq --sem.int.signed_overflow "assume_none"  --enable ana.int.interval
 // Snippet from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/nla-digbench/hard2.c
 // Normalization should be triggered when an invertible expression is assigned.
+// TODO: add asserts? used to have list-based matrices, issue was only with those?
 int main() {
     int A, B;
     int r, d, p, q;
