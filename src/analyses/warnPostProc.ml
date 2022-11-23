@@ -2,9 +2,9 @@ open Prelude.Ana
 open Analyses
 open Node0
 
-(* 
-  An implementation of the alarm repositioning analysis 
-  from the article "Repositioning of Static Analysis Alarms" 
+(*
+  An implementation of the alarm repositioning analysis
+  from the article "Repositioning of Static Analysis Alarms"
   by Tukaram Muske, Rohith Talluri and Alexander Serebrenik
 *)
 
@@ -33,14 +33,11 @@ struct
   let tuples_of c s = filter (fun (cond, alarm) -> Cond.equal c cond) s
 
   let meet x y =
-    
     let conds = CondSet.inter (conds_in x) (conds_in y) in
-
-    begin match x, y with
+    match x, y with
     | `Top, _ -> y
     | _, `Top -> x
     | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (tuples_of c x) (tuples_of c y))) conds (empty ())
-    end
 
 end
 
@@ -282,101 +279,101 @@ let init _ =
   HM.clear hoistHM;
   HM.clear sinkHM
 
-let finalize _ = 
-  let fd = Cilfacade.find_name_fundec "main" in
-  let start_node = `L (Node.FunctionEntry fd) in
-  let module IncrSolverArg =
-    struct
-      let should_prune = false
-      let should_verify = false
-      let should_warn = false
-      let should_save_run = false
-    end
-  in
-  
-  (* NH.iter (fun k (cond, a) -> ignore (Pretty.printf "%a->%a, %a\n" Node.pretty_trace k Cond.pretty cond Alarm.pretty a)) alarmsNH; *)
+let finalize _ =
+let fd = Cilfacade.find_name_fundec "main" in
+let start_node = `L (Node.FunctionEntry fd) in
+let module IncrSolverArg =
+struct
+  let should_prune = false
+  let should_verify = false
+  let should_warn = false
+  let should_save_run = false
+end
+in
 
-  let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
-  let (solution, _) = Solver.solve Ant.box [] [start_node] in
+(* NH.iter (fun k (cond, a) -> ignore (Pretty.printf "%a->%a, %a\n" Node.pretty_trace k Cond.pretty cond Alarm.pretty a)) alarmsNH; *)
 
-  antSolHM := solution;
+let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
+let (solution, _) = Solver.solve Ant.box [] [start_node] in
 
-  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
+antSolHM := solution;
 
-  let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
-      let q = (!ask node).f (EvalInt exp) in
-      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-      (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
-      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-      match (idx_before_end, idx_after_start) with
-      | Some true, Some true -> false (* Certainly in bounds on both sides.*)
-      | _ -> true
-    ) cs in
-    
-  let hoist_entry node =
-    let module CFG = (val !MyCFG.current_cfg) in
-    let prev_nodes = List.map snd (CFG.prev node) in
-    let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
-    let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
-    filter_always_true node @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
+(* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
-  let hoist_exit node =
-    let module CFG = (val !MyCFG.current_cfg) in
-    let next_nodes = List.map snd (CFG.next node) in
-    let node' = List.hd next_nodes in
-    filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
+let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
+    let q = (!ask node).f (EvalInt exp) in
+    let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+    (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+    match (idx_before_end, idx_after_start) with
+    | Some true, Some true -> false (* Certainly in bounds on both sides.*)
+    | _ -> true
+  ) cs in
+
+let hoist_entry node =
+  let module CFG = (val !MyCFG.current_cfg) in
+  let prev_nodes = List.map snd (CFG.prev node) in
+  let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
+  let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
+  filter_always_true node @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
+
+let hoist_exit node =
+  let module CFG = (val !MyCFG.current_cfg) in
+  let next_nodes = List.map snd (CFG.next node) in
+  let node' = List.hd next_nodes in
+  filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
     (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
     (Ant.kill node @@ HM.find solution (`G node)) in
 
-  (* Update hashtable of hoisted conditions *)
-  HM.iter (fun k v ->
-    match k with
-    | `L Function _ -> ()
-    | `G Function _ -> ()
-    | `L node -> HM.replace hoistHM k @@ hoist_entry node
-    | `G node -> HM.replace hoistHM k @@ hoist_exit node
-      ) solution;
+(* Update hashtable of hoisted conditions *)
+HM.iter (fun k v ->
+  match k with
+  | `L Function _ -> ()
+  | `G Function _ -> ()
+  | `L node -> HM.replace hoistHM k @@ hoist_entry node
+  | `G node -> HM.replace hoistHM k @@ hoist_exit node
+) solution;
 
-  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
+(* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
 
-  let end_node = `G (Node.Function fd) in
-  let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
-  let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
+let end_node = `G (Node.Function fd) in
+let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
+let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
 
-  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
+(* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
 
-  let conds_entry node = 
-    let av_in = HM.find solution_av (`L node) in
-    let av_in' = Av.Dom.union av_in @@ Av.gen_entry node av_in in
-    Av.conds_in (Av.kill node av_in') in
+let conds_entry node =
+  let av_in = HM.find solution_av (`L node) in
+  let av_in' = Av.Dom.union av_in @@ Av.gen_entry node av_in in
+  Av.conds_in (Av.kill node av_in') in
 
-  let conds_exit node = 
-    let module CFG = (val !MyCFG.current_cfg) in
-    let next_nodes = List.map snd (CFG.next node) in
-    let av_in_conds = List.fold (fun acc node -> CondSet.inter acc (Av.conds_in @@ HM.find solution_av (`L node))) (CondSet.top ()) next_nodes in
-    let av_out_conds = Av.conds_in @@ HM.find solution_av (`G node) in
-    CondSet.diff av_out_conds av_in_conds in
+let conds_exit node =
+  let module CFG = (val !MyCFG.current_cfg) in
+  let next_nodes = List.map snd (CFG.next node) in
+  let av_in_conds = List.fold (fun acc node -> CondSet.inter acc (Av.conds_in @@ HM.find solution_av (`L node))) (CondSet.top ()) next_nodes in
+  let av_out_conds = Av.conds_in @@ HM.find solution_av (`G node) in
+  CondSet.diff av_out_conds av_in_conds in
 
-  (* Update hashtable of sinked conditions *)
-  HM.iter (fun k v ->
-    match k with
-    | `L node -> HM.replace sinkHM k @@ conds_entry node
-    | `G node -> HM.replace sinkHM k @@ conds_exit node
-      ) solution_av;
+(* Update hashtable of sinked conditions *)
+HM.iter (fun k v ->
+  match k with
+  | `L node -> HM.replace sinkHM k @@ conds_entry node
+  | `G node -> HM.replace sinkHM k @@ conds_exit node
+) solution_av;
 
-  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
+(* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
 
-  (* Print repositioned warnings *)
-  HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
-      let exp_v node =
-        let q = (!ask node).f (EvalInt exp) in
-        let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-        let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-        and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        array_oob_warn idx_before_end idx_after_start (M.Location.Node node)
-      in
-      match k with
-      | `L node -> exp_v node
-      | `G node -> exp_v node
-    ) s) sinkHM;
+(* Print repositioned warnings *)
+HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
+  let exp_v node =
+    let q = (!ask node).f (EvalInt exp) in
+    let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+    array_oob_warn idx_before_end idx_after_start (M.Location.Node node) in
+  match k with
+  | `L node -> exp_v node
+  | `G node -> exp_v node
+  ) s
+) sinkHM;
