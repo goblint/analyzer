@@ -114,12 +114,9 @@ sig
   val add_vars : t -> var list -> t
   val remove_vars : t -> var list -> t
 
-  (** Some of the functions end with the suffix _pt_with which indicates that the function could have potential side effects.
-      In that case, the functions are supposed to return their modified input. *)
-
-  val remove_vars_pt_with : t -> var list -> t
+  val remove_vars_with : t -> var list -> unit
   val remove_filter : t -> (var -> bool) -> t
-  val remove_filter_pt_with: t -> (var -> bool) -> t
+  val remove_filter_with: t -> (var -> bool) -> unit
   val copy_pt: t -> t
   val keep_vars : t -> var list -> t
   val keep_filter : t -> (var -> bool) -> t
@@ -130,7 +127,7 @@ sig
 
   val assign_exp : t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
-  val assign_var_parallel_pt_with : t -> (var * var) list -> t
+  val assign_var_parallel_with : t -> (var * var) list -> unit
   val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : t -> var -> exp -> bool Lazy.t -> t
   val unify: t -> t -> t

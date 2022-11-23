@@ -161,10 +161,10 @@ end
 module type AOpsPT =
 sig
   type t
-  val remove_vars_pt_with : t -> Var.t list -> t
-  val remove_filter_pt_with: t -> (Var.t -> bool) -> t
+  val remove_vars_with : t -> Var.t list -> unit
+  val remove_filter_with: t -> (Var.t -> bool) -> unit
 
-  val assign_var_parallel_pt_with : t -> (Var.t * Var.t) list -> t
+  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
 
   val copy_pt : t -> t
 end
@@ -218,9 +218,9 @@ struct
   open AImp
   type nonrec t = t
 
-  let remove_vars_pt_with t vars = remove_vars_with t vars; t
-  let remove_filter_pt_with t f = remove_filter_with t f; t
-  let assign_var_parallel_pt_with t vars = assign_var_parallel_with t vars; t
+  let remove_vars_with t vars = remove_vars_with t vars
+  let remove_filter_with t f = remove_filter_with t f
+  let assign_var_parallel_with t vars = assign_var_parallel_with t vars
   let copy_pt = copy
 end
 

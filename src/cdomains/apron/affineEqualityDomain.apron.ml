@@ -32,8 +32,8 @@ struct
   module Matrix = Mx(Mpqf) (Vec)
 
   type t = {
-    d :  Matrix.t option;
-    env : Environment.t
+    mutable d :  Matrix.t option;
+    mutable env : Environment.t
   }
   [@@deriving eq, ord, hash]
 
@@ -46,7 +46,7 @@ struct
 
   let is_bot_env t = t.d = None
 
-  let copy_pt t = t (* TODO: why doesn't copy? *)
+  let copy_pt t = {t with d = Option.map Matrix.copy t.d}
 
   let dim_add (ch: Apron.Dim.change) m =
     Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
@@ -88,8 +88,10 @@ struct
 
   let remove_vars t vars = Timing.wrap "remove_vars" (remove_vars t) vars
 
-  let remove_vars_pt_with t vars =
-    remove_vars t vars
+  let remove_vars_with t vars =
+    let t' = remove_vars t vars in
+    t.d <- t'.d;
+    t.env <- t'.env
 
   let remove_filter t f =
     let env' = remove_filter t.env f in
@@ -97,8 +99,10 @@ struct
 
   let remove_filter t f = Timing.wrap "remove_filter" (remove_filter t) f
 
-  let remove_filter_pt_with t f =
-    remove_filter t f
+  let remove_filter_with t f =
+    let t' = remove_filter t f in
+    t.d <- t'.d;
+    t.env <- t'.env
 
   let keep_filter t f =
     let env' = keep_filter t.env f in
@@ -495,13 +499,14 @@ struct
 
   let assign_var_parallel t vv's = Timing.wrap "var_parallel" (assign_var_parallel t) vv's
 
-  let assign_var_parallel_pt_with t vv's =
-    assign_var_parallel t vv's
+  let assign_var_parallel_with t vv's =
+    let t' = assign_var_parallel t vv's in
+    t.d <- t'.d;
+    t.env <- t'.env
 
-  let assign_var_parallel_pt_with t vv's =
-    let res = assign_var_parallel_pt_with t vv's in
+  let assign_var_parallel_with t vv's =
     if M.tracing then M.tracel "var_parallel" "assign_var parallel'\n";
-    res
+    assign_var_parallel_with t vv's
 
   let assign_var_parallel' t vs1 vs2 =
     let vv's = List.combine vs1 vs2 in

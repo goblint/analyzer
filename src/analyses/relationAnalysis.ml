@@ -304,15 +304,14 @@ struct
       ) new_rel arg_assigns
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
-    let filtered_new_rel = RD.remove_filter_pt_with new_rel (fun var ->
+    RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
         | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
-      )
-    in
-    if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty filtered_new_rel;
-    [st, {st with rel = filtered_new_rel}]
+      );
+    if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
+    [st, {st with rel = new_rel}]
 
   let body ctx f =
     let st = ctx.local in
@@ -326,8 +325,8 @@ struct
       ) new_rel (formals @ locals)
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
-    let assigned_new_rel = RD.assign_var_parallel_pt_with new_rel local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
-    {st with rel = assigned_new_rel}
+    RD.assign_var_parallel_with new_rel local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
+    {st with rel = new_rel}
 
   let return ctx e f =
     let st = ctx.local in
@@ -351,8 +350,8 @@ struct
       |> List.filter RD.Tracked.varinfo_tracked
       |> List.map RV.local
     in
-    let rem_new_rel = RD.remove_vars_pt_with new_rel local_vars in
-    let st' = {st with rel = rem_new_rel} in
+    RD.remove_vars_with new_rel local_vars;
+    let st' = {st with rel = new_rel} in
     begin match ThreadId.get_current ask with
       | `Lifted tid when ThreadReturn.is_current ask ->
         Priv.thread_return ask ctx.global ctx.sideg tid st'
@@ -387,7 +386,7 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
     if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
-    let new_fun_rel = RD.remove_vars_pt_with new_fun_rel arg_vars in (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
+    RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
@@ -407,8 +406,8 @@ struct
         | None ->
           unify_st
       in
-      let new_unify_st_rel = RD.remove_vars_pt_with unify_st'.rel [RV.return] in
-      {unify_st' with rel = new_unify_st_rel}
+      RD.remove_vars_with unify_st'.rel [RV.return];
+      unify_st'
     )
     else
       unify_st
