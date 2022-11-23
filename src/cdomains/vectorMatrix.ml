@@ -154,11 +154,11 @@ sig
 
   val reduce_col: t -> int -> t
 
-  val reduce_col_pt_with: t -> int -> t
+  val reduce_col_with: t -> int -> unit
 
   val normalize: t -> t Option.t (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
 
-  val normalize_pt_with: t -> t Option.t
+  val normalize_with: t -> bool
 
   val rref_vec_with: t -> vec -> t Option.t
 
@@ -168,11 +168,11 @@ sig
 
   val map2: (vec -> num -> vec) -> t -> vec -> t
 
-  val map2_pt_with: (vec -> num -> vec) -> t -> vec -> t
+  val map2_with: (vec -> num -> vec) -> t -> vec -> unit
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 
-  val map2i_pt_with: (int -> vec -> num -> vec) -> t -> vec -> t
+  val map2i_with: (int -> vec -> num -> vec) -> t -> vec -> unit
 
   val set_col: t -> vec -> int -> t
 
@@ -372,7 +372,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
-    let reduce_col_pt_with m j =
+    let reduce_col_with m j =
       if not @@ is_empty m then
         (let r = ref (-1) in
          for i' = 0 to num_rows m - 1 do
@@ -386,13 +386,13 @@ module ArrayMatrix: AbstractMatrix =
                  m.(rev_i').(j') <- m.(rev_i').(j') -: s *: m.(!r).(j')
                done
          done;
-         if !r >= 0 then Array.fill m.(!r) 0 (num_cols m) A.zero);
-      m
+         if !r >= 0 then Array.fill m.(!r) 0 (num_cols m) A.zero)
 
-    let reduce_col_pt_with m j  = Timing.wrap "reduce_col_pt_with" (reduce_col_pt_with m) j
+    let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
       let copy = copy m in
-      reduce_col_pt_with copy j
+      reduce_col_with copy j;
+      copy
 
     let del_col m j =
       if is_empty m then m else
@@ -468,8 +468,8 @@ module ArrayMatrix: AbstractMatrix =
           )
           with Found -> ()
         done;
-        Some m)
-      with Unsolvable -> None
+        true)
+      with Unsolvable -> false
 
     let rref_with m = Timing.wrap "rref_with" rref_with m
 
@@ -551,14 +551,17 @@ module ArrayMatrix: AbstractMatrix =
 
     let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
-    let normalize_pt_with m =
+    let normalize_with m =
       rref_with m
 
-    let normalize_pt_with m = Timing.wrap "normalize_pt_with" normalize_pt_with m
+    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
 
     let normalize m =
       let copy = copy m in
-      normalize_pt_with copy
+      if normalize_with copy then
+        Some copy
+      else
+        None
 
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
@@ -591,25 +594,25 @@ module ArrayMatrix: AbstractMatrix =
     let map2 f m v =
       let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
 
-    let map2_pt_with f m v =
+    let map2_with f m v =
       if num_rows m = V.length v then
         Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f (V.of_array x) y) m (V.to_array v)
       else
         for i = 0 to Stdlib.min (num_rows m) (V.length v) -1  do
           m.(i) <- V.to_array @@ f (V.of_array m.(i)) (V.nth v i)
-        done; m
+        done
 
-    let map2_pt_with f m v = Timing.wrap "map2_pt_with" (map2_pt_with f m) v
+    let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
-    let map2i_pt_with f m v =
+    let map2i_with f m v =
       if num_rows m = V.length v then
         Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f i (V.of_array x) y) m (V.to_array v)
       else
         for i = 0 to Stdlib.min (num_rows m) (V.length v) -1 do
           m.(i) <- V.to_array @@ f i (V.of_array m.(i)) (V.nth v i)
-        done; m
+        done
 
-    let map2i_pt_with f m v = Timing.wrap "map2i_pt_with" (map2i_pt_with f m) v
+    let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v
 
     let copy_pt = copy
   end
