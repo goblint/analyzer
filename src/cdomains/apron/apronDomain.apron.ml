@@ -158,15 +158,6 @@ sig
   val copy : t -> t
 end
 
-module type AOpsPT =
-sig
-  type t
-  val remove_vars_with : t -> Var.t list -> unit
-  val remove_filter_with: t -> (Var.t -> bool) -> unit
-
-  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
-end
-
 (** Default implementations of pure functions from [copy] and imperative functions. *)
 module AOpsPureOfImperative (AOpsImperative: AOpsImperativeCopy): AOpsPure with type t = AOpsImperative.t =
 struct
@@ -211,11 +202,6 @@ struct
     nd
 end
 
-module AOpsImperativePT(AImp: AOpsImperativeCopy): AOpsPT with type t = AImp.t =
-struct
-  include AImp
-end
-
 (** Extra functions that don't have the pure-imperative correspondence. *)
 module type AOpsExtra =
 sig
@@ -241,7 +227,6 @@ module type AOps =
 sig
   include AOpsExtra
   include AOpsImperative with type t := t
-  include AOpsPT with type t := t
   include AOpsPure with type t := t
 end
 
@@ -454,7 +439,6 @@ struct
   module AO0 = AOps0 (Tracked) (Man)
   include AO0
   include AOpsPureOfImperative (AO0)
-  include AOpsImperativePT(AO0)
 end
 
 module type SPrintable =
@@ -950,6 +934,5 @@ struct
   module BP0 = BoxProd0 (D)
   module Tracked = SharedFunctions.Tracked
   include BP0
-  include AOpsImperativePT (BP0)
   include AOpsPureOfImperative (BP0)
 end
