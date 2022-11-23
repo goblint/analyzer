@@ -124,7 +124,7 @@ available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
   [
     "goblint-cil.2.0.0"
-    "git+https://github.com/goblint/cil.git#638a407306d3ce1646ef2536af173d9ba38cfd33"
+    "git+https://github.com/goblint/cil.git#56a58af3aa160ae64759fa1c893b08a4148eeb9c"
   ]
   [
     "apron.v0.9.13"
