@@ -980,29 +980,57 @@ struct
   
   type 'a event = Enter of 'a | Exit of 'a 
   let unbox = function Enter x -> x | Exit x -> x
-  let operand_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
+  let interval_set_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
 
-  let operands_to_events (xs:t) (ys:t) = (xs @ ys)  |> operand_to_events |> List.sort (fun x y -> Ints_t.compare (unbox x) (unbox y))
+  let sort_events  = List.sort (fun x y -> Ints_t.compare (unbox x) (unbox y))
   
-  let combined_event_list (xs: int_t event list) lattice_op =
+  let two_interval_sets_to_events (xs:t) (ys:t) = (xs @ ys)  |> interval_set_to_events |> sort_events
+    
+  (*Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
+    This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
+  let combined_event_list lattice_op (xs: int_t event list)  =
     let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
-    let aux (interval_count,acc) = function
-    | Enter x -> (interval_count+1, if interval_count+1<= l && interval_count< l then (Enter x)::acc else acc)
-    | Exit x -> (interval_count -1, if interval_count >= l && interval_count -1 <l then (Exit x)::acc else acc) in
+      let aux (interval_count,acc) = function
+      | Enter x -> (interval_count+1, if interval_count+1>= l && interval_count< l then (Enter x)::acc else acc)
+      | Exit x -> (interval_count -1, if interval_count >= l && interval_count -1 <l then (Exit x)::acc else acc) in
     List.fold_left aux (0,[]) xs |> snd |> List.rev
-  
+    
   let rec events_to_intervals = function
   | [] -> []
   | (Enter x)::(Exit y)::xs  -> (x,y)::events_to_intervals xs 
   | _ -> failwith "Invalid events list"
-
+  
   let remove_gaps (xs:t) = 
     let f = fun acc (l,r) -> match acc with
     | ((a,b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a,r)::acc
     | _ -> (l,r)::acc
-  in 
-    List.fold_left f [] xs |> List.rev 
+    in 
+      List.fold_left f [] xs |> List.rev 
+    
+  (* Helper Functions *)
+  let min_list l = List.fold_left min (List.hd l)
+  let max_list l = List.fold_left max (List.hd l)
+  let list_of_tuple2 (x, y) = [x ; y] 
 
+  let canonize (xs:t) = interval_set_to_events xs |> combined_event_list `Join |> events_to_intervals    
+  let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
+      List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
+
+  let binary_op ik x y op = match x, y with
+    | [], _ -> []
+    | _, [] -> []
+    | _::_, _::_ -> canonize (List.map op (cartesian_product x y))
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
+  let equal_to_interval i (a,b) = 
+    if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
+  
+  let equal_to i xs = match List.map (equal_to_interval i) xs with
+    | [] -> failwith "unsupported: equal_to with bottom"
+    | [`Eq] ->  `Eq 
+    | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
+  
 
     let set_overflow_flag ~cast ~underflow ~overflow ik =
       let signed = Cil.isSigned ik in
@@ -1056,9 +1084,9 @@ struct
     | _::_, _::_ -> let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
       List.for_all (fun x -> List.exists (fun y -> leq_interval x y) ys) xs   
   
-  let join ik (x: t) (y: t): t = operands_to_events x y |> fun events -> combined_event_list events `Join |> events_to_intervals |> remove_gaps
+  let join ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list `Join |> events_to_intervals |> remove_gaps
 
-  let meet ik (x: t) (y: t): t = operands_to_events x y |> fun events -> combined_event_list events `Meet |> events_to_intervals |> remove_gaps
+  let meet ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list  `Meet |> events_to_intervals |> remove_gaps
 
   let to_int = function [(x,y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
