@@ -216,6 +216,7 @@ struct
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
         | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
         | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+        (* TODO getdate_err *)
           true
         | _ -> false
       in
