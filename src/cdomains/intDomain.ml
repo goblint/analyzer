@@ -1098,20 +1098,23 @@ struct
 
   let logor _x = failwith "Not implemented yet"
 
+  let wrap_interval_function f ik =
+    let wrap (a, b) = f ik (Some a) (Some b) |> Option.get in
+    wrap
+
   let add ?no_ov ik x y = 
-    let op = fun ((al, au),(bl, bu)) -> (Ints_t.add al bl, Ints_t.add au bu) in
-      binary_op ik x y op
+    binary_op ik x y (wrap_interval_function Interval_functor.add ik)
 
   let neg ?no_ov _x = failwith "Not implemented yet"
 
-  let sub ?no_ov ik x y = add ik x (neg y)
+  let sub ?no_ov ik x y = 
+    binary_op ik x y (wrap_interval_function Interval_functor.sub ik)
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
-    let op (a, b) = Interval_functor.mul ik (Some a) (Some b) |> Option.get in
-    binary_op ik x y op
+    binary_op ik x y (wrap_interval_function Interval_functor.mul ik)
 
-  let div ?no_ov _ik _x _y = failwith "Not implemented yet"
-
+  let div ?no_ov ik x y = 
+    binary_op ik x y (wrap_interval_function Interval_functor.div ik)
 
   let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
 
