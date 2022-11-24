@@ -941,8 +941,10 @@ struct
   
   let bot_of ik = bot () (*what is there to improve ?*)
 
-  let show x = failwith "Not implemented yet"
-
+  let show (x: t) =
+    let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
+    List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> String.concat ", " |> Printf.sprintf "[%s]"
+  
   (* Helper Functions *)
   let min_list l = List.fold_left min (List.hd l)
   let max_list l = List.fold_left max (List.hd l)
