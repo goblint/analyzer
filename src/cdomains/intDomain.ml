@@ -935,15 +935,13 @@ struct
 
   let top () = failwith @@ "top () not implemented for " ^ (name ())
 
-  let top_of ik = failwith "Not implemented yet"
+  let top_of ik = [range ik]
    
   let bot () = failwith "Not implemented yet"
   
   let bot_of ik = bot () (*what is there to improve ?*)
 
   let show x = failwith "Not implemented yet"
-    (*let show_interval i = "[" ^ (Ints_t.to_string (fst i)) ^ ", " ^ (Ints_t.to_string (snd j)) ^ "]" in
-    List.fold_left (fun acc i -> (show_interval )) [] x*)
 
   (* Helper Functions *)
   let min_list l = List.fold_left min (List.hd l)
@@ -1046,15 +1044,19 @@ struct
     | _::_, _::_ -> let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
       List.for_all (fun x -> List.exists (fun y -> leq_interval x y) ys) xs   
   
-      let join ik (x: t) (y: t): t = failwith "Not implemented yet"
+  let join ik (x: t) (y: t): t = operands_to_events x y |> fun events -> combined_event_list events `Join |> events_to_intervals |> remove_gaps
 
+  let meet ik (x: t) (y: t): t = operands_to_events x y |> fun events -> combined_event_list events `Meet |> events_to_intervals |> remove_gaps
 
-  let meet ik (x: t) (y: t): t = failwith "Not implemented yet"
+  let to_int = function [(x,y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
-  let to_int _x = failwith "Not implemented yet"
+  let zero = [(Ints_t.zero, Ints_t.zero)]
+  let one =  [(Ints_t.one, Ints_t.one)]
+  let top_bool = [(Ints_t.zero, Ints_t.one)]
+  let to_bool = function  
+  | [(l,u)]  when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
+  | x -> if leq zero x then None else Some true
 
-  let to_bool _x = failwith "Not implemented yet"
-  
   let rem _x = failwith "Not implemented yet"
   
   let lt _x = failwith "Not implemented yet"
@@ -1103,18 +1105,17 @@ struct
 
   let widen _x  = failwith "Not implemented yet"
 
-  let starting _ik x = failwith "Not implemented yet"
+  let starting ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)]
 
-  let ending _ik x = failwith "Not implemented yet"
+  let ending ik n = match norm ik @@ Some (fst (range ik), n) with Some (x,y) -> [(x,y)]
   
-  let of_int _ik _x = failwith "Not implemented yet"
+  let of_int ik x = of_interval ik (x,x)
 
-  let of_bool _ik _x = failwith "Not implemented yet"
+  let of_bool _ik = function true -> one | false -> zero
   
-  let of_interval _ik _x = failwith "Not implemented yet"
+  let of_interval ik (x,y) = match norm ik @@ Some (x,y) with Some (x',y') -> [(x',y')]
   
   let invariant_ikind _ik = failwith "Not implemented yet"
-  
   
   let refine_with_congruence _x =  failwith "Not implemented yet"
 
