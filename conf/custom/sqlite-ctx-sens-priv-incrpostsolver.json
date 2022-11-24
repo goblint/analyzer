@@ -11,6 +11,7 @@
             "base",
             "mallocWrapper",
             "escape",
+            "threadflag",
             "mutexEvents",
             "mutex",
             "access",

@@ -10,9 +10,12 @@
         "activated": [
             "base",
             "mallocWrapper",
-            "threadid",
             "escape",
-            "threadflag"
+            "threadflag",
+            "mutexEvents",
+            "mutex",
+            "access",
+            "assert"
         ],
         "malloc": {
             "wrappers": [
