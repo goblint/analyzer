@@ -2251,10 +2251,30 @@ struct
     Q.LS.fold (fun (v, o) st -> 
       if CPA.mem v fun_st.cpa then
         let lval = Lval.CilLval.to_lval (v,o) in
-        if M.tracing then M.trace "taintPC" "updating %a\n" Lval.CilLval.pretty (v, o);
         let address = eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval in
-        let new_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st address None in
-        set ~ctx (Analyses.ask_of_ctx ctx) ctx.global st address (Cilfacade.typeOfLval lval) new_val
+        let lval_type = (AD.get_type address) in
+        if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
+        match CPA.find_opt v (fun_st.cpa) with
+        | None -> st
+        | Some (`Array _) when (get_string "ana.base.arrays.domain") = "partitioned" -> begin
+          (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
+          let new_arry_opt = CPA.find_opt v fun_st.cpa in
+          match new_arry_opt with
+          | None -> st
+          | Some new_arry -> {st with cpa = CPA.add v new_arry st.cpa}
+          end
+        | _ -> begin
+          let new_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st address None in
+          let st' = set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st address lval_type new_val in
+          let partDep = Dep.find_opt v fun_st.deps in
+          match partDep with 
+          | None -> st'
+          (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
+          | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
+            match val_opt with
+            | None -> accCPA
+            | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
+          end
       else st) tainted_lvs local_st
 
   let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
@@ -2274,14 +2294,16 @@ struct
         begin if (Q.LS.is_top tainted) then
           let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
           let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
           { fun_st with cpa = cpa' }
         else
           (* remove variables from caller cpa, that are global and not in the callee cpa *)
-          let cpa_caller = CPA.filter (fun x _ -> (not (is_global (Analyses.ask_of_ctx ctx) x)) && CPA.mem x fun_st.cpa) st.cpa in
+          let cpa_caller = CPA.filter (fun x _ -> (not (is_global (Analyses.ask_of_ctx ctx) x)) || CPA.mem x fun_st.cpa) st.cpa in
           (* add variables from callee that are not in caller yet *)
           let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
           let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
         end
       in

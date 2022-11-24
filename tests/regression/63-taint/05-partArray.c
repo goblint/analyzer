@@ -1,52 +1,28 @@
-// SKIP PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --disable ana.base.context.int --set ana.activated[+] taintPartialContexts
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --disable ana.base.context.int --set ana.activated[+] taintPartialContexts
+// adapted from 22 06
 #include <goblint.h>
 
-void g(int *x){
-    return;
+void do_first(int* arr) {
+    int x = arr[0];
+    arr[0] = 3;
 }
 
-
-void f(int a[20], int *jptr) {
-    while (*jptr < 10) {
-        a[*jptr] = 1;
-        *jptr = *jptr + 1;
+void init_array(int* arr, int val) {
+    for(int i = 0; i < 20; i++) {
+        arr[i] = val;
     }
-
+    arr[0] = val;
+    __goblint_check(arr[2] == val);
+    __goblint_check(arr[10] == val);
 }
 
 int main() {
-    int arry[20];
-    int other;
-    int j = 0;
-    int i = 0;
+    int a[20];
 
-    //init arry
-    while (i < 20) {
-        arry[i] = 0; 
-        i++;
-    }
+    init_array(a, 42);
+    __goblint_check(a[2] == 42);
+    __goblint_check(a[10] == 42);
 
-    //partition arry with j
-    while (j < 5) {
-        arry[j] = 1;
-        j++;
-    }
-
-    __goblint_check(arry[0] == 1);  //SUCCESS
-    __goblint_check(arry[5] == 0);  //SUCCESS
-
-    //call f with arry and pointer to j
-
-    //int *jptr = &j;
-    f(arry, &j);
-
-    __goblint_check(arry[0] == 1);  //SUCCESS
-    __goblint_check(arry[5] == 0);  //FAIL
-    __goblint_check(arry[10] == 0);  //SUCCESS
-
-     
-
-
-
-
+    do_first(a);
+    __goblint_check(a[0] == 3);
 }
