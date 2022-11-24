@@ -70,13 +70,18 @@
 
 ### For each prerun
 
-1. Make sure you have nothing valuable that would be deleted by `make clean`.
-2. Delete git tag from previous prerun: `git tag -d svcompXY`.
-3. Create archive: `./sv-comp/archive.sh`.
+1. Update opam pins:
+
+    1. Make sure you have the same `goblint-cil` version pinned as `goblint.opam` specifies.
+    2. Unpin `zarith.1.12-gob0`, because Gobview compatibility is not required.
+
+2. Make sure you have nothing valuable that would be deleted by `make clean`.
+3. Delete git tag from previous prerun: `git tag -d svcompXY`.
+4. Create archive: `./sv-comp/archive.sh`.
 
     The resulting archive is `sv-comp/goblint.zip`.
 
-4. Check unextracted archive in latest SV-COMP container image: <https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image>.
+5. Check unextracted archive in latest SV-COMP container image: <https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image>.
 
     Inside Docker:
 
@@ -85,8 +90,8 @@
 
     This ensures that the environment and the archive have all the correct system libraries.
 
-5. Commit and push the archive to an SV-COMP archives repository branch (but don't open a MR yet): <https://gitlab.com/sosy-lab/sv-comp/archives-2023#sparse-checkout> (SV-COMP 2023).
-6. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
+6. Commit and push the archive to an SV-COMP archives repository branch (but don't open a MR yet): <https://gitlab.com/sosy-lab/sv-comp/archives-2023#sparse-checkout> (SV-COMP 2023).
+7. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
 
     1. Clone coveriteam repository.
     2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
@@ -94,7 +99,7 @@
 
     This ensures that Goblint runs on SoSy-Lab servers.
 
-7. Open MR to the SV-COMP archives repository.
+8. Open MR to the SV-COMP archives repository.
 
 ### After all preruns
 
