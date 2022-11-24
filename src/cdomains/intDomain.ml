@@ -1110,7 +1110,7 @@ struct
   let div ?no_ov _ik _x _y = failwith "Not implemented yet"
 
   
-  let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
+  let cast_to ?torg ?no_ov ik = List.map (norm ~cast:true ik |> Option.get)
 
   let narrow _x _y _z  = failwith "Not implemented yet"
 
