@@ -1,5 +1,7 @@
 # Releasing
 
+## opam
+
 1. Update list of authors and contributors in `.zenodo.json`, `CITATION.cff` and `dune-project`.
 2. Update `CHANGELOG.md`:
 
@@ -50,3 +52,62 @@
 
 13. Create an opam package: `dune-release opam pkg`.
 14. Submit the opam package to opam-repository: `dune-release opam submit`.
+
+
+## SV-COMP
+
+### Before all preruns
+
+1. Make sure you are running the same Ubuntu version as will be used for SV-COMP.
+2. Create conf file for SV-COMP year.
+3. Make sure this repository is checked out into a directory called `goblint`, not the default `analyzer`.
+
+    This is required such that the created archive would have everything in a single directory called `goblint`.
+
+4. Update SV-COMP year in `sv-comp/archive.sh`.
+
+    This includes: git tag name, git tag message and zipped conf file.
+
+### For each prerun
+
+1. Make sure you have nothing valuable that would be deleted by `make clean`.
+2. Delete git tag from previous prerun: `git tag -d svcompXY`.
+3. Create archive: `./sv-comp/archive.sh`.
+
+    The resulting archive is `sv-comp/goblint.zip`.
+
+4. Check unextracted archive in latest SV-COMP container image: <https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image>.
+
+    Inside Docker:
+
+    1. Check version: `./goblint --version`.
+    2. Mount some sv-benchmarks and properties, e.g. as `/tool-test`, and run Goblint on them manually.
+
+    This ensures that the environment and the archive have all the correct system libraries.
+
+5. Commit and push the archive to an SV-COMP archives repository branch (but don't open a MR yet): <https://gitlab.com/sosy-lab/sv-comp/archives-2023#sparse-checkout> (SV-COMP 2023).
+6. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
+
+    1. Clone coveriteam repository.
+    2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
+    3. Run Goblint on some sv-benchmarks and properties via CoveriTeam.
+
+    This ensures that Goblint runs on SoSy-Lab servers.
+
+7. Open MR to the SV-COMP archives repository.
+
+### After all preruns
+
+1. Push git tag from last prerun: `git push origin svcompXY`.
+2. Temporarily disable Zenodo webhook.
+
+    This is because we don't want a new out-of-place version of Goblint in our Zenodo artifact.
+    A separate Zenodo artifact for the SV-COMP version can be created later if tool paper is submitted.
+
+3. Create GitHub release from the git tag and attach latest submitted archive as a download.
+4. Manually run `docker` workflow on `svcompXY` git tag and targeting `svcompXY` Docker tag.
+
+    This is because the usual `docker` workflow only handles semver releases.
+
+5. Re-enable Zenodo webhook.
+6. Release new semver version on opam. See above.
