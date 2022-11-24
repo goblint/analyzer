@@ -945,12 +945,38 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> String.concat ", " |> Printf.sprintf "[%s]"
   
+
+  type 'a event = Enter of 'a | Exit of 'a 
+  let unbox = function Enter x -> x | Exit x -> x
+  let operand_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
+  
+  let operands_to_events (xs:t) (ys:t) = (xs @ ys)  |> operand_to_events |> List.sort (fun x y -> Ints_t.compare (unbox x) (unbox y))
+    
+  let combined_event_list (xs: int_t event list) lattice_op =
+    let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
+      let aux (interval_count,acc) = function
+      | Enter x -> (interval_count+1, if interval_count+1<= l && interval_count< l then (Enter x)::acc else acc)
+      | Exit x -> (interval_count -1, if interval_count >= l && interval_count -1 <l then (Exit x)::acc else acc) in
+    List.fold_left aux (0,[]) xs |> snd |> List.rev
+    
+  let rec events_to_intervals = function
+  | [] -> []
+  | (Enter x)::(Exit y)::xs  -> (x,y)::events_to_intervals xs 
+  | _ -> failwith "Invalid events list"
+  
+  let remove_gaps (xs:t) = 
+    let f = fun acc (l,r) -> match acc with
+    | ((a,b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a,r)::acc
+    | _ -> (l,r)::acc
+    in 
+      List.fold_left f [] xs |> List.rev 
+    
   (* Helper Functions *)
   let min_list l = List.fold_left min (List.hd l)
   let max_list l = List.fold_left max (List.hd l)
   let list_of_tuple2 (x, y) = [x ; y] 
 
-  let canonize x = failwith "Not implemented yet"
+  let canonize (xs:t) = operand_to_events xs |> fun x -> combined_event_list x `Join |> events_to_intervals    
   let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
       List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
 
@@ -969,31 +995,6 @@ struct
     | [`Eq] ->  `Eq 
     | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
   
-  type 'a event = Enter of 'a | Exit of 'a 
-  let unbox = function Enter x -> x | Exit x -> x
-  let operand_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
-
-  let operands_to_events (xs:t) (ys:t) = (xs @ ys)  |> operand_to_events |> List.sort (fun x y -> Ints_t.compare (unbox x) (unbox y))
-  
-  let combined_event_list (xs: int_t event list) lattice_op =
-    let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
-    let aux (interval_count,acc) = function
-    | Enter x -> (interval_count+1, if interval_count+1<= l && interval_count< l then (Enter x)::acc else acc)
-    | Exit x -> (interval_count -1, if interval_count >= l && interval_count -1 <l then (Exit x)::acc else acc) in
-    List.fold_left aux (0,[]) xs |> snd |> List.rev
-  
-  let rec events_to_intervals = function
-  | [] -> []
-  | (Enter x)::(Exit y)::xs  -> (x,y)::events_to_intervals xs 
-  | _ -> failwith "Invalid events list"
-
-  let remove_gaps (xs:t) = 
-    let f = fun acc (l,r) -> match acc with
-    | ((a,b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a,r)::acc
-    | _ -> (l,r)::acc
-  in 
-    List.fold_left f [] xs |> List.rev 
-
 
     let set_overflow_flag ~cast ~underflow ~overflow ik =
       let signed = Cil.isSigned ik in
@@ -1108,7 +1109,7 @@ struct
 
   let div ?no_ov _ik _x _y = failwith "Not implemented yet"
 
-
+  
   let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
 
   let narrow _x _y _z  = failwith "Not implemented yet"
