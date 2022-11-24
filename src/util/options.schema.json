@@ -275,7 +275,7 @@
           "title": "cil.gnu89inline",
           "type": "boolean",
           "description": "Indicates whether gnu89 semantic should be used for inline functions.",
-          "default": "false"
+          "default": false
         }
       },
       "additionalProperties": false
