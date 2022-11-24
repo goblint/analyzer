@@ -937,7 +937,7 @@ struct
 
   let top_of ik = [range ik]
    
-  let bot () = failwith "Not implemented yet"
+  let bot () = []
   
   let bot_of ik = bot () (*what is there to improve ?*)
 
