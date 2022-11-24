@@ -932,6 +932,9 @@ end
 
 module IntervalSetFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list =
 struct
+
+  module Interval_functor = IntervalFunctor(Ints_t) 
+
   let name () = "IntervalSets"
 
   type int_t = Ints_t.t
@@ -952,16 +955,12 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> String.concat ", " |> Printf.sprintf "[%s]"
   
-  (* Helper Functions *)
-  let min_list l = List.fold_left min (List.hd l)
-  let max_list l = List.fold_left max (List.hd l)
-  let list_of_tuple2 (x, y) = [x ; y] 
 
   let canonize x = failwith "Not implemented yet"
   let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
       List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
 
-  let binary_op ik x y op = match x, y with
+  let binary_op ik (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
     | _::_, _::_ -> canonize (List.map op (cartesian_product x y))
@@ -1107,11 +1106,9 @@ struct
 
   let sub ?no_ov ik x y = add ik x (neg y)
 
-  let mul ?no_ov _ik _x _y = 
-    let op = fun a b -> 
-      let products = List.map ( * ) (cartesian_product (list_of_tuple2 a) (list_of_tuple2 b)) in
-      (min_list products, max_list products) in
-      binary_op ik x y op
+  let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
+    let op (a, b) = Interval_functor.mul ik (Some a) (Some b) |> Option.get in
+    binary_op ik x y op
 
   let div ?no_ov _ik _x _y = failwith "Not implemented yet"
 
