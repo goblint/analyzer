@@ -1199,10 +1199,10 @@ struct
   let div ?no_ov ik x y = 
     binary_op ik x y (wrap_binary_interval_function Interval_functor.div ik)
 
-  let rem ik x y = 
+    let rem ik x y = 
       binary_op ik x y (wrap_binary_interval_function Interval_functor.rem ik)
 
-  let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
+  let cast_to ?torg ?no_ov ik = List.map (norm ~cast:true ik |> Option.get)
 
   let narrow _x _y _z  = failwith "Not implemented yet"
 
