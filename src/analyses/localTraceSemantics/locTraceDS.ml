@@ -9,7 +9,7 @@ module SigmarMap = Map.Make(CilType.Varinfo)
 (* Value domain for variables contained in sigmar mapping.
    The supported types are: Integer, Float and Address of a variable *)
 type varDomain = 
-Int of Cilint.cilint * ikind 
+Int of Cilint.cilint * Cilint.cilint * ikind 
 | Float of float * fkind
 | Address of varinfo   
 
@@ -32,17 +32,13 @@ let hash n = match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid
 | {programPoint=FunctionEntry(fd);sigmar=s} -> fd.svar.vid
 
 let equal n1 n2 = (compare n1 n2) = 0
-
-let show_sigmar s = 
-  let show_valuedomain vd =
-    match vd with Int(cili, ik) -> "Integer of "^(Big_int_Z.string_of_big_int cili)^" with ikind: "^(CilType.Ikind.show ik)
-    | Float(f, fk) -> "Float of "^(string_of_float f)^" with fkind: "^(CilType.Fkind.show fk)
-    | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)  
-in SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s ""
-
 let show n = 
-  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(show_sigmar s)^"]}"
-
+  let show_valuedomain vd =
+    match vd with Int(iLower, iUpper, ik) -> "Integer of ["^(Big_int_Z.string_of_big_int iLower)^";"^(Big_int_Z.string_of_big_int iUpper)^"] with ikind: "^(CilType.Ikind.show ik)
+    | Float(f, fk) -> "Float of "^(string_of_float f)^" with fkind: "^(CilType.Fkind.show fk)
+    | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
+in
+  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
 end
 
