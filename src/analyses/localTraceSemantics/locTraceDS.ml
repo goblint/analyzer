@@ -10,7 +10,7 @@ module SigmarMap = Map.Make(CilType.Varinfo)
    The supported types are: Integer, Float and Address of a variable *)
 type varDomain = 
 Int of Cilint.cilint * Cilint.cilint * ikind 
-| Float of float * fkind
+| Float of float * float * fkind
 | Address of varinfo   
 
 (* Pure node type *)
@@ -35,10 +35,10 @@ let equal n1 n2 = (compare n1 n2) = 0
 let show n = 
   let show_valuedomain vd =
     match vd with Int(iLower, iUpper, ik) -> "Integer of ["^(Big_int_Z.string_of_big_int iLower)^";"^(Big_int_Z.string_of_big_int iUpper)^"] with ikind: "^(CilType.Ikind.show ik)
-    | Float(f, fk) -> "Float of "^(string_of_float f)^" with fkind: "^(CilType.Fkind.show fk)
+    | Float(fLower,fUpper, fk) -> "Float of ["^(string_of_float fLower)^";"^(string_of_float fUpper)^"] with fkind: "^(CilType.Fkind.show fk)
     | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
 in
-  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
+  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; |sigmar|="^(string_of_int (SigmarMap.cardinal s))^", sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
 end
 
@@ -80,7 +80,7 @@ LocTraceGraph.fold_edges_e (fun e b -> (LocTraceGraph.mem_edge_e g2 e) && b ) g1
   in tmp
 
 (* Dummy hash function *)
-let hash g1 = 42
+let hash g1 = Hashtbl.hash g1
 
 let compare g1 g2 = if equal g1 g2 then 0 else 43
 
@@ -95,6 +95,9 @@ LocTraceGraph.fold_vertex (fun {programPoint=p1;sigmar=s1} sigmap -> if NodeImpl
    Explicit function for future improvements *)
 let extend_by_gEdge gr gEdge =
   LocTraceGraph.add_edge_e gr gEdge 
+
+  let show_edge e =
+    match e with (v1, ed, v2) -> "[node_prev:"^(NodeImpl.show v1)^",label:"^(EdgeImpl.show ed)^",node_dest:"^(NodeImpl.show v2)^"]"
 end
 
 (* Set domain for analysis framework *)
