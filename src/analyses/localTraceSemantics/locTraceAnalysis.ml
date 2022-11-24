@@ -119,22 +119,24 @@ in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar 
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge =
-try eval sigOld vinfo rval with 
-Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); SigmarMap.remove vinfo sigOld
-| Division_by_zero_Float -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains a Float division by zero.\n"); SigmarMap.remove vinfo sigOld
-| Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); SigmarMap.remove vinfo sigOld
-| Underflow_subtraction_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer subtraction that underflows.\n"); SigmarMap.remove vinfo sigOld
-| Overflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that overflows.\n"); SigmarMap.remove vinfo sigOld
-| Underflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that underflows.\n"); SigmarMap.remove vinfo sigOld
+try (eval sigOld vinfo rval, true) with 
+Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); (SigmarMap.add vinfo Error sigOld ,false)
+| Division_by_zero_Float -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains a Float division by zero.\n"); (SigmarMap.add vinfo Error sigOld ,false)
+| Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
+| Underflow_subtraction_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer subtraction that underflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
+| Overflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that overflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
+| Underflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that underflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
 let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
-let myEdge =  match lval with (Var x, _) -> ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=eval_catch_exceptions oldSigmar x rval ctx.edge})
+let myEdge, success =  match lval with (Var x, _) ->
+  let evaluated,success_inner = eval_catch_exceptions oldSigmar x rval ctx.edge in 
+   ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=evaluated}), success_inner
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   
 in
-  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
+  if success then D.add (LocalTraces.extend_by_gEdge g myEdge) set else set
 in
    D.fold fold_helper ctx.local (D.empty ())
   

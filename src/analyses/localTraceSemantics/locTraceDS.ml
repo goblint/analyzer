@@ -12,6 +12,7 @@ type varDomain =
 Int of Cilint.cilint * Cilint.cilint * ikind 
 | Float of float * float * fkind
 | Address of varinfo   
+| Error
 
 (* Pure node type *)
 type node = {
@@ -37,6 +38,7 @@ let show n =
     match vd with Int(iLower, iUpper, ik) -> "Integer of ["^(Big_int_Z.string_of_big_int iLower)^";"^(Big_int_Z.string_of_big_int iUpper)^"] with ikind: "^(CilType.Ikind.show ik)
     | Float(fLower,fUpper, fk) -> "Float of ["^(string_of_float fLower)^";"^(string_of_float fUpper)^"] with fkind: "^(CilType.Fkind.show fk)
     | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
+    | Error -> "ERROR"
 in
   match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; |sigmar|="^(string_of_int (SigmarMap.cardinal s))^", sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
@@ -65,6 +67,7 @@ module LocalTraces =
 struct
 include Printable.Std
 type t = LocTraceGraph.t
+
 let name () = "traceDataStruc"
 
 let show (g:t) =
@@ -98,6 +101,7 @@ let extend_by_gEdge gr gEdge =
 
   let show_edge e =
     match e with (v1, ed, v2) -> "[node_prev:"^(NodeImpl.show v1)^",label:"^(EdgeImpl.show ed)^",node_dest:"^(NodeImpl.show v2)^"]"
+
 end
 
 (* Set domain for analysis framework *)
