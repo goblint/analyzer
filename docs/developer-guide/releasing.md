@@ -38,7 +38,7 @@
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     4. Navigate to distribution archive inside Docker container: `cd /goblint`.
     5. Pin package from distribution archive: `opam pin add --no-action .`.
-    6. Install depexts: `opam depext goblint`.
+    6. Install depexts: `opam depext --with-test goblint`.
     7. Install and test package: `opam install --with-test goblint`.
     8. Activate opam environment: `eval $(opam env)`.
     9. Check version: `goblint --version`.
