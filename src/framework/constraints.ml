@@ -1196,17 +1196,14 @@ struct
   let asm ctx = S.asm (conv ctx)
 end
 
-module CompareGlobSys
-    (S:Spec)
-    (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = GVarF (S.V)
-                        and module D = S.D
-                        and module G = GVarG (S.G) (S.C))
-    (LH:Hashtbl.S with type key=Sys.LVar.t)
-    (GH:Hashtbl.S with type key=Sys.GVar.t)
-=
+module CompareGlobSys (SpecSys: SpecSys) =
 struct
-  open S
+  open SpecSys
+  module Sys = EQSys
+  module LH = LHT
+  module GH = GHT
+
+  open Spec
   module G = Sys.G
 
   module PP = Hashtbl.Make (Node)
