@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 

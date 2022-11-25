@@ -8,12 +8,20 @@ module GU = Goblintutil
 include Cilfacade0
 
 (** Is character type (N1570 6.2.5.15)? *)
-let isCharType = function
+let isCharType t =
+  match Cil.unrollType t with
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
+let isFloatType t =
+  match Cil.unrollType t with
+  | TFloat _ -> true
+  | _ -> false
+
 let init_options () =
-  Mergecil.merge_inlines := get_bool "cil.merge.inlines"
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
+  Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
+  Cil.gnu89inline := get_bool "cil.gnu89inline"
 
 let init () =
   initCIL ();
@@ -27,7 +35,9 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  Frontc.parse (Fpath.to_string fileName) ()
+  let fileName_str = Fpath.to_string fileName in
+  let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
+  Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil ()
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
@@ -35,139 +45,6 @@ let print (fileAST: file) =
 let rmTemps fileAST =
   Rmtmps.removeUnusedTemps fileAST
 
-class allBBVisitor = object (* puts every instruction into its own basic block *)
-  inherit nopCilVisitor
-  method! vstmt s =
-    match s.skind with
-    | Instr(il) ->
-      let list_of_stmts =
-        List.map (fun one_inst -> mkStmtOneInstr one_inst) il in
-      let block = mkBlock list_of_stmts in
-      ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
-    | _ -> DoChildren
-
-  method! vvdec _ = SkipChildren
-  method! vexpr _ = SkipChildren
-  method! vlval _ = SkipChildren
-  method! vtype _ = SkipChildren
-end
-
-let end_basic_blocks f =
-  let thisVisitor = new allBBVisitor in
-  visitCilFileSameGlobals thisVisitor f
-
-(* replaces goto s with goto s' when newtarget s = Some s' IN PLACE *)
-class patchLabelsGotosVisitor(newtarget) = object
-  inherit nopCilVisitor
-
-  method! vstmt s =
-    match s.skind with
-    | Goto (target,loc) ->
-      (match newtarget !target with
-       | None -> SkipChildren
-       | Some nt -> s.skind <- Goto (ref nt, loc); DoChildren)
-    | _ -> DoChildren
-end
-
-(* Hashtable used to patch gotos later *)
-module StatementHashTable = Hashtbl.Make(struct
-    type t = stmt
-    (* Identity by physical equality. *)
-    let equal = (==)
-    let hash = Hashtbl.hash
-  end)
-
-(*
-  Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
-  goto currentIterationEnd
-  Also assigns fresh names to all labels and patches gotos for labels appearing in the current
-  fragment to their new name
-*)
-class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
-  inherit nopCilVisitor
-
-  val mutable depth = 0
-  val mutable loopNestingDepth = 0
-
-  val gotos = StatementHashTable.create 20
-
-  method! vstmt s =
-    let after x =
-      depth <- depth-1;
-      if depth = 0 then
-        (* the labels can only be patched once the entire part of the AST we want has been transformed, and *)
-        (* we know all lables appear in the hash table *)
-        let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
-        let x  = visitCilStmt patchLabelsVisitor x in
-        StatementHashTable.clear gotos;
-        x
-      else
-        x
-    in
-    let rename_labels sn =
-      let new_labels = List.map (function Label(str,loc,b) -> Label (Cil.freshLabel str,loc,b) | x -> x) sn.labels in
-      (* this makes new physical copy*)
-      let new_s = {sn with labels = new_labels} in
-      if new_s.labels <> [] then
-        (* Use original s, ns might be temporay e.g. if the type of statement changed *)
-        (* record that goto s; appearing in the current fragment should later be patched to goto new_s *)
-        StatementHashTable.add gotos s new_s;
-      new_s
-    in
-    depth <- depth+1;
-    match s.skind with
-    | Continue loc ->
-      if loopNestingDepth = 0 then
-        (* turn top-level continues into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (!currentIterationEnd, loc)}, after)
-      else
-        ChangeDoChildrenPost(rename_labels s, after)
-    | Break loc ->
-      if loopNestingDepth = 0 then
-        (* turn top-level breaks into gotos to end of current unrolling *)
-        ChangeDoChildrenPost(rename_labels {s with skind = Goto (loopEnd,loc)}, after)
-      else
-        ChangeDoChildrenPost(rename_labels s, after)
-    | Loop _ -> loopNestingDepth <- loopNestingDepth+1;
-      ChangeDoChildrenPost(rename_labels s, fun x -> loopNestingDepth <- loopNestingDepth-1; after x)
-    | _ -> ChangeDoChildrenPost(rename_labels s, after)
-end
-
-class loopUnrollingVisitor = object
-  (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
-  inherit nopCilVisitor
-
-  method! vstmt s =
-    match s.skind with
-    | Loop (b,loc, loc2, break , continue) ->
-      let duplicate_and_rem_labels s =
-        match s.skind with
-        | Loop (b,loc, loc2, break , continue) ->
-          (* We copy the statement to later be able to modify it without worrying about invariants *)
-          let s = { s with sid = s.sid } in
-          let factor = GobConfig.get_int "exp.unrolling-factor" in
-          (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
-          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
-          (* continues should go to the next unrolling *)
-          let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
-          (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
-          let current_continue_target = ref dummyStmt in
-          let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
-          let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
-          let copies = List.init (factor) (fun i ->
-              current_continue_target := continue_target i;
-              mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
-          in
-          mkStmt (Block (mkBlock (copies@[s]@[break_target])))
-        | _ -> failwith "invariant broken"
-      in
-      ChangeDoChildrenPost({s with sid = s.sid},duplicate_and_rem_labels)
-    | _ -> DoChildren
-end
-
-let loop_unrolling fd =
-  let thisVisitor = new loopUnrollingVisitor in
-  ignore (visitCilFunction thisVisitor fd)
 
 let visitors = ref []
 let register_preprocess name visitor_fun =
@@ -181,30 +58,6 @@ let do_preprocess ast =
   in
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
-let createCFG (fileAST: file) =
-  (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
-  (* needs to be in its own block. end_basic_blocks does that.                                                        *)
-  (* After adding support for VLAs, there are new VarDecl instructions at the point where a variable was declared and *)
-  (* its declaration is no longer printed at the beginning of the function. Putting these VarDecl into their own      *)
-  (* BB causes the output CIL file to no longer compile.                                                              *)
-  (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
-  (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
-  if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
-
-  (* We used to renumber vids but CIL already generates them fresh, so no need.
-   * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.
-   * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
-
-  iterGlobals fileAST (fun glob ->
-      match glob with
-      | GFun(fd,_) ->
-        (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 then loop_unrolling fd;
-        prepareCFG fd;
-        computeCFGInfo fd true
-      | _ -> ()
-    );
-  do_preprocess fileAST
 
 let getAST fileName =
   let fileAST = parse fileName in
@@ -237,7 +90,7 @@ class addConstructors cons = object
 end
 
 let getMergedAST fileASTs =
-  let merged = Stats.time "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
+  let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
   merged
@@ -451,32 +304,32 @@ let locs = Hashtbl.create 200
 
 (** Visitor to count locs appearing inside a fundec. *)
 class countFnVisitor = object
-    inherit nopCilVisitor
-    method! vstmt s =
-      match s.skind with
-      | Return (_, loc)
-      | Goto (_, loc)
-      | ComputedGoto (_, loc)
-      | Break loc
-      | Continue loc
-      | If (_,_,_,loc,_)
-      | Switch (_,_,_,loc,_)
-      | Loop (_,loc,_,_,_)
-        -> Hashtbl.replace locs loc.line (); DoChildren
-      | _ ->
-        DoChildren
+  inherit nopCilVisitor
+  method! vstmt s =
+    match s.skind with
+    | Return (_, loc)
+    | Goto (_, loc)
+    | ComputedGoto (_, loc)
+    | Break loc
+    | Continue loc
+    | If (_,_,_,loc,_)
+    | Switch (_,_,_,loc,_)
+    | Loop (_,loc,_,_,_)
+      -> Hashtbl.replace locs loc.line (); DoChildren
+    | _ ->
+      DoChildren
 
-    method! vinst = function
-      | Set (_,_,loc,_)
-      | Call (_,_,_,loc,_)
-      | Asm (_,_,_,_,_,loc)
-        -> Hashtbl.replace locs loc.line (); SkipChildren
-      | _ -> SkipChildren
+  method! vinst = function
+    | Set (_,_,loc,_)
+    | Call (_,_,_,loc,_)
+    | Asm (_,_,_,_,_,loc)
+      -> Hashtbl.replace locs loc.line (); SkipChildren
+    | _ -> SkipChildren
 
-    method! vvdec _ = SkipChildren
-    method! vexpr _ = SkipChildren
-    method! vlval _ = SkipChildren
-    method! vtype _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let fnvis = new countFnVisitor
@@ -501,16 +354,16 @@ module StmtH = Hashtbl.Make (CilType.Stmt)
 
 let stmt_fundecs: fundec StmtH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = StmtH.create 113 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          List.iter (fun stmt ->
-              StmtH.replace h stmt fd
-            ) fd.sallstmts
-        | _ -> ()
-      );
-    h
-  )
+      let h = StmtH.create 113 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            List.iter (fun stmt ->
+                StmtH.replace h stmt fd
+              ) fd.sallstmts
+          | _ -> ()
+        );
+      h
+    )
 
 let pseudo_return_to_fun = StmtH.create 113
 
@@ -524,14 +377,14 @@ module VarinfoH = Hashtbl.Make (CilType.Varinfo)
 
 let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 111 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar fd
-        | _ -> ()
-      );
-    h
-  )
+      let h = VarinfoH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar fd
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find [fundec] by the function's [varinfo] (has the function name and type). *)
 let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
@@ -541,14 +394,14 @@ module StringH = Hashtbl.Make (Printable.Strings)
 
 let name_fundecs: fundec StringH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = StringH.create 111 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          StringH.replace h fd.svar.vname fd
-        | _ -> ()
-      );
-    h
-  )
+      let h = StringH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            StringH.replace h fd.svar.vname fd
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find [fundec] by the function's name. *)
 (* TODO: why unused? *)
@@ -563,19 +416,19 @@ type varinfo_role =
 
 let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 113 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
-          List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
-          List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
-        | GVar (vi, _, _)
-        | GVarDecl (vi, _) ->
-          VarinfoH.replace h vi Global
-        | _ -> ()
-      );
-    h
-  )
+      let h = VarinfoH.create 113 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
+            List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
+            List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+          | GVar (vi, _, _)
+          | GVarDecl (vi, _) ->
+            VarinfoH.replace h vi Global
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find the role of the [varinfo]. *)
 let find_varinfo_role vi = VarinfoH.find (ResettableLazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
@@ -604,15 +457,15 @@ let find_scope_fundec vi =
 let original_names: string VarinfoH.t ResettableLazy.t =
   (* only invert environment map when necessary (e.g. witnesses) *)
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 113 in
-    Hashtbl.iter (fun original_name (envdata, _) ->
-        match envdata with
-        | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
-          VarinfoH.replace h vi original_name
-        | _ -> ()
-      ) Cabs2cil.environment;
-    h
-  )
+      let h = VarinfoH.create 113 in
+      Hashtbl.iter (fun original_name (envdata, _) ->
+          match envdata with
+          | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
+            VarinfoH.replace h vi original_name
+          | _ -> ()
+        ) Cabs2cil.environment;
+      h
+    )
 
 (** Find the original name (in input source code) of the [varinfo].
     If it was renamed by CIL, then returns the original name before renaming.
@@ -635,3 +488,21 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
+
+(** Given a [Cil.file], reorders its [globals], inserts function declarations before function definitions.
+    This function may be used after a code transformation to ensure that the order of globals yields a compilable program. *)
+let add_function_declarations (file: Cil.file): unit =
+  let globals = file.globals in
+  let functions, non_functions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
+  let upto_last_type, non_types = GobList.until_last_with (fun g -> match g with GType _ -> true | _ -> false) non_functions in
+  let declaration_from_GFun f = match f with
+    | GFun (f, _) when BatString.starts_with_stdlib ~prefix:"__builtin" f.svar.vname ->
+      (* Builtin functions should not occur in asserts generated, so there is no need to add declarations for them.*)
+      None
+    | GFun (f, _) ->
+      Some (GVarDecl (f.svar, locUnknown))
+    | _ -> failwith "Expected GFun, but was something else."
+  in
+  let fun_decls = List.filter_map declaration_from_GFun functions in
+  let globals = upto_last_type @ fun_decls @ non_types @ functions in
+  file.globals <- globals

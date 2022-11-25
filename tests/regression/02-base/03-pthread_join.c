@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[+] threadreturn
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 void *t_fun(void *arg) {

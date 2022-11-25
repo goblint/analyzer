@@ -1,0 +1,4 @@
+(install
+ (section (site (goblint lib_stub_include)))
+ (files
+  assert.h))

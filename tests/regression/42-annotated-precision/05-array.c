@@ -1,7 +1,7 @@
 // PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
 #include<stdio.h>
 #include<stdbool.h>
-#include<assert.h>
+#include <goblint.h>
 
 void f(int in[], int len) __attribute__ ((goblint_precision("no-def_exc","interval", "congruence")));
 void g(bool in[], int len) __attribute__ ((goblint_precision("interval", "enums", "congruence")));

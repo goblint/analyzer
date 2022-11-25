@@ -54,6 +54,16 @@ struct
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+
+  let protected_vars (ask: Q.ask): varinfo list =
+    let module VS = Set.Make (CilType.Varinfo) in
+    Q.LS.fold (fun (v, _) acc ->
+        let m = ValueDomain.Addr.from_var v in (* TODO: don't ignore offsets *)
+        Q.LS.fold (fun l acc ->
+            VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
+          ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
+      ) (ask.f Q.MustLockset) VS.empty
+    |> VS.elements
 end
 
 module MutexGlobals =

@@ -20,7 +20,17 @@ type math =
   | Isnan of Cil.exp
   | Isnormal of Cil.exp
   | Signbit of Cil.exp
+  | Isgreater of (Cil.exp * Cil.exp)
+  | Isgreaterequal of (Cil.exp * Cil.exp)
+  | Isless of (Cil.exp * Cil.exp)
+  | Islessequal of (Cil.exp * Cil.exp)
+  | Islessgreater of (Cil.exp * Cil.exp)
+  | Isunordered of (Cil.exp * Cil.exp)
+  | Ceil of (Cil.fkind * Cil.exp)
+  | Floor of (Cil.fkind * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
+  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
+  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)
   | Atan of (Cil.fkind * Cil.exp)
@@ -113,11 +123,13 @@ let special_of_old classify_name = fun args ->
   | `Lock (try_, write, return_on_success) ->
     begin match args with
       | [lock] -> Lock { lock ; try_; write; return_on_success; }
+      | [] -> failwith "lock has no arguments"
       | _ -> failwith "lock has multiple arguments"
     end
   | `Unlock ->
     begin match args with
       | [arg] -> Unlock arg
+      | [] -> failwith "unlock has no arguments"
       | _ -> failwith "unlock has multiple arguments"
     end
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }

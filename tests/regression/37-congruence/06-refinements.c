@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.congruence --set sem.int.signed_overflow assume_none
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
     int top;

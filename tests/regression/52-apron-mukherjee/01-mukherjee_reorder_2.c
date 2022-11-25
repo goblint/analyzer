@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 static int a = 0;
 static int b = 0;

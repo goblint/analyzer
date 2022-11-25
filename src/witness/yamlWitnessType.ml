@@ -17,9 +17,9 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* name = y |> find "name" >>= to_string in
-    let* version = y |> find "version" >>= to_string in
-    let+ command_line = y |> find "command_line" >>= to_string in
+    let+ name = y |> find "name" >>= to_string
+    and+ version = y |> find "version" >>= to_string
+    and+ command_line = y |> find "command_line" >>= to_string in
     {name; version; command_line}
 end
 
@@ -51,15 +51,14 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* input_files = y |> find "input_files" >>= list >>= list_map to_string in
-    let* input_file_hashes = y |> find "input_file_hashes" >>= entries >>= list_map (fun (file, y_hash) ->
+    let+ input_files = y |> find "input_files" >>= list >>= list_map to_string
+    and+ input_file_hashes = y |> find "input_file_hashes" >>= entries >>= list_map (fun (file, y_hash) ->
         let+ hash = to_string y_hash in
         (file, hash)
       )
-    in
-    let* data_model = y |> find "data_model" >>= to_string in
-    let* language = y |> find "language" >>= to_string in
-    let+ specification = y |> Yaml.Util.find "specification" >>= option_map to_string in
+    and+ data_model = y |> find "data_model" >>= to_string
+    and+ language = y |> find "language" >>= to_string
+    and+ specification = y |> Yaml.Util.find "specification" >>= option_map to_string in
     {input_files; input_file_hashes; data_model; language; specification}
 end
 
@@ -88,11 +87,11 @@ struct
       )
   let of_yaml y =
     let open GobYaml in
-    let* format_version = y |> find "format_version" >>= to_string in
-    let* uuid = y |> find "uuid" >>= to_string in
-    let* creation_time = y |> find "creation_time" >>= to_string in
-    let* producer = y |> find "producer" >>= Producer.of_yaml in
-    let+ task = y |> Yaml.Util.find "task" >>= option_map Task.of_yaml in
+    let+ format_version = y |> find "format_version" >>= to_string
+    and+ uuid = y |> find "uuid" >>= to_string
+    and+ creation_time = y |> find "creation_time" >>= to_string
+    and+ producer = y |> find "producer" >>= Producer.of_yaml
+    and+ task = y |> Yaml.Util.find "task" >>= option_map Task.of_yaml in
     {format_version; uuid; creation_time; producer; task}
 end
 
@@ -117,11 +116,11 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* file_name = y |> find "file_name" >>= to_string in
-    let* file_hash = y |> find "file_hash" >>= to_string in
-    let* line = y |> find "line" >>= to_int in
-    let* column = y |> find "column" >>= to_int in
-    let+ function_ = y |> find "function" >>= to_string in
+    let+ file_name = y |> find "file_name" >>= to_string
+    and+ file_hash = y |> find "file_hash" >>= to_string
+    and+ line = y |> find "line" >>= to_int
+    and+ column = y |> find "column" >>= to_int
+    and+ function_ = y |> find "function" >>= to_string in
     {file_name; file_hash; line; column; function_}
 end
 
@@ -142,9 +141,9 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* string = y |> find "string" >>= to_string in
-    let* type_ = y |> find "type" >>= to_string in
-    let+ format = y |> find "format" >>= to_string in
+    let+ string = y |> find "string" >>= to_string
+    and+ type_ = y |> find "type" >>= to_string
+    and+ format = y |> find "format" >>= to_string in
     {string; type_; format}
 end
 
@@ -165,9 +164,31 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* location = y |> find "location" >>= Location.of_yaml in
-    let+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
+    let+ location = y |> find "location" >>= Location.of_yaml
+    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
     {location; loop_invariant}
+end
+
+module LocationInvariant =
+struct
+  type t = {
+    location: Location.t;
+    location_invariant: Invariant.t;
+  }
+
+  let entry_type = "location_invariant"
+
+  let to_yaml' {location; location_invariant} =
+    [
+      ("location", Location.to_yaml location);
+      ("location_invariant", Invariant.to_yaml location_invariant);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ location = y |> find "location" >>= Location.of_yaml
+    and+ location_invariant = y |> find "location_invariant" >>= Invariant.of_yaml in
+    {location; location_invariant}
 end
 
 module FlowInsensitiveInvariant =
@@ -208,9 +229,9 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* location = y |> find "location" >>= Location.of_yaml in
-    let* loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
-    let+ precondition = y |> find "precondition" >>= Invariant.of_yaml in
+    let+ location = y |> find "location" >>= Location.of_yaml
+    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml
+    and+ precondition = y |> find "precondition" >>= Invariant.of_yaml in
     {location; loop_invariant; precondition}
 end
 
@@ -231,9 +252,9 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* uuid = y |> find "uuid" >>= to_string in
-    let* type_ = y |> find "type" >>= to_string in
-    let+ file_hash = y |> find "file_hash" >>= to_string in
+    let+ uuid = y |> find "uuid" >>= to_string
+    and+ type_ = y |> find "type" >>= to_string
+    and+ file_hash = y |> find "file_hash" >>= to_string in
     {uuid; type_; file_hash}
 end
 
@@ -254,9 +275,9 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* string = y |> find "string" >>= to_string in
-    let* type_ = y |> find "type" >>= to_string in
-    let+ format = y |> find "format" >>= to_string in
+    let+ string = y |> find "string" >>= to_string
+    and+ type_ = y |> find "type" >>= to_string
+    and+ format = y |> find "format" >>= to_string in
     {string; type_; format}
 end
 
@@ -277,8 +298,8 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* target = y |> find "target" >>= Target.of_yaml in
-    let+ certification = y |> find "certification" >>= Certification.of_yaml in
+    let+ target = y |> find "target" >>= Target.of_yaml
+    and+ certification = y |> find "certification" >>= Certification.of_yaml in
     {target; certification}
 end
 
@@ -292,6 +313,7 @@ end
 module EntryType =
 struct
   type t =
+    | LocationInvariant of LocationInvariant.t
     | LoopInvariant of LoopInvariant.t
     | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
@@ -299,6 +321,7 @@ struct
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
 
   let entry_type = function
+    | LocationInvariant _ -> LocationInvariant.entry_type
     | LoopInvariant _ -> LoopInvariant.entry_type
     | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.entry_type
     | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
@@ -306,6 +329,7 @@ struct
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
 
   let to_yaml' = function
+    | LocationInvariant x -> LocationInvariant.to_yaml' x
     | LoopInvariant x -> LoopInvariant.to_yaml' x
     | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
@@ -315,7 +339,10 @@ struct
   let of_yaml y =
     let open GobYaml in
     let* entry_type = y |> find "entry_type" >>= to_string in
-    if entry_type = LoopInvariant.entry_type then
+    if entry_type = LocationInvariant.entry_type then
+      let+ x = y |> LocationInvariant.of_yaml in
+      LocationInvariant x
+    else if entry_type = LoopInvariant.entry_type then
       let+ x = y |> LoopInvariant.of_yaml in
       LoopInvariant x
     else if entry_type = FlowInsensitiveInvariant.entry_type then
@@ -349,7 +376,7 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* metadata = y |> find "metadata" >>= Metadata.of_yaml in
-    let+ entry_type = y |> EntryType.of_yaml in
+    let+ metadata = y |> find "metadata" >>= Metadata.of_yaml
+    and+ entry_type = y |> EntryType.of_yaml in
     {entry_type; metadata}
 end

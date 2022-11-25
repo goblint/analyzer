@@ -41,6 +41,9 @@ module type S =
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
+    val invariant_vars: Q.ask -> (V.t -> G.t) -> apron_components_t -> varinfo list
+    (** Returns global variables which are privatized. *)
+
     val init: unit -> unit
     val finalize: unit -> unit
   end
@@ -80,12 +83,7 @@ struct
     let apr = st.apr in
     let esc_vars = List.filter (fun var -> match AV.find_metadata var with
         | Some (Global _) -> false
-        | Some Local ->
-          (let fundec = Node.find_fundec node in
-           let r = AV.to_cil_varinfo fundec var in
-           match r with
-           | Some r -> EscapeDomain.EscapedVars.mem r escaped
-           | _ -> false)
+        | Some (Local r) -> EscapeDomain.EscapedVars.mem r escaped
         | _ -> false
       ) (AD.vars apr)
     in
@@ -127,6 +125,7 @@ struct
     {apr = AD.bot (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = ()
+  let invariant_vars ask getg st = []
 
   let init () = ()
   let finalize () = ()
@@ -404,6 +403,7 @@ struct
     {apr = getg (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
+  let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
 
   let finalize () = ()
 end
@@ -428,11 +428,25 @@ struct
     AD.keep_filter oct protected
 end
 
+module PerMutexMeetPrivBase (AD: ApronDomain.S3) =
+struct
+  let invariant_vars ask getg (st: (AD.t, _) ApronDomain.aproncomponents_t) =
+    (* Mutex-meet local states contain precisely the protected global variables,
+       so we can do fewer queries than {!protected_vars}. *)
+    AD.vars st.apr
+    |> List.filter_map (fun var ->
+        match ApronDomain.V.find_metadata var with
+        | Some (Global g) -> Some g
+        | _ -> None
+      )
+end
+
 (** Per-mutex meet. *)
 module PerMutexMeetPriv : S = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
+  include PerMutexMeetPrivBase (AD)
 
   module D = Lattice.Unit
   module G = AD
@@ -832,6 +846,7 @@ module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
+  include PerMutexMeetPrivBase (AD)
 
   module NC = Cluster(AD)
   module Cluster = NC

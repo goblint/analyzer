@@ -665,19 +665,36 @@ struct
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      match Cilfacade.find_varinfo_fundec f with
-      | fd when LibraryFunctions.use_special f.vname ->
-        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-        tf_special_call ctx lv f args
-      | fd ->
-        tf_normal_call ctx lv e fd args getl sidel getg sideg
-      | exception Not_found ->
-        tf_special_call ctx lv f args
+      match f.vtype with
+      | TFun (_, params, var_arg, _)  ->
+        let arg_length = List.length args in
+        let p_length = Option.map_default List.length 0 params in
+        (* Check whether number of arguments fits. *)
+        (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
+        if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
+          begin Some (match Cilfacade.find_varinfo_fundec f with
+              | fd when LibraryFunctions.use_special f.vname ->
+                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+                tf_special_call ctx lv f args
+              | fd ->
+                tf_normal_call ctx lv e fd args getl sidel getg sideg
+              | exception Not_found ->
+                tf_special_call ctx lv f args)
+          end
+        else begin
+          let geq = if var_arg then ">=" else "" in
+          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
+          None
+        end
+      | _ ->
+        M.warn  ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
+        None
     in
-    if [] = functions then
+    let funs = List.filter_map one_function functions in
+    if [] = funs then begin
+      M.warn ~category:Unsound "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
-    else
-      let funs = List.map one_function functions in
+    end else
       common_joins ctx funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
@@ -720,12 +737,18 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
+    let new_fd = Node.find_fundec v in
+    if not (CilType.Fundec.equal old_fd new_fd) then
+      Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
     M.current_context := Some (Obj.repr c);
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
-        M.current_context := old_context
+        M.current_context := old_context;
+        if not (CilType.Fundec.equal old_fd new_fd) then
+          Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
         let d       = tf (v,c) (e,u) getl sidel getg sideg in
         d
@@ -801,21 +824,21 @@ struct
     List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
     let changed_funs = List.filter_map (function
-        | {old = GFun (f, _); diff = None; _} ->
+        | {old = {def = Some (Fun f); _}; diff = None; _} ->
           print_endline ("Completely changed function: " ^ f.svar.vname);
           Some f
         | _ -> None
       ) c.changed
     in
     let part_changed_funs = List.filter_map (function
-        | {old = GFun (f, _); diff = Some nd; _} ->
+        | {old = {def = Some (Fun f); _}; diff = Some nd; _} ->
           print_endline ("Partially changed function: " ^ f.svar.vname);
           Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
         | _ -> None
       ) c.changed
     in
     let removed_funs = List.filter_map (function
-        | GFun (f, _) ->
+        | {def = Some (Fun f); _} ->
           print_endline ("Removed function: " ^ f.svar.vname);
           Some f
         | _ -> None
@@ -852,16 +875,18 @@ struct
           (* collect function return for reluctant analysis *)
           mark_node obsolete_ret f (Function f)
       ) changed_funs;
-    (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+    (* Primary changed unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+    (* The return nodes of partially changed functions are collected in obsolete_ret for reluctant analysis *)
     (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
-    if not reluctant then (
-      List.iter (fun (f, pn, _) ->
+    List.iter (fun (f, pn, _) ->
+        if not reluctant then (
           List.iter (fun n ->
               mark_node obsolete_prim f n
-            ) pn;
-          mark_node obsolete_ret f (Function f);
-        ) part_changed_funs;
-    );
+            ) pn
+        )
+        else
+          mark_node obsolete_ret f (Function f)
+      ) part_changed_funs;
 
     let obsolete = Enum.append (HM.keys obsolete_entry) (HM.keys obsolete_prim) |> List.of_enum in
     let reluctant = HM.keys obsolete_ret |> List.of_enum in
@@ -1028,7 +1053,6 @@ end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
-  (* : GenericGlobSolver *)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -1234,7 +1258,9 @@ struct
                 let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
                 let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
                 M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
-              | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
               | `Top -> (* may be both true and false *)
                 ()
             ) em;
@@ -1296,17 +1322,14 @@ struct
   let asm ctx = S.asm (conv ctx)
 end
 
-module CompareGlobSys
-    (S:Spec)
-    (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = GVarF (S.V)
-                        and module D = S.D
-                        and module G = GVarG (S.G) (S.C))
-    (LH:Hashtbl.S with type key=Sys.LVar.t)
-    (GH:Hashtbl.S with type key=Sys.GVar.t)
-=
+module CompareGlobSys (SpecSys: SpecSys) =
 struct
-  open S
+  open SpecSys
+  module Sys = EQSys
+  module LH = LHT
+  module GH = GHT
+
+  open Spec
   module G = Sys.G
 
   module PP = Hashtbl.Make (Node)

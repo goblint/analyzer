@@ -1,5 +1,5 @@
 // PARAM: --enable exp.earlyglobs
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 

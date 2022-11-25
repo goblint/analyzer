@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 

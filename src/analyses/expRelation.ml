@@ -46,10 +46,7 @@ struct
         end
       | x -> x
 
-  let isFloat e =
-    match Cil.unrollTypeDeep (Cilfacade.typeOf e) with
-    | TFloat _ -> true
-    | _ -> false
+  let isFloat e = Cilfacade.isFloatType (Cilfacade.typeOf e)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let lvalsEq l1 l2 = CilType.Lval.equal l1 l2 in (* == would be wrong here *)

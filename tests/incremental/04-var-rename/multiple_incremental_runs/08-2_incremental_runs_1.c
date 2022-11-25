@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
     int varFirstIteration = 0;

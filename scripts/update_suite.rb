@@ -62,7 +62,8 @@ has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make hea
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
-incremental = ARGV.last == "-i" && ARGV.pop
+cfg = ARGV.last == "-c" && ARGV.pop
+incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if marshal || incremental then
@@ -138,9 +139,9 @@ class Tests
 
   def collect_warnings
     warnings[-1] = "term"
-    lines = IO.readlines(warnfile)
+    lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
-      if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
+      if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
         @vars = $1
         @evals = $2
@@ -208,7 +209,7 @@ class Tests
   end
 
   def time_to_html
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
     if res == [] or not errors == [] then
@@ -221,7 +222,7 @@ class Tests
 
   def problems_to_html
     id = "#{p.id} #{p.group}/#{p.name}"
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     if correct + ignored == tests.size && ok then
       "<td style =\"color: green\">NONE</td>"
     else
@@ -368,7 +369,7 @@ class Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --set goblint-dir .goblint-#{@id.sub('/','-')} 2>#{@testset.statsfile}"
+    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set goblint-dir .goblint-#{@id.sub('/','-')} 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd, starttime)
   end
@@ -418,7 +419,7 @@ class ProjectIncr < Project
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
     status = $?.exitstatus
-    lines_incr = IO.readlines(path)
+    lines_incr = IO.readlines(path, :encoding => "UTF-8")
     `patch -p0 -b -R <#{patch_path}`
     if status != 0
       puts "Failed to apply patch: #{patch_path}"
@@ -434,8 +435,8 @@ class ProjectIncr < Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
-    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --set printstats true --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
+    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
+    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --enable dbg.timing.enabled --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
     starttime = Time.now
     run_testset(@testset_incr, cmd, starttime)
     # apply patch
@@ -478,8 +479,8 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
@@ -512,14 +513,14 @@ regs.sort.each do |d|
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
-    lines = IO.readlines(path)
+    lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
       config_path = File.expand_path(f[0..-3] + ".json", grouppath)
-      params = "--conf #{config_path}"
+      params = if cfg then "--conf #{config_path} --set incremental.compare cfg" else "--conf #{config_path}" end
     else
       lines[0] =~ /PARAM: (.*)$/
       if $1 then params = $1 else params = "" end

@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --disable ana.int.interval
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0;
 

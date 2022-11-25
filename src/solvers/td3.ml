@@ -86,20 +86,18 @@ module WP =
       }
 
     (* This hack is for fixing hashconsing.
-     * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
-     * HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
-     * The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
-     * We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
-     * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
-     * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
-     * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected.
-     *)
+       If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
+       HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
+       The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
+       We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
+       If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
+       In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
+       The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected. *)
     (* Another problem are the tags for the context part of a S.Var.t.
-     * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
-     * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
-     * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
-     *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
-     *)
+       This will cause problems when old and new vars interact or when new S.Dom values are used as context:
+       - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
+       - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
+         the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values). *)
     let relift_marshal (data: marshal): marshal =
       let rho = HM.create (HM.length data.rho) in
       HM.iter (fun k v ->
@@ -196,6 +194,7 @@ module WP =
       let stable = data.stable in
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
+      let remove_wpoint = GobConfig.get_bool "solvers.td3.remove-wpoint" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -296,7 +295,7 @@ module WP =
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
-          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             if tracing then trace "sol" "Changed\n";
             update_var_event x old tmp;
             HM.replace rho x tmp;
@@ -314,7 +313,7 @@ module WP =
                 HM.remove stable x;
                 HM.remove superstable x;
                 (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
-              ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+              ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x
               )
@@ -370,21 +369,28 @@ module WP =
         assert (S.system y = None);
         init y;
         (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
-        let op =
-          if HM.mem wpoint y then fun a b ->
-            if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
-            let r = S.Dom.widen a (S.Dom.join a b) in
-            if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
-            r
-          else S.Dom.join
+        let widen a b =
+          if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
+          let r = S.Dom.widen a (S.Dom.join a b) in
+          if M.tracing then M.traceu "sol2" "-> %a\n" S.Dom.pretty r;
+          r
+        in
+        let old_sides = HM.find_default sides y VS.empty in
+        let op a b = match side_widen with
+          | "sides-local" when not (S.Dom.leq b a) -> (
+              match x with
+              | None -> widen a b
+              | Some x when VS.mem x old_sides -> widen a b
+              | _ -> S.Dom.join a b
+            )
+          | _ when HM.mem wpoint y  -> widen a b
+          | _ -> S.Dom.join a b
         in
         let old = HM.find rho y in
         let tmp = op old d in
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
-          (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-          let old_sides = HM.find_default sides y VS.empty in
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in
@@ -401,8 +407,12 @@ module WP =
           | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
             wpoint_if true
           | "never" -> (* On side-effect cycles, this should terminate via the outer `solver` loop. TODO check. *)
-            wpoint_if false
-          | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
+            ()
+          | "sides-local" -> (* Never make globals widening points in this strategy, the widening check happens by checking sides *)
+            ()
+          | "sides" ->
+            (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
+            (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
           | "sides-pp" ->
             (match x with
@@ -482,9 +492,13 @@ module WP =
         let rec destabilize_with_side ~side_fuel x =
           if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pretty_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
 
-          (* is side-effected var (global/function entry)? *)
-          let w = HM.find_default side_dep x VS.empty in
+          (* retrieve and remove (side-effect) dependencies/influences *)
+          let w_side_dep = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
+          let w_infl = HM.find_default infl x VS.empty in
+          HM.replace infl x VS.empty;
+          let w_side_infl = HM.find_default side_infl x VS.empty in
+          HM.remove side_infl x;
 
           let should_restart =
             match restart_write_only, S.Var.is_write_only x with
@@ -497,7 +511,8 @@ module WP =
               | _ -> assert false
           in
 
-          if not (VS.is_empty w) && should_restart then (
+          (* is side-effected var (global/function entry)? *)
+          if not (VS.is_empty w_side_dep) && should_restart then (
             (* restart side-effected var *)
             restart_leaf x;
 
@@ -508,24 +523,19 @@ module WP =
                 HM.remove stable y;
                 HM.remove superstable y;
                 destabilize_with_side ~side_fuel y
-              ) w
+              ) w_side_dep;
           );
 
           (* destabilize eval infl *)
-          let w = HM.find_default infl x VS.empty in
-          HM.replace infl x VS.empty;
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
               destabilize_with_side ~side_fuel y
-            ) w;
+            ) w_infl;
 
           (* destabilize side infl *)
-          let w = HM.find_default side_infl x VS.empty in
-          HM.remove side_infl x;
-
           if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
             let side_fuel' =
               if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function GoblintCil.dummyFunDec) then
@@ -540,7 +550,7 @@ module WP =
                 HM.remove stable y;
                 HM.remove superstable y;
                 destabilize_with_side ~side_fuel:side_fuel' y
-              ) w
+              ) w_side_infl
           )
         in
 
@@ -773,7 +783,7 @@ module WP =
           List.iter get vs;
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
-        Stats.time "restore" restore ();
+        Timing.wrap "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
@@ -856,7 +866,7 @@ module WP =
               Option.may (VS.iter one_var') (HM.find_option side_infl x)
             )
           in
-          (Stats.time "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
+          (Timing.wrap "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
 
           reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
         else if incr_verify then

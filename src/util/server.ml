@@ -157,8 +157,8 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: Cil.global) _ _ _ = match glob with
-    | GFun (fdec, _) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
+  let eq (glob: CompareCIL.global_col) _ _ _ = match glob.def with
+    | Some (Fun fdec) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
     | _ -> Unchanged, None
   in
   CompareCIL.compareCilFiles ~eq file file
@@ -190,6 +190,7 @@ let analyze ?(reset=false) (s: t) =
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
+  AutoTune.reset_lazy ();
   Access.reset ();
   s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
@@ -312,9 +313,18 @@ let () =
       let live _ = true in (* TODO: fix this *)
       let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
       { cfg }
-      (* TODO: also filter and include states info (as json) in the response for the requested function *)
   end);
 
+  register (module struct
+    let name = "node_state"
+    type params = { nid: string }  [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process { nid } serv =
+      let f = !Control.current_node_state_json in
+      let n = Node.of_id nid in
+      let json = f n in
+      json
+  end);
 
   register (module struct
     let name = "exp_eval"

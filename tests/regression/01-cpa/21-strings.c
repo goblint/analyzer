@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 
 int main(){
   char *str = "0123456789";

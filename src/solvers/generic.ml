@@ -2,9 +2,6 @@ open Prelude
 open GobConfig
 open Analyses
 
-let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
-
-
 module LoadRunSolver: GenericEqBoxSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
@@ -125,7 +122,7 @@ struct
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();
     print_newline ();
-    (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
+    (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
     print_newline ();

@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <assert.h>
 
 void *t_fun(void *arg) {
   int *iarg = (int*) arg;

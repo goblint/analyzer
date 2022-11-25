@@ -1,6 +1,6 @@
 // PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 int main () __attribute__((goblint_precision("def_exc")));
 
 int main () {

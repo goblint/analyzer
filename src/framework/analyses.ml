@@ -252,14 +252,9 @@ struct
         BatPrintf.fprintf f "<run>";
         BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
         BatPrintf.fprintf f "<statistics>";
-        (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
-        let name, chn = Filename.open_temp_file "stat" "goblint" in
-        Stats.print chn "";
-        Stdlib.close_out chn;
-        let f_in = BatFile.open_in name in
-        let s = BatIO.read_all f_in in
-        BatIO.close_in f_in;
-        BatPrintf.fprintf f "%s" s;
+        let timing_ppf = BatFormat.formatter_of_out_channel f in
+        Timing.Default.print timing_ppf;
+        Format.pp_print_flush timing_ppf ();
         BatPrintf.fprintf f "</statistics>";
         BatPrintf.fprintf f "<result>\n";
         BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
@@ -702,4 +697,25 @@ struct
 
   let threadenter ctx lval f args = [ctx.local]
   let threadspawn ctx lval f args fctx = ctx.local
+end
+
+
+module type SpecSys =
+sig
+  module Spec: Spec
+  module EQSys: GlobConstrSys with module LVar = VarF (Spec.C)
+                               and module GVar = GVarF (Spec.V)
+                               and module D = Spec.D
+                               and module G = GVarG (Spec.G) (Spec.C)
+  module LHT: BatHashtbl.S with type key = EQSys.LVar.t
+  module GHT: BatHashtbl.S with type key = EQSys.GVar.t
+end
+
+module type SpecSysSol =
+sig
+  module SpecSys: SpecSys
+  open SpecSys
+
+  val gh: EQSys.G.t GHT.t
+  val lh: SpecSys.Spec.D.t LHT.t (* explicit SpecSys to avoid spurious module cycle *)
 end

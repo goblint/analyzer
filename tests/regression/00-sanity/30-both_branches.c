@@ -1,5 +1,5 @@
 // PARAM: --enable exp.earlyglobs --disable exp.fast_global_inits
-#include <assert.h>
+#include <goblint.h>
 
 union bloirg {
    int iValdue ;

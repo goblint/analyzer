@@ -1,7 +1,7 @@
 // PARAM: --set ana.path_sens[+] threadflag --sets ana.base.privatization mutex-meet-tid
 // Inspired by 36/71
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 10;
 int h = 10;

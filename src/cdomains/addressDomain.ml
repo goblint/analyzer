@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 open IntOps
 
 module GU = Goblintutil
