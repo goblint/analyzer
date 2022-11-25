@@ -66,8 +66,8 @@ struct
     let v_ins = VH.create 10 in
     let visitor = object
       inherit nopCilVisitor
-      method! vvrbl (v: varinfo) =
-        if v.vglob || ThreadEscape.has_escaped ask v then (
+      method! vlval = function
+        | (Var v, NoOffset) when v.vglob || ThreadEscape.has_escaped ask v ->
           let v_in =
             if VH.mem v_ins v then
               VH.find v_ins v
@@ -76,9 +76,8 @@ struct
               VH.replace v_ins v v_in;
               v_in
           in
-          ChangeTo v_in
-        )
-        else
+          ChangeTo (Var v_in, NoOffset)
+        | _ ->
           SkipChildren
     end
     in

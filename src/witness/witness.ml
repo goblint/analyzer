@@ -264,7 +264,6 @@ let init (module FileCfg: MyCFG.FileCfg) =
   Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
   Svcomp.task := Some (module Task)
 
-open Analyses
 module Result (R: ResultQuery.SpecSysSol2) =
 struct
   open R

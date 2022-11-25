@@ -27,7 +27,7 @@
   (depends
     (ocaml (>= 4.10))
     (dune (>= 3.0)) ; 3.0 lower bound needed in tests/extraction ; 2.9.1 explicit lower bound needed for opam install (https://github.com/ocaml/dune/pull/4806), (lang dune 2.9.1) doesn't do this
-    (goblint-cil (>= 2.0.0)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
+    (goblint-cil (>= 2.0.1)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
     (batteries (>= 3.4.0))
     (zarith (>= 1.8))
     (yojson (>= 2.0.0))
