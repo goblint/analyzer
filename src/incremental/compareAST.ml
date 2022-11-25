@@ -1,11 +1,6 @@
 open GoblintCil
 open CilMaps
 
-(* global_type and global_t are implicitly used by GlobalMap to keep GVarDecl apart from GVar and GFun, so do not remove! *)
-type global_type = Fun | Decl | Var
-
-and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
-
 module StringMap = Map.Make(String)
 
 type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: string StringMap.t}
@@ -23,10 +18,8 @@ let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename
 
   match existingAssumption with
   | Some now ->
-    (*Printf.printf "Assumption is: %s -> %s\n" original now;*)
     now = name2
   | None ->
-    (*Printf.printf "No assumption when %s, %s, %b\n" name1 name2 (name1 = name2);*)
     name1 = name2 (*Var names differ, but there is no assumption, so this can't be good*)
 
 let rename_mapping_to_string (rename_mapping: rename_mapping) =
@@ -38,18 +31,6 @@ let rename_mapping_to_string (rename_mapping: rename_mapping) =
                                    "; renamed_params=" ^ [%show: (string * string) list] (List.of_seq (StringMap.to_seq parameter_renames)) ^ ")") |>
                                String.concat ", " in
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "])"
-
-let identifier_of_global glob =
-  match glob with
-  | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
-  | GVar (var, init, l) -> {name = var.vname; global_t = Var}
-  | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
-  | _ -> raise Not_found
-
-module GlobalMap = Map.Make(struct
-    type t = global_identifier [@@deriving ord]
-  end)
-
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name (a: string) (b: string) =
@@ -170,7 +151,6 @@ and eq_attribute  ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) (a:
   | Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && GobList.equal (eq_attrparam ~rename_mapping ~acc ) params1 params2
 
 and eq_varinfo  (a: varinfo) (b: varinfo) ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) =
-  (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
 
   let (_, method_rename_mappings) = rename_mapping in
 
@@ -201,10 +181,7 @@ and eq_varinfo  (a: varinfo) (b: varinfo) ~(acc: (typ * typ) list) ~(rename_mapp
   let typeCheck = eq_typ_acc a.vtype b.vtype ~rename_mapping:typ_rename_mapping ~acc  in
   let attrCheck = GobList.equal (eq_attribute ~rename_mapping ~acc ) a.vattr b.vattr in
 
-  let result = isNamingOk && typeCheck && attrCheck &&
-               a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
-
-  result
+  isNamingOk && typeCheck && attrCheck && a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 
 (* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)

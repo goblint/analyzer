@@ -126,6 +126,10 @@ conflicts: [
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
+    "goblint-cil.2.0.1"
+    "git+https://github.com/goblint/cil.git#5a3b7bb7f4d9b67678826ab7698f8a9048891553"
+  ]
+  [
     "apron.v0.9.13"
     "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
   ]

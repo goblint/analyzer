@@ -19,7 +19,9 @@ let isFloatType t =
   | _ -> false
 
 let init_options () =
-  Mergecil.merge_inlines := get_bool "cil.merge.inlines"
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
+  Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
+  Cil.gnu89inline := get_bool "cil.gnu89inline"
 
 let init () =
   initCIL ();
