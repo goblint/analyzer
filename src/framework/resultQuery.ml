@@ -88,13 +88,13 @@ struct
   open SpecSys
 
   let nh: Spec.D.t NH.t Lazy.t = lazy (
-      let nh = NH.create 113 in
-      LHT.iter (fun (n, _) d ->
-          let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
-          NH.replace nh n d'
-        ) lh;
-      nh
-    )
+    let nh = NH.create 113 in
+    LHT.iter (fun (n, _) d ->
+        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
+        NH.replace nh n d'
+      ) lh;
+    nh
+  )
 
   module Query = Query (SpecSys)
 
