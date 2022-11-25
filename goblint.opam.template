@@ -2,7 +2,7 @@
 # also remember to generate/adjust goblint.opam.locked!
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
-  [ "goblint-cil.2.0.0" "git+https://github.com/goblint/cil.git#0c2c4ce626b6444a211fd5a4531f6a4c71ce5f9a" ]
+  [ "goblint-cil.2.0.1" "git+https://github.com/goblint/cil.git#5a3b7bb7f4d9b67678826ab7698f8a9048891553" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   # TODO: add back after release, only pinned for CI stability

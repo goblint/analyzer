@@ -476,26 +476,15 @@ sig
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
 end
 
-type analyzed_data = {
-  solver_data: Obj.t;
-}
-
 type increment_data = {
   server: bool;
 
-  old_data: analyzed_data option;
+  solver_data: Obj.t;
   changes: CompareCIL.change_info;
 
   (* Globals for which the constraint
      system unknowns should be restarted *)
   restarting: VarQuery.t list;
-}
-
-let empty_increment_data ?(server=false) () = {
-  server;
-  old_data = None;
-  changes = CompareCIL.empty_change_info ();
-  restarting = []
 }
 
 (** A side-effecting system. *)
@@ -518,7 +507,7 @@ sig
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
   (** Data used for incremental analysis *)
-  val increment : increment_data
+  val increment : increment_data option
 
   val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
 end
@@ -534,7 +523,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  val increment : increment_data
+  val increment : increment_data option
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
 end
@@ -547,10 +536,13 @@ module type GenericEqBoxIncrSolverBase =
   sig
     type marshal
 
+    val copy_marshal: marshal -> marshal
+    val relift_marshal: marshal -> marshal
+
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * marshal
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
   end
 
 (** (Incremental) solver argument, indicating which postsolving should be performed by the solver. *)
@@ -585,10 +577,13 @@ module type GenericGlobSolver =
   sig
     type marshal
 
+    val copy_marshal: marshal -> marshal
+    val relift_marshal: marshal -> marshal
+
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * marshal
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> marshal option -> (S.D.t LH.t * S.G.t GH.t) * marshal
   end
 
 module ResultType2 (S:Spec) =
@@ -696,4 +691,25 @@ struct
 
   let threadenter ctx lval f args = [ctx.local]
   let threadspawn ctx lval f args fctx = ctx.local
+end
+
+
+module type SpecSys =
+sig
+  module Spec: Spec
+  module EQSys: GlobConstrSys with module LVar = VarF (Spec.C)
+                              and module GVar = GVarF (Spec.V)
+                              and module D = Spec.D
+                              and module G = GVarG (Spec.G) (Spec.C)
+  module LHT: BatHashtbl.S with type key = EQSys.LVar.t
+  module GHT: BatHashtbl.S with type key = EQSys.GVar.t
+end
+
+module type SpecSysSol =
+sig
+  module SpecSys: SpecSys
+  open SpecSys
+
+  val gh: EQSys.G.t GHT.t
+  val lh: SpecSys.Spec.D.t LHT.t (* explicit SpecSys to avoid spurious module cycle *)
 end
