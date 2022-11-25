@@ -136,8 +136,6 @@ struct
   module WitnessInvariant = WitnessUtil.Invariant (FileCfg)
   module FMap = BatHashtbl.Make (CilType.Fundec)
   module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
-  module Query = ResultQuery.Query (SpecSys)
-
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
 
   let write () =
@@ -225,7 +223,7 @@ struct
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         if WitnessInvariant.emit_loop_head && WitnessUtil.NH.mem WitnessInvariant.loop_heads n then (
-          match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
+          match R.ask_local_node n ~local (Invariant Invariant.default_context) with
           | `Lifted inv ->
             let invs = WitnessUtil.InvariantExp.process_exp inv in
             List.fold_left (fun acc inv ->
@@ -397,7 +395,6 @@ struct
   module WitnessInvariant = WitnessUtil.Invariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
-  module Query = ResultQuery.Query (SpecSys)
 
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
