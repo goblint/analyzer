@@ -472,21 +472,21 @@ module WP =
             destabilize_normal;
 
         let changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = None; _} ->
+            | {old = {def = Some (Fun f); _}; diff = None; _} ->
               print_endline ("Completely changed function: " ^ f.svar.vname);
               Some f
             | _ -> None
           ) S.increment.changes.changed
         in
         let part_changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = Some nd; _} ->
+            | {old = {def = Some (Fun f); _}; diff = Some nd; _} ->
               print_endline ("Partially changed function: " ^ f.svar.vname);
               Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
             | _ -> None
           ) S.increment.changes.changed
         in
         let removed_funs = List.filter_map (function
-            | GFun (f, _) ->
+            | {def = Some (Fun f); _} ->
               print_endline ("Removed function: " ^ f.svar.vname);
               Some f
             | _ -> None
