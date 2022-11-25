@@ -1,6 +1,8 @@
 # Developing
 
-Running `make dev` does the following:
+For development, Goblint must be installed from source: <https://github.com/goblint/analyzer#installing>.
+
+Then running `make dev` does the following:
 
 1. Installs some additional opam packages useful for developing.
 2. Installs a Git pre-commit hook for ocp-indent (see below).

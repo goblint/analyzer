@@ -573,21 +573,21 @@ module WP =
             destabilize_normal;
 
         let changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = None; _} ->
+            | {old = {def = Some (Fun f); _}; diff = None; _} ->
               print_endline ("Completely changed function: " ^ f.svar.vname);
               Some f
             | _ -> None
           ) c.changed
         in
         let part_changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = Some nd; _} ->
+            | {old = {def = Some (Fun f); _}; diff = Some nd; _} ->
               print_endline ("Partially changed function: " ^ f.svar.vname);
               Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
             | _ -> None
           ) c.changed
         in
         let removed_funs = List.filter_map (function
-            | GFun (f, _) ->
+            | {def = Some (Fun f); _} ->
               print_endline ("Removed function: " ^ f.svar.vname);
               Some f
             | _ -> None
@@ -621,16 +621,18 @@ module WP =
               (* collect function return for reluctant analysis *)
               mark_node obsolete_ret f (Function f)
           ) changed_funs;
-        (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+        (* Primary changed unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+        (* The return nodes of partially changed functions are collected in obsolete_ret for reluctant analysis *)
         (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
-        if not reluctant then (
-          List.iter (fun (f, pn, _) ->
+        List.iter (fun (f, pn, _) ->
+            if not reluctant then (
               List.iter (fun n ->
                   mark_node obsolete_prim f n
                 ) pn;
+            ) else (
               mark_node obsolete_ret f (Function f);
-            ) part_changed_funs;
-        );
+            )
+          ) part_changed_funs;
 
         let old_ret = HM.create 103 in
         if reluctant then (
