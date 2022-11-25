@@ -197,8 +197,7 @@ let basic_preprocess ~all_cppflags fname =
   Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
   let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
   (* Preprocess using cpp. *)
-  (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-  let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
+  let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
   let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
   if get_bool "dbg.verbose" then print_endline command;
   (nname, Some {ProcessPool.command; cwd = None})
