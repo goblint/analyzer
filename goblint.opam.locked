@@ -120,3 +120,6 @@ build: [
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-distribution != "alpine" & arch != "arm64"
+conflicts: [
+  "result" {< "1.5"}
+]
