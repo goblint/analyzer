@@ -138,7 +138,7 @@ class Tests
 
   def collect_warnings
     warnings[-1] = "term"
-    lines = IO.readlines(warnfile)
+    lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
       if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
@@ -208,7 +208,7 @@ class Tests
   end
 
   def time_to_html
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
     if res == [] or not errors == [] then
@@ -221,7 +221,7 @@ class Tests
 
   def problems_to_html
     id = "#{p.id} #{p.group}/#{p.name}"
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     if correct + ignored == tests.size && ok then
       "<td style =\"color: green\">NONE</td>"
     else
@@ -418,7 +418,7 @@ class ProjectIncr < Project
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
     status = $?.exitstatus
-    lines_incr = IO.readlines(path)
+    lines_incr = IO.readlines(path, :encoding => "UTF-8")
     `patch -p0 -b -R <#{patch_path}`
     if status != 0
       puts "Failed to apply patch: #{patch_path}"
@@ -512,7 +512,7 @@ regs.sort.each do |d|
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
-    lines = IO.readlines(path)
+    lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
