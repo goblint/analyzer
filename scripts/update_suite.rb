@@ -62,7 +62,8 @@ has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make hea
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
-incremental = ARGV.last == "-i" && ARGV.pop
+cfg = ARGV.last == "-c" && ARGV.pop
+incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if marshal || incremental then
@@ -519,7 +520,7 @@ regs.sort.each do |d|
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
       config_path = File.expand_path(f[0..-3] + ".json", grouppath)
-      params = "--conf #{config_path}"
+      params = if cfg then "--conf #{config_path} --set incremental.compare cfg" else "--conf #{config_path}" end
     else
       lines[0] =~ /PARAM: (.*)$/
       if $1 then params = $1 else params = "" end
