@@ -1794,7 +1794,18 @@ struct
             ID.meet a'' t
           | _, _ -> a''
         in
-        meet_bin a''' b'
+        let a,b = meet_bin a''' b' in
+        (* Special handling for case a % 2 != c *)
+        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
+            let two = BI.of_int 2 in
+            match ID.to_int b, ID.to_excl_list c with
+            | Some b, Some ([v], _) when BI.equal b two ->
+              let k = if BI.equal (BI.abs (BI.rem v two)) (BI.zero) then BI.one else BI.zero in
+              ID.meet (ID.of_congruence ikind (k, b)) a
+            | _, _ -> a
+          else a
+        in
+        a, b
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
