@@ -687,11 +687,11 @@ struct
       | Skip           -> tf_skip var edge prev_node
     end getl sidel getg sideg d
 
-  type Goblint_backtrace.mark += Location of location
+  type Goblint_backtrace.mark += TfLocation of location
 
   let () = Goblint_backtrace.register_mark_printer (function
-      | Location loc ->
-        Some (CilType.Location.show loc)
+      | TfLocation loc ->
+        Some ("transfer function at " ^ CilType.Location.show loc)
       | _ -> None (* for other marks *)
     )
 
@@ -700,7 +700,7 @@ struct
     let old_loc2 = !Tracing.next_loc in
     Tracing.current_loc := f;
     Tracing.next_loc := t;
-    Goblint_backtrace.protect ~mark:(fun () -> Location f) ~finally:(fun () ->
+    Goblint_backtrace.protect ~mark:(fun () -> TfLocation f) ~finally:(fun () ->
         Tracing.current_loc := old_loc;
         Tracing.next_loc := old_loc2
       ) (fun () ->
