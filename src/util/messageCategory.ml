@@ -28,6 +28,7 @@ type cast = TypeMismatch [@@deriving eq, ord, hash]
 type category =
   | Assert
   | Behavior of behavior
+  | Call
   | Integer of integer
   | Float
   | Race
@@ -171,6 +172,7 @@ let should_warn e =
     match e with
     | Assert -> "assert"
     | Behavior _ -> "behavior"
+    | Call -> "call"
     | Integer _ -> "integer"
     | Float -> "float"
     | Race -> "race"
@@ -190,6 +192,7 @@ let path_show e =
   match e with
   | Assert -> ["Assert"]
   | Behavior x -> "Behavior" :: Behavior.path_show x
+  | Call -> ["Call"]
   | Integer x -> "Integer" :: Integer.path_show x
   | Float -> ["Float"]
   | Race -> ["Race"]
@@ -219,7 +222,7 @@ let behaviorName = function
       | Unknown -> "Unknown Aob"
 let categoryName = function
   | Assert -> "Assert"
-
+  | Call -> "Call"
   | Race -> "Race"
   | Deadlock -> "Deadlock"
   | Cast x -> "Cast"
@@ -244,6 +247,7 @@ let from_string_list (s: string list) =
   | h :: t -> match h with
     | "assert" -> Assert
     | "behavior" -> Behavior.from_string_list t
+    | "call" -> Call
     | "integer" -> Integer.from_string_list t
     | "float" -> Float
     | "race" -> Race

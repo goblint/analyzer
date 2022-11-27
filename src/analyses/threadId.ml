@@ -5,8 +5,7 @@ module LF = LibraryFunctions
 
 open Prelude.Ana
 open Analyses
-
-let (let+) xs f = List.map f xs (* TODO: move to general library *)
+open GobList.Syntax
 
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted

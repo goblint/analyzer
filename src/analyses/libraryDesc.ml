@@ -20,7 +20,17 @@ type math =
   | Isnan of Cil.exp
   | Isnormal of Cil.exp
   | Signbit of Cil.exp
+  | Isgreater of (Cil.exp * Cil.exp)
+  | Isgreaterequal of (Cil.exp * Cil.exp)
+  | Isless of (Cil.exp * Cil.exp)
+  | Islessequal of (Cil.exp * Cil.exp)
+  | Islessgreater of (Cil.exp * Cil.exp)
+  | Isunordered of (Cil.exp * Cil.exp)
+  | Ceil of (Cil.fkind * Cil.exp)
+  | Floor of (Cil.fkind * Cil.exp)
   | Fabs of (Cil.fkind * Cil.exp)
+  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
+  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
   | Acos of (Cil.fkind * Cil.exp)
   | Asin of (Cil.fkind * Cil.exp)
   | Atan of (Cil.fkind * Cil.exp)

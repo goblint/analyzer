@@ -233,7 +233,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -505,7 +505,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -641,7 +641,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -716,46 +716,7 @@ struct
       This is used by base responding to EvalInt to immediately directly avoid EvalInt query cycle, which would return top.
       Recursive [eval_rv] calls on subexpressions still go through [eval_rv_ask_evalint]. *)
   and eval_rv_no_ask_evalint a gs st exp =
-    eval_rv_ask_mustbeequal a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_ask_mustbeequal *)
-
-  (** Evaluate expression using MustBeEqual query.
-      Otherwise just delegate to next eval_rv function. *)
-  and eval_rv_ask_mustbeequal a gs st exp =
-    let eval_next () = eval_rv_base a gs st exp in
-    if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
-    let binop op e1 e2 =
-      let must_be_equal () =
-        let r = Q.must_be_equal a e1 e2 in
-        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
-        r
-      in
-      match op with
-      | MinusA when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_int ik BI.zero)
-      | MinusPI (* TODO: untested *)
-      | MinusPP when must_be_equal () ->
-        let ik = Cilfacade.ptrdiff_ikind () in
-        `Int (ID.of_int ik BI.zero)
-      (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
-      | Le
-      | Ge when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik true)
-      | Ne
-      | Lt
-      | Gt when must_be_equal () ->
-        let ik = Cilfacade.get_ikind_exp exp in
-        `Int (ID.of_bool ik false)
-      | _ -> eval_next ()
-    in
-    let r =
-      match exp with
-      | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
-      | _ -> eval_next ()
-    in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
-    r
+    eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
   and eval_rv_back_up a gs st exp =
     if get_bool "ana.base.eval.deep-query" then
@@ -796,13 +757,6 @@ struct
       )
       else
         (c1, c2)
-    in
-    let binop_case ~arg1 ~arg2 ~op ~typ =
-      let a1 = eval_rv a gs st arg1 in
-      let a2 = eval_rv a gs st arg2 in
-      let t1 = Cilfacade.typeOf arg1 in
-      let t2 = Cilfacade.typeOf arg2 in
-      evalbinop a st op t1 a1 t2 a2 typ
     in
     let r =
       (* query functions were no help ... now try with values*)
@@ -880,11 +834,10 @@ struct
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
-        let a1 = eval_rv a gs st e1 in (* re-evaluate because might be with cast *)
-        let a2 = eval_rv a gs st e2 in
-        evalbinop a st op t1 a1 t2 a2 typ
-      | BinOp (LOr, arg1, arg2, typ) as exp ->
-        let (let*) = Option.bind in
+        (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
+        evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
+      | BinOp (LOr, e1, e2, typ) as exp ->
+        let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
@@ -893,9 +846,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in
@@ -958,10 +911,10 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None -> binop_case ~arg1 ~arg2 ~op:LOr ~typ (* fallback to general case *)
+          | None -> evalbinop a gs st LOr ~e1 ~e2 typ (* fallback to general case *)
         end
-      | BinOp (op,arg1,arg2,typ) ->
-        binop_case ~arg1 ~arg2 ~op ~typ
+      | BinOp (op,e1,e2,typ) ->
+        evalbinop a gs st op ~e1 ~e2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
@@ -995,6 +948,51 @@ struct
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
+
+  and evalbinop (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    evalbinop_mustbeequal a gs st op ~e1 ?t1 ~e2 ?t2 t
+
+  (** Evaluate BinOp using MustBeEqual query as fallback. *)
+  and evalbinop_mustbeequal (a: Q.ask) (gs:glob_fun) (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+    (* Evaluate structurally using base at first. *)
+    let a1 = eval_rv a gs st e1 in
+    let a2 = eval_rv a gs st e2 in
+    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
+    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
+    let r = evalbinop_base a st op t1 a1 t2 a2 t in
+    if Cil.isIntegralType t then (
+      match r with
+      | `Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
+      | _ ->
+        (* Fallback to MustBeEqual query, could get extra precision from exprelation/var_eq. *)
+        let must_be_equal () =
+          let r = Q.must_be_equal a e1 e2 in
+          if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
+          r
+        in
+        match op with
+        | MinusA when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_int ik BI.zero)
+        | MinusPI (* TODO: untested *)
+        | MinusPP when must_be_equal () ->
+          let ik = Cilfacade.ptrdiff_ikind () in
+          `Int (ID.of_int ik BI.zero)
+        (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
+        | Le
+        | Ge when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik true)
+        | Ne
+        | Lt
+        | Gt when must_be_equal () ->
+          let ik = Cilfacade.get_ikind t in
+          `Int (ID.of_bool ik false)
+        | _ -> r (* Fallback didn't help. *)
+    )
+    else
+      r (* Avoid fallback, above cases are for ints only. *)
+
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
@@ -1804,7 +1802,18 @@ struct
             ID.meet a'' t
           | _, _ -> a''
         in
-        meet_bin a''' b'
+        let a,b = meet_bin a''' b' in
+        (* Special handling for case a % 2 != c *)
+        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
+            let two = BI.of_int 2 in
+            match ID.to_int b, ID.to_excl_list c with
+            | Some b, Some ([v], _) when BI.equal b two ->
+              let k = if BI.equal (BI.abs (BI.rem v two)) (BI.zero) then BI.one else BI.zero in
+              ID.meet (ID.of_congruence ikind (k, b)) a
+            | _, _ -> a
+          else a
+        in
+        a, b
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -1943,11 +1952,17 @@ struct
           *)
           let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with
               | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-                let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
-                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-                FD.of_interval (FD.get_fkind c) (l, h)
+                let zero_not_in_a = a_min > 0. || a_max < 0. in
+                let zero_not_in_c = c_min > 0. || c_max < 0. in
+                if zero_not_in_a && zero_not_in_c then
+                  let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
+                  let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                  let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                  FD.of_interval (FD.get_fkind c) (l, h)
+                else
+                  b
               | _ -> b) in
+          if M.tracing then M.trace "inv_float" "Div: (%a,%a) = %a   yields (%a,%a) \n\n" FD.pretty a FD.pretty b FD.pretty c FD.pretty a' FD.pretty b';
           meet_bin a' b'
         | Eq | Ne as op ->
           let both x = x, x in
@@ -2073,7 +2088,7 @@ struct
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
-        (match Cilfacade.typeOf e, FD.get_fkind c with
+        (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
          | TFloat (FLongDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FFloat
          | TFloat (FLongDouble as fk, _), FDouble
@@ -2086,7 +2101,7 @@ struct
         (match eval e st with
          | `Int i ->
            if ID.leq i (ID.cast_to ik i) then
-             match Cilfacade.typeOf e with
+             match unrollType (Cilfacade.typeOf e) with
              | TInt(ik_e, _)
              | TEnum ({ekind = ik_e; _ }, _) ->
                let c' = ID.cast_to ik_e c in
@@ -2628,14 +2643,16 @@ struct
       in
       let result =
         begin match fun_args with
-          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
-          | Inf fk -> `Float (FD.top_of fk)
+          | Inf fk -> `Float (FD.inf_of fk)
           | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
           | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
           | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
           | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
           | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Ceil (fk,x) -> `Float (apply_unary fk FD.ceil x)
+          | Floor (fk,x) -> `Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
           | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
           | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)
@@ -2644,6 +2661,14 @@ struct
           | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
+          | Isgreater (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> `Int(ID.logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> `Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Fmax (fd, x ,y) -> `Float (apply_binary fd FD.fmax x y)
+          | Fmin (fd, x ,y) -> `Float (apply_binary fd FD.fmin x y)
         end
       in
       begin match lv with
@@ -2838,6 +2863,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Assert exp ->
+      assert_fn ctx exp true
     | _ ->
       ctx.local
 end

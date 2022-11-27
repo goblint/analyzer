@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 872fc896-7029-4d06-b733-6ecc2d3f8074
@@ -23,11 +23,11 @@
     line: 8
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: r || x
     type: assertion
     format: C
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: f42797cf-479e-469f-b378-3bf9ab3f79a9
@@ -52,7 +52,7 @@
     line: 9
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: '!(r && y)'
     type: assertion
     format: C

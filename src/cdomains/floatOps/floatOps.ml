@@ -29,6 +29,8 @@ module type CFloatType = sig
 
   val neg: t -> t
   val fabs: t -> t
+  val floor: t -> t
+  val ceil: t -> t
   val add: round_mode -> t -> t -> t
   val sub: round_mode -> t -> t -> t
   val mul: round_mode -> t -> t -> t
@@ -66,6 +68,8 @@ module CDouble = struct
 
   let neg = Float.neg
   let fabs = Float.abs
+  let floor  = Float.floor
+  let ceil = Float.ceil
   external add: round_mode -> t -> t -> t = "add_double"
   external sub: round_mode -> t -> t -> t = "sub_double"
   external mul: round_mode -> t -> t -> t = "mul_double"
@@ -97,6 +101,8 @@ module CFloat = struct
 
   let neg = Float.neg
   let fabs = Float.abs
+  let floor  = Float.floor
+  let ceil = Float.ceil
   external add: round_mode -> t -> t -> t = "add_float"
   external sub: round_mode -> t -> t -> t = "sub_float"
   external mul: round_mode -> t -> t -> t = "mul_float"

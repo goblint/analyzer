@@ -434,7 +434,7 @@ end
 
 module type Increment =
 sig
-  val increment: increment_data
+  val increment: increment_data option
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
@@ -635,19 +635,36 @@ struct
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
     let one_function f =
-      match Cilfacade.find_varinfo_fundec f with
-      | fd when LibraryFunctions.use_special f.vname ->
-        M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-        tf_special_call ctx lv f args
-      | fd ->
-        tf_normal_call ctx lv e fd args getl sidel getg sideg
-      | exception Not_found ->
-        tf_special_call ctx lv f args
+      match f.vtype with
+      | TFun (_, params, var_arg, _)  ->
+        let arg_length = List.length args in
+        let p_length = Option.map_default List.length 0 params in
+        (* Check whether number of arguments fits. *)
+        (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
+        if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
+          begin Some (match Cilfacade.find_varinfo_fundec f with
+              | fd when LibraryFunctions.use_special f.vname ->
+                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+                tf_special_call ctx lv f args
+              | fd ->
+                tf_normal_call ctx lv e fd args getl sidel getg sideg
+              | exception Not_found ->
+                tf_special_call ctx lv f args)
+          end
+        else begin
+          let geq = if var_arg then ">=" else "" in
+          M.warn ~tags:[CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
+          None
+        end
+      | _ ->
+        M.warn  ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
+        None
     in
-    if [] = functions then
+    let funs = List.filter_map one_function functions in
+    if [] = funs then begin
+      M.warn ~category:Unsound "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
-    else
-      let funs = List.map one_function functions in
+    end else
       common_joins ctx funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
@@ -777,8 +794,10 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
     module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
 
     type marshal = unit
+    let copy_marshal () = ()
+    let relift_marshal () = ()
 
-    let solve box xs vs =
+    let solve box xs vs _ =
       let vh = Sol.solve box xs vs in
       Post.post xs vs vh;
       (vh, ())
@@ -908,7 +927,6 @@ end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
-  : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -922,11 +940,14 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 
       type marshal = Sol'.marshal
 
-      let solve ls gs l =
+      let copy_marshal = Sol'.copy_marshal
+      let relift_marshal = Sol'.relift_marshal
+
+      let solve ls gs l old_data =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        let hm, solver_data = Sol'.solve EqSys.box vs sv old_data in
         Splitter.split_solution hm, solver_data
     end
 
@@ -1175,17 +1196,14 @@ struct
   let asm ctx = S.asm (conv ctx)
 end
 
-module CompareGlobSys
-    (S:Spec)
-    (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = GVarF (S.V)
-                        and module D = S.D
-                        and module G = GVarG (S.G) (S.C))
-    (LH:Hashtbl.S with type key=Sys.LVar.t)
-    (GH:Hashtbl.S with type key=Sys.GVar.t)
-=
+module CompareGlobSys (SpecSys: SpecSys) =
 struct
-  open S
+  open SpecSys
+  module Sys = EQSys
+  module LH = LHT
+  module GH = GHT
+
+  open Spec
   module G = Sys.G
 
   module PP = Hashtbl.Make (Node)

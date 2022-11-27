@@ -29,7 +29,8 @@
       "var_eq",
       "symb_locks",
       "region",
-      "thread"
+      "thread",
+      "threadJoins"
     ],
     "context": {
       "widen": false
@@ -66,9 +67,10 @@
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
-        "arrayDomain",
+        "congruence",
         "octagon",
-        "wideningThresholds"
+        "wideningThresholds",
+        "loopUnrollHeuristic"
       ]
     }
   },

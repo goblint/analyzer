@@ -6,7 +6,6 @@ include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
-module Expp = ExpDomain
 module Q = Queries
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
@@ -115,6 +114,10 @@ struct
     | TNamed ({tname = "pthread_t"; _}, _) -> true
     | _ -> false
 
+  let array_length_idx default length =
+    let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
+    BatOption.map_default (fun x-> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint x) default l
+
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
@@ -123,13 +126,10 @@ struct
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (bot_value ai))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
+      let len = array_length_idx (IndexDomain.bot ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.bot ())
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
@@ -158,15 +158,11 @@ struct
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (init_value ai) else (bot_value ai)))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (init_value ai) else (bot_value ai)))
+      let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
+      let len = array_length_idx (IndexDomain.bot ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
     | _ -> `Top
@@ -179,15 +175,11 @@ struct
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top ()) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (top_value ai) else (bot_value ai)))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      let domain = ArrayDomain.get_domain ~varAttr ~typAttr in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (domain = PartitionedDomain || domain = UnrolledDomain) then (top_value ai) else (bot_value ai)))
+      let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
+      let len = array_length_idx (IndexDomain.top ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> `Top
 
@@ -223,13 +215,10 @@ struct
           Failure _ -> Unions.top ()
       in
       `Union(v)
-    | TArray (ai, None, _) ->
+    | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
-    | TArray (ai, Some exp, _) ->
-      let typAttr = typeAttrs ai in
-      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+      let len = array_length_idx (IndexDomain.top ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
     | _ -> `Top
@@ -732,7 +721,7 @@ struct
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
-    let array_idx_top = (ExpDomain.top (), ArrIdxDomain.top ()) in
+    let array_idx_top = (None, ArrIdxDomain.top ()) in
     match typ, state with
     |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
@@ -815,9 +804,9 @@ struct
     match left, offset with
       | Some(Var(_), _), Some(Index(exp, _)) -> (* The offset does not matter here, exp is used to index into this array *)
         if not (contains_pointer exp) then
-          `Lifted exp
+          Some exp
         else
-          ExpDomain.top ()
+          None
       | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
         begin
           match v with
@@ -833,19 +822,19 @@ struct
                   (* Comparing types for structural equality is incorrect here, use typeSig *)
                   (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
                   if start_type = expr_type then
-                    `Lifted (equiv_expr expr v')
+                    Some (equiv_expr expr v')
                   else
                     (* If types do not agree here, this means that we were looking at pointers that *)
                     (* contain more than one array access. Those are not supported. *)
-                    ExpDomain.top ()
+                    None
                 else
-                  ExpDomain.top ()
-              with (Cilfacade.TypeOfError _) -> ExpDomain.top ()
+                  None
+              with (Cilfacade.TypeOfError _) -> None
             end
           | _ ->
-            ExpDomain.top ()
+            None
         end
-      | _, _ ->  ExpDomain.top()
+      | _, _ ->  None
 
   let zero_init_calloced_memory orig x t =
     if orig then
@@ -1232,6 +1221,7 @@ end
 module ValueInvariant (Arg: InvariantArg) =
 struct
   open Arg
+  open GobOption.Syntax
 
   (* VS is used to detect and break cycles in deref_invariant calls *)
   module VS = Set.Make (Basetype.Variables)
@@ -1239,45 +1229,66 @@ struct
   let rec ad_invariant ~vs ~offset ~lval x =
     let c_exp = Lval lval in
     let i_opt = AD.fold (fun addr acc_opt ->
-        BatOption.bind acc_opt (fun acc ->
-            match addr with
-            | Addr.UnknownPtr ->
-              None
-            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-              let rec offs_to_offset = function
-                | `NoOffset -> NoOffset
-                | `Field (f, offs) -> Field (f, offs_to_offset offs)
-                | `Index (i, offs) ->
-                  (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-                  let i_definite = BatOption.get (IndexDomain.to_int i) in
-                  let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-                  Index (i_exp, offs_to_offset offs)
-              in
-              let offset = offs_to_offset offs in
+        let* acc = acc_opt in
+        match addr with
+        | Addr.UnknownPtr ->
+          None
+        | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+          let rec offs_to_offset = function
+            | `NoOffset -> NoOffset
+            | `Field (f, offs) -> Field (f, offs_to_offset offs)
+            | `Index (i, offs) ->
+              (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
+              let i_definite = BatOption.get (IndexDomain.to_int i) in
+              let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+              Index (i_exp, offs_to_offset offs)
+          in
+          let offset = offs_to_offset offs in
 
-              let i =
-                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
-                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                else
-                  Invariant.none
-              in
-              let i_deref = deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset) in
-
-              Some (Invariant.(acc || (i && i_deref)))
-            | Addr.NullPtr ->
-              let i =
-                let addr_exp = integer 0 in
-                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                else
-                  Invariant.none
-              in
-              Some (Invariant.(acc || i))
-            (* TODO: handle Addr.StrPtr? *)
+          let cast_to_void_ptr e =
+            Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
+          in
+          let i =
+            if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+              try
+                let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
+                    cast_to_void_ptr addr_exp, cast_to_void_ptr c_exp
+                  else
+                    addr_exp, c_exp
+                in
+                Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+              with Cilfacade.TypeOfError _ -> Invariant.none
+            else
+              Invariant.none
+          in
+          let i_deref =
+            (* Avoid dereferencing into functions, mutexes, ..., which are not added to the hash table *)
+            match Cilfacade.typeOfLval (Var vi, offset) with
+            | typ when not (Compound.is_immediate_type typ) ->
+              (* Address set for a void* variable contains pointers to values of non-void type,
+                  so insert pointer cast to make invariant expression valid (no field/index on void). *)
+              let newt = TPtr (typ, []) in
+              let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
+              deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
+            | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
             | _ ->
-              None
-          )
+              Invariant.none
+          in
+
+          Some (Invariant.(acc || (i && i_deref)))
+        | Addr.NullPtr ->
+          let i =
+            let addr_exp = integer 0 in
+            if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+              Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+            else
+              Invariant.none
+          in
+          Some (Invariant.(acc || i))
+        (* TODO: handle Addr.StrPtr? *)
+        | _ ->
+          None
       ) x (Some (Invariant.bot ()))
     in
     match i_opt with
@@ -1301,9 +1312,9 @@ struct
       else
         Invariant.none
     | `Address n -> ad_invariant ~vs ~offset ~lval n
-    | `Blob n -> blob_invariant ~vs ~offset ~lval n
     | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
   and deref_invariant ~vs vi ~offset ~lval =

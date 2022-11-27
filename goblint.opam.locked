@@ -56,7 +56,7 @@ depends: [
   "dune-configurator" {= "3.0.3"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.0"}
+  "goblint-cil" {= "2.0.1"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.11"}
   "jsonrpc" {= "1.12.4"}
@@ -120,11 +120,14 @@ build: [
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-distribution != "alpine" & arch != "arm64"
+conflicts: [
+  "result" {< "1.5"}
+]
 # TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
 pin-depends: [
   [
-    "goblint-cil.2.0.0"
-    "git+https://github.com/goblint/cil.git#bfb977b48d6d92e0ecbdab2e04f2576095506107"
+    "goblint-cil.2.0.1"
+    "git+https://github.com/goblint/cil.git#5a3b7bb7f4d9b67678826ab7698f8a9048891553"
   ]
   [
     "apron.v0.9.13"
