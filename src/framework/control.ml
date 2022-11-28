@@ -299,7 +299,9 @@ struct
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
+      let old_loc = !Tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
+      Tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a\n" Spec.D.pretty result;
       result, !funs
     in
