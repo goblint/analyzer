@@ -12,8 +12,7 @@ module EWH = Ephemeron.K1.Make (Exn)
 let marks: mark EWH.t = EWH.create 10
 
 let add_mark e m =
-  if Printexc.backtrace_status () then
-    EWH.add marks e m
+  EWH.add marks e m
 
 
 (* Copied & modified from Fun. *)
@@ -59,8 +58,11 @@ let mark_to_string m =
   | Some s -> s
   | None -> mark_to_string_default m
 
+let find_marks e =
+  List.rev (EWH.find_all marks e)
+
 let print_marktrace oc e =
-  let ms = List.rev (EWH.find_all marks e) in
+  let ms = find_marks e in
   List.iter (fun m ->
       Printf.fprintf oc "Marked with %s\n" (mark_to_string m)
     ) ms
@@ -69,7 +71,8 @@ let () =
   Printexc.set_uncaught_exception_handler (fun e bt ->
       (* Copied & modified from Printexc.default_uncaught_exception_handler. *)
       Printf.eprintf "Fatal error: exception %s\n" (Printexc.to_string e);
-      print_marktrace stderr e;
+      if Printexc.backtrace_status () then
+        print_marktrace stderr e;
       Printexc.print_raw_backtrace stderr bt;
       flush stderr
     )

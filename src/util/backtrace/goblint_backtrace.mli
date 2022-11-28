@@ -28,3 +28,6 @@ val print_marktrace: out_channel -> exn -> unit
 (** Print trace of marks of an exception.
 
     Used by default for uncaught exceptions. *)
+
+val find_marks: exn -> mark list
+(** Find all marks of an exception. *)
