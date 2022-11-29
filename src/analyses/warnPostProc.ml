@@ -21,7 +21,7 @@ let alarmsNH = NH.create 100
 module CondSet = SetDomain.ToppedSet(Cond) (struct let topname = "top" end)
 module AlarmSet = SetDomain.ToppedSet(Alarm) (struct let topname = "top" end)
 
-module D =
+module DAnt =
 struct
   include SetDomain.ToppedSet(Printable.Prod (Cond) (Alarm)) (struct let topname = "top" end)
 
@@ -31,6 +31,26 @@ struct
     | _ -> CondSet.empty ()
 
   let tuples_of c s = filter (fun (cond, alarm) -> Cond.equal c cond) s
+
+  let meet x y =
+    let conds = CondSet.inter (conds_in x) (conds_in y) in
+    match x, y with
+    | `Top, _ -> y
+    | _, `Top -> x
+    | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (tuples_of c x) (tuples_of c y))) conds (empty ())
+
+end
+
+module DAv =
+struct
+  include SetDomain.ToppedSet(Printable.Prod3 (Cond) (Alarm) (Alarm)) (struct let topname = "top" end)
+
+  let conds_in s = 
+    match s with
+    | `Lifted _ -> fold (fun (cond, orig_alarm, rel_alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+    | _ -> CondSet.empty ()
+
+  let tuples_of c s = filter (fun (cond, orig_alarm, rel_alarm) -> Cond.equal c cond) s
 
   let meet x y =
     let conds = CondSet.inter (conds_in x) (conds_in y) in
@@ -85,11 +105,13 @@ end
 
 module HM = Hashtbl.Make (V)
 
-let antSolHM = ref (HM.create 10)
-
 let hoistHM = HM.create 10
 
+let antSolHM = ref (HM.create 10)
+
 let sinkHM = HM.create 10
+
+let avSolHM = ref (HM.create 10)
 
 module LocSet = SetDomain.ToppedSet(V) (struct let topname = "top" end)
 
@@ -101,7 +123,7 @@ struct
 
   type v = V.t
  
-  module Dom = D
+  module Dom = DAnt
 
   type d = Dom.t
 
@@ -176,13 +198,13 @@ struct
 
   type v = V.t
 
-  module Dom = D
+  module Dom = DAv
 
   type d = Dom.t
 
   let box _ _ _ = failwith "TODO"
 
-  let conds_in s = Dom.fold (fun (cond,alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+  let conds_in s = Dom.fold (fun (cond, orig_alarm, rel_alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
@@ -198,7 +220,7 @@ struct
           (* TODO: other lval cases *)
           | _ -> acc
           ) [] xs in
-        Dom.filter (fun ((exp, _), _) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
+        Dom.filter (fun ((exp, _), _, _) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
       | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
@@ -206,7 +228,11 @@ struct
   let gen node x = CondSet.fold (fun cond acc ->
     let ant = HM.find !antSolHM node in
     let rel_alarms = Ant.rel_alarms cond ant in
-    AlarmSet.fold (fun alarm acc -> Dom.add (cond, alarm) acc) rel_alarms acc
+    AlarmSet.fold (fun (msg, n) acc -> Dom.add (cond, (msg, n), 
+      match node with
+      | `L n -> (msg, n)
+      | `G n -> (msg, n)) 
+      acc) rel_alarms acc
     ) x (Dom.empty ())
 
   let gen_entry node x =
@@ -340,6 +366,8 @@ let finalize _ =
   let end_node = `G (Node.Function fd) in
   let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
   let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
+
+  avSolHM := solution_av;
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
 
