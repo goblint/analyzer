@@ -401,13 +401,19 @@ let finalize _ =
 
   (* Print repositioned warnings *)
   HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
-      let exp_v node =
-        let q = (!ask node).f (EvalInt exp) in
-        let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-        let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-        and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        array_oob_warn idx_before_end idx_after_start (M.Location.Node node) k in
-      match k with
-      | `L node -> exp_v node
-      | `G node -> exp_v node
-    ) s) sinkHM;
+    let warn q_node loc_node =
+      let q = (!ask q_node).f (EvalInt exp) in
+      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+      array_oob_warn idx_before_end idx_after_start (M.Location.Node loc_node) k in
+    match k with
+    | `L n -> warn n n
+    | `G n ->
+      let module CFG = (val !MyCFG.current_cfg) in
+      let next_nodes = List.map snd (CFG.next n) in
+      List.iter (fun node ->
+        match node with
+        | Function _ -> warn n n
+        | _ -> warn node n) next_nodes
+  ) s) sinkHM;
