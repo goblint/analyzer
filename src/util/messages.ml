@@ -131,12 +131,21 @@ struct
   let should_warn tags = List.exists Tag.should_warn tags
 end
 
+module Locs =
+struct
+  type t = {
+    original: Location.t list;
+    related: Location.t list;
+   } [@@deriving eq, ord, hash, yojson]
+end
+
 module Message =
 struct
   type t = {
     tags: Tags.t;
     severity: Severity.t;
     multipiece: MultiPiece.t;
+    locs: Locs.t;
   } [@@deriving eq, ord, hash, yojson]
 end
 
@@ -214,6 +223,19 @@ let print ?(ppf= !formatter) (m: Message.t) =
         | _ -> assert false
       end
   in
+  let pp_loc =
+    let pp_loc_brackets ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
+    Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_loc_brackets
+  in
+  let pp_locs =
+    let orig_locs = List.map (fun l -> Location.to_cil l) m.locs.original in
+    let rel_locs = List.map (fun l -> Location.to_cil l) m.locs.related in
+    match orig_locs, rel_locs with
+    | [], [] -> Format.dprintf ""
+    | [], x -> Format.dprintf "Related:%a"  pp_loc rel_locs
+    | x, [] -> Format.dprintf "Original:%a" pp_loc orig_locs
+    | _, _ -> Format.dprintf "Original:%a Related:%a" pp_loc orig_locs pp_loc rel_locs
+  in
   let pp_piece ppf piece =
     if get_bool "warn.quote-code" then (
       let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" pp_quote in
@@ -229,7 +251,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
       let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
       Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
   in
-  Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
+  Format.fprintf ppf "@[<v 2>%t %t %t@]\n%!" pp_prefix pp_multipiece pp_locs
 
 
 let add m =
@@ -247,7 +269,7 @@ let msg_context () =
   else
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) ?(locs) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = Pretty.sprint ~width:max_int doc in
@@ -255,7 +277,9 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
         | Some node -> Some node
         | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
       in
-      add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
+      match locs with
+      | Some locs -> add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}; locs = locs}
+      | None -> add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}; locs = {original=[]; related=[]}}
     in
     Pretty.gprintf finish fmt
   )
@@ -266,7 +290,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = Pretty.sprint ~width:max_int doc in
-      add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+      add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}; locs = {original=[]; related=[]}}
     in
     Pretty.gprintf finish fmt
   )
@@ -281,7 +305,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
         let text = Pretty.sprint ~width:max_int doc in
         Piece.{loc; text; context = None}
       in
-      add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
+      add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}; locs = {original=[]; related=[]}}
     in
     Pretty.gprintf finish fmt
   )
@@ -290,14 +314,19 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?loc = msg Warning ?loc
+let warn ?locs = msg Warning ?locs
 let warn_noloc ?tags = msg_noloc Warning ?tags
 let error ?loc = msg Error ?loc
+let error ?locs = msg Error ?locs
 let error_noloc ?tags = msg_noloc Error ?tags
 let info ?loc = msg Info ?loc
+let info ?locs = msg Info ?locs
 let info_noloc ?tags = msg_noloc Info ?tags
 let debug ?loc = msg Debug ?loc
+let debug ?locs = msg Debug ?locs
 let debug_noloc ?tags = msg_noloc Debug ?tags
 let success ?loc = msg Success ?loc
+let success ?locs = msg Success ?locs
 let success_noloc ?tags = msg_noloc Success ?tags
 
 include Tracing

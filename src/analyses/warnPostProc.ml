@@ -283,21 +283,28 @@ struct
   let iter_vars _ _ _ = ()
 end
 
-let array_oob_warn idx_before_end idx_after_start node =
+module MLocSet = Set.Make (M.Location)
+
+let array_oob_warn idx_before_end idx_after_start node var_node =
   (* For an explanation of the warning types check the Pull Request #255 *)
+  let (orig_locs, rel_locs) = DAv.fold (fun (cond, (_, orig_node), (_, rel_node)) (orig_locs, rel_locs) -> 
+    (MLocSet.add (M.Location.Node orig_node) orig_locs, MLocSet.add (M.Location.Node rel_node) rel_locs)) 
+    (HM.find !avSolHM var_node) (MLocSet.empty, MLocSet.empty) in
+  let locs : Messages.Locs.t = {original=(MLocSet.to_list orig_locs); related=MLocSet.to_list rel_locs} in
+  let loc = MLocSet.any rel_locs in
   match(idx_after_start, idx_before_end) with
   | Some true, Some true -> (* Certainly in bounds on both sides.*)
     ()
   | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end" ~loc:node
+    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end" ~loc:loc ~locs:locs
   | Some true, None ->
-    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end" ~loc:node
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end" ~loc:loc ~locs:locs
   | Some false, Some true ->
-    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start" ~loc:node
+    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start" ~loc:loc ~locs:locs
   | None, Some true ->
-    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start" ~loc:node
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start" ~loc:loc ~locs:locs
   | _ ->
-    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds" ~loc:node
+    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds" ~loc:loc ~locs:locs
 
 
 let init _ =
@@ -324,7 +331,7 @@ let finalize _ =
 
   antSolHM := solution;
 
-  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
+  HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution;
 
   let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
       let q = (!ask node).f (EvalInt exp) in
@@ -399,7 +406,7 @@ let finalize _ =
         let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
         let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
         and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        array_oob_warn idx_before_end idx_after_start (M.Location.Node node) in
+        array_oob_warn idx_before_end idx_after_start (M.Location.Node node) k in
       match k with
       | `L node -> exp_v node
       | `G node -> exp_v node
