@@ -136,7 +136,7 @@ struct
   type t = {
     original: Location.t list;
     related: Location.t list;
-   } [@@deriving eq, ord, hash, yojson]
+  } [@@deriving eq, ord, hash, yojson]
 end
 
 module Message =
@@ -232,9 +232,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
     let rel_locs = List.map (fun l -> Location.to_cil l) m.locs.related in
     match orig_locs, rel_locs with
     | [], [] -> Format.dprintf ""
-    | [], x -> Format.dprintf "Related:%a"  pp_loc rel_locs
-    | x, [] -> Format.dprintf "Original:%a" pp_loc orig_locs
-    | _, _ -> Format.dprintf "Original:%a Related:%a" pp_loc orig_locs pp_loc rel_locs
+    | [], x -> Format.dprintf " Related:%a"  pp_loc rel_locs
+    | x, [] -> Format.dprintf " Original:%a" pp_loc orig_locs
+    | _, _ -> Format.dprintf " Original:%a Related:%a" pp_loc orig_locs pp_loc rel_locs
   in
   let pp_piece ppf piece =
     if get_bool "warn.quote-code" then (
@@ -251,7 +251,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
       let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
       Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
   in
-  Format.fprintf ppf "@[<v 2>%t %t %t@]\n%!" pp_prefix pp_multipiece pp_locs
+  Format.fprintf ppf "@[<v 2>%t %t%t@]\n%!" pp_prefix pp_multipiece pp_locs
 
 
 let add m =

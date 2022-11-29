@@ -64,29 +64,29 @@ end
 let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
 
 module VarNode =
-  struct
-    include Analyses.Var
+struct
+  include Analyses.Var
 
-    let is_write_only _ = false
-    let node n = n
+  let is_write_only _ = false
+  let node n = n
 
-    let pretty_trace = Node.pretty_trace
+  let pretty_trace = Node.pretty_trace
 
-  end
+end
 
-  module VarNodeL =
-  struct
-  	include VarNode
+module VarNodeL =
+struct
+  include VarNode
 
-    let pretty_trace () x = Pretty.dprintf "In %a" pretty_trace x
-  end
+  let pretty_trace () x = Pretty.dprintf "In %a" pretty_trace x
+end
 
-  module VarNodeG =
-  struct
-  	include VarNode
+module VarNodeG =
+struct
+  include VarNode
 
-    let pretty_trace () x = Pretty.dprintf "Out %a" pretty_trace x
-  end
+  let pretty_trace () x = Pretty.dprintf "Out %a" pretty_trace x
+end
 
 module V =
 struct
@@ -96,11 +96,11 @@ struct
   let pretty = pretty_trace
 
   include Printable.SimplePretty (
-        struct
-          type nonrec t = t
-          let pretty = pretty
-        end
-        )
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 module HM = Hashtbl.Make (V)
@@ -122,7 +122,7 @@ struct
   module Var = V
 
   type v = V.t
- 
+
   module Dom = DAnt
 
   type d = Dom.t
@@ -140,16 +140,16 @@ struct
     match node with
     | Statement stmt ->
       begin match stmt.skind with
-      | Instr [] -> Dom.empty ()
-      | Instr xs ->
-        let assigned_vars = List.fold (fun acc instr ->
-          match instr with
-          | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
-          (* TODO: other lval cases *)
-          | _ -> acc
-          ) [] xs in
-        Dom.filter (fun ((exp, _), alarm) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
-      | _ -> Dom.empty ()
+        | Instr [] -> Dom.empty ()
+        | Instr xs ->
+          let assigned_vars = List.fold (fun acc instr ->
+              match instr with
+              | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
+              (* TODO: other lval cases *)
+              | _ -> acc
+            ) [] xs in
+          Dom.filter (fun ((exp, _), alarm) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
+        | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
 
@@ -212,27 +212,27 @@ struct
     match node with
     | Statement stmt ->
       begin match stmt.skind with
-      | Instr [] -> Dom.empty ()
-      | Instr xs ->
-        let assigned_vars = List.fold (fun acc instr ->
-          match instr with
-          | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
-          (* TODO: other lval cases *)
-          | _ -> acc
-          ) [] xs in
-        Dom.filter (fun ((exp, _), _, _) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
-      | _ -> Dom.empty ()
+        | Instr [] -> Dom.empty ()
+        | Instr xs ->
+          let assigned_vars = List.fold (fun acc instr ->
+              match instr with
+              | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
+              (* TODO: other lval cases *)
+              | _ -> acc
+            ) [] xs in
+          Dom.filter (fun ((exp, _), _, _) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
+        | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
 
   let gen node x = CondSet.fold (fun cond acc ->
-    let ant = HM.find !antSolHM node in
-    let rel_alarms = Ant.rel_alarms cond ant in
-    AlarmSet.fold (fun (msg, n) acc -> Dom.add (cond, (msg, n), 
-      match node with
-      | `L n -> (msg, n)
-      | `G n -> (msg, n)) 
-      acc) rel_alarms acc
+      let ant = HM.find !antSolHM node in
+      let rel_alarms = Ant.rel_alarms cond ant in
+      AlarmSet.fold (fun (msg, n) acc -> Dom.add (
+          cond, (msg, n), match node with
+          | `L n -> (msg, n)
+          | `G n -> (msg, n)) 
+          acc) rel_alarms acc
     ) x (Dom.empty ())
 
   let gen_entry node x =
@@ -252,31 +252,31 @@ struct
       | false -> gen (`G node) set
 
   let system = function
-  (* AvIn *)
-  | `L node ->
-    let f get _ =
-      match node with
+    (* AvIn *)
+    | `L node ->
+      let f get _ =
+        match node with
         | Node.FunctionEntry _ -> Dom.empty ()
         | _ ->
           let module CFG = (val !MyCFG.current_cfg) in
           let prev_nodes = List.map snd (CFG.prev node) in
           let prev_values = List.map (fun node -> get (`G node)) prev_nodes in
           List.fold_left Dom.meet (Dom.top ()) prev_values
-    in
-    Some f
-  (* AvOut *)
-  | `G node ->
-    let f get _ =
-      let av_in' n =
-        let av_in = get (`L n) in
-        Dom.union av_in @@ gen_entry n av_in in
-      let av_out' n =
-        let av_in' = av_in' n in
-        Dom.union (Dom.diff av_in' (kill n av_in')) (dep_gen n av_in') in
-      let av_out n = Dom.union (gen_exit n) (av_out' n) in
-      av_out node
-    in
-    Some f
+      in
+      Some f
+    (* AvOut *)
+    | `G node ->
+      let f get _ =
+        let av_in' n =
+          let av_in = get (`L n) in
+          Dom.union av_in @@ gen_entry n av_in in
+        let av_out' n =
+          let av_in' = av_in' n in
+          Dom.union (Dom.diff av_in' (kill n av_in')) (dep_gen n av_in') in
+        let av_out n = Dom.union (gen_exit n) (av_out' n) in
+        av_out node
+      in
+      Some f
 
   let increment = Analyses.empty_increment_data ()
 
@@ -288,8 +288,8 @@ module MLocSet = Set.Make (M.Location)
 let array_oob_warn idx_before_end idx_after_start node var_node =
   (* For an explanation of the warning types check the Pull Request #255 *)
   let (orig_locs, rel_locs) = DAv.fold (fun (cond, (_, orig_node), (_, rel_node)) (orig_locs, rel_locs) -> 
-    (MLocSet.add (M.Location.Node orig_node) orig_locs, MLocSet.add (M.Location.Node rel_node) rel_locs)) 
-    (HM.find !avSolHM var_node) (MLocSet.empty, MLocSet.empty) in
+      (MLocSet.add (M.Location.Node orig_node) orig_locs, MLocSet.add (M.Location.Node rel_node) rel_locs)) 
+      (HM.find !avSolHM var_node) (MLocSet.empty, MLocSet.empty) in
   let locs : Messages.Locs.t = {original=(MLocSet.to_list orig_locs); related=MLocSet.to_list rel_locs} in
   let loc = MLocSet.any rel_locs in
   match(idx_after_start, idx_before_end) with
@@ -401,19 +401,19 @@ let finalize _ =
 
   (* Print repositioned warnings *)
   HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
-    let warn q_node loc_node =
-      let q = (!ask q_node).f (EvalInt exp) in
-      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-      array_oob_warn idx_before_end idx_after_start (M.Location.Node loc_node) k in
-    match k with
-    | `L n -> warn n n
-    | `G n ->
-      let module CFG = (val !MyCFG.current_cfg) in
-      let next_nodes = List.map snd (CFG.next n) in
-      List.iter (fun node ->
-        match node with
-        | Function _ -> warn n n
-        | _ -> warn node n) next_nodes
-  ) s) sinkHM;
+      let warn q_node loc_node =
+        let q = (!ask q_node).f (EvalInt exp) in
+        let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+        let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+        and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+        array_oob_warn idx_before_end idx_after_start (M.Location.Node loc_node) k in
+      match k with
+      | `L n -> warn n n
+      | `G n ->
+        let module CFG = (val !MyCFG.current_cfg) in
+        let next_nodes = List.map snd (CFG.next n) in
+        List.iter (fun node ->
+            match node with
+            | Function _ -> warn n n
+            | _ -> warn node n) next_nodes
+    ) s) sinkHM;
