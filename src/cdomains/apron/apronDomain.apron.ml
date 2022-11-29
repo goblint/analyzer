@@ -179,20 +179,21 @@ let int_of_scalar ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
     None
   else
+    let open GobOption.Syntax in
     match scalar with
     | Float f -> (* octD, boxD *)
       (* bound_texpr on bottom also gives Float even with MPQ *)
-      let f_opt = match round with
+      let+ f = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
         | None when Stdlib.Float.is_integer f-> Some f
         | None -> None
       in
-      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
+      BI.of_bigint (Z.of_float f)
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
-      let z_opt =
+      let+ z =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
           Some n
         else
@@ -202,7 +203,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
             | None -> None
           end
       in
-      Option.map Z_mlgmpidl.z_of_mpzf z_opt
+      Z_mlgmpidl.z_of_mpzf z
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
@@ -935,9 +936,9 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr d e with
-        | (Some min, Some max) -> ID.of_interval ik (min, max)
-        | (Some min, None) -> ID.starting ik min
-        | (None, Some max) -> ID.ending ik max
+        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
+        | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
+        | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
         | (None, None) -> ID.top_of ik
 
   let invariant ~scope x =

@@ -2,6 +2,7 @@
 // Test case taken from sqlite3.c
 #include <string.h>
 #include <stdlib.h>
+#include <goblint.h>
 
 typedef unsigned long u64;
 

@@ -8,5 +8,5 @@ let escape (x:string):string =
   Str.global_replace (Str.regexp ">") "&gt;" |>
   Str.global_replace (Str.regexp "\"") "&quot;" |>
   Str.global_replace (Str.regexp "'") "&apos;" |>
-  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e]") "" |> (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
+  Str.global_replace (Str.regexp "[\x0b\001\x0c\x0f\x0e\x05]") "" |> (* g2html just cannot handle from some kernel benchmarks, even when escaped... *)
   Str.global_replace (Str.regexp "[\x1b]") "" (* g2html cannot handle from chrony *)

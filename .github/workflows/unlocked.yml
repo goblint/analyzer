@@ -95,6 +95,9 @@ jobs:
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
 
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
+
   lower-bounds-downgrade:
     # use external 0install solver to downgrade: https://github.com/ocaml-opam/opam-0install-solver
     # TODO: will be built in in opam 2.2: https://github.com/ocaml/opam/pull/4909
@@ -173,6 +176,9 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
 
   lower-bounds-docker:
     # use builtin-0install solver to remove and downgrade, opam normally compiled without, Docker images have it compiled
@@ -265,3 +271,6 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c

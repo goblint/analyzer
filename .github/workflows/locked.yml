@@ -67,6 +67,9 @@ jobs:
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
 
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
+
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
 

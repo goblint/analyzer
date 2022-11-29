@@ -42,6 +42,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clearerr", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
   ]
 
 (** C POSIX library functions.
@@ -132,6 +133,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_popcount", unknown [drop "x" []]);
     ("__builtin_popcountl", unknown [drop "x" []]);
     ("__builtin_popcountll", unknown [drop "x" []]);
+    ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
+    ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -297,6 +300,7 @@ let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_va
 let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
+    ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
   ]
 
 (* TODO: allow selecting which lists to use *)

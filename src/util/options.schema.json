@@ -263,6 +263,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "cstd": {
+          "title": "cil.cstd",
+          "type": "string",
+          "description": "Specify the c standard used for parsing.",
+          "default": "c99",
+          "enum": ["c90", "c99", "c11"]
+        },
+        "gnu89inline": {
+          "title": "cil.gnu89inline",
+          "type": "boolean",
+          "description": "Indicates whether gnu89 semantic should be used for inline functions.",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1803,6 +1816,13 @@
             "Should the analysis print information on which globals are protected by which mutex?",
           "type": "boolean",
           "default": false
+        },
+        "run_cil_check" : {
+          "title": "dbg.run_cil_check",
+          "description":
+            "Should the analysis call Check.checkFile after creating the CFG (helpful to verify that transformations respect CIL's invariants.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1821,6 +1841,12 @@
         "behavior": {
           "title": "warn.behavior",
           "description": "undefined behavior warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "call": {
+          "title": "warn.call",
+          "description": "function call warnings",
           "type": "boolean",
           "default": true
         },

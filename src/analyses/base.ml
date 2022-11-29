@@ -98,25 +98,31 @@ struct
 
   type marshal = attributes VarMap.t VarH.t
 
+  let array_domain_annotation_enabled = lazy (GobConfig.get_bool "annotation.goblint_array_domain")
+
   let add_to_array_map fundec arguments =
-    let rec pointedArrayMap = function
-      | [] -> VarMap.empty
-      | (info,value)::xs ->
-        match value with
-        | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
-          let possibleVars = PreValueDomain.AD.to_var_may t in
-          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
-        | _ -> pointedArrayMap xs
-    in
-    match VarH.find_option !array_map fundec.svar with
-    | Some _ -> () (*We already have something -> do not change it*)
-    | None -> VarH.add !array_map fundec.svar (pointedArrayMap arguments)
+    if Lazy.force array_domain_annotation_enabled then
+      let rec pointedArrayMap = function
+        | [] -> VarMap.empty
+        | (info,value)::xs ->
+          match value with
+          | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
+            let possibleVars = PreValueDomain.AD.to_var_may t in
+            List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+          | _ -> pointedArrayMap xs
+      in
+      match VarH.find_option !array_map fundec.svar with
+      | Some _ -> () (*We already have something -> do not change it*)
+      | None -> VarH.add !array_map fundec.svar (pointedArrayMap arguments)
 
   let attributes_varinfo info fundec =
-    let map = VarH.find !array_map fundec.svar in
-    match VarMap.find_opt info map with
-    | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
-    | None -> Some (info.vattr, typeAttrs (info.vtype))
+    if Lazy.force array_domain_annotation_enabled then
+      let map = VarH.find !array_map fundec.svar in
+      match VarMap.find_opt info map with
+      | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+      | None -> Some (info.vattr, typeAttrs (info.vtype))
+    else
+      None
 
   let project_val ask array_attr p_opt value is_glob =
     let p = if GobConfig.get_bool "annotation.int.enabled" then (
@@ -511,7 +517,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -646,7 +652,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -841,7 +847,7 @@ struct
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
         evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
-        let (let*) = Option.bind in
+        let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
@@ -850,9 +856,9 @@ struct
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
+            let+ s1 = split arg1
+            and+ s2 = split arg2 in
+            s1 @ s2
           | _ ->
             None
         in
@@ -1800,7 +1806,18 @@ struct
             ID.meet a'' t
           | _, _ -> a''
         in
-        meet_bin a''' b'
+        let a,b = meet_bin a''' b' in
+        (* Special handling for case a % 2 != c *)
+        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
+            let two = BI.of_int 2 in
+            match ID.to_int b, ID.to_excl_list c with
+            | Some b, Some ([v], _) when BI.equal b two ->
+              let k = if BI.equal (BI.abs (BI.rem v two)) (BI.zero) then BI.one else BI.zero in
+              ID.meet (ID.of_congruence ikind (k, b)) a
+            | _, _ -> a
+          else a
+        in
+        a, b
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -2075,7 +2092,7 @@ struct
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
-        (match Cilfacade.typeOf e, FD.get_fkind c with
+        (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
          | TFloat (FLongDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FFloat
          | TFloat (FLongDouble as fk, _), FDouble
@@ -2088,7 +2105,7 @@ struct
         (match eval e st with
          | `Int i ->
            if ID.leq i (ID.cast_to ik i) then
-             match Cilfacade.typeOf e with
+             match unrollType (Cilfacade.typeOf e) with
              | TInt(ik_e, _)
              | TEnum ({ekind = ik_e; _ }, _) ->
                let c' = ID.cast_to ik_e c in
@@ -2832,6 +2849,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Assert exp ->
+      assert_fn ctx exp true
     | _ ->
       ctx.local
 end
