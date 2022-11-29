@@ -94,7 +94,9 @@ struct
   (*There surely is a better way, because this means that often the wrong one gets chosen*)
   module VarH = Hashtbl.Make(CilType.Varinfo)
   module VarMap = Map.Make(CilType.Varinfo)
-  let array_map = VarH.create 20
+  let array_map = ref (VarH.create 20)
+
+  type marshal = attributes VarMap.t VarH.t
 
   let add_to_array_map fundec arguments =
     let rec pointedArrayMap = function
@@ -106,12 +108,12 @@ struct
           List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
         | _ -> pointedArrayMap xs
     in
-    match VarH.find_option array_map fundec.svar with
+    match VarH.find_option !array_map fundec.svar with
     | Some _ -> () (*We already have something -> do not change it*)
-    | None -> VarH.add array_map fundec.svar (pointedArrayMap arguments)
+    | None -> VarH.add !array_map fundec.svar (pointedArrayMap arguments)
 
   let attributes_varinfo info fundec =
-    let map = VarH.find array_map fundec.svar in
+    let map = VarH.find !array_map fundec.svar in
     match VarMap.find_opt info map with
     | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
     | None -> Some (info.vattr, typeAttrs (info.vtype))
@@ -149,12 +151,16 @@ struct
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let init marshal =
+    begin match marshal with
+      | Some marshal -> array_map := marshal
+      | None -> ()
+    end;
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
     Priv.init ()
 
   let finalize () =
     Priv.finalize ();
-    VarH.clear array_map
+    !array_map
 
   (**************************************************************************
    * Abstract evaluation functions
