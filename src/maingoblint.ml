@@ -461,8 +461,11 @@ let do_analyze change_info merged_AST =
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
         Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
-        let loc = !Tracing.current_loc in
-        Messages.error ~category:Analyzer ~loc:(Messages.Location.CilLocation loc) "About to crash!";
+        let pretty_mark () = match Goblint_backtrace.find_marks e with
+          | m :: _ -> Pretty.dprintf " at mark %s" (Goblint_backtrace.mark_to_string m)
+          | [] -> Pretty.nil
+        in
+        Messages.error ~category:Analyzer "About to crash%t!" pretty_mark;
         (* trigger Generic.SolverStats...print_stats *)
         Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
         do_stats ();
