@@ -28,6 +28,12 @@ let equal_varDomain vd1 vd2 =
     | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
     | Error -> "ERROR"
 
+let hash_valuedomain vd =
+  match vd with Int(iLower, iUpper, ik) -> Big_int_Z.int_of_big_int (Big_int_Z.sub_big_int iLower iUpper)
+  | Float(fLower,fUpper, fk) -> int_of_float (fLower -. fUpper)
+  | Address(vinfo) -> CilType.Varinfo.hash vinfo
+  | Error -> 13
+
 (* Pure node type *)
 type node = {
   programPoint : MyCFG.node;
@@ -47,15 +53,19 @@ let equal_sigmar s1 s2 = if (SigmarMap.is_empty s1) && (SigmarMap.is_empty s2) t
 
   (* MyCFG.compare hier möglich*)
 let compare n1 n2 = match (n1, n2) with 
-({programPoint=p1;sigmar=s1},{programPoint=p2;sigmar=s2}) -> if (equal_sigmar s1 s2) then String.compare (Node.show_id p1) (Node.show_id p2) else -13
-
-let hash n = match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid
-| {programPoint=Function(fd);sigmar=s} -> fd.svar.vid
-| {programPoint=FunctionEntry(fd);sigmar=s} -> fd.svar.vid
-
-
+({programPoint=p1;sigmar=s1},{programPoint=p2;sigmar=s2}) -> if (equal_sigmar s1 s2) then Node.compare p1 p2 else -13 
 
 let show_sigmar s = (SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
+
+let hash_sigmar s = (SigmarMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_valuedomain vd) + i) s 0)
+
+
+let hash n = 
+match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid + hash_sigmar s
+| {programPoint=Function(fd);sigmar=s} -> fd.svar.vid + hash_sigmar s
+| {programPoint=FunctionEntry(fd);sigmar=s} -> fd.svar.vid + hash_sigmar s
+
+
 let show n = 
   match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; |sigmar|="^(string_of_int (SigmarMap.cardinal s))^", sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
@@ -92,6 +102,9 @@ let name () = "traceDataStruc"
 let get_all_edges g =
   LocTraceGraph.fold_edges_e (fun x l -> x::l) g []
 
+let get_all_nodes g =
+  LocTraceGraph.fold_vertex  (fun x l -> x::l) g []
+
 let show (g:t) =
   "Graph:{{number of edges: "^(string_of_int (LocTraceGraph.nb_edges g))^", number of nodes: "^(string_of_int (LocTraceGraph.nb_vertex g))^","^(LocTraceGraph.fold_edges_e (fun e s -> match e with (v1, ed, v2) -> s^"[node_prev:"^(NodeImpl.show v1)^",label:"^(EdgeImpl.show ed)^",node_dest:"^(NodeImpl.show v2)^"]-----\n") g "" )^"}}\n\n"
   include Printable.SimpleShow (struct
@@ -119,9 +132,12 @@ print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed
   in if tmp = false then print_string "g1 and g2 are NOT the same with even length\n" else print_string "g1 and g2 are the same with even length\n"; print_string "\nGraph.equal END\n";tmp)
 
     (* eventuell liegt hier der Fehler?*)
-let hash g1 = LocTraceGraph.nb_edges g1
+let hash g1 =
+  let tmp = (List.fold (fun i node -> (NodeImpl.hash node)+i) 0 (get_all_nodes g1))
+in
+  (LocTraceGraph.nb_edges g1) + (LocTraceGraph.nb_vertex g1) + tmp
 
-let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then ( print_string ("The two graphs are equal in compare: g1="^(show g1)^"\n and g2="^(show g2)^" \n\nGraph.compare END\n");0) else (print_string ("Graphs are not equal in compare with g1="^(show g1)^"\n and g2="^(show g2)^"\n\nGraph.compare END\n"); 43)
+let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then ( print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n");0) else (print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n"); 43)
 
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
