@@ -801,43 +801,51 @@ struct
         let b = Mem e, NoOffset in (* base pointer *)
         let t = Cilfacade.typeOfLval b in (* static type of base *)
         let p = eval_lv a gs st b in (* abstract base addresses *)
-        let v = (* abstract base value *)
-          let open Addr in
-          (* pre VLA: *)
-          (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
-          let cast_ok = function
-            | Addr (x, o) ->
-              begin
-                let at = get_type_addr (x, o) in
-                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
-                if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
-                  true
-                else
-                  match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-                  | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                  | _ ->
-                    if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                      begin
-                        (* TODO: Is this ok? *)
-                        M.info ~category:Unsound "Casting involving a VLA is assumed to work";
-                        true
-                      end
-                    else
-                      false
-              end
-            | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
-            | _ -> false
+        let do_single_address p =
+          let v = (* abstract base value *)
+            let open Addr in
+            (* pre VLA: *)
+            (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+            let cast_ok = function
+              | Addr (x, o) ->
+                begin
+                  let at = get_type_addr (x, o) in
+                  if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+                  if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
+                    true
+                  else
+                    match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
+                    | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+                    | _ ->
+                      if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                        begin
+                          (* TODO: Is this ok? *)
+                          M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                          true
+                        end
+                      else
+                        false
+                end
+              | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
+              | _ -> false
+            in
+            if AD.for_all cast_ok p then
+              get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
+            else
+              VD.top () (* upcasts not! *)
           in
-          if AD.for_all cast_ok p then
-            get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
-          else
-            VD.top () (* upcasts not! *)
+          let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+          if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+          let v' = do_offs v' ofs in (* handle blessed fields? *)
+          v'
         in
-        let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-        if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
-        let v' = do_offs v' ofs in (* handle blessed fields? *)
-        v'
+        let addresses = AD.elements p in
+        let values = List.map (fun e -> do_single_address (AD.of_list [e])) addresses in
+        List.iter (fun v -> ignore @@ M.tracel "final" "value %a\n" VD.pretty v) values;
+        let result = List.fold VD.join (VD.bot ()) values in
+        M.tracel "final" "joined: %a\n" VD.pretty result;
+        result
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
