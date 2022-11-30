@@ -13,8 +13,6 @@ open Prelude
 open Analyses
 open Messages
 
-module Stats = GoblintCil.Stats
-
 module WP =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
