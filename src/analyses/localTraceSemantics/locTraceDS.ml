@@ -112,16 +112,16 @@ let rec equal_helper1 edgeList1 edgeList2 =
   match edgeList1 with x::xs -> (equal_helper2 x edgeList2)&&(equal_helper1 xs edgeList2)
   | [] -> true
 let equal g1 g2 = print_string "\nGraph.equal BEGIN\n";
-if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (print_string "\nGraph.equal END\n";false) else (
+if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (print_string "g1 and g2 are NOT the same, they have different length\nGraph.equal END\n";false) else (
 print_string ("g1-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g1 "")^"\n");
 print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g2 "")^"\n");
   let tmp = equal_helper1 (get_all_edges g1) (get_all_edges g2)
-  in if tmp = false then print_string "g1 and g2 are NOT the same with even length\n"; print_string "\nGraph.equal END\n";tmp)
+  in if tmp = false then print_string "g1 and g2 are NOT the same with even length\n" else print_string "g1 and g2 are the same with even length\n"; print_string "\nGraph.equal END\n";tmp)
 
     (* eventuell liegt hier der Fehler?*)
 let hash g1 = LocTraceGraph.nb_edges g1
 
-let compare g1 g2 = print_string "compare was invoked\n";if equal g1 g2 then ( print_string ("The two graphs are equal in compare: g1="^(show g1)^"\n and g2="^(show g2)^" \n");0) else (print_string ("Graphs are not equal in compare with g1="^(show g1)^"\n and g2="^(show g2)^"\n"); 43)
+let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then ( print_string ("The two graphs are equal in compare: g1="^(show g1)^"\n and g2="^(show g2)^" \n\nGraph.compare END\n");0) else (print_string ("Graphs are not equal in compare with g1="^(show g1)^"\n and g2="^(show g2)^"\n\nGraph.compare END\n"); 43)
 
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)

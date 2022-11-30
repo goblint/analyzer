@@ -164,9 +164,13 @@ struct
   include BatSet.Make(Base)
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
-  let leq  = subset
+  let leq t1 t2  = print_string "\nSetDomain.leq BEGIN\n";
+  let tmp = subset t1 t2
+in print_string "\nSetDomain.leq END\n"; tmp
   let join = union
-  let widen = join
+  let widen t1 t2 = print_string "\nSetDomain.widen BEGIN\n";
+    let tmp = join t1 t2
+  in print_string "\nSetDomain.widen END\n"; tmp
   let meet = inter
   let narrow = meet
   let bot = empty
@@ -195,10 +199,11 @@ struct
 
   let relift x = map Base.relift x
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    if leq x y then dprintf "%s: These are fine!" (name ()) else
-    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = print_string "\nsetDomain.pretty_diff BEGIN\n";
+    if leq x y then (print_string "\nsetDomain.pretty_diff END\n";dprintf "%s: These are fine!" (name ())) else
+    if is_bot y then (print_string "\nsetDomain.pretty_diff END\n";dprintf "%s: %a instead of bot" (name ()) pretty x) else begin
       let evil = choose (diff x y) in
+      print_string "\nsetDomain.pretty_diff END\n";
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
 
