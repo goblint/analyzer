@@ -1228,7 +1228,15 @@ struct
   | None -> []
   | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
 
-  let refine_with_excl_list _x = failwith "Not implemented yet"
+  let excl_to_intervalset (ik : ikind) ((rl,rh): (int64 * int64)) (excl : int_t): t = 
+    let intv1 = norm ik @@ Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.sub excl Ints_t.one) in
+    let intv2 = norm ik @@ Some (Ints_t.add excl Ints_t.one,  Ints_t.of_bigint (Size.max_from_bit_range rh)) in
+   [intv1; intv2] |> List.filter_map (fun x -> x)
+   
+  let refine_with_excl_list ik (intv : t) = function
+  | None -> []
+  | Some (xs, range) -> let excl_list = List.map (excl_to_intervalset ik range) xs in 
+  List.fold_left (meet ik) intv excl_list
 
   let project _ik _ip _x = failwith "Not implemented yet"
   
