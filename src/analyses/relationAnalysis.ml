@@ -171,20 +171,11 @@ struct
     | exception Cilfacade.TypeOfError _ -> false
     | ik ->
       if IntDomain.should_wrap ik then
-        false (* TODO: why this? *)
+        false
       else if IntDomain.should_ignore_overflow ik then
         true
       else
-        let eval_int exp = Queries.ID.to_bool (ask.f (EvalInt exp)) in
-        (* TODO: duplicates assert_type_bounds *)
-        let type_min, type_max = IntDomain.Size.range ik in
-        (* TODO: why not Le? *)
-        let min = eval_int (BinOp (Lt, kintegerCilint ik type_min, exp, intType)) in
-        let max = eval_int (BinOp (Lt, exp, kintegerCilint ik type_max, intType)) in
-        match min, max with (* TODO: don't need both? *)
-        | Some true, _
-        | _, Some true -> true
-        | _, _ -> false
+        not (Queries.ID.is_top_of ik (ask.f (EvalInt exp)))
 
   let no_overflow ctx exp = lazy (
     let res = no_overflow ctx exp in
