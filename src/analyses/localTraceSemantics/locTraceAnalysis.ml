@@ -81,7 +81,7 @@ in
   (match subexp with
 | Const(CInt(c, ik, _)) -> (Int (c,c, ik), true)
 | Const(CReal(f, fk, _)) -> (Float (f, f, fk), true)
-| Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else (print_string "nopVal created at Lval\n";nopVal)
+| Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigmar sigOld)^"\nnopVal created at Lval\n");nopVal)
 | AddrOf (Var(v), NoOffset) -> (Address(v), true)
 
 (* unop expressions *)
@@ -102,20 +102,20 @@ in
   (match (eval_helper binopExp1, eval_helper binopExp2) with 
   | ((Int(l1,u1, ik1), true),(Int(l2,u2, ik2), true)) -> if CilType.Ikind.equal ik1 ik2 then ((get_binop_int op biopIk) (Int(l1,u1, ik1)) (Int(l2,u2, ik2)), true) else (print_string "nopVal is created at binop for int with different ikinds\n";nopVal)
   | ((Float(fLower1, fUpper1, fk1), true),(Float(fLower2, fUpper2, fk2), true)) -> if CilType.Fkind.equal fk1 fk2 then ((get_binop_int op biopIk) (Float(fLower1,fUpper1, fk1)) (Float(fLower2,fUpper2, fk2)), true) else(print_string "nopVal is created at binop for int with different fkinds\n";nopVal)
-  | (_, (_,false)) -> print_string "nopVal created at binop for Integer 1";nopVal
-  | ((_,false), _) -> print_string "nopVal created at binop for Integer 2";nopVal
+  | (_, (_,false)) -> print_string "nopVal created at binop for Integer 1\n";nopVal
+  | ((_,false), _) -> print_string "nopVal created at binop for Integer 2\n";nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 
   (* for type Float *)
   | BinOp(op, binopExp1, binopExp2,TFloat(biopFk, _)) ->
     (match (eval_helper binopExp1, eval_helper binopExp2) with 
     | ((Float(fLower1, fUpper1, fk1), true),(Float(fLower2, fUpper2, fk2), true)) -> if CilType.Fkind.equal fk1 fk2 then ((get_binop_float op biopFk) (Float(fLower1,fUpper1, fk1)) (Float(fLower2,fUpper2, fk2)), true) else(print_string "nopVal is created at binop for int with different fkinds\n";nopVal)
-    | (_, (_,false)) -> print_string "nopVal created at binop for Float 1";nopVal
-  | ((_,false), _) -> print_string "nopVal created at binop for Float 2";nopVal
+    | (_, (_,false)) -> print_string "nopVal created at binop for Float 1\n";nopVal
+  | ((_,false), _) -> print_string "nopVal created at binop for Float 2\n";nopVal
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 in let (result,success) = eval_helper rval 
-in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed."; SigmarMap.remove vinfo sigOld)
+in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed\n"; SigmarMap.remove vinfo sigOld)
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge =
@@ -132,20 +132,35 @@ let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
 in
 let myEdge, success =  match lval with (Var x, _) ->
   let evaluated,success_inner = eval_catch_exceptions oldSigmar x rval ctx.edge in 
+  print_string ("new sigmar in assign: "^(NodeImpl.show_sigmar evaluated )^"\n");
    ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=evaluated}), success_inner
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   
 in
-  if success then D.add (LocalTraces.extend_by_gEdge g myEdge) set else set
+  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");D.add (LocalTraces.extend_by_gEdge g myEdge) ) set else (print_string "assignment did not succeed!\n";set)
 in
    D.fold fold_helper ctx.local (D.empty ())
   
 let branch ctx (exp:exp) (tv:bool) : D.t = Printf.printf "branch wurde aufgerufen\n";
+let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
+in
 let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+in
+let branch_sigmar = SigmarMap.add branch_vinfo (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int,IInt)) oldSigmar
+in
+print_string ("oldSigmar = "^(NodeImpl.show_sigmar oldSigmar)^"; branch_sigmar = "^(NodeImpl.show_sigmar branch_sigmar)^"\n");
+let result_branch,success = eval_catch_exceptions branch_sigmar branch_vinfo exp ctx.edge
+in
+(* 0 is false, 1 is true, -1 means something went wrong when evaluating, so it's unknown *)
+let result_as_int = match (SigmarMap.find_default Error branch_vinfo result_branch) with
+Int(i1,i2,_) -> if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
+else 1
+  |_ -> -1
+
 in
 let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
 in
-  D.add (LocalTraces.extend_by_gEdge g myEdge) set 
+  if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then D.add (LocalTraces.extend_by_gEdge g myEdge) set else set
 in
    D.fold fold_helper ctx.local (D.empty ())
 
