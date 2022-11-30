@@ -533,43 +533,57 @@ struct
 
       Additionally, we now also refine after positive guards when overflows might occur and there is only one variable inside the expression and the expression is an equality constraint check (==).
       We check after the refinement if the new value of the variable is outside its integer bounds and if that is the case, either revert to the old state or set it to bottom. *)
+
+  exception NotRefinable
+
+  let meet_tcons_one_var_eq res expr =
+    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
+    match Convert.find_one_var expr with
+    | None -> overflow_res res
+    | Some v ->
+      let ik = Cilfacade.get_ikind v.vtype in
+      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
+      | Some _, Some _ when not (Cil.isSigned ik) -> raise NotRefinable (* TODO: unsigned w/o bounds handled differently? *)
+      | Some min, Some max ->
+        assert (Z.equal min max); (* other bounds impossible in affeq *)
+        let (min_ik, max_ik) = IntDomain.Size.range ik in
+        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
+          if IntDomain.should_ignore_overflow ik then bot () else raise NotRefinable
+        else res
+      | exception Convert.Unsupported_CilExp _
+      | _, _ -> overflow_res res
+
   let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t
     in
-    let exception NotRefinable in
     let meet_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       Vector.mapi_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then Mpqf.mone *: x else x) e;
       let res = if is_bot t then bot () else
           let opt_m = Matrix.rref_vec_with (Matrix.copy @@ Option.get t.d) e
           in if Option.is_none opt_m then bot () else {d = opt_m; env = t.env} in
-      let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
-      match Convert.determine_bounds_one_var expr with
-      | None -> overflow_res res
-      | Some (ev, min, max) ->
-        begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-          | exception Convert.Unsupported_CilExp _ -> overflow_res res
-          | Some b_min, Some b_max ->
-            if Z.equal min Z.zero && Z.equal b_min b_max then raise NotRefinable
-            else if (Z.compare b_min min < 0 && Z.compare b_max min < 0) || (Z.compare b_max max > 0 && Z.compare b_min max > 0) then
-              (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then bot () else raise NotRefinable)
-            else res
-          | _, _ -> overflow_res res end
+      meet_tcons_one_var_eq res expr
     in
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-    | Some v -> begin match get_c v, Tcons1.get_typ tcons with
+    | Some v ->
+      begin match get_c v, Tcons1.get_typ tcons with
         | Some c, DISEQ -> check_const (=:) c
         | Some c, SUP -> check_const (<=:) c
-        | Some c, EQ -> check_const (<>) c
+        | Some c, EQ -> check_const (<>:) c
         | Some c, SUPEQ -> check_const (<:) c
-        | None, DISEQ | None, SUP ->
+        | None, DISEQ
+        | None, SUP ->
           begin match meet_vec v with
             | exception NotRefinable -> t
-            | res -> if equal res t then bot_env else t end
-        | None, EQ -> begin match meet_vec v with
+            | res -> if equal res t then bot_env else t
+          end
+        | None, EQ ->
+          begin match meet_vec v with
             | exception NotRefinable -> t
-            | res -> if is_bot res then bot_env else res end
-        | _, _ -> t end
+            | res -> if is_bot res then bot_env else res
+          end
+        | _, _ -> t
+      end
     | None -> t
 
   let meet_tcons t tcons expr = Timing.wrap "meet_tcons" (meet_tcons t tcons) expr

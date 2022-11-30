@@ -216,27 +216,12 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-
-  (* TODO: why returns exp if name has "var" *)
-  let rec determine_bounds_one_var = function
-    | Lval (Var v, NoOffset) as expr when Tracked.varinfo_tracked v ->
-      let i_min, i_max = IntDomain.Size.range (Cilfacade.get_ikind_exp expr) in
-      Some (expr, i_min, i_max)
-    | Const _ -> None
-    | UnOp (_, e, _) -> determine_bounds_one_var e
-    | BinOp (_, e1, e2, _) ->
-      begin match determine_bounds_one_var e1, determine_bounds_one_var e2 with
-        | Some (ev1, min, max), Some(ev2, _, _) ->
-          if CilType.Exp.equal ev1 ev2 then
-            Some (ev1, min, max)
-          else
-            None
-        | Some x, None
-        | None, Some x -> Some x
-        | _, _ -> None
-      end
-    | CastE (_, e) -> determine_bounds_one_var e
-    | _ -> None
+  let find_one_var e =
+    Basetype.CilExp.get_vars e
+    |> List.filter Tracked.varinfo_tracked
+    |> function
+      | [v] -> Some v
+      | _ -> None
 end
 
 (** Conversion from Apron to CIL expressions. *)

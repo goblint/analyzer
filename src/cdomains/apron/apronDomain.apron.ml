@@ -235,7 +235,8 @@ end
 module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
   open SharedFunctions
-  module Convert = Convert (V) (Bounds(Man)) (struct let allow_global = false end) (Tracked)
+  module Bounds = Bounds (Man)
+  module Convert = Convert (V) (Bounds) (struct let allow_global = false end) (Tracked)
 
   type t = Man.mt A.t
 
@@ -403,25 +404,30 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
+  (** Special affeq one variable logic to match AffineEqualityDomain. *)
+  let meet_tcons_affeq_one_var d res e =
+    let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
+    match Convert.find_one_var e with
+    | None -> overflow_res res
+    | Some v ->
+      let ik = Cilfacade.get_ikind v.vtype in
+      match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env (Lval (Cil.var v)) true) with
+      | Some _, Some _ when not (Cil.isSigned ik) -> d (* TODO: unsigned w/o bounds handled differently? *)
+      | Some min, Some max ->
+        assert (Z.equal min max); (* other bounds impossible in affeq *)
+        let (min_ik, max_ik) = IntDomain.Size.range ik in
+        if Z.compare min min_ik < 0 || Z.compare max max_ik > 0 then
+          if IntDomain.should_ignore_overflow ik then A.bottom (A.manager d) (A.env d) else d
+        else res
+      (* TODO: Unsupported_CilExp check? *)
+      | _, _ -> overflow_res res
+
   let meet_tcons d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     let res = A.meet_tcons_array Man.mgr d earray in
-    (* TODO: why this special case? *)
     match Man.name () with
-    | "ApronAffEq" ->
-      let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
-      begin match Convert.determine_bounds_one_var e with
-        | None -> overflow_res res
-        | Some (ev, min, max) ->
-          let module Bounds = Bounds(Man) in
-          let module BI = IntOps.BigIntOps in
-          begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-            | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then  d
-              else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
-                (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
-              else res
-            | _, _ -> overflow_res res end end
+    | "ApronAffEq" -> meet_tcons_affeq_one_var d res e (* TODO: don't hardcode by name, move to manager *)
     | _ -> res
 
   let to_lincons_array d =
@@ -509,10 +515,7 @@ end
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
-  module Bounds = Bounds (Man)
-
   include AOps (Tracked) (Man)
-
   include Tracked
 
   (** Assert a constraint expression.
