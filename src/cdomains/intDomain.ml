@@ -1222,7 +1222,7 @@ struct
   
   let refine_with_congruence _x =  failwith "Not implemented yet"
 
-  let refine_with_interval _x = failwith "Not implemented yet"
+  let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
   let refine_with_incl_list _x = failwith "Not implemented yet"
 
