@@ -220,8 +220,8 @@ struct
     Basetype.CilExp.get_vars e
     |> List.filter Tracked.varinfo_tracked
     |> function
-      | [v] -> Some v
-      | _ -> None
+    | [v] -> Some v
+    | _ -> None
 end
 
 (** Conversion from Apron to CIL expressions. *)
