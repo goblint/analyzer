@@ -622,7 +622,8 @@ let getCFG (file: file) : cfg * cfg =
     | Function fd -> fd
     | FunctionEntry fd -> fd
   in
-  (fun n -> H.find_default (fst @@ FH.find cfgs (find_fundec n)) n []), (fun n -> H.find_default (snd @@ FH.find cfgs (find_fundec n)) n [])
+  (* TODO: better Not_found handling *)
+  (fun n -> try H.find_default (fst @@ FH.find cfgs (find_fundec n)) n [] with Not_found -> []), (fun n -> try H.find_default (snd @@ FH.find cfgs (find_fundec n)) n [] with Not_found -> [])
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
