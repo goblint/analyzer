@@ -4,9 +4,9 @@ open Graph
 (* Pure edge type *)
 type edge = MyCFG.edge
 
-module SigmarMap = Map.Make(CilType.Varinfo)
+module SigmaMap = Map.Make(CilType.Varinfo)
 
-(* Value domain for variables contained in sigmar mapping.
+(* Value domain for variables contained in sigma mapping.
    The supported types are: Integer, Float and Address of a variable *)
 type varDomain = 
 Int of Cilint.cilint * Cilint.cilint * ikind 
@@ -37,7 +37,7 @@ let hash_valuedomain vd =
 (* Pure node type *)
 type node = {
   programPoint : MyCFG.node;
-  sigmar : varDomain SigmarMap.t;
+  sigma : varDomain SigmaMap.t;
 }
 
 (* Module wrap for node implementing necessary functions for ocamlgraph *)
@@ -45,29 +45,29 @@ module NodeImpl =
 struct 
 type t = node
 
-let equal_sigmar s1 s2 = if (SigmarMap.is_empty s1) && (SigmarMap.is_empty s2) then true else
+let equal_sigma s1 s2 = if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true else
    let fold_helper vinfo varDom b = 
-    SigmarMap.exists (fun exist_vinfo exist_varDom -> if (CilType.Varinfo.equal vinfo exist_vinfo)&&(equal_varDomain varDom exist_varDom) then true else b) s2
+    SigmaMap.exists (fun exist_vinfo exist_varDom -> if (CilType.Varinfo.equal vinfo exist_vinfo)&&(equal_varDomain varDom exist_varDom) then true else b) s2
   in
-  SigmarMap.fold fold_helper s1 false 
+  SigmaMap.fold fold_helper s1 false 
 
   (* MyCFG.compare hier möglich*)
 let compare n1 n2 = match (n1, n2) with 
-({programPoint=p1;sigmar=s1},{programPoint=p2;sigmar=s2}) -> if (equal_sigmar s1 s2) then Node.compare p1 p2 else -13 
+({programPoint=p1;sigma=s1},{programPoint=p2;sigma=s2}) -> if (equal_sigma s1 s2) then Node.compare p1 p2 else -13 
 
-let show_sigmar s = (SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
+let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
 
-let hash_sigmar s = (SigmarMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_valuedomain vd) + i) s 0)
+let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_valuedomain vd) + i) s 0)
 
 
 let hash n = 
-match n with {programPoint=Statement(stmt);sigmar=s} -> stmt.sid + hash_sigmar s
-| {programPoint=Function(fd);sigmar=s} -> fd.svar.vid + hash_sigmar s
-| {programPoint=FunctionEntry(fd);sigmar=s} -> fd.svar.vid + hash_sigmar s
+match n with {programPoint=Statement(stmt);sigma=s} -> stmt.sid + hash_sigma s
+| {programPoint=Function(fd);sigma=s} -> fd.svar.vid + hash_sigma s
+| {programPoint=FunctionEntry(fd);sigma=s} -> fd.svar.vid + hash_sigma s
 
 
 let show n = 
-  match n with {programPoint=p;sigmar=s} -> "node:{programPoint="^(Node.show p)^"; |sigmar|="^(string_of_int (SigmarMap.cardinal s))^", sigmar=["^(SigmarMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
+  match n with {programPoint=p;sigma=s} -> "node:{programPoint="^(Node.show p)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
   let equal n1 n2 = (compare n1 n2) = 0
 end
@@ -142,9 +142,9 @@ let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then (
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 
-(* Retrieves the sigmar mapping in a graph of a given node *)
-let get_sigmar g (progPoint:MyCFG.node) =  
-LocTraceGraph.fold_vertex (fun {programPoint=p1;sigmar=s1} sigmap -> if Node.equal p1 progPoint then s1 else sigmap) g SigmarMap.empty
+(* Retrieves the sigma mapping in a graph of a given node *)
+let get_sigma g (progPoint:MyCFG.node) =  
+LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} sigmap -> if Node.equal p1 progPoint then s1 else sigmap) g SigmaMap.empty
 
 (* Applies an gEdge to graph 
    Explicit function for future improvements *)

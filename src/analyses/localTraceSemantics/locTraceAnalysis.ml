@@ -34,11 +34,11 @@ in if D.is_empty tmp then tmp else tmp
 
 let exitstate = startstate
 
-(* Evaluates the effects of an assignment to sigmar *)
+(* Evaluates the effects of an assignment to sigma *)
 (* TODO eval needs to be checked on overflow and div by 0 --> custom exception managment could be useful *)
 let eval sigOld vinfo (rval: exp) = 
   (* dummy value 
-     This is used whenever an expression contains a variable that is not in sigmar (e.g. a global)
+     This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
   let nopVal = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false)
 
@@ -81,7 +81,7 @@ in
   (match subexp with
 | Const(CInt(c, ik, _)) -> (Int (c,c, ik), true)
 | Const(CReal(f, fk, _)) -> (Float (f, f, fk), true)
-| Lval(Var(var), NoOffset) -> if SigmarMap.mem var sigOld then ((SigmarMap.find var sigOld), true) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigmar sigOld)^"\nnopVal created at Lval\n");nopVal)
+| Lval(Var(var), NoOffset) -> if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal)
 | AddrOf (Var(v), NoOffset) -> (Address(v), true)
 
 (* unop expressions *)
@@ -115,25 +115,25 @@ in
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 in let (result,success) = eval_helper rval 
-in if success then SigmarMap.add vinfo result sigOld else (print_string "Sigmar has not been updated. Vinfo is removed\n"; SigmarMap.remove vinfo sigOld)
+in if success then SigmaMap.add vinfo result sigOld else (print_string "Sigma has not been updated. Vinfo is removed\n"; SigmaMap.remove vinfo sigOld)
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge =
 try (eval sigOld vinfo rval, true) with 
-Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); (SigmarMap.add vinfo Error sigOld ,false)
-| Division_by_zero_Float -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains a Float division by zero.\n"); (SigmarMap.add vinfo Error sigOld ,false)
-| Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
-| Underflow_subtraction_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer subtraction that underflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
-| Overflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that overflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
-| Underflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that underflows.\n"); (SigmarMap.add vinfo Error sigOld ,false)
+Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); (SigmaMap.add vinfo Error sigOld ,false)
+| Division_by_zero_Float -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains a Float division by zero.\n"); (SigmaMap.add vinfo Error sigOld ,false)
+| Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
+| Underflow_subtraction_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer subtraction that underflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
+| Overflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that overflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
+| Underflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that underflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
 
 let assign ctx (lval:lval) (rval:exp) : D.t = Printf.printf "assign wurde aufgerufen\n";
-let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
 let myEdge, success =  match lval with (Var x, _) ->
-  let evaluated,success_inner = eval_catch_exceptions oldSigmar x rval ctx.edge in 
-  print_string ("new sigmar in assign: "^(NodeImpl.show_sigmar evaluated )^"\n");
-   ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=evaluated}), success_inner
+  let evaluated,success_inner = eval_catch_exceptions oldSigma x rval ctx.edge in 
+  print_string ("new sigma in assign: "^(NodeImpl.show_sigma evaluated )^"\n");
+   ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=evaluated}), success_inner
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   
 in
@@ -144,57 +144,57 @@ in
 let branch ctx (exp:exp) (tv:bool) : D.t = Printf.printf "branch wurde aufgerufen\n";
 let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
 in
-let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
-let branch_sigmar = SigmarMap.add branch_vinfo (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int,IInt)) oldSigmar
+let branch_sigma = SigmaMap.add branch_vinfo (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int,IInt)) oldSigma
 in
-print_string ("oldSigmar = "^(NodeImpl.show_sigmar oldSigmar)^"; branch_sigmar = "^(NodeImpl.show_sigmar branch_sigmar)^"\n");
-let result_branch,success = eval_catch_exceptions branch_sigmar branch_vinfo exp ctx.edge
+print_string ("oldSigma = "^(NodeImpl.show_sigma oldSigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
+let result_branch,success = eval_catch_exceptions branch_sigma branch_vinfo exp ctx.edge
 in
 (* 0 is false, 1 is true, -1 means something went wrong when evaluating, so it's unknown *)
-let result_as_int = match (SigmarMap.find_default Error branch_vinfo result_branch) with
+let result_as_int = match (SigmaMap.find_default Error branch_vinfo result_branch) with
 Int(i1,i2,_) -> if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
 else 1
   |_ -> -1
 
 in
-let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge = ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=oldSigma})
 in
   if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then D.add (LocalTraces.extend_by_gEdge g myEdge) set else set
 in
    D.fold fold_helper ctx.local (D.empty ())
 
 let body ctx (f:fundec) : D.t = Printf.printf "body wurde aufgerufen\n";
-let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
-let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge = ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=oldSigma})
 in
   D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
       
 let return ctx (exp:exp option) (f:fundec) : D.t = Printf.printf "return wurde aufgerufen\n";
-let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
-let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge = ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=oldSigma})
 in
   D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
 
 let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = Printf.printf "special wurde aufgerufen\n";
-let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
-let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge = ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=oldSigma})
 in
   D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
     
 let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = Printf.printf "enter wurde aufgerufen\n";
-let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
-let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge = ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=oldSigma})
 in
   D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
@@ -204,9 +204,9 @@ in
   
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = Printf.printf "combine wurde aufgerufen\n";
-  let fold_helper g set = let oldSigmar = LocalTraces.get_sigmar g ctx.prev_node
+  let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
-let myEdge = ({programPoint=ctx.prev_node;sigmar=oldSigmar},ctx.edge,{programPoint=ctx.node;sigmar=oldSigmar})
+let myEdge = ({programPoint=ctx.prev_node;sigma=oldSigma},ctx.edge,{programPoint=ctx.node;sigma=oldSigma})
 in
   D.add (LocalTraces.extend_by_gEdge g myEdge) set 
 in
