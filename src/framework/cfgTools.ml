@@ -607,7 +607,22 @@ let getCFG (file: file) : cfg * cfg =
       cfgs
   in
   if get_bool "justcfg" then fprint_hash_dot cfgs;
-  (fun n -> H.find_default (fst @@ FH.find cfgs (Node.find_fundec n)) n []), (fun n -> H.find_default (snd @@ FH.find cfgs (Node.find_fundec n)) n [])
+  (* Inlined here to get non-shared stmt_fundecs for CFG comparison,
+     where two CFGs exist simultaneously. *)
+  (* TODO: add fundec to Statement node *)
+  ResettableLazy.reset Cilfacade.stmt_fundecs;
+  let stmt_fundecs = ResettableLazy.force Cilfacade.stmt_fundecs in
+  let find_stmt_fundec stmt =
+    try Cilfacade.StmtH.find Cilfacade.pseudo_return_to_fun stmt
+    with Not_found -> Cilfacade.StmtH.find stmt_fundecs stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+  in
+  let find_fundec node =
+    match node with
+    | Statement stmt -> find_stmt_fundec stmt
+    | Function fd -> fd
+    | FunctionEntry fd -> fd
+  in
+  (fun n -> H.find_default (fst @@ FH.find cfgs (find_fundec n)) n []), (fun n -> H.find_default (snd @@ FH.find cfgs (find_fundec n)) n [])
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =

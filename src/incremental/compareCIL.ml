@@ -130,6 +130,8 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
     else None in
 
+  ResettableLazy.reset Cilfacade.stmt_fundecs; (* reset due to getCFG *)
+
   let addGlobal map global  =
     try
       let name, col = match global with
