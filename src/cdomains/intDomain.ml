@@ -1218,7 +1218,20 @@ struct
   
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = match norm ik @@ Some (x,y) with Some (x',y') -> [(x',y')]
   
-  let invariant_ikind _ik = failwith "Not implemented yet"
+  let invariant_ikind_interval e ik x =
+    match x with
+    |  (x1, x2) when Ints_t.compare x1 x2 = 0 ->
+      let x1 = Ints_t.to_bigint x1 in
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
+    | (x1, x2) ->
+      let open Invariant in
+      let (min_ik, max_ik) = range ik in
+      let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
+      let i1 = if Ints_t.compare min_ik x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else none in
+      let i2 = if Ints_t.compare x2 max_ik <> 0 then of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else none in
+      i1 && i2
+
+  let invariant_ikind e ik xs = List.map (invariant_ikind_interval e ik) xs |> let open Invariant in List.fold_left (||) (bot ())
   
   let refine_with_congruence _x =  failwith "Not implemented yet"
 
