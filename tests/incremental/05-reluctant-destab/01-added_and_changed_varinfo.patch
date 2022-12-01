@@ -1,0 +1,22 @@
+--- tests/incremental/05-reluctant-destab/01-added_and_changed_varinfo.c
++++ tests/incremental/05-reluctant-destab/01-added_and_changed_varinfo.c
+@@ -1,15 +1,17 @@
+ #include <assert.h>
+ #include <math.h>
+
++int foo(int);
++
+ int foo(int x){
+-    return 1;
++    return 0;
+ }
+
+ int main(){
+     int x = 2;
+
+     int a = foo(x);
+-    assert(a == 1);
++    assert(a == 0);
+
+     return 0;
+ }

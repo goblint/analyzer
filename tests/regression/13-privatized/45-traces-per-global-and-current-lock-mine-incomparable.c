@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0; // doesn't matter, gets always overwritten
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -23,7 +23,7 @@ int main(void) {
   g = 42;
   pthread_mutex_unlock(&B);
   pthread_mutex_lock(&B);
-  assert(g == 42);
+  __goblint_check(g == 42);
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
   return 0;

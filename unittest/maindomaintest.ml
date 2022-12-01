@@ -1,23 +1,6 @@
+open Goblint_lib
 (* open! Defaults (* Enums / ... need initialized conf *) *)
-
-module type FiniteSetElems =
-sig
-  type t
-  val elems: t list
-end
-
-module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
-struct
-  module E =
-  struct
-    include E
-    let arbitrary () = QCheck.oneofl Elems.elems
-  end
-
-  include SetDomain.Make (E)
-  let top () = of_list Elems.elems
-  let is_top x = equal x (top ())
-end
+open GoblintCil
 
 module PrintableChar =
 struct
@@ -34,7 +17,7 @@ struct
   include Printable.SimpleShow (P)
 end
 
-module ArbitraryLattice = FiniteSet (PrintableChar) (
+module ArbitraryLattice = SetDomain.FiniteSet (PrintableChar) (
   struct
     type t = char
     let elems = ['a'; 'b'; 'c'; 'd']

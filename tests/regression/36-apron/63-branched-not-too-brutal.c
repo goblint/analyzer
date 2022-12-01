@@ -1,6 +1,7 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
+#include <goblint.h>
 #include <pthread.h>
 int global = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -23,10 +24,10 @@ int main(void)
     pthread_t t;
     pthread_create(&t, ((void *)0), t_fun, ((void *)0));
 
-    assert(global == 0); //UNKNOWN!
+    __goblint_check(global == 0); //UNKNOWN!
 
     pthread_mutex_lock(&mutex);
-    assert(global == 0);
+    __goblint_check(global == 0);
     pthread_mutex_unlock(&mutex);
     return 0;
 }

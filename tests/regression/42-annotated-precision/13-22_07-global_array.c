@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.base.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set ana.base.arrays.domain partitioned --enable annotation.int.enabled --set ana.int.refinement fixpoint
+#include <goblint.h>
+
 int global_array[50];
 
 int main(void) __attribute__((goblint_precision("no-def_exc","interval")));
@@ -8,8 +10,8 @@ int main(void) {
   some_func();
 
   int x = global_array[5];
-  assert(x == 0); //UNKNOWN
-  assert(x == 42); //UNKNOWN
+  __goblint_check(x == 0); //UNKNOWN
+  __goblint_check(x == 42); //UNKNOWN
 }
 
 
@@ -21,5 +23,5 @@ void some_func(void) {
   }
 
   int x = global_array[0];
-  assert(x == 42); //FAIL
+  __goblint_check(x == 42); //FAIL
 }

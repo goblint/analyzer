@@ -1,4 +1,5 @@
 open GobConfig
+open GoblintCil
 open Pretty
 open PrecisionUtil
 
@@ -99,12 +100,10 @@ sig
   val bot_of: Cil.ikind -> t
   val top_of: Cil.ikind -> t
   val to_int: t -> int_t option
-  val is_int: t -> bool
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
-  val is_bool: t -> bool
-  val to_excl_list: t -> int_t list option
+  val to_excl_list: t -> (int_t list * (int64 * int64)) option
   val of_excl_list: Cil.ikind -> int_t list -> t
   val is_excl_list: t -> bool
 
@@ -121,13 +120,14 @@ module type IkindUnawareS =
 sig
   include B
   include Arith with type t := t
-  val starting   : Cil.ikind -> int_t -> t
-  val ending     : Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: int_t -> t
   val of_bool: bool -> t
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -148,21 +148,21 @@ sig
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
   val widen: Cil.ikind -> t -> t -> t
-  val starting : Cil.ikind -> int_t -> t
-  val ending : Cil.ikind -> int_t -> t
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
-  val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+  val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val project: Cil.ikind -> precision -> t -> t
+  val project: Cil.ikind -> int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
@@ -174,14 +174,15 @@ sig
   include Arith with type t:= t
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 
-  val starting   : Cil.ikind -> int_t -> t
-  val ending     : Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
 
-  val project: precision -> t -> t
+  val project: int_precision -> t -> t
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 
 module type Z = Y with type int_t = BI.t
@@ -224,7 +225,7 @@ struct
       Old.equal_to (BI.to_int64 x) a
     with Z.Overflow | Failure _ -> `Top
 
-  let to_excl_list a = Option.map (List.map BI.of_int64) (Old.to_excl_list a)
+  let to_excl_list a = Option.map (BatTuple.Tuple2.map1 (List.map BI.of_int64)) (Old.to_excl_list a)
   let of_excl_list ik xs =
     let xs' = List.map BI.to_int64 xs in
     Old.of_excl_list ik xs'
@@ -242,9 +243,9 @@ struct
       Failure _ -> top_of ik
 
   let of_bool ik b = Old.of_bool b
-  let of_interval ik (l, u) =
+  let of_interval ?(suppress_ovwarn=false) ik (l, u) =
     try
-      Old.of_interval ik (BI.to_int64 l, BI.to_int64 u)
+      Old.of_interval ~suppress_ovwarn ik (BI.to_int64 l, BI.to_int64 u)
     with
       Failure _ -> top_of ik
   let of_congruence ik (c, m) =
@@ -253,10 +254,10 @@ struct
     with
       Failure _ -> top_of ik
 
-  let starting ik x =
-    try Old.starting ik (BI.to_int64 x) with Failure _ -> top_of ik
-  let ending ik x =
-    try Old.ending ik (BI.to_int64 x) with Failure _ -> top_of ik
+  let starting ?(suppress_ovwarn=false) ik x =
+    try Old.starting ~suppress_ovwarn ik (BI.to_int64 x) with Failure _ -> top_of ik
+  let ending ?(suppress_ovwarn=false) ik x =
+    try Old.ending ~suppress_ovwarn ik (BI.to_int64 x) with Failure _ -> top_of ik
 
   let join _ik = Old.join
   let meet _ik = Old.meet
@@ -265,7 +266,7 @@ struct
 
   let is_top_of _ik = Old.is_top
 
-  let invariant_ikind c ik t = Old.invariant c t
+  let invariant_ikind e ik t = Old.invariant e t
 
   let cast_to ?torg ?no_ov = Old.cast_to ?torg
 
@@ -284,7 +285,7 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
-  type t = { v : I.t; ikind : (ikind [@equal (=)] [@compare Stdlib.compare] [@hash fun x -> Hashtbl.hash x]) } [@@deriving eq, ord, hash]
+  type t = { v : I.t; ikind : CilType.Ikind.t } [@@deriving eq, ord, hash]
 
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
@@ -316,24 +317,24 @@ struct
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
-  let invariant c x = I.invariant_ikind c x.ikind x.v
+  let invariant e x =
+    let e' = Cilfacade.mkCast ~e ~newt:(TInt (x.ikind, [])) in
+    I.invariant_ikind e' x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
   let of_int ikind x = { v = I.of_int ikind x; ikind}
-  let is_int x = I.is_int x.v
   let equal_to i x = I.equal_to i x.v
   let to_bool x = I.to_bool x.v
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
-  let is_bool x = I.is_bool x.v
   let to_excl_list x = I.to_excl_list x.v
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
   let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
-  let of_interval ikind (lb,ub) = {v = I.of_interval ikind (lb,ub); ikind}
+  let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
-  let starting ikind i = {v = I.starting ikind i; ikind}
-  let ending ikind i = {v = I.ending ikind i; ikind}
+  let starting ?(suppress_ovwarn=false) ikind i = {v = I.starting ~suppress_ovwarn  ikind i; ikind}
+  let ending ?(suppress_ovwarn=false) ikind i = {v = I.ending ~suppress_ovwarn ikind i; ikind}
   let maximal x = I.maximal x.v
   let minimal x = I.minimal x.v
 
@@ -389,11 +390,8 @@ module Size = struct (* size in bits as int, range as int64 *)
   open Cil open Big_int_Z
   let sign x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
-  let max = function
-    | `Signed -> ILongLong
-    | `Unsigned -> IULongLong
   let top_typ = TInt (ILongLong, [])
-  let min_for x = intKindForValue (fst (truncateCilint (max (sign x)) x)) (sign x = `Unsigned)
+  let min_for x = intKindForValue x (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -410,6 +408,13 @@ module Size = struct (* size in bits as int, range as int64 *)
     let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
     let y = sub_big_int (shift_left_big_int unit_big_int b) unit_big_int in (* 2^b - 1 *)
     x,y
+
+  let is_cast_injective ~from_type ~to_type =
+    let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
+    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pretty to_type (BI.to_string to_min) (BI.to_string to_max);
+    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+
   let cast t x = (* TODO: overflow is implementation-dependent! *)
     let a,b = range t in
     let c = card t in
@@ -457,10 +462,10 @@ module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   let of_excl_list ik x = top_of ik
   let is_excl_list    x = false
   let to_incl_list    x = None
-  let of_interval  ik x = top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
-  let starting     ik x = top_of ik
-  let ending       ik x = top_of ik
+  let starting ?(suppress_ovwarn=false) ik x = top_of ik
+  let ending ?(suppress_ovwarn=false)   ik x = top_of ik
   let maximal         x = None
   let minimal         x = None
 end
@@ -499,10 +504,10 @@ struct
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
+  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
+
   let top () = failwith @@ "top () not implemented for " ^ (name ())
-  let top_of ik = Some (min_int ik, max_int ik)
+  let top_of ik = Some (range ik)
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
 
@@ -517,8 +522,8 @@ struct
 
   let set_overflow_flag ~cast ~underflow ~overflow ik =
     let signed = Cil.isSigned ik in
-    if !GU.postsolving && signed && not cast then
-      Goblintutil.svcomp_may_overflow := true;
+    if !GU.postsolving && signed && not cast then (
+      Goblintutil.svcomp_may_overflow := true);
 
     let sign = if signed then "Signed" else "Unsigned" in
     match underflow, overflow with
@@ -530,15 +535,14 @@ struct
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
     | false, false -> assert false
 
-  let norm ?(cast=false) ik = function None -> None | Some (x,y) ->
+  let norm ?(suppress_ovwarn=false) ?(cast=false) ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
     else (
-      let min_ik = min_int ik in
-      let max_ik = max_int ik in
+      let (min_ik, max_ik) = range ik in
       let underflow = Ints_t.compare min_ik x > 0 in
       let overflow = Ints_t.compare max_ik y < 0 in
       if underflow || overflow then (
-        set_overflow_flag ~cast ~underflow ~overflow ik;
+        if not suppress_ovwarn then set_overflow_flag ~cast ~underflow ~overflow ik;
         if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
           (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
           (* on Z will not safely contain the minimal and maximal elements after the cast *)
@@ -579,36 +583,25 @@ struct
     | None, z | z, None -> None
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2)
 
-  let is_int = function Some (x,y) when Ints_t.compare x y = 0 -> true | _ -> false
-
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int = function Some (x,y) when Ints_t.compare x y = 0 -> Some x | _ -> None
-  let of_interval ik (x,y) = norm ik @@ Some (x,y)
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some (Ints_t.zero, Ints_t.zero)
   let one  = Some (Ints_t.one, Ints_t.one)
   let top_bool = Some (Ints_t.zero, Ints_t.one)
 
   let of_bool _ik = function true -> one | false -> zero
-  let is_bool x = x <> None && not (leq zero x) || equal x zero
   let to_bool (a: t) = match a with
     | None -> None
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
-  let to_bool_interval x = match x with
-    | None -> x
-    | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> x
-    | _ -> if leq zero x then top_bool else one
 
-  let range_opt f = function
-    | None -> None
-    | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range ik)
+  let starting ?(suppress_ovwarn=false) ik n =
+    norm ~suppress_ovwarn ik @@ Some (n, snd (range ik))
 
-  let starting ik n =
-    (norm ik) @@ Some (n, range_opt snd (Some ik) |? (max_int ik))
-
-  let ending ik n =
-    norm ik @@ Some (range_opt fst (Some ik) |? min_int ik, n)
+  let ending ?(suppress_ovwarn=false) ik n =
+    norm ~suppress_ovwarn ik @@ Some (fst (range ik), n)
 
   (* TODO: change signature of maximal, minimal to return big_int*)
   let maximal = function None -> None | Some (x,y) -> Some y
@@ -617,26 +610,27 @@ struct
   let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
-    let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold u =
-      let ts = ResettableLazy.force widening_thresholds in
-      let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-      BatOption.map_default Ints_t.of_bigint (max_int ik) t
-    in
-    let lower_threshold l =
-      let ts = ResettableLazy.force widening_thresholds_desc in
-      let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-      BatOption.map_default Ints_t.of_bigint (min_int ik) t
-    in
     match x, y with
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
-      let lt = if threshold then lower_threshold l1 else min_int ik in
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt (min_int ik)) in
-      let ut = if threshold then upper_threshold u1 else max_int ik in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut (max_int ik)) in
+      let (min_ik, max_ik) = range ik in
+      let threshold = get_bool "ana.int.interval_threshold_widening" in
+      let upper_threshold u =
+        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+        let u = Ints_t.to_bigint u in
+        let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+        BatOption.map_default Ints_t.of_bigint max_ik t
+      in
+      let lower_threshold l =
+        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+        let l = Ints_t.to_bigint l in
+        let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+        BatOption.map_default Ints_t.of_bigint min_ik t
+      in
+      let lt = if threshold then lower_threshold l1 else min_ik in
+      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt min_ik) in
+      let ut = if threshold then upper_threshold u1 else max_ik in
+      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut max_ik) in
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
@@ -648,9 +642,16 @@ struct
     match x, y with
     | _,None | None, _ -> None
     | Some (x1,x2), Some (y1,y2) ->
-      let lr = if Ints_t.compare (min_int ik) x1 = 0 then y1 else x1 in
-      let ur = if Ints_t.compare (max_int ik) x2 = 0 then y2 else x2 in
+      let (min_ik, max_ik) = range ik in
+      let lr = if Ints_t.compare min_ik x1 = 0 then y1 else x1 in
+      let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
+
+  let narrow ik x y =
+    if get_bool "ana.int.interval_narrow_by_meet" then
+      meet ik x y
+    else
+      narrow ik x y
 
   let log f ik i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -775,9 +776,28 @@ struct
           norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
                            (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
       end
-  let ne ik i1 i2 = to_bool_interval (sub ik i1 i2)
 
-  let eq ik (i1: t) (i2: t) = to_bool_interval (lognot ik (sub ik i1 i2))
+  let ne ik x y =
+    match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (x1,x2), Some (y1,y2) ->
+      if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
+        of_bool ik true
+      else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
+        of_bool ik false
+      else top_bool
+
+  let eq ik x y =
+    match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (x1,x2), Some (y1,y2) ->
+      if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
+        of_bool ik true
+      else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
+        of_bool ik false
+      else top_bool
 
   let ge ik x y =
     match x, y with
@@ -815,21 +835,19 @@ struct
       else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
       else top_bool
 
-  let invariant c x = failwith "unimplemented"
-
-  let invariant_ikind c ik x =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+  let invariant_ikind e ik x =
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
       let x1 = Ints_t.to_bigint x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x1, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
     | Some (x1, x2) ->
       let open Invariant in
+      let (min_ik, max_ik) = range ik in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
-      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
+      let i1 = if Ints_t.compare min_ik x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else none in
+      let i2 = if Ints_t.compare x2 max_ik <> 0 then of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else none in
       i1 && i2
-    | None -> None
+    | None -> Invariant.none
 
   let arbitrary ik =
     let open QCheck.Iter in
@@ -856,11 +874,12 @@ struct
       else if Ints_t.equal m Ints_t.zero then
         Some (c, c)
       else
+        let (min_ik, max_ik) = range ik in
         let rcx =
-          if Ints_t.equal x (min_int ik) then x else
+          if Ints_t.equal x min_ik then x else
             Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
         let lcy =
-          if Ints_t.equal y (max_int ik) then y else
+          if Ints_t.equal y max_ik then y else
             Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
         if Ints_t.compare rcx lcy > 0 then None
         else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
@@ -874,21 +893,20 @@ struct
 
   let refine_with_interval ik a b = meet ik a b
 
-  let refine_with_excl_list ik (intv : t) (excl : (int_t list) option) : t =
+  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t =
     match intv, excl with
     | None, _ | _, None -> intv
-    | Some(l, u), Some(ls) ->
+    | Some(l, u), Some(ls, (rl, rh)) ->
       let rec shrink op b =
         let new_b = (op b (Ints_t.of_int(Bool.to_int(List.mem b ls)))) in
-           if not (Ints_t.equal b new_b) then shrink op new_b else new_b
-          in
-       let l' =
-       if Ints_t.equal l (min_int ik) then l else
-       shrink Ints_t.add l  in
-       let u' =
-       if Ints_t.equal u (max_int ik) then u else
-       shrink Ints_t.sub u in
-       norm ik @@ Some(l', u')
+        if not (Ints_t.equal b new_b) then shrink op new_b else new_b
+      in
+      let (min_ik, max_ik) = range ik in
+      let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
+      let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
+      let intv' = norm ik @@ Some (l', u') in
+      let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
+      meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
     match intv, incl with
@@ -920,7 +938,7 @@ struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
+  let show (x: Ints_t.t) = Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
@@ -937,10 +955,8 @@ struct
   let of_bool x = if x then Ints_t.one else Ints_t.zero
   let to_bool' x = x <> Ints_t.zero
   let to_bool x = Some (to_bool' x)
-  let is_bool _ = true
   let of_int  x = x
   let to_int  x = Some x
-  let is_int  _ = true
 
   let neg  = Ints_t.neg
   let add  = Ints_t.add (* TODO: signed overflow is undefined behavior! *)
@@ -965,6 +981,7 @@ struct
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1004,24 +1021,20 @@ struct
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
     | _ -> None
-  let is_int  x = match x with
-    | `Lifted x -> true
-    | _ -> false
 
   let of_bool x = `Lifted (Base.of_bool x)
   let to_bool x = match x with
     | `Lifted x -> Base.to_bool x
     | _ -> None
-  let is_bool = is_int
 
   let to_excl_list x = None
   let of_excl_list ik x = top_of ik
   let is_excl_list x = false
   let to_incl_list x = None
-  let of_interval ik x = top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
-  let starting     ikind x = top_of ikind
-  let ending       ikind x = top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
+  let ending ?(suppress_ovwarn=false)   ikind x = top_of ikind
   let maximal      x = None
   let minimal      x = None
 
@@ -1056,6 +1069,10 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+
+  let invariant e = function
+    | `Lifted x -> Base.invariant e x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Lift (Base: IkindUnawareS) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
@@ -1083,15 +1100,11 @@ struct
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
     | _ -> None
-  let is_int  x = match x with
-    | `Lifted x -> true
-    | _ -> false
 
   let of_bool x = `Lifted (Base.of_bool x)
   let to_bool x = match x with
     | `Lifted x -> Base.to_bool x
     | _ -> None
-  let is_bool = is_int
 
   let lift1 f x = match x with
     | `Lifted x -> `Lifted (f x)
@@ -1122,6 +1135,10 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+
+  let invariant e = function
+    | `Lifted x -> Base.invariant e x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Flattened = Flat (Integers(IntOps.Int64Ops))
@@ -1423,9 +1440,6 @@ struct
   let to_int x = match x with
     | `Definite x -> Some x
     | _ -> None
-  let is_int  x = match x with
-    | `Definite x -> true
-    | _ -> false
 
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
@@ -1437,24 +1451,19 @@ struct
     | `Definite x -> BigInt.to_bool x
     | `Excluded (s,r) when S.mem BI.zero s -> Some true
     | _ -> None
-  let is_bool x =
-    match x with
-    | `Definite x -> true
-    | `Excluded (s,r) -> S.mem BI.zero s
-    | _ -> false
 
-  let of_interval ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
 
-  let starting ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
-  let ending ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
+  let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
-  let to_excl_list x = match x with
+  let to_excl_list (x:t) = match x with
     | `Definite _ -> None
-    | `Excluded (s,r) -> Some (S.elements s)
+    | `Excluded (s,r) -> Some (S.elements s, (Option.get (R.minimal r), Option.get (R.maximal r)))
     | `Bot -> None
 
   let to_incl_list x = match x with
@@ -1584,19 +1593,30 @@ struct
   let shift_right =
     shift BigInt.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
-  let logand = lift2 BigInt.logand
-  let logor  = lift2 BigInt.logor
+  let logand ik x y =
+    match to_bool x, to_bool y with
+    | Some false, _
+    | _, Some false ->
+      of_bool ik false
+    | _, _ ->
+      lift2 BigInt.logand ik x y
+  let logor ik x y =
+    match to_bool x, to_bool y with
+    | Some true, _
+    | _, Some true ->
+      of_bool ik true
+    | _, _ ->
+      lift2 BigInt.logor ik x y
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
-  let invariant_ikind c ik (x:t) =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+  let invariant_ikind e ik (x:t) =
     match x with
-    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType))
+    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
     | `Excluded (s, _) ->
       S.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) s Invariant.none
+        ) s (Invariant.top ())
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -1619,8 +1639,8 @@ struct
     | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a
   let refine_with_excl_list ik a b = match a, b with
-  | `Excluded (s, r), Some(ls) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls)
-  | _ -> a
+    | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
+    | _ -> a
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
@@ -1658,10 +1678,8 @@ struct
 
   let of_bool x = x
   let to_bool x = Some x
-  let is_bool x = not x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
-  let is_int x  = not x
 
   let neg x = x
   let add x y = x || y
@@ -1685,6 +1703,7 @@ struct
   let logand = (&&)
   let logor  = (||)
   let arbitrary () = QCheck.bool
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 module Booleans = MakeBooleans (
@@ -1712,8 +1731,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [I.zero; I.one])
 
-  let min_int ik = I.of_bigint @@ fst @@ Size.range ik
-  let max_int ik = I.of_bigint @@ snd @@ Size.range ik
+  let range ik = BatTuple.Tuple2.mapn I.of_bigint (Size.range ik)
+
 (*
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
@@ -1730,7 +1749,7 @@ module Enums : S with type int_t = BigInt.t = struct
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
   let norm ikind v =
-    let min, max = min_int ikind, max_int ikind in
+    let min, max = range ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =
       I.compare min v <= 0 && I.compare v max <= 0
@@ -1789,7 +1808,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
-  let of_interval ik (x,y) = if x = y then of_int ik x else top_of ik
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -1914,11 +1933,9 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc xs when BISet.for_all ((<>) BI.zero) xs -> Some true
     | Exc (xs,_) when BISet.exists ((=) BI.zero) xs -> Some true
     | _ -> None
-  let is_bool = BatOption.is_some % to_bool
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
-  let is_int = BatOption.is_some % to_int
 
-  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x) | _ -> None
+  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, (Option.get (R.minimal r), Option.get (R.maximal r))) | _ -> None
   let of_excl_list ik xs =
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
@@ -1926,8 +1943,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
-  let starting     ikind x = top_of ikind
-  let ending       ikind x = top_of ikind
+  let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
+  let ending ?(suppress_ovwarn=false) ikind x = top_of ikind
 
   let lognot ik x =
     if is_bot x
@@ -1994,19 +2011,18 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let ne ik x y = lognot ik (eq ik x y)
 
-  let invariant_ikind c ik x =
-    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+  let invariant_ikind e ik x =
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
           Invariant.(a || i)
-        ) Invariant.none (BISet.elements ps)
+        ) (Invariant.bot ()) (BISet.elements ps)
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) Invariant.none (BISet.elements ns)
+        ) (Invariant.top ()) (BISet.elements ns)
 
 
   let arbitrary ik =
@@ -2033,7 +2049,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let refine_with_excl_list ik a b =
     match b with
-    | Some (ls) -> meet ik a (of_excl_list ik ls)
+    | Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
   let refine_with_incl_list ik a b =
@@ -2084,9 +2100,8 @@ struct
         else
           Some (c' %: m', m')
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
+  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
   let top () = Some (Ints_t.zero, Ints_t.one)
   let top_of ik = Some (Ints_t.zero, Ints_t.one)
   let bot () = None
@@ -2164,8 +2179,6 @@ struct
     if M.tracing then M.trace "congruence" "meet %a %a -> %a\n" pretty x pretty y pretty res;
     res
 
-  let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
-
   let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
   let of_int ik (x: int_t) = normalize ik @@ Some (x, Ints_t.zero)
   let zero = Some (Ints_t.zero, Ints_t.zero)
@@ -2173,14 +2186,13 @@ struct
   let top_bool = top()
 
   let of_bool _ik = function true -> one | false -> zero
-  let is_bool x = x <> None && not (leq zero x) || equal x zero
 
   let to_bool (a: t) = match a with
     | None -> None
     | x when equal zero x -> Some false
     | x -> if leq zero x then None else Some true
 
-  let starting ik n = top()
+  let starting ?(suppress_ovwarn=false) ik n = top()
 
   let ending = starting
 
@@ -2206,15 +2218,23 @@ struct
       (*   (https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html)   *)
       (* Clang behaves the same but they never document that anywhere *)
       Some (c', m)
-    | _ -> match torg with
-      | (Some (Cil.TInt (ikorg, _)) ) when ikorg = t || (max_int t >=: max_int ikorg && min_int t <=: min_int ikorg) -> if M.tracing then M.trace "cong-cast" "some case"; x
+    | _ ->
+      let (min_t, max_t) = range t in
+      let p ikorg =
+        let (min_ikorg, max_ikorg) = range ikorg in
+        ikorg = t || (max_t >=: max_ikorg && min_t <=: min_ikorg)
+      in
+      match torg with
+      | Some (Cil.TInt (ikorg, _)) when p ikorg ->
+        if M.tracing then M.trace "cong-cast" "some case";
+        x
       | _ -> top ()
 
 
-  let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
+  let cast_to ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
-    let res = cast_to ?torg ~no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
+    let res = cast_to ?torg ?no_ov t x in
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
   let widen = join
@@ -2271,10 +2291,11 @@ struct
     | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
+      let (_, max_ik) = range ik in
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then
-        normalize ik @@ Some (Ints_t.bitand (max_int ik) (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
+        normalize ik @@ Some (Ints_t.bitand max_ik (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
       else
-        let x = (Ints_t.bitand (max_int ik) (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
+        let x = (Ints_t.bitand max_ik (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
         (* TODO: commented out because fails test with _Bool *)
         (* if is_prime (m' +: Ints_t.one) then
              normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
@@ -2286,16 +2307,40 @@ struct
     if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
+  (* Handle unsigned overflows.
+     From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= bitwidth.
+     The congruence modulo b may not persist on an overflow. *)
+  let handle_overflow ik (c, m) =
+    if m =: Ints_t.zero then
+      normalize ik (Some (c, m))
+    else
+      (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
+      let tz = Ints_t.trailing_zeros m in
+      let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
+
+      let max = (snd (Size.range ik)) +: Ints_t.one in
+      if m' >=: max then
+        (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
+        let c' = c %: max in
+        Some (c', Ints_t.zero)
+      else
+        normalize ik (Some (c, m'))
+
   let mul ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
+    in
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None ->
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
-      Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
-    | Some (c1, m1), Some (c2, m2)
-         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 *: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
+      Some (no_ov_case (c1, m1) (c2, m2))
+    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+      let (_, max_ik) = range ik in
+      Some((c1 *: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b )
     | _ -> top ()
 
   let mul ?no_ov ik x y =
@@ -2308,16 +2353,21 @@ struct
     | None -> bot()
     | Some _ ->  mul ~no_ov ik (of_int ik (Ints_t.of_int (-1))) x
 
-
   let add ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      c1 +: c2, Ints_t.gcd m1 m2
+    in
     match (x, y) with
     | None, None -> bot ()
     | None, _ | _, None ->
-       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize ik (Some (c1 +: c2, Ints_t.gcd m1 m2))
-    | Some (c1, m1), Some (c2, m2)
-         when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
-       Some((c1 +: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some a, Some b when no_ov ->
+      normalize ik (Some (no_ov_case a b))
+    | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
+      let (_, max_ik) = range ik in
+      Some((c1 +: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b)
     | _ -> top ()
 
 
@@ -2340,7 +2390,12 @@ struct
 
   let bitnot ik x = match x with
     | None -> None
-    | Some (c, m) -> if (Cil.isSigned ik) then sub ik (neg ik x) one else Some (Ints_t.sub (max_int ik) c, m)
+    | Some (c, m) ->
+      if (Cil.isSigned ik) then
+        sub ik (neg ik x) one
+      else
+        let (_, max_ik) = range ik in
+        Some (Ints_t.sub max_ik c, m)
 
   (** The implementation of the bit operations could be improved based on the master’s thesis
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
@@ -2437,17 +2492,16 @@ struct
     if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let invariant_ikind ctxt ik x =
-    let l = Cil.(Lval (BatOption.get ctxt.Invariant.lval)) in
+  let invariant_ikind e ik x =
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
       let c = Ints_t.to_bigint c in
-      Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
     | Some (c, m) ->
       let open Cil in
       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
-      Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, intType))
-    | None -> None
+      Invariant.of_exp (BinOp (Eq, (BinOp (Mod, e, m, TInt(ik,[]))), c, intType))
+    | None -> Invariant.none
 
   let arbitrary ik =
     let open QCheck in
@@ -2519,16 +2573,16 @@ module IntDomTupleImpl = struct
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
   type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
-  let create r x ((p1, p2, p3, p4): precision) =
+  let create r x ((p1, p2, p3, p4): int_precision) =
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
   let create r x = (* use where values are introduced *)
-    create r x (precision_from_node_or_config ())
-  let create2 r x ((p1, p2, p3, p4): precision) =
+    create r x (int_precision_from_node_or_config ())
+  let create2 r x ((p1, p2, p3, p4): int_precision) =
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
   let create2 r x = (* use where values are introduced *)
-    create2 r x (precision_from_node_or_config ())
+    create2 r x (int_precision_from_node_or_config ())
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
@@ -2562,9 +2616,9 @@ module IntDomTupleImpl = struct
   let of_bool ik = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_excl_list ik}
   let of_int ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_int ik }
-  let starting ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.starting ik }
-  let ending ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.ending ik }
-  let of_interval ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ik }
+  let starting ?(suppress_ovwarn=false) ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.starting ~suppress_ovwarn ik }
+  let ending ?(suppress_ovwarn=false) ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.ending ~suppress_ovwarn ik }
+  let of_interval ?(suppress_ovwarn=false) ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_congruence ik }
 
   let refine_with_congruence ik ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
@@ -2624,8 +2678,6 @@ module IntDomTupleImpl = struct
   let is_bot = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
   let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
   let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top_of ik }
-  let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
-  let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
 
   let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =
@@ -2643,7 +2695,13 @@ module IntDomTupleImpl = struct
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 
-  let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
+  let to_excl_list x =
+    let merge ps =
+      let (vs, rs) = List.split ps in
+      let (mins, maxs) = List.split rs in
+      (List.concat vs, (List.min mins, List.max maxs))
+    in
+    mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat merge
 
   let to_incl_list x =
     let hd l = match l with h::t -> h | _ -> [] in
@@ -2724,12 +2782,15 @@ module IntDomTupleImpl = struct
         , map (r.f1 (module I3)) c
         , map (r.f1 (module I4)) d )
 
-  let map2 ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-    refine ik
+  let map2 ?(norefine=false) ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    let r =
       ( opt_map2 (r.f2 (module I1)) xa ya
       , opt_map2 (r.f2 (module I2)) xb yb
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) xd yd )
+    in
+    if norefine then r else refine ik r
+
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
@@ -2753,7 +2814,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort, but we need some unsound category *)
+      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }
@@ -2790,7 +2851,7 @@ module IntDomTupleImpl = struct
    * ~keep:true will keep elements that are `Some x` but should be set to `None` by p.
    *  This way we won't loose any information for the refinement.
    * ~keep:false will set the elements to `None` as defined by p *)
-  let project ik (p: precision) t =
+  let project ik (p: int_precision) t =
     let t_padded = map ~keep:true { f3 = fun (type a) (module I:S with type t = a) -> Some (I.top_of ik) } t p in
     let t_refined = refine ik t_padded in
     map ~keep:false { f3 = fun (type a) (module I:S with type t = a) -> None } t_refined p
@@ -2798,13 +2859,13 @@ module IntDomTupleImpl = struct
 
   (* f2: binary ops *)
   let join ik =
-    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
 
   let meet ik =
     map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.meet ik)}
 
   let widen ik =
-    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
 
   let narrow ik =
     map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.narrow ik)}
@@ -2872,19 +2933,16 @@ module IntDomTupleImpl = struct
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
-  let invariant _ _ = failwith "invariant not implemented for IntDomTupleImpl. Use invariant_ikind instead"
-
-  let invariant_ikind c ik x =
+  let invariant_ikind e ik x =
     match to_int x with
     | Some v ->
       (* If definite, output single equality instead of every subdomain repeating same equality *)
-      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
-      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik v, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
     | None ->
-      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)
+      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind e ik } x)
       in List.fold_left (fun a i ->
           Invariant.(a && i)
-        ) Invariant.none is
+        ) (Invariant.top ()) is
 
   let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
 end

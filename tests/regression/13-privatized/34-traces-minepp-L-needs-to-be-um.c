@@ -1,7 +1,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 42; // matches expected precise read
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -38,6 +38,6 @@ int main(void) {
     pthread_mutex_unlock(&B);
   }
   // mine-w also reads 15 here by weak influence, so useless example
-  assert(g == 42); // TODO
+  __goblint_check(g == 42); // TODO
   return 0;
 }

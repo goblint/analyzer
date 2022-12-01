@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 struct lock {
   pthread_mutex_t mutex;
@@ -13,9 +13,9 @@ void *t_fun(void *arg) {
   int t;
   pthread_mutex_lock(&lock1.mutex);
   t = glob1;
-  assert(t == 5);
+  __goblint_check(t == 5);
   glob1 = -10;
-  assert(glob1 == -10);
+  __goblint_check(glob1 == -10);
   glob1 = t;
   pthread_mutex_unlock(&lock1.mutex);
   return NULL;
@@ -23,11 +23,11 @@ void *t_fun(void *arg) {
 
 int main(void) {
   pthread_t id;
-  assert(glob1 == 5);
+  __goblint_check(glob1 == 5);
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&lock1.mutex);
   glob1++;
-  assert(glob1 == 6);
+  __goblint_check(glob1 == 6);
   glob1--;
   pthread_mutex_unlock(&lock1.mutex);
   pthread_join (id, NULL);

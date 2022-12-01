@@ -24,9 +24,7 @@ open Printf
 
 exception ConfigError of string
 
-
-(* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
-let phase = ref 0
+let building_spec = ref false
 
 
 module Validator = JsonSchema.Validator (struct let schema = Options.schema end)
@@ -35,6 +33,8 @@ module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.r
 (** The type for [gobConfig] module. *)
 module type S =
 sig
+  val get_json: string -> Yojson.Safe.t
+
   (** Functions to query conf variable of type int. *)
   val get_int    : string -> int
 
@@ -66,17 +66,11 @@ sig
   (** Set a list of values *)
   val set_list : string -> Yojson.Safe.t list -> unit
 
-  (** Functions to set a conf variables to null. *)
-  val set_null   : string -> unit
-
-  (** Print the current configuration *)
-  val print : 'a BatInnerIO.output -> unit
-
   (** Write the current configuration to [filename] *)
-  val write_file: string -> unit
+  val write_file: Fpath.t -> unit
 
   (** Merge configurations from a file with current. *)
-  val merge_file : string -> unit
+  val merge_file : Fpath.t -> unit
 
   (** Merge configurations from a JSON object with current. *)
   val merge : Yojson.Safe.t -> unit
@@ -114,7 +108,7 @@ struct
     | Index (New  ,p) -> fprintf ch "[*]%a"    print_path' p
 
   (** Path printing where you can ignore the first dot. *)
-  let print_path ch = function
+  let[@warning "-unused-value-declaration"] print_path ch = function
     | Select (s,p) -> fprintf ch "%s%a" s print_path' p
     | pth -> print_path' ch pth
 
@@ -172,7 +166,7 @@ struct
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     GobYojson.print ch !json_conf
-  let write_file filename = File.with_file_out filename print
+  let write_file filename = File.with_file_out (Fpath.to_string filename) print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
@@ -267,11 +261,7 @@ struct
   let get_path_string f st =
     try
       let st = String.trim st in
-      let st, x =
-        let g st = st, get_value !json_conf (parse_path st) in
-        try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
-        with ConfTypeError -> g st (* do global lookup if undefined *)
-      in
+      let x = get_value !json_conf (parse_path st) in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
@@ -281,6 +271,7 @@ struct
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
+  let get_json = get_path_string Fun.id
 
   (** Convenience functions for reading values. *)
   (* memoize for each type with BatCache: *)
@@ -300,10 +291,16 @@ struct
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
-  let get_int    = memo_int.get
-  let get_bool   = memo_bool.get
-  let get_string = memo_string.get
-  let get_list   = memo_list.get
+  let wrap_get f x =
+    (* self-observe options, which Spec construction depends on *)
+    if !building_spec && Tracing.tracing then Tracing.trace "config" "get during building_spec: %s\n" x;
+    (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
+    f x
+
+  let get_int    = wrap_get memo_int.get
+  let get_bool   = wrap_get memo_bool.get
+  let get_string = wrap_get memo_string.get
+  let get_list   = wrap_get memo_list.get
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
@@ -320,7 +317,6 @@ struct
   let set_int    st i = set_path_string_trace st (`Int i)
   let set_bool   st i = set_path_string_trace st (`Bool i)
   let set_string st i = set_path_string_trace st (`String i)
-  let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
     drop_memo ();
     set_value (`List l) json_conf (parse_path st)
@@ -347,9 +343,22 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
-    merge v;
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
+    let cwd = Fpath.v (Sys.getcwd ()) in
+    let config_dirs = cwd :: (List.map Fpath.v Goblint_sites.conf)  in
+    let file = List.find_map_opt (fun custom_include_dir ->
+        let path = Fpath.append custom_include_dir fn in
+        if Sys.file_exists (Fpath.to_string path) then
+          Some path
+        else
+          None
+      ) config_dirs
+    in
+    match file with
+    | Some fn ->
+      let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
+      merge v;
+      if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
+    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
 end
 
 include Impl

@@ -1,7 +1,7 @@
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
     int x = 1;
-    assert(x == 1); // success before, success after
+    __goblint_check(x == 1); // success before, success after
     return 0;
 }

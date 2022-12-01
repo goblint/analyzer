@@ -14,7 +14,11 @@ struct
   module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
-  module V = T
+  module V =
+  struct
+    include T
+    include StdV
+  end
 
   let should_join = D.equal
 
@@ -43,19 +47,20 @@ struct
     rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
-      (* TODO: elements might throw an exception *)
-      let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
-      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
-      let join_thread s tid =
-        if has_clean_exit tid && not (is_not_unique ctx tid) then
-          D.remove tid s
-        else
-          s
-      in
-      List.fold_left join_thread ctx.local threads
+      (let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
+       let join_thread s tid =
+         if has_clean_exit tid && not (is_not_unique ctx tid) then
+           D.remove tid s
+         else
+           s
+       in
+       match TS.elements (ctx.ask (Queries.EvalThread id)) with
+       | threads -> List.fold_left join_thread ctx.local threads
+       | exception SetDomain.Unsupported _ -> ctx.local)
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

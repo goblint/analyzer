@@ -1,14 +1,11 @@
 (** Globally accessible flags and utility functions. *)
 
-open Cil
+open GoblintCil
 open GobConfig
 
 
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
-
-(** Files given as arguments. *)
-let arg_files : string list ref = ref []
 
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
@@ -16,9 +13,6 @@ let should_warn = ref false
 
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
-
-(** hack to use a special integer to denote synchronized array-based locking *)
-let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 
 (** The file where everything is output *)
 let out = ref stdout
@@ -64,19 +58,20 @@ let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 (** Creates a directory and returns the absolute path **)
 let create_dir name =
-  let dirName = GobFilename.absolute name in
+  let dirName = GobFpath.cwd_append name in
   GobSys.mkdir_or_exists dirName;
   dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)
 let rm_rf path =
   let rec f path =
-    if Sys.is_directory path then begin
-      let files = Array.map (Filename.concat path) (Sys.readdir path) in
+    let path_str = Fpath.to_string path in
+    if Sys.is_directory path_str then begin
+      let files = Array.map (Fpath.add_seg path) (Sys.readdir path_str) in
       Array.iter f files;
-      Unix.rmdir path
+      Unix.rmdir path_str
     end else
-      Sys.remove path
+      Sys.remove path_str
   in
   f path
 
@@ -102,6 +97,7 @@ let seconds_of_duration_string =
 
 let vars = ref 0
 let evals = ref 0
+let narrow_reuses = ref 0
 
 (* print GC statistics; taken from Cil.Stats.print which also includes timing; there's also Gc.print_stat, but it's in words instead of MB and more info than we want (also slower than quick_stat since it goes through the heap) *)
 let print_gc_quick_stat chn =
@@ -123,24 +119,10 @@ let print_gc_quick_stat chn =
     gc.Gc.compactions;
   gc
 
-let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
-(* typedef struct {
-   PROCESS_NAME_TYPE      NAME;
-   SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
-   STACK_SIZE_TYPE        STACK_SIZE;
-   PRIORITY_TYPE          BASE_PRIORITY;
-   SYSTEM_TIME_TYPE       PERIOD;
-   SYSTEM_TIME_TYPE       TIME_CAPACITY;
-   DEADLINE_TYPE          DEADLINE;
-   }                        PROCESS_ATTRIBUTE_TYPE; *)
-let arinc_name          = if scrambled then "M161" else "NAME"
-let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
-let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
-let arinc_period        = if scrambled then "M165" else "PERIOD"
-let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
-
-let exe_dir = Filename.dirname Sys.executable_name
-let command = String.concat " " (Array.to_list Sys.argv)
+let exe_dir = Fpath.(parent (v Sys.executable_name))
+let command_line = match Array.to_list Sys.argv with
+  | command :: arguments -> Filename.quote_command command arguments
+  | [] -> assert false
 
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)

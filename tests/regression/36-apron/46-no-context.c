@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval --disable ana.apron.context
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 int oct(int x, int y) {
   int s;
@@ -18,7 +18,7 @@ void main() {
   int res;
   if (x <= y) {
     res = oct(x, y);
-    assert(res == 1); // UNKNOWN (indended by disabled context)
+    __goblint_check(res == 1); // UNKNOWN (indended by disabled context)
   }
 
   res = oct(x, y);

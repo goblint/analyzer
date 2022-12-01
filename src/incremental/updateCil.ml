@@ -1,23 +1,13 @@
-open Cil
+open GoblintCil
 open CompareCIL
-open VersionLookup
+open MaxIdUtil
 open MyCFG
 
-module NodeMap = Hashtbl.Make(Node)
+include UpdateCil0
 
-let location_map = ref (NodeMap.create 103: location NodeMap.t)
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change_info) =
+  UpdateCil0.init (); (* reset for server mode *)
 
-let getLoc (node: Node.t) =
-  (* In case this belongs to a changed function, we will find the true location in the map*)
-  try
-    NodeMap.find !location_map node
-  with Not_found ->
-    Node.location node
-
-let store_node_location (n: Node.t) (l: location): unit =
-  NodeMap.add !location_map n l
-
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (changes: change_info) =
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
@@ -43,8 +33,8 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let reset_fun (f: fundec) (old_f: fundec) =
     f.svar.vid <- old_f.svar.vid;
-    List.iter2 (fun l o_l -> l.vid <- o_l.vid) f.slocals old_f.slocals;
-    List.iter2 (fun lo o_f -> lo.vid <- o_f.vid) f.sformals old_f.sformals;
+    List.iter2 (fun l o_l -> l.vid <- o_l.vid; o_l.vname <- l.vname) f.slocals old_f.slocals;
+    List.iter2 (fun lo o_f -> lo.vid <- o_f.vid; o_f.vname <- lo.vname) f.sformals old_f.sformals;
     List.iter2 (fun s o_s -> s.sid <- o_s.sid) f.sallstmts old_f.sallstmts;
     List.iter (fun s -> store_node_location (Statement s) (Cilfacade.get_stmtLoc s)) f.sallstmts;
 
@@ -60,14 +50,14 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     v.vid <- old_v.vid;
     update_vid_max v.vid;
   in
-  let reset_globals (glob: global) =
+  let reset_globals (glob: unchanged_global) =
     try
-      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
-      match glob, old_glob with
-      | GFun (nw, _), GFun (old, _) -> reset_fun nw old
-      | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
-      | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old
-      | _ -> ()
+      match glob.current.def, glob.old.def with
+      | Some (Fun nw), Some (Fun old) -> reset_fun nw old
+      | Some (Var nw), Some (Var old) -> reset_var nw old
+      | _, _ -> match glob.current.decls, glob.old.decls with
+        | Some nw, Some old -> reset_var nw old
+        | _, _ -> ()
     with Failure m -> ()
   in
   let assign_same_id fallstmts (old_n, n) = match old_n, n with
@@ -99,9 +89,16 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
       List.iter (reset_changed_stmt (List.map snd d.unchangedNodes)) f.sallstmts;
       List.iter (assign_same_id f.sallstmts) d.unchangedNodes
   in
+  let update_var (v: varinfo) =
+    v.vid <- make_vid ()
+  in
   let reset_changed_globals (changed: changed_global) =
-    match (changed.current, changed.old) with
-    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old changed.unchangedHeader changed.diff
+    match (changed.current.def, changed.old.def) with
+    | Some (Fun nw), Some (Fun old) -> reset_changed_fun nw old changed.unchangedHeader changed.diff
+    | Some (Var nw), Some (Var old) -> update_var nw
+    | None, None -> (match (changed.current.decls, changed.old.decls) with
+        | Some nw, Some old -> update_var nw
+        | _ -> ())
     | _ -> ()
   in
   let update_fun (f: fundec) =
@@ -110,17 +107,14 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
     List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
   in
-  let update_var (v: varinfo) =
-    v.vid <- make_vid ()
-  in
-  let update_globals (glob: global) =
+  let update_globals (glob: global_col) =
     try
-      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
-      match glob, old_glob with
-      | GFun (nw, _), GFun (old, _) -> update_fun nw
-      | GVar (nw, _, _), GVar (old, _, _) -> update_var nw
-      | GVarDecl (nw, _), GVarDecl (old, _) -> update_var nw
-      | _ -> ()
+      match glob.def with
+      | Some (Fun nw) -> update_fun nw
+      | Some (Var nw) -> update_var nw
+      | _ -> match glob.decls with
+        | Some v1 -> update_var v1
+        | _ -> ()
     with Failure m -> ()
   in
   List.iter reset_globals changes.unchanged;
@@ -128,7 +122,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   List.iter update_globals changes.added;
 
   (* Update the sid_max and vid_max *)
-  Cil.iterGlobals new_file (update_max_ids vid_max sid_max);
+  Cil.iterGlobals new_file (update_max_ids ~sid_max ~vid_max);
   (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
   while !sid_max > Cil.new_sid () do
     ()

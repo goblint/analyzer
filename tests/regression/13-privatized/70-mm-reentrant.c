@@ -1,10 +1,10 @@
-// PARAM: --enable ana.int.interval --sets ana.base.privatization mutex-meet --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
+// PARAM: --enable ana.int.interval --set ana.base.privatization mutex-meet --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
 #include <signal.h>
-#include <assert.h>
+#include <goblint.h>
 
 pthread_mutex_t mt;
 int i = 0;
@@ -18,7 +18,7 @@ void* fn1(void* agr)
     i = 5;
   }
   pthread_mutex_lock(&mt);
-  assert(i == 0); //UNKNOWN!
+  __goblint_check(i == 0); //UNKNOWN!
   i = 0;
   pthread_mutex_unlock(&mt);
   pthread_mutex_unlock(&mt);
@@ -33,7 +33,7 @@ void* fn2(void* agr)
     i = 5;
   }
   top = pthread_mutex_lock(&mt);
-  assert(i == 0); //UNKNOWN!
+  __goblint_check(i == 0); //UNKNOWN!
   i = 0;
   pthread_mutex_unlock(&mt);
   pthread_mutex_unlock(&mt);

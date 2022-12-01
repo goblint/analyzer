@@ -40,9 +40,6 @@ struct
     | "__goblint_dummy_init" ->
       (* TODO: is this necessary? *)
       Flag.join ctx.local (Flag.get_main ())
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      Flag.get_multi ()
     | _ ->
       ctx.local
 
@@ -72,7 +69,7 @@ struct
     let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
     let should_print m = not m
   end
-  let access ctx e vo w =
+  let access ctx _ =
     is_multi (Analyses.ask_of_ctx ctx)
 
   let threadenter ctx lval f args =

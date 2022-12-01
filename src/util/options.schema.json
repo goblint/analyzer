@@ -2,6 +2,15 @@
   "$schema": "http://json-schema.org/draft-04/schema#",
   "type": "object",
   "properties": {
+    "files": {
+      "title": "files",
+      "description": "Files to analyze.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "outfile": {
       "title": "outfile",
       "description": "File to print output to.",
@@ -17,12 +26,6 @@
     "justcfg": {
       "title": "justcfg",
       "description": "Only output the CFG in cfg.dot .",
-      "type": "boolean",
-      "default": false
-    },
-    "printstats": {
-      "title": "printstats",
-      "description": "Outputs timing information.",
       "type": "boolean",
       "default": false
     },
@@ -93,12 +96,6 @@
       "type": "string",
       "default": ""
     },
-    "solverdiffs": {
-      "title": "solverdiffs",
-      "description": "Print out solver differences.",
-      "type": "boolean",
-      "default": false
-    },
     "allfuns": {
       "title": "allfuns",
       "description":
@@ -125,14 +122,6 @@
       "description": "Run g2html.jar on the generated xml.",
       "type": "boolean",
       "default": false
-    },
-    "phases": {
-      "title": "phases",
-      "description":
-        "List of phases. Per-phase settings overwrite global ones.",
-      "type": "array",
-      "items": { "$ref": "#" },
-      "default": []
     },
     "save_run": {
       "title": "save_run",
@@ -172,7 +161,7 @@
     },
     "jobs": {
       "title": "jobs",
-      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing and g2html.",
       "type": "integer",
       "default": 1
     },
@@ -233,6 +222,60 @@
           "type": "array",
           "items": { "type": "string" },
           "default": []
+        },
+        "compdb": {
+          "title": "pre.compdb",
+          "type": "object",
+          "properties": {
+            "original-path": {
+              "title": "pre.compdb.original-path",
+              "description":
+                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
+              "type": "string",
+              "default": ""
+            },
+            "split": {
+              "title": "pre.compdb.split",
+              "description": "Split Compilation Database entries containing multiple .c files.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "cil": {
+      "title": "cil",
+      "description": "CIL configuration",
+      "type": "object",
+      "properties": {
+        "merge": {
+          "title": "cil.merge",
+          "type": "object",
+          "properties": {
+            "inlines": {
+              "title": "cil.merge.inlines",
+              "description": "Merge inline functions (by their body printout).",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "cstd": {
+          "title": "cil.cstd",
+          "type": "string",
+          "description": "Specify the c standard used for parsing.",
+          "default": "c99",
+          "enum": ["c90", "c99", "c11"]
+        },
+        "gnu89inline": {
+          "title": "cil.gnu89inline",
+          "type": "boolean",
+          "description": "Indicates whether gnu89 semantic should be used for inline functions.",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -277,12 +320,13 @@
       "properties": {
         "activated": {
           "title": "ana.activated",
-          "description": "Lists of activated analyses in this phase.",
+          "description": "Lists of activated analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
+            "assert"
           ]
         },
         "path_sens": {
@@ -290,119 +334,14 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "OSEK", "OSEK2", "mutex", "malloc_null", "uninit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "OSEK2", "stack_loc", "stack_trace_set" ]
-        },
-        "osek": {
-          "title": "ana.osek",
-          "type": "object",
-          "properties": {
-            "oil": {
-              "title": "ana.osek.oil",
-              "description": "Oil file for the analyzed program",
-              "type": "string",
-              "default": ""
-            },
-            "defaults": {
-              "title": "ana.osek.defaults",
-              "description": "Generate default definitions for TASK and ISR",
-              "type": "boolean",
-              "default": true
-            },
-            "isrprefix": {
-              "title": "ana.osek.isrprefix",
-              "description": "Prefix added by the ISR macro",
-              "type": "string",
-              "default": "function_of_"
-            },
-            "taskprefix": {
-              "title": "ana.osek.taskprefix",
-              "description": "Prefix added by the TASK macro",
-              "type": "string",
-              "default": "function_of_"
-            },
-            "isrsuffix": {
-              "title": "ana.osek.isrsuffix",
-              "description": "Suffix added by the ISR macro",
-              "type": "string",
-              "default": ""
-            },
-            "tasksuffix": {
-              "title": "ana.osek.tasksuffix",
-              "description": "Suffix added by the TASK macro",
-              "type": "string",
-              "default": ""
-            },
-            "intrpts": {
-              "title": "ana.osek.intrpts",
-              "description": "Enable constraints for interrupts.",
-              "type": "boolean",
-              "default": false
-            },
-            "check": {
-              "title": "ana.osek.check",
-              "description":
-                "Check if (assumed) OSEK conventions are fullfilled.",
-              "type": "boolean",
-              "default": false
-            },
-            "names": {
-              "title": "ana.osek.names",
-              "description":
-                "OSEK API function (re)names for the analysed program",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "warnfiles": {
-              "title": "ana.osek.warnfiles",
-              "description": "Print all warning types to separate file",
-              "type": "boolean",
-              "default": false
-            },
-            "safe_vars": {
-              "title": "ana.osek.safe_vars",
-              "description": "Suppress warnings on these vars",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "safe_task": {
-              "title": "ana.osek.safe_task",
-              "description": "Ignore accesses in these tasks",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "safe_isr": {
-              "title": "ana.osek.safe_isr",
-              "description": "Ignore accesses in these isr",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "flags": {
-              "title": "ana.osek.flags",
-              "description": "List of global variables that are flags.",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "def_header": {
-              "title": "ana.osek.def_header",
-              "description":
-                "Generate TASK/ISR macros with default structure",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
+          "default": [ "stack_loc", "stack_trace_set" ]
         },
         "int": {
           "title": "ana.int",
@@ -439,7 +378,7 @@
             "refinement": {
               "title": "ana.int.refinement",
               "description":
-                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
@@ -451,10 +390,38 @@
               "type": "boolean",
               "default": false
             },
+            "interval_narrow_by_meet": {
+              "title": "ana.int.interval_narrow_by_meet",
+              "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
+              "type": "boolean",
+              "default": false
+            },
             "interval_threshold_widening": {
               "title": "ana.int.interval_threshold_widening",
               "description":
                 "Use constants appearing in program as threshold for widening",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_threshold_widening_constants": {
+              "title": "ana.int.interval_threshold_widening_constants",
+              "description":
+                "Which constants in the program should be considered as threshold constants (all/comparisons)",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
+            }
+          },
+          "additionalProperties": false
+        },
+        "float": {
+          "title": "ana.float",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "title": "ana.float.interval",
+              "description":
+                "Use FloatDomain: (float * float) option.",
               "type": "boolean",
               "default": false
             }
@@ -501,48 +468,6 @@
           },
           "additionalProperties": false
         },
-        "arinc": {
-          "title": "ana.arinc",
-          "type": "object",
-          "properties": {
-            "assume_success": {
-              "title": "ana.arinc.assume_success",
-              "description":
-                "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it).",
-              "type": "boolean",
-              "default": true
-            },
-            "simplify": {
-              "title": "ana.arinc.simplify",
-              "description":
-                "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call.",
-              "type": "boolean",
-              "default": true
-            },
-            "validate": {
-              "title": "ana.arinc.validate",
-              "description":
-                "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables.",
-              "type": "boolean",
-              "default": true
-            },
-            "export": {
-              "title": "ana.arinc.export",
-              "description":
-                "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way.",
-              "type": "boolean",
-              "default": true
-            },
-            "merge_globals": {
-              "title": "ana.arinc.merge_globals",
-              "description":
-                "Merge all global return code variables into one.",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "additionalProperties": false
-        },
         "opt": {
           "title": "ana.opt",
           "type": "object",
@@ -574,6 +499,28 @@
                 "Do not propagate basic type writes to all struct fields",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "autotune": {
+          "title": "ana.autotune",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.autotune.enabled",
+              "description": "Try to intelligently select analyses based on analysed file",
+              "type": "boolean",
+              "default": false
+            },
+            "activated": {
+              "title": "ana.autotune.activated",
+              "description": "Lists of activated tuning options. By default all are activated",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums", "loopUnrollHeuristic", "arrayDomain", "octagon", "wideningThresholds"
+              ]
             }
           },
           "additionalProperties": false
@@ -646,17 +593,16 @@
               },
               "additionalProperties": false
             },
+            "limit-string-addresses": {
+              "title": "ana.base.limit-string-addresses",
+              "description": "Limit abstract address sets to keep at most one distinct string pointer.",
+              "type": "boolean",
+              "default": true
+            },
             "partition-arrays": {
               "title": "ana.base.partition-arrays",
               "type": "object",
               "properties": {
-                "enabled": {
-                  "title": "ana.base.partition-arrays.enabled",
-                  "description":
-                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-                  "type": "boolean",
-                  "default": false
-                },
                 "keep-expr": {
                   "title": "ana.base.partition-arrays.keep-expr",
                   "description":
@@ -678,6 +624,27 @@
                     "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
                   "type": "boolean",
                   "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "arrays":{
+              "title": "ana.base.arrays",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.arrays.domain",
+                  "description":
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                  "type": "string",
+                  "enum": ["trivial", "partitioned", "unroll"],
+                  "default": "trivial"
+                },
+                "unrolling-factor": {
+                  "title": "ana.base.arrays.unrolling-factor",
+                  "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
+                  "type": "integer",
+                  "default": 0
                 }
               },
               "additionalProperties": false
@@ -728,10 +695,63 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock","mutex-meet-tid"],
               "default": "protection-read"
+            },
+            "priv": {
+              "title": "ana.base.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.base.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.base.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "invariant": {
+              "title": "ana.base.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.invariant.enabled",
+                  "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "blobs": {
+                  "title": "ana.base.invariant.blobs",
+                  "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "eval": {
+              "title": "ana.base.eval",
+              "type": "object",
+              "properties": {
+                "deep-query": {
+                  "title": "ana.base.eval.deep-query",
+                  "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -750,6 +770,12 @@
                 "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                 "kzalloc"
               ]
+            },
+            "unique_address_count": {
+                "title": "ana.malloc.unique_address_count",
+                "description": "Number of unique memory addresses allocated for each malloc node.",
+                "type": "integer",
+                "default": 0
             }
           },
           "additionalProperties": false
@@ -785,12 +811,20 @@
               "type": "boolean",
               "default": false
             },
+            "threshold_widening_constants": {
+              "title": "ana.apron.threshold_widening_constants",
+              "description":
+                "Which constants in the programm should be considered as threshold constants",
+              "type": "string",
+              "enum": ["all", "comparisons"],
+              "default": "all"
+            },
             "privatization": {
               "title": "ana.apron.privatization",
               "description":
-                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+                "Which apron privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
-              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
@@ -810,6 +844,37 @@
                     "Exclude writes from threads that must have been joined",
                   "type": "boolean",
                   "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "one-var": {
+                  "title": "ana.apron.invariant.one-var",
+                  "description": "Generate invariants with only one variable",
+                  "type": "boolean",
+                  "default": false
+                },
+                "local": {
+                  "title": "ana.apron.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.apron.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
@@ -852,6 +917,63 @@
             }
           },
           "additionalProperties": false
+        },
+        "race": {
+          "title": "ana.race",
+          "type": "object",
+          "properties": {
+            "free": {
+              "title": "ana.race.free",
+              "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "dead-code" : {
+          "title": "ana.dead-code",
+          "type": "object",
+          "properties": {
+            "lines": {
+              "title": "ana.dead-code.lines",
+              "description": "Print information about lines of dead code.",
+              "type": "boolean",
+              "default": true
+            },
+            "branches": {
+              "title": "ana.dead-code.branches",
+              "description": "Print information about dead branches.",
+              "type": "boolean",
+              "default": true
+            },
+            "functions": {
+              "title": "ana.dead-code.functions",
+              "description": "Print information about dead (uncalled) functions.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "extract-pthread" : {
+          "title": "ana.extract-pthread",
+          "type": "object",
+          "properties": {
+            "assume_success": {
+              "title": "ana.extract-pthread.assume_success",
+              "description": "Assume that all POSIX pthread functions succeed.",
+              "type": "boolean",
+              "default": true
+            },
+            "ignore_assign": {
+              "title": "ana.extract-pthread.ignore_assign",
+              "description": "Ignores any assigns in POSIX programs.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -868,6 +990,12 @@
           "type": "boolean",
           "default": false
         },
+        "load-dir": {
+          "title": "incremental.load-dir",
+          "description": "Location where to load incremental analysis results from.",
+          "type": "string",
+          "default": "incremental_data"
+        },
         "only-rename": {
           "title": "incremental.only-rename",
           "description":
@@ -880,6 +1008,12 @@
           "description": "Store incremental analysis results.",
           "type": "boolean",
           "default": false
+        },
+        "save-dir": {
+          "title": "incremental.save-dir",
+          "description": "Location where to save incremental analysis results to.",
+          "type": "string",
+          "default": "incremental_data"
         },
         "stable": {
           "title": "incremental.stable",
@@ -899,12 +1033,12 @@
           "title": "incremental.reluctant",
           "type": "object",
           "properties": {
-            "on": {
-              "title": "incremental.reluctant.on",
+            "enabled": {
+              "title": "incremental.reluctant.enabled",
               "description":
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "compare": {
               "title": "incremental.reluctant.compare",
@@ -912,7 +1046,7 @@
                 "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
               "type": "string",
               "enum": ["leq", "equal"],
-              "default": "leq"
+              "default": "equal"
             }
           },
           "additionalProperties": false
@@ -934,8 +1068,83 @@
               "description":
                 "List of functions that are to be re-analayzed from scratch",
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "default": []
+            }
+          },
+          "additionalProperties": false
+        },
+        "restart": {
+          "title": "incremental.restart",
+          "type": "object",
+          "properties": {
+            "sided": {
+              "title": "incremental.restart.sided",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "incremental.restart.sided.enabled",
+                  "description": "Restart affected side-effected variables (transitively) to bot.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "vars": {
+                  "title": "incremental.restart.sided.vars",
+                  "description": "Side-effected variables to restart. Globals are non-function entry nodes. Write-only is a subset of globals.",
+                  "type": "string",
+                  "enum": ["all", "global", "write-only"],
+                  "default": "all"
+                },
+                "fuel": {
+                  "title": "incremental.restart.sided.fuel",
+                  "description": "Initial fuel for bounding transitive restarting, which uses one fuel each time when following side_fuel to restart. Zero fuel never restarts. Negative fuel doesn't bound (infinite fuel).",
+                  "type": "integer",
+                  "default": -1
+                },
+                "fuel-only-global": {
+                  "title": "incremental.restart.sided.fuel-only-global",
+                  "description": "Decrease fuel only when going to constraint system globals (not function entry nodes).",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "list": {
+              "title": "incremental.restart.list",
+              "description": "List of globals variables and function definitions for which the analysis is to be restarted.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "write-only": {
+              "title": "incremental.restart.write-only",
+              "description": "Restart write-only variables to bot during postprocessing.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "postsolver": {
+          "title": "incremental.postsolver",
+          "type" : "object",
+          "properties": {
+            "enabled": {
+              "title": "incremental.postsolver.enabled",
+              "description": "Use incremental postsolver",
+              "type": "boolean",
+              "default": true
+            },
+            "superstable-reached" : {
+              "title":  "incremental.postsolver.superstable-reached",
+              "description": "Consider superstable set reached, may be faster but can lead to spurious warnings",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -967,6 +1176,27 @@
                   "title": "sem.unknown_function.invalidate.globals",
                   "description":
                     "Unknown function call invalidates all globals",
+                  "type": "boolean",
+                  "default": true
+                },
+                "args": {
+                  "title": "sem.unknown_function.invalidate.args",
+                  "description":
+                    "Unknown function call invalidates arguments passed to it",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "read": {
+              "title": "sem.unknown_function.read",
+              "type": "object",
+              "properties": {
+                "args": {
+                  "title": "sem.unknown_function.read.args",
+                  "description":
+                    "Unknown function call reads arguments passed to it",
                   "type": "boolean",
                   "default": true
                 }
@@ -1005,6 +1235,20 @@
           },
           "additionalProperties": false
         },
+        "null-pointer": {
+          "title": "sem.null-pointer",
+          "type": "object",
+          "properties": {
+            "dereference": {
+              "title": "sem.null-pointer.dereference",
+              "description": "NULL pointer dereference handling. assume_top: assume it results in a top value, assume_none: assume it doesn't happen",
+              "type": "string",
+              "enum": ["assume_top", "assume_none"],
+              "default": "assume_none"
+            }
+          },
+          "additionalProperties": false
+        },
         "malloc": {
           "title": "sem.malloc",
           "type": "object",
@@ -1032,6 +1276,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "assert": {
+          "title": "sem.assert",
+          "type": "object",
+          "properties": {
+            "refine": {
+              "title": "sem.assert.refine",
+              "description": "Standard assert refines state",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1044,7 +1301,7 @@
         "activated": {
           "title": "trans.activated",
           "description":
-            "Lists of activated transformations in this phase. Transformations happen after analyses.",
+            "Lists of activated transformations. Transformations happen after analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1062,6 +1319,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "output" : {
+          "title": "trans.output",
+          "description": "Output filename for transformations that output a transformed file.",
+          "type":"string",
+          "default": "transformed.c"
         }
       },
       "additionalProperties": false
@@ -1078,7 +1341,7 @@
             "enabled": {
               "title": "annotation.int.enabled",
               "description":
-                "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains.",
+                "Enable manual annotation of functions with desired precision, i.e., the activated IntDomains.",
               "type": "boolean",
               "default": false
             },
@@ -1088,6 +1351,20 @@
                 "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true.",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "float": {
+          "title": "annotation.float",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.float.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e., the activated FloatDomains.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1115,6 +1392,18 @@
             },
             "default": []
           }
+        },
+        "goblint_array_domain": {
+          "title": "annotation.goblint_array_domain",
+          "description": "Enable manual annotation of arrays with desired domain",
+          "type": "boolean",
+          "default": false
+        },
+        "goblint_apron_track": {
+          "title": "annotation.goblint_apron_track",
+          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1208,19 +1497,21 @@
           "type": "boolean",
           "default": false
         },
-        "precious_globs": {
-          "title": "exp.precious_globs",
+        "exclude_from_earlyglobs": {
+          "title": "exp.exclude_from_earlyglobs",
           "description":
             "Global variables that should be handled flow-sensitively when using earlyglobs.",
           "type": "array",
           "items": { "type": "string" },
           "default": []
         },
-        "list-type": {
-          "title": "exp.list-type",
-          "description": "Use a special abstract value for lists.",
-          "type": "boolean",
-          "default": false
+        "exclude_from_invalidation" : {
+          "title": "exp.exclude_from_invalidation",
+          "description":
+            "Global variables that should not be invalidated. This assures the analysis that such globals are only modified through known code",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         },
         "g2html_path": {
           "title": "exp.g2html_path",
@@ -1260,6 +1551,7 @@
           "title": "exp.architecture",
           "description": "Architecture for analysis, currently for witness",
           "type": "string",
+          "enum": ["64bit", "32bit"],
           "default": "64bit"
         },
         "gcc_path": {
@@ -1269,26 +1561,25 @@
           "type": "string",
           "default": "/usr/bin/gcc"
         },
-        "compdb": {
-          "title": "exp.compdb",
-          "type": "object",
-          "properties": {
-            "original-path": {
-              "title": "exp.compdb.original-path",
-              "description":
-                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
-              "type": "string",
-              "default": ""
-            }
-          },
-          "additionalProperties": false
-        },
         "cpp-path": {
           "title": "exp.cpp-path",
           "description":
             "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
           "type": "string",
           "default": ""
+        },
+        "unrolling-factor": {
+          "title": "exp.unrolling-factor",
+          "description":
+            "Sets the unrolling factor for the loopUnrollingVisitor.",
+          "type": "integer",
+          "default": 0
+        },
+        "hide-std-globals": {
+          "title": "exp.hide-std-globals",
+          "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false
@@ -1310,6 +1601,25 @@
           "type": "boolean",
           "default": false
         },
+        "timing": {
+          "title": "dbg.timing",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "dbg.timing.enabled",
+              "description": "Collect and output timing information.",
+              "type": "boolean",
+              "default": false
+            },
+            "tef": {
+              "title": "dbg.timing.tef",
+              "description": "Filename for Trace Event Format (TEF) output. Disabled if empty.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
         "trace": {
           "title": "dbg.trace",
           "type": "object",
@@ -1322,12 +1632,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "uncalled": {
-          "title": "dbg.uncalled",
-          "description": "Display uncalled functions.",
-          "type": "boolean",
-          "default": true
         },
         "dump": {
           "title": "dbg.dump",
@@ -1380,12 +1684,6 @@
           "title": "dbg.print_wpoints",
           "description":
             "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3.",
-          "type": "boolean",
-          "default": false
-        },
-        "print_dead_code": {
-          "title": "dbg.print_dead_code",
-          "description": "Print information about dead code",
           "type": "boolean",
           "default": false
         },
@@ -1472,17 +1770,35 @@
           "title": "dbg.compare_runs",
           "type": "object",
           "properties": {
-            "glob": {
-              "title": "dbg.compare_runs.glob",
+            "globsys": {
+              "title": "dbg.compare_runs.globsys",
               "description": "Compare GlobConstrSys in compare_runs",
               "type": "boolean",
-              "default": true
+              "default": false
             },
-            "eq": {
-              "title": "dbg.compare_runs.eq",
+            "eqsys": {
+              "title": "dbg.compare_runs.eqsys",
               "description": "Compare EqConstrSys in compare_runs",
               "type": "boolean",
               "default": true
+            },
+            "global": {
+              "title": "dbg.compare_runs.global",
+              "description": "Compare globals in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "node": {
+              "title": "dbg.compare_runs.node",
+              "description": "Compare nodes (with joined contexts) in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "diff": {
+              "title": "dbg.compare_runs.diff",
+              "description": "Print differences",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1498,6 +1814,13 @@
           "title": "dbg.print_protection",
           "description":
             "Should the analysis print information on which globals are protected by which mutex?",
+          "type": "boolean",
+          "default": false
+        },
+        "run_cil_check" : {
+          "title": "dbg.run_cil_check",
+          "description":
+            "Should the analysis call Check.checkFile after creating the CFG (helpful to verify that transformations respect CIL's invariants.",
           "type": "boolean",
           "default": false
         }
@@ -1521,9 +1844,21 @@
           "type": "boolean",
           "default": true
         },
+        "call": {
+          "title": "warn.call",
+          "description": "function call warnings",
+          "type": "boolean",
+          "default": true
+        },
         "integer": {
           "title": "warn.integer",
           "description": "integer (Overflow, Div_by_zero) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "float": {
+          "title": "warn.float",
+          "description": "float warnings",
           "type": "boolean",
           "default": true
         },
@@ -1536,6 +1871,12 @@
         "race": {
           "title": "warn.race",
           "description": "Race warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "deadlock": {
+          "title": "warn.deadlock",
+          "description": "Deadlock warnings",
           "type": "boolean",
           "default": true
         },
@@ -1560,6 +1901,18 @@
         "imprecise": {
           "title": "warn.imprecise",
           "description": "Imprecision messages",
+          "type": "boolean",
+          "default": true
+        },
+        "witness": {
+          "title": "warn.witness",
+          "description": "Witness messages",
+          "type": "boolean",
+          "default": true
+        },
+        "program": {
+          "title": "warn.program",
+          "description": "Program messages",
           "type": "boolean",
           "default": true
         },
@@ -1598,6 +1951,18 @@
           "description": "Success severity messages",
           "type": "boolean",
           "default": true
+        },
+        "quote-code": {
+          "title": "warn.quote-code",
+          "description": "Quote code in message output.",
+          "type": "boolean",
+          "default": false
+        },
+        "race-threshold": {
+          "title": "warn.race-threshold",
+          "description": "Races with confidence at least threshold are warnings, lower are infos.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
@@ -1620,9 +1985,9 @@
             "side_widen": {
               "title": "solvers.td3.side_widen",
               "description":
-                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
+                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value, sides-local: Widen with contributions from variables from which multiple side-effects leading to a new value originate.",
               "type": "string",
-              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
             },
             "space": {
@@ -1644,6 +2009,50 @@
                 "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
               "type": "boolean",
               "default": true
+            },
+            "narrow-reuse": {
+              "title": "solvers.td3.narrow-reuse",
+              "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
+              "type": "boolean",
+              "default": true
+            },
+            "remove-wpoint": {
+              "title": "solvers.td3.remove-wpoint",
+              "description": "Remove widening points after narrowing phase. Enables a form of local restarting which increases precision of nested loops.",
+              "type": "boolean",
+              "default": true
+            },
+            "restart": {
+              "title": "solvers.td3.restart",
+              "type": "object",
+              "properties": {
+                "wpoint": {
+                  "title": "solvers.td3.restart.wpoint",
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "title": "solvers.td3.restart.wpoint.enabled",
+                      "description": "Restart wpoint to bot when (re-)detected. Allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted).",
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "once": {
+                      "title": "solvers.td3.restart.wpoint.once",
+                      "description": "Restart wpoint only on first detection. Useful for incremental loading.",
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "verify": {
+              "title": "solvers.td3.verify",
+              "description": "Check TD3 data structure invariants",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1669,6 +2078,12 @@
       "title": "witness",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "witness.enabled",
+          "description": "Output witness",
+          "type": "boolean",
+          "default": true
+        },
         "path": {
           "title": "witness.path",
           "description": "Witness output path",
@@ -1686,13 +2101,45 @@
           "title": "witness.invariant",
           "type": "object",
           "properties": {
-            "nodes": {
-              "title": "witness.invariant.nodes",
+            "loop-head": {
+              "title": "witness.invariant.loop-head",
               "description":
-                "Which witness nodes to add invariants to? all/loop_heads/none",
-              "type": "string",
-              "enum": ["all", "loop_heads", "none"],
-              "default": "all"
+                "Emit invariants at loop heads",
+              "type": "boolean",
+              "default": true
+            },
+            "after-lock": {
+              "title": "witness.invariant.after-lock",
+              "description":
+                "Emit invariants after mutex locking",
+              "type": "boolean",
+              "default": true
+            },
+            "other": {
+              "title": "witness.invariant.other",
+              "description":
+                "Emit invariants at all other locations",
+              "type": "boolean",
+              "default": true
+            },
+            "split-conjunction": {
+              "title": "witness.invariant.split-conjunction",
+              "description": "Split conjunctive invariant to multiple invariants",
+              "type": "boolean",
+              "default": true
+            },
+            "accessed": {
+              "title": "witness.invariant.accessed",
+              "description": "Only emit invariants for locally accessed variables",
+              "type": "boolean",
+              "default": true
+            },
+            "full": {
+              "title": "witness.invariant.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1721,6 +2168,37 @@
           "description": "Output witness for unknown result",
           "type": "boolean",
           "default": true
+        },
+        "yaml": {
+          "title": "witness.yaml",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "witness.yaml.enabled",
+              "description": "Output YAML witness",
+              "type": "boolean",
+              "default": false
+            },
+            "path": {
+              "title": "witness.yaml.path",
+              "description": "YAML witness output path",
+              "type": "string",
+              "default": "witness.yml"
+            },
+            "validate": {
+              "title": "witness.yaml.validate",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
+            "certificate": {
+              "title": "witness.yaml.certificate",
+              "description": "YAML witness certificate output path",
+              "type": "string",
+              "default": "witness.certificate.yml"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

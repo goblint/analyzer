@@ -1,0 +1,66 @@
+{
+  "pre": {
+    "cppflags": [
+      "-DGOBLINT_NO_PTHREAD_ONCE",
+      "-DGOBLINT_NO_QSORT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
+  },
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "escape",
+      "expRelation",
+      "mhp"
+    ],
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
+      ]
+    }
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
+  },
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    }
+  }
+}

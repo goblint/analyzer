@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins  --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 unsigned int a, b, c;
 
@@ -10,7 +10,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void* T1_SL5(void* arg){
     while(1) {
         pthread_mutex_lock(&lock);
-        assert(a != b); //TODO   requires disjunctions
+        __goblint_check(a != b); //TODO   requires disjunctions
         pthread_mutex_unlock(&lock);
     }
     return NULL;

@@ -1,6 +1,6 @@
 // Copied & modified from 13/24.
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g1,g2;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -39,20 +39,20 @@ int main(void) {
 
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&__global_lock); // Read & join to g2 Mine influence: [[g2, __global_lock], t2_fun, {mutex2}] -> (0 join 1 = Unknown)
-  assert(g1 == 0);
+  __goblint_check(g1 == 0);
   pthread_mutex_unlock(&__global_lock);
 
   pthread_mutex_lock(&mutex2);
   pthread_mutex_lock(&__global_lock);
-  assert(g1 == 0);
+  __goblint_check(g1 == 0);
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_lock(&__global_lock);
-  assert(g2 == 0);
+  __goblint_check(g2 == 0);
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_unlock(&mutex2);
 
   pthread_mutex_lock(&__global_lock);
-  assert(g1 == 0);
+  __goblint_check(g1 == 0);
   pthread_mutex_unlock(&__global_lock);
   pthread_mutex_unlock(&mutex1);
 

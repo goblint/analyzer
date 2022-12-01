@@ -1,5 +1,5 @@
 // PARAM: --disable ana.int.interval --enable ana.int.def_exc --enable ana.int.enums
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 
 int main(){
@@ -10,7 +10,7 @@ int main(){
     unsigned int r = i * 1073741824u;
     if(i *  1073741824u == 3221225472u){
         printf("%u\n", i);
-        assert(i == 3); // UNKNOWN!
+        __goblint_check(i == 3); // UNKNOWN!
     }
     return 0;
 }

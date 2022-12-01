@@ -1,42 +1,33 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Cil
+open GoblintCil
 module E = Errormsg
 module GU = Goblintutil
 
+include Cilfacade0
 
-let get_labelLoc = function
-  | Label (_, loc, _) -> loc
-  | Case (_, loc, _) -> loc
-  | CaseRange (_, _, loc, _) -> loc
-  | Default (loc, _) -> loc
+(** Is character type (N1570 6.2.5.15)? *)
+let isCharType t =
+  match Cil.unrollType t with
+  | TInt ((IChar | ISChar | IUChar), _) -> true
+  | _ -> false
 
-let rec get_labelsLoc = function
-  | [] -> Cil.locUnknown
-  | label :: labels ->
-    let loc = get_labelLoc label in
-    if CilType.Location.equal loc Cil.locUnknown then
-      get_labelsLoc labels (* maybe another label has known location *)
-    else
-      loc
+let isFloatType t =
+  match Cil.unrollType t with
+  | TFloat _ -> true
+  | _ -> false
 
-let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
-
-let get_stmtLoc stmt =
-  match stmt.skind with
-  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
-  | Instr []
-  | Block {bstmts = []; _} ->
-    get_labelsLoc stmt.labels
-  | _ -> get_stmtkindLoc stmt.skind
-
+let init_options () =
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
+  Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
+  Cil.gnu89inline := get_bool "cil.gnu89inline"
 
 let init () =
   initCIL ();
+  removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  Mergecil.merge_inlines := true; (* work around https://github.com/goblint/analyzer/pull/603#issuecomment-1054204635 *)
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
@@ -44,41 +35,15 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  Frontc.parse fileName ()
-
-let print_to_file (fileName: string) (fileAST: file) =
-  let oc = Stdlib.open_out fileName in
-  dumpFile defaultCilPrinter oc fileName fileAST
+  let fileName_str = Fpath.to_string fileName in
+  let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
+  Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil ()
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
 
-let printDebug fileAST =
-  dumpFile Printer.debugCilPrinter stdout "stdout" fileAST
-
 let rmTemps fileAST =
   Rmtmps.removeUnusedTemps fileAST
-
-class allBBVisitor = object (* puts every instruction into its own basic block *)
-  inherit nopCilVisitor
-  method! vstmt s =
-    match s.skind with
-    | Instr(il) ->
-      let list_of_stmts =
-        List.map (fun one_inst -> mkStmtOneInstr one_inst) il in
-      let block = mkBlock list_of_stmts in
-      ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
-    | _ -> DoChildren
-
-  method! vvdec _ = SkipChildren
-  method! vexpr _ = SkipChildren
-  method! vlval _ = SkipChildren
-  method! vtype _ = SkipChildren
-end
-
-let end_basic_blocks f =
-  let thisVisitor = new allBBVisitor in
-  visitCilFileSameGlobals thisVisitor f
 
 
 let visitors = ref []
@@ -93,28 +58,6 @@ let do_preprocess ast =
   in
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
-let createCFG (fileAST: file) =
-  (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
-  (* needs to be in its own block. end_basic_blocks does that.                                                        *)
-  (* After adding support for VLAs, there are new VarDecl instructions at the point where a variable was declared and *)
-  (* its declaration is no longer printed at the beginning of the function. Putting these VarDecl into their own      *)
-  (* BB causes the output CIL file to no longer compile.                                                              *)
-  (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
-  (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
-  if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
-
-  (* We used to renumber vids but CIL already generates them fresh, so no need.
-   * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.
-   * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
-
-  iterGlobals fileAST (fun glob ->
-      match glob with
-      | GFun(fd,_) ->
-        prepareCFG fd;
-        computeCFGInfo fd true
-      | _ -> ()
-    );
-  do_preprocess fileAST
 
 let getAST fileName =
   let fileAST = parse fileName in
@@ -147,7 +90,7 @@ class addConstructors cons = object
 end
 
 let getMergedAST fileASTs =
-  let merged = Mergecil.merge fileASTs "stdout" in
+  let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
   merged
@@ -187,7 +130,6 @@ let getFuns fileAST : startfuns =
   let f acc glob =
     match glob with
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") -> add_main def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
@@ -196,7 +138,6 @@ let getFuns fileAST : startfuns =
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
-    | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
@@ -204,24 +145,24 @@ let getFuns fileAST : startfuns =
 
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
-let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
-let p_expr exp = Pretty.printf "%a\n" (printExp defaultCilPrinter) exp
-let d_expr exp = Pretty.printf "%a\n" (printExp plainCilPrinter) exp
-
-(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put in and return IInt *)
+(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. *)
 let rec get_ikind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
   | TInt (ik,_)
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
-  | _ ->
-    Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";
-    Cil.IInt
+  | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
+
+let get_fkind t =
+  (* important to unroll the type here, otherwise problems with typedefs *)
+  match Cil.unrollType t with
+  | TFloat (fk,_) -> fk
+  | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
-
+let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
 (** Cil.typeOf, etc reimplemented to raise sensible exceptions
     instead of printing all errors directly... *)
@@ -338,40 +279,57 @@ and typeOffset basetyp =
     | _ -> raise (TypeOfError Field_NonCompound)
 
 
-let get_ikind_exp e = get_ikind (typeOf e)
+(** {!Cil.mkCast} using our {!typeOf}. *)
+let mkCast ~(e: exp) ~(newt: typ) =
+  let oldt =
+    try
+      typeOf e
+    with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
+      Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
+  in
+  Cil.mkCastT ~e ~oldt ~newt
 
+let get_ikind_exp e = get_ikind (typeOf e)
+let get_fkind_exp e = get_fkind (typeOf e)
+
+(** Make {!Cil.BinOp} with correct implicit casts inserted. *)
+let makeBinOp binop e1 e2 =
+  let t1 = typeOf e1 in
+  let t2 = typeOf e2 in
+  let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
+  e
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
 
 (** Visitor to count locs appearing inside a fundec. *)
 class countFnVisitor = object
-    inherit nopCilVisitor
-    method! vstmt s =
-      match s.skind with
-      | Return (_, loc)
-      | Goto (_, loc)
-      | ComputedGoto (_, loc)
-      | Break loc
-      | Continue loc
-      | If (_,_,_,loc,_)
-      | Switch (_,_,_,loc,_)
-      | Loop (_,loc,_,_,_)
-        -> Hashtbl.replace locs loc.line (); DoChildren
-      | _ ->
-        DoChildren
+  inherit nopCilVisitor
+  method! vstmt s =
+    match s.skind with
+    | Return (_, loc)
+    | Goto (_, loc)
+    | ComputedGoto (_, loc)
+    | Break loc
+    | Continue loc
+    | If (_,_,_,loc,_)
+    | Switch (_,_,_,loc,_)
+    | Loop (_,loc,_,_,_)
+      -> Hashtbl.replace locs loc.line (); DoChildren
+    | _ ->
+      DoChildren
 
-    method! vinst = function
-      | Set (_,_,loc,_)
-      | Call (_,_,_,loc,_)
-      | Asm (_,_,_,_,_,loc)
-        -> Hashtbl.replace locs loc.line (); SkipChildren
-      | _ -> SkipChildren
+  method! vinst = function
+    | Set (_,_,loc,_)
+    | Call (_,_,_,loc,_)
+    | Asm (_,_,_,_,_,loc)
+      -> Hashtbl.replace locs loc.line (); SkipChildren
+    | _ -> SkipChildren
 
-    method! vvdec _ = SkipChildren
-    method! vexpr _ = SkipChildren
-    method! vlval _ = SkipChildren
-    method! vtype _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let fnvis = new countFnVisitor
@@ -396,16 +354,16 @@ module StmtH = Hashtbl.Make (CilType.Stmt)
 
 let stmt_fundecs: fundec StmtH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = StmtH.create 113 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          List.iter (fun stmt ->
-              StmtH.replace h stmt fd
-            ) fd.sallstmts
-        | _ -> ()
-      );
-    h
-  )
+      let h = StmtH.create 113 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            List.iter (fun stmt ->
+                StmtH.replace h stmt fd
+              ) fd.sallstmts
+          | _ -> ()
+        );
+      h
+    )
 
 let pseudo_return_to_fun = StmtH.create 113
 
@@ -419,14 +377,14 @@ module VarinfoH = Hashtbl.Make (CilType.Varinfo)
 
 let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 111 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar fd
-        | _ -> ()
-      );
-    h
-  )
+      let h = VarinfoH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar fd
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find [fundec] by the function's [varinfo] (has the function name and type). *)
 let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
@@ -436,16 +394,17 @@ module StringH = Hashtbl.Make (Printable.Strings)
 
 let name_fundecs: fundec StringH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = StringH.create 111 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          StringH.replace h fd.svar.vname fd
-        | _ -> ()
-      );
-    h
-  )
+      let h = StringH.create 111 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            StringH.replace h fd.svar.vname fd
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find [fundec] by the function's name. *)
+(* TODO: why unused? *)
 let find_name_fundec name = StringH.find (ResettableLazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
 
 
@@ -457,19 +416,19 @@ type varinfo_role =
 
 let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 113 in
-    iterGlobals !current_file (function
-        | GFun (fd, _) ->
-          VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
-          List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
-          List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
-        | GVar (vi, _, _)
-        | GVarDecl (vi, _) ->
-          VarinfoH.replace h vi Global
-        | _ -> ()
-      );
-    h
-  )
+      let h = VarinfoH.create 113 in
+      iterGlobals !current_file (function
+          | GFun (fd, _) ->
+            VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
+            List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
+            List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+          | GVar (vi, _, _)
+          | GVarDecl (vi, _) ->
+            VarinfoH.replace h vi Global
+          | _ -> ()
+        );
+      h
+    )
 
 (** Find the role of the [varinfo]. *)
 let find_varinfo_role vi = VarinfoH.find (ResettableLazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
@@ -498,15 +457,15 @@ let find_scope_fundec vi =
 let original_names: string VarinfoH.t ResettableLazy.t =
   (* only invert environment map when necessary (e.g. witnesses) *)
   ResettableLazy.from_fun (fun () ->
-    let h = VarinfoH.create 113 in
-    Hashtbl.iter (fun original_name (envdata, _) ->
-        match envdata with
-        | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
-          VarinfoH.replace h vi original_name
-        | _ -> ()
-      ) Cabs2cil.environment;
-    h
-  )
+      let h = VarinfoH.create 113 in
+      Hashtbl.iter (fun original_name (envdata, _) ->
+          match envdata with
+          | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
+            VarinfoH.replace h vi original_name
+          | _ -> ()
+        ) Cabs2cil.environment;
+      h
+    )
 
 (** Find the original name (in input source code) of the [varinfo].
     If it was renamed by CIL, then returns the original name before renaming.
@@ -516,6 +475,7 @@ let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_nam
 
 
 let reset_lazy () =
+  StmtH.clear pseudo_return_to_fun;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;
@@ -528,3 +488,21 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
+
+(** Given a [Cil.file], reorders its [globals], inserts function declarations before function definitions.
+    This function may be used after a code transformation to ensure that the order of globals yields a compilable program. *)
+let add_function_declarations (file: Cil.file): unit =
+  let globals = file.globals in
+  let functions, non_functions = List.partition (fun g -> match g with GFun _ -> true | _ -> false) globals in
+  let upto_last_type, non_types = GobList.until_last_with (fun g -> match g with GType _ -> true | _ -> false) non_functions in
+  let declaration_from_GFun f = match f with
+    | GFun (f, _) when BatString.starts_with_stdlib ~prefix:"__builtin" f.svar.vname ->
+      (* Builtin functions should not occur in asserts generated, so there is no need to add declarations for them.*)
+      None
+    | GFun (f, _) ->
+      Some (GVarDecl (f.svar, locUnknown))
+    | _ -> failwith "Expected GFun, but was something else."
+  in
+  let fun_decls = List.filter_map declaration_from_GFun functions in
+  let globals = upto_last_type @ fun_decls @ non_types @ functions in
+  file.globals <- globals

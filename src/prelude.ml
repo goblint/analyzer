@@ -27,7 +27,7 @@ include All (* shortcut so that 'open Prelude' is enough *)
 module Ana = struct
   include All
   (* CIL *)
-  include Cil
+  include GoblintCil
   let d_varinfo () x = d_lval () (Var x, NoOffset)
   include Pretty
   let sprint f x = Pretty.sprint ~width:80 (f () x)

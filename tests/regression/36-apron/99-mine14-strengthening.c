@@ -3,6 +3,7 @@
 // Example for join strengthening
 #include <pthread.h>
 #include <stdio.h>
+#include <goblint.h>
 
 int x;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -29,7 +30,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex);
-  assert(x <= 100);
+  __goblint_check(x <= 100);
   pthread_mutex_unlock(&mutex);
   return 0;
 }

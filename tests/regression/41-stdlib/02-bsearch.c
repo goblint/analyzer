@@ -1,29 +1,29 @@
 // PARAM: --disable sem.unknown_function.spawn --enable ana.int.interval
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int cmp1(const void *a, const void *b) {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
 int cmp2(const void *a, const void *b) {
-  assert(a != NULL);
-  assert(b != NULL);
+  __goblint_check(a != NULL);
+  __goblint_check(b != NULL);
   return 0;
 }
 
 int cmp3(const void *a, const void *b) {
-  assert(1); // NOWARN (unreachable)
+  __goblint_check(1); // NOWARN (unreachable)
   return 0;
 }
 
 int cmp4(const void *a, const void *b) {
   int x = *((const int*) a);
   int y = *((const int*) b);
-  assert(x == 4);
-  assert(-3 <= y);
-  assert(y <= 10);
+  __goblint_check(x == 4);
+  __goblint_check(-3 <= y);
+  __goblint_check(y <= 10);
   return 0;
 }
 
@@ -50,8 +50,8 @@ int main() {
 
   // bsearch hasn't invalidated array
   for (int i = 0; i < 7; i++) {
-    assert(-3 <= arr[i]);
-    assert(arr[i] <= 10);
+    __goblint_check(-3 <= arr[i]);
+    __goblint_check(arr[i] <= 10);
   }
   return 0;
 }

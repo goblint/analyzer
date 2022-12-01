@@ -1,0 +1,33 @@
+{
+  "ana": {
+    "activated": [
+      "expRelation",
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "escape",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "mallocWrapper",
+      "mhp",
+      "apron",
+      "threadJoins",
+      "assert"
+    ],
+    "path_sens": [
+      "mutex",
+      "threadflag"
+    ],
+    "apron": {
+      "domain": "octagon",
+      "threshold_widening": true
+    }
+  },
+  "sem": {
+    "int": {
+      "signed_overflow": "assume_none"
+    }
+  }
+}

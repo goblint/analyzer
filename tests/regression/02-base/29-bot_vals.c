@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int main(void) {
   int x, y[2];
@@ -9,13 +9,13 @@ int main(void) {
   if (unknown){
     x = atoi("10");
   }
-  assert(x); // UNKNOWN
+  __goblint_check(x); // UNKNOWN
 
 //  x = 8;
 //  if (unknown)
 //    x = y[0];
 //
-//  assert(x != 8); 
+//  __goblint_check(x != 8);
 
   return 0;
 }

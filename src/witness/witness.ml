@@ -1,5 +1,4 @@
 open MyCFG
-open WitnessUtil
 open Graphml
 open Svcomp
 open GobConfig
@@ -7,20 +6,11 @@ open GobConfig
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
-  let module Cfg = Task.Cfg in
-  let loop_heads = find_loop_heads (module Cfg) Task.file in
-
-  let is_invariant_node cfgnode =
-    match get_string "witness.invariant.nodes" with
-    | "all" -> true
-    | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
-    | "none" -> false
-    | _ -> failwith "witness.invariant.nodes: invalid value"
-  in
+  let module Invariant = WitnessUtil.Invariant (Task) in
 
   let module TaskResult =
     (val if get_bool "witness.stack" then
-        (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
+        (module StackTaskResult (Task.Cfg) (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
     )
@@ -38,18 +28,18 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       let to_cfgnode = N.cfgnode to_node in
       if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
         true
-      else if WitnessUtil.NH.mem loop_heads to_cfgnode then
+      else if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
         true
       else begin match edge with
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
-      end || begin if is_invariant_node to_cfgnode then
-            match to_cfgnode, TaskResult.invariant to_node with
-            | Statement _, Some _ -> true
-            | _, _ -> false
-          else
-            false
-        end || begin match from_cfgnode, to_cfgnode with
+      end || begin if Invariant.is_invariant_node to_cfgnode then
+               match to_cfgnode, TaskResult.invariant to_node with
+               | Statement _, `Lifted _ -> true
+               | _, _ -> false
+             else
+               false
+           end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
           | Function f, _ -> true
           | _, _ -> false
@@ -142,9 +132,9 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             []
         end;
         begin
-          if is_invariant_node cfgnode then
+          if Invariant.is_invariant_node cfgnode then
             match cfgnode, TaskResult.invariant node with
-            | Statement _, Some i ->
+            | Statement _, `Lifted i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
@@ -200,7 +190,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin if WitnessUtil.NH.mem loop_heads to_cfgnode then
+        begin if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
             [("enterLoopHead", "true")]
           else
             []
@@ -264,59 +254,31 @@ let print_svcomp_result (s: string): unit =
 let print_task_result (module TaskResult:TaskResult): unit =
   print_svcomp_result (Result.to_string TaskResult.result)
 
+let init (module FileCfg: MyCFG.FileCfg) =
+  (* TODO: toggle analyses based on specification *)
+  let module Task = struct
+    include FileCfg
+    let specification = Svcomp.Specification.of_option ()
+  end
+  in
+  Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
+  Svcomp.task := Some (module Task)
 
-open Analyses
-module Result (Cfg : CfgBidir)
-              (Spec : Spec)
-              (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                                  and module GVar = GVarF (Spec.V)
-                                  and module D = Spec.D
-                                  and module G = Spec.G)
-              (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
-              (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+module Result (R: ResultQuery.SpecSysSol2) =
 struct
+  open R
+  open SpecSys
   open Svcomp
-  let init file =
-    (* TODO: toggle analyses based on specification *)
-    let module Task = struct
-      let file = file
-      let specification = Svcomp.Specification.of_option ()
 
-      module Cfg = Cfg
-    end
-    in
-    Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
-    Svcomp.task := Some (module Task)
+  module Query = ResultQuery.Query (SpecSys)
 
-  let determine_result lh gh entrystates (module Task:Task): (module WitnessTaskResult) =
+  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
     let get: node * Spec.C.t -> Spec.D.t =
       fun nc -> LHT.find_default lh nc (Spec.D.bot ())
     in
-    let ask_local (lvar:EQSys.LVar.t) local =
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = fst lvar
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
-        ; context = (fun () -> snd lvar)
-        ; edge    = MyCFG.Skip
-        ; local  = local
-        ; global = GHT.find gh
-        ; presub = (fun _ -> raise Not_found)
-        ; postsub= (fun _ -> raise Not_found)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        }
-      in
-      Spec.query ctx
-    in
     let ask_indices lvar =
-      let local = get lvar in
       let indices = ref [] in
-      ignore ((ask_local lvar local) (Queries.IterVars (fun i ->
+      ignore (ask_local lvar (Queries.IterVars (fun i ->
           indices := i :: !indices
         )));
       !indices
@@ -365,7 +327,7 @@ struct
       let prev = NHT.create 100 in
       let next = NHT.create 100 in
       LHT.iter (fun lvar local ->
-          ignore ((ask_local lvar local) (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
+          ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
               let lvar' = (fst lvar, snd lvar, i) in
               let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
               NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
@@ -399,21 +361,14 @@ struct
     let module Arg =
     struct
       open MyARG
-      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (Cfg)))
+      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))
       include Intra (ArgIntra) (Arg)
     end
     in
 
     let find_invariant (n, c, i) =
-      let context: Invariant.context = {
-          scope=CfgNode.find_fundec n;
-          i;
-          lval=None;
-          offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-        }
-      in
-      Spec.D.invariant context (get (n, c))
+      let context = {Invariant.default_context with path = Some i} in
+      ask_local (n, c) (Invariant context)
     in
 
     match Task.specification with
@@ -585,22 +540,23 @@ struct
       )
 
 
-  let write lh gh entrystates =
+  let write entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
+    let module TaskResult = (val (Timing.wrap "determine" (determine_result entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
 
-    if TaskResult.result <> Result.Unknown || get_bool "witness.unknown" then (
+    (* TODO: use witness.enabled elsewhere as well *)
+    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
       let witness_path = get_string "witness.path" in
-      Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+      Timing.wrap "write" (write_file witness_path (module Task)) (module TaskResult)
     )
 
-  let write lh gh entrystates =
+  let write entrystates =
     match !Goblintutil.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
-    | _ -> write lh gh entrystates
+    | _ -> write entrystates
 
-  let write lh gh entrystates =
-    Stats.time "witness" (write lh gh) entrystates
+  let write entrystates =
+    Timing.wrap "witness" write entrystates
 end

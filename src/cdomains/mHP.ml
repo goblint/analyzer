@@ -1,12 +1,20 @@
 include Printable.Std
 
 module TID = ThreadIdDomain.FlagConfiguredTID
+module Pretty = GoblintCil.Pretty
 
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
+
+let current (ask:Queries.ask) =
+  {
+    tid = ask.f Queries.CurrentThreadId;
+    created = ask.f Queries.CreatedThreads;
+    must_joined = ask.f Queries.MustJoinedThreads
+  }
 
 let pretty () {tid; created; must_joined} =
   let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
@@ -45,10 +53,16 @@ let definitely_not_started (current, created) other =
     else
       not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
 
+let exists_definitely_not_started_in_joined (current,created) other_joined =
+  if ConcDomain.ThreadSet.is_top other_joined then
+    false
+  else
+    ConcDomain.ThreadSet.exists (definitely_not_started (current,created)) other_joined
+
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
-    false
+    true (* top means all threads are joined, so [other] must be as well *)
   else
     List.mem other (ConcDomain.ThreadSet.elements joined)
 
@@ -63,6 +77,8 @@ let may_happen_in_parallel one two =
     else if definitely_not_started (tid,created) tid2 || definitely_not_started (tid2,created2) tid then
       false
     else if must_be_joined tid2 must_joined || must_be_joined tid must_joined2 then
+      false
+    else if exists_definitely_not_started_in_joined (tid,created) must_joined2 || exists_definitely_not_started_in_joined (tid2,created2) must_joined then
       false
     else
       true

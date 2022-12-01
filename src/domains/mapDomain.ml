@@ -1,5 +1,6 @@
 (** Specification and functors for maps. *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 module ME = Messages
 module GU = Goblintutil
@@ -31,7 +32,7 @@ sig
   val for_all: (key -> value -> bool) -> t -> bool
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
-  val merge : (key -> value option -> value option -> value option) -> t -> t -> t
+  val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
 
   val cardinal: t -> int
   val choose: t -> key * value
@@ -64,6 +65,59 @@ sig
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
+(** Subsignature of {!S}, which is sufficient for {!Print}. *)
+module type Bindings =
+sig
+  type t
+  type key
+  type value
+  val bindings: t -> (key * value) list
+  val iter: (key -> value -> unit) -> t -> unit
+end
+
+(** Reusable output definitions for maps. *)
+module Print (D: Groupable) (R: Printable.S) (M: Bindings with type key = D.t and type value = R.t) =
+struct
+  let show x = "mapping" (* TODO: WTF? *)
+
+  let pretty () mapping =
+    let module MM = Map.Make (D) in
+    let groups =
+      let h = Hashtbl.create 13 in
+      M.iter (fun k v -> BatHashtbl.modify_def MM.empty (D.to_group k) (MM.add k v) h) mapping;
+      let cmpBy f a b = Stdlib.compare (f a) (f b) in
+      (* sort groups (order of constructors in type group)  *)
+      BatHashtbl.to_list h |> List.sort (cmpBy fst)
+    in
+    let f key st dok =
+      if ME.tracing && D.trace_enabled && !ME.tracevars <> [] &&
+         not (List.mem (D.show key) !ME.tracevars) then
+        dok
+      else
+        dok ++ dprintf "%a ->@?  @[%a@]\n" D.pretty key R.pretty st
+    in
+    let group_name a () = text (D.show_group a) in
+    let pretty_group map () = MM.fold f map nil in
+    let pretty_groups rest (group, map) =
+      match group with
+      | None ->  rest ++ pretty_group map ()
+      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
+    let content () = List.fold_left pretty_groups nil groups in
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+
+  let printXml f xs =
+    let print_one k v =
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (D.show k)) R.printXml v
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    M.iter print_one xs;
+    BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let to_yojson xs =
+    let f (k, v) = (D.show k, R.to_yojson v) in
+    `Assoc (xs |> M.bindings |> List.map f)
+end
+
 module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
@@ -71,39 +125,18 @@ struct
   module M = Map.Make (Domain)
 
   include Printable.Std
+  include M
   type key = Domain.t
   type value = Range.t
   type t = Range.t M.t (* key -> value  mapping *)
 
-  let trace_enabled = Domain.trace_enabled
-
-  (* And some braindead definitions, because I would want to do
-   * include Map.Make (Domain) with type t = Range.t t *)
-  let add = M.add
-  let remove = M.remove
-  let find = M.find
-  let find_opt = M.find_opt
-  let mem = M.mem
-  let iter = M.iter
-  let map = M.map
-  let mapi = M.mapi
-  let fold = M.fold
-  let filter = M.filter
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal x y = x == y || for_all2 Range.equal x y
   let compare x y = if equal x y then 0 else M.compare Range.compare x y
-  let merge = M.merge
-  let for_all = M.for_all
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
-  let cardinal = M.cardinal
-  let choose = M.choose
-  let singleton = M.singleton
   let empty () = M.empty
-  let is_empty = M.is_empty
-  let exists = M.exists
-  let bindings = M.bindings
 
 
   let add_list keyvalues m =
@@ -135,46 +168,18 @@ struct
     in
     M.merge f
 
-  let show x = "mapping"
-
-  let pretty () mapping =
-    let groups =
-      let h = Hashtbl.create 13 in
-      iter (fun k v -> BatHashtbl.modify_def M.empty (Domain.to_group k) (M.add k v) h) mapping;
-      let cmpBy f a b = Stdlib.compare (f a) (f b) in
-      (* sort groups (order of constructors in type group)  *)
-      BatHashtbl.to_list h |> List.sort (cmpBy fst)
-    in
-    let f key st dok =
-      if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-         not (List.mem (Domain.show key) !ME.tracevars) then
-        dok
-      else
-        dok ++ dprintf "%a ->@?  @[%a@]\n" Domain.pretty key Range.pretty st
-    in
-    let group_name a () = text (Domain.show_group a) in
-    let pretty_group map () = fold f map nil in
-    let pretty_groups rest (group, map) =
-      match group with
-      | None ->  rest ++ pretty_group map ()
-      | Some g -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name g) (pretty_group map) in
-    let content () = List.fold_left pretty_groups nil groups in
-    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
+  include Print (Domain) (Range) (
+    struct
+      type nonrec t = t
+      type nonrec key = key
+      type nonrec value = value
+      let bindings = bindings
+      let iter = iter
+    end
+    )
 
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
-
-  let printXml f xs =
-    let print_one k v =
-      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v
-    in
-    BatPrintf.fprintf f "<value>\n<map>\n";
-    iter print_one xs;
-    BatPrintf.fprintf f "</map>\n</value>\n"
-
-  let to_yojson xs =
-    let f (k, v) = (Domain.show k, Range.to_yojson v) in
-    `Assoc (xs |> M.bindings |> List.map f)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end
@@ -282,7 +287,7 @@ module Timed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  let time str f arg = Stats.time (M.name ()) (Stats.time str f) arg
+  let time str f arg = Timing.wrap (M.name ()) (Timing.wrap str f) arg
 
   (* Printable.S *)
   type t = M.t
@@ -299,7 +304,6 @@ struct
   let pretty_diff = M.pretty_diff
   let printXml = M.printXml
   let arbitrary = M.arbitrary
-  let invariant = M.invariant
 
   (* Lattice.S *)
   let top () = time "top" M.top ()
@@ -711,4 +715,63 @@ module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
 struct
   module M = MapTop (Domain) (Range)
   include LiftBot (Range) (M)
+end
+
+(** Map abstracted by a single (joined) key. *)
+module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type value = R.t =
+struct
+  type key = E.t
+  type value = R.t
+  include Lattice.Prod (E) (R)
+
+  let singleton e r = (e, r)
+  let exists p (e, r) = p e r
+  let for_all p (e, r) = p e r
+  let mem e (e', _) = E.leq e e'
+  let choose er = er
+  let bindings er = [er]
+  let remove e ((e', _) as er) =
+    if E.leq e' e then
+      (E.bot (), R.bot ())
+    else
+      er
+  let map f (e, r) = (e, f r)
+  let mapi f (e, r) = (e, f e r)
+  let map2 f (e, r) (e', r') = (E.meet e e', f r r')
+  let long_map2 f (e, r) (e', r') = (E.join e e', f r r')
+  let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
+  let fold f (e, r) a = f e r a
+  let empty () = (E.bot (), R.bot ())
+  let add e r (e', r') = (E.join e e', R.join r r')
+  let is_empty (e, _) = E.is_bot e
+  let iter f (e, r) = f e r
+  let cardinal er =
+    if is_empty er then
+      0
+    else
+      1
+  let find e (e', r) =
+    if E.leq e e' then
+      r
+    else
+      raise Not_found
+  let find_opt e (e', r) =
+    if E.leq e e' then
+      Some r
+    else
+      None
+  let filter p s = failwith "MapDomain.Joined.filter"
+  let add_list ers m = List.fold_left (fun acc (e, r) ->
+      add e r acc
+    ) m ers
+  let add_list_set es r m = List.fold_left (fun acc e ->
+      add e r acc
+    ) m es
+  let add_list_fun es f m = List.fold_left (fun acc e ->
+      add e (f e) acc
+    ) m es
+
+  let leq_with_fct _ _ _ = failwith "MapDomain.Joined.leq_with_fct"
+  let join_with_fct _ _ _ = failwith "MapDomain.Joined.join_with_fct"
+  let widen_with_fct _ _ _ = failwith "MapDomain.Joined.widen_with_fct"
 end

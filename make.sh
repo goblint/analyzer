@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.13.1 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.14.0 --locked
 }
 
 rule() {
@@ -25,7 +25,7 @@ rule() {
       cp _build/default/$TARGET.exe goblint
     ;; release)
       eval $(opam config env)
-      dune build --profile release $TARGET.exe &&
+      dune build --profile=release $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
@@ -46,6 +46,11 @@ rule() {
       dune build src/apronPrecCompare.exe &&
       rm -f apronPrecCompare &&
       cp _build/default/src/apronPrecCompare.exe apronPrecCompare
+    ;; messagesCompare)
+      eval $(opam config env)
+      dune build src/messagesCompare.exe &&
+      rm -f messagesCompare &&
+      cp _build/default/src/messagesCompare.exe messagesCompare
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&
@@ -75,7 +80,7 @@ rule() {
     ;; dev)
       eval $(opam env)
       echo "Installing opam packages for development..."
-      opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
+      opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
@@ -104,7 +109,7 @@ rule() {
       cp g2html/g2html.jar .
     ;; setup_gobview )
       [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
-      opam install --deps-only --locked gobview/gobview.opam
+      opam install --deps-only --locked gobview/
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)
