@@ -11,10 +11,7 @@
 
 open Prelude
 open Analyses
-open Constraints
 open Messages
-open CompareCIL
-open GoblintCil
 
 module type Hooks =
 sig
@@ -27,7 +24,7 @@ sig
   val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
   (** Wrap [S.system]. Always use this hook instead of [S.system]! *)
 
-  val delete_marked: unit HM.t -> unit
+  val delete_marked: S.v list -> unit
   (** Incrementally delete additional solver data. *)
 
   val stable_remove: S.v -> unit
@@ -111,20 +108,18 @@ module Base =
       }
 
     (* This hack is for fixing hashconsing.
-     * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
-     * HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
-     * The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
-     * We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
-     * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
-     * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
-     * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected.
-     *)
+       If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
+       HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
+       The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
+       We have to replace all tags since they are not derived from the value (like hash) but are incremented starting with 1, i.e. dependent on the order in which lattice operations for different values are called, which will very likely be different for an incremental run.
+       If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
+       In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
+       The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected. *)
     (* Another problem are the tags for the context part of a S.Var.t.
-     * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
-     * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
-     * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
-     *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
-     *)
+       This will cause problems when old and new vars interact or when new S.Dom values are used as context:
+       - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
+       - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
+         the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values). *)
     let relift_marshal (data: marshal): marshal =
       let rho = HM.create (HM.length data.rho) in
       HM.iter (fun k v ->
@@ -237,6 +232,8 @@ module Base =
       (* In incremental load, initially stable nodes, which are never destabilized.
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
+
+      let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
@@ -495,11 +492,6 @@ module Base =
       let restart_write_only = GobConfig.get_bool "incremental.restart.write-only" in
 
       if GobConfig.get_bool "incremental.load" then (
-        let c = match S.increment with
-          | Some {changes; _} -> changes
-          | None -> empty_change_info ()
-        in
-        List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
         let restart_leaf x =
           if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
@@ -538,7 +530,7 @@ module Base =
             | _, is_write_only ->
               match restart_vars with
               | "all" -> true
-              | "global" -> Node.equal (S.Var.node x) (Function Cil.dummyFunDec) (* non-function entry node *)
+              | "global" -> Node.equal (S.Var.node x) (Function GoblintCil.dummyFunDec) (* non-function entry node *)
               | "write-only" -> is_write_only
               | _ -> assert false
           in
@@ -572,7 +564,7 @@ module Base =
           (* destabilize side infl *)
           if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
             let side_fuel' =
-              if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then
+              if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function GoblintCil.dummyFunDec) then
                 Option.map Int.pred side_fuel
               else
                 side_fuel (* don't decrease fuel for function entry side effect *)
@@ -601,142 +593,46 @@ module Base =
           else
             destabilize_normal;
 
-        let changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = None; _} ->
-              print_endline ("Completely changed function: " ^ f.svar.vname);
-              Some f
-            | _ -> None
-          ) c.changed
-        in
-        let part_changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = Some nd; _} ->
-              print_endline ("Partially changed function: " ^ f.svar.vname);
-              Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
-            | _ -> None
-          ) c.changed
-        in
-        let removed_funs = List.filter_map (function
-            | GFun (f, _) ->
-              print_endline ("Removed function: " ^ f.svar.vname);
-              Some f
-            | _ -> None
-          ) c.removed
-        in
-
-        let mark_node hm f node =
-          let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
-          S.iter_vars get (Node {node; fundec = Some f}) (fun v ->
-              HM.replace hm v ()
-            )
-        in
-
-        let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
-        let reanalyze_entry f =
-          (* destabilize the entry points of a changed function when reluctant is off,
-             or the function is to be force-reanalyzed  *)
-          (not reluctant) || CompareCIL.VarinfoSet.mem f.svar c.exclude_from_rel_destab
-        in
-        let obsolete_ret = HM.create 103 in
-        let obsolete_entry = HM.create 103 in
-        let obsolete_prim = HM.create 103 in
-
-        (* When reluctant is on:
-           Only add function entry nodes to obsolete_entry if they are in force-reanalyze *)
-        List.iter (fun f ->
-            if reanalyze_entry f then
-              (* collect function entry for eager destabilization *)
-              mark_node obsolete_entry f (FunctionEntry f)
-            else
-              (* collect function return for reluctant analysis *)
-              mark_node obsolete_ret f (Function f)
-          ) changed_funs;
-        (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
-        (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
-        if not reluctant then (
-          List.iter (fun (f, pn, _) ->
-              List.iter (fun n ->
-                  mark_node obsolete_prim f n
-                ) pn;
-              mark_node obsolete_ret f (Function f);
-            ) part_changed_funs;
-        );
+        let sys_change = S.sys_change (fun v -> try HM.find rho v with Not_found -> S.Dom.bot ()) in
 
         let old_ret = HM.create 103 in
         if reluctant then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
-          HM.iter (fun k v ->
+          List.iter (fun k ->
               if HM.mem rho k then (
                 let old_rho = HM.find rho k in
                 let old_infl = HM.find_default infl k VS.empty in
                 HM.replace old_ret k (old_rho, old_infl)
               )
-            ) obsolete_ret;
+            ) sys_change.reluctant;
         );
 
-        if not (HM.is_empty obsolete_entry) || not (HM.is_empty obsolete_prim) then
+        if sys_change.obsolete <> [] then
           print_endline "Destabilizing changed functions and primary old nodes ...";
-        HM.iter (fun k _ ->
+        List.iter (fun k ->
             if HM.mem stable k then
               destabilize k
-          ) obsolete_entry;
-        HM.iter (fun k _ ->
-            if HM.mem stable k then
-              destabilize k
-          ) obsolete_prim;
+          ) sys_change.obsolete;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
-        let marked_for_deletion = HM.create 103 in
-
-        let dummy_pseudo_return_node f =
-          (* not the same as in CFG, but compares equal because of sid *)
-          Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
-        in
-        let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
-          let add_stmts (f: fundec) =
-            List.iter (fun s ->
-                mark_node marked_for_deletion f (Statement s)
-              ) f.sallstmts
-          in
-          List.iter (fun f ->
-              if withEntry f then
-                mark_node marked_for_deletion f (FunctionEntry f);
-              mark_node marked_for_deletion f (Function f);
-              add_stmts f;
-              mark_node marked_for_deletion f (dummy_pseudo_return_node f)
-            ) functions;
-        in
-
-        add_nodes_of_fun changed_funs reanalyze_entry;
-        add_nodes_of_fun removed_funs (fun _ -> true);
-        (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
-        let add_pseudo_return f un =
-          let pseudo = dummy_pseudo_return_node f in
-          if not (List.exists (Node.equal pseudo % fst) un) then
-            mark_node marked_for_deletion f (dummy_pseudo_return_node f)
-        in
-        List.iter (fun (f,_,un) ->
-            mark_node marked_for_deletion f (Function f);
-            add_pseudo_return f un
-          ) part_changed_funs;
-
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
+        let delete_marked s = List.iter (fun k -> HM.remove s k) sys_change.delete in
         delete_marked rho;
         delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
         delete_marked dep;
-        Hooks.delete_marked marked_for_deletion;
+        Hooks.delete_marked sys_change.delete;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
         if restart_sided then (
           (* restarts old copies of functions and their (removed) side effects *)
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
-          HM.iter (fun k _ ->
+          List.iter (fun k ->
               if HM.mem stable k then (
                 ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
                 destabilize k
               )
-            ) marked_for_deletion
+            ) sys_change.delete
         );
 
         (* [destabilize_leaf] is meant for restarting of globals selected by the user. *)
@@ -762,22 +658,13 @@ module Base =
           destabilize_normal x
 
         in
-        let globals_to_restart = match S.increment with
-          | Some {restarting; _} -> restarting
-          | None -> []
-        in
-        let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
 
-        List.iter
-          (fun g ->
-             S.iter_vars get g
-               (fun v ->
-                  if Hooks.system v <> None then
-                    ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
-                  else if HM.mem stable v then
-                    destabilize_leaf v)
-          )
-          globals_to_restart;
+        List.iter (fun v ->
+            if Hooks.system v <> None then
+              ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
+            else if HM.mem stable v then
+              destabilize_leaf v
+          ) sys_change.restart;
 
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
           restart_leaf x;
@@ -1228,13 +1115,11 @@ module DepVals: GenericEqBoxIncrSolver =
           in
           Some f'
 
-      let delete_marked marked_for_deletion =
+      let delete_marked delete =
         (* very basic fix for incremental runs with aborting such that unknowns of function
            return nodes with changed rhs but same id are actually evaluated and not looked up
            (this is probably not sufficient / desirable for inefficient matchings) *)
-        HM.iter (fun x _ ->
-            HM.remove !current_dep_vals x
-          ) marked_for_deletion
+        List.iter (HM.remove !current_dep_vals) delete
 
       let stable_remove x =
         HM.remove !current_dep_vals x

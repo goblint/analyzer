@@ -227,7 +227,7 @@ struct
     | Partitioned (e,(xl, xm, xr)), Joint y -> Val.leq xl y && Val.leq xm y && Val.leq xr y
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
       CilType.Exp.equal e e' && Val.leq xl yl && Val.leq xm ym && Val.leq xr yr
-    | Joint x, Partitioned _ -> Val.is_bot x
+    | Joint x, Partitioned (e, (xl, xm, xr)) -> Val.leq x xl && Val.leq x xm && Val.leq x xr
 
   let bot () = Joint (Val.bot ())
   let is_bot (x:t) = Val.is_bot (join_of_all_parts x)
@@ -236,7 +236,7 @@ struct
     | Joint x -> Val.is_top x
     | _-> false
 
-  let join (x:t) (y:t) =
+  let join (x:t) (y:t) = normalize @@
     match x, y with
     | Joint x, Joint y -> Joint (Val.join x y)
     | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.join xl y, Val.join xm y, Val.join xr y))
@@ -245,7 +245,7 @@ struct
       if CilType.Exp.equal e e' then Partitioned (e,(Val.join xl yl, Val.join xm ym, Val.join xr yr))
       else Joint (Val.join (join_of_all_parts x) (join_of_all_parts y))
 
-  let widen (x:t) (y:t) = match x,y with
+  let widen (x:t) (y:t) = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.widen x y)
     | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
     | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
@@ -662,13 +662,13 @@ struct
       else if must_be_length_minus_one (x1_eval_int e2) then
         leq' x1 xl2 && leq' x1 xm2
       else
-        false
+        leq' x1 xl2 && leq' x1 xr2 && leq' x1 xm2 && leq' x1 xr2
 
   let smart_join = smart_join_with_length None
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet x y = match x,y with
+  let meet x y = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.meet x y)
     | Joint x, Partitioned (e, (xl, xm, xr))
     | Partitioned (e, (xl, xm, xr)), Joint x ->
@@ -682,7 +682,7 @@ struct
         (* TODO: do smart things if the relationship between e1e and e2e is known *)
         x
 
-  let narrow x y = match x,y with
+  let narrow x y = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.narrow x y)
     | Joint x, Partitioned (e, (xl, xm, xr))
     | Partitioned (e, (xl, xm, xr)), Joint x ->

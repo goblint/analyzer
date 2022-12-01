@@ -9,6 +9,9 @@
       "enums": false,
       "interval": true
     },
+    "float": {
+      "interval": true
+    },
     "activated": [
       "base",
       "threadid",
@@ -21,12 +24,13 @@
       "race",
       "escape",
       "expRelation",
-      "assert",
       "mhp",
+      "assert",
       "var_eq",
       "symb_locks",
       "region",
-      "thread"
+      "thread",
+      "threadJoins"
     ],
     "context": {
       "widen": false
@@ -55,6 +59,19 @@
       "arrays": {
         "domain": "partitioned"
       }
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
+        "wideningThresholds",
+        "loopUnrollHeuristic"
+      ]
     }
   },
   "exp": {

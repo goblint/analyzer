@@ -29,8 +29,6 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  let increment = None
-
   (*
     1. x := g
     2. y := 8
@@ -45,6 +43,7 @@ module ConstrSys = struct
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()
+  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)

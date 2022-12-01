@@ -169,6 +169,28 @@ struct
     {location; loop_invariant}
 end
 
+module LocationInvariant =
+struct
+  type t = {
+    location: Location.t;
+    location_invariant: Invariant.t;
+  }
+
+  let entry_type = "location_invariant"
+
+  let to_yaml' {location; location_invariant} =
+    [
+      ("location", Location.to_yaml location);
+      ("location_invariant", Invariant.to_yaml location_invariant);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ location = y |> find "location" >>= Location.of_yaml
+    and+ location_invariant = y |> find "location_invariant" >>= Invariant.of_yaml in
+    {location; location_invariant}
+end
+
 module FlowInsensitiveInvariant =
 struct
   type t = {
@@ -291,6 +313,7 @@ end
 module EntryType =
 struct
   type t =
+    | LocationInvariant of LocationInvariant.t
     | LoopInvariant of LoopInvariant.t
     | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
@@ -298,6 +321,7 @@ struct
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
 
   let entry_type = function
+    | LocationInvariant _ -> LocationInvariant.entry_type
     | LoopInvariant _ -> LoopInvariant.entry_type
     | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.entry_type
     | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
@@ -305,6 +329,7 @@ struct
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
 
   let to_yaml' = function
+    | LocationInvariant x -> LocationInvariant.to_yaml' x
     | LoopInvariant x -> LoopInvariant.to_yaml' x
     | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
@@ -314,7 +339,10 @@ struct
   let of_yaml y =
     let open GobYaml in
     let* entry_type = y |> find "entry_type" >>= to_string in
-    if entry_type = LoopInvariant.entry_type then
+    if entry_type = LocationInvariant.entry_type then
+      let+ x = y |> LocationInvariant.of_yaml in
+      LocationInvariant x
+    else if entry_type = LoopInvariant.entry_type then
       let+ x = y |> LoopInvariant.of_yaml in
       LoopInvariant x
     else if entry_type = FlowInsensitiveInvariant.entry_type then
