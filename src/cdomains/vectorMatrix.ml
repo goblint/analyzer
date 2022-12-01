@@ -2,6 +2,11 @@ open Prelude.Ana
 module Array = Batteries.Array
 module M = Messages
 
+(* let timing_wrap = Timing.wrap *)
+(* Disable timing of VectorMatrix and AffineEqualityDomain.
+   This is cleaner than a timing functor because the timed functions also call each other. *)
+let timing_wrap _ f x = f x
+
 (** Abstracts the functions of the Mpqf module for rationals from Apron that implements multi-precision rationals.
     One could later exchange "Mpqf" with a different module that provides the functions specified by this interface. *)
 module type RatOps =
@@ -302,7 +307,7 @@ module ArrayMatrix: AbstractMatrix =
       let cp = Array.make_matrix (num_rows m) (num_cols m) A.zero in
       Array.iteri (fun i x -> Array.blit x 0 cp.(i) 0 (num_cols m)) m; cp
 
-    let copy m = Timing.wrap "copy" (copy) m
+    let copy m = timing_wrap "copy" (copy) m
 
     let add_empty_column m n =
       if is_empty m then m else
@@ -327,7 +332,7 @@ module ArrayMatrix: AbstractMatrix =
         done;
         m'
 
-    let add_empty_columns m cols = Timing.wrap "add_empty_cols" (add_empty_columns m) cols
+    let add_empty_columns m cols = timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
       let size = num_rows m in
@@ -354,14 +359,14 @@ module ArrayMatrix: AbstractMatrix =
     let get_col m n =
       V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n))
 
-    let get_col m n = Timing.wrap "get_col" (get_col m) n
+    let get_col m n = timing_wrap "get_col" (get_col m) n
 
     let set_col_with m new_col n =
       for i = 0 to num_rows m - 1 do
         m.(i).(n) <- V.nth new_col i
       done; m
 
-    let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
+    let set_col_with m new_col n = timing_wrap "set_col" (set_col_with m new_col) n
 
     let set_col m new_col n =
       let copy = copy m in
@@ -370,7 +375,7 @@ module ArrayMatrix: AbstractMatrix =
     let append_matrices m1 m2  =
       Array.append m1 m2
 
-    let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
+    let equal m1 m2 = timing_wrap "equal" (equal m1) m2
 
     let reduce_col_with m j =
       if not @@ is_empty m then
@@ -388,7 +393,7 @@ module ArrayMatrix: AbstractMatrix =
          done;
          if !r >= 0 then Array.fill m.(!r) 0 (num_cols m) A.zero)
 
-    let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
+    let reduce_col_with m j  = timing_wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
       let copy = copy m in
       reduce_col_with copy j;
@@ -417,7 +422,7 @@ module ArrayMatrix: AbstractMatrix =
           done;
           m'
 
-    let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
+    let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
@@ -471,7 +476,7 @@ module ArrayMatrix: AbstractMatrix =
         true)
       with Unsolvable -> false
 
-    let rref_with m = Timing.wrap "rref_with" rref_with m
+    let rref_with m = timing_wrap "rref_with" rref_with m
 
     let init_with_vec v =
       let new_matrix = Array.make_matrix 1 (V.length v) A.zero in
@@ -529,7 +534,7 @@ module ArrayMatrix: AbstractMatrix =
         let pivot_elements = get_pivot_positions m in
         rref_vec m pivot_elements v
 
-    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
+    let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
@@ -549,12 +554,12 @@ module ArrayMatrix: AbstractMatrix =
       )
       with Unsolvable -> None
 
-    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
+    let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
     let normalize_with m =
       rref_with m
 
-    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
+    let normalize_with m = timing_wrap "normalize_with" normalize_with m
 
     let normalize m =
       let copy = copy m in
@@ -586,7 +591,7 @@ module ArrayMatrix: AbstractMatrix =
         )
         with Exit -> false;;
 
-    let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
+    let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
       let f' x = f (V.of_array x) in Option.map V.of_array (Array.find_opt f' m)
@@ -602,7 +607,7 @@ module ArrayMatrix: AbstractMatrix =
           m.(i) <- V.to_array @@ f (V.of_array m.(i)) (V.nth v i)
         done
 
-    let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
+    let map2_with f m v = timing_wrap "map2_with" (map2_with f m) v
 
     let map2i_with f m v =
       if num_rows m = V.length v then
@@ -612,5 +617,5 @@ module ArrayMatrix: AbstractMatrix =
           m.(i) <- V.to_array @@ f i (V.of_array m.(i)) (V.nth v i)
         done
 
-    let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v
+    let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
   end
