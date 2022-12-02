@@ -828,10 +828,11 @@ struct
           | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
           | _ -> false
         in
-        let do_single_address p =
+        (** Lookup value at base address [addr] with given offset [ofs]. *)
+        let lookup_with_offs addr =
           let v = (* abstract base value *)
-            if AD.for_all cast_ok p then
-              get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
+            if cast_ok addr then
+              get ~top:(VD.top_value t) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
             else
               VD.top () (* upcasts not! *)
           in
@@ -841,9 +842,7 @@ struct
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
         in
-        let addresses = AD.elements p in
-        let values = List.map (fun e -> do_single_address (AD.singleton e)) addresses in
-        List.fold VD.join (VD.bot ()) values
+        AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
