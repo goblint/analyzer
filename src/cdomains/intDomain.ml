@@ -2329,16 +2329,40 @@ struct
     if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
+  (* Handle unsigned overflows.
+     From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= bitwidth.
+     The congruence modulo b may not persist on an overflow. *)
+  let handle_overflow ik (c, m) =
+    if m =: Ints_t.zero then
+      normalize ik (Some (c, m))
+    else
+      (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
+      let tz = Ints_t.trailing_zeros m in
+      let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
+
+      let max = (snd (Size.range ik)) +: Ints_t.one in
+      if m' >=: max then
+        (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
+        let c' = c %: max in
+        Some (c', Ints_t.zero)
+      else
+        normalize ik (Some (c, m'))
+
   let mul ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
+    in
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None ->
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
-      Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
+      Some (no_ov_case (c1, m1) (c2, m2))
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 *: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b )
     | _ -> top ()
 
   let mul ?no_ov ik x y =
@@ -2351,16 +2375,21 @@ struct
     | None -> bot()
     | Some _ ->  mul ~no_ov ik (of_int ik (Ints_t.of_int (-1))) x
 
-
   let add ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      c1 +: c2, Ints_t.gcd m1 m2
+    in
     match (x, y) with
     | None, None -> bot ()
     | None, _ | _, None ->
-       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize ik (Some (c1 +: c2, Ints_t.gcd m1 m2))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some a, Some b when no_ov ->
+      normalize ik (Some (no_ov_case a b))
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 +: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b)
     | _ -> top ()
 
 

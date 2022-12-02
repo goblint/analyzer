@@ -618,8 +618,8 @@ let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
   fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
   Format.flush_str_formatter ()
 
-let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
-  iterGlobals file (fun glob ->
+let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
+  iterGlobals FileCfg.file (fun glob ->
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
@@ -630,7 +630,7 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let fname = Fpath.(file_dir / dot_file_name) in
         let out = open_out (Fpath.to_string fname) in
         let ppf = Format.formatter_of_out_channel out in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd ppf;
+        fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
         Format.pp_print_flush ppf ();
         close_out out
       | _ -> ()

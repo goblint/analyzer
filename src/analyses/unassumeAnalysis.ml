@@ -40,8 +40,12 @@ struct
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
     loop_locator := Locator.create (); (* TODO: add Locator.clear *)
-    let module Cfg = (val !MyCFG.current_cfg) in
-    let module WitnessInvariant = WitnessUtil.Invariant (struct let file = !Cilfacade.current_file end) (Cfg) in
+    let module FileCfg =
+    struct
+      let file = !Cilfacade.current_file
+      module Cfg = (val !MyCFG.current_cfg)
+    end  in
+    let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
 
     (* DFS, copied from CfgTools.find_backwards_reachable *)
     let reachable = NH.create 100 in
@@ -55,7 +59,7 @@ struct
           Locator.add !loop_locator (Node.location node) node;
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
-          ) (Cfg.prev node)
+          ) (FileCfg.Cfg.prev node)
       end
     in
 

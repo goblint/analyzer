@@ -449,6 +449,7 @@ sig
   val elems: t list
 end
 
+(* TODO: put elems into E *)
 module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
 struct
   module E =

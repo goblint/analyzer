@@ -63,7 +63,8 @@ $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
 witness = ARGV.last == "-w" && ARGV.pop
-incremental = ARGV.last == "-i" && ARGV.pop
+cfg = ARGV.last == "-c" && ARGV.pop
+incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if marshal || witness || incremental then
@@ -139,7 +140,7 @@ class Tests
 
   def collect_warnings
     warnings[-1] = "term"
-    lines = IO.readlines(warnfile)
+    lines = IO.readlines(warnfile, :encoding => "UTF-8")
     lines.each do |l|
       if l =~ /Function 'main' does not return/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
@@ -209,7 +210,7 @@ class Tests
   end
 
   def time_to_html
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
     if res == [] or not errors == [] then
@@ -222,7 +223,7 @@ class Tests
 
   def problems_to_html
     id = "#{p.id} #{p.group}/#{p.name}"
-    lines = IO.readlines(statsfile)
+    lines = IO.readlines(statsfile, :encoding => "UTF-8")
     if correct + ignored == tests.size && ok then
       "<td style =\"color: green\">NONE</td>"
     else
@@ -419,7 +420,7 @@ class ProjectIncr < Project
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
     status = $?.exitstatus
-    lines_incr = IO.readlines(path)
+    lines_incr = IO.readlines(path, :encoding => "UTF-8")
     `patch -p0 -b -R <#{patch_path}`
     if status != 0
       puts "Failed to apply patch: #{patch_path}"
@@ -530,14 +531,14 @@ regs.sort.each do |d|
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
-    lines = IO.readlines(path)
+    lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
       config_path = File.expand_path(f[0..-3] + ".json", grouppath)
-      params = "--conf #{config_path}"
+      params = if cfg then "--conf #{config_path} --set incremental.compare cfg" else "--conf #{config_path}" end
     else
       lines[0] =~ /PARAM: (.*)$/
       if $1 then params = $1 else params = "" end
