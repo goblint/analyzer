@@ -7,6 +7,7 @@ sig
   include Lattice.S
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
+  val top_value: ?varAttr:attributes -> typ -> t
 end
 
 module type S =
