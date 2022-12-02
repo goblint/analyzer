@@ -77,7 +77,6 @@ depends: [
   "ordering" {= "3.6.1"}
   "ounit2" {= "2.2.6" & with-test}
   "pp" {= "1.1.2"}
-  "ppx_blob" {= "0.7.2"}
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_deriving_hash" {= "0.1.1"}

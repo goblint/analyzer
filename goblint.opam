@@ -19,8 +19,8 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "ocaml" {>= "4.10"}
   "dune" {>= "3.0"}
+  "ocaml" {>= "4.10"}
   "goblint-cil" {>= "2.0.1"}
   "batteries" {>= "3.4.0"}
   "zarith" {>= "1.8"}
@@ -29,7 +29,6 @@ depends: [
   "ppx_deriving"
   "ppx_deriving_hash"
   "ppx_deriving_yojson" {>= "3.7.0"}
-  "ppx_blob" {>= "0.6.0"}
   "ounit2" {with-test}
   "qcheck-ounit" {with-test}
   "odoc" {with-doc}
