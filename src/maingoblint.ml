@@ -227,11 +227,11 @@ let preprocess_files () =
   let custom_include_dirs =
     List.map Fpath.v (get_string_list "pre.custom_includes") @
     List.map (fun p -> Fpath.(p / "stub" / "include")) source_lib_dirs @
-    List.map Fpath.v Goblint_sites.lib_stub_include @
+    Goblint_sites.lib_stub_include @
     List.map (fun p -> Fpath.(p / "runtime" / "include")) source_lib_dirs @
-    List.map Fpath.v Goblint_sites.lib_runtime_include @
+    Goblint_sites.lib_runtime_include @
     List.map (fun p -> Fpath.(p / "stub" / "src")) source_lib_dirs @
-    List.map Fpath.v Goblint_sites.lib_stub_src
+    Goblint_sites.lib_stub_src
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
