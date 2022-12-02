@@ -137,14 +137,23 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
         | GFun (f,_) -> f.svar.vname, {decls = None; def = Some (Fun f)}
         | GVarDecl (v,_) -> v.vname, {decls = Some v; def = None}
         | _ -> raise Not_found in
-      let merge_d def1 def2 = match def1, def2 with
+      let merge_decl decl1 decl2 = match decl1, decl2 with
         | Some d, None -> Some d
         | None, Some d -> Some d
         | None, None -> None
-        | _ -> failwith "there can only be one definition and one declaration per global" in
+        | Some d, Some d' ->
+          if d != d' then
+            failwith "Multiple declaration of global where varinfos are not the same object.";
+          Some d' in
+      let merge_def def1 def2 = match def1, def2 with
+        | Some d, None -> Some d
+        | None, Some d -> Some d
+        | None, None -> None
+        | _ ->
+          failwith @@ "Only one definition per global expected, but there were multiple." in
       let merge_global_col entry = match entry with
         | None -> Some col
-        | Some col' -> Some {decls = merge_d col.decls col'.decls; def = merge_d col.def col'.def} in
+        | Some col' -> Some {decls = merge_decl col.decls col'.decls; def = merge_def col.def col'.def} in
       GlobalMap.update name merge_global_col map;
     with
       Not_found -> map
