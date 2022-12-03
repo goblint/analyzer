@@ -47,19 +47,22 @@ in let get_binop_int op ik = if not (CilType.Ikind.equal ik IInt) then (Printf.p
 (match op with 
 | PlusA -> 
 fun x1 x2 -> (match (x1,x2) with 
-(Int(l1,u1,_)),(Int(l2,u2,_)) -> if (Big_int_Z.add_big_int u1 u2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik)
+(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0); (if (Big_int_Z.add_big_int u1 u2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik))
 | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+
 | MinusA -> 
 fun x1 x2 -> (match (x1,x2) with (* Minus sollte negieren dann addieren sein, sonst inkorrekt!! *)
-(Int(l1,u1,_)),(Int(l2,u2,_)) -> 
-  let neg_second_lower = Big_int_Z.minus_big_int u2
+(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+  (let neg_second_lower = Big_int_Z.minus_big_int u2
 in let neg_second_upper = Big_int_Z.minus_big_int l2
-in if (Big_int_Z.add_big_int u1 neg_second_upper > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 neg_second_lower, Big_int_Z.add_big_int u1 neg_second_upper, ik)
+in if (Big_int_Z.add_big_int u1 neg_second_upper > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 neg_second_lower, Big_int_Z.add_big_int u1 neg_second_upper, ik))
 | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+
 | Lt -> 
   fun x1 x2 -> (match (x1,x2) with 
-  | (Int(l1,u1,_)),(Int(l2,u2,_)) -> if Big_int_Z.lt_big_int u1 l2 then Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) 
-  else if Big_int_Z.le_big_int u2 l1 then Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik) else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik)
+  | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);(if Big_int_Z.lt_big_int u1 l2 then Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) 
+  else if Big_int_Z.le_big_int u2 l1 then Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik) else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
+
   | (Float(fl1,fu1,_)),(Float(fl2,fu2,_)) -> if fu1 < fl2 then Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik)
   else if fu2 <= fl1 then Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik) else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik)
   | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0 )
@@ -79,7 +82,10 @@ in let get_binop_float op fk = if not (CilType.Fkind.equal fk FFloat) then (Prin
 in
   let rec eval_helper subexp =
   (match subexp with
-| Const(CInt(c, ik, _)) -> (Int (c,c, ik), true)
+| Const(CInt(c, ik, _)) -> (match ik with
+| IInt -> if c < Big_int_Z.big_int_of_int intMin then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true) 
+else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true) else (Int (c,c, ik), true)
+| _ ->  Printf.printf "This type of assignment is not supported\n"; exit 0 )
 | Const(CReal(f, fk, _)) -> (Float (f, f, fk), true)
 | Lval(Var(var), NoOffset) -> if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal)
 | AddrOf (Var(v), NoOffset) -> (Address(v), true)
@@ -87,7 +93,16 @@ in
 (* unop expressions *)
 (* for type Integer *)
 | UnOp(Neg, unopExp, TInt(unopIk, _)) -> 
-  (match eval_helper unopExp with (Int(l,u,_), true) ->(Int (Big_int_Z.minus_big_int u, Big_int_Z.minus_big_int l, unopIk), true)
+  (match eval_helper unopExp with (Int(l,u,ik), true) ->
+    (match ik with 
+    |IInt -> if CilType.Ikind.equal unopIk IInt then let negLowerBound = (if Big_int_Z.minus_big_int u < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
+    else if Big_int_Z.minus_big_int u > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int u )
+  in
+  let negUpperBound = (if Big_int_Z.minus_big_int l < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
+  else if Big_int_Z.minus_big_int l > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int l )
+in
+       (Int (negLowerBound, negUpperBound, unopIk), true) else (Printf.printf "This type of assignment is not supported\n"; exit 0)
+    | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
     |(_, false) -> print_string "nopVal created at unop Neg for Int\n";nopVal
     |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 (* for type float *)
