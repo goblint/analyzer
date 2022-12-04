@@ -164,9 +164,7 @@ struct
   include BatSet.Make(Base)
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
-  let leq t1 t2  = print_string "\nSetDomain.leq BEGIN\n";
-  let tmp = subset t1 t2
-in print_string "\nSetDomain.leq END\n"; tmp
+  let leq = subset
   let join = union
   let widen t1 t2 = print_string "\nSetDomain.widen BEGIN\n";
     let tmp = join t1 t2

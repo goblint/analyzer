@@ -142,19 +142,30 @@ let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then (
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 
-(* Retrieves the sigma mapping in a graph of a given node *)
+(* Retrieves a list of sigma mappings in a graph of a given node *)
 let get_sigma g (progPoint:MyCFG.node) =  
-LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} sigmap -> if Node.equal p1 progPoint then s1 else sigmap) g SigmaMap.empty
+  let tmp =
+LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} l -> if Node.equal p1 progPoint then s1::l else l) g []
+  in if List.is_empty tmp then [SigmaMap.empty] else tmp
 
 (* Applies an gEdge to graph 
    Explicit function for future improvements *)
 let extend_by_gEdge gr gEdge =
   LocTraceGraph.add_edge_e gr gEdge 
 
+
 end
 
 (* Set domain for analysis framework *)
-module GraphSet = SetDomain.Make(LocalTraces)
+module GraphSet = struct
+include SetDomain.Make(LocalTraces)
+
+let subset graphSet1 graphSet2 = 
+  fold (fun graph b -> b || (mem graph graphSet2)) graphSet1 false
+
+let leq graphSet1 graphSet2 = subset graphSet1 graphSet2
+
+end
 
 
 (* TODO Graph-printing modules for exporting *)
