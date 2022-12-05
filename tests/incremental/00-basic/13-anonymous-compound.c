@@ -26,8 +26,8 @@ int main(){
 	pthread_t r;
 	pthread_t w;
 
-	pthread_create(&r, NULL, read, NULL);
 	pthread_create(&w, NULL, write, NULL);
+	pthread_create(&r, NULL, read, NULL);
 
 	return 0;
 }
