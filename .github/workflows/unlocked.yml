@@ -18,7 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.x+options
+          - 4.14.0+options,ocaml-option-flambda
           - 4.14.x
           - 4.13.x
           - 4.12.x
