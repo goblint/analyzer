@@ -5,8 +5,16 @@ open MyCFG
 
 include UpdateCil0
 
+let update_ckeys (old_file: file) (new_file: file) (unchanged_compinfos: unchanged_compinfo list) =
+  let update_ckey unchanged_cinfo =
+    unchanged_cinfo.current_compinfo.ckey <- unchanged_cinfo.old_compinfo.ckey;
+  in
+  List.iter update_ckey unchanged_compinfos
+
 let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change_info) =
   UpdateCil0.init (); (* reset for server mode *)
+
+  update_ckeys old_file new_file changes.unchanged_compinfo;
 
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in

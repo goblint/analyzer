@@ -6,6 +6,18 @@ include CompareCFG
 
 module GlobalMap = Map.Make(String)
 
+module Compinfo = struct
+  type t = Struct of string | Union of string [@@deriving eq, ord, hash]
+
+  let of_compinfo c =
+    if c.cstruct then
+      Struct c.cname
+    else
+      Union c.cname
+end
+
+module CompinfoMap = Map.Make(Compinfo)
+
 type global_def = Var of varinfo | Fun of fundec
 type global_col = {decls: varinfo option; def: global_def option}
 
@@ -33,11 +45,17 @@ type changed_global = {
   diff: nodes_diff option
 }
 
+type unchanged_compinfo = {
+  old_compinfo: compinfo;
+  current_compinfo: compinfo;
+}
+
 module VarinfoSet = Set.Make(CilType.Varinfo)
 
 type change_info = {
   mutable changed: changed_global list;
   mutable unchanged: unchanged_global list;
+  mutable unchanged_compinfo: unchanged_compinfo list;
   mutable removed: global_col list;
   mutable added: global_col list;
   mutable exclude_from_rel_destab: VarinfoSet.t;
@@ -46,7 +64,7 @@ type change_info = {
 }
 
 let empty_change_info () : change_info =
-  {added = []; removed = []; changed = []; unchanged = []; exclude_from_rel_destab = VarinfoSet.empty}
+  {added = []; removed = []; changed = []; unchanged = []; unchanged_compinfo = []; exclude_from_rel_destab = VarinfoSet.empty}
 
 (* 'ChangedFunHeader' is used for functions whose varinfo or formal parameters changed. 'Changed' is used only for
  * changed functions whose header is unchanged and changed non-function globals *)
@@ -207,6 +225,37 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
   (* We check whether functions have been added or removed *)
   GlobalMap.iter (fun name glob -> if not (GlobalMap.mem name newMap) then changes.removed <- (glob::changes.removed)) oldMap;
+
+  (* Compare compinfos. Identify unchanged compinfos, for which the ckey need be reset by UpdateCil. *)
+  let addCompinfo (map: compinfo CompinfoMap.t) (global: global) = match global with
+    | GCompTag (compinfo, _) ->
+        let key = Compinfo.of_compinfo compinfo in
+        let merge_entry entry = match entry with
+          | Some e -> failwith @@ "Duplicate entry for compinfo " ^ compinfo.cname
+          | None -> Some compinfo
+        in
+        CompinfoMap.update key merge_entry map
+    | _ -> map
+  in
+
+  let oldCompinfoMap = Cil.foldGlobals oldAST addCompinfo CompinfoMap.empty in
+  let newCompinfoMap = Cil.foldGlobals newAST addCompinfo CompinfoMap.empty in
+
+  let eq_compinfo map key compinfo acc =
+    match CompinfoMap.find_opt key map with
+    | Some old ->
+      if CompareAST.eq_compinfo compinfo old then begin
+        {old_compinfo = old; current_compinfo = compinfo} :: acc
+      end else begin
+        acc
+      end
+    | None -> begin
+        acc
+      end
+  in
+
+  let unchanged_compinfos = CompinfoMap.fold (eq_compinfo oldCompinfoMap) newCompinfoMap [] in
+  changes.unchanged_compinfo <- unchanged_compinfos;
   changes
 
 (** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],

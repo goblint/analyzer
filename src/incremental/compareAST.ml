@@ -9,6 +9,8 @@ type method_rename_assumptions = method_rename_assumption VarinfoMap.t
 (*rename_mapping is carried through the stack when comparing the AST. Holds a list of rename assumptions.*)
 type rename_mapping = (string StringMap.t) * (method_rename_assumptions)
 
+let empty_rename_mapping: rename_mapping = (StringMap.empty, VarinfoMap.empty)
+
 (*Compares two names, being aware of the rename_mapping. Returns true iff:
   1. there is a rename for name1 -> name2 = rename(name1)
   2. there is no rename for name1 -> name1 = name2*)
@@ -98,7 +100,7 @@ and eq_typ_acc (a: typ) (b: typ) ~(acc: (typ * typ) list) ~(rename_mapping: rena
       )
       else (
         let acc = (a, b) :: acc in
-        let res = eq_compinfo compinfo1 compinfo2 acc rename_mapping && GobList.equal (eq_attribute ~rename_mapping ~acc) attr1 attr2 in
+        let res = eq_compinfo_acc compinfo1 compinfo2 acc rename_mapping && GobList.equal (eq_attribute ~rename_mapping ~acc) attr1 attr2 in
         if res && compinfo1.cname <> compinfo2.cname then
           compinfo2.cname <- compinfo1.cname;
         if res then
@@ -185,7 +187,7 @@ and eq_varinfo  (a: varinfo) (b: varinfo) ~(acc: (typ * typ) list) ~(rename_mapp
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 
 (* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
-and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
+and eq_compinfo_acc (a: compinfo) (b: compinfo) (acc: (typ * typ) list) (rename_mapping: rename_mapping) =
   a.cstruct = b.cstruct &&
   compare_name a.cname b.cname &&
   GobList.equal (fun a b-> eq_fieldinfo a b ~rename_mapping ~acc ) a.cfields b.cfields &&
@@ -280,3 +282,6 @@ let eq_initinfo (a: initinfo) (b: initinfo) (rename_mapping: rename_mapping) = m
   | (Some init_a), (Some init_b) -> eq_init init_a init_b ~rename_mapping
   | None, None -> true
   | _, _ -> false
+
+let eq_compinfo (a: compinfo) (b: compinfo) =
+  eq_compinfo_acc a b [] empty_rename_mapping
