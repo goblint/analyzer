@@ -152,7 +152,8 @@ let assign_helper graph sigma =
      ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=evaluated}), success_inner
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   in
-  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge) else (print_string "assignment did not succeed!\n"; graph)
+  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge) 
+  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=LocalTraces.error_node () ;sigma=SigmaMap.empty}) )
   )
 in
 let tmp = List.fold assign_helper g oldSigma 

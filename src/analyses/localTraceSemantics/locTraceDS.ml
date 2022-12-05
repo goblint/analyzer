@@ -158,6 +158,14 @@ LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} l -> if Node.equal p1 
 let extend_by_gEdge gr gEdge =
   LocTraceGraph.add_edge_e gr gEdge 
 
+  let error_node () : MyCFG.node = 
+    FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[])); 
+                   sformals=[];
+                   slocals=[];
+                   smaxid=0;
+                   sbody={battrs=[];bstmts=[]};
+                   smaxstmtid=None;
+                   sallstmts=[]})
 
 end
 
