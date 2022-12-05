@@ -55,11 +55,12 @@ let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo
 
 let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_valuedomain vd) + i) s 0)
 
+let intersect_sigma sigma1 sigma2 =
+  SigmaMap.fold (fun vinfo varDom sigAcc -> if SigmaMap.mem vinfo sigma2 = false then sigAcc else if equal_varDomain varDom (SigmaMap.find vinfo sigma2) then SigmaMap.add vinfo varDom sigAcc else sigAcc) sigma1 SigmaMap.empty
 
-let hash n = 
-match n with {programPoint=Statement(stmt);sigma=s} -> stmt.sid + hash_sigma s
-| {programPoint=Function(fd);sigma=s} -> fd.svar.vid + hash_sigma s
-| {programPoint=FunctionEntry(fd);sigma=s} -> fd.svar.vid + hash_sigma s
+let destruct_add_sigma sigma1 sigma2 = SigmaMap.fold (fun vinfo varDom sigAcc -> SigmaMap.add vinfo varDom sigAcc) sigma2 sigma1
+
+let hash {programPoint=n;sigma=s} = Node.hash n + hash_sigma s
 
 
 let show n = 
@@ -154,7 +155,7 @@ LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} l -> if Node.equal p1 
 let extend_by_gEdge gr gEdge =
   LocTraceGraph.add_edge_e gr gEdge 
 
-  let error_node () : MyCFG.node = 
+  let error_node : MyCFG.node = 
     FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[])); 
                    sformals=[];
                    slocals=[];

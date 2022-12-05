@@ -39,14 +39,15 @@ let eval sigOld vinfo (rval: exp) =
   (* dummy value 
      This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
-  let nopVal = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false)
+  let nopVal sigSide = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false, sigSide)
 
   (* returns a function which calculates [l1, u1] OP [l2, u2]*)
 in let get_binop_int op ik = if not (CilType.Ikind.equal ik IInt) then (Printf.printf "This type of assignment is not supported\n"; exit 0) else 
 (match op with 
 | PlusA -> 
 fun x1 x2 -> (match (x1,x2) with 
-(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0); (if (Big_int_Z.add_big_int u1 u2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik))
+(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0); 
+(if (Big_int_Z.add_big_int u1 u2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik))
 | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
 | MinusA -> 
@@ -54,54 +55,84 @@ fun x1 x2 -> (match (x1,x2) with (* Minus sollte negieren dann addieren sein, so
 (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
   (let neg_second_lower = Big_int_Z.minus_big_int u2
 in let neg_second_upper = Big_int_Z.minus_big_int l2
-in if (Big_int_Z.add_big_int u1 neg_second_upper > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 neg_second_lower, Big_int_Z.add_big_int u1 neg_second_upper, ik))
+in print_string("get_binop_int with MinusA: l1="^(Big_int_Z.string_of_big_int l1)^", u1="^(Big_int_Z.string_of_big_int u1)^", neg_second_lower="^(Big_int_Z.string_of_big_int neg_second_lower)^", neg_second_upper="^(Big_int_Z.string_of_big_int neg_second_upper)^"\n"); 
+if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin) then raise Underflow_subtraction_Int else Int(Big_int_Z.add_big_int l1 neg_second_lower, Big_int_Z.add_big_int u1 neg_second_upper, ik))
 | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
 | Lt -> 
   fun x1 x2 -> (match (x1,x2) with 
-  | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);(if Big_int_Z.lt_big_int u1 l2 then Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) 
-  else if Big_int_Z.le_big_int u2 l1 then Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik) else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
+  | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+  (if Big_int_Z.lt_big_int u1 l2 then Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) 
+  else if Big_int_Z.le_big_int u2 l1 then Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik)
+  else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
 
   | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0 )
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+
 in
   let rec eval_helper subexp =
   (match subexp with
 | Const(CInt(c, ik, _)) -> (match ik with
-| IInt -> if c < Big_int_Z.big_int_of_int intMin then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true) 
-else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true) else (Int (c,c, ik), true)
+| IInt -> if c < Big_int_Z.big_int_of_int intMin then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true,SigmaMap.empty) 
+else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true,SigmaMap.empty) else (Int (c,c, ik), true,SigmaMap.empty)
 | _ ->  Printf.printf "This type of assignment is not supported\n"; exit 0 )
-| Lval(Var(var), NoOffset) -> if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal)
-| AddrOf (Var(v), NoOffset) -> (Address(v), true)
+| Lval(Var(var), NoOffset) -> if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true,SigmaMap.empty) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal SigmaMap.empty)
+| AddrOf (Var(v), NoOffset) -> (Address(v), true,SigmaMap.empty)
 
 (* unop expressions *)
 (* for type Integer *)
 | UnOp(Neg, unopExp, TInt(unopIk, _)) -> 
-  (match eval_helper unopExp with (Int(l,u,ik), true) ->
+  (match eval_helper unopExp with (Int(l,u,ik), true, sigSide) ->
     (match ik with 
-    |IInt -> if CilType.Ikind.equal unopIk IInt then let negLowerBound = (if Big_int_Z.minus_big_int u < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
+    |IInt -> if CilType.Ikind.equal unopIk IInt then( let negLowerBound = (if Big_int_Z.minus_big_int u < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
     else if Big_int_Z.minus_big_int u > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int u )
   in
   let negUpperBound = (if Big_int_Z.minus_big_int l < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
   else if Big_int_Z.minus_big_int l > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int l )
 in
-       (Int (negLowerBound, negUpperBound, unopIk), true) else (Printf.printf "This type of assignment is not supported\n"; exit 0)
+       (Int (negLowerBound, negUpperBound, unopIk), true, sigSide)) else (Printf.printf "This type of assignment is not supported\n"; exit 0)
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
-    |(_, false) -> print_string "nopVal created at unop Neg for Int\n";nopVal
-    |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
+    |(_, false, sigSide) -> print_string "nopVal created at unop Neg for Int\n";nopVal SigmaMap.empty
+    |(_, _,_) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 
 (* binop expressions *)
+(* Lt could be a special case since it has side-effects on sigma *)
+| BinOp(Lt, Lval(Var(var), NoOffset), binopExp2,TInt(biopIk, _)) -> (
+  match eval_helper binopExp2 with 
+  | (Int(l, u, k), true, sigSide) -> (
+    if SigmaMap.mem var sigSide then 
+      (match SigmaMap.find var sigSide with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
+        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide)
+        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+
+    else if SigmaMap.mem var sigOld then
+      (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
+        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide)
+        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+
+    else ( 
+      let sigTmp = NodeImpl.destruct_add_sigma sigSide (SigmaMap.add var (Int(Big_int_Z.big_int_of_int intMin, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty))
+  in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
+      ))
+  | (_,false, sigSide) -> nopVal sigSide
+  | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+
 (* for type Integer *)
 | BinOp(op, binopExp1, binopExp2,TInt(biopIk, _)) ->
   (match (eval_helper binopExp1, eval_helper binopExp2) with 
-  | ((Int(l1,u1, ik1), true),(Int(l2,u2, ik2), true)) -> if CilType.Ikind.equal ik1 ik2 then ((get_binop_int op biopIk) (Int(l1,u1, ik1)) (Int(l2,u2, ik2)), true) else (print_string "nopVal is created at binop for int with different ikinds\n";nopVal)
-  | (_, (_,false)) -> print_string "nopVal created at binop for Integer 1\n";nopVal
-  | ((_,false), _) -> print_string "nopVal created at binop for Integer 2\n";nopVal
+  | ((Int(l1,u1, ik1), true,sigSide1),(Int(l2,u2, ik2), true,sigSide2)) -> if CilType.Ikind.equal ik1 ik2 then ((get_binop_int op biopIk) (Int(l1,u1, ik1)) (Int(l2,u2, ik2)), true, NodeImpl.intersect_sigma sigSide1 sigSide2) else (Printf.printf "This type of assignment is not supported\n"; exit 0)
+  | ((_,_,sigSide1), (_,false, sigSide2)) -> print_string "nopVal created at binop for Integer 1\n";nopVal (NodeImpl.intersect_sigma sigSide1 sigSide2)
+  | ((_,false, sigSide1), (_,_,sigSide2)) -> print_string "nopVal created at binop for Integer 2\n";nopVal (NodeImpl.intersect_sigma sigSide1 sigSide2)
   |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
 
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
-in let (result,success) = eval_helper rval 
-in if success then SigmaMap.add vinfo result sigOld else (print_string "Sigma has not been updated. Vinfo is removed\n"; SigmaMap.remove vinfo sigOld)
+(* sigNew will collect all side-effects and then we need to apply sigOld (+) sigSideEffects *)
+in let (result,success,sigSideEffects) = eval_helper rval 
+in
+let sigNew = NodeImpl.destruct_add_sigma sigOld sigSideEffects
+in if success then SigmaMap.add vinfo result sigNew else (print_string "Sigma has not been updated. Vinfo is removed\n"; SigmaMap.remove vinfo sigNew)
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge =
@@ -123,7 +154,7 @@ let assign_helper graph sigma =
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   in
   if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge) 
-  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=LocalTraces.error_node () ;sigma=SigmaMap.empty}) )
+  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty}) )
   )
 in
 let tmp = List.fold assign_helper g oldSigma 
