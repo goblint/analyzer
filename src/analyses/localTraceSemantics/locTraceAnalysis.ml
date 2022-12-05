@@ -162,7 +162,7 @@ if LocalTraces.equal g tmp then set else
 in
 let tmp2 =
    D.fold fold_helper ctx.local (D.empty ())
-in if D.is_empty tmp2 then D.add LocTraceGraph.empty (D.empty ()) else tmp2
+in if D.is_empty tmp2 then (*D.add LocTraceGraph.empty*) D.empty () else tmp2
   
 let branch ctx (exp:exp) (tv:bool) : D.t = print_string ("branch wurde aufgerufen mit exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" \n");
 let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
@@ -191,7 +191,7 @@ if LocalTraces.equal g tmp then set else
 in
 let tmp2 =
    D.fold fold_helper ctx.local (D.empty ())
-in if D.is_empty tmp2 then D.add LocTraceGraph.empty (D.empty ()) else tmp2
+in if D.is_empty tmp2 then (*D.add LocTraceGraph.empty*) D.empty () else tmp2
 
 let body ctx (f:fundec) : D.t = Printf.printf "body wurde aufgerufen\n";
 let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node

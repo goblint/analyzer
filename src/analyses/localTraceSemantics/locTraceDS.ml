@@ -143,10 +143,15 @@ let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then (
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 
 (* Retrieves a list of sigma mappings in a graph of a given node *)
-let get_sigma g (progPoint:MyCFG.node) =  
-  let tmp =
+let get_sigma g (progPoint:MyCFG.node) = 
+  if LocTraceGraph.is_empty g then
+  (match progPoint with 
+  | FunctionEntry({svar={vname=s;_}; _})-> if String.equal s "main" then (print_string "Hey, I found a main node on a yet empty graph\n";[SigmaMap.empty]) else [] 
+    | _ -> [])
+  else  
+  (let tmp =
 LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} l -> if Node.equal p1 progPoint then s1::l else l) g []
-  in if List.is_empty tmp then [SigmaMap.empty] else tmp
+  in if List.is_empty tmp then [] else tmp)
 
 (* Applies an gEdge to graph 
    Explicit function for future improvements *)
