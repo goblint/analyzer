@@ -99,10 +99,15 @@ and eq_typ_acc (a: typ) (b: typ) ~(acc: (typ * typ) list) ~(rename_mapping: rena
       else (
         let acc = (a, b) :: acc in
         let res = eq_compinfo compinfo1 compinfo2 acc rename_mapping && GobList.equal (eq_attribute ~rename_mapping ~acc) attr1 attr2 in
-        if res && compinfo1.cname <> compinfo2.cname then
-          compinfo2.cname <- compinfo1.cname;
-        if res then
+        if res then begin
           global_typ_acc := (a, b) :: !global_typ_acc;
+
+          (* Reset cnames and ckeys to the old value. Only affects anonymous structs/unions where names are not checked for equality. *)
+          if compinfo1.cname <> compinfo2.cname then
+            compinfo2.cname <- compinfo1.cname;
+          if compinfo1.ckey <> compinfo2.ckey then
+            compinfo2.ckey <- compinfo1.ckey;
+        end;
         res
       )
     | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 ~rename_mapping ~acc && GobList.equal (eq_attribute ~rename_mapping ~acc) attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
