@@ -7,10 +7,9 @@ type edge = MyCFG.edge
 module SigmaMap = Map.Make(CilType.Varinfo)
 
 (* Value domain for variables contained in sigma mapping.
-   The supported types are: Integer, Float and Address of a variable *)
+   The supported types are: Integer and Address of a variable *)
 type varDomain = 
-Int of Cilint.cilint * Cilint.cilint * ikind 
-| Float of float * float * fkind
+  Int of Cilint.cilint * Cilint.cilint * ikind
 | Address of varinfo   
 | Error
 
@@ -18,19 +17,16 @@ let equal_varDomain vd1 vd2 =
   match vd1, vd2 with
   Int(iLower1, iUpper1, ik1), Int(iLower2, iUpper2, ik2) -> (Big_int_Z.eq_big_int iLower1 iLower2) && (Big_int_Z.eq_big_int iUpper1 iUpper2)
   && (CilType.Ikind.equal ik1 ik2)
-  | Float(fLower1, fUpper1, fk1), Float(fLower2, fUpper2, fk2) -> (fLower1 = fLower2) && (fUpper1 = fUpper2) && (CilType.Fkind.equal fk1 fk2)
   | Address(vinfo1), Address(vinfo2) -> CilType.Varinfo.equal vinfo1 vinfo2
   | _ -> false
 
   let show_valuedomain vd =
     match vd with Int(iLower, iUpper, ik) -> "Integer of ["^(Big_int_Z.string_of_big_int iLower)^";"^(Big_int_Z.string_of_big_int iUpper)^"] with ikind: "^(CilType.Ikind.show ik)
-    | Float(fLower,fUpper, fk) -> "Float of ["^(string_of_float fLower)^";"^(string_of_float fUpper)^"] with fkind: "^(CilType.Fkind.show fk)
     | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
     | Error -> "ERROR"
 
 let hash_valuedomain vd =
   match vd with Int(iLower, iUpper, ik) -> Big_int_Z.int_of_big_int (Big_int_Z.sub_big_int iLower iUpper)
-  | Float(fLower,fUpper, fk) -> int_of_float (fLower -. fUpper)
   | Address(vinfo) -> CilType.Varinfo.hash vinfo
   | Error -> 13
 
