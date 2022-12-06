@@ -608,26 +608,36 @@ struct
   let minimal = function None -> None | Some (x,y) -> Some x
 
   let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
-  let threshold_ref = ref @@ lazy (get_bool "ana.int.interval_threshold_widening")
-  let ts_ref = ref @@ lazy (if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds)
-  let ts_ref_desc = ref @@ lazy (if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc)
 
-  let interval_threshold_widening_ref = ref @@ get_bool "ana.int.interval_threshold_widening"
+  (* This is a container variable for holding the config value of ana.int.interval_threshold_widening *)
+  let interval_threshold_widening_ref: float_precision option ref = ref None
+  
+  let get_interval_threshold_widening_ref (): float_precision option =
+    if !interval_threshold_widening_ref = None then
+      let config_value = Some (get_bool "ana.int.interval_threshold_widening") in
+      interval_threshold_widening_ref := config_value; !interval_threshold_widening_ref
+    else
+      !interval_threshold_widening_ref
+
+  let extract_from_option (x: float_precision option): float_precision =
+    match x with
+    | None -> failwith "Config option not read"
+    | Some x -> x
 
   let widen ik x y =
     match x, y with
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
-      let threshold = Lazy.force !threshold_ref in
+      let threshold = extract_from_option @@ get_interval_threshold_widening_ref () in
       let upper_threshold u =
-        let ts = Lazy.force !ts_ref in
+        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
         let u = Ints_t.to_bigint u in
         let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
         BatOption.map_default Ints_t.of_bigint max_ik t
       in
       let lower_threshold l =
-        let ts = Lazy.force !ts_ref_desc in
+        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
         let l = Ints_t.to_bigint l in
         let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
         BatOption.map_default Ints_t.of_bigint min_ik t
