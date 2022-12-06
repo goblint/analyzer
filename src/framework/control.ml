@@ -670,7 +670,7 @@ struct
       YWitness.validate ()
     );
 
-    let module Q = YamlWitness.Query (Spec) (EQSys) (GHT) in
+    let module Query = ResultQuery.Query (SpecSys) in
     let module NH = BatHashtbl.Make (Node) in
     (* copied from Constraints.CompareNode *)
     let nh = NH.create 113 in
@@ -681,7 +681,7 @@ struct
 
     WarnPostProc.ask := (fun node ->
         let local = (NH.find nh node) in
-        { Queries.f    = (fun (type a) (q: a Queries.t) -> Q.ask_local_node gh node local q)}
+        { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node local q)}
       );
 
     if get_bool "ana.warn-postprocess.enabled" then (

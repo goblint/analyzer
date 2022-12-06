@@ -127,6 +127,8 @@ struct
 
   let box _ _ _ = failwith "TODO"
 
+  let sys_change _ = failwith "TODO"
+
   let conds_in s = Dom.fold (fun (cond,alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
 
   let rel_alarms c s = Dom.fold (fun (cond,alarm) alarms -> AlarmSet.add alarm alarms) s (AlarmSet.empty ())
@@ -183,7 +185,9 @@ struct
       in
       Some f
 
-  let increment = Analyses.empty_increment_data ()
+  let increment = None
+
+  (* let sys_change  *)
 
   let iter_vars _ _ _ = ()
 end
@@ -199,6 +203,8 @@ struct
   type d = Dom.t
 
   let box _ _ _ = failwith "TODO"
+
+  let sys_change _ = failwith "TODO"
 
   let conds_in s = Dom.fold (fun (cond, orig_alarm, rel_alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
 
@@ -274,7 +280,7 @@ struct
       in
       Some f
 
-  let increment = Analyses.empty_increment_data ()
+  let increment = None
 
   let iter_vars _ _ _ = ()
 end
@@ -323,7 +329,7 @@ let finalize _ =
   (* NH.iter (fun k (cond, a) -> ignore (Pretty.printf "%a->%a, %a\n" Node.pretty_trace k Cond.pretty cond Alarm.pretty a)) alarmsNH; *)
 
   let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
-  let (solution, _) = Solver.solve Ant.box [] [start_node] in
+  let (solution, _) = Solver.solve Ant.box [] [start_node] None in
 
   antSolHM := solution;
 
@@ -368,7 +374,7 @@ let finalize _ =
 
   let end_node = `G (Node.Function fd) in
   let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
-  let (solution_av, _) = SolverAv.solve Av.box [] [end_node] in
+  let (solution_av, _) = SolverAv.solve Av.box [] [end_node] None in
 
   avSolHM := solution_av;
 
