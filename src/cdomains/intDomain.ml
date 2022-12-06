@@ -612,12 +612,13 @@ struct
   let ts_ref = ref @@ lazy (if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds)
   let ts_ref_desc = ref @@ lazy (if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc)
 
+  let interval_threshold_widening_ref = ref @@ get_bool "ana.int.interval_threshold_widening"
+
   let widen ik x y =
     match x, y with
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
-      (*let threshold_ref = ref @@ get_bool "ana.int.interval_threshold_widening" in*)
       let threshold = Lazy.force !threshold_ref in
       let upper_threshold u =
         let ts = Lazy.force !ts_ref in
@@ -651,8 +652,10 @@ struct
       let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
 
+  let interval_narrow_by_meet_ref = ref @@ get_bool "ana.int.interval_narrow_by_meet"
+
   let narrow ik x y =
-    if get_bool "ana.int.interval_narrow_by_meet" then
+    if !interval_narrow_by_meet_ref then
       meet ik x y
     else
       narrow ik x y
@@ -1411,8 +1414,10 @@ struct
 
   let join ik = join' ik
 
+  let widen_by_join_ref = ref @@ get_bool "ana.int.def_exc_widen_by_join"
+
   let widen ik x y =
-    if get_bool "ana.int.def_exc_widen_by_join" then
+    if !widen_by_join_ref then
       join' ik x y
     else if equal x y then
       x
