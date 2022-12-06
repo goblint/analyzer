@@ -33,7 +33,8 @@ incrementally (activating the option `incremental.load`) with some changes to th
 configuration. The respective `asserts` and expected results are checked in both runs.
 
 ### Running
-The incremental tests can be run with `./scripts/update_suite.rb -i`.
+The incremental tests can be run with `./scripts/update_suite.rb -i`. With `./scripts/update_suite.rb -c` the
+incremental tests are run using the more fine-grained cfg-based change detection.
 
 ### Writing
 An incremental test case consists of three files with the same file name: the `.c` file with the initial program, a
