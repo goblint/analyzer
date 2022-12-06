@@ -102,7 +102,7 @@
   (release
     (flags (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   (ocamlopt_flags
-    (:standard -O3 -inline-toplevel=400 -inline-max-depth=1 -inline-max-unroll=0))
+    (:standard -O3))
   )
   (dev
     (flags (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
