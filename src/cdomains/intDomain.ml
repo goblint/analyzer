@@ -662,10 +662,24 @@ struct
       let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
 
-  let interval_narrow_by_meet_ref = ref @@ get_bool "ana.int.interval_narrow_by_meet"
+
+  (* This is a container variable for holding the config value of ana.int.interval_narrow_by_meet *)
+  let interval_narrow_by_meet_ref: float_precision option ref = ref None
+  
+  let get_interval_narrow_by_meet_ref (): float_precision option =
+    if !interval_narrow_by_meet_ref = None then
+      let config_value = Some (get_bool "ana.int.interval_narrow_by_meet") in
+      interval_narrow_by_meet_ref := config_value; !interval_narrow_by_meet_ref
+    else
+      !interval_narrow_by_meet_ref
+
+  let extract_from_option (x: float_precision option): float_precision =
+    match x with
+    | None -> failwith "Config option not read"
+    | Some x -> x
 
   let narrow ik x y =
-    if !interval_narrow_by_meet_ref then
+    if extract_from_option @@ get_interval_narrow_by_meet_ref () then
       meet ik x y
     else
       narrow ik x y
@@ -1424,10 +1438,24 @@ struct
 
   let join ik = join' ik
 
-  let widen_by_join_ref = ref @@ get_bool "ana.int.def_exc_widen_by_join"
+
+  (* This is a container variable for holding the config value of ana.int.def_exc_widen_by_join *)
+  let widen_by_join_ref: float_precision option ref = ref None
+  
+  let get_widen_by_join_ref (): float_precision option =
+    if !widen_by_join_ref = None then
+      let config_value = Some (get_bool "ana.int.def_exc_widen_by_join") in
+      widen_by_join_ref := config_value; !widen_by_join_ref
+    else
+      !widen_by_join_ref
+
+  let extract_from_option (x: float_precision option): float_precision =
+    match x with
+    | None -> failwith "Config option not read"
+    | Some x -> x
 
   let widen ik x y =
-    if !widen_by_join_ref then
+    if extract_from_option @@ get_widen_by_join_ref () then
       join' ik x y
     else if equal x y then
       x
