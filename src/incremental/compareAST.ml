@@ -103,10 +103,8 @@ and eq_typ_acc (a: typ) (b: typ) ~(acc: (typ * typ) list) ~(rename_mapping: rena
           global_typ_acc := (a, b) :: !global_typ_acc;
 
           (* Reset cnames and ckeys to the old value. Only affects anonymous structs/unions where names are not checked for equality. *)
-          if compinfo1.cname <> compinfo2.cname then
-            compinfo2.cname <- compinfo1.cname;
-          if compinfo1.ckey <> compinfo2.ckey then
-            compinfo2.ckey <- compinfo1.ckey;
+          compinfo2.cname <- compinfo1.cname;
+          compinfo2.ckey <- compinfo1.ckey;
         end;
         res
       )
