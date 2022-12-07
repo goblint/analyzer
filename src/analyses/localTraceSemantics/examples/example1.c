@@ -1,7 +1,10 @@
 void main() {
-  int x = 3;
-  while (x < 4) {
-    x++;
+  int unknown;
+  int x;
+  if (2 < unknown) {
+    x = 3;
+  } else {
+    x = 7;
   }
 }
 
@@ -22,7 +25,7 @@ void main() {
 
 // Code für den Fehler in loops
 // int x = 3;
-// while (x < 4) {
+// while (x < 7) {
 //   x++;
 // }
 
@@ -34,3 +37,12 @@ void main() {
 //   } else {
 //     x = x + 2147483647;
 //   }
+
+// Code für Lt, wo der Fixpoint angeblich nicht erreicht wird
+// int unknown;
+// int x;
+// if (2 < unknown) {
+// x = 3;
+// } else {
+//   x = 7;
+// }

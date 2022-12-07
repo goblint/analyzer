@@ -97,6 +97,28 @@ in
 
 (* binop expressions *)
 (* Lt could be a special case since it has side-effects on sigma *)
+| BinOp(Lt, binopExp1,Lval(Var(var), NoOffset),TInt(biopIk, _)) ->(
+match eval_helper binopExp1 with 
+| (Int(l, u, k), true, sigSide) -> (
+  if SigmaMap.mem var sigSide then
+    (match SigmaMap.find var sigSide with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
+        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+  else if SigmaMap.mem var sigOld then
+    (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
+        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+  else ( 
+    let sigTmp = NodeImpl.destruct_add_sigma sigSide (SigmaMap.add var (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), Big_int_Z.big_int_of_int intMax, k)) (SigmaMap.empty))
+in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
+    )
+)
+| (_,false, sigSide) -> nopVal sigSide
+| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+)
+
 | BinOp(Lt, Lval(Var(var), NoOffset), binopExp2,TInt(biopIk, _)) -> (
   match eval_helper binopExp2 with 
   | (Int(l, u, k), true, sigSide) -> (
@@ -182,13 +204,16 @@ Int(i1,i2,_) -> if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int
 else 1
   |_ -> -1
 in
-let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
+let sigmaNew = SigmaMap.remove branch_vinfo (NodeImpl.destruct_add_sigma sigma result_branch)
 in
-if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph myEdge else graph)
+print_string ("result_as_int: "^(string_of_int result_as_int)^"\n");
+let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigmaNew})
+in
+if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph myEdge else (print_string "no edge added for current sigma in branch\n";graph))
 in
 let tmp = List.fold branch_helper g oldSigma 
 in
-if LocalTraces.equal g tmp then set else
+if LocalTraces.equal g tmp then (print_string "No changes on graph in branch, thus this one is not added\n";set) else
   D.add tmp set 
 in
 let tmp2 =
