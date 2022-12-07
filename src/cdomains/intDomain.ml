@@ -1318,9 +1318,17 @@ struct
   List.fold_left (meet ik) intv excl_list
 
   let project ik p t = t
+  let arbitrary ik =
+    let open QCheck.Iter in
+    (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
+    (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
+    let pair_arb = QCheck.pair int_arb int_arb in
+    let list_pair_arb = QCheck.small_list pair_arb in
+    let canonize_randomly_generated_list = fun x -> List.map (fun x -> Some x) x |> List.map (norm ik) |> List.filter_map (fun x -> x) |> canonize in
+    let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
+    in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
   
-  let arbitrary _ik = failwith "Not implemented yet"
-
 end
 
 module IntIkind = struct let ikind () = Cil.IInt end
