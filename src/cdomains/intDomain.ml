@@ -1317,7 +1317,7 @@ struct
   | Some (xs, range) -> let excl_list = List.map (excl_to_intervalset ik range) xs in 
   List.fold_left (meet ik) intv excl_list
 
-  let project _ik _ip _x = failwith "Not implemented yet"
+  let project ik p t = t
   
   let arbitrary _ik = failwith "Not implemented yet"
 
