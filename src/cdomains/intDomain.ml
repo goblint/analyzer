@@ -1204,9 +1204,50 @@ struct
 
   let cast_to ?torg ?no_ov ik = List.map (norm ~cast:true ik |> Option.get)
 
-  let narrow _x _y _z  = failwith "Not implemented yet"
+  let leq_interval x y =
+    match x, y with
+    | None, _ -> true
+    | Some _, None -> false
+    | Some (x1,x2), Some (y1,y2) -> Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
 
-  let widen _x  = failwith "Not implemented yet"
+  let join_interval ik x y =
+    match x, y with
+    | None, z | z, None -> z
+    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2)
+
+  let rec interval_sets_to_partitions (ik :ikind) (acc : (int_t*int_t) option ) (xs:t) (ys:t)= 
+      match xs,ys with 
+      | _, [] -> []
+      |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
+      |(x::xs), (y::ys) when  leq_interval (Some x) (Some y) -> interval_sets_to_partitions ik (join_interval ik acc (Some x)) xs (y::ys)
+      |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
+  
+  let partitions_are_approaching  x y = match x,y with 
+   (Some (_,ar),(_,br)),(Some (al,_),(bl,_)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
+    | _,_ -> false
+
+  let merge_pair ik (a,b) (c,d) = (join_interval ik a c, (join_interval ik (Some b) (Some d) |> Option.get))
+  
+  let rec merge_list ik = function 
+    | [] -> []
+    | x::y::xs  when partitions_are_approaching x y -> merge_list ik ((merge_pair ik x y) :: xs)
+    | x::xs -> x :: merge_list ik xs
+
+  let narrow _x _y _z = failwith "Not implemented yet"
+
+  let widen ik xs ys =  let (min_ik,max_ik) = range ik in interval_sets_to_partitions ik None xs ys |> merge_list ik |> (function
+    | [] -> []
+    | (None,(lb,rb))::ts -> (None, (min_ik,rb))::ts
+    | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare lb la < 0 -> (Some (la,ra),(min_ik,rb))::ts
+    | x  -> x)
+    |> List.rev
+    |> (function
+    | [] -> []
+    | (None,(lb,rb))::ts -> (None, (lb,max_ik))::ts
+    | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare ra rb < 0 -> (Some (la,ra),(lb,max_ik))::ts
+    | x  -> x)
+    |> List.rev
+    |> List.map snd  
 
   let starting ?(suppress_ovwarn=false) ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)] 
 
@@ -1270,7 +1311,7 @@ struct
     let intv1 = norm ik @@ Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.sub excl Ints_t.one) in
     let intv2 = norm ik @@ Some (Ints_t.add excl Ints_t.one,  Ints_t.of_bigint (Size.max_from_bit_range rh)) in
    [intv1; intv2] |> List.filter_map (fun x -> x)
-   
+
   let refine_with_excl_list ik (intv : t) = function
   | None -> []
   | Some (xs, range) -> let excl_list = List.map (excl_to_intervalset ik range) xs in 
