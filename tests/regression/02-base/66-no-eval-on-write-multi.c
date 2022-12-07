@@ -1,5 +1,5 @@
-//PARAM: --enable ana.int.interval --enable ana.int.enums --exp.privatization "write" -v
-
+//PARAM: --enable ana.int.interval --enable ana.int.enums --ana.base.privatization "write" -v
+#include <goblint.h>
 #include<pthread.h>
 
 // Test case that shows how avoiding reading integral globals can reduce the number of solver evaluations.
@@ -29,7 +29,7 @@ int main() {
   bar();
   pthread_mutex_unlock(&mutex);
   pthread_join(t, NULL);
-  assert(glob >= 1);
-  assert(glob <= 10);
+  __goblint_check(glob >= 1);
+  __goblint_check(glob <= 10);
   return 0;
 }

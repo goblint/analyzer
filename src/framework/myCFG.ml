@@ -1,6 +1,6 @@
 (** Our Control-flow graph implementation. *)
 
-open Cil
+open GoblintCil
 
 (** Re-exported [Node.t] with constructors. See [Node.t] for documentation. *)
 type node = Node.t =
@@ -18,7 +18,6 @@ type edge = Edge.t =
   | ASM of string list * Edge.asm_out * Edge.asm_in
   | VDecl of CilType.Varinfo.t
   | Skip
-  | SelfLoop
 
 
 type edges = (location * edge) list
@@ -45,10 +44,25 @@ end
 module NodeH = BatHashtbl.Make (Node)
 
 
-let current_node : node option ref = ref None
+let current_node = Node.current_node
+let current_cfg : (module CfgBidir) ref =
+  let module Cfg =
+  struct
+    let next _ = raise Not_found
+    let prev _ = raise Not_found
+  end
+  in
+  ref (module Cfg: CfgBidir)
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
 let dummy_node = FunctionEntry Cil.dummyFunDec
 
 let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
+
+
+module type FileCfg =
+sig
+  val file: Cil.file
+  module Cfg: CfgBidir
+end

@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 
 module M = Messages
 
@@ -21,7 +21,7 @@ sig
   val string_of_record: r -> string
 
   (* constructing *)
-  val make: k -> location list -> s -> t
+  val make: k -> Node.t list -> s -> t
 
   (* manipulation *)
   val map: (r -> r) -> t -> t
@@ -42,8 +42,8 @@ sig
   val may: (r -> bool) -> t -> bool
   (* properties of records *)
   val key: r -> k
-  val loc: r -> location list
-  val edit_loc: (location list -> location list) -> r -> r
+  val loc: r -> Node.t list
+  val edit_loc: (Node.t list -> Node.t list) -> r -> r
   val state: r -> s
   val in_state: s -> r -> bool
 
@@ -60,28 +60,17 @@ sig
 end
 
 module Value (Impl: sig
-    type s (* state *)
+    type s (* state *) [@@deriving eq, ord, hash]
     val name: string
     val var_state: s
     val string_of_state: s -> string
-    val compare: s -> s -> int
   end) : S with type s = Impl.s =
 struct
-  type k = Lval.CilLval.t
-  type s = Impl.s
+  type k = Lval.CilLval.t [@@deriving eq, ord, hash]
+  type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
     include Printable.Blank
-    type t = { key: k; loc: location list; state: s }
-    let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc (* FIXME: polymorphic list equal! *) && a.state = b.state
-
-    let compare a b =
-      let r = Lval.CilLval.compare a.key b.key in
-      if r <> 0 then r else
-        let r = compare a.loc b.loc in (* FIXME: polymorphic list compare! *)
-        if r <> 0 then r else
-          Impl.compare a.state b.state
-
+    type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
     let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
   end
@@ -92,6 +81,7 @@ struct
   module Must = Lattice.Reverse (Must')
   module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)
   include Lattice.Prod (Must) (May)
+  let name () = Impl.name
 
   (* converts to polymorphic sets *)
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
@@ -104,7 +94,7 @@ struct
 
   (* Printing *)
   let string_of_key k = Lval.CilLval.show k
-  let string_of_loc xs = String.concat ", " (List.map CilType.Location.show xs)
+  let string_of_loc xs = String.concat ", " (List.map (CilType.Location.show % Node.location) xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =
     if is_alias (x,y) then
@@ -115,7 +105,7 @@ struct
       "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let show x = string_of x
-  include Printable.PrintSimple (struct
+  include Printable.SimpleShow (struct
       type nonrec t = t
       let show = show
     end)
@@ -133,8 +123,6 @@ struct
   let length = split %> Tuple2.mapn Set.cardinal
   let map' f = split %> Tuple2.mapn (Set.map f)
   let filter' f = split %> Tuple2.mapn (Set.filter f)
-
-  let locs ?p:(p=const true) v = filter p v |> map' (fun x -> x.loc) |> snd |> Set.elements
 
   (* predicates *)
   let must   p (x,y) = Must'.exists p x || May.for_all p y
@@ -222,7 +210,7 @@ struct
   (* callstack for locations *)
   let callstack_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
   let callstack m = get_record callstack_var m |> Option.map_default V.loc []
-  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map CilType.Location.show (callstack m))^"]"
+  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (CilType.Location.show % Node.location) (callstack m))^"]"
   let edit_callstack f m = edit_record callstack_var (V.edit_loc f) m
 
 
@@ -250,15 +238,30 @@ struct
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
-  let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> (if may then Messages.warn else Messages.error) ~loc:(List.last loc) "%s" msg
-    | h :: t ->
-      let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn else Messages.error) ~loc:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
+  let warn ?may:(may=false) ?loc:(loc=[Option.get !Node.current_node]) msg =
+    let split_category s =
+      if Str.string_partial_match (Str.regexp {|\[\([^]]*\)\]|}) s 0 then
+        (Some (Str.matched_group 1 s), Str.string_after s (Str.match_end ()))
+      else
+        (None, s)
+    in
+    let rec split_categories s =
+      match split_category s with
+      | (Some category, s') ->
+        let (categories, s'') = split_categories s' in
+        (category :: categories, s'')
+      | (None, s') -> ([], s')
+    in
+    match split_categories msg with
+    | ([], msg) -> (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) "%s" msg
+    | (category :: categories, msg) ->
+      let category_of_string s = Messages.Category.from_string_list [String.lowercase_ascii s] in (* TODO: doesn't split subcategories, not used and no defined syntax even *)
+      let category = category_of_string category in
+      let tags = List.map (fun category -> Messages.Tag.Category (category_of_string category)) categories in
+      (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category ~tags "%s" msg
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint 80 (f () x)
+  let sprint f x = Pretty.sprint ~width:80 (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
@@ -275,6 +278,6 @@ struct
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     let pretty_key k = Pretty.text (string_of_key k) in
-    Messages.debug "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
+    Messages.debug ~category:Analyzer "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
     xs
 end

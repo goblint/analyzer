@@ -1,9 +1,11 @@
 //PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
-int main() __attribute__((goblint_precision("no-def_exc","enums"))) {
+int main() __attribute__((goblint_precision("no-def_exc","enums")));
+
+int main() {
     int x = 2;
     int y = 3;
     int n = 0;
@@ -11,40 +13,40 @@ int main() __attribute__((goblint_precision("no-def_exc","enums"))) {
     int z;
 
     // logical and
-    assert((x && y) == 1);
+    __goblint_check((x && y) == 1);
 
     z = x & y; // bitwise and
-    assert(z == 2);
+    __goblint_check(z == 2);
 
     // logical or
-    assert((x || y) == 1);
+    __goblint_check((x || y) == 1);
 
-    assert((x || 1) == 1);
+    __goblint_check((x || 1) == 1);
 
     z = x | y; // bitwise or
-    assert(z == 3);
+    __goblint_check(z == 3);
 
     z = x ^ y; // bitwise xor
-    assert(z == 1);
+    __goblint_check(z == 1);
 
     // logical negation
-    assert(!x == 0);
+    __goblint_check(!x == 0);
 
     z = !n;
-    assert(z == 1);
+    __goblint_check(z == 1);
 
     z = ~x; // bitwise negation
-    assert(z == -3);
+    __goblint_check(z == -3);
 
     z = x << y; // shift left
-    assert(z == 16); //UNKNOWN
+    __goblint_check(z == 16); //UNKNOWN
 
     z = m >> x; // shift right
-    assert(z == 6); //UNKNOWN
+    __goblint_check(z == 6); //UNKNOWN
 
     int one = 1;
     z = one / 10;
-    assert(z == 0);
+    __goblint_check(z == 0);
 
     return 0;
 }

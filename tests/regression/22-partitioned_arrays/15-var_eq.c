@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','var_eq']" --set exp.privatization none
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated[+] var_eq
+#include <goblint.h>
+
 int global;
 
 int main(void)
@@ -25,5 +27,5 @@ void example1(void)
 
     arr[top] = 42;
     top2 = top;
-    assert(arr[top2] == 42);
+    __goblint_check(arr[top2] == 42);
 }

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set exp.privatization none
+// PARAM: --set ana.activated[+] uninit
 typedef struct {
 	int i;
 } S;
@@ -43,6 +43,7 @@ int main(){
 
 	mod_S1(&tt1.s); //NOWARN
 	mod_S2(&tt2.s); //NOWARN
+
 	mod_S31(&tt3.s); //NOWARN
 	mod_S32(&tt3.s); //NOWARN
 

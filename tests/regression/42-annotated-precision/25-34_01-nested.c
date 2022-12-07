@@ -2,8 +2,11 @@
 // Example from Amato-Scozzari, SAS 2013
 // Localized widening should be able to prove that i=10 at the end
 // of the nested loops.
+#include <goblint.h>
 
-void main() __attribute__((goblint_precision("no-def_exc","interval")))
+void main() __attribute__((goblint_precision("no-def_exc","interval")));
+
+void main()
 {
    int i = 0;
 
@@ -11,5 +14,5 @@ void main() __attribute__((goblint_precision("no-def_exc","interval")))
      for (int j = 0; j < 10 ; j++) ;
    }
 
-   assert(i == 10);
+   __goblint_check(i == 10);
 }

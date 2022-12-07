@@ -1,4 +1,4 @@
-// PARAM:  --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval --enable ana.int.enums
+// PARAM: --enable ana.arrayoob --enable ana.int.interval --enable ana.int.enums
 #include <stdio.h>
 //This is the most basic case
 int main()

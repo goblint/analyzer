@@ -5,8 +5,7 @@ module LF = LibraryFunctions
 
 open Prelude.Ana
 open Analyses
-
-let (let+) xs f = List.map f xs (* TODO: move to general library *)
+open GobList.Syntax
 
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted
@@ -34,7 +33,7 @@ struct
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
@@ -56,13 +55,7 @@ struct
 
   let branch ctx exp tv = ctx.local
 
-  let return ctx exp fundec  =
-    match fundec.svar.vname with
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      (ThreadLifted.top (), TD.bot ()) (* TODO: what should TD be? *)
-    | _ ->
-      ctx.local
+  let return ctx exp fundec = ctx.local
 
   let assign ctx (lval:lval) (rval:exp) : D.t  =
     ctx.local
@@ -78,15 +71,6 @@ struct
   let is_unique ctx =
     ctx.ask Queries.MustBeUniqueThread
 
-  let part_access ctx e v w =
-    let es = Access.LSSet.empty () in
-    if is_unique ctx then
-      let tid = fst ctx.local in
-      let tid = ThreadLifted.show tid in
-      (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
-    else
-      (Access.LSSSet.singleton es, es)
-
   let created (current, td) =
     match current with
     | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
@@ -96,14 +80,29 @@ struct
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.CreatedThreads -> created ctx.local
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
     | Queries.MustBeUniqueThread ->
       begin match fst ctx.local with
         | `Lifted tid -> Thread.is_unique tid
         | _ -> Queries.MustBool.top ()
       end
     | _ -> Queries.Result.top x
+
+  module A =
+  struct
+    include Printable.Option (ThreadLifted) (struct let name = "nonunique" end)
+    let name () = "thread"
+    let may_race (t1: t) (t2: t) = match t1, t2 with
+      | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> false (* only unique threads *)
+      | _, _ -> true
+    let should_print = Option.is_some
+  end
+
+  let access ctx _ =
+    if is_unique ctx then
+      let tid = fst ctx.local in
+      Some tid
+    else
+      None
 
   let threadenter ctx lval f args =
     let+ tid = create_tid ctx.local ctx.prev_node f in

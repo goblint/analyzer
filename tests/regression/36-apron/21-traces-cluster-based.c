@@ -1,8 +1,8 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 42;
 int h = 42;
@@ -32,7 +32,7 @@ void *t2_fun(void *arg) {
   x = g;
   y = h;
   pthread_mutex_unlock(&A);
-  assert(y <= x);
+  __goblint_check(y <= x);
   return NULL;
 }
 
@@ -45,7 +45,7 @@ void *t3_fun(void *arg) {
   y = h;
   pthread_mutex_unlock(&A);
   pthread_mutex_unlock(&B);
-  assert(y == x); // TODO (mutex-meet succeeds, protection unknown)
+  __goblint_check(y == x); // TODO (mutex-meet succeeds, protection unknown)
   return NULL;
 }
 
@@ -63,9 +63,9 @@ int main(void) {
   x = g;
   y = h;
   pthread_mutex_lock(&B);
-  assert(y == x); // TODO (mutex-meet succeeds, protection unknown)
+  __goblint_check(y == x); // TODO (mutex-meet succeeds, protection unknown)
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
-  assert(y == x); // TODO (mutex-meet succeeds, protection unknown)
+  __goblint_check(y == x); // TODO (mutex-meet succeeds, protection unknown)
   return 0;
 }

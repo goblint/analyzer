@@ -1,8 +1,11 @@
-// PARAM:  --set dbg.debug true --enable ana.arrayoob --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --enable ana.arrayoob --enable annotation.int.enabled --set ana.int.refinement fixpoint
 // Arrays within structures. Source of sample struct:
 // https://codeforwin.org/2018/07/how-to-declare-initialize-and-access-array-of-structure.html
 #include <stdio.h>
-int main() __attribute__((goblint_precision("no-def_exc","interval"))) {
+
+int main() __attribute__((goblint_precision("no-def_exc","interval")));
+
+int main() {
   struct student {
     char name[100];
     int roll;

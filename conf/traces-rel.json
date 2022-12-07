@@ -5,24 +5,6 @@
       "interval": false,
       "enums": true
     },
-    "exp": {
-
-    }
-  },
-  "sem": {
-    "unknown_function": {
-      "invalidate": {
-        "globals": false
-      },
-      "spawn": true
-    },
-    "builtin_unreachable": {
-      "dead_code": true
-    }
-  },
-  "exp": {
-    "privatization": "mutex-meet",
-    "priv-distr-init": false,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -43,15 +25,63 @@
         "ldv_calloc"
       ]
     },
-    "solver" : {
-      "td3": {
-        "side_widen" : "sides-pp"
+    "base" : {
+      "privatization": "mutex-meet",
+      "invariant": {
+        "enabled": false
+      },
+      "eval": {
+        "deep-query": false
       }
+    },
+    "apron": {
+      "invariant": {
+        "one-var": true,
+        "local": true,
+        "global": true,
+        "diff-box": false
+      }
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "invalidate": {
+        "globals": false
+      },
+      "spawn": true
+    },
+    "builtin_unreachable": {
+      "dead_code": true
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    }
+  },
+  "exp": {
+    "priv-distr-init": false
+  },
+  "solvers" : {
+    "td3": {
+      "side_widen" : "sides-pp"
     }
   },
   "dbg" : {
     "print_tids" : true,
     "print_wpoints" : true,
     "print_protection": true
+  },
+  "witness": {
+    "invariant": {
+      "other": false,
+      "loop-head": false,
+      "after-lock": true
+    }
+  },
+  "pre": {
+    "cppflags": [
+      "-DGOBLINT_NO_PTHREAD_ONCE",
+      "-DGOBLINT_NO_QSORT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
   }
 }

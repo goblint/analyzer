@@ -1,6 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last"
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int fun_5() { return 5; }
 int fun_6() { return 6; }
@@ -29,73 +29,73 @@ int main () {
   if (i) top = (int) &top;
   else   top = 5;
 
-  assert(a[0] == 2);
-  assert(a[1] == 2);
-  assert(a[2] == 2);
+  __goblint_check(a[0] == 2);
+  __goblint_check(a[1] == 2);
+  __goblint_check(a[2] == 2);
 
   // writing to unknown index:
   // NB! We assume the index is in bounds!
   if (k1) i=0; else i=1;
   a[i] = 0;
-  assert(a[0] == 0); // UNKNOWN
-  assert(a[1] == 0); // UNKNOWN
-  assert(a[2] == 0); // FAIL
+  __goblint_check(a[0] == 0); // UNKNOWN
+  __goblint_check(a[1] == 0); // UNKNOWN
+  __goblint_check(a[2] == 0); // FAIL
 
   // reading from unknown index:
   b[0] = 2; b[1] = 2;
-  assert(b[i] == 2);
+  __goblint_check(b[i] == 2);
   b[0] = 3;
-  assert(b[i] == 2); // UNKNOWN
+  __goblint_check(b[i] == 2); // UNKNOWN
 
   // function arrays
   t = f[i]();
-  assert(t == 5); // UNKNOWN
+  __goblint_check(t == 5); // UNKNOWN
   t = g[i]();
-  assert(t == 5);
+  __goblint_check(t == 5);
 
   // array has set of addresses:
   if (k2) f[i] = fun_5b;
   t = f[1]();
-  assert(t == 5); // UNKNOWN
+  __goblint_check(t == 5); // UNKNOWN
 
   // now we collect all the sets:
   fp = f[i];
   t = fp();
-  assert(t == 5); // UNKNOWN
+  __goblint_check(t == 5); // UNKNOWN
   fp = g[i];
   t = fp();
-  assert(t == 5);
+  __goblint_check(t == 5);
 
   //  NASTY ARRAY OPS:
   c[0] = 5; c[1] = 5; c[2] = 5;
   // this is not usual: a pointer to an array (easy!)
   iap = &c;
   t = (*iap)[2];
-  assert(t == 5);
+  __goblint_check(t == 5);
 
   // Typical C: a pointer to first element of array (difficult!)
   ip = c; // this means &c[0]
 
   // dereferencing...
-  assert(*ip == 5);
+  __goblint_check(*ip == 5);
 
   // pointing into the array
   ip = &c[1];
-  assert(*ip == 5);
+  __goblint_check(*ip == 5);
 
   // and some pointer arithmetic (tests are meaningless)
   *ip = 6;
   ip++;
-  assert(*ip == 5);
+  __goblint_check(*ip == 5);
 
   // Now testing arrays inside structs.
   struct kala x;
   ip = x.a;
   x.a[0] = 7;
-  assert(*ip == 7);
+  __goblint_check(*ip == 7);
 
   // (typeless) Top index
-  assert(x.a[top] == 7); // UNKNOWN
+  __goblint_check(x.a[top] == 7); // UNKNOWN
 
   // And finally array of structs
   struct kala xs[5];
@@ -104,12 +104,12 @@ int main () {
 
   struct kass k[1];
   k[0].v = 42;
-  assert(k[0].v == 42);
+  __goblint_check(k[0].v == 42);
 
   // multi-dim arrays
   int ma[1][1];
   ma[0][0] = 42;
-  assert(ma[0][0] == 42);
+  __goblint_check(ma[0][0] == 42);
 
   //i = hash("kala");
   //printf("Hash value: %d", i);

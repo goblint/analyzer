@@ -1,6 +1,5 @@
 module GU = Goblintutil
-open Cil
-open Pretty
+open GoblintCil
 
 
 (** Location with special alphanumeric output for extraction. *)
@@ -11,25 +10,24 @@ struct
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module Variables =
 struct
   include CilType.Varinfo
   let trace_enabled = true
-  let is_global v = v.vglob
-  let copy x = x
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
   let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
-  let get_location x = x.vdecl
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function
@@ -39,8 +37,6 @@ struct
     | _ -> Local
   let name () = "variables"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let var_id _ = "globals"
-  let node _ = MyCFG.Function Cil.dummyFunDec
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end
@@ -49,8 +45,7 @@ module RawStrings: Printable.S with type t = string =
 struct
   include Printable.Std
   open Pretty
-  type t = string [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
   let name () = "raw strings"
@@ -67,8 +62,7 @@ module RawBools: Printable.S with type t = bool =
 struct
   include Printable.Std
   open Pretty
-  type t = bool [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = bool [@@deriving eq, ord, hash, to_yojson]
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
   let name () = "raw bools"
@@ -83,8 +77,8 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 
 module CilExp =
 struct
+  include Printable.Std (* for Groupable *)
   include CilType.Exp
-  let copy x = x
 
   let name () = "expressions"
 
@@ -102,10 +96,20 @@ struct
     match e with
     | Lval l -> occurs_lv l
     | AddrOf l -> occurs_lv l
-    | UnOp (_,e,_) -> occurs x e
+    | StartOf l -> occurs_lv l
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
     | CastE (_,e) -> occurs x e
-    | _ -> false
+    | Question (b, t, f, _) -> occurs x b || occurs x t || occurs x f
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _ -> false
 
   let replace (x:varinfo) (exp: exp) (e:exp): exp =
     let rec replace_lv (v,offs): lval =
@@ -121,11 +125,21 @@ struct
       match e with
       | Lval (Var y, NoOffset) when Variables.equal x y -> exp
       | Lval l -> Lval (replace_lv l)
-      | AddrOf l -> Lval (replace_lv l)
+      | AddrOf l -> Lval (replace_lv l) (* TODO: should be AddrOf? *)
+      | StartOf l -> StartOf (replace_lv l)
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
       | CastE (t,e) -> CastE(t, replace_rv e)
-      | x -> x
+      | Real e -> Real (replace_rv e)
+      | Imag e -> Imag (replace_rv e)
+      | SizeOfE e -> SizeOfE (replace_rv e)
+      | AlignOfE e -> AlignOfE (replace_rv e)
+      | Question (b, t, f, typ) -> Question (replace_rv b, replace_rv t, replace_rv f, typ)
+      | Const _
+      | SizeOf _
+      | SizeOfStr _
+      | AlignOf _
+      | AddrOfLabel _ -> e
     in
     constFold true (replace_rv e)
 
@@ -140,7 +154,7 @@ struct
     | AlignOf _
     | Question _
     | AddrOf _
-    | StartOf _ -> []
+    | StartOf _ -> [] (* TODO: return not empty, some may contain vars! *)
     | UnOp (_, e, _ )
     | CastE (_, e)
     | Real e
@@ -153,7 +167,6 @@ end
 module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
-  let copy x = x
   let show x = "<stmt>"
   let pretty = Cilfacade.stmt_pretty_short
 

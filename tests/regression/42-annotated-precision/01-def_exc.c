@@ -1,15 +1,18 @@
 // PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
-#include<assert.h>
+#include <goblint.h>
 
-int f(int in) __attribute__ ((goblint_precision("def_exc", "interval"))) {
+int f(int in) __attribute__ ((goblint_precision("def_exc", "interval")));
+int main() __attribute__ ((goblint_precision("def_exc")));
+
+int f(int in) {
   in++;
   return in;
 }
 
-int main() __attribute__ ((goblint_precision("def_exc"))) {
+int main() {
   int a = 0;
-  assert(a); // FAIL!
+  __goblint_check(a); // FAIL!
   a = f(a);
-  assert(a);
+  __goblint_check(a);
   return 0;
 }

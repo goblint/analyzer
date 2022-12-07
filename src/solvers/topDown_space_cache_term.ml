@@ -16,8 +16,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     type phase = Widen | Narrow
@@ -172,7 +171,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if GobConfig.get_bool "exp.solver.wp.restore" then (
+      if GobConfig.get_bool "solvers.wp.restore" then (
         if (GobConfig.get_bool "dbg.verbose") then
           print_endline ("Restoring missing values.");
         let restore () =
@@ -182,7 +181,7 @@ module WP =
           in
           List.iter get vs
         in
-        Stats.time "restore" restore ();
+        Timing.wrap "restore" restore ();
         if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
       );
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in

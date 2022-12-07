@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Pretty
 
 module GU = Goblintutil
@@ -7,28 +7,31 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving eq, ord]
-
-type ('a,'b) offs_uk = [
-  | `NoOffset
-  | `UnknownOffset
-  | `Field of 'a * ('a,'b) offs
-  | `Index of 'b * ('a,'b) offs
-]
+] [@@deriving eq, ord, hash]
 
 
-let rec listify ofs =
-  match ofs with
-  | `NoOffset -> []
-  | `Field (x,ofs) -> x :: listify ofs
-  | _ -> failwith "Indexing not supported here!"
+(** Subinterface of IntDomain.Z which is sufficient for Printable (but not Lattice) Offset. *)
+module type IdxPrintable =
+sig
+  include Printable.S
+  val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
+  val to_int: t -> IntOps.BigIntOps.t option
+end
 
-module Offset (Idx: IntDomain.Z) =
+module type IdxDomain =
+sig
+  include IdxPrintable
+  include Lattice.S with type t := t
+end
+
+module OffsetPrintable (Idx: IdxPrintable) =
 struct
   type t = (fieldinfo, Idx.t) offs
   include Printable.Std
 
-  let is_first_field x = try CilType.Fieldinfo.equal (List.hd x.fcomp.cfields) x with _ -> false
+  let is_first_field x = match x.fcomp.cfields with
+    | [] -> false
+    | f :: _ -> CilType.Fieldinfo.equal f x
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
@@ -44,7 +47,7 @@ struct
     match x, y with
     | `NoOffset , `NoOffset -> true
     | `NoOffset, x
-    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case *)
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
     | _ -> false
@@ -54,12 +57,17 @@ struct
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  let pretty () x = text (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let rec hash = function
+  let rec hash = function (* special cases not used for AddressDomain any more due to splitting *)
     | `NoOffset -> 1
     | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
     | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
@@ -67,14 +75,14 @@ struct
   let name () = "Offset"
 
   let from_offset x = x
-  let to_offset x = [x]
 
   let rec is_definite = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
-    | `Index (i,o) ->  Idx.is_int i && is_definite o
+    | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
 
   (* append offset o2 to o1 *)
+  (* TODO: unused *)
   let rec add_offset o1 o2 =
     match o1 with
     | `NoOffset -> o2
@@ -82,8 +90,9 @@ struct
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
   let rec compare o1 o2 = match o1, o2 with
-    (* FIXME: forgets to check cmp_zero_offset like equal, cannot derive due to this special case *)
     | `NoOffset, `NoOffset -> 0
+    | `NoOffset, x
+    | x, `NoOffset when cmp_zero_offset x = `MustZero -> 0 (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
     | `Field (f1,o1), `Field (f2,o2) ->
       let c = CilType.Fieldinfo.compare f1 f2 in
       if c=0 then compare o1 o2 else c
@@ -95,11 +104,22 @@ struct
     | `Field _, `Index _ -> -1
     | `Index _, `Field _ ->  1
 
+  let rec to_cil_offset (x:t) =
+    match x with
+    | `NoOffset -> NoOffset
+    | `Field(f,o) -> Field(f, to_cil_offset o)
+    | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+end
+
+module Offset (Idx: IdxDomain) =
+struct
+  include OffsetPrintable (Idx)
+
   let rec leq x y =
     match x, y with
     | `NoOffset, `NoOffset -> true
-    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
-    | x, `NoOffset -> cmp_zero_offset x = `MustZero
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero (* special case not used for AddressDomain any more due to splitting *)
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* special case not used for AddressDomain any more due to splitting *)
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
@@ -109,19 +129,13 @@ struct
     match x, y with
     | `NoOffset, `NoOffset -> `NoOffset
     | `NoOffset, x
-    | x, `NoOffset -> (match cop, cmp_zero_offset x with
+    | x, `NoOffset -> (match cop, cmp_zero_offset x with (* special cases not used for AddressDomain any more due to splitting *)
       | (`Join | `Widen), (`MustZero | `MayZero) -> x
       | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
       | _ -> raise Lattice.Uncomparable)
     | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
-    | _ -> raise Lattice.Uncomparable
-
-  let rec to_cil_offset (x:t) =
-    match x with
-    | `NoOffset -> NoOffset
-    | `Field(f,o) -> Field(f, to_cil_offset o)
-    | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+    | _ -> raise Lattice.Uncomparable (* special case not used for AddressDomain any more due to splitting *)
 
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y
@@ -132,9 +146,6 @@ struct
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
 end
 
 module type S =
@@ -168,21 +179,29 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Normal (Idx: IntDomain.Z) =
+module Normal (Idx: IdxPrintable) =
 struct
   type field = fieldinfo
   type idx = Idx.t
-  module Offs = Offset (Idx)
-  (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
-   * UnknownPtr includes SafePtr *)
-  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord]
-  (* TODO: StrPtr equals problematic if the same literal appears more than once *)
+  module Offs = OffsetPrintable (Idx)
+
+  type t =
+    | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
+    | NullPtr (** NULL pointer. *)
+    | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
+  [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+
+  let hash x = match x with
+    | StrPtr _ ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        13859
+      else
+        hash x
+    | _ -> hash x
+
   include Printable.Std
   let name () = "Normal Lvals"
-
-  let get_location = function
-    | Addr (x,_) -> x.vdecl
-    | _ -> builtinLoc
 
   type group = Basetype.Variables.group
   let show_group = Basetype.Variables.show_group
@@ -191,26 +210,26 @@ struct
     | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
-  let from_var_offset x = Addr x
+  let from_var_offset (x, o) = Addr (x, o)
 
   let to_var = function
-    | Addr (x,_) -> [x]
-    | _          -> []
+    | Addr (x,_) -> Some x
+    | _          -> None
   let to_var_may = function
-    | Addr (x,_) -> [x]
-    | _          -> []
+    | Addr (x,_) -> Some x
+    | _          -> None
   let to_var_must = function
-    | Addr (x,`NoOffset) -> [x]
-    | _                  -> []
+    | Addr (x,`NoOffset) -> Some x
+    | _                  -> None
   let to_var_offset = function
-    | Addr x -> [x]
-    | _      -> []
+    | Addr (x, o) -> Some (x, o)
+    | _      -> None
 
   (* strings *)
-  let from_string x = StrPtr x
+  let from_string x = StrPtr (Some x)
   let to_string = function
-    | StrPtr x -> [x]
-    | _        -> []
+    | StrPtr (Some x) -> Some x
+    | _        -> None
 
   let rec short_offs = function
     | `NoOffset -> ""
@@ -220,15 +239,22 @@ struct
   let short_addr (x, o) =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")"
+      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ short_offs o
     else x.vname ^ short_offs o
 
   let show = function
-    | Addr x     -> short_addr x
-    | StrPtr x   -> "\"" ^ x ^ "\""
+    | Addr (x, o)-> short_addr (x, o)
+    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
+    | StrPtr None -> "(unknown string)"
     | UnknownPtr -> "?"
-    | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
+
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -251,22 +277,12 @@ struct
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
 
   let get_type = function
-    | Addr x   -> get_type_addr x
-    | StrPtr _  (* TODO Cil.charConstPtrType? *)
-    | SafePtr  -> charPtrType
+    | Addr (x, o) -> get_type_addr (x, o)
+    | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
 
-  let copy x = x
-
-  let hash = function
-    | Addr (v,o) -> v.vid + 2 * Offs.hash o
-    | SafePtr | UnknownPtr -> Hashtbl.hash UnknownPtr (* SafePtr <= UnknownPtr ==> same hash *)
-    | x -> Hashtbl.hash x
-
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
-
-  let pretty () x = Pretty.text (show x)
 
   (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
@@ -278,14 +294,15 @@ struct
     in
     match x with
     | Addr (v,o) -> AddrOf (Var v, to_cil o)
-    | StrPtr x -> mkString x
-    | SafePtr -> mkString "a safe pointer/string"
+    | StrPtr (Some x) -> mkString x
+    | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
     | `NoOffset    -> y
     | `Index (i,x) -> `Index (i, add_offsets x y)
     | `Field (f,x) -> `Field (f, add_offsets x y)
+  (* TODO: unused *)
   let add_offset x o = match x with
     | Addr (v, u) -> Addr (v, add_offsets u o)
     | x -> x
@@ -295,24 +312,31 @@ struct
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
-module NormalLat (Idx: IntDomain.Z) =
+(** Lvalue lattice.
+
+    Actually a disjoint union of lattices without top or bottom.
+    Lvalues are grouped as follows:
+
+    - Each {!Addr}, modulo precise index expressions in offset, is a sublattice with ordering induced by {!Offset}.
+    - {!NullPtr} is a singleton sublattice.
+    - {!UnknownPtr} is a singleton sublattice.
+    - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
+module NormalLat (Idx: IdxDomain) =
 struct
   include Normal (Idx)
+  module Offs = Offset (Idx)
 
   let is_definite = function
-    | NullPtr | StrPtr _ -> true
+    | NullPtr -> true
     | Addr (v,o) when Offs.is_definite o -> true
     | _ -> false
 
   let leq x y = match x, y with
-    | SafePtr, UnknownPtr    -> true
-    | StrPtr a  , StrPtr b   -> a = b
+    | StrPtr _, StrPtr None -> true
+    | StrPtr a, StrPtr b   -> a = b
     | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
     | _                      -> x = y
 
@@ -320,14 +344,36 @@ struct
     | Addr (x, o) -> Addr (x, Offs.drop_ints o)
     | x -> x
 
+  let join_string_ptr x y = match x, y with
+    | None, _
+    | _, None -> None
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        None
+      else
+        raise Lattice.Uncomparable
+
+  let meet_string_ptr x y = match x, y with
+    | None, a
+    | a, None -> a
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        raise Lattice.BotValue
+      else
+        raise Lattice.Uncomparable
+
   let merge cop x y =
     match x, y with
-    | UnknownPtr, SafePtr
-    | SafePtr, UnknownPtr -> UnknownPtr
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | SafePtr   , SafePtr -> SafePtr
-    | StrPtr a  , StrPtr b when a=b -> StrPtr a
+    | StrPtr a, StrPtr b ->
+      StrPtr
+        begin match cop with
+          |`Join | `Widen -> join_string_ptr a b
+          |`Meet | `Narrow -> meet_string_ptr a b
+        end
     | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
@@ -336,33 +382,45 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Lattice.NoBotTop
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module Stateless (Idx: Printable.S) =
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IdxDomain) =
 struct
-  type field = fieldinfo
-  type idx = Idx.t
-  type t = bool * varinfo * (field, idx) offs_uk
-  include Printable.Std
+  include NormalLat (Idx)
 
-  let show (dest, x, offs) =
-    let rec off_str ofs =
-      match ofs with
-      | `NoOffset -> ""
-      | `UnknownOffset -> "?"
-      | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
-    in
-    (if dest then "&" else "") ^ x.vname ^ off_str offs
+  module UnitIdxDomain =
+  struct
+    include Lattice.Unit
+    let equal_to _ _ = `Top
+    let to_int _ = None
+  end
+  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    type elt = t
 
-  let pretty () x = Pretty.text (show x)
+    (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
+       Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
+       since different integer domains may be active at different program points. *)
+    include Normal (UnitIdxDomain)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+    let rec of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs =
+      function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) -> `Field (f, of_elt_offset o)
+      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+
+    let of_elt (x: elt): t = match x with
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
+      | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
+      | NullPtr -> NullPtr
+      | UnknownPtr -> UnknownPtr
+  end
 end
 
 module Fields =
@@ -377,7 +435,12 @@ struct
     | (`Left x :: xs) -> "." ^ F.show x ^ show xs
     | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
 
-  let pretty () x = text (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   let rec printInnerXml f = function
     | [] -> ()
@@ -388,42 +451,17 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 
-  let to_yojson x = `String (show x)
-
-  let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
-    | [], ys -> Some ys
-    | _ -> None
-
-  let append x y: t = x @ y
-
   let rec listify ofs: t =
     match ofs with
     | NoOffset -> []
     | Field (x,ofs) -> `Left x :: listify ofs
     | Index (i,ofs) -> `Right i :: listify ofs
 
-  let rec to_offs (ofs:t) tv = match ofs with
-    | (`Left x::xs) -> `Field (x, to_offs xs tv)
-    | (`Right x::xs) -> `Index (tv, to_offs xs tv)
-    | [] -> `NoOffset
-
   let rec to_offs' (ofs:t) = match ofs with
     | (`Left x::xs) -> `Field (x, to_offs' xs)
     | (`Right x::xs) -> `Index (x, to_offs' xs)
     | [] -> `NoOffset
 
-  let rec occurs v fds = match fds with
-    | (`Left x::xs) -> occurs v xs
-    | (`Right x::xs) -> I.occurs v x || occurs v xs
-    | [] -> false
-
-  let rec occurs_where v (fds: t): t option = match fds with
-    | (`Right x::xs) when I.occurs v x -> Some []
-    | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))
-    | [] -> None
-
-  (* Same as the above, but always returns something. *)
   let rec kill v (fds: t): t = match fds with
     | (`Right x::xs) when I.occurs v x -> []
     | (x::xs) -> x :: kill v xs
@@ -486,9 +524,8 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord]
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
 
-  let hash    = Hashtbl.hash
   let name () = "simplified lval"
 
   let class_tag (v,o) =
@@ -502,6 +539,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
+    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
@@ -527,9 +565,10 @@ struct
   let has_index (v,o) = has_index_offs o
 
   let show (v,o) = short_offs o v.vname
-
-  let pretty () x = text (show x)
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end

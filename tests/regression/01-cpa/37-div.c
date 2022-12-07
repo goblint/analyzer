@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
+#include <goblint.h>
+
 int main(void) {
     int i = 1;
     int v = 8;
@@ -27,7 +29,7 @@ int main(void) {
     //     z = 7;
     // }
   while_beak:
-    assert(i == 3);
+    __goblint_check(i == 3);
 
 
 
@@ -43,6 +45,6 @@ int main(void) {
         r = 2;
     }
 
-    assert(r == 1); //FAIL
-    assert(r == 2);
+    __goblint_check(r == 1); //FAIL
+    __goblint_check(r == 2);
 }

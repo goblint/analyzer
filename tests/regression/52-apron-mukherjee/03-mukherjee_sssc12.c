@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set sem.int.signed_overflow assume_none
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 volatile int len;
 volatile int next;
@@ -23,8 +23,8 @@ void* thr1(void* arg) {
     pthread_mutex_unlock(&lock);
 
     while(c < end) {
-        assert(c >= 0);
-        assert(c <= temp);
+        __goblint_check(c >= 0);
+        __goblint_check(c <= temp);
         c = c +1;
     }
     return NULL;
@@ -45,8 +45,8 @@ void* thr2(void* arg) {
     pthread_mutex_unlock(&lock);
 
     while(c < end) {
-        assert(c >= 0);
-        assert(c <= temp);
+        __goblint_check(c >= 0);
+        __goblint_check(c <= temp);
         c = c +1;
     }
     return NULL;

@@ -1,5 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','mallocWrapper']"
-#include <assert.h>
+#include <goblint.h>
 
 /**
  * foo /might/ call the argument function
@@ -18,6 +17,6 @@ int main()
 {
   glob = 0;
   foo(reset_glob);
-  assert(glob == 0); // UNKNOWN
+  __goblint_check(glob == 0); // UNKNOWN
   return 0;
 }

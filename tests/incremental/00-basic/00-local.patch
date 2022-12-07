@@ -1,0 +1,13 @@
+--- tests/incremental/00-basic/00-local.c	2021-09-30 13:12:18.381946503 +0300
++++ tests/incremental/00-basic/00-local.c	2021-09-30 13:12:32.697729338 +0300
+@@ -1,7 +1,7 @@
+ #include <goblint.h>
+
+ int main() {
+-    int x = 1;
+-    __goblint_check(x == 1); // success before, success after
++    int x = 2;
++    __goblint_check(x == 2); // success before, success after
+     return 0;
+ }
+\ No newline at end of file

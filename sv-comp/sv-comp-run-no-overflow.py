@@ -13,7 +13,7 @@ from timeit import default_timer as timer
 
 OVERVIEW = False # with True Goblint isn't executed
 # TODO: don't hard-code specification
-GOBLINT_COMMAND = "./goblint --conf conf/svcomp21.json --set ana.specification ./tests/sv-comp/no-overflow.prp --set exp.witness.path {witness_filename} {code_filename} -v"
+GOBLINT_COMMAND = "./goblint --conf conf/svcomp21.json --set ana.specification ./tests/sv-comp/no-overflow.prp --set witness.path {witness_filename} {code_filename} -v"
 TIMEOUT = 10 # with some int that's Goblint timeout for single execution
 START = 1
 EXIT_ON_ERROR = True

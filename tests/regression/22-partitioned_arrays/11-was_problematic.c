@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
+#include <goblint.h>
+
 int main(int argc, char **argv)
 {
   int unLo;
@@ -27,6 +29,6 @@ int main(int argc, char **argv)
     int y = 27;
  }
 
-  assert(1 == 1); // Was reported as unreachable before
+  __goblint_check(1 == 1); // Was reported as unreachable before
   return 0;
 }

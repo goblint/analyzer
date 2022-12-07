@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
     unsigned char a = 200;
@@ -7,5 +7,5 @@ int main() {
     unsigned char* y = &x;
     *y = a;
 
-    assert(x == -56);
+    __goblint_check(x == -56);
 }

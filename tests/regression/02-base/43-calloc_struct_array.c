@@ -1,7 +1,7 @@
-// PARAM: --set ana.int.interval true --enable exp.partition-arrays.enabled
+// PARAM: --set ana.int.interval true --set ana.base.arrays.domain partitioned
 
 #include<stdlib.h>
-#include<assert.h>
+#include <goblint.h>
 
 struct h {
     int a[2];
@@ -16,5 +16,5 @@ int main(void) {
     struct h *b = a+1;
     a->a[1] = 3;
     int* ptr = &(b->a[1]);
-    assert(*ptr == 3); //UNKNOWN
+    __goblint_check(*ptr == 3); //UNKNOWN
 }

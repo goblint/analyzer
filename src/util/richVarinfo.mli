@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 val single: name:string -> (unit -> varinfo)
 
@@ -39,10 +39,8 @@ sig
 
   module Collection:
   sig
-    val mappings : (module S) list ref
     val mem_varinfo : varinfo -> bool
     val describe_varinfo : varinfo -> string
-    val register_mapping : (module S) -> unit
   end
 
   module Make:

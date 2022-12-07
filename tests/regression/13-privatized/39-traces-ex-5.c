@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 2; // matches expected synchronized read
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -27,7 +27,7 @@ int main(void) {
   pthread_mutex_lock(&D);
   pthread_mutex_lock(&A);
   pthread_mutex_unlock(&D);
-  assert(g == 2); // UNKNOWN!
+  __goblint_check(g == 2); // UNKNOWN!
   pthread_mutex_unlock(&A);
   return 0;
 }

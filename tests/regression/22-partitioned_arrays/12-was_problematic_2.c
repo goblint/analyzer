@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --enable ana.int.interval  --set ana.base.arrays.domain partitioned
 int main(void)
 {
   int arr[260];

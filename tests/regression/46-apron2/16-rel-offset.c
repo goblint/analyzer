@@ -1,0 +1,27 @@
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.base.privatization none --set ana.apron.privatization mutex-meet-tid --set ana.base.arrays.domain partitioned
+#include <pthread.h>
+#include <goblint.h>
+#include <stdio.h>
+#include <unistd.h>
+
+
+int main(){
+    int arr[] = {2, 4};
+
+    int x,y;
+
+    int* ptr = &y;
+    x = y;
+
+    int z = *ptr == x;
+    __goblint_check(x==y);
+    __goblint_check(z == 1);
+    __goblint_check(*ptr == x);
+    __goblint_check(*ptr == y);
+    __goblint_check(y == y);
+
+    __goblint_check(arr[*ptr == x] == 4);
+
+
+    return 0;
+}

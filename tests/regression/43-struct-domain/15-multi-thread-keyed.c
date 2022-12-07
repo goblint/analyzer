@@ -1,6 +1,6 @@
-// PARAM: --set exp.structs.domain "keyed"
+// PARAM: --set ana.base.structs.domain "keyed"
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 #include<string.h>
 #include<stdlib.h>
@@ -67,18 +67,18 @@ void *runCode(void *arguments) {
     if (functionToRun.id == 1) {
     // if (strcmp(functionToRun.name, "factorial") == 0) {
         fun f = functionToRun.ptr;
-        assert(f == factorial); // UNKNOWN!
+        __goblint_check(f == factorial); // TODO
         int result = f(n);
         printf("Factorial of %d is %d\n", n, result);
     } else if (functionToRun.id == 2) {
     // } else if (strcmp(functionToRun.name, "inverse factorial") == 0) {
         fun f = functionToRun.ptr;
-        assert(f == inverseFactorial); // UNKNOWN!
+        __goblint_check(f == inverseFactorial); // TODO
         int result = f(n);
         printf("Factorial of %d is %d\n", result, n);
     } else {
         fun f = functionToRun.ptr;
-        assert((void*)f == exit); // UNKNOWN!
+        __goblint_check((void*)f == exit); // TODO
         printf("Exiting with code %d...\n", n);
         int result = f(n);
     }

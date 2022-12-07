@@ -1,8 +1,11 @@
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
+open GoblintCil
 
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
+
+val reset_lazy: unit -> unit
 
 module type Arith =
 sig
@@ -176,22 +179,14 @@ sig
   (** Return a single integer value if the value is a known constant, otherwise
     * don't return anything. *)
 
-  val is_int: t -> bool
-  (** Checks if the element is a definite integer value. If this function
-    * returns [true], the above [to_int] should return a real value. *)
-
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
 
-  val is_bool: t -> bool
-  (** Checks if the element is a definite boolean value. If this function
-    * returns [true], the above [to_bool] should return a real value. *)
-
-  val to_excl_list: t -> int_t list option
-  (** Gives a list representation of the excluded values if possible. *)
+  val to_excl_list: t -> (int_t list * (int64 * int64)) option
+  (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
   (** Creates an exclusion set from a given list of integers. *)
@@ -219,8 +214,8 @@ module type IkindUnawareS =
 sig
   include B
   include Arith with type t:= t
-  val starting   : Cil.ikind -> int_t -> t
-  val ending     : Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
@@ -228,9 +223,11 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val arbitrary: unit -> t QCheck.arbitrary
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -252,8 +249,8 @@ sig
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
   val widen: Cil.ikind -> t -> t -> t
-  val starting : Cil.ikind -> int_t -> t
-  val ending : Cil.ikind -> int_t -> t
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: Cil.ikind -> int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
@@ -261,17 +258,18 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
-  val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+  val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
+  val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -290,16 +288,17 @@ sig
   (** Transform a known boolean value to the default internal representation of the specified ikind. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 
-  val starting   : Cil.ikind -> int_t -> t
-  val ending     : Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
 
-  val project: PrecisionUtil.precision -> t -> t
+  val project: PrecisionUtil.int_precision -> t -> t
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
@@ -329,10 +328,12 @@ val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64
-  val range_big_int   : Cil.ikind -> Z.t * Z.t
+  val range           : Cil.ikind -> Z.t * Z.t
+  val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
 end
+
+module BISet: SetDomain.S with type elt = Z.t
 
 exception ArithmeticOnIntegerBot of string
 
@@ -371,7 +372,11 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+module BigInt:
+  sig
+    include Printable.S with type t = Z.t (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    val cast_to: Cil.ikind -> Z.t -> Z.t
+  end
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
 

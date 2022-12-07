@@ -1,5 +1,5 @@
-open WitnessUtil
 open MyCFG
+open GoblintCil
 
 module type Node =
 sig
@@ -17,7 +17,6 @@ sig
   type t
 
   val embed: MyCFG.edge -> t
-  val cfgedge: t -> MyCFG.edge option
   val to_string: t -> string
 end
 
@@ -26,15 +25,14 @@ struct
   type t = edge
 
   let embed e = e
-  let cfgedge e = Some e
-  let to_string e = Pretty.sprint 80 (Edge.pretty_plain () e)
+  let to_string e = Pretty.sprint ~width:80 (Edge.pretty_plain () e)
 end
 
 type inline_edge =
   | CFGEdge of Edge.t
   | InlineEntry of CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option
-  [@@deriving to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
@@ -42,17 +40,29 @@ let pretty_inline_edge () = function
   | InlineReturn None -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
 
+module InlineEdgePrintable: Printable.S with type t = inline_edge =
+struct
+  include Printable.Std
+  type t = inline_edge [@@deriving eq, ord, hash, to_yojson]
+
+  let name () = "inline edge"
+
+  let pretty = pretty_inline_edge
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+    (* TODO: deriving to_yojson gets overridden by SimplePretty *)
+end
+
 module InlineEdge: Edge with type t = inline_edge =
 struct
-  type t = inline_edge [@@deriving to_yojson]
+  type t = inline_edge
 
   let embed e = CFGEdge e
-
-  let cfgedge = function
-    | CFGEdge e -> Some e
-    | _ -> None
-
-  let to_string e = Pretty.sprint 80 (pretty_inline_edge () e)
+  let to_string e = InlineEdgePrintable.show e
 end
 
 (* Abstract Reachability Graph *)
@@ -68,7 +78,7 @@ end
 module StackNode (Node: Node):
   Node with type t = Node.t list =
 struct
-  include HashedList (Node)
+  type t = Node.t list [@@deriving eq, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
   let to_string nl =
@@ -76,11 +86,13 @@ struct
     |> List.map Node.to_string
     |> String.concat "@"
 
-  let move_opt nl to_node = match nl with
+  let move_opt nl to_node =
+    let open GobOption.Syntax in
+    match nl with
     | [] -> None
     | n :: stack ->
-      Node.move_opt n to_node
-      |> BatOption.map (fun to_n -> to_n :: stack)
+      let+ to_n = Node.move_opt n to_node in
+      to_n :: stack
   let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
@@ -92,7 +104,9 @@ struct
 
   let main_entry = [Arg.main_entry]
 
-  let next = function
+  let next =
+    let open GobList.Syntax in
+    function
     | [] -> failwith "StackArg.next: empty"
     | n :: stack ->
       let cfgnode = Arg.Node.cfgnode n in
@@ -138,15 +152,13 @@ struct
             end
         end
       | _ ->
-        Arg.next n
-        |> List.map (fun (edge, to_n) ->
-            let to_cfgnode = Arg.Node.cfgnode to_n in
-            let to_n' = match to_cfgnode with
-              | FunctionEntry _ -> to_n :: n :: stack
-              | _ -> to_n :: stack
-            in
-            (edge, to_n')
-          )
+        let+ (edge, to_n) = Arg.next n in
+        let to_cfgnode = Arg.Node.cfgnode to_n in
+        let to_n' = match to_cfgnode with
+          | FunctionEntry _ -> to_n :: n :: stack
+          | _ -> to_n :: stack
+        in
+        (edge, to_n')
 
   (* Avoid infinite stack nodes for recursive programs
      by dropping down to repeated stack node. *)
@@ -180,30 +192,27 @@ struct
   (* too aggressive, duplicates some interesting edges *)
   (* let rec next node =
        Arg.next node
-       |> List.map (fun (edge, to_node) ->
+       |> List.concat_map (fun (edge, to_node) ->
            if IsInteresting.is_interesting node edge to_node then
              [(edge, to_node)]
            else
              next to_node
-         )
-       |> List.flatten *)
+         ) *)
 
   let rec next node =
-    Arg.next node
-    |> List.map (fun (edge, to_node) ->
-        if IsInteresting.is_interesting node edge to_node then
-          [(edge, to_node)]
-        else begin
-          let to_node_next = next to_node in
-          if List.exists (fun (edge, to_node) ->
-              IsInteresting.is_interesting node edge to_node
-            ) to_node_next then
-            [(edge, to_node)] (* don't shortcut if node has outdoing interesting edges, e.g. control *)
-          else
-            to_node_next
-        end
-      )
-    |> List.flatten
+    let open GobList.Syntax in
+    let* (edge, to_node) = Arg.next node in
+    if IsInteresting.is_interesting node edge to_node then
+      [(edge, to_node)]
+    else begin
+      let to_node_next = next to_node in
+      if List.exists (fun (edge, to_node) ->
+          IsInteresting.is_interesting node edge to_node
+        ) to_node_next then
+        [(edge, to_node)] (* don't shortcut if node has outdoing interesting edges, e.g. control *)
+      else
+        to_node_next
+    end
 end
 
 
@@ -221,11 +230,10 @@ end
 module CfgIntra (Cfg:CfgForward): SIntraOpt =
 struct
   let next node =
-    Cfg.next node
-    |> List.map (fun (es, to_n) ->
-        List.map (fun (_, e) -> (e, to_n)) es
-      )
-    |> List.flatten
+    let open GobList.Syntax in
+    let* (es, to_n) = Cfg.next node in
+    let+ (_, e) = es in
+    (e, to_n)
   let next_opt _ = None
 end
 
@@ -247,7 +255,7 @@ struct
   open Cil
 
   let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
-    | Instr is1, Instr is2 -> List.for_all2 (=) is1 is2
+    | Instr is1, Instr is2 -> GobList.equal (=) is1 is2
     | Return _, Return _ -> sk1 = sk2
     | _, _ -> false (* TODO: also consider others? not sure if they ever get duplicated *)
   let is_equiv_stmt s1 s2 = is_equiv_stmtkind s1.skind s2.skind (* TODO: also consider labels *)
@@ -267,7 +275,7 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "exp.witness.uncil" -> (* TODO: use elocs instead? *)
+    | Statement {sid; skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.uncil" -> (* TODO: use elocs instead? *)
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
@@ -320,7 +328,7 @@ struct
       Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "exp.witness.uncil" -> (* TODO: use eloc instead? *)
+    | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "witness.uncil" -> (* TODO: use eloc instead? *)
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       if Node.location if_true_next_n = loc && Node.location if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
@@ -347,12 +355,13 @@ struct
   include Arg
 
   let next node =
+    let open GobOption.Syntax in
     match ArgIntra.next_opt (Node.cfgnode node) with
     | None -> Arg.next node
     | Some next ->
       next
       |> BatList.filter_map (fun (e, to_n) ->
-          Node.move_opt node to_n
-          |> BatOption.map (fun to_node -> (Edge.embed e, to_node))
+          let+ to_node = Node.move_opt node to_n in
+          (Edge.embed e, to_node)
         )
 end

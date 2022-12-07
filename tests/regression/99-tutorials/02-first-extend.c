@@ -1,5 +1,5 @@
 // PARAM: --set "ana.activated[+]" signs
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int x;
@@ -14,7 +14,7 @@ int main() {
   // The above code branches on an uninitialized variable.
   // The value of x could be either 5 or 0.
 
-  assert(x > -1); // TODO: Thus, this assertion should hold!
+  __goblint_check(x > -1); // TODO: Thus, this assertion should hold!
 
   return 0;
 }
