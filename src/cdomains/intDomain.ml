@@ -1180,15 +1180,15 @@ struct
 
   let widen _x  = failwith "Not implemented yet"
 
-  let starting ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)] 
+  let starting ?(suppress_ovwarn=false) ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)] 
 
-  let ending ik n = match norm ik @@ Some (fst (range ik), n) with Some (x,y) -> [(x,y)]
+  let ending ?(suppress_ovwarn=false) ik n = match norm ik @@ Some (fst (range ik), n) with Some (x,y) -> [(x,y)]
   
   let of_int ik x = of_interval ik (x,x)
 
   let of_bool _ik = function true -> one | false -> zero
   
-  let of_interval ik (x,y) = match norm ik @@ Some (x,y) with Some (x',y') -> [(x',y')]
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) = match norm ik @@ Some (x,y) with Some (x',y') -> [(x',y')]
   
   let invariant_ikind _ik = failwith "Not implemented yet"
   
@@ -2877,14 +2877,15 @@ module IntDomTupleImpl = struct
   module I2 = Interval
   module I3 = Enums
   module I4 = Congruence
+  module I5 = IntervalSetFunctor (BI)
 
-  type t = I1.t option * I2.t option * I3.t option * I4.t option
+  type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
   [@@deriving to_yojson, eq, ord]
 
   let name () = "intdomtuple"
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
-  let no_interval = Tuple4.map2 (const None)
+  let no_interval = Tuple5.map2 (const None)
 
   type 'a m = (module S with type t = 'a)
   type 'a m2 = (module S with type t = 'a and type int_t = int_t )
@@ -2898,37 +2899,39 @@ module IntDomTupleImpl = struct
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
   type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
-  let create r x ((p1, p2, p3, p4): int_precision) =
+  let create r x ((p1, p2, p3, p4, p5): int_precision) =
     let f b g = if b then Some (g x) else None in
-    f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
+    f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4), f p5 @@ r.fi (module I5)
   let create r x = (* use where values are introduced *)
     create r x (int_precision_from_node_or_config ())
-  let create2 r x ((p1, p2, p3, p4): int_precision) =
+  let create2 r x ((p1, p2, p3, p4, p5): int_precision) =
     let f b g = if b then Some (g x) else None in
-    f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
+    f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4), f p5 @@ r.fi2 (module I5)
   let create2 r x = (* use where values are introduced *)
     create2 r x (int_precision_from_node_or_config ())
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
-  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list x = Tuple5.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
   let exists = function
-    | (Some true, _, _, _)
-    | (_, Some true, _, _)
-    | (_, _, Some true, _)
-    | (_, _, _, Some true) ->
+    | (Some true, _, _, _, _)
+    | (_, Some true, _, _, _)
+    | (_, _, Some true, _, _)
+    | (_, _, _, Some true, _)
+    | (_, _, _, _, Some true) ->
       true
     | _ ->
       false
 
   let for_all = function
-    | (Some false, _, _, _)
-    | (_, Some false, _, _)
-    | (_, _, Some false, _)
-    | (_, _, _, Some false) ->
+    | (Some false, _, _, _, _)
+    | (_, Some false, _, _, _)
+    | (_, _, Some false, _, _)
+    | (_, _, _, Some false, _)
+    | (_, _, _, _, Some false) ->
       false
     | _ ->
       true
@@ -2946,57 +2949,63 @@ module IntDomTupleImpl = struct
   let of_interval ?(suppress_ovwarn=false) ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.of_congruence ik }
 
-  let refine_with_congruence ik ((a, b, c, d) : t) (cong : (int_t * int_t) option) : t=
+  let refine_with_congruence ik ((a, b, c, d, e) : t) (cong : (int_t * int_t) option) : t=
     let opt f a =
       curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
     ( opt I1.refine_with_congruence ik a cong
     , opt I2.refine_with_congruence ik b cong
     , opt I3.refine_with_congruence ik c cong
-    , opt I4.refine_with_congruence ik d cong )
+    , opt I4.refine_with_congruence ik d cong
+    , opt I5.refine_with_congruence ik e cong)
 
-  let refine_with_interval ik (a, b, c, d) intv =
+  let refine_with_interval ik (a, b, c, d, e) intv =
     let opt f a =
       curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
     ( opt I1.refine_with_interval ik a intv
     , opt I2.refine_with_interval ik b intv
     , opt I3.refine_with_interval ik c intv
-    , opt I4.refine_with_interval ik d intv )
+    , opt I4.refine_with_interval ik d intv
+    , opt I5.refine_with_interval ik e intv )
 
-  let refine_with_excl_list ik (a, b, c, d) excl =
+  let refine_with_excl_list ik (a, b, c, d, e) excl =
     let opt f a =
       curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
     ( opt I1.refine_with_excl_list ik a excl
     , opt I2.refine_with_excl_list ik b excl
     , opt I3.refine_with_excl_list ik c excl
-    , opt I4.refine_with_excl_list ik d excl )
+    , opt I4.refine_with_excl_list ik d excl
+    , opt I5.refine_with_excl_list ik e excl )
 
-  let refine_with_incl_list ik (a, b, c, d) incl =
+  let refine_with_incl_list ik (a, b, c, d, e) incl =
     let opt f a =
       curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
     ( opt I1.refine_with_incl_list ik a incl
     , opt I2.refine_with_incl_list ik b incl
     , opt I3.refine_with_incl_list ik c incl
-    , opt I4.refine_with_incl_list ik d incl )
+    , opt I4.refine_with_incl_list ik d incl
+    , opt I5.refine_with_incl_list ik e incl )
 
 
-  let mapp r (a, b, c, d) =
+  let mapp r (a, b, c, d, e) =
     let map = BatOption.map in
     ( map (r.fp (module I1)) a
     , map (r.fp (module I2)) b
     , map (r.fp (module I3)) c
-    , map (r.fp (module I4)) d)
+    , map (r.fp (module I4)) d
+    , map (r.fp (module I5)) e)
 
 
-  let mapp2 r (a, b, c, d) =
+  let mapp2 r (a, b, c, d, e) =
     BatOption.
     ( map (r.fp2 (module I1)) a
     , map (r.fp2 (module I2)) b
     , map (r.fp2 (module I3)) c
-    , map (r.fp2 (module I4)) d )
+    , map (r.fp2 (module I4)) d
+    , map (r.fp2 (module I5)) e)
 
 
   (* exists/for_all *)
@@ -3005,11 +3014,12 @@ module IntDomTupleImpl = struct
   let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top_of ik }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
 
-  let map2p r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+  let map2p r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
       ( opt_map2 (r.f2p (module I1)) xa ya
       , opt_map2 (r.f2p (module I2)) xb yb
       , opt_map2 (r.f2p (module I3)) xc yc
-      , opt_map2 (r.f2p (module I4)) xd yd )
+      , opt_map2 (r.f2p (module I4)) xd yd 
+      , opt_map2 (r.f2p (module I5)) xe ye)
 
   (* f2p: binary projections *)
   let (%%) f g x = f % (g x) (* composition for binary function g *)
@@ -3045,13 +3055,13 @@ module IntDomTupleImpl = struct
     let maybe reffun ik domtup dom =
       match dom with Some y -> reffun ik domtup y | _ -> domtup
     in
-    [(fun (a, b, c, d) -> refine_with_excl_list ik (a, b, c, d) (to_excl_list (a, b, c, d)));
-     (fun (a, b, c, d) -> refine_with_incl_list ik (a, b, c, d) (to_incl_list (a, b, c, d)));
-     (fun (a, b, c, d) -> maybe refine_with_interval ik (a, b, c, d) b);
-     (fun (a, b, c, d) -> maybe refine_with_congruence ik (a, b, c, d) d)]
+    [(fun (a, b, c, d, e) -> refine_with_excl_list ik (a, b, c, d, e) (to_excl_list (a, b, c, d, e)));
+     (fun (a, b, c, d, e) -> refine_with_incl_list ik (a, b, c, d, e) (to_incl_list (a, b, c, d, e)));
+     (fun (a, b, c, d, e) -> maybe refine_with_interval ik (a, b, c, d, e) b);
+     (fun (a, b, c, d, e) -> maybe refine_with_congruence ik (a, b, c, d, e) d)]
 
-  let refine ik ((a, b, c, d ) : t ) : t =
-    let dt = ref (a, b, c, d) in
+  let refine ik ((a, b, c, d, e) : t ) : t =
+    let dt = ref (a, b, c, d, e) in
     (match GobConfig.get_string "ana.int.refinement" with
       | "never" -> ()
       | "once" ->
@@ -3076,7 +3086,7 @@ module IntDomTupleImpl = struct
       | _ -> false
 
   (* map with overflow check *)
-  let mapovc ik r (a, b, c, d) =
+  let mapovc ik r (a, b, c, d, e) =
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
     let no_ov =
@@ -3085,10 +3095,11 @@ module IntDomTupleImpl = struct
     ( map (r.f1 (module I1)) a
     , intv
     , map (r.f1 (module I3)) c
-    , map (r.f1 (module I4)) ~no_ov d )
+    , map (r.f1 (module I4)) ~no_ov d
+    , map (r.f1 (module I5)) e )
 
   (* map2 with overflow check *)
-  let map2ovc ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+  let map2ovc ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
     let no_ov =
       match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik
@@ -3097,22 +3108,25 @@ module IntDomTupleImpl = struct
       ( opt_map2 (r.f2 (module I1)) xa ya
       , intv
       , opt_map2 (r.f2 (module I3)) xc yc
-      , opt_map2 (r.f2 (module I4)) ~no_ov xd yd )
+      , opt_map2 (r.f2 (module I4)) ~no_ov xd yd
+      , opt_map2 (r.f2 (module I5)) xe ye )
 
-  let map ik r (a, b, c, d) =
+  let map ik r (a, b, c, d, e) =
     refine ik
       BatOption.
         ( map (r.f1 (module I1)) a
         , map (r.f1 (module I2)) b
         , map (r.f1 (module I3)) c
-        , map (r.f1 (module I4)) d )
+        , map (r.f1 (module I4)) d
+        , map (r.f1 (module I5)) e)
 
-  let map2 ?(norefine=false) ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+  let map2 ?(norefine=false) ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
     let r =
       ( opt_map2 (r.f2 (module I1)) xa ya
       , opt_map2 (r.f2 (module I2)) xb yb
       , opt_map2 (r.f2 (module I3)) xc yc
-      , opt_map2 (r.f2 (module I4)) xd yd )
+      , opt_map2 (r.f2 (module I4)) xd yd 
+      , opt_map2 (r.f2 (module I5)) xe ye)
     in
     if norefine then r else refine ik r
 
@@ -3132,7 +3146,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple5.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
@@ -3154,11 +3168,12 @@ module IntDomTupleImpl = struct
   (* `map/opt_map` are used by `project` *)
   let opt_map b f =
     curry @@ function None, true -> f | x, y when y || b -> x | _ -> None
-  let map ~keep r (i1, i2, i3, i4) (b1, b2, b3, b4) =
+  let map ~keep r (i1, i2, i3, i4, i5) (b1, b2, b3, b4, b5) =
     ( opt_map keep (r.f3 (module I1)) i1 b1
     , opt_map keep (r.f3 (module I2)) i2 b2
     , opt_map keep (r.f3 (module I3)) i3 b3
-    , opt_map keep (r.f3 (module I4)) i4 b4 )
+    , opt_map keep (r.f3 (module I4)) i4 b4
+    , opt_map keep (r.f3 (module I5)) i5 b5 )
 
   (** Project tuple t to precision p
    * We have to deactivate IntDomains after the refinement, since we might
@@ -3272,7 +3287,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) (Invariant.top ()) is
 
-  let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
+  let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
 end
 
 module IntDomTuple =

@@ -361,6 +361,12 @@
               "type": "boolean",
               "default": false
             },
+            "interval_set": {
+              "title": "ana.int.interval_set",
+              "description": "Use IntDomain.IntervalSet: (int64 * int64) option.",
+              "type": "boolean",
+              "default": false
+            },
             "enums": {
               "title": "ana.int.enums",
               "description":
