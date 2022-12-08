@@ -955,10 +955,13 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> String.concat ", " |> Printf.sprintf "[%s]"
   
-
   let canonize x = failwith "Not implemented yet"
   let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
       List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
+
+  let unary_op (x : t) op = match x with 
+    | [] -> []
+    | _ -> canonize (List.map op x)
 
   let binary_op ik (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
@@ -1061,60 +1064,115 @@ struct
 
   let zero = [(Ints_t.zero, Ints_t.zero)]
   let one =  [(Ints_t.one, Ints_t.one)]
+
   let top_bool = [(Ints_t.zero, Ints_t.one)]
+
   let to_bool = function  
-  | [(l,u)]  when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
-  | x -> if leq zero x then None else Some true
+    | [(l,u)]  when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
+    | x -> if leq zero x then None else Some true
 
-  let rem _x = failwith "Not implemented yet"
-  
-  let lt _x = failwith "Not implemented yet"
+  let of_bool _ik = function true -> one | false -> zero 
 
-  let le _x = failwith "Not implemented yet"
-  
-  let gt _x = failwith "Not implemented yet"
+  let is_true x = x == one
 
-  let ge _x = failwith "Not implemented yet"
-  
-  let eq _x = failwith "Not implemented yet"
+  let is_false x = x == zero
 
-  let ne _x = failwith "Not implemented yet"
+  let wrap_unary_interval_function f ik =
+    let wrap a = f ik (Some a) |> Option.get in
+    wrap
 
-  let bitand _x _y = failwith "Not implemented yet"
-
-  let bitor _x _y = failwith "Not implemented yet"
-
-  let bitnot _x _y = failwith "Not implemented yet"
-
-  let bitxor _x _y = failwith "Not implemented yet"
-
-  let shift_left _x _y = failwith "Not implemented yet"
-
-  let shift_right _x _y = failwith "Not implemented yet"
-
-  let lognot _x = failwith "Not implemented yet"
-
-  let logand _x = failwith "Not implemented yet"
-
-  let logor _x = failwith "Not implemented yet"
-
-  let wrap_interval_function f ik =
+  let wrap_binary_interval_function f ik =
     let wrap (a, b) = f ik (Some a) (Some b) |> Option.get in
     wrap
 
-  let add ?no_ov ik x y = 
-    binary_op ik x y (wrap_interval_function Interval_functor.add ik)
+  let get_lhs_rhs_boundaries (x: t) (y: t) = 
+    let lhs = List.hd x in
+    let rhs = List.nth y (List.length y) in 
+    (fst lhs, snd rhs)
 
-  let neg ?no_ov _x = failwith "Not implemented yet"
+  let get_rhs_lhs_boundaries (x: t) (y: t) = 
+    let lhs = List.nth x (List.length x) in 
+    let rhs = List.hd y in
+    (snd lhs, fst rhs)
+  
+  let lt ik x y = 
+    match x, y with 
+    | [], [] -> bot_of ik
+    | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | _, _ ->
+      let (d, a') = get_rhs_lhs_boundaries x y in
+      let (a, d') = get_lhs_rhs_boundaries x y in
+      if d < a' then 
+        of_bool ik true
+      else
+        if a >= d' then of_bool ik false else top_bool
+
+  let le ik x y =
+    match x, y with 
+    | [], [] -> bot_of ik
+    | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | _, _ ->
+      let (d, a') = get_rhs_lhs_boundaries x y in
+      let (a, d') = get_lhs_rhs_boundaries x y in
+      if d <= a' then 
+        of_bool ik true
+      else
+        if a > d' then of_bool ik false else top_bool
+  
+  let gt ik x y = if is_true (le ik x y) then zero else one
+
+  let ge ik x y = if is_true (lt ik x y) then zero else one
+  
+  let eq ik x y = match x, y with
+    | (a, b)::[], (c, d)::[] -> if (Ints_t.compare a b) == 0 && (Ints_t.compare c d) == 0 then one else zero
+    | _ -> if is_bot (meet ik x y) then zero else top_bool
+
+  let ne ik x y = if is_true (eq ik x y) then zero else one
+
+  let bitand ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.bitand ik)
+
+  let bitor ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.bitor ik)
+
+  let bitnot ik x = 
+    unary_op x (wrap_unary_interval_function Interval_functor.bitnot ik)
+
+  let bitxor ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.bitxor ik)
+
+  let shift_left ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.shift_left ik)
+
+  let shift_right ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.shift_right ik)
+
+  let lognot ik x = 
+    unary_op x (wrap_unary_interval_function Interval_functor.lognot ik)
+
+  let logand ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.logand ik)
+
+  let logor ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.logor ik)
+
+  let add ?no_ov ik x y = 
+    binary_op ik x y (wrap_binary_interval_function Interval_functor.add ik)
+
+  let neg ?no_ov ik x = 
+    unary_op x (wrap_unary_interval_function Interval_functor.neg ik)
 
   let sub ?no_ov ik x y = 
-    binary_op ik x y (wrap_interval_function Interval_functor.sub ik)
+    binary_op ik x y (wrap_binary_interval_function Interval_functor.sub ik)
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
-    binary_op ik x y (wrap_interval_function Interval_functor.mul ik)
+    binary_op ik x y (wrap_binary_interval_function Interval_functor.mul ik)
 
   let div ?no_ov ik x y = 
-    binary_op ik x y (wrap_interval_function Interval_functor.div ik)
+    binary_op ik x y (wrap_binary_interval_function Interval_functor.div ik)
+
+  let rem ik x y = 
+      binary_op ik x y (wrap_binary_interval_function Interval_functor.rem ik)
 
   let cast_to ?torg ?no_ov _x = failwith "Not implemented yet"
 
