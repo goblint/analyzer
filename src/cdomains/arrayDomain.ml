@@ -4,6 +4,7 @@ open GobConfig
 open FlagHelper
 
 module M = Messages
+module RM = RepositionMessages
 module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
@@ -700,22 +701,23 @@ struct
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
 
-let add_alarm (e, l) w =
-  match (!Node.current_node) with
-  | Some n -> WarnPostProc.NH.replace WarnPostProc.alarmsNH n ((e, l), (w, n));
-  | _ -> failwith "TODO"
-
 let array_oob idx_before_end idx_after_start (e, l) =
   match e with
   | None -> ()
-  | Some exp ->
+  | Some exp -> 
     match(idx_after_start, idx_before_end) with
-    | Some true, Some true -> ()
-    | Some true, Some false -> add_alarm (exp, l) "Must access array past end"
-    | Some true, None -> add_alarm (exp, l) "May access array past end"
-    | Some false, Some true -> add_alarm (exp, l) "Must access array before start"
-    | None, Some true -> add_alarm (exp, l) "May access array before start"
-    | _ -> add_alarm (exp, l) "May access array out of bounds"
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      RM.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end (exp, l) "Must access array past end"
+    | Some true, None ->
+      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end (exp, l) "May access array past end"
+    | Some false, Some true ->
+      RM.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start (exp, l) "Must access array before start"
+    | None, Some true ->
+      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start (exp, l) "May access array before start"
+    | _ ->
+      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown (exp, l) "May access array out of bounds"
 
 let array_oob_warn idx_before_end idx_after_start =
   (* For an explanation of the warning types check the Pull Request #255 *)
@@ -739,8 +741,8 @@ let array_oob_check (x, l) (e, v) =
     let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
     and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
     if get_bool "ana.warn-postprocess.enabled"
-      then array_oob idx_before_end idx_after_start (e, l)
-      else array_oob_warn idx_before_end idx_after_start
+    then array_oob idx_before_end idx_after_start (e, l)
+    else array_oob_warn idx_before_end idx_after_start
   else ()
 
 module TrivialWithLength (Val: Lattice.S): S with type value = Val.t and type idx = Idx.t  =

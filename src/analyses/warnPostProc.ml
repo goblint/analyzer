@@ -10,47 +10,23 @@ open Node0
 
 module Idx = PreValueDomain.IndexDomain
 
-module Cond = Printable.Prod (Basetype.CilExp) (Idx)
+module Alarm = RepositionMessages.ReposMessage
 
-module Alarm = Printable.Prod (Printable.Strings) (Node)
+module RM = RepositionMessages
 
-module NH = Hashtbl.Make (Node)
-
-let alarmsNH = NH.create 100
-
-module CondSet = SetDomain.ToppedSet(Cond) (struct let topname = "top" end)
+module CondSet = SetDomain.ToppedSet(RM.Cond) (struct let topname = "top" end)
 module AlarmSet = SetDomain.ToppedSet(Alarm) (struct let topname = "top" end)
 
-module DAnt =
+module D =
 struct
-  include SetDomain.ToppedSet(Printable.Prod (Cond) (Alarm)) (struct let topname = "top" end)
+  include SetDomain.ToppedSet(Alarm) (struct let topname = "top" end)
 
   let conds_in s = 
     match s with
-    | `Lifted _ -> fold (fun (cond, alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+    | `Lifted _ -> fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
     | _ -> CondSet.empty ()
 
-  let tuples_of c s = filter (fun (cond, alarm) -> Cond.equal c cond) s
-
-  let meet x y =
-    let conds = CondSet.inter (conds_in x) (conds_in y) in
-    match x, y with
-    | `Top, _ -> y
-    | _, `Top -> x
-    | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (tuples_of c x) (tuples_of c y))) conds (empty ())
-
-end
-
-module DAv =
-struct
-  include SetDomain.ToppedSet(Printable.Prod3 (Cond) (Alarm) (Alarm)) (struct let topname = "top" end)
-
-  let conds_in s = 
-    match s with
-    | `Lifted _ -> fold (fun (cond, orig_alarm, rel_alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
-    | _ -> CondSet.empty ()
-
-  let tuples_of c s = filter (fun (cond, orig_alarm, rel_alarm) -> Cond.equal c cond) s
+  let tuples_of c s = filter (fun alarm -> RM.Cond.equal c alarm.cond) s
 
   let meet x y =
     let conds = CondSet.inter (conds_in x) (conds_in y) in
@@ -115,6 +91,18 @@ let avSolHM = ref (HM.create 10)
 
 module LocSet = SetDomain.ToppedSet(V) (struct let topname = "top" end)
 
+let set_loc (message : Alarm.t) loc =
+  match message.multipiece with
+  | Single piece -> let piece = {piece with loc=Some loc} in
+    {message with multipiece=Single piece}
+  | _ -> message
+
+
+let get_alarm_loc (mp : RM.MultiPiece.t) : M.Location.t option =
+  match mp with
+  | Single piece -> piece.loc
+  | Group g -> failwith "TODO"
+
 (* Anticipable Alarm Conditions Analysis *)
 module Ant =
 struct
@@ -122,16 +110,16 @@ struct
   module Var = V
   type v = V.t
 
-  module Dom = DAnt
+  module Dom = D
   type d = Dom.t
 
   let box _ _ _ = failwith "TODO"
 
   let sys_change _ = failwith "TODO"
 
-  let conds_in s = Dom.fold (fun (cond,alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+  let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
 
-  let rel_alarms c s = Dom.fold (fun (cond,alarm) alarms -> AlarmSet.add alarm alarms) s (AlarmSet.empty ())
+  let rel_alarms c s = Dom.fold (fun alarm alarms -> AlarmSet.add alarm alarms) s (AlarmSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
@@ -148,15 +136,15 @@ struct
               (* TODO: other lval cases *)
               | _ -> acc
             ) [] xs in
-          Dom.filter (fun ((exp, _), alarm) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
+          Dom.filter (fun alarm -> List.fold (fun acc var -> let (exp, _) = alarm.cond in Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
         | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
 
-  let process (alarm : (Cond.t * Alarm.t)) y = alarm
+  let process (alarm : Alarm.t) y = alarm
 
   let gen' node x =
-    match NH.find_option alarmsNH node with
+    match RM.NH.find_opt RM.messagesNH node with
     | Some alarm -> Dom.singleton (process alarm (conds_in x))
     | None -> Dom.empty ()
 
@@ -168,7 +156,8 @@ struct
     | `L node ->
       let f get _ =
         let ant_out = get (`G node) in
-        Dom.union (gen node ant_out) (Dom.diff ant_out (kill node ant_out))
+        let alarms = Dom.union (gen node ant_out) (Dom.diff ant_out (kill node ant_out)) in
+        Dom.map (fun alarm -> set_loc alarm @@ M.Location.Node node) alarms
       in
       Some f
     (* AntOut *)
@@ -180,16 +169,17 @@ struct
           let module CFG = (val !MyCFG.current_cfg) in
           let next_nodes = List.map snd (CFG.next node) in
           let next_values = List.map (fun node -> get (`L node)) next_nodes in
-          List.fold_left Dom.meet (Dom.top ()) next_values
+          let alarms = List.fold_left Dom.meet (Dom.top ()) next_values in
+          Dom.map (fun alarm -> set_loc alarm @@ M.Location.Node node) alarms
       in
       Some f
 
   let increment = None
 
-  (* let sys_change  *)
-
   let iter_vars _ _ _ = ()
 end
+
+module RMLocSet = Set.Make (RM.Location)
 
 (* Available Alarm Conditions Analysis *)
 module Av = 
@@ -198,14 +188,14 @@ struct
   module Var = V
   type v = V.t
 
-  module Dom = DAv
+  module Dom = D
   type d = Dom.t
 
   let box _ _ _ = failwith "TODO"
 
   let sys_change _ = failwith "TODO"
 
-  let conds_in s = Dom.fold (fun (cond, orig_alarm, rel_alarm) conds -> CondSet.add cond conds) s (CondSet.empty ())
+  let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
@@ -221,19 +211,34 @@ struct
               (* TODO: other lval cases *)
               | _ -> acc
             ) [] xs in
-          Dom.filter (fun ((exp, _), _, _) -> List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
+          Dom.filter (fun alarm -> List.fold (fun acc var -> let (exp, _) = alarm.cond in Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
         | _ -> Dom.empty ()
       end
     | _ -> Dom.empty ()
 
-  let gen node x = CondSet.fold (fun cond acc ->
+  let set_locs alarm node rel_alarms = 
+    let alarm = set_loc alarm (M.Location.Node node) in (* TODO: does this work? *)
+    let orig_alarms = AlarmSet.fold (fun alarm acc ->
+        let origs = List.to_seq alarm.locs.original in
+        RMLocSet.add_seq origs acc)
+        rel_alarms RMLocSet.empty in
+    let rel_alarms = AlarmSet.fold (fun alarm acc ->
+        match (get_alarm_loc alarm.multipiece) with
+        | Some loc -> RMLocSet.add loc acc
+        | _ -> acc) rel_alarms RMLocSet.empty in
+    {alarm with locs={original=RMLocSet.to_list orig_alarms; related = RMLocSet.to_list rel_alarms}}
+
+  let gen node x = CondSet.fold (fun cond dom ->
       let ant = HM.find !antSolHM node in
       let rel_alarms = Ant.rel_alarms cond ant in
-      AlarmSet.fold (fun (msg, n) acc -> Dom.add (
-          cond, (msg, n), match node with
-          | `L n -> (msg, n)
-          | `G n -> (msg, n)) 
-          acc) rel_alarms acc
+      (* Update the message locations to correspond to the sinked location and add original and related alarms *)
+      AlarmSet.fold (fun alarm dom_updated -> 
+          Dom.add
+            (match node with
+             | `L n -> set_locs alarm n rel_alarms
+             | `G n -> set_locs alarm n rel_alarms)
+            dom_updated)
+        rel_alarms dom
     ) x (Dom.empty ())
 
   let gen_entry node x =
@@ -284,32 +289,8 @@ struct
   let iter_vars _ _ _ = ()
 end
 
-module MLocSet = Set.Make (M.Location)
-
-let array_oob_warn idx_before_end idx_after_start node var_node =
-  (* For an explanation of the warning types check the Pull Request #255 *)
-  let (orig_locs, rel_locs) = DAv.fold (fun (cond, (_, orig_node), (_, rel_node)) (orig_locs, rel_locs) -> 
-      (MLocSet.add (M.Location.Node orig_node) orig_locs, MLocSet.add (M.Location.Node rel_node) rel_locs)) 
-      (HM.find !avSolHM var_node) (MLocSet.empty, MLocSet.empty) in
-  let locs : Messages.Locs.t = {original=(MLocSet.to_list orig_locs); related=MLocSet.to_list rel_locs} in
-  let loc = MLocSet.any rel_locs in
-  match(idx_after_start, idx_before_end) with
-  | Some true, Some true -> (* Certainly in bounds on both sides.*)
-    ()
-  | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end" ~loc:loc ~locs:locs
-  | Some true, None ->
-    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end" ~loc:loc ~locs:locs
-  | Some false, Some true ->
-    M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start" ~loc:loc ~locs:locs
-  | None, Some true ->
-    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start" ~loc:loc ~locs:locs
-  | _ ->
-    M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds" ~loc:loc ~locs:locs
-
-
 let init _ =
-  NH.clear alarmsNH;
+  RM.NH.clear RM.messagesNH; (* TODO: does not work with incremental *)
   HM.clear hoistHM;
   HM.clear sinkHM
 
@@ -325,7 +306,7 @@ let finalize _ =
   end
   in
 
-  (* NH.iter (fun k (cond, a) -> ignore (Pretty.printf "%a->%a, %a\n" Node.pretty_trace k Cond.pretty cond Alarm.pretty a)) alarmsNH; *)
+  (* RM.NH.iter (fun n alarm -> ignore (Pretty.printf "%a->%a\n" Node.pretty_trace n RM.ReposMessage.pretty alarm)) RM.messagesNH; *)
 
   let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
   let (solution, _) = Solver.solve Ant.box [] [start_node] None in
@@ -415,20 +396,29 @@ let finalize _ =
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
 
   (* Print repositioned warnings *)
-  HM.iter (fun k s -> CondSet.iter (fun (exp, l) ->
-      let warn q_node loc_node =
-        let q = (!ask q_node).f (EvalInt exp) in
-        let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-        let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-        and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-        array_oob_warn idx_before_end idx_after_start (M.Location.Node loc_node) k in
-      match k with
-      | `L n -> warn n n
-      | `G n ->
-        let module CFG = (val !MyCFG.current_cfg) in
-        let next_nodes = List.map snd (CFG.next n) in
-        List.iter (fun node ->
-            match node with
-            | Function _ -> warn n n
-            | _ -> warn node n) next_nodes
-    ) s) sinkHM;
+  let reposmessage_to_message (rm : Alarm.t) =
+    M.add {tags = rm.tags; severity = rm.severity; multipiece = rm.multipiece; locs = rm.locs}
+  in
+
+  (* Merge original and related alarms to one message and
+     update the message location to be one of the hoisted
+     locations instead of sinked location, if available
+  *)
+  let warn alarms =
+    let (orig_locs, rel_locs) = D.fold (fun alarm (orig_locs, rel_locs)->
+        let origs = List.to_seq alarm.locs.original in
+        let reltd = List.to_seq alarm.locs.related in
+        RMLocSet.add_seq origs orig_locs, RMLocSet.add_seq reltd rel_locs)
+        alarms (RMLocSet.empty, RMLocSet.empty) 
+    in
+    let rel_alarm = D.choose alarms in
+    let alarm =
+      match rel_alarm.locs.related with
+      | rel_loc :: _ -> set_loc rel_alarm rel_loc
+      | _ -> rel_alarm
+    in
+    reposmessage_to_message {alarm with locs={original=RMLocSet.to_list orig_locs; related=RMLocSet.to_list rel_locs}}
+  in
+
+  (* Find the corresponding messages for the sinked alarms from solution_av and print them out *)
+  HM.iter (fun n s -> CondSet.iter (fun _ -> warn @@ HM.find !avSolHM n) s) sinkHM;

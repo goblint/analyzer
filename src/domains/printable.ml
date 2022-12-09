@@ -383,6 +383,10 @@ struct
   let to_yojson (x, y) =
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
+  let of_yojson = function
+    | `Assoc [(n1, x1); (n2, x2)] -> failwith "TODO"
+    | _ -> Result.Error "Messages.Tag.of_yojson"
+
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 
   let relift (x,y) = (Base1.relift x, Base2.relift y)
