@@ -156,7 +156,6 @@ struct
   let process (alarm : (Cond.t * Alarm.t)) y = alarm
 
   let gen' node x =
-    let module CFG = (val !MyCFG.current_cfg) in
     match NH.find_option alarmsNH node with
     | Some alarm -> Dom.singleton (process alarm (conds_in x))
     | None -> Dom.empty ()
@@ -169,7 +168,7 @@ struct
     | `L node ->
       let f get _ =
         let ant_out = get (`G node) in
-        Dom.union (gen' node ant_out) (Dom.diff ant_out (kill node ant_out))
+        Dom.union (gen node ant_out) (Dom.diff ant_out (kill node ant_out))
       in
       Some f
     (* AntOut *)
