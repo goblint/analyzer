@@ -1,8 +1,14 @@
 void main() {
   int unknown;
   int x;
-  if (2 < unknown) {
+  if (1 < unknown) {
     x = 3;
+    if (x < unknown) {
+      x = unknown;
+      if (unknown < x) {
+        int y = 1;
+      }
+    }
   } else {
     x = 7;
   }
@@ -43,6 +49,21 @@ void main() {
 // int x;
 // if (2 < unknown) {
 // x = 3;
+// } else {
+//   x = 7;
+// }
+
+// Lt-example, wo meine overlap-split strategy gezeigt wird
+// int unknown;
+// int x;
+// if (1 < unknown) {
+//   x = 3;
+//   if (x < unknown) {
+//     x = unknown;
+//     if (unknown < x) {
+//       int y = 1;
+//     }
+//   }
 // } else {
 //   x = 7;
 // }

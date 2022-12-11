@@ -13,6 +13,13 @@ type varDomain =
 | Address of varinfo   
 | Error
 
+let middle_intersect_intervals l1 u1 l2 u2 = if u1 = l2 then u1 else if l1 = u2 then l1 else
+(  let l_intersect, u_intersect = if u1 > l2 then l2, u1 else l1, u2
+in 
+let delta = Big_int_Z.abs_big_int (Big_int_Z.sub_big_int u_intersect l_intersect) 
+in Big_int_Z.add_big_int l_intersect (Big_int_Z.div_big_int delta (Big_int_Z.big_int_of_int 2))  ) 
+
+
 let equal_varDomain vd1 vd2 =
   match vd1, vd2 with
   Int(iLower1, iUpper1, ik1), Int(iLower2, iUpper2, ik2) -> (Big_int_Z.eq_big_int iLower1 iLower2) && (Big_int_Z.eq_big_int iUpper1 iUpper2)
