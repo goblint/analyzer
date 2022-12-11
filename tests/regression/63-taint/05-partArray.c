@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --disable ana.base.context.int --set ana.activated[+] taintPartialContexts
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.ctx_insens[+] base --set ana.activated[+] taintPartialContexts
 // adapted from 22 06
 #include <goblint.h>
 

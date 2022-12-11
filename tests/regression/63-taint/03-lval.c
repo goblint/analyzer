@@ -1,4 +1,4 @@
-//PARAM: --disable ana.base.context.int --set ana.activated[+] taintPartialContexts
+//PARAM: --set ana.ctx_insens[+] base --set ana.activated[+] taintPartialContexts --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
 #include <goblint.h>
 
 struct myStruct {
@@ -8,78 +8,50 @@ struct myStruct {
 
 struct myStruct globStrct;
     
-int globArry[3];
-
+int globArry[2];
 int globInt;
 
-
-void f(int* mem, int* uninMem) {
-
-    uninMem = malloc(16);
-
-    globArry[0] = 70;
+void f(int* mem) {
+    globArry[1] = 70;
     globStrct.q = 70;
-
-    globArry[6] = 70;
-
-
-    *(mem + 3) = 70;
-    *(mem + 2) = 70;
-
+    *(mem + 1) = 70;
 }
-
-void f2() {
-
-
-    globArry[0] = 70;
-    globStrct.q = 70;
-
-    globArry[6] = 70;
-
-
-}
-
 
 int main () {
+    int *locMem = malloc(sizeof(int)*2);
 
-    int *locMem = malloc(64);
-    int *locMem2 = malloc(32);
-    int *locUninMem;
-    int *locUninMem2;
-
+    // init
+    globInt = 1;
     globStrct.n = 1;
     globStrct.q = 1;
-
     globArry[0] = 1;
     globArry[1] = 1;
-    globArry[2] = 1;
+    *(locMem) = 1;
+    *(locMem + 1) = 1;
+    
+    f(locMem);
 
-    globInt = 1;
-
-    //f(locMem, locUninMem);
-    f2();
-
+    //change
+    globInt = 2;
     globStrct.n = 2;
     globStrct.q = 2;
-
     globArry[0] = 2;
     globArry[1] = 2;
-    globArry[2] = 2;
+    *(locMem) = 2;
+    *(locMem + 1) = 2;
 
-    globInt = 2;
+    f(locMem);
 
+    //check untainted
+    __goblint_check(globInt == 2);
+    __goblint_check(globStrct.n == 2);
+    __goblint_check(globArry[0] == 2);
+    __goblint_check(*(locMem) == 2); //UNKNOWN
 
-    //f(locMem, locUninMem2);
-    f2();
-
-    __goblint_check(globInt == 2); //SUCCESS
-    __goblint_check(globArry[0] == 2); //UNKNOWN
-    __goblint_check(globStrct.n == 2); //SUCCESS
+    //validate tainted
+    __goblint_check(globStrct.q == 70);
+    __goblint_check(globArry[1] == 70);
+    __goblint_check(*(locMem) == 70); //UNKNOWN
 
     free(locMem);
-    free(locMem2);
-    //free(locUninMem);
-    //free(locUninMem2);
-
-
 }

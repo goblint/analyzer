@@ -1,3 +1,6 @@
+(* TaintPartialContexts: Set of Lvalues, which are tainted at a specific Node. *)
+(* An Lvalue is tainted, if its Rvalue might have been altered in the context of the current function,
+  implying that the Rvalue of any Lvalue not in the set has definitely not been changed within the current context. *)
 open Prelude.Ana
 open Analyses
 
@@ -15,6 +18,7 @@ struct
     | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
     | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
 
+  (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
     let d = ctx.local in
     (match lval with 
@@ -33,6 +37,7 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    (* remove locals, except ones which need to be weakly updated*)
     let d = ctx.local in
     let locals = (f.sformals @ f.slocals) in
     let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
@@ -42,7 +47,8 @@ struct
 
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, (D.bot ())] (** Entering a function, all globals count as untouched *)
+    (* Entering a function, all globals count as untainted *)
+    [ctx.local, (D.bot ())]
 
   let combine ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
@@ -54,6 +60,7 @@ struct
     D.union d au
 
   let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    (* perform shallow and deep invalidate according to Library descriptors *)
     let d =
       match lvalOpt with
       | Some lv -> taint_lval ctx lv
@@ -75,23 +82,9 @@ struct
       else
         deep_addrs
     in
-    let d = List.fold_left (fun accD addr -> 
-      match addr with 
-      | AddrOf x -> (
-        match x with 
-        | (Var v, offs) -> D.add (v, resolve offs) accD
-        | _ -> accD) (** Shallow; don't need to follow pointers *)
-      | _ -> accD
-    ) d shallow_addrs
+    let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.MayPointTo addr))) d shallow_addrs
     in
-    let d = List.fold_left (fun accD addr -> 
-      match addr with 
-      | AddrOf x -> (
-        match x with 
-        | (Var v, offs) -> D.add (v, resolve offs) accD
-        | (Mem e, _) -> D.union (ctx.ask (Queries.ReachableFrom e)) accD)
-      | _ -> accD
-    ) d deep_addrs
+    let d = List.fold_left (fun accD addr -> D.union accD (ctx.ask (Queries.ReachableFrom addr))) d deep_addrs
     in
     d
 
@@ -112,5 +105,6 @@ let _ =
 
 module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" end)
 
+(* Convert Lval set to (less precise) Varinfo set. *)
 let conv_varset (lval_set : Spec.D.t) : VS.t = 
   if Spec.D.is_top lval_set then VS.top () else VS.of_list (List.map (fun (v, _) -> v) (Spec.D.elements lval_set))
