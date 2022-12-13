@@ -105,6 +105,9 @@
     "success": true
   },
   "incremental": {
+    "reluctant": {
+      "compare": "equal"
+    },
     "postsolver": {
       "enabled": true
     },
@@ -113,9 +116,6 @@
         "enabled": false
       },
       "write-only": true
-    },
-    "reluctant": {
-      "compare": "leq"
     }
   }
 }

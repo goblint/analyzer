@@ -54,7 +54,7 @@
   },
   "incremental": {
     "reluctant": {
-      "compare": "leq"
+      "compare": "equal"
     },
     "restart": {
       "sided": {
