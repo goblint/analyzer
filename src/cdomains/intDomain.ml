@@ -7,6 +7,8 @@ module GU = Goblintutil
 module M = Messages
 module BI = IntOps.BigIntOps
 
+open ConfigUtil
+
 let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
@@ -29,49 +31,6 @@ let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThres
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
   ResettableLazy.reset widening_thresholds_desc
-
-(** Define a record that holds mutable mutable variables representing certain Configuration values.
-  * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
-type ana_config_values = {mutable interval_threshold_widening : float_precision option;
-                          mutable interval_narrow_by_meet : float_precision option;
-                          mutable def_exc_widen_by_join : float_precision option}
-
-let conf_values = {interval_threshold_widening = None;
-                   interval_narrow_by_meet = None;
-                   def_exc_widen_by_join = None}
-
-let extract_from_option x =
-    match x with
-    | None -> failwith "Config option not read"
-    | Some x -> x
-
-let get_interval_threshold_widening () = 
-  if conf_values.interval_threshold_widening = None then 
-    let conf = Some (get_bool "ana.int.interval_threshold_widening") in
-    conf_values.interval_threshold_widening <- conf; conf_values.interval_threshold_widening
-  else
-    conf_values.interval_threshold_widening
-        
-let get_interval_narrow_by_meet () =
-  if conf_values.interval_narrow_by_meet = None then
-    let conf = Some (get_bool "ana.int.interval_narrow_by_meet") in
-    conf_values.interval_narrow_by_meet <- conf; conf_values.interval_narrow_by_meet
-  else
-    conf_values.interval_narrow_by_meet
-
-let get_def_exc_widen_by_join () = 
-  if conf_values.def_exc_widen_by_join = None then 
-    let conf = Some (get_bool "ana.int.def_exc_widen_by_join") in 
-    conf_values.def_exc_widen_by_join <- conf; conf_values.def_exc_widen_by_join
-  else
-    conf_values.def_exc_widen_by_join
-
-let get_config_value (conf: string): float_precision option=
-  match conf with
-  | "ana.int.interval_threshold_widening" -> get_interval_threshold_widening ()
-  | "ana.int.interval_narrow_by_meet" -> get_interval_narrow_by_meet ()      
-  | "ana.int.def_exc_widen_by_join" -> get_def_exc_widen_by_join ()
-  | _ -> failwith "Tried to read invalid config value"
 
 module type Arith =
 sig
@@ -672,15 +631,15 @@ struct
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
-      let threshold = extract_from_option @@ get_config_value "ana.int.interval_threshold_widening" in (*extract_from_option @@ get_interval_threshold_widening_ref () in*)
+      let threshold = extract_from_option @@ get_bool_config_value "ana.int.interval_threshold_widening" in (*extract_from_option @@ get_interval_threshold_widening_ref () in*)
       let upper_threshold u =
-        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+        let ts = if extract_from_option @@ get_string_config_value "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
         let u = Ints_t.to_bigint u in
         let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
         BatOption.map_default Ints_t.of_bigint max_ik t
       in
       let lower_threshold l =
-        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+        let ts = if extract_from_option @@ get_string_config_value "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
         let l = Ints_t.to_bigint l in
         let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
         BatOption.map_default Ints_t.of_bigint min_ik t
@@ -722,7 +681,7 @@ struct
     | Some x -> x
 *)
   let narrow ik x y =
-    if extract_from_option @@ get_config_value "ana.int.interval_narrow_by_meet" then (*get_interval_narrow_by_meet_ref () then*)
+    if extract_from_option @@ get_bool_config_value "ana.int.interval_narrow_by_meet" then (*get_interval_narrow_by_meet_ref () then*)
       meet ik x y
     else
       narrow ik x y
@@ -1498,7 +1457,7 @@ struct
     | Some x -> x
 *)
   let widen ik x y =
-    if extract_from_option @@ get_config_value "ana.int.def_exc_widen_by_join" then (*get_widen_by_join_ref () then*)
+    if extract_from_option @@ get_bool_config_value "ana.int.def_exc_widen_by_join" then (*get_widen_by_join_ref () then*)
       join' ik x y
     else if equal x y then
       x
@@ -2817,7 +2776,7 @@ module IntDomTupleImpl = struct
 
   let refine ik ((a, b, c, d ) : t ) : t =
     let dt = ref (a, b, c, d) in
-    (match GobConfig.get_string "ana.int.refinement" with
+    (match extract_from_option @@ get_string_config_value "ana.int.refinement" with
       | "never" -> ()
       | "once" ->
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
