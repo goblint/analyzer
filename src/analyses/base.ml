@@ -26,7 +26,7 @@ module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
-
+open ConfigUtil
 
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
@@ -85,7 +85,7 @@ struct
    * Helpers
    **************************************************************************)
 
-  let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
+  let is_privglob v = extract_from_option @@ get_bool_config_value "annotation.int.privglobs" && v.vglob
 
   (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
   (*We have to prevent different domains to be used at the same time for the same array*)
@@ -125,13 +125,13 @@ struct
       None
 
   let project_val ask array_attr p_opt value is_glob =
-    let p = if GobConfig.get_bool "annotation.int.enabled" then (
+    let p = if extract_from_option @@ get_bool_config_value "annotation.int.enabled" then (
         if is_glob then
           Some PU.max_int_precision
         else p_opt
       ) else None
     in
-    let a = if GobConfig.get_bool "annotation.goblint_array_domain" then array_attr else None in
+    let a = if extract_from_option @@ get_bool_config_value "annotation.goblint_array_domain" then array_attr else None in
     VD.project ask p a value
 
   let project ask p_opt cpa fundec =
@@ -468,7 +468,7 @@ struct
       let f = function
         | Addr.Addr (x, o) -> f_addr (x, o)
         | Addr.NullPtr ->
-          begin match get_string "sem.null-pointer.dereference" with
+          begin match extract_from_option @@ get_string_config_value "sem.null-pointer.dereference" with
             | "assume_none" -> VD.bot ()
             | "assume_top" -> top
             | _ -> assert false
@@ -734,7 +734,7 @@ struct
     eval_rv_base a gs st exp (* just as alias, so query doesn't weirdly have to call eval_rv_base *)
 
   and eval_rv_back_up a gs st exp =
-    if get_bool "ana.base.eval.deep-query" then
+    if extract_from_option @@ get_bool_config_value "ana.base.eval.deep-query" then
       eval_rv a gs st exp
     else (
       (* duplicate unknown_exp check from eval_rv since we're bypassing it now *)
@@ -1220,13 +1220,13 @@ struct
     )
 
   let query_invariant ctx context =
-    if GobConfig.get_bool "ana.base.invariant.enabled" then
+    if extract_from_option @@ get_bool_config_value "ana.base.invariant.enabled" then
       query_invariant ctx context
     else
       Invariant.none
 
   let query_invariant_global ctx g =
-    if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
+    if extract_from_option @@ get_bool_config_value "ana.base.invariant.enabled" && extract_from_option @@ get_bool_config_value "exp.earlyglobs" then (
       (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
          Otherwise, the values of globals in single-threaded mode are not accounted for. *)
       (* TODO: account for single-threaded values without earlyglobs. *)
@@ -1356,7 +1356,7 @@ struct
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
-    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
+    if ((extract_from_option @@ get_bool_config_value "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
     else
       CPA.add variable value cpa
@@ -1430,7 +1430,7 @@ struct
         if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         st
       end else
-      if get_bool "exp.globs_are_top" then begin
+      if extract_from_option @@ get_bool_config_value "exp.globs_are_top" then begin
         if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
         { st with cpa = CPA.add x `Top st.cpa }
       end else
@@ -1568,7 +1568,7 @@ struct
       in
       let effect_on_array arr st =
         let v = CPA.find arr st in
-        let nval = VD.affect_move ~replace_with_const:(get_bool ("ana.base.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
+        let nval = VD.affect_move ~replace_with_const:(extract_from_option @@ get_bool_config_value ("ana.base.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
         update_variable arr arr.vtype nval st
       in
       { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
@@ -1673,7 +1673,7 @@ struct
     in
     (match rval_val, lval_val with
      | `Address adrs, lval
-       when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+       when (not !GU.global_initialization) && extract_from_option @@ get_bool_config_value "kernel" && not_local lval && not (AD.is_top adrs) ->
        let find_fps e xs = match Addr.to_var_must e with
          | Some x -> x :: xs
          | None -> xs
@@ -1948,7 +1948,7 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | _, _ when get_bool "sem.unknown_function.spawn" ->
+    | _, _ when extract_from_option @@ get_bool_config_value "sem.unknown_function.spawn" ->
       (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
          But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
          definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
@@ -2160,7 +2160,7 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "sem.malloc.fail")
+            if (extract_from_option @@ get_bool_config_value "sem.malloc.fail")
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
@@ -2174,7 +2174,7 @@ struct
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
           let add_null addr =
-            if get_bool "sem.malloc.fail"
+            if extract_from_option @@ get_bool_config_value "sem.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           let ik = Cilfacade.ptrdiff_ikind () in
@@ -2203,7 +2203,7 @@ struct
           let heap_val = `Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
           let heap_addr = AD.from_var (heap_var ctx) in
           let heap_addr' =
-            if get_bool "sem.malloc.fail" then
+            if extract_from_option @@ get_bool_config_value "sem.malloc.fail" then
               AD.join heap_addr AD.null_ptr
             else
               heap_addr
