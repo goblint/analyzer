@@ -41,6 +41,10 @@
     },
     "dead-code": {
       "lines": true
+    },
+    "int": {
+      "interval": true,
+      "def_exc": true
     }
   },
   "sem": {

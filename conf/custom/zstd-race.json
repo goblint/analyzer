@@ -41,6 +41,10 @@
     },
     "dead-code": {
       "lines": true
+    },
+    "int": {
+      "interval": true,
+      "def_exc": true
     }
   },
   "sem": {
@@ -49,16 +53,6 @@
       "invalidate": {
         "globals": false,
         "args": false
-      }
-    }
-  },
-  "incremental": {
-    "reluctant": {
-      "compare": "equal"
-    },
-    "restart": {
-      "sided": {
-        "enabled": false
       }
     }
   },
@@ -113,5 +107,15 @@
     "info": false,
     "debug": false,
     "success": true
+  },
+  "incremental": {
+    "reluctant": {
+      "compare": "equal"
+    },
+    "restart": {
+      "sided": {
+        "enabled": false
+      }
+    }
   }
 }
