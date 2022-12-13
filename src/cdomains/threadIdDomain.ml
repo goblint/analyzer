@@ -1,5 +1,6 @@
 open GoblintCil
 open FlagHelper
+open Prelude
 
 module type S =
 sig
@@ -65,7 +66,11 @@ struct
     | ({vname = "main"; _}, None) -> true
     | _ -> false
 
-  let is_unique _ = false (* TODO: should this consider main unique? *)
+  let is_unique =
+    (* TODO: should this consider main unique? *)
+    let unique = lazy (GobConfig.get_string_list "ana.thread.force-unique" |> Set.String.of_list) in
+    function ({vname; _}, _) -> Set.String.mem vname (Lazy.force unique)
+  
   let may_create _ _ = true
   let is_must_parent _ _ = false
 end

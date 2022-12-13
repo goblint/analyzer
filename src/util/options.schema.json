@@ -914,6 +914,13 @@
                 "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
+            },
+            "force-unique": {
+              "title": "ana.thread.force-unique",
+              "description": "List of thread ids (function names) that should be assumed unique",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
             }
           },
           "additionalProperties": false
