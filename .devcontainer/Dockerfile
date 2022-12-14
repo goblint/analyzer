@@ -22,4 +22,6 @@ RUN cd /home/opam/opam-repository \
 
 RUN cd /home/opam/docker/analyzer \
     && make setup \
-    && make dev
+    && eval $(opam env) \
+    && opam install -y utop ocaml-lsp-server ocp-indent \
+    && sudo gem install parallel
