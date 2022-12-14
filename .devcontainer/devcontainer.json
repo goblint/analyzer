@@ -9,7 +9,7 @@
         "cacheFrom": "ghcr.io/goblint/analyzer-devcontainer"
     },
     "remoteUser": "opam",
-    "postCreateCommand": "make setup; make dev",
+    "postCreateCommand": "ln -s /home/opam/docker/analyzer/_opam .",
 
     "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
 

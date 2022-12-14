@@ -1,6 +1,9 @@
 # just -opam tag because make setup will install ocaml compiler
 FROM ocaml/opam:ubuntu-22.04-opam AS dev
 
+# copy only files for make setup to cache docker layers without code changes
+COPY --chown=opam Makefile make.sh goblint.opam goblint.opam.locked /home/opam/docker/analyzer/
+
 # TODO: use opam depext
 RUN sudo apt-get update \
     && sudo apt-get install -y libgmp-dev libmpfr-dev m4 autoconf gcc-multilib pkg-config ruby gem curl
@@ -16,3 +19,7 @@ ENV LC_ALL=C.UTF-8
 RUN cd /home/opam/opam-repository \
     && git pull origin master \
     && opam update
+
+RUN cd /home/opam/docker/analyzer \
+    && make setup \
+    && make dev
