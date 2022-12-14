@@ -5,7 +5,8 @@
 
     "build": {
         "dockerfile": "./Dockerfile",
-        "context": ".."
+        "context": "..",
+        "cacheFrom": "ghcr.io/goblint/analyzer-devcontainer"
     },
     "remoteUser": "opam",
     "postCreateCommand": "make setup; make dev",
