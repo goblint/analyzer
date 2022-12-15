@@ -237,7 +237,13 @@ struct
   (* Identity *)
   (* Enum type, so polymorphic identity is fine. *)
   (* Monomorphize polymorphic operations for optimization. *)
-  let equal (x: t) (y: t) = x = y
+  let _equal (xy: t * t) = match xy with
+    | (Wchar_t, Wchar_t) -> true
+    | (Char16_t, Char16_t) -> true
+    | (Char32_t, Char32_t) -> true
+    | _ -> false;;
+
+  let equal (x: t) (y: t) = _equal(x,y)
   let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
@@ -265,7 +271,12 @@ struct
   (* Identity *)
   (* Enum type, so polymorphic identity is fine. *)
   (* Monomorphize polymorphic operations for optimization. *)
-  let equal (x: t) (y: t) = x = y
+  let _equal (xy: t * t) = match xy with
+      | (No_encoding, No_encoding) -> true
+      | (Utf8, Utf8) -> true
+      | _ -> false;;
+
+  let equal (x: t) (y: t) = _equal(x,y)
   let compare (x: t) (y: t) = Stdlib.compare x y
   let hash (x: t) = Hashtbl.hash x
 
