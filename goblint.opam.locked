@@ -50,6 +50,7 @@ depends: [
   "csexp" {= "1.5.1"}
   "ctypes" {= "0.20.1"}
   "dune" {= "3.0.3"}
+  "dune-build-info" {= "3.0.3"}
   "dune-private-libs" {= "3.0.3"}
   "dune-site" {= "3.0.3"}
   "dyn" {= "3.0.3"}

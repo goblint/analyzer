@@ -13,6 +13,17 @@ let print_version ch =
   printf "Goblint version: %s\n" Version.goblint;
   printf "Cil version:     %s\n" Cil.cilVersion;
   printf "Profile:         %s\n" ConfigProfile.profile;
+  if get_bool "dbg.verbose" then (
+    printf "Library versions:\n";
+    List.iter (fun lib ->
+        let name = Build_info.V1.Statically_linked_library.name lib in
+        let version = match Build_info.V1.Statically_linked_library.version lib with
+          | Some v -> Build_info.V1.Version.to_string v
+          | None -> "[unknown]"
+        in
+        printf "  %s: %s\n" name version
+      ) (Build_info.V1.Statically_linked_libraries.to_list ())
+  );
   exit 0
 
 (** Print helpful messages. *)
