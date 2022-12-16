@@ -112,6 +112,9 @@
     "reluctant": {
       "compare": "equal"
     },
+    "postsolver": {
+      "enabled": false
+    },
     "restart": {
       "sided": {
         "enabled": false
