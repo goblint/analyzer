@@ -691,7 +691,7 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info =
   try
     let (module Spec) = get_spec () in
     let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
-    A.analyze file fs
+    GobConfig.with_immutable_conf (fun () -> A.analyze file fs)
   with Refinement.RestartAnalysis ->
     (* Tail-recursively restart the analysis again, when requested.
         All solving starts from scratch.
@@ -706,8 +706,7 @@ let compute_cfg file =
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
-  GobConfig.with_immutable_conf @@ fun () ->
-    if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
-    let (module CFG) = compute_cfg file in
-    MyCFG.current_cfg := (module CFG);
-    analyze_loop (module CFG) file fs change_info
+  if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
+  let (module CFG) = compute_cfg file in
+  MyCFG.current_cfg := (module CFG);
+  analyze_loop (module CFG) file fs change_info

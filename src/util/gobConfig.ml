@@ -33,7 +33,17 @@ module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.r
 (** The type for [gobConfig] module. *)
 module type S =
 sig
-  val get_json: string -> Yojson.Safe.t
+  (** Get JSON value at a given path. *)
+  val get_json : string -> Yojson.Safe.t
+
+  (** Directly set a JSON value; the result must conform to the schema. *)
+  val set_json : string -> Yojson.Safe.t -> unit
+
+  (** Equivalent to [get_json ""]. *)
+  val get_conf : unit -> Yojson.Safe.t
+
+  (** Equivalent to [set_conf ""]. *)
+  val set_conf : Yojson.Safe.t -> unit
 
   (** Functions to query conf variable of type int. *)
   val get_int    : string -> int
@@ -75,16 +85,10 @@ sig
   (** Merge configurations from a JSON object with current. *)
   val merge : Yojson.Safe.t -> unit
 
-  (* TODO: can bypass immutability by directly setting value *)
-  val json_conf : Yojson.Safe.t ref
-
-  (* TODO: completely lock this down? *)
-  (* val set_immutable : bool -> unit *)
-
-  (* Check whether modification of configuration is currently allowed. *)
+  (** Check whether modification of configuration is currently allowed. *)
   val is_immutable : unit -> bool
 
-  (* Call the given function with modification to configuration disabled. *)
+  (** Run the given computation with modification to configuration disabled. *)
   val with_immutable_conf : (unit -> 'a) -> 'a
 end
 
@@ -186,7 +190,7 @@ struct
   let write_file filename = File.with_file_out (Fpath.to_string filename) print
 
   (** Main function to receive values from the conf. *)
-  let rec get_value o pth =
+  let rec get_value (o : Yojson.Safe.t) pth =
     match o, pth with
     | o, Here -> o
     | `Assoc m, Select (key,pth) ->
@@ -303,7 +307,8 @@ struct
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
-  let get_json = get_path_string Fun.id
+  let get_json : string -> Yojson.Safe.t = get_path_string Fun.id
+  let get_conf () = get_json ""
 
   (** Convenience functions for reading values. *)
   (* memoize for each type with BatCache: *)
@@ -336,8 +341,6 @@ struct
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
-  (* let set_path_string st v =
-    set_value v json_conf (parse_path st) *)
 
   (** Sets a value, preventing changes when the configuration is immutable and invalidating the cache. *)
   let set_value v o pth =
@@ -346,15 +349,22 @@ struct
     unsafe_set_value v o pth
 
   (** Helper function for writing values. Handles the tracing. *)
-  let set_path_string ?(show_trace = true) st v =
-    if show_trace && tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
+  let set_path_string st v =
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
     set_value v json_conf (parse_path st)
+
+  let set_json st j =
+    (* can't validate before updating:
+       JSON inserted somewhere else than the root doesn't need to conform to the schema *)
+    set_path_string st j;
+    ValidatorRequireAll.validate_exn !json_conf
+  let set_conf = set_json ""
 
   (** Convenience functions for writing values. *)
   let set_int    st i = set_path_string st (`Int i)
   let set_bool   st i = set_path_string st (`Bool i)
   let set_string st i = set_path_string st (`String i)
-  let set_list   st l = set_path_string ~show_trace:false st (`List l)
+  let set_list   st l = set_path_string st (`List l)
 
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
@@ -372,9 +382,7 @@ struct
 
   let merge json =
     Validator.validate_exn json;
-    json_conf := GobYojson.merge !json_conf json;
-    ValidatorRequireAll.validate_exn !json_conf;
-    drop_memo ()
+    set_conf (GobYojson.merge !json_conf json)
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
@@ -398,6 +406,4 @@ end
 
 include Impl
 
-let () =
-  json_conf := Options.defaults;
-  ValidatorRequireAll.validate_exn !json_conf
+let () = set_conf Options.defaults
