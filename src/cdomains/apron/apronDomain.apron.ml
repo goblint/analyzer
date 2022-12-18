@@ -779,7 +779,7 @@ struct
     else
       y (* env decreased, can't decrease infinitely *)
 
-      (* TODO: check environments in pretty_diff? *)
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module type S2 =
