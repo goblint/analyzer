@@ -4,7 +4,18 @@ open Graph
 (* Pure edge type *)
 type edge = MyCFG.edge
 
-module SigmaMap = Map.Make(CilType.Varinfo)
+module VarinfoImpl =
+struct
+include CilType.Varinfo
+
+(* In order for inner and outter variables to be equal *)
+let compare vinfo1 vinfo2 =
+  if String.equal vinfo1.vname vinfo2.vname then 0 
+  else CilType.Varinfo.compare vinfo1 vinfo2
+  
+end
+
+module SigmaMap = Map.Make(VarinfoImpl)
 
 (* Value domain for variables contained in sigma mapping.
    The supported types are: Integer and Address of a variable *)
