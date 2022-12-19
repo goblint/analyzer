@@ -1,4 +1,7 @@
-(* dune exec bench/zarith/benchZarith.exe -- -a *)
+(** Benchmark calculation of powers of 2 with Zarith.
+    Originally for https://github.com/goblint/cil/pull/115.
+
+    dune exec bench/zarith/benchZarith.exe -- -a *)
 
 open Benchmark
 open Benchmark.Tree
