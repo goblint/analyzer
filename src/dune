@@ -23,9 +23,33 @@
       (apron -> apronAnalysis.apron.ml)
       (-> apronAnalysis.no-apron.ml)
     )
-    (select apronPriv.ml from
-      (apron -> apronPriv.apron.ml)
-      (-> apronPriv.no-apron.ml)
+    (select affineEqualityAnalysis.ml from
+      (apron -> affineEqualityAnalysis.apron.ml)
+      (-> affineEqualityAnalysis.no-apron.ml)
+    )
+    (select affineEqualityDomain.ml from
+      (apron -> affineEqualityDomain.apron.ml)
+      (-> affineEqualityDomain.no-apron.ml)
+    )
+    (select relationAnalysis.ml from
+      (apron -> relationAnalysis.apron.ml)
+      (-> relationAnalysis.no-apron.ml)
+    )
+    (select relationPriv.ml from
+      (apron -> relationPriv.apron.ml)
+      (-> relationPriv.no-apron.ml)
+    )
+    (select relationDomain.ml from
+      (apron -> relationDomain.apron.ml)
+      (-> relationDomain.no-apron.ml)
+    )
+    (select relationPrecCompareUtil.ml from
+      (apron -> relationPrecCompareUtil.apron.ml)
+      (-> relationPrecCompareUtil.no-apron.ml)
+    )
+    (select sharedFunctions.ml from
+      (apron -> sharedFunctions.apron.ml)
+      (-> sharedFunctions.no-apron.ml)
     )
     (select violationZ3.ml from
       (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
