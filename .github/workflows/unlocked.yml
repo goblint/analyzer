@@ -33,7 +33,7 @@ jobs:
             ocaml-compiler: 4.14.x
             z3: true
           - os: ubuntu-latest
-            ocaml-compiler: ocaml-base-compiler.5.0.0~rc1
+            ocaml-compiler: 5.0.0
             apron: false
 
     # customize name to use readable string for apron instead of just a boolean
