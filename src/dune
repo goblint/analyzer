@@ -31,6 +31,22 @@
       (apron -> affineEqualityDomain.apron.ml)
       (-> affineEqualityDomain.no-apron.ml)
     )
+    (select relationAnalysis.ml from
+      (apron -> relationAnalysis.apron.ml)
+      (-> relationAnalysis.no-apron.ml)
+    )
+    (select relationPriv.ml from
+      (apron -> relationPriv.apron.ml)
+      (-> relationPriv.no-apron.ml)
+    )
+    (select relationDomain.ml from
+      (apron -> relationDomain.apron.ml)
+      (-> relationDomain.no-apron.ml)
+    )
+    (select relationPrecCompareUtil.ml from
+      (apron -> relationPrecCompareUtil.apron.ml)
+      (-> relationPrecCompareUtil.no-apron.ml)
+    )
     (select sharedFunctions.ml from
       (apron -> sharedFunctions.apron.ml)
       (-> sharedFunctions.no-apron.ml)
