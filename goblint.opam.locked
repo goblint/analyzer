@@ -60,7 +60,7 @@ depends: [
   "goblint-cil" {= "2.0.1"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.12.1"}
-  "jsonrpc" {= "1.14.2"}
+  "jsonrpc" {= "1.15.0~5.0preview1"}
   "logs" {= "0.7.0"}
   "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
@@ -72,8 +72,8 @@ depends: [
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocamlbuild" {= "0.14.2"}
   "ocamlfind" {= "1.9.5"}
-  "odoc" {= "2.1.1" & with-doc}
-  "odoc-parser" {= "1.0.1" & with-doc}
+  "odoc" {= "2.2.0" & with-doc}
+  "odoc-parser" {= "2.0.0" & with-doc}
   "ordering" {= "3.6.1"}
   "ounit2" {= "2.2.6" & with-test}
   "pp" {= "1.1.2"}
