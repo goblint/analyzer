@@ -1,5 +1,5 @@
 diff --git tests/incremental/00-basic/15-reluctant-test.c tests/incremental/00-basic/15-reluctant-test.c
-index df4739354..a9117d577 100644
+index eb4c59f6b..5be065852 100644
 --- tests/incremental/00-basic/15-reluctant-test.c
 +++ tests/incremental/00-basic/15-reluctant-test.c
 @@ -14,8 +14,8 @@ int foo(){
@@ -13,11 +13,11 @@ index df4739354..a9117d577 100644
  	}
  	return r;
  }
-@@ -29,7 +29,7 @@ int main(){
+@@ -28,7 +28,7 @@ int main(){
+ 		g = 4;
  		int i = bar();
  
- 		// At first unreachable, then UNKNOWN!
--		__goblint_check(i == 4);
+-
 +		__goblint_check(i == 4); //UNKNOWN!
  	}
  	return x;

@@ -28,8 +28,7 @@ int main(){
 		g = 4;
 		int i = bar();
 
-		// At first unreachable, then UNKNOWN!
-		__goblint_check(i == 4);
+
 	}
 	return x;
 }
