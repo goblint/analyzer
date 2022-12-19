@@ -208,8 +208,13 @@ end
 module GraphSet = struct
 include SetDomain.Make(LocalTraces)
 
+let mem graph graphSet = fold (fun x b -> if LocalTraces.equal x graph then b || true else b) graphSet false
+
 let subset graphSet1 graphSet2 = 
-  fold (fun graph b -> b || (mem graph graphSet2)) graphSet1 false
+  fold (fun graph b ->let tmp = mem graph graphSet2 
+in if tmp = false then print_string ("graph: "^(LocalTraces.show graph)^" \nist angeblich nicht enthalten in graphSet2: "^(show graphSet2)^"\n");
+    
+    b && (tmp)) graphSet1 true
 
 let leq graphSet1 graphSet2 = subset graphSet1 graphSet2
 
