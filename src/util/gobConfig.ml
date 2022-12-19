@@ -124,7 +124,7 @@ struct
     in
     String.concat "" (helper p)
 
-  (** raise when an attempt is made to the configuration while it is immutable *)
+  (** raise when an attempt is made to modify the configuration while it is immutable *)
   exception Immutable of path
 
   let () =
