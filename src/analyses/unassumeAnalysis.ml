@@ -26,8 +26,8 @@ struct
 
   module Locator = WitnessUtil.Locator (Node)
 
-  let locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
-  let loop_locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
+  let locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
+  let loop_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
 
   type inv = {
     exp: Cil.exp;
@@ -40,8 +40,8 @@ struct
   let pre_invs: inv EH.t NH.t = NH.create 100
 
   let init _ =
-    locator := Locator.create (); (* TODO: add Locator.clear *)
-    loop_locator := Locator.create (); (* TODO: add Locator.clear *)
+    Locator.clear locator;
+    Locator.clear loop_locator;
     let module FileCfg =
     struct
       let file = !Cilfacade.current_file
@@ -56,9 +56,9 @@ struct
         NH.replace reachable node ();
         (* TODO: filter synthetic like in Validator *)
         if WitnessInvariant.is_invariant_node node then
-          Locator.add !locator (Node.location node) node;
+          Locator.add locator (Node.location node) node;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
-          Locator.add !loop_locator (Node.location node) node;
+          Locator.add loop_locator (Node.location node) node;
         List.iter (fun (_, prev_node) ->
             iter_node prev_node
           ) (FileCfg.Cfg.prev node)
@@ -125,7 +125,7 @@ struct
         let inv = location_invariant.location_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt !locator loc with
+        match Locator.find_opt locator loc with
         | Some nodes ->
           unassume_nodes_invariant ~loc ~nodes inv
         | None ->
@@ -137,7 +137,7 @@ struct
         let inv = loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt !loop_locator loc with
+        match Locator.find_opt loop_locator loc with
         | Some nodes ->
           unassume_nodes_invariant ~loc ~nodes inv
         | None ->
@@ -188,7 +188,7 @@ struct
         let inv = precondition_loop_invariant.loop_invariant.string in
         let msgLoc: M.Location.t = CilLocation loc in
 
-        match Locator.find_opt !locator loc with
+        match Locator.find_opt locator loc with
         | Some nodes ->
           unassume_precondition_nodes_invariant ~loc ~nodes pre inv
         | None ->
