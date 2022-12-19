@@ -313,7 +313,7 @@ module ArrayMatrix: AbstractMatrix =
       if is_empty m then m else
         let nc = Array.length m.(0) in
         if n > nc then failwith "n too large" else
-          let new_matrix = create_matrix (Array.length m) (Array.length m.(0) + 1) A.zero in
+          let new_matrix = make_matrix (Array.length m) (Array.length m.(0) + 1) A.zero in
           Array.iteri (fun i r -> if n = 0 then Array.blit r 0 new_matrix.(i) 1 (nc - 1) else
                           Array.blit r 0 new_matrix.(i) 0 n; if n <> nc then Array.blit r n new_matrix.(i) (n + 1) (nc - n)) m;
           new_matrix
@@ -322,7 +322,7 @@ module ArrayMatrix: AbstractMatrix =
       let nnc = Array.length cols in
       if is_empty m || nnc = 0 then m else
         let nr, nc = num_rows m, num_cols m in
-        let m' = create_matrix nr (nc + nnc) A.zero in
+        let m' = make_matrix nr (nc + nnc) A.zero in
         for i = 0 to nr - 1 do
           let offset = ref 0 in
           for j = 0 to nc - 1 do
@@ -336,7 +336,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let append_row m row  =
       let size = num_rows m in
-      let new_matrix = create_matrix (size + 1) (num_cols m) A.zero in
+      let new_matrix = make_matrix (size + 1) (num_cols m) A.zero in
       for i = 0 to size - 1 do
         new_matrix.(i) <- m.(i)
       done;
@@ -347,7 +347,7 @@ module ArrayMatrix: AbstractMatrix =
       V.of_array m.(n)
 
     let remove_row m n =
-      let new_matrix = create_matrix (num_rows m - 1) (num_cols m) A.zero in
+      let new_matrix = make_matrix (num_rows m - 1) (num_cols m) A.zero in
       if not @@ is_empty new_matrix then
         if n = 0 then
           Array.blit m 1 new_matrix 0 (num_rows m - 1)
@@ -412,7 +412,7 @@ module ArrayMatrix: AbstractMatrix =
       else
         let m_r, m_c = num_rows m, num_cols m in
         if m_c = n_c then empty () else
-          let m' = Array.create_matrix m_r (m_c - n_c) A.zero in
+          let m' = Array.make_matrix m_r (m_c - n_c) A.zero in
           for i = 0 to m_r - 1 do
             let offset = ref 0 in
             for j = 0 to (m_c - n_c) - 1 do
@@ -511,7 +511,7 @@ module ArrayMatrix: AbstractMatrix =
         else Some m
       )
       else
-        let new_m = Array.create_matrix (num_rows m + 1) (num_cols m) A.zero
+        let new_m = Array.make_matrix (num_rows m + 1) (num_cols m) A.zero
         in let (i, j) = Array.pivot_split Int.ord pivot_positions !insert in
         if i = 0 && j = 0 then (new_m.(0) <- v; Array.blit m 0 new_m 1 (num_rows m))
         else if i = num_rows m && j = num_rows m then (Array.blit m 0  new_m 0 j; new_m.(j) <- v)
