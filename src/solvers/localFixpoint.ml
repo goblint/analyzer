@@ -1,4 +1,4 @@
-(** Local fixpoint iteration solvers that don't use a constraint system. *)
+(** Fixpoint iteration solvers local to a single transfer function (don't use a constraint system). *)
 
 module Make (D: Lattice.S) =
 struct
