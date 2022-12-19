@@ -161,7 +161,7 @@ let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 let get_sigma g (progPoint:MyCFG.node) = 
   if LocTraceGraph.is_empty g then
   (match progPoint with 
-  | FunctionEntry({svar={vname=s;_}; _})-> if String.equal s "main" then (print_string "Hey, I found a main node on a yet empty graph\n";[SigmaMap.empty]) else [] 
+  | FunctionEntry({svar={vname=s;_}; _})-> if String.equal s "@dummy" then (print_string "Hey, I found a dummy node on a yet empty graph\n";[SigmaMap.empty]) else [] 
     | _ -> [])
   else  
   (let tmp =
@@ -181,6 +181,26 @@ let extend_by_gEdge gr gEdge =
                    sbody={battrs=[];bstmts=[]};
                    smaxstmtid=None;
                    sallstmts=[]})
+
+  let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
+    let workQueue = Queue.create ()
+  in Queue.add node workQueue;
+  let rec loop visited = (print_string ("loop wurde aufgerufen\n");
+    let q = Queue.pop workQueue
+in let predecessors = LocTraceGraph.pred_e graph q
+in let tmp_result = List.fold (fun optionAcc (prev_node, (edge:MyCFG.edge), _) -> 
+match edge with 
+    | (Assign((Var(edgevinfo),_), edgeExp)) -> if CilType.Varinfo.equal global edgevinfo then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");Some(prev_node)) else optionAcc
+    | _ -> optionAcc
+  ) None predecessors
+in
+match tmp_result with
+| None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (LocTraceGraph.pred graph q);
+  if Queue.is_empty workQueue then {programPoint=error_node;sigma=SigmaMap.empty} else loop (q::visited)
+| Some(nodeGlobalAssignment) -> nodeGlobalAssignment
+  )
+in loop []
+
 
 end
 

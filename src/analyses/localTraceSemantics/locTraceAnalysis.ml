@@ -35,14 +35,15 @@ let exitstate = startstate
 
 (* Evaluates the effects of an assignment to sigma *)
 (* TODO eval needs to be checked on overflow and div by 0 --> custom exception managment could be useful *)
-let eval sigOld vinfo (rval: exp) = 
+let eval sigOld vinfo (rval: exp) graph node = 
   (* dummy value 
      This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
   let nopVal sigSide = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false, sigSide)
 
   (* returns a function which calculates [l1, u1] OP [l2, u2]*)
-in let get_binop_int op ik = if not (CilType.Ikind.equal ik IInt) then (Printf.printf "This type of assignment is not supported\n"; exit 0) else 
+in let get_binop_int op ik = 
+  if not (CilType.Ikind.equal ik IInt) then (Printf.printf "This type of assignment is not supported\n"; exit 0) else 
 (match op with 
 | PlusA -> 
 fun x1 x2 -> (match (x1,x2) with 
@@ -67,6 +68,9 @@ if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin)
   else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
 
   | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0 )
+| Div -> fun x1 x2 -> (match (x1,x2) with 
+(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if l2 <= Big_int_Z.zero_big_int && u2 >= Big_int_Z.zero_big_int then raise Division_by_zero_Int else (Printf.printf "This type of assignment is not supported\n"; exit 0)
+  | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
 in
@@ -76,7 +80,12 @@ in
 | IInt -> if c < Big_int_Z.big_int_of_int intMin then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true,SigmaMap.empty) 
 else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true,SigmaMap.empty) else (Int (c,c, ik), true,SigmaMap.empty)
 | _ ->  Printf.printf "This type of assignment is not supported\n"; exit 0 )
-| Lval(Var(var), NoOffset) -> if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true,SigmaMap.empty) else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal SigmaMap.empty)
+| Lval(Var(var), NoOffset) -> if var.vglob = true 
+  then (let result = LocalTraces.find_globvar_assign_node var graph node in 
+print_string ("find_globvar_assign_node wurde aufgerufen, es wurde folgender Knoten gefunden: "^(NodeImpl.show result)^"\n"); nopVal SigmaMap.empty)
+else
+  (if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true,SigmaMap.empty) 
+else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal SigmaMap.empty))
 | AddrOf (Var(v), NoOffset) -> (Address(v), true,SigmaMap.empty)
 
 (* unop expressions *)
@@ -170,20 +179,19 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
 
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 (* sigNew will collect all side-effects and then we need to apply sigOld (+) sigSideEffects *)
-in let (result,success,sigSideEffects) = eval_helper rval 
+in let tmp = eval_helper rval 
+in let (result,success,sigSideEffects) = if vinfo.vglob = true then (print_string "There is a global on the left side, so no evaluation\n"; nopVal SigmaMap.empty) else tmp 
 in
 let sigNew = NodeImpl.destruct_add_sigma sigOld sigSideEffects
 in 
 if success then SigmaMap.add vinfo result sigNew  else (print_string "Sigma has not been updated. Vinfo is removed\n"; SigmaMap.remove vinfo sigNew)
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
-let eval_catch_exceptions sigOld vinfo rval stateEdge =
-try (eval sigOld vinfo rval, true) with 
-Division_by_zero_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer division by zero.\n"); (SigmaMap.add vinfo Error sigOld ,false)
-| Overflow_addition_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer addition that overflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
-| Underflow_subtraction_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer subtraction that underflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
-| Overflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that overflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
-| Underflow_multiplication_Int -> print_string ("The CFG edge ["^(EdgeImpl.show stateEdge)^"] definitely contains an Integer multiplication that underflows.\n"); (SigmaMap.add vinfo Error sigOld ,false)
+let eval_catch_exceptions sigOld vinfo rval stateEdge graph node =
+try (eval sigOld vinfo rval graph node, true) with 
+Division_by_zero_Int -> Messages.warn "Contains a trace with division by zero"; (SigmaMap.add vinfo Error sigOld ,false)
+| Overflow_addition_Int -> Messages.warn "Contains a trace with overflow of Integer addition";(SigmaMap.add vinfo Error sigOld ,false)
+| Underflow_subtraction_Int -> Messages.warn "Contains a trace with underflow of Integer subtraction"; (SigmaMap.add vinfo Error sigOld ,false)
 
 let assign ctx (lval:lval) (rval:exp) : D.t = 
   print_string ("assign wurde aufgerufen with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
@@ -191,7 +199,7 @@ let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
 let assign_helper graph sigma =
   (let myEdge, success =  match lval with (Var x, _) ->
-    let evaluated,success_inner = eval_catch_exceptions sigma x rval ctx.edge in 
+    let evaluated,success_inner = eval_catch_exceptions sigma x rval ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma} in 
     print_string ("new sigma in assign: "^(NodeImpl.show_sigma evaluated )^"\n");
      ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=evaluated}), success_inner
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
@@ -218,7 +226,7 @@ let branch_helper graph sigma =
 (let branch_sigma = SigmaMap.add branch_vinfo Error sigma 
 in
 print_string ("oldSigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
-let result_branch,success = eval_catch_exceptions branch_sigma branch_vinfo exp ctx.edge
+let result_branch,success = eval_catch_exceptions branch_sigma branch_vinfo exp ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma}
 in
 let result_as_int = match (SigmaMap.find_default Error branch_vinfo result_branch) with
 Int(i1,i2,_) -> if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
@@ -259,15 +267,15 @@ in
 let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
 let return_helper graph sigma =(
-  let myEdge = 
+  let myEdge = (
 match exp with 
 | None ->  
 ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
 | Some(ret_exp) -> (
-  let result, success = eval_catch_exceptions sigma return_vinfo ret_exp ctx.edge 
+  let result, success = eval_catch_exceptions sigma return_vinfo ret_exp ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma}
 in if success = false then ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
 else ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=result})
-)
+))
 in LocalTraces.extend_by_gEdge graph myEdge)
 in
   D.add (List.fold return_helper g oldSigma) set 
@@ -286,29 +294,33 @@ in
    D.fold fold_helper ctx.local (D.empty ())
     
 
-let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
-  print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
-let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in
-let enter_helper graph sigma =
-  (let sigma_formals, _ = List.fold (
-    fun (sigAcc, formalExp) formal -> (match formalExp with 
-      | x::xs -> (let result, success = eval_catch_exceptions sigAcc formal x ctx.edge 
-in if success = true then (result, xs) else (sigAcc, xs))
-      | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
-    ) (sigma, args) f.sformals
-  in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
-    let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals})
-in LocalTraces.extend_by_gEdge graph myEdge)
-in
-let tmp = (List.fold enter_helper g oldSigma) 
-in
-print_string ("new graph is "^(LocalTraces.show tmp)^"\n");
-  D.add (tmp) set 
-in
-let state =   D.fold fold_helper ctx.local (D.empty ())
-in
-  [ctx.local, state]  
+   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
+    print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^" 
+  with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
+  let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
+  let oldSigma = LocalTraces.get_sigma g ctx.prev_node (* Debuggen, gucken was rauskommt, und ob iteriert wird *)
+  in
+  if List.is_empty oldSigma then print_string("In enter, oldSigma-list is empty\n") else print_string("In enter, oldSigma-list is not empty\n");
+  let enter_helper graph sigma = print_string "enter_helper wurde aufgerufen\n";
+    (let sigma_formals, _ = List.fold (
+      fun (sigAcc, formalExp) formal -> (match formalExp with 
+        | x::xs -> (let result, success = eval_catch_exceptions sigAcc formal x ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma}
+  in if success = true then (result, xs) else (sigAcc, xs))
+        | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
+      ) (sigma, args) f.sformals
+    in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
+      let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals})
+  in LocalTraces.extend_by_gEdge graph myEdge)
+  in
+  let tmp = (List.fold enter_helper g oldSigma) 
+  in
+  print_string ("new graph is "^(LocalTraces.show tmp)^"\n");
+    D.add (tmp) set 
+  in
+  if D.is_empty ctx.local then [ctx.local, D.add (LocalTraces.extend_by_gEdge (LocTraceGraph.empty) ({programPoint=ctx.prev_node;sigma=SigmaMap.empty}, ctx.edge, {programPoint=(FunctionEntry(f));sigma=SigmaMap.empty})) (D.empty ())] else
+  let state = print_string ("In enter, neuer state wird erstellt\n mit ctx.local: "^(D.show ctx.local)^" und |ctx.local| = "^(string_of_int (D.cardinal ctx.local))^"\n"); D.fold fold_helper ctx.local (D.empty ())
+  in
+    [ctx.local, state]  
   
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
