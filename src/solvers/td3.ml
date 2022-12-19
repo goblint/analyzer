@@ -727,9 +727,21 @@ module Base =
               solve x Widen;
               if not (op (HM.find rho x) old_rho) then (
                 print_endline "Destabilization required...";
-                HM.replace infl x old_infl;
+
+                let infl_x = HM.find_default infl x (VS.empty) in
+
+                let print_set vs s =
+                  print_endline s;
+                  VS.iter (fun v -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace v) vs
+                in
+                ignore @@ Pretty.printf "infl_x: %d, old_infl: %d, intersction: %d\n" (VS.cardinal infl_x) (VS.cardinal old_infl) (VS.cardinal (VS.inter infl_x old_infl));
+                print_set infl_x "new infl:";
+                print_set old_infl "old infl:";
+
+                let infl_new = VS.union infl_x old_infl in
+
+                HM.replace infl x infl_new;
                 destabilize x;
-                HM.replace stable x ()
               )
               else (
                 print_endline "Destabilization not required...";
