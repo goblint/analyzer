@@ -1053,14 +1053,6 @@
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",
               "default": false
-            },
-            "compare": {
-              "title": "incremental.reluctant.compare",
-              "description":
-                "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
-              "type": "string",
-              "enum": ["leq", "equal"],
-              "default": "equal"
             }
           },
           "additionalProperties": false
