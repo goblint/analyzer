@@ -35,6 +35,8 @@ module Unit: F =
 (** Sequential composition of two postsolvers. *)
 module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
 struct
+  (* Assumes PS1 and PS2 have actually same modules!
+     Module constraint only gives type-wise equality. *)
   module S = PS1.S
   module VH = PS1.VH
 

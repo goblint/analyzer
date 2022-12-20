@@ -263,6 +263,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "cstd": {
+          "title": "cil.cstd",
+          "type": "string",
+          "description": "Specify the c standard used for parsing.",
+          "default": "c99",
+          "enum": ["c90", "c99", "c11"]
+        },
+        "gnu89inline": {
+          "title": "cil.gnu89inline",
+          "type": "boolean",
+          "description": "Indicates whether gnu89 semantic should be used for inline functions.",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -771,12 +784,6 @@
           "title": "ana.apron",
           "type": "object",
           "properties": {
-            "context": {
-              "title": "ana.apron.context",
-              "description": "Entire relation in function contexts.",
-              "type": "boolean",
-              "default": true
-            },
             "strengthening": {
               "title": "ana.apron.strengthening",
               "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
@@ -788,7 +795,7 @@
               "description":
                 "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
               "type": "string",
-              "enum": ["octagon", "interval", "polyhedra"],
+              "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
             "threshold_widening": {
@@ -806,27 +813,53 @@
               "enum": ["all", "comparisons"],
               "default": "all"
             },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "relation": {
+          "title": "ana.relation",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "ana.relation.context",
+              "description": "Entire relation in function contexts.",
+              "type": "boolean",
+              "default": true
+            },
             "privatization": {
-              "title": "ana.apron.privatization",
+              "title": "ana.relation.privatization",
               "description":
-                "Which apron privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+                "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
               "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
-              "title": "ana.apron.priv",
+              "title": "ana.relation.priv",
               "type": "object",
               "properties": {
                 "not-started": {
-                  "title": "ana.apron.priv.not-started",
+                  "title": "ana.relation.priv.not-started",
                   "description":
                     "Exclude writes from threads that may not be started yet",
                   "type": "boolean",
                   "default": true
                 },
                 "must-joined": {
-                  "title": "ana.apron.priv.must-joined",
+                  "title": "ana.relation.priv.must-joined",
                   "description":
                     "Exclude writes from threads that must have been joined",
                   "type": "boolean",
@@ -836,32 +869,26 @@
               "additionalProperties": false
             },
             "invariant": {
-              "title": "ana.apron.invariant",
+              "title": "ana.relation.invariant",
               "type": "object",
               "properties": {
                 "one-var": {
-                  "title": "ana.apron.invariant.one-var",
+                  "title": "ana.relation.invariant.one-var",
                   "description": "Generate invariants with only one variable",
                   "type": "boolean",
                   "default": false
                 },
                 "local": {
-                  "title": "ana.apron.invariant.local",
+                  "title": "ana.relation.invariant.local",
                   "description": "Keep local variables in invariants",
                   "type": "boolean",
                   "default": true
                 },
                 "global": {
-                  "title": "ana.apron.invariant.global",
+                  "title": "ana.relation.invariant.global",
                   "description": "Keep global variables in invariants",
                   "type": "boolean",
                   "default": true
-                },
-                "diff-box": {
-                  "title": "ana.apron.invariant.diff-box",
-                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
-                  "type": "boolean",
-                  "default": false
                 }
               },
               "additionalProperties": false
@@ -1363,7 +1390,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "apron.no-context", "apron.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -1386,9 +1413,9 @@
           "type": "boolean",
           "default": false
         },
-        "goblint_apron_track": {
-          "title": "annotation.goblint_apron_track",
-          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
+        "goblint_relation_track": {
+          "title": "annotation.goblint_relation_track",
+          "description": "Let relation track variables only if they have the attribute goblint_relation_track",
           "type": "boolean",
           "default": false
         }
@@ -1413,13 +1440,13 @@
           "type": "boolean",
           "default": false
         },
-        "apron": {
-          "title": "exp.apron",
+        "relation": {
+          "title": "exp.relation",
           "type": "object",
           "properties": {
             "prec-dump": {
-              "title": "exp.apron.prec-dump",
-              "description": "File to dump apron precision data to.",
+              "title": "exp.relation.prec-dump",
+              "description": "File to dump relation precision data to.",
               "type": "string",
               "default": ""
             }
@@ -2008,6 +2035,12 @@
               "description": "Remove widening points after narrowing phase. Enables a form of local restarting which increases precision of nested loops.",
               "type": "boolean",
               "default": true
+            },
+            "skip-unchanged-rhs" : {
+              "title" : "solvers.td3.skip-unchanged-rhs",
+              "description" : "Skip evaluation of RHS if all dependencies are unchanged - INCOMPATIBLE WITH RESTARTING",
+              "type" : "boolean",
+              "default": false
             },
             "restart": {
               "title": "solvers.td3.restart",

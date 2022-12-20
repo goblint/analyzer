@@ -1,4 +1,0 @@
-(install
- (section (site (goblint lib_stub_src)))
- (files
-  sv-comp.c))

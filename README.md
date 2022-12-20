@@ -12,7 +12,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).
-2. Make sure the following packages are installed: `git` `patch` `m4` `autoconf` `libgmp-dev` `libmpfr-dev` `pkg-config`.
+2. Make sure the following are installed: `git`, `patch`, `m4`, `autoconf`, `libgmp-dev`, `libmpfr-dev` and `pkg-config`.
 3. Run `make setup` to install OCaml and dependencies via opam.
    1. In case Goblint needs to be compiled with `flambda` optimizations, then run `make setup-flambda` instead
 4. Run `make` to build Goblint itself.
@@ -21,7 +21,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 ### MacOS
 1. Install GCC with `brew install gcc` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.
 2. ONLY for M1 (ARM64) processor: homebrew changed its install location from `/usr/local/` to `/opt/homebrew/`. For packages to find their dependecies execute `sudo ln -s /opt/homebrew/{include,lib} /usr/local/`.
-3. Continue using Linux instructions (the formulae in brew for `patch libgmp-dev libmpfr-dev` are `gpatch gmp mpfr`, respectively).
+3. Continue using Linux instructions (the formulae in brew for `patch`, `libgmp-dev`, `libmpfr-dev` are `gpatch`, `gmp`, `mpfr`, respectively).
 
 ### Windows
 1. Install [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install-win10). Goblint is not compatible with WSL1.

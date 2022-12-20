@@ -94,27 +94,35 @@ struct
   (*There surely is a better way, because this means that often the wrong one gets chosen*)
   module VarH = Hashtbl.Make(CilType.Varinfo)
   module VarMap = Map.Make(CilType.Varinfo)
-  let array_map = VarH.create 20
+  let array_map = ref (VarH.create 20)
+
+  type marshal = attributes VarMap.t VarH.t
+
+  let array_domain_annotation_enabled = lazy (GobConfig.get_bool "annotation.goblint_array_domain")
 
   let add_to_array_map fundec arguments =
-    let rec pointedArrayMap = function
-      | [] -> VarMap.empty
-      | (info,value)::xs ->
-        match value with
-        | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
-          let possibleVars = PreValueDomain.AD.to_var_may t in
-          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
-        | _ -> pointedArrayMap xs
-    in
-    match VarH.find_option array_map fundec.svar with
-    | Some _ -> () (*We already have something -> do not change it*)
-    | None -> VarH.add array_map fundec.svar (pointedArrayMap arguments)
+    if Lazy.force array_domain_annotation_enabled then
+      let rec pointedArrayMap = function
+        | [] -> VarMap.empty
+        | (info,value)::xs ->
+          match value with
+          | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
+            let possibleVars = PreValueDomain.AD.to_var_may t in
+            List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+          | _ -> pointedArrayMap xs
+      in
+      match VarH.find_option !array_map fundec.svar with
+      | Some _ -> () (*We already have something -> do not change it*)
+      | None -> VarH.add !array_map fundec.svar (pointedArrayMap arguments)
 
   let attributes_varinfo info fundec =
-    let map = VarH.find array_map fundec.svar in
-    match VarMap.find_opt info map with
-    | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
-    | None -> Some (info.vattr, typeAttrs (info.vtype))
+    if Lazy.force array_domain_annotation_enabled then
+      let map = VarH.find !array_map fundec.svar in
+      match VarMap.find_opt info map with
+      | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
+      | None -> Some (info.vattr, typeAttrs (info.vtype))
+    else
+      None
 
   let project_val ask array_attr p_opt value is_glob =
     let p = if GobConfig.get_bool "annotation.int.enabled" then (
@@ -149,12 +157,16 @@ struct
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let init marshal =
+    begin match marshal with
+      | Some marshal -> array_map := marshal
+      | None -> ()
+    end;
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
     Priv.init ()
 
   let finalize () =
     Priv.finalize ();
-    VarH.clear array_map
+    !array_map
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -789,43 +801,48 @@ struct
         let b = Mem e, NoOffset in (* base pointer *)
         let t = Cilfacade.typeOfLval b in (* static type of base *)
         let p = eval_lv a gs st b in (* abstract base addresses *)
-        let v = (* abstract base value *)
+        (* pre VLA: *)
+        (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+        let cast_ok a =
           let open Addr in
-          (* pre VLA: *)
-          (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
-          let cast_ok = function
-            | Addr (x, o) ->
-              begin
-                let at = get_type_addr (x, o) in
-                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
-                if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
-                  true
-                else
-                  match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-                  | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                  | _ ->
-                    if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                      begin
-                        (* TODO: Is this ok? *)
-                        M.info ~category:Unsound "Casting involving a VLA is assumed to work";
-                        true
-                      end
-                    else
-                      false
-              end
-            | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
-            | _ -> false
-          in
-          if AD.for_all cast_ok p then
-            get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
-          else
-            VD.top () (* upcasts not! *)
+          match a with
+          | Addr (x, o) ->
+            begin
+              let at = get_type_addr (x, o) in
+              if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+              if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
+                true
+              else
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
+                | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+                | _ ->
+                  if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                    begin
+                      (* TODO: Is this ok? *)
+                      M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                      true
+                    end
+                  else
+                    false
+            end
+          | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
+          | _ -> false
         in
-        let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-        if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
-        let v' = do_offs v' ofs in (* handle blessed fields? *)
-        v'
+        (** Lookup value at base address [addr] with given offset [ofs]. *)
+        let lookup_with_offs addr =
+          let v = (* abstract base value *)
+            if cast_ok addr then
+              get ~top:(VD.top_value t) a gs st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
+            else
+              VD.top () (* upcasts not! *)
+          in
+          let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+          if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+          let v' = do_offs v' ofs in (* handle blessed fields? *)
+          v'
+        in
+        AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
       | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
@@ -1794,7 +1811,18 @@ struct
             ID.meet a'' t
           | _, _ -> a''
         in
-        meet_bin a''' b'
+        let a,b = meet_bin a''' b' in
+        (* Special handling for case a % 2 != c *)
+        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
+            let two = BI.of_int 2 in
+            match ID.to_int b, ID.to_excl_list c with
+            | Some b, Some ([v], _) when BI.equal b two ->
+              let k = if BI.equal (BI.abs (BI.rem v two)) (BI.zero) then BI.one else BI.zero in
+              ID.meet (ID.of_congruence ikind (k, b)) a
+            | _, _ -> a
+          else a
+        in
+        a, b
       | Eq | Ne as op ->
         let both x = x, x in
         let m = ID.meet a b in
@@ -2426,9 +2454,10 @@ struct
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then
           (* FromSpec warns about unknown thread creation, so we don't do it here any more *)
+          let (_, v_args, _, _) = Cil.splitFunctionTypeVI v in
           let args = match arg with
             | Some x -> [x]
-            | None -> []
+            | None -> List.map (fun x -> MyCFG.unknown_exp) (Cil.argsToList v_args)
           in
           Some (lval, v, args)
         else (
