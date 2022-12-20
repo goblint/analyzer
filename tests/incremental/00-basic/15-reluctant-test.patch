@@ -1,5 +1,3 @@
-diff --git tests/incremental/00-basic/15-reluctant-test.c tests/incremental/00-basic/15-reluctant-test.c
-index eb4c59f6b..5be065852 100644
 --- tests/incremental/00-basic/15-reluctant-test.c
 +++ tests/incremental/00-basic/15-reluctant-test.c
 @@ -14,8 +14,8 @@ int foo(){
@@ -16,10 +14,9 @@ index eb4c59f6b..5be065852 100644
 @@ -28,7 +28,7 @@ int main(){
  		g = 4;
  		int i = bar();
- 
+
 -
-+		__goblint_check(i == 4); //UNKNOWN!
++    __goblint_check(i == 4); //UNKNOWN!
  	}
  	return x;
  }
-\ No newline at end of file
