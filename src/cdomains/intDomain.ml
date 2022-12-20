@@ -631,15 +631,15 @@ struct
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
-      let threshold = extract_from_option @@ get_bool_config_value "ana.int.interval_threshold_widening" in (*extract_from_option @@ get_interval_threshold_widening_ref () in*)
+      let threshold = extract_from_option @@ get_bool_config_value AnaIntIntervalThresholdWidening in (*extract_from_option @@ get_interval_threshold_widening_ref () in*)
       let upper_threshold u =
-        let ts = if extract_from_option @@ get_string_config_value "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+        let ts = if extract_from_option @@ get_string_config_value AnaIntIntervalThresholdWideningConstants = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
         let u = Ints_t.to_bigint u in
         let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
         BatOption.map_default Ints_t.of_bigint max_ik t
       in
       let lower_threshold l =
-        let ts = if extract_from_option @@ get_string_config_value "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+        let ts = if extract_from_option @@ get_string_config_value AnaIntIntervalThresholdWideningConstants = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
         let l = Ints_t.to_bigint l in
         let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
         BatOption.map_default Ints_t.of_bigint min_ik t
@@ -681,7 +681,7 @@ struct
     | Some x -> x
 *)
   let narrow ik x y =
-    if extract_from_option @@ get_bool_config_value "ana.int.interval_narrow_by_meet" then (*get_interval_narrow_by_meet_ref () then*)
+    if extract_from_option @@ get_bool_config_value AnaIntIntervalNarrowByMeet then (*get_interval_narrow_by_meet_ref () then*)
       meet ik x y
     else
       narrow ik x y
@@ -1457,7 +1457,7 @@ struct
     | Some x -> x
 *)
   let widen ik x y =
-    if extract_from_option @@ get_bool_config_value "ana.int.def_exc_widen_by_join" then (*get_widen_by_join_ref () then*)
+    if extract_from_option @@ get_bool_config_value AnaIntDefExcWidenByJoin then (*get_widen_by_join_ref () then*)
       join' ik x y
     else if equal x y then
       x
@@ -2776,7 +2776,7 @@ module IntDomTupleImpl = struct
 
   let refine ik ((a, b, c, d ) : t ) : t =
     let dt = ref (a, b, c, d) in
-    (match extract_from_option @@ get_string_config_value "ana.int.refinement" with
+    (match extract_from_option @@ get_string_config_value AnaIntRefinement with
       | "never" -> ()
       | "once" ->
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
