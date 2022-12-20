@@ -107,7 +107,8 @@
     "restart": {
       "sided": {
         "enabled": false
-      }
+      },
+      "write-only": true
     }
   }
 }
