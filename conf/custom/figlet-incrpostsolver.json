@@ -90,9 +90,6 @@
     "success": true
   },
   "incremental": {
-    "reluctant": {
-      "compare": "equal"
-    },
     "postsolver": {
       "enabled": true
     },
