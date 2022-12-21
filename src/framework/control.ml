@@ -691,7 +691,7 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info =
   try
     let (module Spec) = get_spec () in
     let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
-    A.analyze file fs
+    GobConfig.with_immutable_conf (fun () -> A.analyze file fs)
   with Refinement.RestartAnalysis ->
     (* Tail-recursively restart the analysis again, when requested.
         All solving starts from scratch.
