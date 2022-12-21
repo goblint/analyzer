@@ -104,8 +104,6 @@ struct
   let name () = "ikind"
 
   (* Identity *)
-  (* Enum type, so polymorphic identity is fine. *)
-  (* Monomorphize polymorphic operations for optimization. *)
   let _equal (xy: t * t) = match xy with
     | (IChar, IChar) -> true
     | (ISChar, ISChar) -> true
@@ -146,8 +144,6 @@ struct
   let name () = "fkind"
 
   (* Identity *)
-  (* Enum type, so polymorphic identity is fine. *)
-  (* Monomorphize polymorphic operations for optimization. *)
   let _equal (xy: t * t) = match xy with
     | (FFloat, FFloat) -> true
     | (FDouble, FDouble) -> true
@@ -180,8 +176,6 @@ struct
   let name () = "unop"
 
   (* Identity *)
-  (* Enum type, so polymorphic identity is fine. *)
-  (* Monomorphize polymorphic operations for optimization. *)
   let _equal (xy: t * t) = match xy with
     | (Neg, Neg) -> true
     | (BNot, BNot) -> true
@@ -211,8 +205,6 @@ struct
   let name () = "binop"
 
   (* Identity *)
-  (* Enum type, so polymorphic identity is fine. *)
-  (* Monomorphize polymorphic operations for optimization. *)
   let _equal (xy: t * t) = match xy with
       | (PlusA, PlusA) -> true
       | (PlusPI, PlusPI) -> true
@@ -261,8 +253,6 @@ struct
   let name () = "wstring_type"
 
   (* Identity *)
-  (* Enum type, so polymorphic identity is fine. *)
-  (* Monomorphize polymorphic operations for optimization. *)
   let _equal (xy: t * t) = match xy with
     | (Wchar_t, Wchar_t) -> true
     | (Char16_t, Char16_t) -> true
@@ -295,8 +285,6 @@ struct
   let name () = "encoding"
 
   (* Identity *)
-  (* Enum type, so polymorphic identity is fine. *)
-  (* Monomorphize polymorphic operations for optimization. *)
   let _equal (xy: t * t) = match xy with
       | (No_encoding, No_encoding) -> true
       | (Utf8, Utf8) -> true
