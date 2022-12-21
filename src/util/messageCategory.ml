@@ -12,6 +12,7 @@ type undefined_behavior =
   | NullPointerDereference
   | UseAfterFree
   | Uninitialized
+  | Other
 [@@deriving eq, ord, hash]
 
 type behavior =
@@ -104,6 +105,7 @@ struct
       | NullPointerDereference -> ["NullPointerDereference"]
       | UseAfterFree -> ["UseAfterFree"]
       | Uninitialized -> ["Uninitialized"]
+      | Other -> ["Other"]
   end
 
   let from_string_list (s: string list): category =
@@ -211,6 +213,7 @@ let behaviorName = function
     |NullPointerDereference -> "NullPointerDereference"
     |UseAfterFree -> "UseAfterFree"
     |Uninitialized -> "Uninitialized"
+    |Other -> "Other"
     | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"
       | BeforeStart -> "BeforeStart"

@@ -1767,6 +1767,8 @@ struct
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
 
   let return ctx exp fundec: store =
+    if Cil.hasAttribute "noreturn" fundec.svar.vattr then
+      M.warn ~category:(Behavior (Undefined Other)) "Function declared 'noreturn' should not return";
     let st: store = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
@@ -2273,6 +2275,8 @@ struct
       in
       let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
       let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
+
+      if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
