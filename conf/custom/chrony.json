@@ -1,0 +1,114 @@
+{
+  "ana": {
+    "activated": [
+      "expRelation",
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "escape",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "mallocWrapper",
+      "mhp",
+      "symb_locks",
+      "var_eq",
+      "mallocFresh",
+      "race"
+    ],
+    "ctx_insens": [
+      "var_eq"
+    ],
+    "base": {
+      "privatization": "none",
+      "context": {
+        "non-ptr": false
+      }
+    },
+    "thread": {
+      "domain": "plain",
+      "include-node": false
+    },
+    "race": {
+      "free": false
+    },
+    "dead-code": {
+      "lines": true
+    },
+    "int": {
+      "interval": true,
+      "def_exc": true
+    },
+    "malloc": {
+      "wrappers": [
+        "Malloc",
+        "Realloc",
+        "Malloc2",
+        "Realloc2",
+        "ARR_CreateInstance",
+        "realloc_array",
+        "ARR_GetNewElement"
+      ]
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "spawn": false,
+      "invalidate": {
+        "globals": false,
+        "args": false
+      }
+    }
+  },
+  "solvers": {
+    "td3": {
+      "restart": {
+        "wpoint": {
+          "enabled": false
+        }
+      }
+    }
+  },
+  "exp": {
+    "earlyglobs": true
+  },
+  "cil": {
+    "merge": {
+      "inlines": false
+    }
+  },
+  "dbg": {
+    "timing": {
+      "enabled": true
+    }
+  },
+  "warn": {
+    "assert": false,
+    "behavior": false,
+    "integer": false,
+    "cast": false,
+    "race": true,
+    "deadcode": true,
+    "analyzer": false,
+    "unsound": true,
+    "imprecise": false,
+    "unknown": false,
+    "error": false,
+    "warning": true,
+    "info": false,
+    "debug": false,
+    "success": true
+  },
+  "incremental": {
+    "postsolver": {
+      "enabled": false
+    },
+    "restart": {
+      "sided": {
+        "enabled": false
+      },
+      "write-only": true
+    }
+  }
+}

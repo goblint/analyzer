@@ -1,9 +1,21 @@
 {
   "ana": {
     "activated": [
-      "expRelation", "base", "threadid", "threadflag", "threadreturn",
-      "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-      "symb_locks", "var_eq", "mallocFresh"
+      "expRelation",
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "escape",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "mallocWrapper",
+      "mhp",
+      "symb_locks",
+      "var_eq",
+      "mallocFresh",
+      "race"
     ],
     "ctx_insens": [
       "var_eq"
@@ -18,17 +30,15 @@
       "domain": "plain",
       "include-node": false
     },
-    "malloc": {
-      "wrappers": [
-        "ZSTD_customMalloc",
-        "ZSTD_customCalloc"
-      ]
-    },
     "race": {
       "free": false
     },
     "dead-code": {
       "lines": true
+    },
+    "int": {
+      "interval": true,
+      "def_exc": true
     }
   },
   "sem": {
@@ -37,13 +47,6 @@
       "invalidate": {
         "globals": false,
         "args": false
-      }
-    }
-  },
-  "incremental": {
-    "restart": {
-      "sided": {
-        "enabled": false
       }
     }
   },
@@ -57,15 +60,7 @@
     }
   },
   "exp": {
-    "earlyglobs": true,
-    "extraspecials": [
-      "ZSTD_customMalloc",
-      "ZSTD_customCalloc",
-      "ZSTD_customFree"
-    ]
-  },
-  "pre": {
-    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+    "earlyglobs": true
   },
   "cil": {
     "merge": {
@@ -85,7 +80,7 @@
     "race": true,
     "deadcode": true,
     "analyzer": false,
-    "unsound": false,
+    "unsound": true,
     "imprecise": false,
     "unknown": false,
     "error": false,
@@ -93,5 +88,16 @@
     "info": false,
     "debug": false,
     "success": true
+  },
+  "incremental": {
+    "postsolver": {
+      "enabled": false
+    },
+    "restart": {
+      "sided": {
+        "enabled": false
+      },
+      "write-only": true
+    }
   }
 }
