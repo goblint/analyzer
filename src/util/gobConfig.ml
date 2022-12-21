@@ -129,9 +129,9 @@ struct
 
   let () =
     Printexc.register_printer @@
-      function
-        | Immutable p -> Some (Printf.sprintf "Immutable(%s)" (show_path p))
-        | _ -> None
+    function
+    | Immutable p -> Some (Printf.sprintf "Immutable(%s)" (show_path p))
+    | _ -> None
 
   (** Helper function [split c1 c2 xs] that splits [xs] on [c1] or [c2] *)
   let split c1 c2 xs =
