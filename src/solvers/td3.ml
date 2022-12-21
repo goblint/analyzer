@@ -721,15 +721,13 @@ module Base =
         if reluctant then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
-          let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
+          HM.iter (fun x (old_rho, old_infl) -> HM.replace rho x old_rho; HM.replace infl x old_infl) old_ret;
           HM.iter (fun x (old_rho, old_infl) ->
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
               solve x Widen;
-              if not (op (HM.find rho x) old_rho) then (
-                print_endline "Destabilization required...";
-                HM.replace infl x old_infl;
-                destabilize x;
-                HM.replace stable x ()
+              VS.iter (fun k -> ignore @@ Pretty.printf "in infl after solving: %a\n" Node.pretty_trace (S.Var.node k)) (HM.find_default infl x VS.empty);
+              if not (S.Dom.equal (HM.find rho x) old_rho) then (
+                print_endline "Further destabilization happened ...";
               )
               else (
                 print_endline "Destabilization not required...";
