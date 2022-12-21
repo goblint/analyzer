@@ -308,7 +308,7 @@ let finalize _ =
 
   (* RM.NH.iter (fun n alarm -> ignore (Pretty.printf "%a->%a\n" Node.pretty_trace n RM.ReposMessage.pretty alarm)) RM.messagesNH; *)
 
-  let module Solver = Td3.WP (IncrSolverArg) (Ant) (HM) in
+  let module Solver = Td3.Basic (IncrSolverArg) (Ant) (HM) in
   let (solution, _) = Solver.solve Ant.box [] [start_node] None in
 
   antSolHM := solution;
@@ -353,7 +353,7 @@ let finalize _ =
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
 
   let end_node = `G (Node.Function fd) in
-  let module SolverAv = Td3.WP (IncrSolverArg) (Av) (HM) in
+  let module SolverAv = Td3.Basic (IncrSolverArg) (Av) (HM) in
   let (solution_av, _) = SolverAv.solve Av.box [] [end_node] None in
 
   avSolHM := solution_av;
