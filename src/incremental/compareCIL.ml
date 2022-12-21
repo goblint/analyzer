@@ -198,7 +198,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       | ForceReanalyze f ->
         changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
         append_to_changed ~unchangedHeader:false;
-    with Not_found -> changes.removed <- current_global::changes.removed (* Global could not be found in old map -> added *)
+    with Not_found -> changes.added <- current_global::changes.added (* Global could not be found in old map -> added *)
   in
 
   (*  For each function in the new file, check whether a function with the same name
