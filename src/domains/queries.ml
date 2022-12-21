@@ -35,6 +35,8 @@ struct
   let minimal x = unlift_opt I.minimal x
   let maximal x = unlift_opt I.maximal x
 
+  let is_top_of ik = unlift_is (I.is_top_of ik)
+
   let is_bot_ikind = function
     | `Bot -> false
     | `Lifted x -> I.is_bot x

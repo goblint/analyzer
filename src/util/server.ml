@@ -239,7 +239,7 @@ let () =
     type response = unit [@@deriving to_yojson]
     let process () _ =
       try
-        GobConfig.json_conf := Options.defaults;
+        GobConfig.set_conf Options.defaults;
         Maingoblint.parse_arguments ();
       with exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))
