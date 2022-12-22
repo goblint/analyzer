@@ -21,6 +21,7 @@ module AOB = Printable.Prod (Basetype.CilExp) (Idx)
 
 module Cond =
 struct
+  include Printable.Std
 
   type t =
     | Aob of AOB.t 
@@ -31,7 +32,7 @@ struct
     match cond with
     | Aob aob -> AOB.show aob
 
-  let name () = "failwith TODO"
+  let name () = "Cond: TODO"
 
   let pretty () cond =
     match cond with
@@ -40,13 +41,6 @@ struct
   let printXml f cond =
     match cond with
     | Aob aob -> AOB.printXml f aob
-
-  let to_yojson cond =
-    match cond with
-    | Aob aob -> AOB.to_yojson aob
-
-  let tag _ = failwith "TODO"
-  let arbitrary () = failwith "TODO"
 
   let relift cond = 
     match cond with
