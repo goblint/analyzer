@@ -3,9 +3,9 @@
 shopt -s extglob
 
 MYBENCHDIR=/mnt/goblint-svcomp/benchexec/my-bench-sv-comp/yaml
-RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/yaml-21-software-rebase
-GOBLINTPARALLEL=8
-VALIDATEPARALLEL=8
+RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/yaml-xy
+GOBLINTPARALLEL=14
+VALIDATEPARALLEL=14
 
 mkdir $RESULTSDIR
 
@@ -30,7 +30,8 @@ benchexec --read-only-dir / --overlay-dir . --hidden-dir /home --outputpath $RES
 # Merge witness validation results
 cd $RESULTSDIR
 # python3 /mnt/goblint-svcomp/benchexec/benchexec/contrib/mergeBenchmarkSets.py -o . goblint.*.results.*.xml.bz2 goblint-validate-tmp.*.results.*.xml.bz2
-python3 /mnt/goblint-svcomp/benchexec/benchexec/contrib/mergeBenchmarkSets.py -o . goblint.*.results.sv-comp_prop-reachsafety.xml.bz2 goblint-validate-tmp.*.results.sv-comp_prop-reachsafety.xml.bz2
+python3 /mnt/goblint-svcomp/benchexec/benchexec/contrib/mergeBenchmarkSets.py -o . goblint.*.results.all.ReachSafety-Loops-Simple.xml.bz2 goblint-validate-tmp.*.results.all.ReachSafety-Loops-Simple.xml.bz2
+python3 /mnt/goblint-svcomp/benchexec/benchexec/contrib/mergeBenchmarkSets.py -o . goblint.*.results.loop-head.ReachSafety-Loops-Simple.xml.bz2 goblint-validate-tmp.*.results.loop-head.ReachSafety-Loops-Simple.xml.bz2
 
 # Generate table with merged results and witness validation results
 sed -e "s/LOGDIR/$LOGDIR/" $MYBENCHDIR/table-generator.xml > table-generator.xml
