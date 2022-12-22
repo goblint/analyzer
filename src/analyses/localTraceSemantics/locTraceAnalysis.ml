@@ -33,9 +33,25 @@ in if D.is_empty tmp then tmp else tmp
 
 let exitstate = startstate
 
+let rec eval_global var graph node  = 
+  let result_node, result_edge = LocalTraces.find_globvar_assign_node var graph node in 
+print_string ("find_globvar_assign_node wurde aufgerufen, es wurde folgender Knoten gefunden: "^(NodeImpl.show result_node)^"\nmit Label: "^(EdgeImpl.show result_edge)^"\n");
+(match result_edge with 
+(* This will not work like this because var is still a global variable *)
+(Assign(_, edgeExp)) -> (
+  let custom_glob_vinfo = makeVarinfo false "__goblint__traces__custom_nonglobal" (TInt(IInt,[]))
+in
+  let tmp_sigma_global = eval result_node.sigma custom_glob_vinfo edgeExp graph result_node
+in 
+let tmp = SigmaMap.find custom_glob_vinfo tmp_sigma_global
+in print_string ("eval_global evaluated to "^(show_valuedomain tmp)^"\n");
+(tmp ,true,SigmaMap.empty))
+  | _ -> Printf.printf "This should not happen\n"; exit 0 )
+
+and 
 (* Evaluates the effects of an assignment to sigma *)
 (* TODO eval needs to be checked on overflow and div by 0 --> custom exception managment could be useful *)
-let rec eval sigOld vinfo (rval: exp) graph node = 
+eval sigOld vinfo (rval: exp) graph node = 
   (* dummy value 
      This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
@@ -63,8 +79,8 @@ if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin)
 | Lt -> 
   fun x1 x2 -> (match (x1,x2) with 
   | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-  (if Big_int_Z.lt_big_int u1 l2 then Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) 
-  else if Big_int_Z.le_big_int u2 l1 then Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik)
+  (if Big_int_Z.lt_big_int u1 l2 then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) )
+  else if Big_int_Z.le_big_int u2 l1 then (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik))
   else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
 
   | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0 )
@@ -83,17 +99,7 @@ else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int 
 | _ ->  Printf.printf "This type of assignment is not supported\n"; exit 0 )
 
 | Lval(Var(var), NoOffset) -> if var.vglob = true 
-  then (let result_node, result_edge = LocalTraces.find_globvar_assign_node var graph node in 
-print_string ("find_globvar_assign_node wurde aufgerufen, es wurde folgender Knoten gefunden: "^(NodeImpl.show result_node)^"\nmit Label: "^(EdgeImpl.show result_edge)^"\n");
-(match result_edge with 
-(* This will not work like this because var is still a global variable *)
-(Assign(_, edgeExp)) -> (
-  let custom_glob_vinfo = makeVarinfo false "__goblint__traces__custom_nonglobal" (TInt(IInt,[]))
-in
-  let tmp_sigma_global = eval result_node.sigma custom_glob_vinfo edgeExp graph result_node
-in 
-(SigmaMap.find custom_glob_vinfo tmp_sigma_global ,true,SigmaMap.empty))
-  | _ -> Printf.printf "This should not happen\n"; exit 0 ))
+  then eval_global var graph node
 else
   (if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true,SigmaMap.empty) 
 else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal SigmaMap.empty))
@@ -118,10 +124,15 @@ in
 (* binop expressions *)
 (* Lt could be a special case since it has side-effects on sigma *)
 (* in var1 < var2 case, I have not yet managed boundary cases, so here are definitely some bugs *)
+(* TODO consider globals in Lt-situations *)
 | BinOp(Lt, Lval(Var(var1), NoOffset),Lval(Var(var2), NoOffset),TInt(biopIk, _)) ->(
-  if (SigmaMap.mem var1 sigOld)&&(SigmaMap.mem var2 sigOld)
+  if ((SigmaMap.mem var1 sigOld) || (var1.vglob = true))&&((SigmaMap.mem var2 sigOld)|| (var2.vglob = true))
     then (
-      match (SigmaMap.find var1 sigOld),(SigmaMap.find var2 sigOld) with
+      let vd1 = if var1.vglob = true then (match eval_global var1 graph node with (vd,_, _) -> vd) else (SigmaMap.find var1 sigOld)
+      in 
+      let vd2 = if var2.vglob = true then (match eval_global var2 graph node with (vd,_, _) -> vd) else (SigmaMap.find var2 sigOld)
+      in
+      match vd1,vd2 with
       | (Int(l1,u1,k1)), (Int(l2,u2,k2)) -> if not (CilType.Ikind.equal k1 k2) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
       if (u1 < l2) || (u2 <= l1) then ((get_binop_int Lt biopIk) (Int(l1, u1, k1)) (Int(l2, u2, k2)), true , SigmaMap.empty) 
       else
@@ -149,6 +160,12 @@ match eval_helper binopExp1 with
         if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
         else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+      else if var.vglob = true then 
+        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        
+        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
+        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
   else ( 
     let sigTmp = NodeImpl.destruct_add_sigma sigSide (SigmaMap.add var (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), Big_int_Z.big_int_of_int intMax, k)) (SigmaMap.empty))
 in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
@@ -172,7 +189,11 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
         if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
         else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
-
+      else if var.vglob = true then 
+        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        if uVar <= l || u < lVar then (print_string "We calculate get_binop_int\n"; (get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
+        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
     else ( 
       let sigTmp = NodeImpl.destruct_add_sigma sigSide (SigmaMap.add var (Int(Big_int_Z.big_int_of_int intMin, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty))
   in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
@@ -243,7 +264,7 @@ print_string ("oldSigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(Nod
 let result_branch,success = eval_catch_exceptions branch_sigma branch_vinfo exp ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma}
 in
 let result_as_int = match (SigmaMap.find_default Error branch_vinfo result_branch) with
-Int(i1,i2,_) -> if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
+Int(i1,i2,_) -> print_string ("in branch, the result is ["^(Big_int_Z.string_of_big_int i1)^";"^(Big_int_Z.string_of_big_int i2)^"]");if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
 else 1
   |_ -> -1
 in

@@ -195,7 +195,7 @@ let extend_by_gEdge gr gEdge =
   let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
-  let rec loop visited = (print_string ("loop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^"\n");
+  let rec loop visited = (print_string ("\nloop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^" und visited: "^(List.fold (fun s n -> ((NodeImpl.show n)^", "^s)) "" visited)^" and |visited| = "^(string_of_int (List.length visited))^"\n");
     let q = Queue.pop workQueue
 in let predecessors = print_string ("\nin loop we get the predessecors in graph:"^(show graph)^"\n");get_predecessors_edges graph q
 in let tmp_result = print_string ("the predecessors are: "^(List.fold (fun s ed -> s^", "^(show_edge ed)) "" predecessors)^"\n");
@@ -209,7 +209,7 @@ let skip_edge:edge = Skip (* This is needed otherwise it errors with unbound con
 in
 match tmp_result with
 | None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (get_predecessors_nodes graph q);
-  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty}, skip_edge) else loop (q::visited)
+  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty}, skip_edge) else (print_string ("we recursively call loop again while working on node "^(NodeImpl.show q)^"\n");loop (q::visited))
 | Some(nodeGlobalAssignment) -> nodeGlobalAssignment
   )
 in loop []
