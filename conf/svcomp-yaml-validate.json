@@ -1,10 +1,5 @@
 {
   "ana": {
-    "base": {
-      "arrays": {
-        "domain": "partitioned"
-      }
-    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -12,6 +7,9 @@
     "int": {
       "def_exc": true,
       "enums": false,
+      "interval": true
+    },
+    "float": {
       "interval": true
     },
     "activated": [
@@ -23,13 +21,16 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
       "mhp",
+      "assert",
       "var_eq",
       "symb_locks",
       "region",
       "thread",
+      "threadJoins",
       "unassume"
     ],
     "context": {
@@ -55,6 +56,14 @@
         "ldv_calloc"
       ]
     },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    },
+    "autotune": {
+      "enabled": false
+    },
     "widen": {
       "tokens": true
     }
@@ -77,6 +86,9 @@
     },
     "int": {
       "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
   }
 }
