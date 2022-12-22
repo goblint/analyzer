@@ -23,17 +23,17 @@
 
   <tasks name="ReachSafety-Loops-Simple">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-Loops-Simple.set</includesfile>
-    <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
   </tasks>
 
   <!-- <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
-    <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
   </tasks>
 
   <tasks name="SoftwareSystems-DeviceDriversLinux64Large-ReachSafety">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64Large-ReachSafety.set</includesfile>
-    <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
   </tasks> -->
 
 </benchmark>
