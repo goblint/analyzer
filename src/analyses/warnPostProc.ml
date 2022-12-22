@@ -124,21 +124,27 @@ struct
   let dep_gen node x = Dom.empty ()
 
   (* Find the set of those condition and alarm pairs, where an operand of the condition is changed in the given node *)
+  let changed_in_node var (cond : RM.Cond.t) = 
+    match cond with
+    | Aob (exp, _) -> Basetype.CilExp.occurs var exp
+
+  let var_changed_in_node stmt x =
+    begin match stmt.skind with
+      | Instr [] -> Dom.empty ()
+      | Instr xs ->
+        let assigned_vars = List.fold (fun acc instr ->
+            match instr with
+            | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
+            (* TODO: other lval cases *)
+            | _ -> acc
+          ) [] xs in
+        Dom.filter (fun alarm -> List.fold (fun acc var -> changed_in_node var alarm.cond || acc) false assigned_vars) x
+      | _ -> Dom.empty ()
+    end
+
   let kill node x =
     match node with
-    | Statement stmt ->
-      begin match stmt.skind with
-        | Instr [] -> Dom.empty ()
-        | Instr xs ->
-          let assigned_vars = List.fold (fun acc instr ->
-              match instr with
-              | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
-              (* TODO: other lval cases *)
-              | _ -> acc
-            ) [] xs in
-          Dom.filter (fun alarm -> List.fold (fun acc var -> let (exp, _) = alarm.cond in Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
-        | _ -> Dom.empty ()
-      end
+    | Statement stmt -> var_changed_in_node stmt x
     | _ -> Dom.empty ()
 
   let process (alarm : Alarm.t) y = alarm
@@ -199,21 +205,27 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
+  let changed_in_node var (cond : RM.Cond.t) = 
+    match cond with
+    | Aob (exp, _) -> Basetype.CilExp.occurs var exp
+
+  let var_changed_in_node stmt x =
+    begin match stmt.skind with
+      | Instr [] -> Dom.empty ()
+      | Instr xs ->
+        let assigned_vars = List.fold (fun acc instr ->
+            match instr with
+            | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
+            (* TODO: other lval cases *)
+            | _ -> acc
+          ) [] xs in
+        Dom.filter (fun alarm -> List.fold (fun acc var -> changed_in_node var alarm.cond || acc) false assigned_vars) x
+      | _ -> Dom.empty ()
+    end
+
   let kill node x =
     match node with
-    | Statement stmt ->
-      begin match stmt.skind with
-        | Instr [] -> Dom.empty ()
-        | Instr xs ->
-          let assigned_vars = List.fold (fun acc instr ->
-              match instr with
-              | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
-              (* TODO: other lval cases *)
-              | _ -> acc
-            ) [] xs in
-          Dom.filter (fun alarm -> List.fold (fun acc var -> let (exp, _) = alarm.cond in Basetype.CilExp.occurs var exp || acc) false assigned_vars) x
-        | _ -> Dom.empty ()
-      end
+    | Statement stmt -> var_changed_in_node stmt x
     | _ -> Dom.empty ()
 
   let set_locs alarm node rel_alarms = 
@@ -315,7 +327,9 @@ let finalize _ =
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
-  let filter_always_true node cs = CondSet.filter (fun (exp, l) ->
+  let cond_holds node (cond : RM.Cond.t) =
+    match cond with
+    | Aob (exp, l) ->
       let q = (!ask node).f (EvalInt exp) in
       let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
       (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
@@ -324,7 +338,9 @@ let finalize _ =
       match (idx_before_end, idx_after_start) with
       | Some true, Some true -> false (* Certainly in bounds on both sides.*)
       | _ -> true
-    ) cs in
+  in
+
+  let filter_always_true node cs = CondSet.filter (cond_holds node) cs in
 
   let hoist_entry node =
     let module CFG = (val !MyCFG.current_cfg) in

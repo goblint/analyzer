@@ -8,21 +8,50 @@ module Category = MessageCategory
 open GobResult.Syntax
 
 module Severity = Messages.Severity
-
 module Location = Messages.Location
-
 module Piece = Messages.Piece
-
 module MultiPiece = Messages.MultiPiece
-
 module Tag = Messages.Tag
-
 module Tags = Messages.Tags
-
 module Locs = Messages.Locs
 
 module Idx = PreValueDomain.IndexDomain
-module Cond = Printable.Prod (Basetype.CilExp) (Idx)
+
+module AOB = Printable.Prod (Basetype.CilExp) (Idx)
+
+module Cond =
+struct
+
+  type t =
+    | Aob of AOB.t 
+    (* | Race of ... *)
+  [@@deriving eq, ord, hash, yojson]
+
+  let show cond = 
+    match cond with
+    | Aob aob -> AOB.show aob
+
+  let name () = "failwith TODO"
+
+  let pretty () cond =
+    match cond with
+    | Aob aob -> AOB.pretty () aob
+
+  let printXml f cond =
+    match cond with
+    | Aob aob -> AOB.printXml f aob
+
+  let to_yojson cond =
+    match cond with
+    | Aob aob -> AOB.to_yojson aob
+
+  let tag _ = failwith "TODO"
+  let arbitrary () = failwith "TODO"
+
+  let relift cond = 
+    match cond with
+    | Aob aob -> Aob (AOB.relift aob)
+end
 
 module ReposMessage =
 struct
