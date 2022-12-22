@@ -115,7 +115,7 @@ struct
 
   let box _ _ _ = failwith "TODO"
 
-  let sys_change _ = failwith "TODO"
+  let sys_change _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 
   let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
 
@@ -199,7 +199,7 @@ struct
 
   let box _ _ _ = failwith "TODO"
 
-  let sys_change _ = failwith "TODO"
+  let sys_change _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 
   let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
 
