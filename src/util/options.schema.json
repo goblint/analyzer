@@ -363,7 +363,7 @@
             },
             "interval_set": {
               "title": "ana.int.interval_set",
-              "description": "Use IntDomain.IntervalSet: (int64 * int64) option.",
+              "description": "Use IntDomain.IntervalSet: (int64 * int64) list.",
               "type": "boolean",
               "default": false
             },
