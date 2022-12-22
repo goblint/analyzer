@@ -35,7 +35,7 @@ let exitstate = startstate
 
 (* Evaluates the effects of an assignment to sigma *)
 (* TODO eval needs to be checked on overflow and div by 0 --> custom exception managment could be useful *)
-let eval sigOld vinfo (rval: exp) graph node = 
+let rec eval sigOld vinfo (rval: exp) graph node = 
   (* dummy value 
      This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
@@ -76,13 +76,24 @@ if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin)
 in
   let rec eval_helper subexp =
   (match subexp with
+
 | Const(CInt(c, ik, _)) -> (match ik with
 | IInt -> if c < Big_int_Z.big_int_of_int intMin then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true,SigmaMap.empty) 
 else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true,SigmaMap.empty) else (Int (c,c, ik), true,SigmaMap.empty)
 | _ ->  Printf.printf "This type of assignment is not supported\n"; exit 0 )
+
 | Lval(Var(var), NoOffset) -> if var.vglob = true 
-  then (let result = LocalTraces.find_globvar_assign_node var graph node in 
-print_string ("find_globvar_assign_node wurde aufgerufen, es wurde folgender Knoten gefunden: "^(NodeImpl.show result)^"\n"); nopVal SigmaMap.empty)
+  then (let result_node, result_edge = LocalTraces.find_globvar_assign_node var graph node in 
+print_string ("find_globvar_assign_node wurde aufgerufen, es wurde folgender Knoten gefunden: "^(NodeImpl.show result_node)^"\nmit Label: "^(EdgeImpl.show result_edge)^"\n");
+(match result_edge with 
+(* This will not work like this because var is still a global variable *)
+(Assign(_, edgeExp)) -> (
+  let custom_glob_vinfo = makeVarinfo false "__goblint__traces__custom_nonglobal" (TInt(IInt,[]))
+in
+  let tmp_sigma_global = eval result_node.sigma custom_glob_vinfo edgeExp graph result_node
+in 
+(SigmaMap.find custom_glob_vinfo tmp_sigma_global ,true,SigmaMap.empty))
+  | _ -> Printf.printf "This should not happen\n"; exit 0 ))
 else
   (if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true,SigmaMap.empty) 
 else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal SigmaMap.empty))
@@ -198,10 +209,13 @@ let assign ctx (lval:lval) (rval:exp) : D.t =
 let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
 let assign_helper graph sigma =
-  (let myEdge, success =  match lval with (Var x, _) ->
+  (let (myEdge:(node * edge * node)) , success =  match lval with (Var x, _) ->
     let evaluated,success_inner = eval_catch_exceptions sigma x rval ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma} in 
     print_string ("new sigma in assign: "^(NodeImpl.show_sigma evaluated )^"\n");
-     ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=evaluated}), success_inner
+
+     (if Edge.equal ctx.edge Skip then ({programPoint=ctx.prev_node;sigma=sigma}, (Assign(lval,rval)),{programPoint=ctx.node;sigma=evaluated})
+    else ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=evaluated})), success_inner
+
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   in
   if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge) 

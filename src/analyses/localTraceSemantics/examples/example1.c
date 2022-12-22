@@ -1,17 +1,13 @@
+int y = 1;
+
 void main() {
-  int unknown;
-  int x;
-  if (1 < unknown) {
-    x = 3;
-    if (x < unknown) {
-      x = unknown;
-      if (unknown < x) {
-        int y = 1;
-      }
-    }
+  int x = 7;
+  if (x < 4) {
+    y = 3;
   } else {
-    x = 7;
+    x = 5;
   }
+  x = y - 8;
 }
 
 // Beispiel Code für trace removal bei branches, wenn die die condition nicht
@@ -66,4 +62,32 @@ void main() {
 //   }
 // } else {
 //   x = 7;
+// }
+
+// Code-Beispiel für enter
+//  int f(int x) {
+//    x = 10;
+//    return x - 4;
+//  }
+
+// void main() {
+//   int x = 7;
+//   int y = f(12);
+//   x = 3;
+// }
+
+// Code-Beispiel für global-Suche --> der richtige Knoten wird schon mal
+// rausgesucht
+//  int y = 1;
+
+// int f(int x) {
+//   x = y;
+//   return x - 4;
+// }
+
+// void main() {
+//   int x = 7;
+//   y = 9;
+//   y = f(12);
+//   x = 3;
 // }

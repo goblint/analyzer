@@ -182,21 +182,34 @@ let extend_by_gEdge gr gEdge =
                    smaxstmtid=None;
                    sallstmts=[]})
 
+    let get_predecessors_edges graph node =
+      List.fold 
+      (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node dest_node then edge::list else list)
+       [] (get_all_edges graph)
+
+    let get_predecessors_nodes graph node =
+        List.fold 
+        (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node dest_node then prev_node::list else list)
+         [] (get_all_edges graph)
+
   let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
-  let rec loop visited = (print_string ("loop wurde aufgerufen\n");
+  let rec loop visited = (print_string ("loop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^"\n");
     let q = Queue.pop workQueue
-in let predecessors = LocTraceGraph.pred_e graph q
-in let tmp_result = List.fold (fun optionAcc (prev_node, (edge:MyCFG.edge), _) -> 
+in let predecessors = print_string ("\nin loop we get the predessecors in graph:"^(show graph)^"\n");get_predecessors_edges graph q
+in let tmp_result = print_string ("the predecessors are: "^(List.fold (fun s ed -> s^", "^(show_edge ed)) "" predecessors)^"\n");
+List.fold (fun optionAcc (prev_node, (edge:MyCFG.edge), _) -> 
 match edge with 
-    | (Assign((Var(edgevinfo),_), edgeExp)) -> if CilType.Varinfo.equal global edgevinfo then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");Some(prev_node)) else optionAcc
+    | (Assign((Var(edgevinfo),_), edgeExp)) -> if CilType.Varinfo.equal global edgevinfo then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");Some(prev_node,edge)) else optionAcc
     | _ -> optionAcc
   ) None predecessors
 in
+let skip_edge:edge = Skip (* This is needed otherwise it errors with unbound constructor *)
+in
 match tmp_result with
-| None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (LocTraceGraph.pred graph q);
-  if Queue.is_empty workQueue then {programPoint=error_node;sigma=SigmaMap.empty} else loop (q::visited)
+| None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (get_predecessors_nodes graph q);
+  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty}, skip_edge) else loop (q::visited)
 | Some(nodeGlobalAssignment) -> nodeGlobalAssignment
   )
 in loop []
