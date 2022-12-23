@@ -1047,7 +1047,9 @@ struct
         M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
       | false, false -> assert false
   
-    let norm ?(cast=false) ik = function None -> None | Some (x,y) ->
+    
+      (*TODO better precision for norm function*)
+      let norm ?(cast=false) ik = function None -> None | Some (x,y) ->
       if Ints_t.compare x y > 0 then None
       else (
         let (min_ik, max_ik) = range ik in
