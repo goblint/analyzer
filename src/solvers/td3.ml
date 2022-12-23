@@ -1010,8 +1010,10 @@ module Base =
       in
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
-
-      Post.post st (!reluctant_vs @ vs) rho;
+      let stable_reluctant_vars =
+        List.filter (fun x -> HM.mem stable x) !reluctant_vs
+      in
+      Post.post st (stable_reluctant_vars @ vs) rho;
 
       print_data data "Data after postsolve";
 
