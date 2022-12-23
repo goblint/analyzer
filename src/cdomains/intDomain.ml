@@ -953,13 +953,18 @@ struct
 
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
-    List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> String.concat ", " |> Printf.sprintf "[%s]"
+    List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
   
-  let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
-      List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
+  let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 -> List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
 
-  type 'a event = Enter of 'a | Exit of 'a 
+  type 'a event = Enter of 'a | Exit of 'a
+
   let unbox = function Enter x -> x | Exit x -> x
+
+  let show_event = function 
+    | Enter x -> Printf.sprintf "Enter %s" (Ints_t.to_string x) 
+    | Exit x -> Printf.sprintf "Exit %s" (Ints_t.to_string x)
+
   let interval_set_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
 
   let sort_events =
@@ -977,37 +982,41 @@ struct
     in
     List.sort cmp
   
-  let two_interval_sets_to_events (xs:t) (ys:t) = (xs @ ys)  |> interval_set_to_events |> sort_events
+  let two_interval_sets_to_events (xs: t) (ys: t) = (xs @ ys) |> interval_set_to_events |> sort_events
     
-  (*Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
+  (* Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
     This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
   let combined_event_list lattice_op (xs: int_t event list)  =
     let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
-    let aux (interval_count,acc) = function
+    let aux (interval_count, acc) = function
       | Enter x -> (interval_count + 1, if (interval_count + 1) >= l && interval_count < l then (Enter x)::acc else acc)
-      | Exit x -> (interval_count - 1, if interval_count >= l && (interval_count - 1) < l then (Exit x)::acc else acc) in
+      | Exit x -> (interval_count - 1, if interval_count >= l && (interval_count - 1) < l then (Exit x)::acc else acc) 
+    in
     List.fold_left aux (0, []) xs |> snd |> List.rev
     
   let rec events_to_intervals = function
   | [] -> []
-  | (Enter x)::(Exit y)::xs  -> (x,y)::events_to_intervals xs 
+  | (Enter x)::(Exit y)::xs  -> (x, y)::(events_to_intervals xs)
   | _ -> failwith "Invalid events list"
   
-  let remove_gaps (xs:t) = 
-    let f = fun acc (l,r) -> match acc with
-    | ((a,b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a,r)::acc
-    | _ -> (l,r)::acc
+  let remove_gaps (xs: t) = 
+    let aux acc (l, r) = match acc with
+      | ((a, b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a, r)::acc'
+      | _ -> (l, r)::acc
     in 
-      List.fold_left f [] xs |> List.rev 
+    List.fold_left aux [] xs |> List.rev
     
   (* Helper Functions *)
   let min_list l = List.fold_left min (List.hd l)
   let max_list l = List.fold_left max (List.hd l)
   let list_of_tuple2 (x, y) = [x ; y] 
 
-  let canonize (xs:t) = interval_set_to_events xs |> combined_event_list `Join |> events_to_intervals 
+  let canonize (xs: t) = 
+    interval_set_to_events xs |> 
+    combined_event_list `Join |> 
+    events_to_intervals 
 
-  let unary_op (x : t) op = match x with 
+  let unary_op (x: t) op = match x with 
     | [] -> []
     | _ -> canonize (List.map op x)
 
@@ -1104,7 +1113,8 @@ struct
   
   let join ik (x: t) (y: t): t = 
     two_interval_sets_to_events x y |> 
-    combined_event_list `Join |> 
+    combined_event_list `Join |>
+    (* ignore (List.iter (fun e -> let _ = Pretty.printf "[middle] :: %s\n" (show_event e) in ()) output); *)
     events_to_intervals |> 
     remove_gaps
 
