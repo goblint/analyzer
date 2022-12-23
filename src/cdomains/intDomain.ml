@@ -1233,7 +1233,7 @@ struct
     | x::y::xs  when partitions_are_approaching x y -> merge_list ik ((merge_pair ik x y) :: xs)
     | x::xs -> x :: merge_list ik xs
 
-  let narrow _x _y _z = failwith "Not implemented yet"
+  let narrow ik xs ys = xs (*TODO consider infinity case*)
 
   let widen ik xs ys =  let (min_ik,max_ik) = range ik in interval_sets_to_partitions ik None xs ys |> merge_list ik |> (function
     | [] -> []
