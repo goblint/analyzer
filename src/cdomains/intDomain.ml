@@ -955,9 +955,57 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> String.concat ", " |> Printf.sprintf "[%s]"
   
-  let canonize x = failwith "Not implemented yet"
   let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
       List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
+
+  type 'a event = Enter of 'a | Exit of 'a 
+  let unbox = function Enter x -> x | Exit x -> x
+  let interval_set_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
+
+  let sort_events =
+    let cmp x y = 
+      let res = Ints_t.compare (unbox x) (unbox y) in
+      if res != 0 then
+        res
+      else
+        begin
+          match (x, y) with
+          | (Enter _, Exit _) -> -1
+          | (Exit _, Enter _) -> 1
+          | (_, _) -> 0
+        end
+    in
+    List.sort cmp
+  
+  let two_interval_sets_to_events (xs:t) (ys:t) = (xs @ ys)  |> interval_set_to_events |> sort_events
+    
+  (*Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
+    This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
+  let combined_event_list lattice_op (xs: int_t event list)  =
+    let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
+    let aux (interval_count,acc) = function
+      | Enter x -> (interval_count + 1, if (interval_count + 1) >= l && interval_count < l then (Enter x)::acc else acc)
+      | Exit x -> (interval_count - 1, if interval_count >= l && (interval_count - 1) < l then (Exit x)::acc else acc) in
+    List.fold_left aux (0, []) xs |> snd |> List.rev
+    
+  let rec events_to_intervals = function
+  | [] -> []
+  | (Enter x)::(Exit y)::xs  -> (x,y)::events_to_intervals xs 
+  | _ -> failwith "Invalid events list"
+  
+  let remove_gaps (xs:t) = 
+    let f = fun acc (l,r) -> match acc with
+    | ((a,b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a,r)::acc
+    | _ -> (l,r)::acc
+    in 
+      List.fold_left f [] xs |> List.rev 
+    
+  (* Helper Functions *)
+  let min_list l = List.fold_left min (List.hd l)
+  let max_list l = List.fold_left max (List.hd l)
+  let list_of_tuple2 (x, y) = [x ; y] 
+
+  let canonize (xs:t) = interval_set_to_events xs |> combined_event_list `Join |> events_to_intervals 
 
   let unary_op (x : t) op = match x with 
     | [] -> []
@@ -977,42 +1025,7 @@ struct
     | [] -> failwith "unsupported: equal_to with bottom"
     | [`Eq] ->  `Eq 
     | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
-  
-  type 'a event = Enter of 'a | Exit of 'a 
-  let unbox = function Enter x -> x | Exit x -> x
-  let interval_set_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
-
-  let sort_events  = List.sort (fun x y -> Ints_t.compare (unbox x) (unbox y))
-  
-  let two_interval_sets_to_events (xs:t) (ys:t) = (xs @ ys)  |> interval_set_to_events |> sort_events
-    
-  (*Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
-    This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
-  let combined_event_list lattice_op (xs: int_t event list)  =
-    let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
-      let aux (interval_count,acc) = function
-      | Enter x -> (interval_count+1, if interval_count+1>= l && interval_count< l then (Enter x)::acc else acc)
-      | Exit x -> (interval_count -1, if interval_count >= l && interval_count -1 <l then (Exit x)::acc else acc) in
-    List.fold_left aux (0,[]) xs |> snd |> List.rev
-    
-  let rec events_to_intervals = function
-  | [] -> []
-  | (Enter x)::(Exit y)::xs  -> (x,y)::events_to_intervals xs 
-  | _ -> failwith "Invalid events list"
-  
-  let remove_gaps (xs:t) = 
-    let f = fun acc (l,r) -> match acc with
-    | ((a,b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a,r)::acc
-    | _ -> (l,r)::acc
-    in 
-      List.fold_left f [] xs |> List.rev 
-    
-  (* Helper Functions *)
-  let min_list l = List.fold_left min (List.hd l)
-  let max_list l = List.fold_left max (List.hd l)
-  let list_of_tuple2 (x, y) = [x ; y] 
-
-  let canonize (xs:t) = interval_set_to_events xs |> combined_event_list `Join |> events_to_intervals    
+     
   let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
       List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
 
@@ -1049,44 +1062,51 @@ struct
   
     
       (*TODO better precision for norm function*)
-      let norm ?(cast=false) ik = function None -> None | Some (x,y) ->
-      if Ints_t.compare x y > 0 then None
-      else (
-        let (min_ik, max_ik) = range ik in
-        let underflow = Ints_t.compare min_ik x > 0 in
-        let overflow = Ints_t.compare max_ik y < 0 in
-        if underflow || overflow then (
-          set_overflow_flag ~cast ~underflow ~overflow ik;
-          if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
-            (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
-            (* on Z will not safely contain the minimal and maximal elements after the cast *)
-            let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
-            let resdiff = Ints_t.abs (Ints_t.sub y x) in
-            if Ints_t.compare resdiff diff > 0 then
-              Some (range ik)
-            else
-              let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
-              let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
-              if Ints_t.compare l u <= 0 then
-                Some (l, u)
-              else
-                (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
+    let norm ?(cast=false) ik = function 
+      | None -> None 
+      | Some (x,y) ->
+        if Ints_t.compare x y > 0 then 
+          None
+        else (
+          let (min_ik, max_ik) = range ik in
+          let underflow = Ints_t.compare min_ik x > 0 in
+          let overflow = Ints_t.compare max_ik y < 0 in
+          if underflow || overflow then (
+            set_overflow_flag ~cast ~underflow ~overflow ik;
+            if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
+              (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
+              (* on Z will not safely contain the minimal and maximal elements after the cast *)
+              let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
+              let resdiff = Ints_t.abs (Ints_t.sub y x) in
+              if Ints_t.compare resdiff diff > 0 then
                 Some (range ik)
-          else if not cast && should_ignore_overflow ik then
-            let tl, tu = range ik in
-            Some (Ints_t.max tl x, Ints_t.min tu y)
-          else
-            Some (range ik)
-        )
-        else Some (x,y)
-      ) 
+              else
+                let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
+                let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
+                if Ints_t.compare l u <= 0 then
+                  Some (l, u)
+                else
+                  (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
+                  Some (range ik)
+            else if not cast && should_ignore_overflow ik then
+              let tl, tu = range ik in
+              Some (Ints_t.max tl x, Ints_t.min tu y)
+            else
+              Some (range ik)
+          )
+          else Some (x,y)
+        ) 
   let leq (xs: t) (ys: t) = match xs, ys with
     | [], _ -> true
     | _, [] -> false
     | _::_, _::_ -> let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
       List.for_all (fun x -> List.exists (fun y -> leq_interval x y) ys) xs   
   
-  let join ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list `Join |> events_to_intervals |> remove_gaps
+  let join ik (x: t) (y: t): t = 
+    two_interval_sets_to_events x y |> 
+    combined_event_list `Join |> 
+    events_to_intervals |> 
+    remove_gaps
 
   let meet ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list  `Meet |> events_to_intervals |> remove_gaps
 
@@ -1117,11 +1137,11 @@ struct
 
   let get_lhs_rhs_boundaries (x: t) (y: t) = 
     let lhs = List.hd x in
-    let rhs = List.nth y (List.length y) in 
+    let rhs = List.nth y ((List.length y) - 1) in 
     (fst lhs, snd rhs)
 
   let get_rhs_lhs_boundaries (x: t) (y: t) = 
-    let lhs = List.nth x (List.length x) in 
+    let lhs = List.nth x ((List.length x) - 1) in 
     let rhs = List.hd y in
     (snd lhs, fst rhs)
   
@@ -1149,15 +1169,34 @@ struct
       else
         if a > d' then of_bool ik false else top_bool
   
-  let gt ik x y = if is_true (le ik x y) then zero else one
+  let gt ik x y = 
+    let res = le ik x y in
+    if is_true res then 
+      zero 
+    else
+      if is_false res then zero else top_bool
 
-  let ge ik x y = if is_true (lt ik x y) then zero else one
+  let ge ik x y = 
+    let res = lt ik x y in
+    if is_true res then 
+      zero 
+    else 
+      if is_false res then one else top_bool
   
   let eq ik x y = match x, y with
-    | (a, b)::[], (c, d)::[] -> if (Ints_t.compare a b) == 0 && (Ints_t.compare c d) == 0 then one else zero
-    | _ -> if is_bot (meet ik x y) then zero else top_bool
+    | (a, b)::[], (c, d)::[] when (Ints_t.compare a b) == 0 && (Ints_t.compare c d) == 0 && (Ints_t.compare a c) == 0 -> one
+    | _ -> 
+      if is_bot (meet ik x y) then 
+        zero 
+      else 
+        top_bool
 
-  let ne ik x y = if is_true (eq ik x y) then zero else one
+  let ne ik x y = 
+    let res = eq ik x y in
+    if is_true res then 
+      zero 
+    else 
+      if is_false res then one else top_bool
 
   let bitand ik x y = 
       binary_op ik x y (wrap_binary_interval_function Interval_functor.bitand ik)
@@ -1204,7 +1243,7 @@ struct
     let rem ik x y = 
       binary_op ik x y (wrap_binary_interval_function Interval_functor.rem ik)
 
-  let cast_to ?torg ?no_ov ik = List.map (norm ~cast:true ik |> Option.get)
+  let cast_to ?torg ?no_ov ik = List.map (fun x -> norm ~cast:true ik (Some x) |> Option.get)
 
   let leq_interval x y =
     match x, y with
@@ -1254,8 +1293,10 @@ struct
   let starting ?(suppress_ovwarn=false) ik n = match norm ik @@ Some (n, snd (range ik)) with Some (x,y) -> [(x,y)] 
 
   let ending ?(suppress_ovwarn=false) ik n = match norm ik @@ Some (fst (range ik), n) with Some (x,y) -> [(x,y)]
-  
-  let of_int ik x = of_interval ik (x,x)
+
+  let of_interval ik (x,y) = match norm ik @@ Some (x,y) with Some (x',y') -> [(x',y')] | None -> []
+
+  let of_int ik (x: int_t) = of_interval ik (x, x)
 
   let of_bool _ik = function true -> one | false -> zero
   
