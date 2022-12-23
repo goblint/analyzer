@@ -725,7 +725,6 @@ module Base =
           HM.iter (fun x (old_rho, old_infl) ->
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
               solve x Widen;
-              VS.iter (fun k -> ignore @@ Pretty.printf "in infl after solving: %a\n" Node.pretty_trace (S.Var.node k)) (HM.find_default infl x VS.empty);
               if not (S.Dom.equal (HM.find rho x) old_rho) then (
                 print_endline "Further destabilization happened ...";
               )
