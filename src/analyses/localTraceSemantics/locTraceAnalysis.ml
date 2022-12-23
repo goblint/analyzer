@@ -101,8 +101,18 @@ else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int 
 | Lval(Var(var), NoOffset) -> if var.vglob = true 
   then eval_global var graph node
 else
-  (if SigmaMap.mem var sigOld then ((SigmaMap.find var sigOld), true,SigmaMap.empty) 
-else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nnopVal created at Lval\n");nopVal SigmaMap.empty))
+  (if SigmaMap.mem var sigOld then (
+    match SigmaMap.find var sigOld with
+    | Int(l,u,k) -> if l = u then (Int(l,u,k), true,SigmaMap.empty) else 
+      (Int(l,l,k), true, SigmaMap.add var (Int(l,l,k)) (SigmaMap.empty))
+    | rest -> (rest, true,SigmaMap.empty) 
+    )
+else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nThis means we choose a value for this trace\n");
+let randomNr = Random.int 20 in
+let randomVd = Int((Big_int_Z.big_int_of_int (randomNr)), (Big_int_Z.big_int_of_int (randomNr)),IInt)
+in
+(randomVd, true, SigmaMap.add var randomVd (SigmaMap.empty))))
+
 | AddrOf (Var(v), NoOffset) -> (Address(v), true,SigmaMap.empty)
 
 (* unop expressions *)
@@ -153,18 +163,18 @@ match eval_helper binopExp1 with
   if SigmaMap.mem var sigSide then
     (match SigmaMap.find var sigSide with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
         if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
-        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        else (* TODO design meaningful logic here *) (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
   else if SigmaMap.mem var sigOld then
     (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
         if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
-        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        else (* TODO design meaningful logic here *) (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
       else if var.vglob = true then 
         (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
         
         if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide) 
-        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        else (* TODO design meaningful logic here *) (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
   else ( 
     let sigTmp = NodeImpl.destruct_add_sigma sigSide (SigmaMap.add var (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), Big_int_Z.big_int_of_int intMax, k)) (SigmaMap.empty))
@@ -181,18 +191,18 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
     if SigmaMap.mem var sigSide then 
       (match SigmaMap.find var sigSide with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
         if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
-        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide)
+        else (* TODO design meaningful logic here *) (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
     else if SigmaMap.mem var sigOld then
       (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
         if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
-        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide)
+        else (* TODO design meaningful logic here *) (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
       else if var.vglob = true then 
         (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
         if uVar <= l || u < lVar then (print_string "We calculate get_binop_int\n"; (get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigSide) 
-        else (* TODO design meaningful logic here *) ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigSide)
+        else (* TODO design meaningful logic here *) (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
     else ( 
       let sigTmp = NodeImpl.destruct_add_sigma sigSide (SigmaMap.add var (Int(Big_int_Z.big_int_of_int intMin, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty))
@@ -211,12 +221,11 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp)
 
 | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 (* sigNew will collect all side-effects and then we need to apply sigOld (+) sigSideEffects *)
-in let tmp = eval_helper rval 
-in let (result,success,sigSideEffects) = if vinfo.vglob = true then (print_string "There is a global on the left side, so no evaluation\n"; nopVal SigmaMap.empty) else tmp 
+in let (result,success,sigSideEffects) = if vinfo.vglob = true then (print_string "There is a global on the left side, so no evaluation\n"; nopVal SigmaMap.empty) else eval_helper rval 
 in
 let sigNew = NodeImpl.destruct_add_sigma sigOld sigSideEffects
-in 
-if success then SigmaMap.add vinfo result sigNew  else (print_string "Sigma has not been updated. Vinfo is removed\n"; SigmaMap.remove vinfo sigNew)
+in if vinfo.vglob = true then sigOld else
+if success then SigmaMap.add vinfo result sigNew  else (print_string "Eval could not evaluate expression\n"; exit 0)
 
 (* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge graph node =
@@ -291,6 +300,7 @@ in
 let body_helper graph sigma =(let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
 in LocalTraces.extend_by_gEdge graph myEdge)
 in
+if List.is_empty oldSigma then set else
   D.add (List.fold body_helper g oldSigma) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
@@ -299,12 +309,13 @@ let return ctx (exp:exp option) (f:fundec) : D.t =
   print_string ("return wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
   let return_vinfo = makeVarinfo false "__goblint__traces__return" (TInt(IInt,[]))
 in
-let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in
-let return_helper graph sigma =(
+let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
+   let oldSigma = LocalTraces.get_sigma g ctx.prev_node
+in 
+let return_helper graph sigma =( print_string "return_helper wurde aufgerufen\n";
   let myEdge = (
 match exp with 
-| None ->  
+| None ->  print_string "In return case None\n";
 ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
 | Some(ret_exp) -> (
   let result, success = eval_catch_exceptions sigma return_vinfo ret_exp ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma}
@@ -313,6 +324,7 @@ else ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;s
 ))
 in LocalTraces.extend_by_gEdge graph myEdge)
 in
+if List.is_empty oldSigma then set else
   D.add (List.fold return_helper g oldSigma) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
@@ -324,6 +336,7 @@ in
 let special_helper graph sigma =(let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
 in LocalTraces.extend_by_gEdge graph myEdge)
 in
+if List.is_empty oldSigma then set else
   D.add (List.fold special_helper g oldSigma) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
@@ -347,10 +360,8 @@ in
       let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals})
   in LocalTraces.extend_by_gEdge graph myEdge)
   in
-  let tmp = (List.fold enter_helper g oldSigma) 
-  in
-  print_string ("new graph is "^(LocalTraces.show tmp)^"\n");
-    D.add (tmp) set 
+  if List.is_empty oldSigma then set else
+    D.add (List.fold enter_helper g oldSigma) set 
   in
   if D.is_empty ctx.local then [ctx.local, D.add (LocalTraces.extend_by_gEdge (LocTraceGraph.empty) ({programPoint=ctx.prev_node;sigma=SigmaMap.empty}, ctx.edge, {programPoint=(FunctionEntry(f));sigma=SigmaMap.empty})) (D.empty ())] else
   let state = print_string ("In enter, neuer state wird erstellt\n mit ctx.local: "^(D.show ctx.local)^" und |ctx.local| = "^(string_of_int (D.cardinal ctx.local))^"\n"); D.fold fold_helper ctx.local (D.empty ())
@@ -367,6 +378,7 @@ let combine_helper graph sigma =(
 let myEdge = ({programPoint=ctx.prev_node;sigma=sigma},ctx.edge,{programPoint=ctx.node;sigma=sigma})
 in LocalTraces.extend_by_gEdge graph myEdge)
 in
+if List.is_empty oldSigma then set else
   D.add (List.fold combine_helper g oldSigma) set 
 in
    D.fold fold_helper ctx.local (D.empty ())
