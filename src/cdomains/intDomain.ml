@@ -1013,12 +1013,12 @@ struct
 
   let unary_op (x: t) op = match x with 
     | [] -> []
-    | _ -> canonize (List.map op x)
+    | _ -> canonize (List.filter_map op x)
 
   let binary_op ik (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
-    | _::_, _::_ -> canonize (List.map op (cartesian_product x y))
+    | _::_, _::_ -> canonize (List.filter_map op (cartesian_product x y))
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -1116,11 +1116,11 @@ struct
   let is_false x = x == zero
 
   let wrap_unary_interval_function f ik =
-    let wrap a = f ik (Some a) |> Option.get in
+    let wrap a = f ik (Some a)  in
     wrap
 
   let wrap_binary_interval_function f ik =
-    let wrap (a, b) = f ik (Some a) (Some b) |> Option.get in
+    let wrap (a, b) = f ik (Some a) (Some b) in
     wrap
 
   let get_lhs_rhs_boundaries (x: t) (y: t) = 
