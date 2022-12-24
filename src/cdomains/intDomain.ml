@@ -1162,7 +1162,7 @@ struct
     if is_true res then 
       zero 
     else
-      if is_false res then zero else top_bool
+      if is_false res then one else top_bool
 
   let ge ik x y = 
     let res = lt ik x y in
