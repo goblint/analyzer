@@ -1006,11 +1006,6 @@ struct
     in 
     List.fold_left aux [] xs |> List.rev
     
-  (* Helper Functions *)
-  let min_list l = List.fold_left min (List.hd l)
-  let max_list l = List.fold_left max (List.hd l)
-  let list_of_tuple2 (x, y) = [x ; y] 
-
   let canonize (xs: t) = 
     interval_set_to_events xs |> 
     combined_event_list `Join |> 
@@ -1035,24 +1030,7 @@ struct
     | [`Eq] ->  `Eq 
     | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
      
-  let cartesian_product l1 l2 = List.fold_left (fun acc1 e1 ->
-      List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
-
-  let binary_op ik x y op = match x, y with
-    | [], _ -> []
-    | _, [] -> []
-    | _::_, _::_ -> canonize (List.map op (cartesian_product x y))
-
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
-  let equal_to_interval i (a,b) = 
-    if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
-  
-  let equal_to i xs = match List.map (equal_to_interval i) xs with
-    | [] -> failwith "unsupported: equal_to with bottom"
-    | [`Eq] ->  `Eq 
-    | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
-  
 
     let set_overflow_flag ~cast ~underflow ~overflow ik =
       let signed = Cil.isSigned ik in
