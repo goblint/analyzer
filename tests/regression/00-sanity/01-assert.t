@@ -7,4 +7,4 @@
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 2
-    total: 9
+    total lines: 9
