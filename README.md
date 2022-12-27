@@ -2,7 +2,9 @@
 [![locked workflow status](https://github.com/goblint/analyzer/actions/workflows/locked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/locked.yml)
 [![unlocked workflow status](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml)
 [![docker workflow status](https://github.com/goblint/analyzer/actions/workflows/docker.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/docker.yml)
-[![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)  
+[![GitHub release status](https://img.shields.io/github/v/release/goblint/analyzer)](https://github.com/goblint/analyzer/releases)
+[![opam package status](https://badgen.net/opam/v/goblint)](https://opam.ocaml.org/packages/goblint)
 [![Zenodo DOI](https://zenodo.org/badge/2066905.svg)](https://zenodo.org/badge/latestdoi/2066905)
 
 Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
