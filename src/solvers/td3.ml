@@ -725,7 +725,6 @@ module Base =
           HM.iter (fun x (old_rho, old_infl) ->
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
               solve x Widen;
-              VS.iter (fun k -> ignore @@ Pretty.printf "in infl after solving: %a\n" Node.pretty_trace (S.Var.node k)) (HM.find_default infl x VS.empty);
               if not (S.Dom.equal (HM.find rho x) old_rho) then (
                 print_endline "Further destabilization happened ...";
               )
@@ -879,6 +878,9 @@ module Base =
       end
       in
 
+      let stable_reluctant_vs =
+        List.filter (fun x -> HM.mem stable x) !reluctant_vs
+      in
       let reachable_and_superstable =
         if incr_verify && not consider_superstable_reached then
           (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
@@ -893,7 +895,7 @@ module Base =
               Option.may (VS.iter one_var') (HM.find_option side_infl x)
             )
           in
-          (Timing.wrap "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
+          (Timing.wrap "cheap_full_reach" (List.iter one_var')) (vs @ stable_reluctant_vs);
 
           reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
         else if incr_verify then
@@ -1010,8 +1012,7 @@ module Base =
       in
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
-
-      Post.post st (!reluctant_vs @ vs) rho;
+      Post.post st (stable_reluctant_vs @ vs) rho;
 
       print_data data "Data after postsolve";
 
