@@ -80,6 +80,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
     ("ntohs", unknown [drop "netshort" []]);
+    ("alarm", unknown [drop "seconds" []]);
+    ("pwrite", unknown [drop "fd" []; drop "buf" [r]; drop "count" []; drop "offset" []]);
+    ("hstrerror", unknown [drop "err" []]);
+    ("inet_ntoa", unknown [drop "in" []]);
   ]
 
 (** Pthread functions. *)
@@ -94,6 +98,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
+    ("pthread_cancel", unknown [drop "thread" []]);
+    ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
   ]
 
 (** GCC builtin functions.
