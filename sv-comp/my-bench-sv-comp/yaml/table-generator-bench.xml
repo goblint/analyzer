@@ -1,0 +1,51 @@
+<?xml version="1.0" ?>
+<!DOCTYPE table PUBLIC "+//IDN sosy-lab.org//DTD BenchExec table 1.10//EN" "https://www.sosy-lab.org/benchexec/table-1.10.dtd">
+<table>
+
+  <result filename="goblint-bench.*.results.all.Pthread.xml.bz2.merged.xml.bz2">
+    <column title="status"/>
+    <!-- <column title="score"/> -->
+    <column title="witness" href="./LOGDIR/all/${taskdef_name}/witness.yml">witness</column>
+    <column title="entries">total: (\d+)</column>
+    <column title="cputime"/>
+    <!-- <column title="walltime"/> -->
+    <!-- <column title="memory" sourceUnit="B" displayUnit="MB"/> -->
+    <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
+    <column title="vars">vars = (\d+)</column>
+    <column title="evals">evals = (\d+)</column>
+  </result>
+
+  <result filename="goblint-bench-validate-tmp.*.results.all.Pthread.xml.bz2">
+    <column title="status"/>
+    <column title="cputime"/>
+    <!-- <column title="walltime"/> -->
+    <!-- <column title="memory" sourceUnit="B" displayUnit="MB"/> -->
+    <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
+    <column title="vars">vars = (\d+)</column>
+    <column title="evals">evals = (\d+)</column>
+  </result>
+
+  <result filename="goblint-bench.*.results.loop-head.Pthread.xml.bz2.merged.xml.bz2">
+    <column title="status"/>
+    <!-- <column title="score"/> -->
+    <column title="witness" href="./LOGDIR/loop-head/${taskdef_name}/witness.yml">witness</column>
+    <column title="entries">total: (\d+)</column>
+    <column title="cputime"/>
+    <!-- <column title="walltime"/> -->
+    <!-- <column title="memory" sourceUnit="B" displayUnit="MB"/> -->
+    <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
+    <column title="vars">vars = (\d+)</column>
+    <column title="evals">evals = (\d+)</column>
+  </result>
+
+  <result filename="goblint-bench-validate-tmp.*.results.loop-head.Pthread.xml.bz2">
+    <column title="status"/>
+    <column title="cputime"/>
+    <!-- <column title="walltime"/> -->
+    <!-- <column title="memory" sourceUnit="B" displayUnit="MB"/> -->
+    <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
+    <column title="vars">vars = (\d+)</column>
+    <column title="evals">evals = (\d+)</column>
+  </result>
+
+</table>
