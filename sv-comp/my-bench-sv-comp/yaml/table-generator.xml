@@ -6,7 +6,7 @@
     <column title="status"/>
     <!-- <column title="score"/> -->
     <column title="witness" href="./LOGDIR/all/${taskdef_name}/witness.yml">witness</column>
-    <column title="entries">total: (\d+)</column>
+    <column title="entries">total generation entries: (\d+)</column>
     <column title="cputime"/>
     <!-- <column title="walltime"/> -->
     <!-- <column title="memory" sourceUnit="B" displayUnit="MB"/> -->
@@ -29,7 +29,7 @@
     <column title="status"/>
     <!-- <column title="score"/> -->
     <column title="witness" href="./LOGDIR/loop-head/${taskdef_name}/witness.yml">witness</column>
-    <column title="entries">total: (\d+)</column>
+    <column title="entries">total generation entries: (\d+)</column>
     <column title="cputime"/>
     <!-- <column title="walltime"/> -->
     <!-- <column title="memory" sourceUnit="B" displayUnit="MB"/> -->
