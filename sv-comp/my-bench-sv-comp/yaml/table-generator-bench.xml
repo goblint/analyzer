@@ -13,6 +13,7 @@
     <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
     <column title="vars">vars = (\d+)</column>
     <column title="evals">evals = (\d+)</column>
+    <column title="live">live: (\d+)</column>
   </result>
 
   <result filename="goblint-bench-validate-tmp.*.results.all.Pthread.xml.bz2">
@@ -23,6 +24,7 @@
     <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
     <column title="vars">vars = (\d+)</column>
     <column title="evals">evals = (\d+)</column>
+    <column title="live">live: (\d+)</column>
   </result>
 
   <result filename="goblint-bench.*.results.loop-head.Pthread.xml.bz2.merged.xml.bz2">
@@ -36,6 +38,7 @@
     <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
     <column title="vars">vars = (\d+)</column>
     <column title="evals">evals = (\d+)</column>
+    <column title="live">live: (\d+)</column>
   </result>
 
   <result filename="goblint-bench-validate-tmp.*.results.loop-head.Pthread.xml.bz2">
@@ -46,6 +49,7 @@
     <column title="solvetime" sourceUnit="s" displayUnit="s">solving +([0-9.]+) ?s</column>
     <column title="vars">vars = (\d+)</column>
     <column title="evals">evals = (\d+)</column>
+    <column title="live">live: (\d+)</column>
   </result>
 
 </table>
