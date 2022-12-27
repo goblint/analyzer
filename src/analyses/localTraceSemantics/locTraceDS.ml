@@ -43,8 +43,9 @@ let equal_varDomain vd1 vd2 =
     | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
     | Error -> "ERROR"
 
+    (* I need a better hash function for intervals!! *)
 let hash_valuedomain vd =
-  match vd with Int(iLower, iUpper, ik) -> Big_int_Z.int_of_big_int (Big_int_Z.sub_big_int iLower iUpper)
+  match vd with Int(iLower, iUpper, ik) -> Big_int_Z.int_of_big_int (Big_int_Z.add_big_int iLower iUpper)
   | Address(vinfo) -> CilType.Varinfo.hash vinfo
   | Error -> 13
 
@@ -59,17 +60,20 @@ module NodeImpl =
 struct 
 type t = node
 
+let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
+
+
 let equal_sigma s1 s2 = if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true else
    let fold_helper vinfo varDom b = 
-    SigmaMap.exists (fun exist_vinfo exist_varDom -> if (CilType.Varinfo.equal vinfo exist_vinfo)&&(equal_varDomain varDom exist_varDom) then true else b) s2
+    SigmaMap.exists (fun exist_vinfo exist_varDom -> if (CilType.Varinfo.equal vinfo exist_vinfo)&&(equal_varDomain varDom exist_varDom) then true else false) s2
   in
   SigmaMap.fold fold_helper s1 false 
 
-  (* MyCFG.compare hier möglich*)
+  let show n = 
+    match n with {programPoint=p;sigma=s} -> "node:{programPoint="^(Node.show p)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
+
 let compare n1 n2 = match (n1, n2) with 
 ({programPoint=p1;sigma=s1},{programPoint=p2;sigma=s2}) -> if (equal_sigma s1 s2) then Node.compare p1 p2 else -13 
-
-let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
 
 let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_valuedomain vd) + i) s 0)
 
@@ -79,10 +83,6 @@ let intersect_sigma sigma1 sigma2 =
 let destruct_add_sigma sigma1 sigma2 = SigmaMap.fold (fun vinfo varDom sigAcc -> SigmaMap.add vinfo varDom sigAcc) sigma2 sigma1
 
 let hash {programPoint=n;sigma=s} = Node.hash n + hash_sigma s
-
-
-let show n = 
-  match n with {programPoint=p;sigma=s} -> "node:{programPoint="^(Node.show p)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
 
   let equal n1 n2 = (compare n1 n2) = 0
 end
@@ -165,8 +165,10 @@ let get_sigma g (progPoint:MyCFG.node) =
     | _ -> [])
   else  
   (let tmp =
-LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} l -> if Node.equal p1 progPoint then s1::l else l) g []
-  in if List.is_empty tmp then [] else tmp)
+LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1} l -> 
+  if Node.equal p1 progPoint then s1::l else l) g []
+  in 
+  if List.is_empty tmp then [] else tmp)
 
 (* Applies an gEdge to graph 
    Explicit function for future improvements *)

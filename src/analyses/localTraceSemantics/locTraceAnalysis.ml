@@ -269,7 +269,7 @@ in
 let branch_helper graph sigma =
 (let branch_sigma = SigmaMap.add branch_vinfo Error sigma 
 in
-print_string ("oldSigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
+print_string ("sigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
 let result_branch,success = eval_catch_exceptions branch_sigma branch_vinfo exp ctx.edge graph {programPoint=ctx.prev_node;sigma=sigma}
 in
 let result_as_int = match (SigmaMap.find_default Error branch_vinfo result_branch) with

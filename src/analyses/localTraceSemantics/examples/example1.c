@@ -1,13 +1,14 @@
-int y = 1;
+int global = 5;
 
 void main() {
   int x = 7;
-  if (x < 4) {
-    y = 3;
-  } else {
-    x = 5;
+  int k = 1;
+  while (k < 4) {
+    x = k + global;
+    k++;
+    global -= 1;
   }
-  x = y - 8;
+  k = global;
 }
 
 // Beispiel Code für trace removal bei branches, wenn die die condition nicht
@@ -40,7 +41,7 @@ void main() {
 //     x = x + 2147483647;
 //   }
 
-// Code für Lt, wo der Fixpoint angeblich nicht erreicht wird
+// Code für Lt, wo der Fixpoint angeblich nicht erreicht wird (anscheinend doch)
 // int unknown;
 // int x;
 // if (2 < unknown) {
@@ -76,8 +77,7 @@ void main() {
 //   x = 3;
 // }
 
-// Code-Beispiel für global-Suche --> der richtige Knoten wird schon mal
-// rausgesucht
+// Code-Beispiel für global-Suche
 //  int y = 1;
 
 // int f(int x) {
@@ -90,4 +90,45 @@ void main() {
 //   y = 9;
 //   y = f(12);
 //   x = 3;
+// }
+
+// komplizierteres Beispiel für global Suche
+//  int y = 10;
+
+// void main() {
+//   int x = 3;
+//   int k = 1;
+//   while (x < 6) {
+//     k = y;
+//     y = x + x;
+//     x++;
+//   }
+// }
+
+// obwohl ähnlich, funktioniert das hier nicht:
+// int global = 5;
+
+// void main() {
+//   int x = 7;
+//   int k = 1;
+//   while (k < 4) {
+//     x = k + global;
+//     k++;
+//     global -= 1;
+//   }
+// }
+
+// Code-Beispiel für Probleme bei der global Suche
+
+// int x = 3;
+// void main() {
+//   int k = 2;
+//   while (x < 6) {
+//     k = 3;  // wenn ich das entferne, dann terminiert es nicht. das ist, weil
+//             // ohne das ist sigma gleich, die loops unterscheiden sich nur,
+//             wenn
+//             // sigma unterschiedlich sind
+//     x = x + 1;
+//   }
+//   k = x;
 // }
