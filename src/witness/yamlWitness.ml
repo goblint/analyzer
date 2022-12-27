@@ -3,7 +3,7 @@ open GoblintCil
 
 let uuid_random_state = Random.State.make_self_init ()
 
-let sha256_file f = Sha256.(to_hex (file f))
+let sha256_file f = try Sha256.(to_hex (file f)) with Sys_error _ -> ""
 let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5
 let sha256_file = sha256_file_cache.get
 
