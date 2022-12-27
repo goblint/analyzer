@@ -228,17 +228,19 @@ struct
 
             if !GU.postsolving then (
               let held_locks = (if write then snd else fst) (G.protecting (ctx.global (V.protecting v))) in
-              let vs_empty = VarSet.empty () in
-              Mutexes.iter (fun addr ->
-                  let vs = VarSet.singleton v in
-                  let protected =
-                    if write then
-                      (vs_empty, vs)
-                    else
-                      (vs, vs_empty)
-                  in
-                  ctx.sideg (V.protected addr) (G.create_protected protected)
-                ) held_locks
+              if not (Mutexes.is_top held_locks) then (
+                let vs_empty = VarSet.empty () in
+                Mutexes.iter (fun addr ->
+                    let vs = VarSet.singleton v in
+                    let protected =
+                      if write then
+                        (vs_empty, vs)
+                      else
+                        (vs, vs_empty)
+                    in
+                    ctx.sideg (V.protected addr) (G.create_protected protected)
+                  ) held_locks
+              )
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
