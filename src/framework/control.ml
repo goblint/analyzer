@@ -165,7 +165,7 @@ struct
       M.msg_group severity ~category:Deadcode "Logical lines of code (LLoC) summary" [
         (Pretty.dprintf "live: %d" live_count, None);
         (Pretty.dprintf "dead: %d%s" dead_total (if uncalled_fn_loc > 0 then Printf.sprintf " (%d in uncalled functions)" uncalled_fn_loc else ""), None);
-        (Pretty.dprintf "total: %d" total, None);
+        (Pretty.dprintf "total lines: %d" total, None);
       ]
     );
     NH.mem live_nodes

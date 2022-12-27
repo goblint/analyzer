@@ -383,7 +383,7 @@ struct
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
 
     M.msg_group Info ~category:Witness "witness generation summary" [
-      (Pretty.dprintf "total: %d" (List.length yaml_entries), None);
+      (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
     yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
@@ -652,7 +652,7 @@ struct
       (Pretty.dprintf "unchecked: %d" !cnt_unchecked, None);
       (Pretty.dprintf "unsupported: %d" !cnt_unsupported, None);
       (Pretty.dprintf "disabled: %d" !cnt_disabled, None);
-      (Pretty.dprintf "total: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error + !cnt_disabled), None);
+      (Pretty.dprintf "total validation entries: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error + !cnt_disabled), None);
     ];
 
     yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
