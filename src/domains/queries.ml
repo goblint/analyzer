@@ -117,6 +117,7 @@ type _ t =
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
+  | MayThreadcreate: BoolDomain.MayBool.t t
 
 type 'a result = 'a
 
@@ -170,6 +171,7 @@ struct
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
+    | MayThreadcreate -> (module BoolDomain.MayBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -222,6 +224,7 @@ struct
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
+    | MayThreadcreate -> BoolDomain.MayBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -271,6 +274,7 @@ struct
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
+    | Any MayThreadcreate -> 42
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -378,6 +382,7 @@ struct
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
+    | Any MayThreadcreate-> Pretty.dprintf "MayThreadcreate"
 end
 
 

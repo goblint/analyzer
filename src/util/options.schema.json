@@ -935,6 +935,19 @@
                 "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
+            },
+            "context": {
+              "title": "ana.thread.context",
+              "type": "object",
+              "properties": {
+                "createEdges": {
+                  "title": "ana.thread.context.createEdges",
+                  "description": "threadID analysis: Encountered create edges in context.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

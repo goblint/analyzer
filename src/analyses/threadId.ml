@@ -41,6 +41,12 @@ struct
       Hashtbl.replace !tids tid ();
     (`Lifted (tid), TD.bot ())
 
+  let context fd d = 
+    if GobConfig.get_bool "ana.thread.context.createEdges" then
+      d
+    else 
+      (fst d, TD.bot ())
+
   let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
@@ -63,9 +69,14 @@ struct
   let enter ctx lval f args =
     [ctx.local,ctx.local]
 
-  let combine ctx lval fexp f args fc st2 f_ask = st2
+  let combine ctx lval fexp f args fc st2 (f_ask: Queries.ask) =
+    if (f_ask.f Queries.MayThreadcreate) then
+      st2
+    else
+      ctx.local
 
   let special ctx lval f args =
+    if M.tracing then M.trace "threadCreate" "Current Tid State at %s: %a\n" f.vname D.pretty ctx.local;
     ctx.local
 
   let is_unique ctx =
