@@ -456,4 +456,12 @@ let finalize _ =
   in
 
   (* Find the corresponding messages for the sinked alarms from solution_av and print them out *)
-  HM.iter (fun n s -> CondSet.iter (fun _ -> warn @@ HM.find !avSolHM n) s) sinkHM;
+  HM.iter (fun n s -> CondSet.iter (fun _ ->
+      let msg = HM.find !avSolHM n in
+      match D.is_empty @@ msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
+      | false -> warn msg
+      | true -> 
+        let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
+        match D.is_empty @@ msg with
+        | false -> warn msg
+        | true -> ()) s) sinkHM;
