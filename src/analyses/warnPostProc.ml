@@ -439,15 +439,16 @@ let finalize _ =
      locations instead of sinked location, if available
   *)
   let warn alarms =
-    let (orig_locs, rel_locs) = D.fold (fun alarm (orig_locs, rel_locs)->
+    let (orig_locs, rel_locs) = D.fold (fun alarm (orig_locs, rel_locs) ->
         let origs = List.to_seq alarm.locs.original in
         let reltd = List.to_seq alarm.locs.related in
         RMLocSet.add_seq origs orig_locs, RMLocSet.add_seq reltd rel_locs)
-        alarms (RMLocSet.empty, RMLocSet.empty) 
+        alarms (RMLocSet.empty, RMLocSet.empty)
     in
-    let rel_alarm = D.choose alarms in
+    let rel_locs = RMLocSet.diff rel_locs orig_locs in (* remove all those related alarms that are the same as originals *)
+    let rel_alarm = D.choose alarms in (* TODO: choose one with highest location instead of random *)
     let alarm =
-      match rel_alarm.locs.related with
+      match RMLocSet.to_list rel_locs with
       | rel_loc :: _ -> set_loc rel_alarm rel_loc
       | _ -> rel_alarm
     in
