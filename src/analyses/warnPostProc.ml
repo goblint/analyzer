@@ -357,11 +357,28 @@ let finalize _ =
       (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
       (Ant.kill node @@ HM.find solution (`G node)) in
 
+  (* 
+    Similarly to handling the conditions in the end node during sinking, 
+    as a special case, the algorithm utilizes every condition from 
+    the exit of the first node for repositioning,
+    because a few antconds can reach the program starting point, 
+    but not get computed by equations hoist_entry and hoist_exit.
+  *)
+  let conds_start node =
+    let sol = HM.find solution (`G node) in
+    let conds = Av.conds_in sol in
+    let og_node = match (D.choose sol).locs.original with
+      | (x::xs) -> begin match x with
+          | Node l -> l
+          | _ -> node end
+      | _ -> node in 
+    HM.replace hoistHM (`L og_node) conds in
+
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->
       match k with
-      | `L Function _ -> ()
-      | `G Function _ -> ()
+      | `G (FunctionEntry n) -> conds_start (FunctionEntry n)
+      | `G Function _ -> () (* cannot find next nodes for end node *)
       | `L node -> HM.replace hoistHM k @@ hoist_entry node
       | `G node -> HM.replace hoistHM k @@ hoist_exit node
     ) solution;
