@@ -367,12 +367,13 @@ let finalize _ =
   let conds_start node =
     let sol = HM.find solution (`G node) in
     let conds = Av.conds_in sol in
-    let og_node = match (D.choose sol).locs.original with
-      | (x::xs) -> begin match x with
-          | Node l -> l
-          | _ -> node end
-      | _ -> node in 
-    HM.replace hoistHM (`L og_node) conds in
+    if (D.is_empty sol) then ()
+    else
+      let og_node = match (D.choose sol).locs.original with
+        | (Node l::xs) -> l
+        | _ -> node in
+      HM.replace solution (`L og_node) (D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol (D.empty ()));
+      HM.replace hoistHM (`L og_node) conds in
 
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->
