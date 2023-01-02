@@ -34,16 +34,16 @@ All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these t
 1. Run the script `../bench/esop23_fig13.rb`. This takes ~25 min (see note below).
 2. Open the results HTML `../bench/bench_result/index.html`.
 
-    - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table).
-    - There are some slight deviations between the `LLoCs` in the paper and the artifact, that are due
-      to different versions of library functions caused by different versions of `glibc`.
-    - The number of threads and which are unique is given by the numbers following `T:` in the parenthesis after the runtimes
+    - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table, and `Clusters` is named `cluster12`).
+    - As noted in appendix I.1, we had to exclude `ypbind` from the benchmarks, as it spawns a thread from an unknown pointer which the analysis can not handle
+    - As dumping the precision information incurs a significant performance penalty, each configuration is run twice: Once to measure runtime and once with
+    the post-processing that marshals the internal data structures to disk.
 
 
 
 ### Notes
 * The source code for benchmarks can be found in `../bench/pthread/` and `../bench/svcomp/`.
-* Although it takes ~25 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
+* Although it takes ~25 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish (if that shows you a blank, try waiting a while and refreshing).
 
 
 ### Outline of how the code is structured
