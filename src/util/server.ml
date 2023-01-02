@@ -187,6 +187,7 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
   Cilfacade.reset_lazy ();
+  InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();

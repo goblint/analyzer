@@ -521,6 +521,7 @@ struct
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
     let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+    let exact = GobConfig.get_bool "witness.invariant.exact" in
 
     let ask = Analyses.ask_of_ctx ctx in
     let scope = Node.find_fundec ctx.node in
@@ -560,8 +561,9 @@ struct
     RD.invariant apr
     |> List.enum
     |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
-        (* filter one-vars *)
-        if one_var || SharedFunctions.Lincons1.num_vars lincons1 >= 2 then
+        (* filter one-vars and exact *)
+        (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+        if (one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
@@ -592,8 +594,7 @@ struct
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
-    | Queries.Invariant context ->
-      query_invariant ctx context
+    | Queries.Invariant context -> query_invariant ctx context
     | _ -> Result.top q
 
 
@@ -633,13 +634,41 @@ struct
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
-      Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+      WideningTokens.with_local_side_tokens (fun () ->
+          Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+        )
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
       assert_fn ctx exp true
+    | Events.Unassume {exp = e; uuids} ->
+      let e_orig = e in
+      let ask = Analyses.ask_of_ctx ctx in
+      let e = replace_deref_exps ctx.ask e in
+      let (rel, e, v_ins) = read_globals_to_locals ask ctx.global ctx.local e in
+
+      let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
+      let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
+      let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
+      let rel = RD.assert_inv rel e false (no_overflow ask e_orig) in (* assume *)
+      let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
+
+      (* TODO: parallel write_global? *)
+      let st =
+        WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+            VH.fold (fun v v_in st ->
+                (* TODO: is this sideg fine? *)
+                write_global ask ctx.global ctx.sideg st v v_in
+              ) v_ins {ctx.local with rel}
+          )
+      in
+      let rel = RD.remove_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+
+      let st = D.join ctx.local {st with rel} in (* (strengthening) join *)
+      M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
+      st
     | _ ->
       st
 
@@ -660,7 +689,9 @@ struct
       let new_value = RD.join old_value st in
       PCU.RH.replace results ctx.node new_value;
     end;
-    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+    WideningTokens.with_local_side_tokens (fun () ->
+        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+      )
 
   let init marshal =
     Priv.init ()
