@@ -25,7 +25,7 @@ The following are step-by-step instructions to reproduce the experimental result
 Depending on the host machine, the run times will be slightly different from what is reported in the paper,
 but they should behave the same way relative to each other.
 
-**Important note: We based our implementation on our previous work on Goblint, but also compare with **
+**Important note: We based our implementation on our previous work on Goblint, but also compare with Goblint in the non-relational setting from our previous SAS paper. This previous version is referred to as "Goblint w/ Interval"**
 
 ## Claims in Paragraph "Internal comparison" (p.23)
 
@@ -46,6 +46,33 @@ All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these t
 * Although it takes ~25 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish (if that shows you a blank, try waiting a while and refreshing).
 
 
+## All other claims in Section 9
+
+All these claims are based on the contents of Table 2. The different sets in this table are reproduced by different scripts.
+
+### Set "Our"
+
+1. Run the script `../bench/esop23_table2_set_our.rb`. This takes ~3min
+2. Open the results HTML `../bench/bench_result/index.html`.
+
+  - This shows for each test the total numbers of asserts and how many could be proven:
+      - If all are proven, the cell shows a checkmark
+      - If none are proven, the cell shows a cross
+      - If only some are proven, the cell shows both numbers
+
+### Set "Goblint"
+
+1. Run the script `../bench/esop23_table2_set_goblint.rb`. This takes ~ XX min
+2. Open the results HTML `../bench/bench_result/index.html`.
+
+  - This shows for each test the total numbers of asserts and how many could be proven:
+      - If all are proven, the cell shows a checkmark
+      - If none are proven, the cell shows a cross
+      - If only some are proven, the cell shows both numbers
+
+
+
+## Additional Information
 ### Outline of how the code is structured
 Lastly, we give a general outline of how code in the Goblint framework is organized:
 The source code is in the directory `./src`, where the subdirectories are structured as follows:
