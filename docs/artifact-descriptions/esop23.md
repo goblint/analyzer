@@ -15,11 +15,37 @@ When using the artifact, follow the similar instructions it includes. -->
 - Start the VM and (if prompted) login as `goblint` with password `goblint`
 - Navigate to the folder `~/analyzer`. All paths are given relative to it.
 - Run the following commands to verify the installation works as intended
-    - `./scripts/esop23-kick-tires.sh`
-        - Internally, this will run a few internal regression tests (the commands that are run are printed)
+    - `./scripts/esop23-kick-tires.sh` (will take ~3min)
+        - Internally, this will run a few internal regression tests (you can open the script to see which)
         - After the command has run, there should be some messages `No errors :)` as well as some messages `Excellent: ignored check on ... now passing!`)
 
+# Step-by-Step Instructions
 
+The following are step-by-step instructions to reproduce the experimental results underlying the paper.
+Depending on the host machine, the run times will be slightly different from what is reported in the paper,
+but they should behave the same way relative to each other.
+
+**Important note: We based our implementation on our previous work on Goblint, but also compare with **
+
+## Claims in Paragraph "Internal comparison" (p.23)
+
+All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these tables is produced by running:
+
+1. Run the script `../bench/update_bench_traces.rb`. This takes ~25 min (see note below).
+2. Open the results HTML `../bench/bench_result/index.html`.
+
+    - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table).
+    - The `size` column in the generated table refers to the total line count (including headers, comments, ...), the
+      `LLoC` can be obtained by looking at the first number in parantheses after the runtime.
+      There are some slight deviations between the numbers in the paper and the artifact, that are due
+      to different versions of library functions caused by different versions of `glibc`.
+    - The number of threads and which are unique is given by the numbers following `T:` in the parenthesis after the runtimes
+
+
+
+### Notes
+* The source code for benchmarks can be found in `../bench/pthread/` and `../bench/svcomp/`.
+* Although it takes ~25 min to run all the benchmarks, the script continually updates the results HTML. Therefore it's possible to observe the first results in the partially-filled table without having to wait for the script to finish.
 
 
 ### Outline of how the code is structured
