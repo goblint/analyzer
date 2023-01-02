@@ -73,15 +73,15 @@ struct
       );
 
     let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-        file = location.file_name;
-        line = location.line;
-        column = location.column + 1;
-        byte = -1;
-        endLine = -1;
-        endColumn = -1;
-        endByte = -1;
-        synthetic = false;
-      }
+      file = location.file_name;
+      line = location.line;
+      column = location.column + 1;
+      byte = -1;
+      endLine = -1;
+      endColumn = -1;
+      endByte = -1;
+      synthetic = false;
+    }
     in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) in
