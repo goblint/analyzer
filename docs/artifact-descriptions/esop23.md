@@ -31,13 +31,11 @@ but they should behave the same way relative to each other.
 
 All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these tables is produced by running:
 
-1. Run the script `../bench/update_bench_traces.rb`. This takes ~25 min (see note below).
+1. Run the script `../bench/esop23_fig13.rb`. This takes ~25 min (see note below).
 2. Open the results HTML `../bench/bench_result/index.html`.
 
     - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table).
-    - The `size` column in the generated table refers to the total line count (including headers, comments, ...), the
-      `LLoC` can be obtained by looking at the first number in parantheses after the runtime.
-      There are some slight deviations between the numbers in the paper and the artifact, that are due
+    - There are some slight deviations between the `LLoCs` in the paper and the artifact, that are due
       to different versions of library functions caused by different versions of `glibc`.
     - The number of threads and which are unique is given by the numbers following `T:` in the parenthesis after the runtimes
 
