@@ -667,7 +667,7 @@ struct
 
   let store_data file =
     let results = PCU.RH.map (fun _ v -> RD.marshal v) results in
-    let name = RD.name () ^ "(domain: " ^ (RD.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.relation.threshold_widening" then ", th" else "" ) ^ ")" in
+    let name = RD.name () ^ "(domain: " ^ (RD.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.apron.threshold_widening" then ", th" else "" ) ^ ")" in
     let results: PCU.dump = {marshalled = results; name } in
     Serialize.marshal results file
 
