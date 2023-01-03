@@ -69,6 +69,8 @@ For all of them:
 
 ### Set "Watts"
 
+Note: For a detailed discussion on these benchmarks, see Appendix I.2 of the paper.
+
 1. Run the script `../bench/esop23_table2_set_watts.rb`. This takes ~ XX min
 2. Open the results HTML `../bench/bench_result/index.html`.
 
