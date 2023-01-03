@@ -74,6 +74,7 @@ Note: For a detailed discussion on these benchmarks, see Appendix I.2 of the pap
 1. Run the script `../bench/esop23_table2_set_watts.rb`. This takes ~ XX min
 2. Open the results HTML `../bench/bench_result/index.html`.
 
+As opposed to the other scripts, this one also prints run-times as these are needed to also verify Table 4 in the supplementary material.
 
 
 ## Additional Information
