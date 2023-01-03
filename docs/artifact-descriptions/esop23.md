@@ -31,7 +31,7 @@ but they should behave the same way relative to each other.
 
 All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these tables is produced by running:
 
-1. Run the script `../bench/esop23_fig13.rb`. This takes ~25 min (see note below).
+1. Run the script `../bench/esop23_fig13.rb`. This takes ~2.5h (see note below).
 2. Open the results HTML `../bench/bench_result/index.html`.
 
     - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table, and `Clusters` is named `cluster12`).
