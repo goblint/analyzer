@@ -1,14 +1,15 @@
-int global = 5;
+// PARAM: --set ana.activated[+] "localTraces"
+
+int y = 10;
 
 void main() {
-  int x = 7;
+  int x = 3;
   int k = 1;
-  while (k < 4) {
-    x = k + global;
-    k++;
-    global -= 1;
+  while (x < 6) {
+    k = y;
+    y = x + x;
+    x++;
   }
-  k = global;
 }
 
 // Beispiel Code für trace removal bei branches, wenn die die condition nicht
@@ -131,4 +132,13 @@ void main() {
 //     x = x + 1;
 //   }
 //   k = x;
+// }
+
+// Code, das noch nicht klappt
+// void main() {
+//   int x = 3;
+//   int y = 4;
+//   while (y < 7) {
+//     x++;
+//   }
 // }
