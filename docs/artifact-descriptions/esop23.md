@@ -79,11 +79,24 @@ Note: To regenerate just some of the results: Invoke one of `../bench/esop23_tab
 
 ### Reproducing Duet numbers
 
-This artifact ships Duet (at commit 5ea68373bb8c8cff2a9b3a84785b12746e739cee) with a bug fix (courtesy of its original author Zach Kincaid) allowing it to run successfully on some of the benchmarks.
-For others, it sill reported a number of reachable asserts that is too low, we only give the instructions to reproduce the successful runs here.
-For a detailed discussion see Apppendix I.3.
+This artifact ships Duet (at commit `5ea68373bb8c8cff2a9b3a84785b12746e739cee`) with a bug fix (courtesy of its original author Zach Kincaid) allowing it to run successfully on some of the benchmarks.
+For others, it sill reported a number of reachable asserts that is too low.
+We only give the instructions to reproduce the successful runs here. For a detailed discussion see Apppendix I.3.
+
+To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh`
 
 
+| Set      | HTML-File                                       |
+| -------- | ------------------------------------------------|
+| Our      | `../bench/traces-relational-duet-ours.csv`      |
+| Goblint  | -                                               |
+| Watts    | `../bench/traces-relational-duet-watts.csv`     |
+| Ratcop   | `../bench/traces-relational-duet-ratcop.csv`    |
+
+These files contain for the tests on which Duet did not crash the number of verified assertions,
+followed by the number of failed assertions.
+
+Note: To regenerate just some of the results: Invoke one of `python3 ../bench/duet-{ours,goblint,watts,ratcop}.py`.
 
 
 ## Additional Information
