@@ -56,6 +56,9 @@ For all of them:
       - If none are proven, the cell shows a cross
       - If only some are proven, the cell shows both numbers
 
+These scripts produces the numbers for all configurations of our tool as well as for "Goblint w/ Intervals" that we are comparing against.
+For reproducing the numbers for Duet see below.
+
 ### Set "Our"
 
 1. Run the script `../bench/esop23_table2_set_our.rb`. This takes ~3min
@@ -80,6 +83,15 @@ As opposed to the other scripts, this one also prints run-times as these are nee
 
 1. Run the script `../bench/esop23_table2_set_goblint.rb`. This takes ~ XX min
 2. Open the results HTML `../bench/bench_result/index.html`.
+
+### Reproducing Duet numbers
+
+This artifact ships Duet (at commit 5ea68373bb8c8cff2a9b3a84785b12746e739cee) with a bug fix (courtesy of its original author Zach Kincaid) allowing it to run successfully on some of the benchmarks.
+For others, it sill reported a number of reachable asserts that is too low, we only give the instructions to reproduce the successful runs here.
+For a detailed discussion see Apppendix I.3.
+
+
+
 
 ## Additional Information
 ### Outline of how the code is structured
