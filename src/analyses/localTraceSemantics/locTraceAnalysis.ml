@@ -307,7 +307,7 @@ in
       
 let return ctx (exp:exp option) (f:fundec) : D.t = 
   print_string ("return wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-  let return_vinfo = makeVarinfo false "__goblint__traces__return" (TInt(IInt,[]))
+  let return_vinfo = LocalTraces.return_vinfo
 in
 let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
    let oldSigma = LocalTraces.get_sigma g ctx.prev_node

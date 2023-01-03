@@ -63,7 +63,10 @@ type t = node
 let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
 
 
-let equal_sigma s1 s2 = if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true else
+let equal_sigma s1 s2 = 
+  if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true 
+  else if (SigmaMap.cardinal s1) != (SigmaMap.cardinal s2) then false
+  else
    let fold_helper vinfo varDom b = 
     SigmaMap.exists (fun exist_vinfo exist_varDom -> if (CilType.Varinfo.equal vinfo exist_vinfo)&&(equal_varDomain varDom exist_varDom) then true else false) s2
   in
@@ -143,7 +146,11 @@ let equal g1 g2 = print_string "\nGraph.equal BEGIN\n";
 if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (print_string "g1 and g2 are NOT the same, they have different length\nGraph.equal END\n";false) else (
 print_string ("g1-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g1 "")^"\n");
 print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g2 "")^"\n");
-  let tmp = equal_helper1 (get_all_edges g1) (get_all_edges g2)
+let edgeList1 = get_all_edges g1
+in let edgeList2 = get_all_edges g2
+in
+print_string ("equal_helper1 wird jetzt aufgerufen mit\nedgeList1="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList1)^"\nedgeList2="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList2)^"\n");
+  let tmp = equal_helper1 (edgeList1) (edgeList2)
   in if tmp = false then print_string "g1 and g2 are NOT the same with even length\n" else print_string "g1 and g2 are the same with even length\n"; print_string "\nGraph.equal END\n";tmp)
 
     (* eventuell liegt hier der Fehler?*)
@@ -183,6 +190,8 @@ let extend_by_gEdge gr gEdge =
                    sbody={battrs=[];bstmts=[]};
                    smaxstmtid=None;
                    sallstmts=[]})
+
+  let return_vinfo = makeVarinfo false "__goblint__traces__return" (TInt(IInt,[]))
 
     let get_predecessors_edges graph node =
       List.fold 
