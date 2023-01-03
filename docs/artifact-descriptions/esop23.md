@@ -50,25 +50,27 @@ All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these t
 
 All these claims are based on the contents of Table 2. The different sets in this table are reproduced by different scripts.
 
+For all of them:
+  - The results table shows for each test the total numbers of asserts and how many could be proven:
+      - If all are proven, the cell shows a checkmark
+      - If none are proven, the cell shows a cross
+      - If only some are proven, the cell shows both numbers
+
 ### Set "Our"
 
 1. Run the script `../bench/esop23_table2_set_our.rb`. This takes ~3min
 2. Open the results HTML `../bench/bench_result/index.html`.
 
-  - This shows for each test the total numbers of asserts and how many could be proven:
-      - If all are proven, the cell shows a checkmark
-      - If none are proven, the cell shows a cross
-      - If only some are proven, the cell shows both numbers
 
 ### Set "Goblint"
 
 1. Run the script `../bench/esop23_table2_set_goblint.rb`. This takes ~ XX min
 2. Open the results HTML `../bench/bench_result/index.html`.
 
-  - This shows for each test the total numbers of asserts and how many could be proven:
-      - If all are proven, the cell shows a checkmark
-      - If none are proven, the cell shows a cross
-      - If only some are proven, the cell shows both numbers
+### Set "Watts"
+
+1. Run the script `../bench/esop23_table2_set_watts.rb`. This takes ~ XX min
+2. Open the results HTML `../bench/bench_result/index.html`.
 
 
 
