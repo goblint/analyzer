@@ -76,6 +76,10 @@ Note: For a detailed discussion on these benchmarks, see Appendix I.2 of the pap
 
 As opposed to the other scripts, this one also prints run-times as these are needed to also verify Table 4 in the supplementary material.
 
+### Set "Ratcop"
+
+1. Run the script `../bench/esop23_table2_set_goblint.rb`. This takes ~ XX min
+2. Open the results HTML `../bench/bench_result/index.html`.
 
 ## Additional Information
 ### Outline of how the code is structured
