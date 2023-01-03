@@ -48,41 +48,34 @@ All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these t
 
 ## All other claims in Section 9
 
-All these claims are based on the contents of Table 2. The different sets in this table are reproduced by different scripts.
+All these claims are based on the contents of Table 2.
 
-For all of them:
+### Reproducing the tables for our tool & Goblint w/ Interval
+
+To generate the tables for all sets, run `./scripts/esop23-table2.sh` (will take XX min).
+
+This will produce one HTML file with results per group:
+
+| Set      | HTML-File                                       |
+| -------- | ------------------------------------------------|
+| Our      | `../bench/esop23_table2_set_our/index.html`     |
+| Goblint  | `../bench/esop23_table2_set_goblint/index.html` |
+| Watts    | `../bench/esop23_table2_set_watts/index.html`   |
+| Ratcop   | `../bench/esop23_table2_set_ratcop/index.html`  |
+
+
+How to interpret the results tables:
+  - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table, and `Clusters` is named `cluster12`).
   - The results table shows for each test the total numbers of asserts and how many could be proven:
       - If all are proven, the cell shows a checkmark
       - If none are proven, the cell shows a cross
       - If only some are proven, the cell shows both numbers
 
-These scripts produces the numbers for all configurations of our tool as well as for "Goblint w/ Intervals" that we are comparing against.
-For reproducing the numbers for Duet see below.
+**For the Set "Watts":**
+ - For a detailed discussion on these benchmarks, see Appendix I.2 of the paper.
+ - As opposed to the other scripts, this one also prints run-times as these are needed to also verify **Table 4** in the supplementary material.
 
-### Set "Our"
-
-1. Run the script `../bench/esop23_table2_set_our.rb`. This takes ~3min
-2. Open the results HTML `../bench/bench_result/index.html`.
-
-
-### Set "Goblint"
-
-1. Run the script `../bench/esop23_table2_set_goblint.rb`. This takes ~ XX min
-2. Open the results HTML `../bench/bench_result/index.html`.
-
-### Set "Watts"
-
-Note: For a detailed discussion on these benchmarks, see Appendix I.2 of the paper.
-
-1. Run the script `../bench/esop23_table2_set_watts.rb`. This takes ~ XX min
-2. Open the results HTML `../bench/bench_result/index.html`.
-
-As opposed to the other scripts, this one also prints run-times as these are needed to also verify Table 4 in the supplementary material.
-
-### Set "Ratcop"
-
-1. Run the script `../bench/esop23_table2_set_goblint.rb`. This takes ~ XX min
-2. Open the results HTML `../bench/bench_result/index.html`.
+Note: To regenerate just some of the results: Invoke one of `../bench/esop23_table2_set_{our,goblint,watts,ratcop}.rb`.
 
 ### Reproducing Duet numbers
 
