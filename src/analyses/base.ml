@@ -26,6 +26,8 @@ module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
+open Iter
+
 open ConfigUtil
 
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
@@ -102,8 +104,9 @@ struct
       | (info,value)::xs ->
         match value with
         | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
-          let possibleVars = PreValueDomain.AD.to_var_may t in
-          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+          (*let possibleVars = PreValueDomain.AD.to_var_may t in
+          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars*)
+          Iter.(of_list (PreValueDomain.AD.to_var_may t) |> filter (fun info -> isArrayType info.vtype) |> fold (fun map arr -> VarMap.add arr info.vattr map) (pointedArrayMap xs))
         | _ -> pointedArrayMap xs
     in
     match VarH.find_option array_map fundec.svar with
@@ -546,7 +549,8 @@ struct
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
-    List.map AD.singleton (AD.elements !visited)
+    (*List.map AD.singleton (AD.elements !visited)*)
+    Iter.on_list (Iter.map AD.singleton) (AD.elements !visited)
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
@@ -1224,13 +1228,16 @@ struct
     | Q.EvalLength e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
-          let slen = List.map String.length (AD.to_string a) in
+          (*let slen = List.map String.length (AD.to_string a) in*)
           let lenOf = function
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
-          let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
+          (*let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in*)
+          (*let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in*)
+          let d = Iter.((Iter.map String.length (Iter.of_list (AD.to_string a))) <+> (Iter.filter_map (fun v -> lenOf v.vtype) (Iter.of_list (AD.to_var_may a)))
+                        |> map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int)
+                        |> fold ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind()))) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
@@ -1346,8 +1353,12 @@ struct
     | `Struct _
     | `Union _ ->
       begin
-        let vars_in_partitioning = VD.affecting_vars value in
-        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in
+        (*let vars_in_partitioning = VD.affecting_vars value in
+        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in*)
+        let dep_new = Iter.(of_list (VD.affecting_vars value)
+                            |> fold (fun dep var ->
+                                      add_one_dep x var dep)
+                            st.deps) in
         { st with deps = dep_new }
       end
     (* `Blob cannot contain arrays *)
@@ -2184,9 +2195,12 @@ struct
          | Some x -> x :: xs
          | None -> xs
        in
-       let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
+       (*let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
        let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-       List.iter (fun x -> ctx.spawn None x []) funs
+       List.iter (fun x -> ctx.spawn None x []) funs*)
+       Iter.(of_list (AD.fold find_fps adrs [])
+             |> filter (fun x -> isFunctionType x.vtype)
+             |> iter (fun x -> ctx.spawn None x []))
      | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
@@ -2736,12 +2750,14 @@ struct
         let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         LibraryFunctionEffects.effects_for f.vname args
-        |> List.map (fun sets ->
-            List.fold_left (fun acc (lv, x) ->
+        |> Iter.of_list
+        |> Iter.map (fun sets ->
+            Iter.of_list sets
+            |> Iter.fold (fun acc (lv, x) ->
                 set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
-              ) st sets
+              ) st
           )
-        |> BatList.fold_left D.meet st
+        |> Iter.fold D.meet st
 
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
