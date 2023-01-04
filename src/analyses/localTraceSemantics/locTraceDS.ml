@@ -67,10 +67,7 @@ let equal_sigma s1 s2 =
   if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true 
   else if (SigmaMap.cardinal s1) != (SigmaMap.cardinal s2) then false
   else
-   let fold_helper vinfo varDom b = 
-    SigmaMap.exists (fun exist_vinfo exist_varDom -> if (CilType.Varinfo.equal vinfo exist_vinfo)&&(equal_varDomain varDom exist_varDom) then true else false) s2
-  in
-  SigmaMap.fold fold_helper s1 false 
+    SigmaMap.fold (fun vinfo varDom b -> b && (if SigmaMap.mem vinfo s2 then equal_varDomain (SigmaMap.find vinfo s2) varDom else false)) s1 true
 
   let show n = 
     match n with {programPoint=p;sigma=s} -> "node:{programPoint="^(Node.show p)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]}"
@@ -159,7 +156,13 @@ let hash g1 =
 in
   (LocTraceGraph.nb_edges g1) + (LocTraceGraph.nb_vertex g1) + tmp
 
-let compare g1 g2 = print_string "\nGraph.compare BEGIN\n";if equal g1 g2 then ( print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n");0) else (print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n"); 43)
+(* needs to be a total order! *)
+  let compare g1 g2 =   print_string "\nGraph.compare BEGIN\n";
+  if equal g1 g2 then (
+    print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n"); 0) else
+      (print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n");
+      (* relying on the polymorphic equal here is a bit of a stop-gap, one should do this properly by using the compares of the edges and nodes*)
+      compare g1 g2)
 
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
@@ -231,7 +234,7 @@ end
 (* Set domain for analysis framework *)
 module GraphSet = struct
 include SetDomain.Make(LocalTraces)
-
+(* 
 let mem graph graphSet = fold (fun x b -> if LocalTraces.equal x graph then b || true else b) graphSet false
 
 let subset graphSet1 graphSet2 = 
@@ -240,7 +243,7 @@ in if tmp = false then print_string ("graph: "^(LocalTraces.show graph)^" \nist 
     
     b && (tmp)) graphSet1 true
 
-let leq graphSet1 graphSet2 = subset graphSet1 graphSet2
+let leq graphSet1 graphSet2 = subset graphSet1 graphSet2 *)
 
 end
 

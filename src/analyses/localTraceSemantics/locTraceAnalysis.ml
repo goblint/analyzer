@@ -108,7 +108,8 @@ else
     | rest -> (rest, true,SigmaMap.empty) 
     )
 else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nThis means we choose a value for this trace\n");
-let randomNr = Random.int 20 in
+let randomNr = 3(* Random.int 20  doesnt work yet*)
+in
 let randomVd = Int((Big_int_Z.big_int_of_int (randomNr)), (Big_int_Z.big_int_of_int (randomNr)),IInt)
 in
 (randomVd, true, SigmaMap.add var randomVd (SigmaMap.empty))))
