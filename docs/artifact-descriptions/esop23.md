@@ -32,7 +32,7 @@ but they should behave the same way relative to each other.
 All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these tables is produced by running:
 
 1. Run the script `../bench/esop23_fig13.rb`. This takes ~2.5h (see note below).
-2. Open the results HTML `../bench/bench_result/index.html`.
+2. Open the results HTML `../bench/esop23_fig13/index.html`.
 
     - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table, and `Clusters` is named `cluster12`).
     - As noted in appendix I.1, we had to exclude `ypbind` from the benchmarks, as it spawns a thread from an unknown pointer which the analysis can not handle
@@ -52,7 +52,7 @@ All these claims are based on the contents of Table 2.
 
 ### Reproducing the tables for our tool & Goblint w/ Interval
 
-To generate the tables for all sets, run `./scripts/esop23-table2.sh` (will take XX min).
+To generate the tables for all sets, run `./scripts/esop23-table2.sh` (will take ~90 min).
 
 This will produce one HTML file with results per group:
 
@@ -83,7 +83,7 @@ This artifact ships Duet (at commit `5ea68373bb8c8cff2a9b3a84785b12746e739cee`) 
 For others, it sill reported a number of reachable asserts that is too low.
 We only give the instructions to reproduce the successful runs here. For a detailed discussion see Apppendix I.3.
 
-To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh`
+To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh` (runs about 30mins).
 
 
 | Set      | HTML-File                                       |
