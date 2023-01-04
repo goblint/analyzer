@@ -83,7 +83,7 @@ This artifact ships Duet (at commit `5ea68373bb8c8cff2a9b3a84785b12746e739cee`) 
 For others, it sill reported a number of reachable asserts that is too low.
 We only give the instructions to reproduce the successful runs here. For a detailed discussion see Apppendix I.3.
 
-To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh` (runs about 30mins).
+To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh` (runs about 3mins).
 
 
 | Set      | HTML-File                                       |
