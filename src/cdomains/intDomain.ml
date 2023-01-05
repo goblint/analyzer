@@ -1098,6 +1098,17 @@ struct
 
   let meet ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list  `Meet |> events_to_intervals |> remove_gaps
 
+  let maximal (x: t) = match x with
+    | [] -> None 
+    | _ -> 
+      let last_interval = List.nth x ((List.length x) - 1) in
+      Some (snd last_interval)
+
+  let minimal (x: t) = match x with
+    | [] -> None 
+    | first_interval::_ -> 
+      Some (fst first_interval)
+
   let to_int = function [(x,y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
   let zero = [(Ints_t.zero, Ints_t.zero)]
@@ -3265,31 +3276,46 @@ module IntDomTupleImpl = struct
       | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
       | _ -> false
 
+  let no_overflow_interval_set ik r = 
+    if should_ignore_overflow ik then true
+    else
+      let ika, ikb = Size.range ik in
+      match I5.minimal r, I5.maximal r with 
+      | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
+      | _ -> false
+
   (* map with overflow check *)
   let mapovc ik r (a, b, c, d, e) =
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1 (module I2)) b in
-    let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik
-    in refine ik
+    let intv_set = map (r.f1 (module I5)) e in
+    let no_ov_intv =
+      match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik in
+    let no_ov_intv_set =
+      match intv_set with Some i -> no_overflow_interval_set ik i | _ -> should_ignore_overflow ik in
+    let no_ov = no_ov_intv || no_ov_intv_set in
+    refine ik
     ( map (r.f1 (module I1)) a
     , intv
     , map (r.f1 (module I3)) c
     , map (r.f1 (module I4)) ~no_ov d
-    , map (r.f1 (module I5)) e )
+    , intv_set )
 
   (* map2 with overflow check *)
   let map2ovc ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
     let intv = opt_map2 (r.f2 (module I2)) xb yb in
-    let no_ov =
-      match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik
-    in
+    let intv_set = opt_map2 (r.f2 (module I5)) xe ye in
+    let no_ov_intv =
+      match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik in
+    let no_ov_intv_set =
+      match intv_set with Some i -> no_overflow_interval_set ik i | _ -> should_ignore_overflow ik in
+    let no_ov = no_ov_intv || no_ov_intv_set in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
       , intv
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) ~no_ov xd yd
-      , opt_map2 (r.f2 (module I5)) xe ye )
+      , intv_set )
 
   let map ik r (a, b, c, d, e) =
     refine ik
