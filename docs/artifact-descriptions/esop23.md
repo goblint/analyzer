@@ -1,9 +1,11 @@
 # ESOP '23 Artifact Description
 
 This is the artifact description for our ESOP '23 paper "Clustered Relational Thread-Modular Abstract Interpretation with Local Traces".
-<!-- The artifact is available from Zenodo [here](TODO: Update URL). -->
+The artifact is available from Zenodo at [here](TODO: Update URL).
 
 The artifact is a VirtualBox Image based on Ubuntu 22.04.1. The login is `goblint:goblint`.
+
+For convenience this file is also included in the VM (at `~analyzer/docs/artifact-descriptions/esop23.md`) in order to be able to copy commands.
 
 <!-- If you are reading these instructions on goblint.readthedocs.io, they might have been updated to match the current version of Goblint.
 When using the artifact, follow the similar instructions it includes. -->
