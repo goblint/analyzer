@@ -13,9 +13,10 @@ When using the artifact, follow the similar instructions it includes. -->
 - Install VirtualBox (e.g. from [virtualbox.org](https://www.virtualbox.org/))
 - Import the VM via `File -> Import Appliance`
 - Start the VM and (if prompted) login as `goblint` with password `goblint`
+- If you use a Non-English keyboard layout, you can change the keyboard layout in the top right corner to match yours.
 - Navigate to the folder `~/analyzer`. All paths are given relative to it.
 - Run the following commands to verify the installation works as intended
-    - `./scripts/esop23-kick-tires.sh` (will take ~3min)
+    - `./scripts/esop23-kick-tires.sh` (will take ~1min)
         - Internally, this will run a few internal regression tests (you can open the script to see which)
         - After the command has run, there should be some messages `No errors :)` as well as some messages `Excellent: ignored check on ... now passing!`)
 
@@ -31,7 +32,7 @@ but they should behave the same way relative to each other.
 
 All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these tables is produced by running:
 
-1. Run the script `../bench/esop23_fig13.rb`. This takes ~2.5h (see note below).
+1. Run the script `../bench/esop23_fig13.rb`. This takes ~25min (see note below). The runs for `ypbind` will fail (see below).
 2. Open the results HTML `../bench/esop23_fig13/index.html`.
 
     - The configurations are named the same as in the paper (with the exception that the `Interval` configuration from the paper is named `box` in the table, and `Clusters` is named `cluster12`).
@@ -52,7 +53,7 @@ All these claims are based on the contents of Table 2.
 
 ### Reproducing the tables for our tool & Goblint w/ Interval
 
-To generate the tables for all sets, run `./scripts/esop23-table2.sh` (will take ~90 min).
+To generate the tables for all sets, run `./scripts/esop23-table2.sh` (will take ~20 min).
 
 This will produce one HTML file with results per group:
 
@@ -83,7 +84,11 @@ This artifact ships Duet (at commit `5ea68373bb8c8cff2a9b3a84785b12746e739cee`) 
 For others, it sill reported a number of reachable asserts that is too low.
 We only give the instructions to reproduce the successful runs here. For a detailed discussion see Apppendix I.3.
 
-To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh` (runs about 3mins).
+To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh` (runs about 2mins).
+
+- The output is the complete output for Duet, which can be quite verbose.
+- Outputs `Error: NN` indicate that `NN` asserts could not be proven by Duet and are nor indicative of bigger issues.
+Also, for some runs Duet will crash with an exception from solver.ml.
 
 
 | Set      | HTML-File                                       |
