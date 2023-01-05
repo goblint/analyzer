@@ -320,6 +320,7 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 module IntDomTuple : sig
   include Z
   val no_interval: t -> t
+  val ikind: t -> ikind
 end
 
 val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t

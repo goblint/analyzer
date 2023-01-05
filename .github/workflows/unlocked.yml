@@ -32,6 +32,9 @@ jobs:
           - os: ubuntu-latest
             ocaml-compiler: 4.14.x
             z3: true
+          - os: ubuntu-latest
+            ocaml-compiler: 5.0.0
+            apron: false
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
@@ -78,6 +81,10 @@ jobs:
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group octagon -s
+
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group affeq -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
@@ -160,6 +167,9 @@ jobs:
 
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group octagon -s
+
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}
@@ -261,6 +271,9 @@ jobs:
 
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group octagon -s
+
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}

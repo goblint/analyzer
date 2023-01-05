@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 1a354f1e-76e8-40e9-808a-8d5efbe35496
+    creation_time: 2022-10-12T10:45:49Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g8b307fe1f-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''35-hh-ex1b.c''
+        ''--enable'' ''ana.int.interval'' ''--disable'' ''solvers.td3.remove-wpoint''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable''
+        ''dbg.timing.enabled'' ''--set'' ''goblint-dir'' ''.goblint-56-35'''
+    task:
+      input_files:
+      - 35-hh-ex1b.c
+      input_file_hashes:
+        35-hh-ex1b.c: 9fe07d5f950140350848bae4342d9d1b7c6c9f625f6985746089a36a37243600
+      data_model: LP64
+      language: C
+  location:
+    file_name: 35-hh-ex1b.c
+    file_hash: 9fe07d5f950140350848bae4342d9d1b7c6c9f625f6985746089a36a37243600
+    line: 7
+    column: 2
+    function: main
+  location_invariant:
+    string: 0 <= i && i <= 99
+    type: assertion
+    format: C

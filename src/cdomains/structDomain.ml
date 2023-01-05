@@ -12,6 +12,7 @@ sig
   include Lattice.S
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
+  val top_value: ?varAttr:attributes -> typ -> t
 end
 
 module type S =
@@ -49,7 +50,11 @@ struct
 
   let pretty () = M.pretty ()
   let replace s field value = M.add field value s
-  let get s field = M.find field s
+  let get s field =
+    match M.find_opt field s with
+    | Some v -> v
+    | None -> Val.top_value field.ftype
+
   let fold = M.fold
   let map = M.map
   let keys x = M.fold (fun k _ a -> k::a) x []

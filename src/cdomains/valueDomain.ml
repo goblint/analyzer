@@ -104,7 +104,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthead_spinlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -1228,7 +1228,7 @@ struct
 
   let rec ad_invariant ~vs ~offset ~lval x =
     let c_exp = Lval lval in
-    let i_opt = AD.fold (fun addr acc_opt ->
+    let is_opt = AD.fold (fun addr acc_opt ->
         let* acc = acc_opt in
         match addr with
         | Addr.UnknownPtr ->
@@ -1276,7 +1276,7 @@ struct
               Invariant.none
           in
 
-          Some (Invariant.(acc || (i && i_deref)))
+          Some (Invariant.(i && i_deref) :: acc)
         | Addr.NullPtr ->
           let i =
             let addr_exp = integer 0 in
@@ -1285,14 +1285,15 @@ struct
             else
               Invariant.none
           in
-          Some (Invariant.(acc || i))
+          Some (i :: acc)
         (* TODO: handle Addr.StrPtr? *)
         | _ ->
           None
-      ) x (Some (Invariant.bot ()))
+      ) x (Some [])
     in
-    match i_opt with
-    | Some i -> i
+    match is_opt with
+    | Some [i] -> if GobConfig.get_bool "witness.invariant.exact" then i else Invariant.none
+    | Some is -> List.fold_left Invariant.(||) (Invariant.bot ()) is
     | None -> Invariant.none
 
   and blob_invariant ~vs ~offset ~lval (v, _, _) =

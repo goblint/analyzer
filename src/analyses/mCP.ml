@@ -160,20 +160,34 @@ struct
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
-  let do_sideg ctx (xs:(V.t * G.t) list) =
-    let side_one v d =
-      ctx.sideg v @@ fold_left G.join (G.bot ()) d
+  let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
+    let side_one v dts =
+      let side_one_ts ts d =
+        (* Do side effects with the tokens that were active at the time.
+           Transfer functions have exited the with_side_token wrappers by now. *)
+        let old_side_tokens = !WideningTokens.side_tokens in
+        WideningTokens.side_tokens := ts;
+        Fun.protect (fun () ->
+            ctx.sideg v @@ fold_left G.join (G.bot ()) d
+          ) ~finally:(fun () ->
+            WideningTokens.side_tokens := old_side_tokens
+          )
+      in
+      iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokens.TS.equal dts
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
-    let split_one n (d,emits) =
+  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) emits =
+    let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
-      ctx.split (do_emits ctx emits nv) []
+      (* Do split-specific emits before general emits.
+         [emits] and [do_emits] are in reverse order.
+         [emits'] is in normal order. *)
+      ctx.split (do_emits ctx (emits @ List.rev emits') nv false) []
     in
     iter (uncurry split_one) xs
 
-  and do_emits ctx emits xs =
+  and do_emits ctx emits xs dead =
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
@@ -200,18 +214,28 @@ struct
         let octx'' = outer_ctx "do_emits" ~spawns ~sides ~emits octx in
         let f post_all (n,(module S:MCPSpec),(d,od)) =
           let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
-          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n d in
+          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
           n, repr @@ S.event ctx' e octx'
         in
+        if M.tracing then M.traceli "event" "%a\n  before: %a\n" Events.pretty e D.pretty ctx.local;
         let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
-        if M.tracing then M.tracel "event" "%a\n  before: %a\n  after:%a\n" Events.pretty e D.pretty ctx.local D.pretty d;
+        if M.tracing then M.traceu "event" "%a\n  after:%a\n" Events.pretty e D.pretty d;
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
-        do_splits ctx d !splits;
-        let d = do_emits ctx !emits d in
+        do_splits ctx d !splits !emits;
+        let d = do_emits ctx !emits d q in
         if q then raise Deadcode else ctx_with_local ctx d
     in
-    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) emits in
+    if M.tracing then M.traceli "event" "do_emits:\n";
+    let emits =
+      if dead then
+        List.filter Events.emit_on_deadcode emits
+      else
+        emits
+    in
+    (* [emits] is in reverse order. *)
+    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) (List.rev emits) in
+    if M.tracing then M.traceu "event" "\n";
     ctx'.local
 
   and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
@@ -227,8 +251,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
@@ -313,11 +337,11 @@ struct
       | None -> (fun v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
-      | Some sides -> (fun v g    -> sides  := (v, g) :: !sides)
+      | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
       | None -> (fun v g       -> failwith ("Cannot \"sideg\" in " ^ tfname ^ " context."))
     in
     let emit = match emits with
-      | Some emits -> (fun e -> emits := e :: !emits)
+      | Some emits -> (fun e -> emits := e :: !emits) (* [emits] is in reverse order. *)
       | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
     in
     let querycache = Queries.Hashtbl.create 13 in
@@ -356,8 +380,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
 
@@ -374,8 +398,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let body (ctx:(D.t, G.t, C.t, V.t) ctx) f =
@@ -391,8 +415,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let return (ctx:(D.t, G.t, C.t, V.t) ctx) e f =
@@ -408,8 +432,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
 
@@ -426,8 +450,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let skip (ctx:(D.t, G.t, C.t, V.t) ctx) =
@@ -443,8 +467,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let special (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
@@ -460,8 +484,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let sync (ctx:(D.t, G.t, C.t, V.t) ctx) reason =
@@ -477,8 +501,8 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let enter (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
@@ -520,7 +544,7 @@ struct
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    let d = do_emits ctx !emits d in
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
   let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
@@ -534,7 +558,7 @@ struct
     let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     (* TODO: this do_emits is now different from everything else *)
-    map (do_emits ctx !emits) @@ map topo_sort_an @@ n_cartesian_product css
+    map (fun d -> do_emits ctx !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
 
   let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
     let sides  = ref [] in
@@ -548,6 +572,6 @@ struct
     in
     let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
     do_sideg ctx !sides;
-    let d = do_emits ctx !emits d in
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 end

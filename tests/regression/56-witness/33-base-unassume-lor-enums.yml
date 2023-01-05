@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 8c07adbd-908d-45be-af99-943634ad66b4
+    creation_time: 2022-10-07T13:43:40Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-gd4687e4f4-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''33-base-unassume-lor-enums.c''
+        ''--enable'' ''ana.int.enums'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-33'''
+    task:
+      input_files:
+      - 33-base-unassume-lor-enums.c
+      input_file_hashes:
+        33-base-unassume-lor-enums.c: 5014d96b45984600f1ce8a4f6f208ab856539c33e7124a71e41836a1a2cbdd40
+      data_model: LP64
+      language: C
+  location:
+    file_name: 33-base-unassume-lor-enums.c
+    file_hash: 5014d96b45984600f1ce8a4f6f208ab856539c33e7124a71e41836a1a2cbdd40
+    line: 7
+    column: 2
+    function: main
+  location_invariant:
+    string: i == 0 || i == 1 || i == 2
+    type: assertion
+    format: C
