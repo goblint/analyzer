@@ -1098,17 +1098,6 @@ struct
 
   let meet ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list  `Meet |> events_to_intervals |> remove_gaps
 
-  let maximal (x: t) = match x with
-    | [] -> None 
-    | _ -> 
-      let last_interval = List.nth x ((List.length x) - 1) in
-      Some (snd last_interval)
-
-  let minimal (x: t) = match x with
-    | [] -> None 
-    | first_interval::_ -> 
-      Some (fst first_interval)
-
   let to_int = function [(x,y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
   let zero = [(Ints_t.zero, Ints_t.zero)]
