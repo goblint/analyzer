@@ -1262,7 +1262,18 @@ struct
     | x::y::xs  when partitions_are_approaching x y -> merge_list ik ((merge_pair ik x y) :: xs)
     | x::xs -> x :: merge_list ik xs
 
-  let narrow ik xs ys = xs (*TODO consider infinity case*)
+  let narrow ik xs ys =
+    match xs ,ys with 
+    [], _ -> [] | _ ,[] -> xs
+    |_,_ ->
+    let min_xs = fst (List.hd xs) in
+    let max_xs = snd (List.hd (List.rev xs)) in
+    let min_ys = fst (List.hd ys) in
+    let max_ys = snd (List.hd (List.rev ys)) in
+    let min_range,max_range = range ik in
+    let min = if Ints_t.compare min_xs min_range == 0 then min_ys else min_xs in
+    let max = if Ints_t.compare max_xs max_range == 0 then max_ys else max_xs in
+    xs |> (function (_,y)::z -> (min,y)::z) |> List.rev |> (function (x,_)::z -> (x,max)::z) |> List.rev 
 
   let widen ik xs ys =  let (min_ik,max_ik) = range ik in interval_sets_to_partitions ik None xs ys |> merge_list ik |> (function
     | [] -> []
