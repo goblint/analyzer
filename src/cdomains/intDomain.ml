@@ -1353,13 +1353,20 @@ struct
   | None -> intvs
   | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
 
+  let excl_range_to_intervalset (ik:ikind) ((min,max):int_t*int_t) (excl : int_t): t = 
+    let intv1 = norm ik @@ Some (min, Ints_t.sub excl Ints_t.one) in
+    let intv2 = norm ik @@ Some (Ints_t.add excl Ints_t.one, max) in
+   [intv1; intv2] |> List.filter_map (fun x -> x) 
+
   let excl_to_intervalset (ik : ikind) ((rl,rh): (int64 * int64)) (excl : int_t): t = 
-    let intv1 = norm ik @@ Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.sub excl Ints_t.one) in
-    let intv2 = norm ik @@ Some (Ints_t.add excl Ints_t.one,  Ints_t.of_bigint (Size.max_from_bit_range rh)) in
-   [intv1; intv2] |> List.filter_map (fun x -> x)
+    excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
+
+  let of_excl_list ik (excls: int_t list) = 
+    let excl_list = List.map (excl_range_to_intervalset ik (range ik)) excls in
+    List.fold_left (meet ik) (top_of ik) excl_list
 
   let refine_with_excl_list ik (intv : t) = function
-  | None -> []
+  | None -> intv
   | Some (xs, range) -> let excl_list = List.map (excl_to_intervalset ik range) xs in 
   List.fold_left (meet ik) intv excl_list
 
