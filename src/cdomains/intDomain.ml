@@ -1282,6 +1282,10 @@ struct
 
   let ending ?(suppress_ovwarn=false) ik n = match norm ik @@ Some (fst (range ik), n) with Some (x,y) -> [(x,y)]
 
+  let minimal = function [] -> None | (x,_)::_ -> Some x
+
+  let maximal xs = xs |> List.rev |> (function [] -> None | (_,y)::_ -> Some y)
+
   let of_interval ik (x,y) = match norm ik @@ Some (x,y) with Some (x',y') -> [(x',y')] | None -> []
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
