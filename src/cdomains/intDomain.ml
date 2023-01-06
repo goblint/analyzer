@@ -1350,7 +1350,7 @@ struct
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
   let refine_with_incl_list ik intvs  = function
-  | None -> []
+  | None -> intvs
   | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
 
   let excl_to_intervalset (ik : ikind) ((rl,rh): (int64 * int64)) (excl : int_t): t = 
