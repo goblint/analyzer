@@ -1344,8 +1344,8 @@ struct
         else norm ik @@ Some (rcx, lcy)
     | _ -> None
 
-  let refine_with_congruence ik (intvs :t) (cong : (int_t * int_t ) option) :t = 
-    List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.map (Option.get)
+  let refine_with_congruence ik (intvs :t) (cong : (int_t * int_t ) option) :t =
+    List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.filter_map (fun x -> x)
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
