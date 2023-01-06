@@ -709,15 +709,15 @@ let array_oob idx_before_end idx_after_start (e, l) =
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
       ()
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-      RM.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end (Aob (exp, l)) "Must access array past end"
+      RM.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end (Aob (exp, l)) "Must access array past end" []
     | Some true, None ->
-      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end (Aob (exp, l)) "May access array past end"
+      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end (Aob (exp, l)) "May access array past end" []
     | Some false, Some true ->
-      RM.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start (Aob (exp, l)) "Must access array before start"
+      RM.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start (Aob (exp, l)) "Must access array before start" []
     | None, Some true ->
-      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start (Aob (exp, l)) "May access array before start"
+      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start (Aob (exp, l)) "May access array before start" []
     | _ ->
-      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown (Aob (exp, l)) "May access array out of bounds"
+      RM.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown (Aob (exp, l)) "May access array out of bounds" []
 
 let array_oob_warn idx_before_end idx_after_start =
   (* For an explanation of the warning types check the Pull Request #255 *)

@@ -86,7 +86,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     }
     in
     [result]
-  | Group {group_text; pieces} ->
+  | Group {group_text; pieces; _} ->
     (* each grouped piece becomes a separate result with the other locations as related *)
     let piece_locations = List.map piece_location pieces in
     List.map2i (fun i piece locations ->

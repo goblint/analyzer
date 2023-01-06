@@ -5,15 +5,12 @@ open Node0
 (*
   An implementation of the alarm repositioning analysis
   from the article "Repositioning of Static Analysis Alarms"
-  by Tukaram Muske, Rohith Talluri and Alexander Serebrenik
+  by Tukaram Muske, Rohith Talluri and Alexander Serebrenik.
 *)
 
-module Idx = PreValueDomain.IndexDomain
-
 module Alarm = RepositionMessages.ReposMessage
-
+module Idx = PreValueDomain.IndexDomain
 module RM = RepositionMessages
-
 module CondSet = SetDomain.ToppedSet(RM.Cond) (struct let topname = "top" end)
 module AlarmSet = SetDomain.ToppedSet(Alarm) (struct let topname = "top" end)
 
@@ -36,8 +33,6 @@ struct
     | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (tuples_of c x) (tuples_of c y))) conds (empty ())
 
 end
-
-let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
 
 module VarNode =
 struct
@@ -89,19 +84,27 @@ let sinkHM = HM.create 10
 
 let avSolHM = ref (HM.create 10)
 
-module LocSet = SetDomain.ToppedSet(V) (struct let topname = "top" end)
+let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
 
 let set_loc (message : Alarm.t) loc =
   match message.multipiece with
-  | Single piece -> let piece = {piece with loc=Some loc} in
-    {message with multipiece=Single piece}
-  | _ -> message
+  | Single piece -> {message with multipiece = Single {piece with loc = Some loc}}
+  | Group group -> {message with multipiece = Group {group with loc = Some loc}}
 
+let set_related (message : Alarm.t) node = 
+  match message.multipiece with
+  | Group group ->
+    let piece = RM.Piece.{text = "Related"; loc = Some (RM.Location.Node node); context = None} in
+    let group = {group with pieces = (piece::group.pieces)} in
+    {message with multipiece = Group group}
+  | _ -> failwith "TODO"
 
-let get_alarm_loc (mp : RM.MultiPiece.t) : M.Location.t option =
-  match mp with
-  | Single piece -> piece.loc
-  | Group g -> failwith "TODO"
+let rec append_unique l1 l2 =
+  match l2 with
+  | [] -> l1
+  | (x::xs) -> if List.mem x l1
+    then append_unique l1 xs
+    else append_unique (x::l1) xs
 
 (* Anticipable Alarm Conditions Analysis *)
 module Ant =
@@ -123,7 +126,7 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
-  (* Find the set of those condition and alarm pairs, where an operand of the condition is changed in the given node *)
+  (* Find the set of those messages, where an operand of the condition is changed in the given node *)
   let changed_in_node var (cond : RM.Cond.t) = 
     match cond with
     | Aob (exp, _) -> Basetype.CilExp.occurs var exp
@@ -156,7 +159,11 @@ struct
 
   let gen node x = Dom.union (gen' node x) (dep_gen node (kill node x))
 
-  (* Compute the anticipable conditions at the entry (`L) and exit (`G) of a node *)
+  (* Compute the anticipable conditions at the entry (`L) and exit (`G) of a node.
+     We set the message location to the hoisted location in the end,
+     which is different from the original algorithm
+     because we would like to show the message in the related hoisted position
+     rahter than a random sinked position *)
   let system = function
     (* AntIn *)
     | `L node ->
@@ -185,7 +192,6 @@ struct
   let iter_vars _ _ _ = ()
 end
 
-module RMLocSet = Set.Make (RM.Location)
 
 (* Available Alarm Conditions Analysis *)
 module Av = 
@@ -230,15 +236,17 @@ struct
 
   let set_locs alarm node rel_alarms = 
     let alarm = set_loc alarm (M.Location.Node node) in (* TODO: does this work? *)
-    let orig_alarms = AlarmSet.fold (fun alarm acc ->
-        let origs = List.to_seq alarm.locs.original in
-        RMLocSet.add_seq origs acc)
-        rel_alarms RMLocSet.empty in
-    let rel_alarms = AlarmSet.fold (fun alarm acc ->
-        match (get_alarm_loc alarm.multipiece) with
-        | Some loc -> RMLocSet.add loc acc
-        | _ -> acc) rel_alarms RMLocSet.empty in
-    {alarm with locs={original=RMLocSet.to_list orig_alarms; related = RMLocSet.to_list rel_alarms}}
+    let rel_pieces = AlarmSet.fold (fun alarm acc -> 
+        match alarm.multipiece with
+        | Group group -> append_unique group.pieces acc
+        | _ -> acc) rel_alarms []
+    in
+    match alarm.multipiece with
+    | Group group -> 
+      let rel_alarms = append_unique group.pieces rel_pieces in
+      let new_group = {group with pieces=rel_alarms} in
+      {alarm with multipiece=Group new_group}
+    | _ -> alarm
 
   let gen node x = CondSet.fold (fun cond dom ->
       let ant = HM.find !antSolHM node in
@@ -323,10 +331,11 @@ let finalize _ =
   let module Solver = Td3.Basic (IncrSolverArg) (Ant) (HM) in
   let (solution, _) = Solver.solve Ant.box [] [start_node] None in
 
-  antSolHM := solution;
-
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
+  (* The function to check if a condition holds in the given node.
+     This function can be extended with other variant types when
+     the message repositioning is implemented for other analyses. *)
   let cond_holds node (cond : RM.Cond.t) =
     match cond with
     | Aob (exp, l) ->
@@ -347,6 +356,7 @@ let finalize _ =
     let prev_nodes = List.map snd (CFG.prev node) in
     let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
     let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
+    (* TODO: there is something fishy going on here somewhere. *)
     filter_always_true node @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
 
   let hoist_exit node =
@@ -357,20 +367,23 @@ let finalize _ =
       (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
       (Ant.kill node @@ HM.find solution (`G node)) in
 
-  (* 
-    Similarly to handling the conditions in the end node during sinking, 
-    as a special case, the algorithm utilizes every condition from 
-    the exit of the first node for repositioning,
-    because a few antconds can reach the program starting point, 
-    but not get computed by equations hoist_entry and hoist_exit.
-  *)
+  (* Similarly to handling the conditions in the end node during sinking, 
+     as a special case, the algorithm utilizes every condition from 
+     the exit of the first node for repositioning,
+     because a few antconds can reach the program starting point, 
+     but not get computed by equations hoist_entry and hoist_exit.
+     This is an addition that was not described in the original algorithm. *)
   let conds_start node =
     let sol = HM.find solution (`G node) in
     let conds = Av.conds_in sol in
     if (D.is_empty sol) then ()
     else
-      let og_node = match (D.choose sol).locs.original with
-        | (Node l::xs) -> l
+      let og_node = match (D.choose sol).multipiece with
+        | Group group ->
+          begin match (List.hd group.pieces).loc with
+            | Some Node n -> n
+            | _ -> node
+          end
         | _ -> node in
       HM.replace solution (`L og_node) (D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol (D.empty ()));
       HM.replace hoistHM (`L og_node) conds in
@@ -380,9 +393,17 @@ let finalize _ =
       match k with
       | `G (FunctionEntry n) -> conds_start (FunctionEntry n)
       | `G Function _ -> () (* cannot find next nodes for end node *)
-      | `L node -> HM.replace hoistHM k @@ hoist_entry node
-      | `G node -> HM.replace hoistHM k @@ hoist_exit node
+      | `L node -> 
+        HM.replace hoistHM k @@ hoist_entry node;
+        (* Add hoisted location as a related piece in each message. *)
+        HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
+      | `G node -> 
+        HM.replace hoistHM k @@ hoist_exit node;
+        (* Add hoisted location as a related piece in each message. *)
+        HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
     ) solution;
+
+  antSolHM := solution;
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
 
@@ -429,33 +450,28 @@ let finalize _ =
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
 
-  (* Print repositioned warnings *)
+  (* Add the repositioned messages as regular messages. *)
   let reposmessage_to_message (rm : Alarm.t) =
-    M.add {tags = rm.tags; severity = rm.severity; multipiece = rm.multipiece; locs = rm.locs}
+    M.add {tags = rm.tags; severity = rm.severity; multipiece = rm.multipiece}
   in
 
-  (* Merge original and related alarms to one message and
-     update the message location to be one of the hoisted
-     locations instead of sinked location, if available
-  *)
+  (* Merge the grouped alarms to one grouped message. *)
   let warn alarms =
-    let (orig_locs, rel_locs) = D.fold (fun alarm (orig_locs, rel_locs) ->
-        let origs = List.to_seq alarm.locs.original in
-        let reltd = List.to_seq alarm.locs.related in
-        RMLocSet.add_seq origs orig_locs, RMLocSet.add_seq reltd rel_locs)
-        alarms (RMLocSet.empty, RMLocSet.empty)
+    let merged_pieces = D.fold (fun alarm acc ->
+        match alarm.multipiece with
+        | Group group -> append_unique group.pieces acc
+        | _ -> acc)
+        alarms []
     in
-    let rel_locs = RMLocSet.diff rel_locs orig_locs in (* remove all those related alarms that are the same as originals *)
-    let rel_alarm = D.choose alarms in (* TODO: choose one with highest location instead of random *)
-    let alarm =
-      match RMLocSet.to_list rel_locs with
-      | rel_loc :: _ -> set_loc rel_alarm rel_loc
-      | _ -> rel_alarm
-    in
-    reposmessage_to_message {alarm with locs={original=RMLocSet.to_list orig_locs; related=RMLocSet.to_list rel_locs}}
+    (* TODO: remove related alarms that have same location as original. or is this a bug? probably related to the fishy thing up there *)
+    let alarm = D.choose alarms in (* TODO: choose a related alarm reasonably instead of random *)
+    match alarm.multipiece with
+    (* TODO: how to merge different categories of the message groups? *)
+    | Group group -> reposmessage_to_message {alarm with multipiece = Group {group with pieces = merged_pieces}}
+    | _ -> reposmessage_to_message alarm
   in
 
-  (* Find the corresponding messages for the sinked alarms from solution_av and print them out *)
+  (* Find the corresponding messages for the sinked alarms from solution_av and print them out. *)
   HM.iter (fun n s -> CondSet.iter (fun _ ->
       let msg = HM.find !avSolHM n in
       match D.is_empty @@ msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
@@ -464,4 +480,5 @@ let finalize _ =
         let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
         match D.is_empty @@ msg with
         | false -> warn msg
-        | true -> ()) s) sinkHM;
+        | true -> ()
+    ) s) sinkHM;

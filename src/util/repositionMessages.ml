@@ -13,7 +13,6 @@ module Piece = Messages.Piece
 module MultiPiece = Messages.MultiPiece
 module Tag = Messages.Tag
 module Tags = Messages.Tags
-module Locs = Messages.Locs
 
 module Idx = PreValueDomain.IndexDomain
 
@@ -56,10 +55,14 @@ struct
     tags: Tags.t;
     severity: Severity.t;
     multipiece: MultiPiece.t;
-    locs: Locs.t;
   } [@@deriving eq, ord, hash, yojson]
 
-  let show m = "" (* TODO *)
+  let show m = match m.multipiece with
+    | Group s -> begin match s.loc with
+        | Some Node l -> Node.show l
+        | _ -> ""
+      end
+    | Single _ -> "" (* TODO *)
 
   include Printable.SimpleShow (
     struct
@@ -74,41 +77,46 @@ module NH = Hashtbl.Make (Node)
 let messagesNH = NH.create 100
 
 let add (m : ReposMessage.t) =
-  match m.multipiece with
-  | Single s ->
-    begin match s.loc with
+  let add_message (loc : Location.t option) =
+    begin match loc with
       | Some (Node n) -> NH.replace messagesNH n m;
       | _ -> ()
     end
-  |  _ -> ()
+  in
+  match m.multipiece with
+  | Single single -> add_message single.loc
+  | Group group -> add_message group.loc
 
-let msg severity cond ?loc ?(tags=[]) ?(category=Category.Unknown) ?(locs) fmt =
+
+let msg_group severity cond ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
-    let finish doc =
+    let finish doc msgs =
+      let group_text = Pretty.sprint ~width:max_int doc in
       let text = Pretty.sprint ~width:max_int doc in
       let loc = match loc with
         | Some node -> Some node
         | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
       in
-      match locs with
-      | Some locs -> add {cond = cond; tags = Category category :: tags; severity; multipiece = Single {loc; text; context = Messages.msg_context ()}; locs = locs}
-      | None -> 
-        let orig_locs =
-          match loc with
-          | Some loc -> [loc]
-          | None -> []
-        in add {cond = cond; tags = Category category :: tags; severity; multipiece = Single {loc; text; context = Messages.msg_context ()}; locs = {original=orig_locs; related=[]}}
+      let piece_of_msg (doc, loc) =
+        let text = Pretty.sprint ~width:max_int doc in
+        Piece.{loc; text; context = None}
+      in
+      let pieces = match msgs with
+        | [] -> [Piece.{loc; text; context = Messages.msg_context ()}]
+        | _ -> List.map piece_of_msg msgs
+      in
+      add {cond = cond; tags = Category category :: tags; severity; multipiece = Group {group_text; pieces; loc}}
     in
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf () fmt
+    Tracing.mygprintf (fun msgs -> ()) fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
-let warn ?loc = msg Warning ?loc
-let error ?loc = msg Error ?loc
-let info ?loc = msg Info ?loc
-let debug ?loc = msg Debug ?loc
-let success ?loc = msg Success ?loc
+let warn ?loc = msg_group Warning ?loc
+let error ?loc = msg_group Error ?loc
+let info ?loc = msg_group Info ?loc
+let debug ?loc = msg_group Debug ?loc
+let success ?loc = msg_group Success ?loc
 
 include Tracing

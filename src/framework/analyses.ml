@@ -217,7 +217,7 @@ struct
     in
     let one_w f (m: Messages.Message.t) = match m.multipiece with
       | Single piece  -> one_text f piece
-      | Group {group_text = n; pieces = e} ->
+      | Group {group_text = n; pieces = e; _} ->
         BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
