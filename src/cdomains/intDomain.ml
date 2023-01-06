@@ -964,25 +964,25 @@ struct
   let show_event = function 
     | Enter x -> Printf.sprintf "Enter %s" (Ints_t.to_string x) 
     | Exit x -> Printf.sprintf "Exit %s" (Ints_t.to_string x)
-
-  let interval_set_to_events (xs:t) =  List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten
-
+    
   let sort_events =
-    let cmp x y = 
-      let res = Ints_t.compare (unbox x) (unbox y) in
-      if res != 0 then
-        res
-      else
-        begin
-          match (x, y) with
-          | (Enter _, Exit _) -> -1
-          | (Exit _, Enter _) -> 1
-          | (_, _) -> 0
-        end
-    in
-    List.sort cmp
-  
-  let two_interval_sets_to_events (xs: t) (ys: t) = (xs @ ys) |> interval_set_to_events |> sort_events
+      let cmp x y = 
+        let res = Ints_t.compare (unbox x) (unbox y) in
+        if res != 0 then
+          res
+        else
+          begin
+            match (x, y) with
+            | (Enter _, Exit _) -> -1
+            | (Exit _, Enter _) -> 1
+            | (_, _) -> 0
+          end
+        in
+        List.sort cmp
+        
+  let interval_set_to_events (xs:t) = List.map (fun (a,b) -> [Enter a; Exit b]) xs |> List.flatten |> sort_events
+
+  let two_interval_sets_to_events (xs: t) (ys: t) = (xs @ ys) |> interval_set_to_events
     
   (* Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
     This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
@@ -1009,8 +1009,8 @@ struct
   let canonize (xs: t) = 
     interval_set_to_events xs |> 
     combined_event_list `Join |> 
-    events_to_intervals 
-
+    events_to_intervals
+    
   let unary_op (x: t) op = match x with 
     | [] -> []
     | _ -> canonize (List.filter_map op x)
