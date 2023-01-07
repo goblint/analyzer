@@ -1,8 +1,12 @@
 // PARAM: --set ana.activated[+] "localTraces"
 
-int global = 5;
+int f(int x) {
+  x = 10;
+  return x - 4;
+}
 
 void main() {
   int x = 7;
-  x = (2 - global) + x;
+  int y = f(12);
+  x = 3;
 }

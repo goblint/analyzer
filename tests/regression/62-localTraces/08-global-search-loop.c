@@ -4,5 +4,10 @@ int global = 5;
 
 void main() {
   int x = 7;
-  x = (2 - global) + x;
+  int k = 1;
+  while (k < 4) {
+    x = k + global;
+    k++;
+    global -= 1;
+  }
 }

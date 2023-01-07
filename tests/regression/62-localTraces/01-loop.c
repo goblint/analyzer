@@ -1,8 +1,8 @@
 // PARAM: --set ana.activated[+] "localTraces"
 
-int global = 5;
-
 void main() {
-  int x = 7;
-  x = (2 - global) + x;
+  int x = 3;
+  while (x < 7) {
+    x++;
+  }
 }
