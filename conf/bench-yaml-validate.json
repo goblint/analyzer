@@ -1,5 +1,8 @@
 {
   "ana": {
+    "sv-comp": {
+      "functions": true
+    },
     "int": {
       "def_exc": true,
       "enums": false,
