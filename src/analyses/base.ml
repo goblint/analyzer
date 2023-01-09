@@ -100,8 +100,8 @@ struct
       | (info,value)::xs ->
         match value with
         | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
-          let possibleVars = PreValueDomain.AD.to_var_may t in
-          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+          let possibleVars = List.to_seq (PreValueDomain.AD.to_var_may t )in
+          Seq.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ Seq.filter (fun info -> isArrayType info.vtype) possibleVars
         | _ -> pointedArrayMap xs
     in
     match VarH.find_option array_map fundec.svar with
@@ -1228,8 +1228,8 @@ struct
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
-          let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.of_seq @@ (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int))@@ List.to_seq (slen @ alen)) in
+          let alen = List.of_seq @@ Seq.filter_map (fun v -> lenOf v.vtype)@@ List.to_seq (AD.to_var_may a) in
+          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) ((Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int))@@ List.to_seq (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
@@ -1346,7 +1346,7 @@ struct
     | `Union _ ->
       begin
         let vars_in_partitioning = VD.affecting_vars value in
-        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in
+        let dep_new = Seq.fold_left (fun dep var -> add_one_dep x var dep) st.deps @@ List.to_seq vars_in_partitioning in
         { st with deps = dep_new }
       end
     (* `Blob cannot contain arrays *)
@@ -2184,8 +2184,8 @@ struct
          | None -> xs
        in
        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-       let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-       List.iter (fun x -> ctx.spawn None x []) funs
+       let funs = Seq.filter (fun x -> isFunctionType x.vtype)@@ List.to_seq vars in
+       Seq.iter (fun x -> ctx.spawn None x []) funs
      | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
