@@ -5,7 +5,7 @@ The artifact is available from Zenodo at [https://doi.org/10.5281/zenodo.7505428
 
 The artifact is a VirtualBox Image based on Ubuntu 22.04.1. The login is `goblint:goblint`.
 
-For convenience this file is also included in the VM (at `~analyzer/docs/artifact-descriptions/esop23.md`) in order to be able to copy commands.
+For convenience this file is also included in the VM (at `~/analyzer/docs/artifact-descriptions/esop23.md`) in order to be able to copy commands.
 
 <!-- If you are reading these instructions on goblint.readthedocs.io, they might have been updated to match the current version of Goblint.
 When using the artifact, follow the similar instructions it includes. -->
