@@ -104,8 +104,6 @@ struct
       | (info,value)::xs ->
         match value with
         | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
-          (*let possibleVars = PreValueDomain.AD.to_var_may t in
-          List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars*)
           Iter.(of_list (PreValueDomain.AD.to_var_may t) |> filter (fun info -> isArrayType info.vtype) |> fold (fun map arr -> VarMap.add arr info.vattr map) (pointedArrayMap xs))
         | _ -> pointedArrayMap xs
     in
@@ -549,7 +547,6 @@ struct
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
-    (*List.map AD.singleton (AD.elements !visited)*)
     Iter.on_list (Iter.map AD.singleton) (AD.elements !visited)
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
@@ -859,8 +856,7 @@ struct
           | [] -> assert false
           | (e1, e2) :: eqs ->
             let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
-            let eqs_map_remove e = (*List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in*)
-                                   Iter.on_list (Iter.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1)) eqs in
+            let eqs_map_remove e = Iter.on_list (Iter.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1)) eqs in
             if eqs_for_all_mem e1 then
               Some (e1, e2 :: eqs_map_remove e1)
             else if eqs_for_all_mem e2 then
@@ -871,9 +867,8 @@ struct
         let eqs_value =
           let* eqs = split exp in
           let* (e, es) = find_common eqs in
-          let v = eval_rv a gs st e in (* value of common exp *)
-          (*let vs = List.map (eval_rv a gs st) es in (* values of other sides *)*)
-          let vs = Iter.on_list (Iter.map (eval_rv a gs st)) es in
+          let v = eval_rv a gs st e in (* value of common exp *)  
+          let vs = Iter.on_list (Iter.map (eval_rv a gs st)) es in (* values of other sides *)
           let ik = Cilfacade.get_ikind typ in
           match v with
           | `Address a ->
@@ -1230,14 +1225,12 @@ struct
     | Q.EvalLength e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
-          (*let slen = List.map String.length (AD.to_string a) in*)
+          
           let lenOf = function
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          (*let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in*)
-          (*let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in*)
-          let d = Iter.((Iter.map String.length (Iter.of_list (AD.to_string a))) <+> (Iter.filter_map (fun v -> lenOf v.vtype) (Iter.of_list (AD.to_var_may a)))
+          let d = Iter.((Iter.map String.length (Iter.of_list @@ AD.to_string a)) <+> (Iter.filter_map (fun v -> lenOf v.vtype) (Iter.of_list @@ AD.to_var_may a)) (*<- equal to slen @ alen *)
                         |> map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int)
                         |> fold ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind()))) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
@@ -1281,9 +1274,8 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe *)
-          (*let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in*)
           let xs = Iter.on_list (Iter.map addrToLvalSet) (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
-          (* TODO: can we replace the following fold_left by simply leaving xs as an iterator and then call Iter.fold ? *)
+          (* TODO: replace the following fold_left by simply leaving xs as an iterator and then call Iter.fold ? *)
           let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
           if AD.mem Addr.UnknownPtr a then
             Q.LS.add (dummyFunDec.svar, `NoOffset) addrs (* add unknown back *)
@@ -1357,8 +1349,6 @@ struct
     | `Struct _
     | `Union _ ->
       begin
-        (*let vars_in_partitioning = VD.affecting_vars value in
-        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in*)
         let dep_new = Iter.(of_list (VD.affecting_vars value)
                             |> fold (fun dep var ->
                                       add_one_dep x var dep)
@@ -2199,10 +2189,7 @@ struct
          | Some x -> x :: xs
          | None -> xs
        in
-       (*let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-       let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-       List.iter (fun x -> ctx.spawn None x []) funs*)
-       Iter.(of_list (AD.fold find_fps adrs [])
+       Iter.(of_list (AD.fold find_fps adrs []) (* filter_map from AD to list *)
              |> filter (fun x -> isFunctionType x.vtype)
              |> iter (fun x -> ctx.spawn None x []))
      | _ -> ()
@@ -2286,7 +2273,6 @@ struct
     (* First we create a variable-initvalue pair for each variable *)
     let init_var v = (AD.from_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
     (* Apply it to all the locals and then assign them all *)
-    (* let inits = List.map init_var f.slocals in*)
     let inits = Iter.on_list (Iter.map init_var) f.slocals in
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
 
@@ -2350,7 +2336,6 @@ struct
         | `Address a -> AD.remove NullPtr a
         | _ -> AD.empty ()
       in
-      (* List.map mpt exps *)
       Iter.on_list (Iter.map mpt) exps
     )
 
@@ -2369,7 +2354,6 @@ struct
      * expression e may point to *)
     let invalidate_exp exps =
       let args = collect_invalidate ~deep ~warn:true ask gs st exps in
-      (* List.map (invalidate_address st) args *)
       Iter.on_list (Iter.map (invalidate_address st)) args
     in
     let invalids = invalidate_exp exps in
@@ -2378,8 +2362,6 @@ struct
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
-      (* let addrs = List.map (Tuple3.first) invalids' in
-      let vs = List.map (Tuple3.third) invalids' in *)
       let addrs = Iter.on_list (Iter.map Tuple3.first) invalids' in
       let vs = Iter.on_list (Iter.map Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
@@ -2390,7 +2372,6 @@ struct
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
-    (* let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in*)
     let vals = Iter.on_list (Iter.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st)) args in
     (* generate the entry states *)
     (* If we need the globals, add them *)
@@ -2443,7 +2424,6 @@ struct
         let args =
           match arg with
           | Some x -> [x]
-          (* | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals *)
           | None -> Iter.on_list (Iter.map (fun x -> MyCFG.unknown_exp)) fd.sformals
         in
         Some (lval, v, args)
@@ -2538,8 +2518,9 @@ struct
       let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       (addr, AD.get_type addr)
     in
+    (* TODO: can be rewritten with Iter awell?*)
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (Iter.on_list (Iter.map BatTuple.Tuple3.second) forks); (* (List.map BatTuple.Tuple3.second forks); *)
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (Iter.on_list (Iter.map BatTuple.Tuple3.second) forks);     
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
@@ -2674,7 +2655,7 @@ struct
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->
-              let v = List.fold VD.join (VD.bot ()) (Iter.on_list (Iter.map (fun x -> G.thread (ctx.global (V.thread x)))) (ValueDomain.Threads.elements a))(* (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) *)in
+              let v = List.fold VD.join (VD.bot ()) (Iter.on_list (Iter.map (fun x -> G.thread (ctx.global (V.thread x)))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
