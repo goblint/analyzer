@@ -33,6 +33,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 * **Docker (repository).** Clone and run `docker build -t goblint .`.
 * **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
 
+
 ## Running
 To confirm that building worked, you can try running Goblint as follows:
 ```
