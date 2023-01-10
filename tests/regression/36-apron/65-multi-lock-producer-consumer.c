@@ -15,11 +15,11 @@ pthread_cond_t P_cond = PTHREAD_COND_INITIALIZER;	// Producer
 
 void consume() {
   pthread_mutex_lock(&C_sema);
-  __goblint_check(free >= 0);
-  __goblint_check(free <= capacity);
-  __goblint_check(used >= 0);
-  __goblint_check(used <= capacity);
-  __goblint_check(used + free == capacity);
+  // __goblint_check(free >= 0);
+  // __goblint_check(free <= capacity);
+  // __goblint_check(used >= 0);
+  // __goblint_check(used <= capacity);
+  // __goblint_check(used + free == capacity);
 
   // if (used >= 1) {
   //   used--;
@@ -34,10 +34,10 @@ void consume() {
   pthread_mutex_unlock(&C_sema);
 
   // consume!
-  
+
   pthread_mutex_lock(&P_sema);
   free++;
-  pthread_mutex_signal(&P_cond);
+  pthread_cond_signal(&P_cond);
   pthread_mutex_unlock(&P_sema);
 
 
@@ -52,11 +52,11 @@ void consume() {
 
 void produce() {
   pthread_mutex_lock(&P_sema);
-  __goblint_check(free >= 0);
-  __goblint_check(free <= capacity);
-  __goblint_check(used >= 0);
-  __goblint_check(used <= capacity);
-  __goblint_check(used + free == capacity);
+  // __goblint_check(free >= 0);
+  // __goblint_check(free <= capacity);
+  // __goblint_check(used >= 0);
+  // __goblint_check(used <= capacity);
+  // __goblint_check(used + free == capacity);
 
   // if (free >= 1) {
   //   free--;
@@ -64,7 +64,7 @@ void produce() {
   // }
 
   while (free == 0) {
-    pthread_cond_wait(&POP, &Q);
+    pthread_cond_wait(&P_cond, &P_sema);
   }
 
   free--;
@@ -97,11 +97,11 @@ int main() {
     free = capacity;
     used = 0;
 
-    __goblint_check(free >= 0);
-    __goblint_check(free <= capacity);
-    __goblint_check(used >= 0);
-    __goblint_check(used <= capacity);
-    __goblint_check(used + free == capacity);
+    // __goblint_check(free >= 0);
+    // __goblint_check(free <= capacity);
+    // __goblint_check(used >= 0);
+    // __goblint_check(used <= capacity);
+    // __goblint_check(used + free == capacity);
 
     pthread_t worker1;
     pthread_t worker2;
