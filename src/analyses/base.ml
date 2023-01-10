@@ -2248,10 +2248,11 @@ struct
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
+    let ask = (Analyses.ask_of_ctx ctx) in
     Q.LS.fold (fun (v, o) st -> 
       if CPA.mem v fun_st.cpa then
         let lval = Lval.CilLval.to_lval (v,o) in
-        let address = eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval in
+        let address = eval_lv ask ctx.global st lval in
         let lval_type = (AD.get_type address) in
         if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
         match CPA.find_opt v (fun_st.cpa) with
@@ -2264,8 +2265,8 @@ struct
           | Some new_arry -> {st with cpa = CPA.add v new_arry st.cpa}
           end
         | _ -> begin
-          let new_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st address None in
-          let st' = set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st address lval_type new_val in
+          let new_val = get ask ctx.global fun_st address None in
+          let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
           let partDep = Dep.find_opt v fun_st.deps in
           match partDep with 
           | None -> st'
@@ -2278,11 +2279,8 @@ struct
       else st) tainted_lvs local_st
 
   let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
-    let tainted = f_ask.f Q.MayBeTainted in
-    if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-      if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
@@ -2291,14 +2289,18 @@ struct
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+        let ask = (Analyses.ask_of_ctx ctx) in
+        let tainted = f_ask.f Q.MayBeTainted in
+        if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
+        if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
         begin if (Q.LS.is_top tainted) then
-          let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
+          let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
           let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
           { fun_st with cpa = cpa' }
         else
           (* remove variables from caller cpa, that are global and not in the callee cpa *)
-          let cpa_caller = CPA.filter (fun x _ -> (not (is_global (Analyses.ask_of_ctx ctx) x)) || CPA.mem x fun_st.cpa) st.cpa in
+          let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
           (* add variables from callee that are not in caller yet *)
           let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
           let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in

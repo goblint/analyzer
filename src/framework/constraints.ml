@@ -630,9 +630,8 @@ struct
       in
       (* TODO: more accurate ctx? *)
       let fd = sync sync_ctx in
-      let f_ask = sync_ctx.ask in
       if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      let r = S.combine {ctx with local = cd} lv e f args fc fd {Queries.f = f_ask} in
+      let r = S.combine {ctx with local = cd} lv e f args fc fd (Analyses.ask_of_ctx sync_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in

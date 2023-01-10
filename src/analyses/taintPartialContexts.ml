@@ -90,7 +90,10 @@ struct
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn ctx lval f args fctx = 
+    match lval with
+    | Some lv -> taint_lval ctx lv
+    | None -> ctx.local
   let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Queries.t) : a Queries.result =
