@@ -28,11 +28,11 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 2. Continue using Linux instructions in WSL.
 
 ### Other
-- **[opam](https://opam.ocaml.org/packages/goblint/)**. Install [opam](https://opam.ocaml.org/doc/Install.html) and run `opam install goblint`.
-- **[devcontainer](./.devcontainer/).** Select "Reopen in Container" in VS Code and continue with `make` using Linux instructions in devcontainer.
-- **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest` (or `:nightly`).
-- **Docker (repository).** Clone and run `docker build -t goblint .`.
-- **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
+* **[opam](https://opam.ocaml.org/packages/goblint/)**. Install [opam](https://opam.ocaml.org/doc/Install.html) and run `opam install goblint`.
+* **[devcontainer](./.devcontainer/).** Select "Reopen in Container" in VS Code and continue with `make` using Linux instructions in devcontainer.
+* **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest` (or `:nightly`).
+* **Docker (repository).** Clone and run `docker build -t goblint .`.
+* **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
 
 ## Running
 To confirm that building worked, you can try running Goblint as follows:
