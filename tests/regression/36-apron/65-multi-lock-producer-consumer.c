@@ -41,13 +41,11 @@ void consume() {
   pthread_mutex_unlock(&P_sema);
 
 
-/*
-  __goblint_check(free >= 0);
-  __goblint_check(free <= capacity);
-  __goblint_check(used >= 0);
-  __goblint_check(used <= capacity);
-  __goblint_check(used + free == capacity);
- */
+  // __goblint_check(free >= 0);
+  // __goblint_check(free <= capacity);
+  // __goblint_check(used >= 0);
+  // __goblint_check(used <= capacity);
+  // __goblint_check(used + free == capacity);
 }
 
 void produce() {
@@ -71,13 +69,11 @@ void produce() {
   pthread_mutex_unlock(&P_sema);
 
 
-/*
-  __goblint_check(free >= 0);
-  __goblint_check(free <= capacity);
-  __goblint_check(used >= 0);
-  __goblint_check(used <= capacity);
-  __goblint_check(used + free == capacity);
-  */
+  // __goblint_check(free >= 0);
+  // __goblint_check(free <= capacity);
+  // __goblint_check(used >= 0);
+  // __goblint_check(used <= capacity);
+  // __goblint_check(used + free == capacity);
 
   pthread_mutex_lock(&C_sema);
   used++;
