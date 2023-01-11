@@ -2,7 +2,7 @@
 
 void main() {
   int x = 3;
-  while (x < 7) {
+  while (x < 12) {
     x++;
   }
 }
