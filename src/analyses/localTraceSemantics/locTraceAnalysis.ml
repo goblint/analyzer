@@ -377,7 +377,7 @@ in
     
 
    let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
-    print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^" 
+    print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show ctx.edge)^"
   with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
   let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
   let oldSigma = LocalTraces.get_sigma g ctx.prev_node 
@@ -413,22 +413,27 @@ in
   
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
-    print_string ("combine wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"
+    print_string ("combine wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show ctx.edge)^"
     und lval "^(match lval with None -> "None" | Some(l) -> CilType.Lval.show l)^" und fexp "^(CilType.Exp.show fexp)^"\n");
   let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
 in
 let combine_helper graph sigma =
   let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-  (
-let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
+    let iter_callee_state callee_graph graph_acc =
+  ( D.iter (fun g_iter -> print_string ("in combine, I test LocalTrace.find_returning_node with node="^(NodeImpl.show {programPoint=programPoint;id=id;sigma=sigma})^"\nI get "^(NodeImpl.show (LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma}) ctx.edge (* TODO this has to be a graph from the callee-state *)g_iter))^"\n")) callee_local;
+let {programPoint=progP_returning;id=id_returning;sigma=sigma_returning} = LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma}) ctx.edge callee_graph
+in
+  let (myEdge:(node * edge * node)) = ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+in LocalTraces.extend_by_gEdge graph_acc myEdge)
+in
+D.fold iter_callee_state callee_local graph_iter_nodes 
 in
 List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
 if List.is_empty oldSigma then set else
   D.add (List.fold combine_helper g oldSigma) set 
 in
-   D.fold fold_helper ctx.local (D.empty ())
+   D.fold fold_helper (*ctx.local*) callee_local (D.empty ())
 
    
     let threadenter ctx lval f args = 

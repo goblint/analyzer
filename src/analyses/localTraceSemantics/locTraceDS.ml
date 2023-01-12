@@ -242,6 +242,11 @@ else (let tmp = LocTraceGraph.add_edge_e gr gEdge in print_string ("extend_by_gE
         (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node dest_node then prev_node::list else list)
          [] (get_all_edges graph)
 
+    let get_successors_edges graph node =
+      List.fold 
+      (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node prev_node then edge::list else list)
+       [] (get_all_edges graph)
+
   let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
@@ -264,23 +269,38 @@ match tmp_result with
   )
 in loop []
 
+let get_succeeding_node prev_node edge_label graph =
+  print_string ("LocalTraces.get_succeeding_node was invoked with prev_node="^(NodeImpl.show prev_node)^", edge_label="^(EdgeImpl.show edge_label)^" and\n"^(show graph)^"\n");
+  let edgeList = get_all_edges graph
+in let tmp =
+List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) -> 
+  if (NodeImpl.equal prev_node prev_fold)&&(Edge.equal edge_label edge_fold) 
+    then dest_fold
+    else acc_node
+      ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1)} edgeList
+  in print_string ("in LocalTraces.get_succeeding_node we found the node "^(NodeImpl.show tmp)^"\n"); tmp
+
+(* finds the return endpoints of a calling node *)
+let find_returning_node prev_node edge_label graph =
+  let node_start = get_succeeding_node prev_node edge_label graph
+in(* TODO now implement some DFS *) 
+let rec find_returning_node_helper current_node current_saldo =(
+  print_string("find_returning_node_helper has been invoked with current_node="^(NodeImpl.show current_node)^", current_saldo="^(string_of_int current_saldo)^"\n");
+  let succeeding_edges = get_successors_edges graph current_node
+in
+List.fold (fun acc_node ((prev_fold:node), (edge_fold:Edge.t), (dest_fold:node)) -> 
+  match edge_fold with Proc(_) -> find_returning_node_helper dest_fold (current_saldo +1)
+    | Ret(_) -> if current_saldo = 1 then dest_fold else find_returning_node_helper dest_fold (current_saldo - 1)
+    | _ -> find_returning_node_helper dest_fold current_saldo
+  ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1)} succeeding_edges
+  )
+in find_returning_node_helper node_start 1
 
 end
 
 (* Set domain for analysis framework *)
 module GraphSet = struct
 include SetDomain.Make(LocalTraces)
-(* 
-let mem graph graphSet = fold (fun x b -> if LocalTraces.equal x graph then b || true else b) graphSet false
-
-let subset graphSet1 graphSet2 = 
-  fold (fun graph b ->let tmp = mem graph graphSet2 
-in if tmp = false then print_string ("graph: "^(LocalTraces.show graph)^" \nist angeblich nicht enthalten in graphSet2: "^(show graphSet2)^"\n");
-    
-    b && (tmp)) graphSet1 true
-
-let leq graphSet1 graphSet2 = subset graphSet1 graphSet2 *)
-
 end
 
 (* ID Generator *)
@@ -298,13 +318,6 @@ object(self)
      if (NodeImpl.equal prev_node prev_node_find)&&(Edge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find) then id_find else acc) (-1) edges 
   in 
   if id = (-1) then ( print_string "No existing edge for this combination was found, so we create a new ID\n";edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1})::edges; self#increment ()) else (print_string ("id was found: "^(string_of_int id)^"\n"); id)
-    (* let edgeList = get_all_edges graph
-  in
-  let tmp =
-  List.fold (fun id (fold_prev_node, fold_edge, {programPoint=p1;sigma=s1;id=i1}) -> 
-    if (NodeImpl.equal prev_node fold_prev_node)&&(Edge.equal edge fold_edge)&&(Node.equal dest_programPoint p1)&&(NodeImpl.equal_sigma dest_sigma s1) then i1 else id ) (-1) edgeList
-  in if tmp = -1 then idGenerator#increment () else tmp *)
-    
 end
 
 let idGenerator = new id_generator
