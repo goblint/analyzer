@@ -186,12 +186,10 @@ LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1;_} l ->
   if List.is_empty tmp then [] else tmp))
 
   let get_nodes programPoint sigma graph =
-    print_string ("get_nodes was invoked with programPoint="^(Node.show programPoint)^", sigma="^(NodeImpl.show_sigma sigma)^"\nand graph="^(show graph)^"\n");  
 let all_nodes = get_all_nodes graph
   in 
   let tmp = List.fold (fun acc {programPoint=p1;sigma=s1;id=i1} -> if (Node.equal programPoint p1)&&(NodeImpl.equal_sigma sigma s1) then ({programPoint=p1;sigma=s1;id=i1})::acc else acc ) [] all_nodes 
 in
-print_string ("get_nodes resulted in "^(List.fold (fun acc node_fold -> acc^", "^(NodeImpl.show node_fold)) "" tmp)^"\n");
 if Node.equal programPoint MyCFG.dummy_node then (* then I want to have the 'latest' dummy node *)
   [(List.fold (fun {id=id_acc;programPoint=progP_acc;sigma=s_acc} {id=id_fold;programPoint=progP_fold;sigma=s_fold} -> if id_acc > id_fold then {id=id_acc;programPoint=progP_acc;sigma=s_acc} else {id=id_fold;programPoint=progP_fold;sigma=s_fold} ) {programPoint=programPoint;sigma=sigma;id=(-1)} tmp)] else tmp
 
@@ -218,12 +216,10 @@ let rec check_helper1 (prev_node, edge, dest_node) innerList =
 
 (* Applies an gEdge to graph 
    Explicit function for future improvements *)
-let extend_by_gEdge gr gEdge =
-  if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) then gr else LocTraceGraph.add_edge_e gr gEdge 
-  (* let tmp = LocTraceGraph.add_edge_e gr gEdge 
-in if check_for_duplicates tmp then (print_string ("Ein Duplikat wurde gefunden in "^(show tmp)^"\nmit vorherigem Graphen "^(show gr)^"\nund Graph.mem evaluiert zu"^(string_of_bool (LocTraceGraph.mem_edge_e gr gEdge))^"\n");
-print_string (List.fold (fun acc edge_fold -> acc^", "^(show_edge gEdge)^"="^(show_edge edge_fold)^" is "^(string_of_bool (equal_edge edge_fold gEdge))) "" (get_all_edges gr) );
-exit 1) else tmp *)
+let extend_by_gEdge gr gEdge = print_string "LocalTraces.extend_by_gEdge was invoked\n";
+  if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) 
+    then (print_string ("but gEdge="^(show_edge gEdge)^" is already contained in:\n"^(show gr)^"\n");gr) 
+else (let tmp = LocTraceGraph.add_edge_e gr gEdge in print_string ("extend_by_gEdge succeeded with new graph:\n"^(show tmp)^"\n"); tmp) 
 
   let error_node : MyCFG.node = 
     FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[])); 

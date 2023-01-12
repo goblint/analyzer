@@ -51,7 +51,6 @@ in print_string ("eval_global evaluated to "^(show_valuedomain tmp)^"\n");
 
 and 
 (* Evaluates the effects of an assignment to sigma *)
-(* TODO eval needs to be checked on overflow and div by 0 --> custom exception managment could be useful *)
 eval sigOld vinfo (rval: exp) graph node = 
   (* dummy value 
      This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
@@ -136,7 +135,6 @@ in
 (* binop expressions *)
 (* Lt could be a special case since it has enhancements on sigma *)
 (* in var1 < var2 case, I have not yet managed boundary cases, so here are definitely some bugs *)
-(* TODO consider globals in Lt-situations *)
 | BinOp(Lt, Lval(Var(var1), NoOffset),Lval(Var(var2), NoOffset),TInt(biopIk, _)) ->(
   if ((SigmaMap.mem var1 sigOld) || (var1.vglob = true))&&((SigmaMap.mem var2 sigOld)|| (var2.vglob = true))
     then (
@@ -229,7 +227,6 @@ let sigNew = NodeImpl.destruct_add_sigma sigOld sigEnhancedEffects
 in if vinfo.vglob = true then sigOld else
 if success then SigmaMap.add vinfo result sigNew  else (print_string "Eval could not evaluate expression\n"; exit 0)
 
-(* TODO output corresponding nodes in addition s.t. the edge is unique *)
 let eval_catch_exceptions sigOld vinfo rval stateEdge graph node =
 try (eval sigOld vinfo rval graph node, true) with 
 Division_by_zero_Int -> Messages.warn "Contains a trace with division by zero"; (SigmaMap.add vinfo Error sigOld ,false)
@@ -251,8 +248,8 @@ let assign_helper graph sigma =
 
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   in
-  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge) 
-  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1}) )
+  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph_iter_nodes myEdge) 
+  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph_iter_nodes ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1}) )
   )
 in
 let tmp3 = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
@@ -263,6 +260,7 @@ List.fold iter_node_helper graph tmp3
 in
 let tmp = List.fold assign_helper g oldSigma 
 in
+print_string ("in assign, after folding over all sigmas and all IDs we have the graph:\n"^(LocalTraces.show tmp)^"\n");
 if LocalTraces.equal g tmp then set else
   D.add tmp set 
 in
@@ -292,7 +290,8 @@ in
 print_string ("result_as_int: "^(string_of_int result_as_int)^"\n");
 let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigmaNew)})
 in
-if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph myEdge else (print_string "no edge added for current sigma in branch\n";graph))
+print_string ("success="^(string_of_bool success)^", tv="^(string_of_bool tv)^", result_as_int="^(string_of_int result_as_int)^"\nand possible edge="^(LocalTraces.show_edge myEdge)^"\n");
+if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph_iter_nodes myEdge else (print_string "no edge added for current sigma in branch\n";graph_iter_nodes))
 in
 List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
@@ -303,7 +302,7 @@ if LocalTraces.equal g tmp then (print_string "No changes on graph in branch, th
 in
 let tmp2 =
    D.fold fold_helper ctx.local (D.empty ())
-in if D.is_empty tmp2 then (*D.add LocTraceGraph.empty*) D.empty () else tmp2
+in if D.is_empty tmp2 then D.empty () else tmp2
 
 let body ctx (f:fundec) : D.t = 
   print_string ("body wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
@@ -312,7 +311,7 @@ in
 let body_helper graph sigma =
   let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} = 
     (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-in LocalTraces.extend_by_gEdge graph myEdge)
+in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
 in 
 let existingNodes = LocalTraces.get_nodes ctx.prev_node sigma graph
 in
@@ -351,7 +350,7 @@ in if success = false then (print_string "Evaluation of return expression was un
   (* ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge graph ctx.node sigma)}) *)
 else ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
 ))
-in LocalTraces.extend_by_gEdge graph myEdge)
+in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
 in
 List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
@@ -367,7 +366,7 @@ in
 let special_helper graph sigma =
   let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
   (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-in LocalTraces.extend_by_gEdge graph myEdge)
+in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
 in
 List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
@@ -381,7 +380,7 @@ in
     print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^" 
   with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
   let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
-  let oldSigma = LocalTraces.get_sigma g ctx.prev_node (* Debuggen, gucken was rauskommt, und ob iteriert wird *)
+  let oldSigma = LocalTraces.get_sigma g ctx.prev_node 
   in
   if List.is_empty oldSigma then print_string("In enter, oldSigma-list is empty\n") else print_string("In enter, oldSigma-list is not empty\n");
   let enter_helper graph sigma = print_string "enter_helper wurde aufgerufen\n";
@@ -394,7 +393,7 @@ in
       ) (sigma, args) f.sformals
     in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
       let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge (FunctionEntry(f)) sigma)})
-  in LocalTraces.extend_by_gEdge graph myEdge)
+  in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
 in
 List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
   in
@@ -422,7 +421,7 @@ let combine_helper graph sigma =
   let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
   (
 let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-in LocalTraces.extend_by_gEdge graph myEdge)
+in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
 in
 List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
