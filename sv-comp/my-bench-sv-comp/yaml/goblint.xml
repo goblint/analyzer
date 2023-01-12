@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.9.dtd">
+<benchmark tool="goblint" timelimit="60 s" hardtimelimit="64 s" memlimit="1 GB" cpuCores="1">
+
+  <resultfiles>**.yml</resultfiles>
+
+  <option name="--conf">conf/svcomp-yaml.json</option>
+  <option name="--enable">dbg.timing.enabled</option>
+
+  <columns>
+    <column title="evals">evals = (\d+)</column>
+  </columns>
+
+  <rundefinition name="all">
+    <option name="--enable">witness.invariant.loop-head</option>
+    <option name="--enable">witness.invariant.other</option>
+  </rundefinition>
+
+  <rundefinition name="loop-head">
+    <option name="--enable">witness.invariant.loop-head</option>
+    <option name="--disable">witness.invariant.other</option>
+  </rundefinition>
+
+  <tasks name="ReachSafety-Loops-Simple">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-Loops-Simple.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+  </tasks>
+
+  <!-- <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+  </tasks>
+
+  <tasks name="SoftwareSystems-DeviceDriversLinux64Large-ReachSafety">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64Large-ReachSafety.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+  </tasks> -->
+
+</benchmark>

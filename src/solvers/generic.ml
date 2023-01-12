@@ -2,9 +2,6 @@ open Prelude
 open GobConfig
 open Analyses
 
-let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
-
-
 module LoadRunSolver: GenericEqBoxSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct

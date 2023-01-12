@@ -434,7 +434,40 @@ end
 
 module type Increment =
 sig
-  val increment: increment_data
+  val increment: increment_data option
+end
+
+(** Combined variables so that we can also use the more common [EqConstrSys]
+    that uses only one kind of a variable. *)
+module Var2 (LV:VarType) (GV:VarType)
+  : VarType
+    with type t = [ `L of LV.t  | `G of GV.t ]
+=
+struct
+  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
+  let relift = function
+    | `L x -> `L (LV.relift x)
+    | `G x -> `G (GV.relift x)
+
+  let pretty_trace () = function
+    | `L a -> LV.pretty_trace () a
+    | `G a -> GV.pretty_trace () a
+
+  let printXml f = function
+    | `L a -> LV.printXml f a
+    | `G a -> GV.printXml f a
+
+  let var_id = function
+    | `L a -> LV.var_id a
+    | `G a -> GV.var_id a
+
+  let node = function
+    | `L a -> LV.node a
+    | `G a -> GV.node a
+
+  let is_write_only = function
+    | `L a -> LV.is_write_only a
+    | `G a -> GV.is_write_only a
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
@@ -459,9 +492,6 @@ struct
   (* Two global invariants:
      1. S.V -> S.G  --  used for Spec
      2. fundec -> set of S.C  --  used for IterSysVars Node *)
-
-  (* Dummy module. No incremental analysis supported here*)
-  let increment = I.increment
 
   let sync ctx =
     match Cfg.prev ctx.prev_node with
@@ -687,12 +717,20 @@ struct
       | Skip           -> tf_skip var edge prev_node
     end getl sidel getg sideg d
 
+  type Goblint_backtrace.mark += TfLocation of location
+
+  let () = Goblint_backtrace.register_mark_printer (function
+      | TfLocation loc ->
+        Some ("transfer function at " ^ CilType.Location.show loc)
+      | _ -> None (* for other marks *)
+    )
+
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
     let old_loc  = !Tracing.current_loc in
     let old_loc2 = !Tracing.next_loc in
     Tracing.current_loc := f;
     Tracing.next_loc := t;
-    Fun.protect ~finally:(fun () ->
+    Goblint_backtrace.protect ~mark:(fun () -> TfLocation f) ~finally:(fun () ->
         Tracing.current_loc := old_loc;
         Tracing.next_loc := old_loc2
       ) (fun () ->
@@ -783,6 +821,135 @@ struct
         ) cs
     | _ ->
       ()
+
+  let sys_change getl getg =
+    let open CompareCIL in
+
+    let c = match I.increment with
+      | Some {changes; _} -> changes
+      | None -> empty_change_info ()
+    in
+    List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
+
+    let changed_funs = List.filter_map (function
+        | {old = {def = Some (Fun f); _}; diff = None; _} ->
+          print_endline ("Completely changed function: " ^ f.svar.vname);
+          Some f
+        | _ -> None
+      ) c.changed
+    in
+    let part_changed_funs = List.filter_map (function
+        | {old = {def = Some (Fun f); _}; diff = Some nd; _} ->
+          print_endline ("Partially changed function: " ^ f.svar.vname);
+          Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
+        | _ -> None
+      ) c.changed
+    in
+    let removed_funs = List.filter_map (function
+        | {def = Some (Fun f); _} ->
+          print_endline ("Removed function: " ^ f.svar.vname);
+          Some f
+        | _ -> None
+      ) c.removed
+    in
+
+    let module HM = Hashtbl.Make (Var2 (LVar) (GVar)) in
+
+    let mark_node hm f node =
+      iter_vars getl getg (Node {node; fundec = Some f}) (fun v ->
+          HM.replace hm (`L v) ()
+        ) (fun v ->
+          HM.replace hm (`G v) ()
+        )
+    in
+
+    let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
+    let reanalyze_entry f =
+      (* destabilize the entry points of a changed function when reluctant is off,
+         or the function is to be force-reanalyzed  *)
+      (not reluctant) || CompareCIL.VarinfoSet.mem f.svar c.exclude_from_rel_destab
+    in
+    let obsolete_ret = HM.create 103 in
+    let obsolete_entry = HM.create 103 in
+    let obsolete_prim = HM.create 103 in
+
+    (* When reluctant is on:
+       Only add function entry nodes to obsolete_entry if they are in force-reanalyze *)
+    List.iter (fun f ->
+        if reanalyze_entry f then
+          (* collect function entry for eager destabilization *)
+          mark_node obsolete_entry f (FunctionEntry f)
+        else
+          (* collect function return for reluctant analysis *)
+          mark_node obsolete_ret f (Function f)
+      ) changed_funs;
+    (* Primary changed unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+    (* The return nodes of partially changed functions are collected in obsolete_ret for reluctant analysis *)
+    (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
+    List.iter (fun (f, pn, _) ->
+        if not reluctant then (
+          List.iter (fun n ->
+              mark_node obsolete_prim f n
+            ) pn
+        )
+        else
+          mark_node obsolete_ret f (Function f)
+      ) part_changed_funs;
+
+    let obsolete = Enum.append (HM.keys obsolete_entry) (HM.keys obsolete_prim) |> List.of_enum in
+    let reluctant = HM.keys obsolete_ret |> List.of_enum in
+
+    let marked_for_deletion = HM.create 103 in
+
+    let dummy_pseudo_return_node f =
+      (* not the same as in CFG, but compares equal because of sid *)
+      Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
+    in
+    let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
+      let add_stmts (f: fundec) =
+        List.iter (fun s ->
+            mark_node marked_for_deletion f (Statement s)
+          ) f.sallstmts
+      in
+      List.iter (fun f ->
+          if withEntry f then
+            mark_node marked_for_deletion f (FunctionEntry f);
+          mark_node marked_for_deletion f (Function f);
+          add_stmts f;
+          mark_node marked_for_deletion f (dummy_pseudo_return_node f)
+        ) functions;
+    in
+
+    add_nodes_of_fun changed_funs reanalyze_entry;
+    add_nodes_of_fun removed_funs (fun _ -> true);
+    (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
+    let add_pseudo_return f un =
+      let pseudo = dummy_pseudo_return_node f in
+      if not (List.exists (Node.equal pseudo % fst) un) then
+        mark_node marked_for_deletion f (dummy_pseudo_return_node f)
+    in
+    List.iter (fun (f,_,un) ->
+        mark_node marked_for_deletion f (Function f);
+        add_pseudo_return f un
+      ) part_changed_funs;
+
+    let delete = HM.keys marked_for_deletion |> List.of_enum in
+
+    let restart = match I.increment with
+      | Some data ->
+        let restart = ref [] in
+        List.iter (fun g ->
+            iter_vars getl getg g (fun v ->
+                restart := `L v :: !restart
+              ) (fun v ->
+                restart := `G v :: !restart
+              )
+          ) data.restarting;
+        !restart
+      | None -> []
+    in
+
+    {obsolete; delete; reluctant; restart}
 end
 
 (** Convert a non-incremental solver into an "incremental" solver.
@@ -794,45 +961,15 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
     module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
 
     type marshal = unit
+    let copy_marshal () = ()
+    let relift_marshal () = ()
 
-    let solve box xs vs =
+    let solve box xs vs _ =
       let vh = Sol.solve box xs vs in
       Post.post xs vs vh;
       (vh, ())
   end
 
-(** Combined variables so that we can also use the more common [EqConstrSys]
-    that uses only one kind of a variable. *)
-module Var2 (LV:VarType) (GV:VarType)
-  : VarType
-    with type t = [ `L of LV.t  | `G of GV.t ]
-=
-struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
-  let relift = function
-    | `L x -> `L (LV.relift x)
-    | `G x -> `G (GV.relift x)
-
-  let pretty_trace () = function
-    | `L a -> LV.pretty_trace () a
-    | `G a -> GV.pretty_trace () a
-
-  let printXml f = function
-    | `L a -> LV.printXml f a
-    | `G a -> GV.printXml f a
-
-  let var_id = function
-    | `L a -> LV.var_id a
-    | `G a -> GV.var_id a
-
-  let node = function
-    | `L a -> LV.node a
-    | `G a -> GV.node a
-
-  let is_write_only = function
-    | `L a -> LV.is_write_only a
-    | `G a -> GV.is_write_only a
-end
 
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
 module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
@@ -851,7 +988,6 @@ struct
       | `Lifted2 a -> S.D.printXml f a
       | (`Bot | `Top) as x -> printXml f x
   end
-  let increment = S.increment
   type v = Var.t
   type d = Dom.t
 
@@ -881,8 +1017,8 @@ struct
     | `G _ -> None
     | `L x -> Option.map conv (S.system x)
 
-  let iter_vars get vq f =
-    S.iter_vars (getL % get % l) (getG % get % g) vq (f % l) (f % g)
+  let sys_change get =
+    S.sys_change (getL % get % l) (getG % get % g)
 end
 
 (** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
@@ -925,7 +1061,6 @@ end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
-  : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -939,11 +1074,14 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 
       type marshal = Sol'.marshal
 
-      let solve ls gs l =
+      let copy_marshal = Sol'.copy_marshal
+      let relift_marshal = Sol'.relift_marshal
+
+      let solve ls gs l old_data =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        let hm, solver_data = Sol'.solve EqSys.box vs sv old_data in
         Splitter.split_solution hm, solver_data
     end
 
@@ -1192,17 +1330,14 @@ struct
   let asm ctx = S.asm (conv ctx)
 end
 
-module CompareGlobSys
-    (S:Spec)
-    (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = GVarF (S.V)
-                        and module D = S.D
-                        and module G = GVarG (S.G) (S.C))
-    (LH:Hashtbl.S with type key=Sys.LVar.t)
-    (GH:Hashtbl.S with type key=Sys.GVar.t)
-=
+module CompareGlobSys (SpecSys: SpecSys) =
 struct
-  open S
+  open SpecSys
+  module Sys = EQSys
+  module LH = LHT
+  module GH = GHT
+
+  open Spec
   module G = Sys.G
 
   module PP = Hashtbl.Make (Node)

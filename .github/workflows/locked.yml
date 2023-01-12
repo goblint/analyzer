@@ -55,6 +55,9 @@ jobs:
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group octagon -s
 
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
+
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
@@ -66,6 +69,9 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
 
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}

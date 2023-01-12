@@ -7,7 +7,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (modules :standard \ goblint mainspec privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult iter
+  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace iter
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
@@ -23,9 +23,33 @@
       (apron -> apronAnalysis.apron.ml)
       (-> apronAnalysis.no-apron.ml)
     )
-    (select apronPriv.ml from
-      (apron -> apronPriv.apron.ml)
-      (-> apronPriv.no-apron.ml)
+    (select affineEqualityAnalysis.ml from
+      (apron -> affineEqualityAnalysis.apron.ml)
+      (-> affineEqualityAnalysis.no-apron.ml)
+    )
+    (select affineEqualityDomain.ml from
+      (apron -> affineEqualityDomain.apron.ml)
+      (-> affineEqualityDomain.no-apron.ml)
+    )
+    (select relationAnalysis.ml from
+      (apron -> relationAnalysis.apron.ml)
+      (-> relationAnalysis.no-apron.ml)
+    )
+    (select relationPriv.ml from
+      (apron -> relationPriv.apron.ml)
+      (-> relationPriv.no-apron.ml)
+    )
+    (select relationDomain.ml from
+      (apron -> relationDomain.apron.ml)
+      (-> relationDomain.no-apron.ml)
+    )
+    (select relationPrecCompareUtil.ml from
+      (apron -> relationPrecCompareUtil.apron.ml)
+      (-> relationPrecCompareUtil.no-apron.ml)
+    )
+    (select sharedFunctions.ml from
+      (apron -> sharedFunctions.apron.ml)
+      (-> sharedFunctions.no-apron.ml)
     )
     (select violationZ3.ml from
       (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
@@ -105,9 +129,9 @@
     (:standard -O3))
   )
   (dev
-    (flags (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
   (trace
-    (flags (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
