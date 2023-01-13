@@ -2013,7 +2013,6 @@ struct
       let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       (addr, AD.get_type addr)
     in
-    (* TODO: can be rewritten with Iter awell?*)
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (Iter.on_list (Iter.map BatTuple.Tuple3.second) forks);     
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
