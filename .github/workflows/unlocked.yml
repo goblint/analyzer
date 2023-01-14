@@ -117,7 +117,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - 4.14.0+options,ocaml-option-flambda # matches opam lock file
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
@@ -234,7 +234,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - 4.14.0+options,ocaml-option-flambda # matches opam lock file
 
     runs-on: ${{ matrix.os }}
 
