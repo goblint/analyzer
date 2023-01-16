@@ -148,6 +148,31 @@ struct
     | `NoOffset -> `NoOffset
 end
 
+module OffsetRepr (Idx: IdxDomain) =
+struct
+  module ProperIndexOffset = Offset (Idx)
+  include ProperIndexOffset
+
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    module UnitIdxDomain =
+    struct
+      include Lattice.Unit
+      let equal_to _ _ = `Top
+      let to_int _ = None
+    end
+
+    module AnyIndexOffset = Offset(UnitIdxDomain)
+    include AnyIndexOffset
+    type elt = ProperIndexOffset.t
+
+    let rec of_elt: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs = function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) -> `Field (f, of_elt o)
+      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt o) (* all indices to same bucket *)
+  end
+end
+
 module type S =
 sig
   type field
@@ -402,13 +427,6 @@ end
 module NormalLatRepr (Idx: IdxDomain) =
 struct
   include NormalLat (Idx)
-
-  module UnitIdxDomain =
-  struct
-    include Lattice.Unit
-    let equal_to _ _ = `Top
-    let to_int _ = None
-  end
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
@@ -417,10 +435,6 @@ struct
     module AnyOffset = Printable.Unit
     module Address = PreNormal (AnyOffset)
 
-    (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
-       Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
-       since different integer domains may be active at different program points. *)
-    (* include Normal (UnitIdxDomain) *)
     include Printable.Std
     include Address
 
@@ -440,7 +454,7 @@ struct
       )
 
     let of_elt (x: elt): t = match x with
-      | Addr (v, o) -> Addr (v, ()) (* addrs grouped by var and part of offset *)
+      | Addr (v, o) -> Addr (v, ())
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
