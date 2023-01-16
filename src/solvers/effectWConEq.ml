@@ -9,7 +9,7 @@ module Make =
     include Generic.SolverStats (S) (HM)
     module VS = BatSet.Make (S.Var)
 
-    let solve _ st vs =
+    let solve st vs =
       let infl    = HM.create  10 in
       let stable  = HM.create  10 in
       let rho     = HM.create  10 in
