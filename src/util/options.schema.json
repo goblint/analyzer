@@ -1008,6 +1008,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "unassume": {
+          "title": "ana.unassume",
+          "type": "object",
+          "properties": {
+            "precheck": {
+              "title": "ana.unassume.precheck",
+              "description": "Check if invariant contradicts reached state before unassuming.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
