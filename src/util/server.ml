@@ -187,6 +187,7 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
   Cilfacade.reset_lazy ();
+  InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
@@ -239,7 +240,7 @@ let () =
     type response = unit [@@deriving to_yojson]
     let process () _ =
       try
-        GobConfig.json_conf := Options.defaults;
+        GobConfig.set_conf Options.defaults;
         Maingoblint.parse_arguments ();
       with exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))

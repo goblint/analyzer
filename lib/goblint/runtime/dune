@@ -8,7 +8,7 @@
  (files src/dllgoblint.so))
 
 (install
- (section (site (goblint lib_runtime)))
+ (section (site (goblint lib)))
  (files
-  libgoblint.a
-  dllgoblint.so))
+  (libgoblint.a as runtime/libgoblint.a)
+  (dllgoblint.so as runtime/dllgoblint.so)))
