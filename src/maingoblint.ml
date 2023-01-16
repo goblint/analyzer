@@ -17,14 +17,10 @@ let print_version ch =
   printf "OCaml flambda:   %s\n" ConfigOcaml.flambda;
   if get_bool "dbg.verbose" then (
     printf "Library versions:\n";
-    List.iter (fun lib ->
-        let name = Build_info.V1.Statically_linked_library.name lib in
-        let version = match Build_info.V1.Statically_linked_library.version lib with
-          | Some v -> Build_info.V1.Version.to_string v
-          | None -> "[unknown]"
-        in
+    List.iter (fun (name, version) ->
+        let version = Option.default "[unknown]" version in
         printf "  %s: %s\n" name version
-      ) (Build_info.V1.Statically_linked_libraries.to_list ())
+      ) Goblint_build_info.statically_linked_libraries
   );
   exit 0
 
