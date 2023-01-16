@@ -45,4 +45,6 @@ let createCFG (fileAST: file) =
         computeCFGInfo fd true
       | _ -> ()
     );
+  if get_bool "dbg.run_cil_check" then assert (Check.checkFile [] fileAST);
+
   Cilfacade.do_preprocess fileAST

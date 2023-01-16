@@ -19,9 +19,9 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
+  "dune" {>= "3.6"}
   "ocaml" {>= "4.10"}
-  "dune" {>= "3.0"}
-  "goblint-cil" {>= "2.0.0"}
+  "goblint-cil" {>= "2.0.1"}
   "batteries" {>= "3.4.0"}
   "zarith" {>= "1.8"}
   "yojson" {>= "2.0.0"}
@@ -29,7 +29,6 @@ depends: [
   "ppx_deriving"
   "ppx_deriving_hash"
   "ppx_deriving_yojson" {>= "3.7.0"}
-  "ppx_blob" {>= "0.6.0"}
   "ounit2" {with-test}
   "qcheck-ounit" {with-test}
   "odoc" {with-doc}
@@ -74,7 +73,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
-  [ "goblint-cil.2.0.0" "git+https://github.com/goblint/cil.git#bfb977b48d6d92e0ecbdab2e04f2576095506107" ]
+  [ "goblint-cil.2.0.1" "git+https://github.com/goblint/cil.git#5a3b7bb7f4d9b67678826ab7698f8a9048891553" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   # TODO: add back after release, only pinned for CI stability

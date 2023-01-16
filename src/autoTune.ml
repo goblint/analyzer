@@ -130,7 +130,7 @@ let disableIntervalContextsInRecursiveFunctions () =
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
         print_endline ("function " ^ (f.vname) ^" is recursive, disable interval context");
-        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "apron.no-context"])];
+        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "relation.no-context"])];
       )
     )
 
@@ -315,6 +315,21 @@ class octagonFunctionVisitor(list, amount) = object
 
 end
 
+let congruenceOption factors file =
+  let locals, globals = factors.integralVars in
+  let cost = (locals + globals) * (factors.instructions / 12) + 5 * factors.functionCalls in
+  let value = 5 * locals + globals in
+  let activate () =
+    print_endline @@ "Congruence: " ^ string_of_int cost;
+    set_bool "ana.int.congruence" true;
+    print_endline "Enabled congruence domain.";
+  in
+  {
+    value;
+    cost;
+    activate;
+  }
+
 let apronOctagonOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
@@ -339,14 +354,14 @@ let apronOctagonOption factors file =
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
     print_endline @@ "Octagon: " ^ string_of_int cost;
-    set_bool "annotation.goblint_apron_track" true;
+    set_bool "annotation.goblint_relation_track" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
     print_endline "Enabled octagon domain for:";
     print_endline @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
-    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_apron_track",[])) info.vattr) allVars
+    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
   {
     value = 50 * (List.length allVars) ;
@@ -398,7 +413,16 @@ let chooseFromOptions costTarget options =
 let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_list "ana.autotune.activated"
 
 let chooseConfig file =
-  if isActivated "congruence" then
+  let factors = collectFactors visitCilFileSameGlobals file in
+  let fileCompplexity = estimateComplexity factors file in
+
+  print_endline "Collected factors:";
+  printFactors factors;
+  print_endline "";
+  print_endline "Complexity estimates:";
+  print_endline @@ "File: " ^ string_of_int fileCompplexity;
+
+  if fileCompplexity < totalTarget && isActivated "congruence" then
     addModAttributes file;
 
   if isActivated "noRecursiveIntervals" then
@@ -419,16 +443,8 @@ let chooseConfig file =
   if isActivated "arrayDomain" then
     selectArrayDomains file;
 
-  let factors = collectFactors visitCilFileSameGlobals file in
-  let fileCompplexity = estimateComplexity factors file in
-
-  print_endline "Collected factors:";
-  printFactors factors;
-  print_endline "";
-  print_endline "Complexity estimates:";
-  print_endline @@ "File: " ^ string_of_int fileCompplexity;
-
   let options = [] in
+  let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
   let options = if isActivated "octagon" then (apronOctagonOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 

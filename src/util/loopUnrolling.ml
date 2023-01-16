@@ -446,9 +446,6 @@ class loopUnrollingVisitor(func) = object
           annotateArrays b;
           match s.skind with
           | Loop (b,loc, loc2, break , continue) ->
-            (* We copy the statement to later be able to modify it without worrying about invariants *)
-            let s = { s with sid = s.sid } in
-
             (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
             let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
             (* continues should go to the next unrolling *)
@@ -464,10 +461,11 @@ class loopUnrollingVisitor(func) = object
             mkStmt (Block (mkBlock (copies@[s]@[break_target])))
           | _ -> failwith "invariant broken"
         ) else s (*no change*)
-      in ChangeDoChildrenPost({s with sid = s.sid},duplicate_and_rem_labels);
+      in ChangeDoChildrenPost(s, duplicate_and_rem_labels);
     | _ -> DoChildren
 end
 
 let unroll_loops fd =
+  Cil.populateLabelAlphaTable fd;
   let thisVisitor = new loopUnrollingVisitor(fd) in
   ignore (visitCilFunction thisVisitor fd)

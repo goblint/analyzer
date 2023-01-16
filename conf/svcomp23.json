@@ -67,9 +67,10 @@
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
-        "arrayDomain",
+        "congruence",
         "octagon",
-        "wideningThresholds"
+        "wideningThresholds",
+        "loopUnrollHeuristic"
       ]
     }
   },

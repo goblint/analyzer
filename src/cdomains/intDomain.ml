@@ -287,6 +287,8 @@ struct
   type int_t = I.int_t
   type t = { v : I.t; ikind : CilType.Ikind.t } [@@deriving eq, ord, hash]
 
+  let ikind {ikind; _} = ikind
+
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
   let lift op x = {x with v = op x.ikind x.v }
@@ -838,15 +840,18 @@ struct
   let invariant_ikind e ik x =
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      let x1 = Ints_t.to_bigint x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
+      if get_bool "witness.invariant.exact" then
+        let x1 = Ints_t.to_bigint x1 in
+        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
+      else
+        Invariant.top ()
     | Some (x1, x2) ->
-      let open Invariant in
       let (min_ik, max_ik) = range ik in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if Ints_t.compare min_ik x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else none in
-      let i2 = if Ints_t.compare x2 max_ik <> 0 then of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else none in
-      i1 && i2
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let i1 = if inexact_type_bounds || Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
+      let i2 = if inexact_type_bounds || Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
+      Invariant.(i1 && i2)
     | None -> Invariant.none
 
   let arbitrary ik =
@@ -905,7 +910,7 @@ struct
       let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
       let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
       let intv' = norm ik @@ Some (l', u') in
-      let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
+      let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
       meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
@@ -1611,12 +1616,26 @@ struct
 
   let invariant_ikind e ik (x:t) =
     match x with
-    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
-    | `Excluded (s, _) ->
+    | `Definite x ->
+      if get_bool "witness.invariant.exact" then
+        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
+      else
+        Invariant.top ()
+    | `Excluded (s, r) ->
+      (* Emit range invariant if tighter than ikind bounds.
+         This can be more precise than interval, which has been widened. *)
+      let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
+      let (ikmin, ikmax) =
+        let ikr = size ik in
+        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
+      in
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let imin = if inexact_type_bounds || BI.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
+      let imax = if inexact_type_bounds || BI.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) s (Invariant.top ())
+        ) s Invariant.(imin && imax)
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -2014,10 +2033,13 @@ module Enums : S with type int_t = BigInt.t = struct
   let invariant_ikind e ik x =
     match x with
     | Inc ps ->
-      List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-          Invariant.(a || i)
-        ) (Invariant.bot ()) (BISet.elements ps)
+      if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
+        List.fold_left (fun a x ->
+            let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
+            Invariant.(a || i)
+          ) (Invariant.bot ()) (BISet.elements ps)
+      else
+        Invariant.top ()
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
@@ -2307,16 +2329,40 @@ struct
     if M.tracing then  M.trace "congruence" "shift_left : %a %a becomes %a \n" pretty x pretty y pretty res;
     res
 
+  (* Handle unsigned overflows.
+     From n === k mod (2^a * b), we conclude n === k mod 2^a, for a <= bitwidth.
+     The congruence modulo b may not persist on an overflow. *)
+  let handle_overflow ik (c, m) =
+    if m =: Ints_t.zero then
+      normalize ik (Some (c, m))
+    else
+      (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
+      let tz = Ints_t.trailing_zeros m in
+      let m' = Ints_t.shift_left (Ints_t.of_int 1) tz in
+
+      let max = (snd (Size.range ik)) +: Ints_t.one in
+      if m' >=: max then
+        (* if m' >= 2 ^ {bitlength}, there is only one value in range *)
+        let c' = c %: max in
+        Some (c', Ints_t.zero)
+      else
+        normalize ik (Some (c, m'))
+
   let mul ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
+    in
     match x, y with
     | None, None -> bot ()
     | None, _ | _, None ->
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) when no_ov ->
-      Some (c1 *: c2, Ints_t.gcd (c1 *: m2) (Ints_t.gcd (m1 *: c2) (m1 *: m2)))
+      Some (no_ov_case (c1, m1) (c2, m2))
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 *: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b )
     | _ -> top ()
 
   let mul ?no_ov ik x y =
@@ -2329,16 +2375,21 @@ struct
     | None -> bot()
     | Some _ ->  mul ~no_ov ik (of_int ik (Ints_t.of_int (-1))) x
 
-
   let add ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      c1 +: c2, Ints_t.gcd m1 m2
+    in
     match (x, y) with
     | None, None -> bot ()
     | None, _ | _, None ->
-       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize ik (Some (c1 +: c2, Ints_t.gcd m1 m2))
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some a, Some b when no_ov ->
+      normalize ik (Some (no_ov_case a b))
     | Some (c1, m1), Some (c2, m2) when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 +: c2) %: (max_ik +: Ints_t.one), Ints_t.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b)
     | _ -> top ()
 
 
@@ -2466,8 +2517,11 @@ struct
   let invariant_ikind e ik x =
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
-      let c = Ints_t.to_bigint c in
-      Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
+      if get_bool "witness.invariant.exact" then
+        let c = Ints_t.to_bigint c in
+        Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
+      else
+        Invariant.top ()
     | Some (c, m) ->
       let open Cil in
       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
@@ -2753,12 +2807,15 @@ module IntDomTupleImpl = struct
         , map (r.f1 (module I3)) c
         , map (r.f1 (module I4)) d )
 
-  let map2 ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
-    refine ik
+  let map2 ?(norefine=false) ik r (xa, xb, xc, xd) (ya, yb, yc, yd) =
+    let r =
       ( opt_map2 (r.f2 (module I1)) xa ya
       , opt_map2 (r.f2 (module I2)) xb yb
       , opt_map2 (r.f2 (module I3)) xc yc
       , opt_map2 (r.f2 (module I4)) xd yd )
+    in
+    if norefine then r else refine ik r
+
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
@@ -2827,13 +2884,13 @@ module IntDomTupleImpl = struct
 
   (* f2: binary ops *)
   let join ik =
-    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.join ik)}
 
   let meet ik =
     map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.meet ik)}
 
   let widen ik =
-    map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.widen ik)}
 
   let narrow ik =
     map2 ik {f2= (fun (type a) (module I : S with type t = a) ?no_ov -> I.narrow ik)}
@@ -2904,8 +2961,11 @@ module IntDomTupleImpl = struct
   let invariant_ikind e ik x =
     match to_int x with
     | Some v ->
-      (* If definite, output single equality instead of every subdomain repeating same equality *)
-      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
+      if get_bool "witness.invariant.exact" then
+        (* If definite, output single equality instead of every subdomain repeating same equality *)
+        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
+      else
+        Invariant.top ()
     | None ->
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind e ik } x)
       in List.fold_left (fun a i ->

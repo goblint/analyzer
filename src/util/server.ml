@@ -157,8 +157,8 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: Cil.global) _ _ _ = match glob with
-    | GFun (fdec, _) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
+  let eq (glob: CompareCIL.global_col) _ _ _ = match glob.def with
+    | Some (Fun fdec) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
     | _ -> Unchanged, None
   in
   CompareCIL.compareCilFiles ~eq file file
@@ -167,16 +167,14 @@ let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data Sol
   | Some solver_data when reparsed ->
     let s_file = Option.get s.file in
     let changes = CompareCIL.compareCilFiles s_file file in
-    let old_data = Some { Analyses.solver_data } in
     s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
     (* TODO: get globals for restarting from config *)
-    { server = true; Analyses.changes; old_data; restarting = [] }, false
+    Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
   | Some solver_data ->
     let changes = virtual_changes file in
-    let old_data = Some { Analyses.solver_data } in
     (* TODO: get globals for restarting from config *)
-    { server = true; Analyses.changes; old_data; restarting = [] }, false
-  | _ -> Analyses.empty_increment_data ~server:true (), true
+    Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
+  | _ -> None, true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
@@ -189,6 +187,7 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
   Cilfacade.reset_lazy ();
+  InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
@@ -241,7 +240,7 @@ let () =
     type response = unit [@@deriving to_yojson]
     let process () _ =
       try
-        GobConfig.json_conf := Options.defaults;
+        GobConfig.set_conf Options.defaults;
         Maingoblint.parse_arguments ();
       with exn -> (* TODO: Be more specific in what we catch. *)
         Response.Error.(raise (of_exn exn))

@@ -34,6 +34,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w]]);
     ("strtol", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("__strtol_internal", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []; drop "group" []]);
     ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
@@ -42,6 +43,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clearerr", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
+    ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
   ]
 
 (** C POSIX library functions.
@@ -79,6 +81,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ftruncate", unknown [drop "fd" []; drop "length" []]);
     ("mkfifo", unknown [drop "pathname" [r]; drop "mode" []]);
     ("ntohs", unknown [drop "netshort" []]);
+    ("alarm", unknown [drop "seconds" []]);
+    ("pwrite", unknown [drop "fd" []; drop "buf" [r]; drop "count" []; drop "offset" []]);
+    ("hstrerror", unknown [drop "err" []]);
+    ("inet_ntoa", unknown [drop "in" []]);
+    ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
+    ("gethostbyaddr", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
+    ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -93,6 +102,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
+    ("pthread_cancel", unknown [drop "thread" []]);
+    ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
   ]
 
 (** GCC builtin functions.
@@ -151,6 +162,17 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__overflow", unknown [drop "f" [r]; drop "ch" []]);
     ("__ctype_get_mb_cur_max", unknown []);
     ("__xmknod", unknown [drop "ver" []; drop "path" [r]; drop "mode" []; drop "dev" [r; w]]);
+    ("yp_get_default_domain", unknown [drop "outdomain" [w]]);
+    ("__nss_configure_lookup", unknown [drop "db" [r]; drop "service_line" [r]]);
+    ("xdr_string", unknown [drop "xdrs" [r_deep; w_deep]; drop "sp" [r; w]; drop "maxsize" []]);
+    ("xdr_enum", unknown [drop "xdrs" [r_deep; w_deep]; drop "ep" [r; w]]);
+    ("xdr_u_int", unknown [drop "xdrs" [r_deep; w_deep]; drop "up" [r; w]]);
+    ("xdr_opaque", unknown [drop "xdrs" [r_deep; w_deep]; drop "cp" [r; w]; drop "cnt" []]);
+    ("xdr_free", unknown [drop "proc" [s]; drop "objp" [f_deep]]);
+    ("svcerr_noproc", unknown [drop "xprt" [r_deep; w_deep]]);
+    ("svcerr_decode", unknown [drop "xprt" [r_deep; w_deep]]);
+    ("svcerr_systemerr", unknown [drop "xprt" [r_deep; w_deep]]);
+    ("svc_sendreply", unknown [drop "xprt" [r_deep; w_deep]; drop "outproc" [s]; drop "out" [r]]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))

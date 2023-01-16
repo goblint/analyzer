@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization top
 // Copy of 01/52 for Apron
 #include <goblint.h>
 
