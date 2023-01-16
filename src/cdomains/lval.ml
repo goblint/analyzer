@@ -414,19 +414,33 @@ struct
   struct
     type elt = t
 
+    module AnyOffset = Printable.Unit
+    module Address = PreNormal (AnyOffset)
+
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
-    include Normal (UnitIdxDomain)
+    (* include Normal (UnitIdxDomain) *)
+    include Printable.Std
+    include Address
 
-    let rec of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs =
-      function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+    let name () = "NormalLatRepr.R"
+
+    let show = function
+      | Addr (v, ()) -> "&" ^ CilType.Varinfo.show v
+      | StrPtr s -> show_str_ptr s
+      | NullPtr -> show_null_ptr
+      | UnknownPtr -> show_unknown_ptr
+
+    include Printable.SimpleShow (
+      struct
+        type nonrec t = t
+        let show = show
+      end
+      )
 
     let of_elt (x: elt): t = match x with
-      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | Addr (v, o) -> Addr (v, ()) (* addrs grouped by var and part of offset *)
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
