@@ -179,18 +179,14 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Normal (Idx: IdxPrintable) =
+module PreNormal (Offset: Comparable.S) =
 struct
-  type field = fieldinfo
-  type idx = Idx.t
-  module Offs = OffsetPrintable (Idx)
-
   type t =
-    | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
+    | Addr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
-  [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+    | StrPtr of string option
+    [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
   let hash x = match x with
     | StrPtr _ ->
@@ -199,6 +195,22 @@ struct
       else
         hash x
     | _ -> hash x
+
+  let show_str_ptr = function
+    | Some s -> "\"" ^ s ^ "\""
+    | None -> "(unknown string)"
+
+  let show_unknown_ptr = "?"
+
+  let show_null_ptr = "NULL"
+end
+
+module Normal (Idx: IdxPrintable) =
+struct
+  type field = fieldinfo
+  type idx = Idx.t
+  module Offs = OffsetPrintable (Idx)
+  include PreNormal (Offs)
 
   include Printable.Std
   let name () = "Normal Lvals"
@@ -244,10 +256,9 @@ struct
 
   let show = function
     | Addr (x, o)-> short_addr (x, o)
-    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
-    | StrPtr None -> "(unknown string)"
-    | UnknownPtr -> "?"
-    | NullPtr    -> "NULL"
+    | StrPtr s -> show_str_ptr s
+    | UnknownPtr -> show_unknown_ptr
+    | NullPtr    -> show_null_ptr
 
   include Printable.SimpleShow (
     struct
