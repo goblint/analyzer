@@ -148,6 +148,46 @@ struct
     | `NoOffset -> `NoOffset
 end
 
+module type IdxIntDomain =
+sig
+  include IntDomain.Z
+end
+
+module OffsetWithSemanticEqual (Idx: IdxIntDomain) =
+struct
+  include Offset (Idx)
+
+  let ikind () = Cilfacade.ptrdiff_ikind ()
+
+  let rec offset_to_index_offset =
+    let idx_of_int x =
+      Idx.of_int (ikind ()) (Z.of_int x)
+    in
+    function
+    | `NoOffset -> idx_of_int 0
+    | `Field (field, o) ->
+      let field_as_offset = Field (field, NoOffset) in
+      let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
+      let bits_offset = idx_of_int bits_offset in
+      let remaining_offset = offset_to_index_offset o in
+      Idx.add bits_offset remaining_offset
+    | `Index (x, o) ->
+      (* TODO: Use correct size depending on type *)
+      let item_size_in_bits = idx_of_int 8 in
+      let x_bits_offset = Idx.mul item_size_in_bits x in
+      x_bits_offset
+
+  let semantic_equal x y =
+    let x_index = offset_to_index_offset x in
+    let y_index = offset_to_index_offset y in
+    let meet = Idx.meet x_index y_index in
+    if Idx.is_bot meet then
+      Some false
+    else
+      None
+
+end
+
 module type S =
 sig
   type field
