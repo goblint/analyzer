@@ -267,19 +267,26 @@ struct
     end
     )
 
-  let may_be_equal x y =
-    let r = match x, y with
-      | Addr (x, o), Addr (y, u) -> CilType.Varinfo.equal x y
-      | StrPtr None, StrPtr _
-      | StrPtr _, StrPtr None -> true
-      | StrPtr (Some a), StrPtr (Some b) -> a = b
-      | NullPtr, NullPtr -> true
-      | UnknownPtr, UnknownPtr -> true
-      | _, _ -> false
-    in
-    ignore @@ Pretty.printf "checking %a =? %a: %b" pretty x pretty x r;
-    r
-
+  let semantic_equal x y = match x, y with
+    | Addr (x, o), Addr (y, u) ->
+      if CilType.Varinfo.equal x y then
+        if Offs.equal o u then
+          Some true
+        else
+          None
+      else
+        Some false
+    | StrPtr None, StrPtr _
+    | StrPtr _, StrPtr None -> Some true
+    | StrPtr (Some a), StrPtr (Some b) -> Some (a = b)
+    | NullPtr, NullPtr -> Some true
+    | UnknownPtr, UnknownPtr -> Some true
+    | UnknownPtr, Addr _
+    | Addr _, UnknownPtr ->
+      (* TODO: Case needed? *)
+      None
+    | _, _ ->
+      Some false
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string

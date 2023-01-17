@@ -24,7 +24,7 @@ struct
   module Addr = Lval.NormalLatRepr (Idx)
   module J = (struct
     include SetDomain.Joined (Addr)
-    let may_be_equal = Addr.may_be_equal
+    let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
   end)
   module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.R)
 
