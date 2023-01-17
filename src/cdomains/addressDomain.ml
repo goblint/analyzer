@@ -20,7 +20,7 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
-  module Addr = Lval.NormalLatRepr (Idx)
+  module Addr = Lval.BaseAddrRepr (Idx)
   module J = SetDomain.Joined (Addr)
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:

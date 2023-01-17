@@ -399,7 +399,7 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: IdxDomain) =
+module BaseAddrRepr (Idx: IdxDomain) =
 struct
   include NormalLat (Idx)
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
