@@ -14,7 +14,7 @@ RUN sudo apt-get update \
 # update local opam repository because base image may be outdated
 RUN cd /home/opam/opam-repository \
     && git pull origin master \
-    && opam update
+    && opam update -y
 RUN make setup
 # copy the rest
 COPY --chown=opam . /home/opam/analyzer
