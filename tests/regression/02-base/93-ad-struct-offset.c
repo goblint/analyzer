@@ -20,8 +20,8 @@ int main(){
         z = 2;
     }
 
-    // Aaccording to the C standard (section 6.2.8 in the C11 standard),
+    // According to the C standard (section 6.2.8 in the C11 standard),
     // the alignment of fields in structs is implementation defined.
     // When compiling with GCC, the following check as an assert happens to hold.
-    __goblint_check(z==1); //UNKNOWN!
+    __goblint_check(z==1);
 }
