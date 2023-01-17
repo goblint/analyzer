@@ -437,6 +437,42 @@ struct
   end
 end
 
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IdxDomain) =
+struct
+  include NormalLat (Idx)
+
+  module UnitIdxDomain =
+  struct
+    include Lattice.Unit
+    let equal_to _ _ = `Top
+    let to_int _ = None
+  end
+  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    type elt = t
+
+    (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
+       Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
+       since different integer domains may be active at different program points. *)
+    include Normal (UnitIdxDomain)
+
+    let rec of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs =
+      function
+      | `NoOffset -> `NoOffset
+      | `Field (f,o) -> `Field (f, of_elt_offset o)
+      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+
+    let of_elt (x: elt): t = match x with
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
+      | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
+      | NullPtr -> NullPtr
+      | UnknownPtr -> UnknownPtr
+  end
+end
+
 module Fields =
 struct
   module F = CilType.Fieldinfo
