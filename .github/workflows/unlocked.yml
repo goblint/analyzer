@@ -152,7 +152,7 @@ jobs:
 
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda)
 
       - name: Build
         run: ./make.sh nat
