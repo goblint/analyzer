@@ -1,0 +1,78 @@
+{
+  "ana": {
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "activated": [
+      "expRelation",
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "escape",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "mallocWrapper",
+      "mhp",
+      "assert"
+    ],
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
+      ]
+    }
+  },
+  "witness": {
+    "enabled": false,
+    "yaml": {
+      "enabled": true
+    },
+    "invariant": {
+      "exact": false,
+      "exclude-vars": [
+        "tmp\\(___[0-9]+\\)?",
+        "cond",
+        "RETURN"
+      ]
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "invalidate": {
+        "globals": false
+      },
+      "spawn": true
+    },
+    "builtin_unreachable": {
+      "dead_code": true
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    }
+  },
+  "pre": {
+    "cppflags": [
+      "-DGOBLINT_NO_PTHREAD_ONCE",
+      "-DGOBLINT_NO_QSORT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
+  }
+}

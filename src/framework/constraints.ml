@@ -954,7 +954,7 @@ end
 
 (** Convert a non-incremental solver into an "incremental" solver.
     It will solve from scratch, perform standard postsolving and have no marshal data. *)
-module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolver =
+module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Sol = Sol (S) (VH)
@@ -964,8 +964,8 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
     let copy_marshal () = ()
     let relift_marshal () = ()
 
-    let solve box xs vs _ =
-      let vh = Sol.solve box xs vs in
+    let solve xs vs _ =
+      let vh = Sol.solve xs vs in
       Post.post xs vs vh;
       (vh, ())
   end
@@ -990,8 +990,6 @@ struct
   end
   type v = Var.t
   type d = Dom.t
-
-  let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
 
   let getG = function
     | `Lifted1 x -> x
@@ -1059,8 +1057,8 @@ struct
   include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
 end
 
-(** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
+(** Transforms a [GenericEqIncrSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -1081,7 +1079,7 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve EqSys.box vs sv old_data in
+        let hm, solver_data = Sol'.solve vs sv old_data in
         Splitter.split_solution hm, solver_data
     end
 

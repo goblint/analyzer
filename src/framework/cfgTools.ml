@@ -265,8 +265,8 @@ let createCFG (file: file) =
 
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
-              | Set (lval,exp,loc,eloc) -> eloc, Assign (lval, exp) (* TODO: eloc loc fallback if unknown here and If *)
-              | Call (lval,func,args,loc,eloc) -> eloc, Proc (lval,func,args)
+              | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
+              | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
@@ -290,8 +290,8 @@ let createCFG (file: file) =
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
-            addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
+            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, true )) (Statement true_stmt);
+            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, false)) (Statement false_stmt)
 
           | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)

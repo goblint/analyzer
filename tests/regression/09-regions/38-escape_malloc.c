@@ -17,6 +17,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   int *q = (int*) malloc(sizeof(int));
+  // TODO: q escapes as region owner
   pthread_create(&id, NULL, t_fun, (void *) q);
   pthread_mutex_lock(&mutex2);
   (*q)++; // TODO RACE!
