@@ -1,4 +1,3 @@
-// SKIP
 #include <goblint.h>
 struct str{
     int a;

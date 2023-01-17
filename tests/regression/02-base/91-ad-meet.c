@@ -1,4 +1,3 @@
-// SKIP
 // TODO: be sound and claim that assert may hold instead of must not hold
 // assert passes when compiled
 #include <goblint.h>
