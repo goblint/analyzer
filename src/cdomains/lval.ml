@@ -154,28 +154,36 @@ struct
 
   let ikind () = Cilfacade.ptrdiff_ikind ()
 
-  let rec offset_to_index_offset =
+  let offset_to_index_offset typ offs =
     let idx_of_int x =
       Idx.of_int (ikind ()) (Z.of_int x)
     in
-    function
-    | `NoOffset -> idx_of_int 0
-    | `Field (field, o) ->
-      let field_as_offset = Field (field, NoOffset) in
-      let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
-      let bits_offset = idx_of_int bits_offset in
-      let remaining_offset = offset_to_index_offset o in
-      Idx.add bits_offset remaining_offset
-    | `Index (x, o) ->
-      (* TODO: Use correct size depending on type *)
-      let item_size_in_bits = idx_of_int 8 in
-      let x_bits_offset = Idx.mul item_size_in_bits x in
-      x_bits_offset
+    let rec offset_to_index_offset ?typ offs = match offs with
+      | `NoOffset -> idx_of_int 0
+      | `Field (field, o) ->
+        let field_as_offset = Field (field, NoOffset) in
+        let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
+        let bits_offset = idx_of_int bits_offset in
+        let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
+        Idx.add bits_offset remaining_offset
+      | `Index (x, o) ->
+        let item_typ =
+          match Option.map unrollType typ with
+          | Some TArray(bt, _, _) -> Some bt
+          | _ -> None
+        in
+        let default_bits_in_type = 8 in
+        let item_size_in_bits = BatOption.map_default bitsSizeOf default_bits_in_type item_typ in
+        let item_size_in_bits = idx_of_int item_size_in_bits in
+        let x_bits_offset = Idx.mul item_size_in_bits x in
+        x_bits_offset
+    in
+    offset_to_index_offset ~typ offs
 
-  let semantic_equal x y =
-    let x_index = offset_to_index_offset x in
-    let y_index = offset_to_index_offset y in
-    match Idx.to_int x_index, Idx.to_int y_index with
+  let semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs =
+    let x_index = offset_to_index_offset xtyp xoffs in
+    let y_index = offset_to_index_offset ytyp yoffs in
+    match Idx.to_int  x_index, Idx.to_int y_index with
     | Some x, Some y ->
       if x = y then
         Some true
@@ -384,9 +392,11 @@ struct
   module Offs = OffsetWithSemanticEqual (Idx)
 
   let semantic_equal x y = match x, y with
-    | Addr (x, o), Addr (y, u) ->
+    | Addr (x, xoffs), Addr (y, yoffs) ->
       if CilType.Varinfo.equal x y then
-        Offs.semantic_equal o u
+        let xtyp = x.vtype in
+        let ytyp = y.vtype in
+        Offs.semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs
       else
         Some false
     | StrPtr None, StrPtr _
