@@ -463,7 +463,7 @@ end
 module BaseAddrRepr (Idx: IntDomain.Z) =
 struct
   include NormalLat (Idx)
-  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
@@ -474,7 +474,7 @@ struct
     include Printable.Std
     include Address
 
-    let name () = "NormalLatRepr.R"
+    let name () = "BaseAddrRepr.R"
 
     let show = function
       | Addr (v, ()) -> "&" ^ CilType.Varinfo.show v
