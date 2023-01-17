@@ -27,7 +27,9 @@ end
     Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t =
+module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t)
+(* : SetDomain.S with type elt = E.t *)
+=
 struct
   type elt = E.t
 
@@ -174,6 +176,34 @@ struct
   let min_elt m = SetDomain.unsupported "Projective.min_elt"
   let max_elt m = SetDomain.unsupported "Projective.max_elt"
   let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
+end
+
+module type MayEqualSetDomain =
+sig
+  include SetDomain.S
+  val may_be_equal: t -> t -> bool
+end
+
+module ProjectiveSetPairwiseMeet (E: Printable.S) (B: MayEqualSetDomain with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t = struct
+  include ProjectiveSet (E) (B) (R)
+
+  let meet m1 m2 =
+    let inner_fold key b key2 b2 acc =
+      let may_be_equal = B.may_be_equal b b2 in
+      if may_be_equal then
+        acc
+        |> M.add key b
+        |> M.add key2 b2
+      else
+        acc
+    in
+    let outer_fold _key b acc =
+      M.fold (inner_fold _key b) acc m2
+    in
+    (* check all pairs of x \in m1, y \in m2, whether they may be the same *)
+    let result = M.fold outer_fold m1 (M.bot ()) in
+    result
+
 end
 
 (** {2 By congruence} *)

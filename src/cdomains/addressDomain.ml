@@ -28,7 +28,8 @@ struct
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include DisjointDomain.ProjectiveSet (Addr) (OffsetSplit) (Addr.R)
+  module AddressSet : SetDomain.S with type elt = Addr.t = DisjointDomain.ProjectiveSet (Addr) (OffsetSplit) (Addr.R)
+  include AddressSet
 
   (* short-circuit with physical equality,
      makes a difference at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)
