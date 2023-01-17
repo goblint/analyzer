@@ -310,7 +310,7 @@ module Base =
             if not wp then tmp
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *) | Narrow -> S.Dom.narrow old tmp
               else
                 box x old tmp
           in
