@@ -148,31 +148,6 @@ struct
     | `NoOffset -> `NoOffset
 end
 
-module OffsetRepr (Idx: IdxDomain) =
-struct
-  module ProperIndexOffset = Offset (Idx)
-  include ProperIndexOffset
-
-  module R: DisjointDomain.Representative with type elt = t =
-  struct
-    module UnitIdxDomain =
-    struct
-      include Lattice.Unit
-      let equal_to _ _ = `Top
-      let to_int _ = None
-    end
-
-    module AnyIndexOffset = Offset(UnitIdxDomain)
-    include AnyIndexOffset
-    type elt = ProperIndexOffset.t
-
-    let rec of_elt: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs = function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt o)
-      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt o) (* all indices to same bucket *)
-  end
-end
-
 module type S =
 sig
   type field
