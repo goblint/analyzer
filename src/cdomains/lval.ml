@@ -148,12 +148,7 @@ struct
     | `NoOffset -> `NoOffset
 end
 
-module type IdxIntDomain =
-sig
-  include IntDomain.Z
-end
-
-module OffsetWithSemanticEqual (Idx: IdxIntDomain) =
+module OffsetWithSemanticEqual (Idx: IntDomain.Z) =
 struct
   include Offset (Idx)
 
@@ -180,11 +175,18 @@ struct
   let semantic_equal x y =
     let x_index = offset_to_index_offset x in
     let y_index = offset_to_index_offset y in
-    let meet = Idx.meet x_index y_index in
-    if Idx.is_bot meet then
-      Some false
-    else
-      None
+    match Idx.to_int x_index, Idx.to_int y_index with
+    | Some x, Some y ->
+      if x = y then
+        Some true
+      else
+        Some false
+    | _, _ ->
+      let meet = Idx.meet x_index y_index in
+      if Idx.is_bot meet then
+        Some false
+      else
+        None
 
 end
 
@@ -307,26 +309,6 @@ struct
     end
     )
 
-  let semantic_equal x y = match x, y with
-    | Addr (x, o), Addr (y, u) ->
-      if CilType.Varinfo.equal x y then
-        if Offs.equal o u then
-          Some true
-        else
-          None
-      else
-        Some false
-    | StrPtr None, StrPtr _
-    | StrPtr _, StrPtr None -> Some true
-    | StrPtr (Some a), StrPtr (Some b) -> Some (a = b)
-    | NullPtr, NullPtr -> Some true
-    | UnknownPtr, UnknownPtr -> Some true
-    | UnknownPtr, Addr _
-    | Addr _, UnknownPtr ->
-      (* TODO: Case needed? *)
-      None
-    | _, _ ->
-      Some false
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -396,10 +378,28 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Idx: IdxDomain) =
+module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
-  module Offs = Offset (Idx)
+  module Offs = OffsetWithSemanticEqual (Idx)
+
+  let semantic_equal x y = match x, y with
+    | Addr (x, o), Addr (y, u) ->
+      if CilType.Varinfo.equal x y then
+        Offs.semantic_equal o u
+      else
+        Some false
+    | StrPtr None, StrPtr _
+    | StrPtr _, StrPtr None -> Some true
+    | StrPtr (Some a), StrPtr (Some b) -> Some (a = b)
+    | NullPtr, NullPtr -> Some true
+    | UnknownPtr, UnknownPtr -> None
+    | UnknownPtr, Addr _
+    | Addr _, UnknownPtr ->
+      (* TODO: Case needed? *)
+      Some false
+    | _, _ ->
+      Some false
 
   let is_definite = function
     | NullPtr -> true
@@ -460,7 +460,7 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module BaseAddrRepr (Idx: IdxDomain) =
+module BaseAddrRepr (Idx: IntDomain.Z) =
 struct
   include NormalLat (Idx)
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
@@ -499,7 +499,7 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: IdxDomain) =
+module NormalLatRepr (Idx: IntDomain.Z) =
 struct
   include NormalLat (Idx)
 
