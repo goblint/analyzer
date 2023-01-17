@@ -267,6 +267,20 @@ struct
     end
     )
 
+  let may_be_equal x y =
+    let r = match x, y with
+      | Addr (x, o), Addr (y, u) -> CilType.Varinfo.equal x y
+      | StrPtr None, StrPtr _
+      | StrPtr _, StrPtr None -> true
+      | StrPtr (Some a), StrPtr (Some b) -> a = b
+      | NullPtr, NullPtr -> true
+      | UnknownPtr, UnknownPtr -> true
+      | _, _ -> false
+    in
+    ignore @@ Pretty.printf "checking %a =? %a: %b" pretty x pretty x r;
+    r
+
+
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
   (* tries to follow o in t *)
