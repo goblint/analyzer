@@ -197,12 +197,10 @@ module ProjectiveSetPairwiseMeet (E: Printable.S) (B: MayEqualSetDomain with typ
       else
         acc
     in
-    let outer_fold _key b acc =
-      M.fold (inner_fold _key b) acc m2
+    let outer_fold key b acc =
+      M.fold (inner_fold key b) m2 acc
     in
-    (* check all pairs of x \in m1, y \in m2, whether they may be the same *)
-    let result = M.fold outer_fold m1 (M.bot ()) in
-    result
+    M.fold outer_fold m1 (M.empty ())
 
 end
 
