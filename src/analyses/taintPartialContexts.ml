@@ -6,11 +6,11 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "taintPartialContexts"
   module D = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
-  module C = D
+  module C = Lattice.Unit
 
   let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
     match offs with
@@ -26,15 +26,12 @@ struct
     | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
     )
 
+  (* this analysis is context insensitive*)
+  let context _ _ = ()
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     taint_lval ctx lval
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* remove locals, except ones which need to be weakly updated*)
