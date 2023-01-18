@@ -405,9 +405,11 @@ struct
     | NullPtr, NullPtr -> Some true
     | UnknownPtr, UnknownPtr -> None
     | UnknownPtr, Addr _
-    | Addr _, UnknownPtr ->
+    | Addr _, UnknownPtr
+    | UnknownPtr, StrPtr _
+    | StrPtr _, UnknownPtr ->
       (* TODO: Case needed? *)
-      Some false
+      None
     | _, _ ->
       Some false
 
