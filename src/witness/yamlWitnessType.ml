@@ -4,22 +4,27 @@ struct
     name: string;
     version: string;
     (* TODO: configuration *)
-    command_line: string;
+    command_line: string option;
     (* TODO: description *)
   }
 
   let to_yaml {name; version; command_line} =
-    `O [
-      ("name", `String name);
-      ("version", `String version);
-      ("command_line", `String command_line);
-    ]
+    `O ([
+        ("name", `String name);
+        ("version", `String version);
+      ] @ match command_line with
+      | Some command_line -> [
+          ("command_line", `String command_line);
+        ]
+      | None ->
+        []
+      )
 
   let of_yaml y =
     let open GobYaml in
     let+ name = y |> find "name" >>= to_string
     and+ version = y |> find "version" >>= to_string
-    and+ command_line = y |> find "command_line" >>= to_string in
+    and+ command_line = y |> Yaml.Util.find "command_line" >>= option_map to_string in
     {name; version; command_line}
 end
 

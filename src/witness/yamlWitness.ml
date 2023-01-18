@@ -16,7 +16,7 @@ struct
   let producer: Producer.t = {
     name = "Goblint";
     version = Version.goblint;
-    command_line = Goblintutil.command_line;
+    command_line = Some Goblintutil.command_line;
   }
 
   let metadata ?task (): Metadata.t =
