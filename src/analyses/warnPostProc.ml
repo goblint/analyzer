@@ -18,7 +18,7 @@ module D =
 struct
   include SetDomain.ToppedSet(Alarm) (struct let topname = "top" end)
 
-  let conds_in s = 
+  let conds_in s =
     match s with
     | `Lifted _ -> fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
     | _ -> CondSet.empty ()
@@ -91,7 +91,7 @@ let set_loc (message : Alarm.t) loc =
   | Single piece -> {message with multipiece = Single {piece with loc = Some loc}}
   | Group group -> {message with multipiece = Group {group with loc = Some loc}}
 
-let set_related (message : Alarm.t) node = 
+let set_related (message : Alarm.t) node =
   match message.multipiece with
   | Group group ->
     let piece = RM.Piece.{text = "Related"; loc = Some (RM.Location.Node node); context = None} in
@@ -125,7 +125,7 @@ struct
   let dep_gen node x = Dom.empty ()
 
   (* Find the set of those messages, where an operand of the condition is changed in the given node *)
-  let changed_in_node var (cond : RM.Cond.t) = 
+  let changed_in_node var (cond : RM.Cond.t) =
     match cond with
     | Aob (exp, _) -> Basetype.CilExp.occurs var exp
 
@@ -192,7 +192,7 @@ end
 
 
 (* Available Alarm Conditions Analysis *)
-module Av = 
+module Av =
 struct
 
   module Var = V
@@ -207,7 +207,7 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
-  let changed_in_node var (cond : RM.Cond.t) = 
+  let changed_in_node var (cond : RM.Cond.t) =
     match cond with
     | Aob (exp, _) -> Basetype.CilExp.occurs var exp
 
@@ -230,15 +230,15 @@ struct
     | Statement stmt -> var_changed_in_node stmt x
     | _ -> Dom.empty ()
 
-  let set_locs alarm node rel_alarms = 
+  let set_locs alarm node rel_alarms =
     let alarm = set_loc alarm (M.Location.Node node) in (* TODO: does this work? *)
-    let rel_pieces = AlarmSet.fold (fun alarm acc -> 
+    let rel_pieces = AlarmSet.fold (fun alarm acc ->
         match alarm.multipiece with
         | Group group -> append_unique group.pieces acc
         | _ -> acc) rel_alarms []
     in
     match alarm.multipiece with
-    | Group group -> 
+    | Group group ->
       let rel_alarms = append_unique group.pieces rel_pieces in
       let new_group = {group with pieces=rel_alarms} in
       {alarm with multipiece=Group new_group}
@@ -248,7 +248,7 @@ struct
       let ant = HM.find !antSolHM node in
       let rel_alarms = Ant.rel_alarms cond ant in
       (* Update the message locations to correspond to the sinked location and add original and related alarms *)
-      AlarmSet.fold (fun alarm dom_updated -> 
+      AlarmSet.fold (fun alarm dom_updated ->
           Dom.add
             (match node with
              | `L n -> set_locs alarm n rel_alarms
@@ -363,10 +363,10 @@ let finalize _ =
       (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
       (Ant.kill node @@ HM.find solution (`G node)) in
 
-  (* Similarly to handling the conditions in the end node during sinking, 
-     as a special case, the algorithm utilizes every condition from 
+  (* Similarly to handling the conditions in the end node during sinking,
+     as a special case, the algorithm utilizes every condition from
      the exit of the first node for repositioning,
-     because a few antconds can reach the program starting point, 
+     because a few antconds can reach the program starting point,
      but not get computed by equations hoist_entry and hoist_exit.
      This is an addition that was not described in the original algorithm. *)
   let conds_start node =
@@ -389,11 +389,11 @@ let finalize _ =
       match k with
       | `G (FunctionEntry n) -> conds_start (FunctionEntry n)
       | `G Function _ -> () (* cannot find next nodes for end node *)
-      | `L node -> 
+      | `L node ->
         HM.replace hoistHM k @@ hoist_entry node;
         (* Add hoisted location as a related piece in each message. *)
         HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
-      | `G node -> 
+      | `G node ->
         HM.replace hoistHM k @@ hoist_exit node;
         (* Add hoisted location as a related piece in each message. *)
         HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
@@ -472,7 +472,7 @@ let finalize _ =
       let msg = HM.find !avSolHM n in
       match D.is_empty @@ msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
       | false -> warn msg
-      | true -> 
+      | true ->
         let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
         match D.is_empty @@ msg with
         | false -> warn msg
