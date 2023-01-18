@@ -509,9 +509,6 @@ sig
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
 
-  (** box --- needed here for transformations *)
-  val box : v -> d -> d -> d
-
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
@@ -536,7 +533,7 @@ end
 
 (** A solver is something that can translate a system into a solution (hash-table).
     Incremental solver has data to be marshaled. *)
-module type GenericEqBoxIncrSolverBase =
+module type GenericEqIncrSolverBase =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig
@@ -545,10 +542,10 @@ module type GenericEqBoxIncrSolverBase =
     val copy_marshal: marshal -> marshal
     val relift_marshal: marshal -> marshal
 
-    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
+    val solve : (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
   end
 
 (** (Incremental) solver argument, indicating which postsolving should be performed by the solver. *)
@@ -561,18 +558,18 @@ sig
 end
 
 (** An incremental solver takes the argument about postsolving. *)
-module type GenericEqBoxIncrSolver =
+module type GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
-    GenericEqBoxIncrSolverBase
+    GenericEqIncrSolverBase
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericEqBoxSolver =
+module type GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig
-    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs]. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+    val solve : (S.v*S.d) list -> S.v list -> S.d H.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -586,7 +583,7 @@ module type GenericGlobSolver =
     val copy_marshal: marshal -> marshal
     val relift_marshal: marshal -> marshal
 
-    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
     val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> marshal option -> (S.D.t LH.t * S.G.t GH.t) * marshal

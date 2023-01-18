@@ -116,8 +116,6 @@ struct
   module Dom = D
   type d = Dom.t
 
-  let box _ _ _ = failwith "TODO"
-
   let sys_change _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 
   let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
@@ -202,8 +200,6 @@ struct
 
   module Dom = D
   type d = Dom.t
-
-  let box _ _ _ = failwith "TODO"
 
   let sys_change _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 
@@ -329,7 +325,7 @@ let finalize _ =
   (* RM.NH.iter (fun n alarm -> ignore (Pretty.printf "%a->%a\n" Node.pretty_trace n RM.ReposMessage.pretty alarm)) RM.messagesNH; *)
 
   let module Solver = Td3.Basic (IncrSolverArg) (Ant) (HM) in
-  let (solution, _) = Solver.solve Ant.box [] [start_node] None in
+  let (solution, _) = Solver.solve [] [start_node] None in
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
 
@@ -409,7 +405,7 @@ let finalize _ =
 
   let end_node = `G (Node.Function fd) in
   let module SolverAv = Td3.Basic (IncrSolverArg) (Av) (HM) in
-  let (solution_av, _) = SolverAv.solve Av.box [] [end_node] None in
+  let (solution_av, _) = SolverAv.solve [] [end_node] None in
 
   avSolHM := solution_av;
 

@@ -190,4 +190,7 @@ struct
       None
     else
       Some es
+
+  let clear (file_loc_es: t): unit =
+    FileH.clear file_loc_es
 end

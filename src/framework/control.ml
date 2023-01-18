@@ -29,6 +29,9 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
+            (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
+               Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
+            |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
           ) in
   GobConfig.building_spec := false;
   Analyses.control_spec_c := (module S1.C);
@@ -162,7 +165,7 @@ struct
       M.msg_group severity ~category:Deadcode "Logical lines of code (LLoC) summary" [
         (Pretty.dprintf "live: %d" live_count, None);
         (Pretty.dprintf "dead: %d%s" dead_total (if uncalled_fn_loc > 0 then Printf.sprintf " (%d in uncalled functions)" uncalled_fn_loc else ""), None);
-        (Pretty.dprintf "total: %d" total, None);
+        (Pretty.dprintf "total lines: %d" total, None);
       ]
     );
     NH.mem live_nodes
@@ -328,11 +331,16 @@ struct
       else
         None
     in
+    
     if get_bool "ana.warn-postprocess.enabled" then (
       WarnPostProc.init ();
     );
+
+    (* Some happen in init, so enable this temporarily (if required by option). *)
+    Goblintutil.should_warn := PostSolverArg.should_warn;
     Spec.init marshal;
     Access.init file;
+    Goblintutil.should_warn := false;
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
@@ -533,7 +541,7 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 : GenericEqBoxIncrSolver) =
+        let compare_with (module S2 : GenericEqIncrSolver) =
           let module PostSolverArg2 =
           struct
             include PostSolverArg
@@ -548,7 +556,7 @@ struct
         compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
 
-      (* Most warnings happen before durin postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
+      (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       Goblintutil.should_warn := PostSolverArg.should_warn;
 
       let insrt k _ s = match k with

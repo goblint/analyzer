@@ -736,6 +736,13 @@
                   "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
                   "type": "boolean",
                   "default": false
+                },
+                "unassume": {
+                  "title": "ana.base.invariant.unassume",
+                  "description": "How many times to unassume an invariant: once or until fixpoint (at least twice as expensive).",
+                  "type": "string",
+                  "enum": ["once", "fixpoint"],
+                  "default": "once"
                 }
               },
               "additionalProperties": false
@@ -988,14 +995,40 @@
             }
           },
           "additionalProperties": false
-        }, 
+        },
+        "widen": {
+          "title": "ana.widen",
+          "type": "object",
+          "properties": {
+            "tokens": {
+              "title": "ana.widen.tokens",
+              "description": "Delay widenings using widening tokens.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "unassume": {
+          "title": "ana.unassume",
+          "type": "object",
+          "properties": {
+            "precheck": {
+              "title": "ana.unassume.precheck",
+              "description": "Check if invariant contradicts reached state before unassuming.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "warn-postprocess": {
           "title": "ana.warn-postprocess",
           "description": "Warnings postprocessing",
           "type": "object",
           "properties": {
             "enabled": {
-              "title": "ana.warn-postproce.enabled",
+              "title": "ana.warn-postprocess.enabled",
               "description": "Enable warning postprocessing.",
               "type": "boolean",
               "default": false
@@ -1067,14 +1100,6 @@
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",
               "default": false
-            },
-            "compare": {
-              "title": "incremental.reluctant.compare",
-              "description":
-                "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
-              "type": "string",
-              "enum": ["leq", "equal"],
-              "default": "equal"
             }
           },
           "additionalProperties": false
@@ -2174,6 +2199,31 @@
                 "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
               "type": "boolean",
               "default": true
+            },
+            "exact": {
+              "title": "witness.invariant.exact",
+              "description": "Emit exact invariants. They are useless for unassuming.",
+              "type": "boolean",
+              "default": true
+            },
+            "inexact-type-bounds": {
+              "title": "witness.invariant.inexact-type-bounds",
+              "description": "Emit inexact invariants matching type bounds.",
+              "type": "boolean",
+              "default": false
+            },
+            "exclude-vars": {
+              "title": "witness.invariant.exclude-vars",
+              "description": "OCaml Str regexes for variables to exclude from invariants.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "tmp\\(___[0-9]+\\)?",
+                "cond",
+                "RETURN"
+              ]
             }
           },
           "additionalProperties": false
@@ -2213,6 +2263,29 @@
               "type": "boolean",
               "default": false
             },
+            "entry-types": {
+              "title": "witness.yaml.entry-types",
+              "description": "YAML witness entry types to output/input.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "location_invariant",
+                  "loop_invariant",
+                  "flow_insensitive_invariant",
+                  "precondition_loop_invariant",
+                  "loop_invariant_certificate",
+                  "precondition_loop_invariant_certificate"
+                ]
+              },
+              "default": [
+                "location_invariant",
+                "loop_invariant",
+                "flow_insensitive_invariant",
+                "loop_invariant_certificate",
+                "precondition_loop_invariant_certificate"
+              ]
+            },
             "path": {
               "title": "witness.yaml.path",
               "description": "YAML witness output path",
@@ -2221,6 +2294,12 @@
             },
             "validate": {
               "title": "witness.yaml.validate",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
+            "unassume": {
+              "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
               "type": "string",
               "default": ""

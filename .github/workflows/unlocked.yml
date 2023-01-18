@@ -18,6 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda
           - 4.14.x
           - 4.13.x
           - 4.12.x
@@ -116,7 +117,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
@@ -151,7 +152,7 @@ jobs:
 
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda)
 
       - name: Build
         run: ./make.sh nat
@@ -233,7 +234,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
 
     runs-on: ${{ matrix.os }}
 

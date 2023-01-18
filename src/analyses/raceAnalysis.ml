@@ -160,7 +160,7 @@ struct
         (Pretty.dprintf "safe: %d" !safe, None);
         (Pretty.dprintf "vulnerable: %d" !vulnerable, None);
         (Pretty.dprintf "unsafe: %d" !unsafe, None);
-        (Pretty.dprintf "total: %d" total, None);
+        (Pretty.dprintf "total memory locations: %d" total, None);
       ];
     )
 end

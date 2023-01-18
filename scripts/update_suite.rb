@@ -62,11 +62,12 @@ has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make hea
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
+witness = ARGV.last == "-w" && ARGV.pop
 cfg = ARGV.last == "-c" && ARGV.pop
 incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
-if marshal || incremental then
+if marshal || witness || incremental then
   sequential = true
 end
 if marshal && incremental then
@@ -488,6 +489,23 @@ class ProjectMarshal < Project
     end
 end
 
+class ProjectWitness < Project
+  def create_test_set(lines)
+    super(lines)
+    @testset.p = self
+  end
+  def run ()
+    filename = File.basename(@path)
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable dbg.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable dbg.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
+    starttime = Time.now
+    run_testset(@testset, cmd1, starttime)
+    starttime = Time.now
+    run_testset(@testset, cmd2, starttime)
+    FileUtils.rm_f('witness.yml')
+    end
+end
+
 #processing the file information
 projects = []
 project_ids = Set.new
@@ -535,6 +553,8 @@ regs.sort.each do |d|
           ProjectIncr.new(id, testname, groupname, path, params, patch_path, conf_path)
         elsif marshal then
           ProjectMarshal.new(id, testname, groupname, path, params)
+        elsif witness then
+          ProjectWitness.new(id, testname, groupname, path, params)
         else
           Project.new(id, testname, groupname, path, params)
         end
