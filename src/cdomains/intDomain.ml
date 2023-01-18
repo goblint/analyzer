@@ -20,51 +20,48 @@ exception ArithmeticOnIntegerBot of string
 
 (** Define records that hold mutable variables representing different Configuration values.
   * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
-  type ana_int_config_values = {
-    mutable interval_threshold_widening : float_precision option;
-    mutable interval_narrow_by_meet : float_precision option;
-    mutable def_exc_widen_by_join : float_precision option;
-    mutable interval_threshold_widening_constants : string option;
-    mutable refinement : string option;
-  }
-  
-  let ana_int_config: ana_int_config_values = {
-    interval_threshold_widening = None;
-    interval_narrow_by_meet = None;
-    def_exc_widen_by_join = None;
-    interval_threshold_widening_constants = None;
-    refinement = None;
-  }
-  
-  let extract_from_option x =
-      match x with
-      | None -> failwith "Config option not read"
-      | Some x -> x
-  
-  let get_interval_threshold_widening () =
-    if ana_int_config.interval_threshold_widening = None then 
-      ana_int_config.interval_threshold_widening <- Some (get_bool "ana.int.interval_threshold_widening");
-    extract_from_option ana_int_config.interval_threshold_widening
-          
-  let get_interval_narrow_by_meet () =
-    if ana_int_config.interval_narrow_by_meet = None then
-      ana_int_config.interval_narrow_by_meet <- Some (get_bool "ana.int.interval_narrow_by_meet");
-    extract_from_option ana_int_config.interval_narrow_by_meet
-  
-  let get_def_exc_widen_by_join () = 
-    if ana_int_config.def_exc_widen_by_join = None then 
-      ana_int_config.def_exc_widen_by_join <- Some (get_bool "ana.int.def_exc_widen_by_join");
-    extract_from_option ana_int_config.def_exc_widen_by_join
-  
-  let get_interval_threshold_widening_constants () =
-    if ana_int_config.interval_threshold_widening_constants = None then
-      ana_int_config.interval_threshold_widening_constants <- Some (get_string "ana.int.interval_threshold_widening_constants");
-    extract_from_option ana_int_config.interval_threshold_widening_constants
-  
-  let get_refinement () =
-    if ana_int_config.refinement = None then
-      ana_int_config.refinement <- Some (get_string "ana.int.refinement");
-    extract_from_option ana_int_config.refinement
+type ana_int_config_values = {
+  mutable interval_threshold_widening : bool option;
+  mutable interval_narrow_by_meet : bool option;
+  mutable def_exc_widen_by_join : bool option;
+  mutable interval_threshold_widening_constants : string option;
+  mutable refinement : string option;
+}
+
+let ana_int_config: ana_int_config_values = {
+  interval_threshold_widening = None;
+  interval_narrow_by_meet = None;
+  def_exc_widen_by_join = None;
+  interval_threshold_widening_constants = None;
+  refinement = None;
+}
+
+let extract_from_option x = Option.get x
+
+let get_interval_threshold_widening () =
+  if ana_int_config.interval_threshold_widening = None then 
+    ana_int_config.interval_threshold_widening <- Some (get_bool "ana.int.interval_threshold_widening");
+  extract_from_option ana_int_config.interval_threshold_widening
+
+let get_interval_narrow_by_meet () =
+  if ana_int_config.interval_narrow_by_meet = None then
+    ana_int_config.interval_narrow_by_meet <- Some (get_bool "ana.int.interval_narrow_by_meet");
+  extract_from_option ana_int_config.interval_narrow_by_meet
+
+let get_def_exc_widen_by_join () = 
+  if ana_int_config.def_exc_widen_by_join = None then 
+    ana_int_config.def_exc_widen_by_join <- Some (get_bool "ana.int.def_exc_widen_by_join");
+  extract_from_option ana_int_config.def_exc_widen_by_join
+
+let get_interval_threshold_widening_constants () =
+  if ana_int_config.interval_threshold_widening_constants = None then
+    ana_int_config.interval_threshold_widening_constants <- Some (get_string "ana.int.interval_threshold_widening_constants");
+  extract_from_option ana_int_config.interval_threshold_widening_constants
+
+let get_refinement () =
+  if ana_int_config.refinement = None then
+    ana_int_config.refinement <- Some (get_string "ana.int.refinement");
+  extract_from_option ana_int_config.refinement
 
 
 
