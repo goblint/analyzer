@@ -2257,7 +2257,7 @@ struct
         if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
         match CPA.find_opt v (fun_st.cpa) with
         | None -> st
-        | Some (`Array _) when (get_string "ana.base.arrays.domain") = "partitioned" -> begin
+        | Some (`Array a) when (CArrays.domain_of_t a) = PartitionedDomain -> begin
           (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
           let new_arry_opt = CPA.find_opt v fun_st.cpa in
           match new_arry_opt with
