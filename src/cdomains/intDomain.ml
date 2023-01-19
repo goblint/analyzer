@@ -661,21 +661,6 @@ struct
 
   let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
-  (* This is a container variable for holding the config value of ana.int.interval_threshold_widening *)
-(*  let interval_threshold_widening_ref: float_precision option ref = ref None
-  
-  let get_interval_threshold_widening_ref (): float_precision option =
-    if !interval_threshold_widening_ref = None then
-      let config_value = Some (get_bool "ana.int.interval_threshold_widening") in
-      interval_threshold_widening_ref := config_value; !interval_threshold_widening_ref
-    else
-      !interval_threshold_widening_ref
-
-  let extract_from_option (x: float_precision option): float_precision =
-    match x with
-    | None -> failwith "Config option not read"
-    | Some x -> x
-*)
   let widen ik x y =
     match x, y with
     | None, z | z, None -> z
@@ -715,21 +700,6 @@ struct
       norm ik @@ Some (lr,ur)
 
 
-  (* This is a container variable for holding the config value of ana.int.interval_narrow_by_meet *)
-(*  let interval_narrow_by_meet_ref: float_precision option ref = ref None
-  
-  let get_interval_narrow_by_meet_ref (): float_precision option =
-    if !interval_narrow_by_meet_ref = None then
-      let config_value = Some (get_bool "ana.int.interval_narrow_by_meet") in
-      interval_narrow_by_meet_ref := config_value; !interval_narrow_by_meet_ref
-    else
-      !interval_narrow_by_meet_ref
-
-  let extract_from_option (x: float_precision option): float_precision =
-    match x with
-    | None -> failwith "Config option not read"
-    | Some x -> x
-*)
   let narrow ik x y =
     if get_interval_narrow_by_meet () then
       meet ik x y
@@ -811,7 +781,7 @@ struct
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (xl, xu), Some (yl, yu) ->
-      if is_top_of ik x && is_top_of ik y then
+       if is_top_of ik x && is_top_of ik y then
         (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
         (* x:     3803957176L -> T in Interval32 *)
         (* y:     4209861404L -> T in Interval32 *)
@@ -1494,21 +1464,6 @@ struct
   let join ik = join' ik
 
 
-  (* This is a container variable for holding the config value of ana.int.def_exc_widen_by_join *)
-(*  let widen_by_join_ref: float_precision option ref = ref None
-  
-  let get_widen_by_join_ref (): float_precision option =
-    if !widen_by_join_ref = None then
-      let config_value = Some (get_bool "ana.int.def_exc_widen_by_join") in
-      widen_by_join_ref := config_value; !widen_by_join_ref
-    else
-      !widen_by_join_ref
-
-  let extract_from_option (x: float_precision option): float_precision =
-    match x with
-    | None -> failwith "Config option not read"
-    | Some x -> x
-*)
   let widen ik x y =
     if get_def_exc_widen_by_join () then
       join' ik x y
