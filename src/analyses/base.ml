@@ -86,9 +86,7 @@ struct
    * Helpers
    **************************************************************************)
 
-
   let is_privglob v = get_bool "annotation.int.privglobs" && v.vglob
-
 
   (*This is a bit of a hack to be able to change array domains if a pointer to an array is given as an argument*)
   (*We have to prevent different domains to be used at the same time for the same array*)
@@ -136,7 +134,6 @@ struct
     in
     let a = if extract_from_option @@ get_bool_config_value "annotation.goblint_array_domain" then array_attr else None in
     VD.project ask p a value
-
   let project ask p_opt cpa fundec =
     CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
