@@ -781,7 +781,7 @@ struct
     | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (xl, xu), Some (yl, yu) ->
-       if is_top_of ik x && is_top_of ik y then
+      if is_top_of ik x && is_top_of ik y then
         (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
         (* x:     3803957176L -> T in Interval32 *)
         (* y:     4209861404L -> T in Interval32 *)
