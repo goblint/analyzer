@@ -68,6 +68,9 @@
       "tokens": true
     }
   },
+  "pre": {
+    "transform-paths": false
+  },
   "exp": {
     "region-offsets": true
   },
