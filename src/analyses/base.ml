@@ -544,7 +544,7 @@ struct
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
-     List.of_seq @@ (Seq.map AD.singleton) @@ List.to_seq (AD.elements !visited)
+    List.map AD.singleton (AD.elements !visited)
     
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
@@ -854,7 +854,7 @@ struct
           | [] -> assert false
           | (e1, e2) :: eqs ->
             let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
-            let eqs_map_remove e = List.of_seq @@ Seq.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) @@ List.to_seq eqs in
+            let eqs_map_remove e = List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in
             if eqs_for_all_mem e1 then
               Some (e1, e2 :: eqs_map_remove e1)
             else if eqs_for_all_mem e2 then
@@ -866,7 +866,7 @@ struct
           let* eqs = split exp in
           let* (e, es) = find_common eqs in
           let v = eval_rv a gs st e in (* value of common exp *)
-          let vs = List.of_seq @@ (Seq.map (eval_rv a gs st)) @@ List.to_seq es in (* values of other sides *)
+          let vs = List.map (eval_rv a gs st) es in (* values of other sides *)
           let ik = Cilfacade.get_ikind typ in
           match v with
           | `Address a ->
@@ -1223,12 +1223,12 @@ struct
     | Q.EvalLength e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
-          let slen = List.of_seq @@ (Seq.map String.length)@@ List.to_seq (AD.to_string a) in
+          let slen = List.map String.length (AD.to_string a) in
           let lenOf = function
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          let alen = List.of_seq @@ Seq.filter_map (fun v -> lenOf v.vtype)@@ List.to_seq (AD.to_var_may a) in
+          let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) ((Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int))@@ List.to_seq (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
@@ -1271,7 +1271,7 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe *)
-          let xs = List.of_seq @@ (Seq.map addrToLvalSet) @@ List.to_seq (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
+          let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
           let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
           if AD.mem Addr.UnknownPtr a then
             Q.LS.add (dummyFunDec.svar, `NoOffset) addrs (* add unknown back *)
@@ -1346,7 +1346,7 @@ struct
     | `Union _ ->
       begin
         let vars_in_partitioning = VD.affecting_vars value in
-        let dep_new = Seq.fold_left (fun dep var -> add_one_dep x var dep) st.deps @@ List.to_seq vars_in_partitioning in
+        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in
         { st with deps = dep_new }
       end
     (* `Blob cannot contain arrays *)
@@ -2267,7 +2267,7 @@ struct
     (* First we create a variable-initvalue pair for each variable *)
     let init_var v = (AD.from_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
     (* Apply it to all the locals and then assign them all *)
-    let inits = List.of_seq @@ Seq.map init_var @@ List.to_seq f.slocals in
+    let inits = List.map init_var f.slocals in
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
 
   let return ctx exp fundec: store =
@@ -2330,7 +2330,7 @@ struct
         | `Address a -> AD.remove NullPtr a
         | _ -> AD.empty ()
       in
-      List.of_seq @@ Seq.map mpt @@ List.to_seq exps
+      List.map mpt exps
     )
 
   let invalidate ?(deep=true) ~ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
@@ -2348,7 +2348,7 @@ struct
      * expression e may point to *)
     let invalidate_exp exps =
       let args = collect_invalidate ~deep ~warn:true ask gs st exps in
-      List.of_seq @@ Seq.map (invalidate_address st)@@ List.to_seq args
+      List.map (invalidate_address st) args
     in
     let invalids = invalidate_exp exps in
     let is_fav_addr x =
@@ -2356,8 +2356,8 @@ struct
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
-      let addrs = List.of_seq @@ Seq.map (Tuple3.first) @@ List.to_seq invalids' in
-      let vs = List.of_seq @@ Seq.map (Tuple3.third) @@ List.to_seq invalids' in
+      let addrs = List.map (Tuple3.first) invalids' in
+      let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
     set_many ~ctx ask gs st invalids'
@@ -2366,7 +2366,7 @@ struct
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
-    let vals = List.of_seq @@ Seq.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) @@ List.to_seq args in
+    let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
     (* generate the entry states *)
     (* If we need the globals, add them *)
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
@@ -2418,7 +2418,7 @@ struct
         let args =
           match arg with
           | Some x -> [x]
-          | None -> List.of_seq @@ Seq.map (fun x -> MyCFG.unknown_exp) @@ List.to_seq fd.sformals
+          | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
         Some (lval, v, args)
       with Not_found ->
@@ -2452,7 +2452,7 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-      | _, _ when get_bool "sem.unknown_function.spawn" ->
+    | _, _ when get_bool "sem.unknown_function.spawn" ->
       (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
          But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
          definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
@@ -2513,7 +2513,7 @@ struct
       (addr, AD.get_type addr)
     in
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.of_seq @@ Seq.map BatTuple.Tuple3.second @@ List.to_seq forks);
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
@@ -2648,7 +2648,7 @@ struct
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->
-              let v = List.fold VD.join (VD.bot ()) (List.of_seq @@ Seq.map (fun x -> G.thread (ctx.global (V.thread x))) @@ List.to_seq (ValueDomain.Threads.elements a)) in
+              let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
