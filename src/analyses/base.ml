@@ -2230,13 +2230,12 @@ struct
         let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         LibraryFunctionEffects.effects_for f.vname args
-        |> List.to_seq
-        |> Seq.map (fun sets ->
-          BatList.fold_left (fun acc (lv, x) ->
+        |> List.map (fun sets ->
+            List.fold_left (fun acc (lv, x) ->
                 set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
               ) st sets
           )
-        |> Seq.fold_left D.meet st
+        |> BatList.fold_left D.meet st
 
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
