@@ -631,7 +631,17 @@ struct
         in
         begin match eqs_st with
           | Some st -> st
-          | None -> st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
+          | None when ID.to_bool c = Some true ->
+            begin match inv_exp (`Int c) arg1 st with
+              | st1 ->
+                begin match inv_exp (`Int c) arg2 st with
+                  | st2 -> D.join st1 st2
+                  | exception Analyses.Deadcode -> st1
+                end
+              | exception Analyses.Deadcode -> inv_exp (`Int c) arg2 st (* Deadcode falls through *)
+            end
+          | None ->
+            st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
         end
       | (BinOp (op, e1, e2, _) as e, `Float _)
       | (BinOp (op, e1, e2, _) as e, `Int _) ->
