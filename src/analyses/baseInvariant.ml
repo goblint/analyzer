@@ -339,11 +339,10 @@ struct
         in
         a, b
       | Eq | Ne as op ->
-        let both x = x, x in
-        let m = ID.meet a b in
         begin match op, ID.to_bool c with
           | Eq, Some true
-          | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
+          | Ne, Some false -> (* def. equal: if they compare equal, both values must be from the meet *)
+            (id_meet_down ~old:a ~c:b, id_meet_down ~old:b ~c:a)
           | Eq, Some false
           | Ne, Some true -> (* def. unequal *)
             (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
