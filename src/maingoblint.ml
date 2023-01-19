@@ -367,9 +367,14 @@ let parse_preprocessed preprocessed =
         (path_str, system_header) (* ignore special "paths" *)
       | _ ->
         let path = Fpath.v path_str in
-        let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
-        let path' = Fpath.normalize @@ Fpath.append dir path in
-        let path' = Fpath.rem_prefix goblint_cwd path' |? path' in (* remove goblint cwd prefix (if has one) for readability *)
+        let path' = if get_bool "pre.transform-paths" then (
+            let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
+            let path' = Fpath.normalize @@ Fpath.append dir path in
+            Fpath.rem_prefix goblint_cwd path' |? path' (* remove goblint cwd prefix (if has one) for readability *)
+          )
+          else
+            path
+        in
         Preprocessor.FpathH.modify_def Fpath.Map.empty preprocessed_file (Fpath.Map.add path' system_header) Preprocessor.dependencies; (* record dependency *)
         (Fpath.to_string path', system_header)
     in
