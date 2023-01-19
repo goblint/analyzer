@@ -193,14 +193,6 @@ in
 if Node.equal programPoint MyCFG.dummy_node then (* then I want to have the 'latest' dummy node *)
   [(List.fold (fun {id=id_acc;programPoint=progP_acc;sigma=s_acc} {id=id_fold;programPoint=progP_fold;sigma=s_fold} -> if id_acc > id_fold then {id=id_acc;programPoint=progP_acc;sigma=s_acc} else {id=id_fold;programPoint=progP_fold;sigma=s_fold} ) {programPoint=programPoint;sigma=sigma;id=(-1)} tmp)] else tmp
 
-  (* let get_ID prev_node edge graph dest_programPoint dest_sigma =
-    let edgeList = get_all_edges graph
-  in
-  let tmp =
-  List.fold (fun id (fold_prev_node, fold_edge, {programPoint=p1;sigma=s1;id=i1}) -> 
-    if (NodeImpl.equal prev_node fold_prev_node)&&(Edge.equal edge fold_edge)&&(Node.equal dest_programPoint p1)&&(NodeImpl.equal_sigma dest_sigma s1) then i1 else id ) (-1) edgeList
-  in if tmp = -1 then idGenerator#increment () else tmp *)
-  
 let check_for_duplicates g =
   let edgeList = get_all_edges g
 in 
@@ -283,7 +275,7 @@ List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
 (* finds the return endpoints of a calling node *)
 let find_returning_node prev_node edge_label graph =
   let node_start = get_succeeding_node prev_node edge_label graph
-in(* TODO now implement some DFS *) 
+in
 let rec find_returning_node_helper current_node current_saldo =(
   print_string("find_returning_node_helper has been invoked with current_node="^(NodeImpl.show current_node)^", current_saldo="^(string_of_int current_saldo)^"\n");
   let succeeding_edges = get_successors_edges graph current_node
@@ -321,3 +313,25 @@ object(self)
 end
 
 let idGenerator = new id_generator
+
+class random_int_generator =
+object(self)
+  val mutable traceVarList:((int * varinfo * int) list) = []
+
+  method getRandomValue (hash:int) (var:varinfo) = 
+    print_string ("random_int_generator#getRandomValue was invoked with hash="^(string_of_int hash)^", var="^(CilType.Varinfo.show var)^";
+    \nwith current traceVarList="^(List.fold (fun acc (int_fold, vinfo_fold, value_fold) -> acc^"; ("^(string_of_int int_fold)^","^(CilType.Varinfo.show vinfo_fold)^","^(string_of_int value_fold)^")") "" traceVarList)^"\n");
+    if List.exists ( fun (int_list, vinfo_list,_) -> (int_list = hash)&&(CilType.Varinfo.equal var vinfo_list) ) traceVarList 
+      then (print_string "random value exists already\n";
+        let _,_,randomValue =List.find (fun (int_list, vinfo_list,_) -> (int_list = hash)&&(CilType.Varinfo.equal var vinfo_list)) traceVarList
+in randomValue) 
+  else
+    ( print_string "new random value is generated\n";
+      let randomValue = (Random.int 1000) - (Random.int 1000)
+  in
+  traceVarList <- (hash, var, randomValue)::traceVarList;
+  randomValue)
+
+end
+
+let randomIntGenerator = new random_int_generator
