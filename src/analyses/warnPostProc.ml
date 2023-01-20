@@ -464,7 +464,9 @@ let finalize _ =
     let alarm = D.choose alarms in (* TODO: choose a related alarm reasonably instead of random *)
     match alarm.multipiece with
     (* TODO: how to merge different categories of the message groups? *)
-    | Group group -> reposmessage_to_message {alarm with multipiece = Group {group with pieces = merged_pieces}}
+    | Group group -> if (List.length merged_pieces == 1) 
+      then reposmessage_to_message {alarm with multipiece = Single (List.hd merged_pieces)}
+      else reposmessage_to_message {alarm with multipiece = Group {group with pieces = merged_pieces}}
     | _ -> reposmessage_to_message alarm
   in
 
