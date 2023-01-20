@@ -44,6 +44,12 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
+    ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env; savesigs = Cil.zero }); (* only has one underscore *)
+    ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env; savesigs = Cil.zero });
+    ("__sigsetjmp", special [__ "env" [w]; __ "savesigs" []] @@ fun env savesigs -> Setjmp { env; savesigs }); (* has two underscores *)
+    ("sigsetjmp", special [__ "env" [w]; __ "savesigs" []] @@ fun env savesigs -> Setjmp { env; savesigs });
+    ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value; sigrestore = false });
+    ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value; sigrestore = true });
   ]
 
 (** C POSIX library functions.
