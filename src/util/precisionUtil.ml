@@ -14,7 +14,7 @@ let int_precision_from_fundec (fd: GoblintCil.fundec): int_precision =
    (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.interval" ~removeAttr:"no-interval" ~keepAttr:"interval" fd),
    (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.enums" ~removeAttr:"no-enums" ~keepAttr:"enums" fd),
    (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.congruence" ~removeAttr:"no-congruence" ~keepAttr:"congruence" fd),
-   (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.interval_set" ~removeAttr:"no-interval" ~keepAttr:"interval_set" fd))
+   (ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.int.interval_set" ~removeAttr:"no-interval_set" ~keepAttr:"interval_set" fd))
 
 let float_precision_from_fundec (fd: GoblintCil.fundec): float_precision =
   ((ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.float.interval" ~removeAttr:"no-float-interval" ~keepAttr:"float-interval" fd))
