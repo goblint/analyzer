@@ -1124,11 +1124,11 @@ struct
 
   let get_lhs_rhs_boundaries (x: t) (y: t) = 
     let lhs = List.hd x in
-    let rhs = List.rev y |> List.hd in
+    let rhs = BatList.last y in
     (fst lhs, snd rhs)
 
   let get_rhs_lhs_boundaries (x: t) (y: t) = 
-    let lhs = List.rev x |> List.hd in 
+    let lhs = BatList.last x in 
     let rhs = List.hd y in
     (snd lhs, fst rhs)
 
