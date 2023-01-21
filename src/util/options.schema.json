@@ -357,13 +357,13 @@
             "interval": {
               "title": "ana.int.interval",
               "description":
-                "Use IntDomain.Interval32: (int64 * int64) option.",
+                "Use IntDomain.Interval32: (Z.t * Z.t) option.",
               "type": "boolean",
               "default": false
             },
             "interval_set": {
               "title": "ana.int.interval_set",
-              "description": "Use IntDomain.IntervalSet: (int64 * int64) list.",
+              "description": "Use IntDomain.IntervalSet: (Z.t * Z.t) list.",
               "type": "boolean",
               "default": false
             },
