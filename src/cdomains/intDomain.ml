@@ -954,9 +954,6 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
 
-  let cartesian_product l1 l2 = 
-    List.fold_left (fun acc1 e1 -> List.fold_left (fun acc2 e2 -> (e1, e2)::acc2) acc1 l2) [] l1
-
   (* New type definition for the sweeping line algorithm used for implementiong join/meet functions. *)
   type 'a event = Enter of 'a | Exit of 'a
 
@@ -1019,7 +1016,7 @@ struct
   let binary_op ik (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
-    | _::_, _::_ -> canonize (List.filter_map op (cartesian_product x y))
+    | _::_, _::_ -> canonize (List.filter_map op (BatList.cartesian_product x y))
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
