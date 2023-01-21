@@ -1237,21 +1237,12 @@ struct
 
   let cast_to ?torg ?no_ov ik x = List.map (fun x -> norm ~cast:true ik (Some x)) x |> List.flatten
 
-  let leq_interval x y = match x, y with
-  | None, _ -> true
-  | Some _, None -> false
-  | Some (x1,x2), Some (y1,y2) -> Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
-
-  let join_interval ik x y = match x, y with
-  | None, z | z, None -> z
-  | Some (x1,x2), Some (y1,y2) -> Some (Ints_t.min x1 y1, Ints_t.max x2 y2)
-
 
   let partitions_are_approaching x y = match x, y with 
     (Some (_, ar), (_, br)), (Some (al, _), (bl, _)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
     | _,_ -> false
 
-  let merge_pair ik (a,b) (c,d) = (join_interval ik a c, (join_interval ik (Some b) (Some d) |> Option.get))
+  let merge_pair ik (a,b) (c,d) = (Interval_functor.join ik a c, (Interval_functor.join ik (Some b) (Some d) |> Option.get))
   
   let rec merge_list ik = function 
   | [] -> []
@@ -1289,7 +1280,7 @@ struct
     match xs,ys with 
     | _, [] -> []
     |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
-    |(x::xs), (y::ys) when  leq_interval (Some x) (Some y) -> interval_sets_to_partitions ik (join_interval ik acc (Some x)) xs (y::ys)
+    |(x::xs), (y::ys) when  Interval_functor.leq (Some x) (Some y) -> interval_sets_to_partitions ik (Interval_functor.join ik acc (Some x)) xs (y::ys)
     |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
     in let interval_sets_to_partitions ik xs ys = interval_sets_to_partitions ik None xs ys in
     interval_sets_to_partitions ik xs ys |> merge_list ik |> 
