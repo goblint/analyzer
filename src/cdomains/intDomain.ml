@@ -978,7 +978,7 @@ struct
     List.sort cmp
 
   let interval_set_to_events (xs: t) = 
-    List.map (fun (a, b) -> [Enter a; Exit b]) xs |> List.flatten |> sort_events
+    List.concat_map (fun (a, b) -> [Enter a; Exit b]) xs |> sort_events
 
   let two_interval_sets_to_events (xs: t) (ys: t) = (xs @ ys) |> interval_set_to_events
 
