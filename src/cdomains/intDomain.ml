@@ -933,7 +933,7 @@ end
 module IntervalSetFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list =
 struct
 
-  module Interval_functor = IntervalFunctor(Ints_t) 
+  module Interval = IntervalFunctor(Ints_t) 
 
   let name () = "IntervalSets"
 
@@ -1191,49 +1191,49 @@ struct
       if is_false res then one else top_bool
 
   let bitand ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.bitand ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.bitand ik)
 
   let bitor ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.bitor ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.bitor ik)
 
   let bitnot ik x = 
-    unary_op x (wrap_unary_interval_function Interval_functor.bitnot ik)
+    unary_op x (wrap_unary_interval_function Interval.bitnot ik)
 
   let bitxor ik x y = 
-     binary_op ik x y (wrap_binary_interval_function Interval_functor.bitxor ik)
+     binary_op ik x y (wrap_binary_interval_function Interval.bitxor ik)
 
   let shift_left ik x y = 
-     binary_op ik x y (wrap_binary_interval_function Interval_functor.shift_left ik)
+     binary_op ik x y (wrap_binary_interval_function Interval.shift_left ik)
 
   let shift_right ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.shift_right ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.shift_right ik)
 
   let lognot ik x = 
-    unary_op x (wrap_unary_interval_function Interval_functor.lognot ik)
+    unary_op x (wrap_unary_interval_function Interval.lognot ik)
 
   let logand ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.logand ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.logand ik)
 
   let logor ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.logor ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.logor ik)
 
   let add ?no_ov ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.add ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.add ik)
 
   let neg ?no_ov ik x = 
-    unary_op x (wrap_unary_interval_function Interval_functor.neg ik)
+    unary_op x (wrap_unary_interval_function Interval.neg ik)
 
   let sub ?no_ov ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.sub ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.sub ik)
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.mul ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.mul ik)
 
   let div ?no_ov ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.div ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.div ik)
 
   let rem ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval_functor.rem ik)
+    binary_op ik x y (wrap_binary_interval_function Interval.rem ik)
 
   let cast_to ?torg ?no_ov ik x = List.map (fun x -> norm ~cast:true ik (Some x)) x |> List.flatten
 
@@ -1242,7 +1242,7 @@ struct
     (Some (_, ar), (_, br)), (Some (al, _), (bl, _)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
     | _,_ -> false
 
-  let merge_pair ik (a,b) (c,d) = (Interval_functor.join ik a c, (Interval_functor.join ik (Some b) (Some d) |> Option.get))
+  let merge_pair ik (a,b) (c,d) = (Interval.join ik a c, (Interval.join ik (Some b) (Some d) |> Option.get))
   
   let rec merge_list ik = function 
   | [] -> []
@@ -1280,7 +1280,7 @@ struct
     match xs,ys with 
     | _, [] -> []
     |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
-    |(x::xs), (y::ys) when  Interval_functor.leq (Some x) (Some y) -> interval_sets_to_partitions ik (Interval_functor.join ik acc (Some x)) xs (y::ys)
+    |(x::xs), (y::ys) when  Interval.leq (Some x) (Some y) -> interval_sets_to_partitions ik (Interval.join ik acc (Some x)) xs (y::ys)
     |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
     in let interval_sets_to_partitions ik xs ys = interval_sets_to_partitions ik None xs ys in
     interval_sets_to_partitions ik xs ys |> merge_list ik |> 
@@ -1313,7 +1313,7 @@ struct
   let of_bool _ik = function true -> one | false -> zero
   
   let invariant_ikind e ik xs = 
-    List.map (fun x -> Interval_functor.invariant_ikind e ik (Some x)) xs |> 
+    List.map (fun x -> Interval.invariant_ikind e ik (Some x)) xs |> 
     let open Invariant in List.fold_left (||) (bot ())
   
   let modulo n k =
