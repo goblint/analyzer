@@ -1115,7 +1115,7 @@ struct
     | [(l,u)]  when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
 
-  let of_bool _ik = function true -> one | false -> zero 
+  let of_bool _ = function true -> one | false -> zero 
 
   let is_true x = x == one
 
@@ -1310,8 +1310,6 @@ struct
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm ik @@ Some (x,y)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
-
-  let of_bool _ik = function true -> one | false -> zero
 
   let invariant_ikind e ik xs = 
     List.map (fun x -> Interval.invariant_ikind e ik (Some x)) xs |> 
