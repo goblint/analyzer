@@ -528,6 +528,7 @@ struct
     | `Int _ -> empty
     | `Float _ -> empty
     | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
+    | `JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | `Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
@@ -668,6 +669,7 @@ struct
         | `Int _ -> (empty, TS.bot (), false)
         | `Float _ -> (empty, TS.bot (), false)
         | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
+        | `JmpBuf _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | `Mutex -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
@@ -2217,6 +2219,12 @@ struct
           st
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
+    | Setjmp { env; savesigs}, _ ->
+      (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
+       | `Address jmp_buf ->
+         let value = `Top in
+         set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
+       | _      -> failwith "problem?!")
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
