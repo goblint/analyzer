@@ -227,9 +227,11 @@ struct
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
       (* M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e; *)
       if not !Goblintutil.postsolving then (
-        let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
-        ctx.emit (Unassume {exp = e; uuids});
-        List.iter WideningTokens.add uuids
+        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (ctx.ask (EvalInt e)) = Some false) then (
+          let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
+          ctx.emit (Unassume {exp = e; uuids});
+          List.iter WideningTokens.add uuids
+        )
       );
       ctx.local
     | [] ->
