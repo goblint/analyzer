@@ -2220,11 +2220,23 @@ struct
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env; savesigs}, _ ->
-      (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
+      let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
        | `Address jmp_buf ->
          let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.node, IntDomain.Flattened.of_int (Int64.zero))) in
          set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
        | _      -> failwith "problem?!")
+      in
+      (* TODO: Distinguish between different ways to return from it! *)
+      invalidate_ret_lv st'
+    | Longjmp {env; value; sigrestore}, _ ->
+      (match eval_rv (Analyses.ask_of_ctx ctx) gs st env with
+       | `Address jmp_buf ->
+         begin match get (Analyses.ask_of_ctx ctx) gs st jmp_buf None with
+           | `JmpBuf x -> M.warn "Jump targets %s" (ValueDomain.JmpBufs.show x)
+           | _ -> failwith "problem?!"
+         end
+       | _ -> failwith "problem?!");
+      ctx.local
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
