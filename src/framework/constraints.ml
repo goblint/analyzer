@@ -17,13 +17,22 @@ module LongjmpLifter (S:Spec)
 struct
   include S
 
+  let handle_longjmp ctx (node, c) =
+    let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+    if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = (Node.find_fundec (Option.get !Node.current_node)).svar.vname then
+      Messages.warn "Potentially from same context"
+    else
+      ()
+
   let special ctx r f args =
     let desc = LibraryFunctions.find f in
     match desc.special args with
     | Longjmp {env; value; sigrestore} ->
-      let targets = ctx.ask (EvalJumpBuf env) in
+      (let targets = ctx.ask (EvalJumpBuf env) in
       M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
-      ctx.local
+      (try List.iter (handle_longjmp ctx) (JmpBufDomain.JmpBufSet.elements targets)
+      with _ -> ());
+      ctx.local)
     | _ -> S.special ctx r f args
 end
 
