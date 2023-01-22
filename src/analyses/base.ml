@@ -1248,6 +1248,14 @@ struct
         let fs = eval_funvar ctx e in
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
+    | Q.EvalJumpBuf e ->
+      (match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+       | `Address jmp_buf ->
+         begin match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
+           | `JmpBuf x -> x
+           | _ -> failwith "problem?!"
+         end
+       | _ -> failwith "problem?!");
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalLength e -> begin

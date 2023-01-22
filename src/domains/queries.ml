@@ -108,6 +108,7 @@ type _ t =
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | MustProtectedVars: mustprotectedvars -> LS.t t
@@ -160,6 +161,7 @@ struct
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
+    | EvalJumpBuf _ -> (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | MustProtectedVars _ -> (module LS)
@@ -211,6 +213,7 @@ struct
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
+    | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | MustProtectedVars _ -> LS.top ()
@@ -267,6 +270,7 @@ struct
     | Any (InvariantGlobal _) -> 38
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
+    | Any (EvalJumpBuf _) -> 41
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -295,6 +299,7 @@ struct
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
@@ -327,6 +332,7 @@ struct
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
+    | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
@@ -365,6 +371,7 @@ struct
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
     | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
+    | Any (EvalJumpBuf e) -> Pretty.dprintf "EvalJumpBuf %a" CilType.Exp.pretty e
     | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"

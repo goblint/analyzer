@@ -8,6 +8,25 @@ open GobConfig
 
 module M = Messages
 
+(** Lifts a [Spec] so it can take care of Longjmp *)
+module LongjmpLifter (S:Spec)
+  : Spec with module D = S.D
+          and module G = S.G
+          and module C = S.C
+=
+struct
+  include S
+
+  let special ctx r f args =
+    let desc = LibraryFunctions.find f in
+    match desc.special args with
+    | Longjmp {env; value; sigrestore} ->
+      let targets = ctx.ask (EvalJumpBuf env) in
+      M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
+      ctx.local
+    | _ -> S.special ctx r f args
+end
+
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
   : Spec with module D = Lattice.HConsed (S.D)
