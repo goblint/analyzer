@@ -2222,7 +2222,7 @@ struct
     | Setjmp { env; savesigs}, _ ->
       (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
        | `Address jmp_buf ->
-         let value = `Top in
+         let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.node, IntDomain.Flattened.of_int (Int64.zero))) in
          set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
        | _      -> failwith "problem?!")
     | _, _ -> begin

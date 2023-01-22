@@ -109,6 +109,10 @@ struct
     | TNamed ({tname = "pthread_t"; _}, _) -> true
     | _ -> false
 
+  let is_jmp_buf_type = function
+    | TNamed ({tname = "jmp_buf"; _}, _) -> true
+    | _ -> false
+
   let array_length_idx default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
     BatOption.map_default (fun x-> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint x) default l
@@ -126,9 +130,9 @@ struct
       let len = array_length_idx (IndexDomain.bot ()) length in
       `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.empty ())
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
-  (* TODO: make bot of jmpbuf? *)
 
   let is_bot_value x =
     match x with
@@ -148,6 +152,7 @@ struct
   let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
     | t when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -165,6 +170,7 @@ struct
   let rec top_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -196,6 +202,7 @@ struct
   let rec zero_init_value ?(varAttr=[]) (t:typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
     | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
