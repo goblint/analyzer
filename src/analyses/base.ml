@@ -2222,7 +2222,8 @@ struct
     | Setjmp { env; savesigs}, _ ->
       let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
        | `Address jmp_buf ->
-         let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.node, IntDomain.Flattened.of_int (Int64.zero))) in
+         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+         let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.node, IntDomain.Flattened.of_int (Int64.of_int controlctx))) in
          set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
        | _      -> failwith "problem?!")
       in
