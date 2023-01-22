@@ -517,129 +517,6 @@ struct
       warn_type "join" x y;
       `Top
 
-  let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
-    let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
-    | (`Float x, `Float y) -> `Float (FD.join x y)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
-        | Some x -> AD.(join y not_null)
-        | None -> AD.join y AD.top_ptr)
-    | (`Address x, `Address y) -> `Address (AD.join x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `Blob can not contain array -> normal join  *)
-    | `Blob (x,s,o), y
-    | y, `Blob (x,s,o) ->
-      `Blob (join (x:t) y, s, o)
-    | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Thread y (* TODO: ignores address! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | _ ->
-      warn_type "join" x y;
-      `Top
-
-  let rec smart_widen x_eval_int y_eval_int x y:t =
-    let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
-    | (`Float x, `Float y) -> `Float (FD.widen x y)
-    (* TODO: symmetric widen, wtf? *)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
-        | Some x -> AD.(widen y (join y not_null))
-        | None -> AD.widen y (AD.join y AD.top_ptr))
-    | (`Address x, `Address y) -> `Address (AD.widen x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
-        | x -> x, `Top) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
-    | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Thread y (* TODO: ignores address! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | _ ->
-      warn_type "widen" x y;
-      `Top
-
-
-  let rec smart_leq x_eval_int y_eval_int x y =
-    let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
-    match (x,y) with
-    | (_, `Top) -> true
-    | (`Top, _) -> false
-    | (`Bot, _) -> true
-    | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`Float x, `Float y) -> FD.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
-    | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
-    | (`Address x, `Address y) -> AD.leq x y
-    | (`Struct x, `Struct y) ->
-          Structs.leq_with_fct leq_elem x y
-    | (`Union (f, x), `Union (g, y)) ->
-        UnionDomain.Field.leq f g && leq_elem x y
-    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
-    | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
-    | (`Thread x, `Thread y) -> Threads.leq x y
-    | (`Int x, `Thread y) -> true
-    | (`Address x, `Thread y) -> true
-    | (`Mutex, `Mutex) -> true
-    | _ -> warn_type "leq" x y; false
-
-  let rec meet x y =
-    match (x,y) with
-    | (`Bot, _) -> `Bot
-    | (_, `Bot) -> `Bot
-    | (`Top, x) -> x
-    | (x, `Top) -> x
-    | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Float x, `Float y) -> `Float (FD.meet x y)
-    | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
-    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
-    | (`Address x, `Address y) -> `Address (AD.meet x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
-    | (`Union x, `Union y) -> `Union (Unions.meet x y)
-    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
-    | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Int x (* TODO: ignores thread! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Address x (* TODO: ignores thread! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | _ ->
-      warn_type "meet" x y;
-      `Bot
-
   let rec widen x y =
     match (x,y) with
     | (`Top, _) -> `Top
@@ -672,6 +549,65 @@ struct
     | _ ->
       warn_type "widen" x y;
       `Top
+
+  let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
+    let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
+    match (x,y) with
+    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
+    | _ -> join x y  (* Others can not contain array -> normal join  *)
+
+  let rec smart_widen x_eval_int y_eval_int x y:t =
+    let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
+    match (x,y) with
+    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
+        | x -> x, `Top) (* f <> g *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
+    | _ -> widen x y  (* Others can not contain array -> normal widen  *)
+
+
+  let rec smart_leq x_eval_int y_eval_int x y =
+    let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
+    match (x,y) with
+    | (`Struct x, `Struct y) ->
+          Structs.leq_with_fct leq_elem x y
+    | (`Union (f, x), `Union (g, y)) ->
+        UnionDomain.Field.leq f g && leq_elem x y
+    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
+    | _ -> leq x y (* Others can not contain array -> normal leq *)
+
+  let rec meet x y =
+    match (x,y) with
+    | (`Bot, _) -> `Bot
+    | (_, `Bot) -> `Bot
+    | (`Top, x) -> x
+    | (x, `Top) -> x
+    | (`Int x, `Int y) -> `Int (ID.meet x y)
+    | (`Float x, `Float y) -> `Float (FD.meet x y)
+    | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
+    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (`Address x, `Address y) -> `Address (AD.meet x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
+    | (`Union x, `Union y) -> `Union (Unions.meet x y)
+    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
+    | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Int x (* TODO: ignores thread! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Address x (* TODO: ignores thread! *)
+    | (`Mutex, `Mutex) -> `Mutex
+    | _ ->
+      warn_type "meet" x y;
+      `Bot
 
   let rec narrow x y =
     match (x,y) with
