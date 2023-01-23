@@ -1363,9 +1363,6 @@ struct
     let intv2 = norm ik @@ Some (Ints_t.add excl Ints_t.one, max) in
     intv1 @ intv2
 
-  let excl_to_intervalset (ik: ikind) ((rl, rh): (int64 * int64)) (excl: int_t): t = 
-    excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
-
   let of_excl_list ik (excls: int_t list) = 
     let excl_list = List.map (excl_range_to_intervalset ik (range ik)) excls in
     List.fold_left (meet ik) (top_of ik) excl_list
@@ -1373,6 +1370,9 @@ struct
   let refine_with_excl_list ik (intv : t) = function
     | None -> intv
     | Some (xs, range) -> 
+      let excl_to_intervalset (ik: ikind) ((rl, rh): (int64 * int64)) (excl: int_t): t = 
+        excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
+      in
       let excl_list = List.map (excl_to_intervalset ik range) xs in 
       List.fold_left (meet ik) intv excl_list
 
