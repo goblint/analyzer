@@ -1330,26 +1330,26 @@ struct
     if Ints_t.compare result Ints_t.zero >= 0 then result
     else Ints_t.add result k
 
-  let refine_with_congruence_interval ik (cong : (int_t * int_t ) option) (intv : (int_t * int_t ) option): t =
-    match intv, cong with
-    | Some (x, y), Some (c, m) ->
-      if Ints_t.equal m Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then []
-      else if Ints_t.equal m Ints_t.zero then
-        [(c, c)]
-      else
-        let (min_ik, max_ik) = range ik in
-        let rcx =
-          if Ints_t.equal x min_ik then x else
-            Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
-        let lcy =
-          if Ints_t.equal y max_ik then y else
-            Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
-        if Ints_t.compare rcx lcy > 0 then []
-        else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
-        else norm ik @@ Some (rcx, lcy)
-    | _ -> []
-
   let refine_with_congruence ik (intvs: t) (cong: (int_t * int_t ) option): t =
+    let refine_with_congruence_interval ik (cong : (int_t * int_t ) option) (intv : (int_t * int_t ) option): t =
+      match intv, cong with
+      | Some (x, y), Some (c, m) ->
+        if Ints_t.equal m Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then []
+        else if Ints_t.equal m Ints_t.zero then
+          [(c, c)]
+        else
+          let (min_ik, max_ik) = range ik in
+          let rcx =
+            if Ints_t.equal x min_ik then x else
+              Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
+          let lcy =
+            if Ints_t.equal y max_ik then y else
+              Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
+          if Ints_t.compare rcx lcy > 0 then []
+          else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
+          else norm ik @@ Some (rcx, lcy)
+      | _ -> []
+    in
     List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
