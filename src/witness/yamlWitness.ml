@@ -123,7 +123,10 @@ let yaml_entries_to_file yaml_entries file =
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
   (* estimate how big it should be + extra in case empty *)
-  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 4096 + 2048) yaml in
+  let text = match Yaml.to_string ~len:(List.length yaml_entries * 4096 + 2048) yaml with
+    | Ok text -> text
+    | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
+  in
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
 let entry_type_enabled entry_type =
@@ -452,7 +455,10 @@ struct
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
-    let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
+    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
+      | Ok yaml -> yaml
+      | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
+    in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
     cnt_confirmed := 0;
