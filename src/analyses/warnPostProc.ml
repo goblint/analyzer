@@ -381,8 +381,9 @@ let finalize _ =
             | _ -> node
           end
         | _ -> node in
-      HM.replace solution (`L og_node) (D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol (D.empty ()));
-      HM.replace hoistHM (`L og_node) conds in
+      HM.modify_def (D.empty ()) (`L og_node) (D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol) solution;
+      HM.modify_def (CondSet.empty ()) (`L og_node) (CondSet.union conds) hoistHM;
+  in
 
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->
