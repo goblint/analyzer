@@ -26,6 +26,20 @@ let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_ov
 let widening_thresholds = ResettableLazy.from_fun WideningThresholds.thresholds
 let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThresholds.thresholds)
 
+let set_overflow_flag ~cast ~underflow ~overflow ik =
+  let signed = Cil.isSigned ik in
+  if !GU.postsolving && signed && not cast then
+    Goblintutil.svcomp_may_overflow := true;
+  let sign = if signed then "Signed" else "Unsigned" in
+  match underflow, overflow with
+  | true, true ->
+    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+  | true, false ->
+    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+  | false, true ->
+    M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+  | false, false -> assert false
+
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
   ResettableLazy.reset widening_thresholds_desc
@@ -1035,20 +1049,6 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
-  let set_overflow_flag ~cast ~underflow ~overflow ik =
-    let signed = Cil.isSigned ik in
-    if !GU.postsolving && signed && not cast then
-      Goblintutil.svcomp_may_overflow := true;
-    let sign = if signed then "Signed" else "Unsigned" in
-    match underflow, overflow with
-    | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-    | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
-    | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-    | false, false -> assert false
-
   let norm ?(cast=false) ik = function 
     | None -> [] 
     | Some (x,y) ->
@@ -1089,17 +1089,21 @@ struct
   let leq (xs: t) (ys: t) = match xs, ys with
     | [], _ -> true
     | _, [] -> false
-    | _::_, _::_ -> let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
+    | _::_, _::_ -> 
+      let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
       List.for_all (fun x -> List.exists (fun y -> leq_interval x y) ys) xs   
 
   let join ik (x: t) (y: t): t = 
     two_interval_sets_to_events x y |> 
     combined_event_list `Join |>
-    (* ignore (List.iter (fun e -> let _ = Pretty.printf "[middle] :: %s\n" (show_event e) in ()) output); *)
     events_to_intervals |> 
     remove_gaps
 
-  let meet ik (x: t) (y: t): t = two_interval_sets_to_events x y |> combined_event_list  `Meet |> events_to_intervals |> remove_gaps
+  let meet ik (x: t) (y: t): t = 
+    two_interval_sets_to_events x y |> 
+    combined_event_list  `Meet |> 
+    events_to_intervals |> 
+    remove_gaps
 
   let to_int = function [(x, y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
