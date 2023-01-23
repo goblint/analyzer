@@ -387,7 +387,7 @@ let finalize _ =
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->
       match k with
-      | `G (FunctionEntry n) -> conds_start (FunctionEntry n)
+      (* | `G (FunctionEntry n) -> conds_start (FunctionEntry n) *)
       | `G Function _ -> () (* cannot find next nodes for end node *)
       | `L node ->
         HM.replace hoistHM k @@ hoist_entry node;
@@ -398,6 +398,8 @@ let finalize _ =
         (* Add hoisted location as a related piece in each message. *)
         HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
     ) solution;
+
+  conds_start (Node.FunctionEntry fd);
 
   antSolHM := solution;
 
