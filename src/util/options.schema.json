@@ -2294,7 +2294,7 @@
               "title": "witness.yaml.certificate",
               "description": "YAML witness certificate output path",
               "type": "string",
-              "default": "witness.certificate.yml"
+              "default": ""
             }
           },
           "additionalProperties": false

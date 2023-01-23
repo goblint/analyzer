@@ -664,5 +664,7 @@ struct
       (Pretty.dprintf "total validation entries: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error + !cnt_disabled), None);
     ];
 
-    yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
+    let certificate_path = GobConfig.get_string "witness.yaml.certificate" in
+    if certificate_path <> "" then
+      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path)
 end
