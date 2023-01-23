@@ -408,6 +408,15 @@ struct
   include Lattice.Chain (ChainParams)
 end
 
+(* TODO: record *)
+let cnt_confirmed = ref 0
+let cnt_unconfirmed = ref 0
+let cnt_refuted = ref 0
+let cnt_unchecked = ref 0
+let cnt_unsupported = ref 0
+let cnt_error = ref 0
+let cnt_disabled = ref 0
+
 module Validator (R: ResultQuery.SpecSysSol2) =
 struct
   open R
@@ -446,13 +455,13 @@ struct
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
-    let cnt_confirmed = ref 0 in
-    let cnt_unconfirmed = ref 0 in
-    let cnt_refuted = ref 0 in
-    let cnt_unchecked = ref 0 in
-    let cnt_unsupported = ref 0 in
-    let cnt_error = ref 0 in
-    let cnt_disabled = ref 0 in
+    cnt_confirmed := 0;
+    cnt_unconfirmed := 0;
+    cnt_refuted := 0;
+    cnt_unchecked := 0;
+    cnt_unsupported := 0;
+    cnt_error := 0;
+    cnt_disabled := 0;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
