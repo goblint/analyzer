@@ -40,6 +40,7 @@ module Base =
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (Hooks: Hooks with module S = S and module HM = HM) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -185,7 +186,7 @@ module Base =
     module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
-    let solve box st vs marshal =
+    let solve st vs marshal =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
       let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
       let data =
@@ -312,7 +313,7 @@ module Base =
               if term then
                 match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *) | Narrow -> S.Dom.narrow old tmp
               else
-                box x old tmp
+                box old tmp
           in
           if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
@@ -1021,7 +1022,7 @@ module Base =
   end
 
 (** TD3 with no hooks. *)
-module Basic: GenericEqBoxIncrSolver =
+module Basic: GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1054,7 +1055,7 @@ module Basic: GenericEqBoxIncrSolver =
   end
 
 (** TD3 with eval skipping using [dep_vals]. *)
-module DepVals: GenericEqBoxIncrSolver =
+module DepVals: GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1150,7 +1151,7 @@ module DepVals: GenericEqBoxIncrSolver =
         ) dep_vals;
       {base = base'; dep_vals = dep_vals'}
 
-    let solve box st vs marshal =
+    let solve st vs marshal =
       let base_marshal = match marshal with
         | Some {base; dep_vals} ->
           current_dep_vals := dep_vals;
@@ -1159,7 +1160,7 @@ module DepVals: GenericEqBoxIncrSolver =
           current_dep_vals := HM.create 10;
           None
       in
-      let (rho, base_marshal') = Base.solve box st vs base_marshal in
+      let (rho, base_marshal') = Base.solve st vs base_marshal in
       (rho, {base = base_marshal'; dep_vals = !current_dep_vals})
   end
 
@@ -1172,13 +1173,13 @@ let after_config () =
     if restart_sided || restart_wpoint || restart_once then (
       M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
       (* TODO: fix DepVals with restarting, https://github.com/goblint/analyzer/pull/738#discussion_r876005821 *)
-      Selector.add_solver ("td3", (module Basic: GenericEqBoxIncrSolver))
+      Selector.add_solver ("td3", (module Basic: GenericEqIncrSolver))
     )
     else
-      Selector.add_solver ("td3", (module DepVals: GenericEqBoxIncrSolver))
+      Selector.add_solver ("td3", (module DepVals: GenericEqIncrSolver))
   )
   else
-    Selector.add_solver ("td3", (module Basic: GenericEqBoxIncrSolver))
+    Selector.add_solver ("td3", (module Basic: GenericEqIncrSolver))
 
 let () =
   AfterConfig.register after_config

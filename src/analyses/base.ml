@@ -2359,7 +2359,7 @@ struct
               in
               Queries.Hashtbl.replace querycache anyq (Obj.repr r);
               r
-          )
+            )
         in
         let querycache = Queries.Hashtbl.create 13 in
         ctx' ~querycache Queries.Set.empty
