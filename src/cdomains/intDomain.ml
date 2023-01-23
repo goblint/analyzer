@@ -952,6 +952,10 @@ struct
 
   type int_t = Ints_t.t
 
+  (* 
+    Each domain's element is guaranteed to be in canonical form. That is, each interval contained
+    inside the set does not overlap with each other and they are not adjecent. 
+  *)
   type t = (Ints_t.t * Ints_t.t) list [@@deriving eq, hash, ord]
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
