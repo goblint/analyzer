@@ -1,4 +1,3 @@
-// SKIP
 // PARAM: --enable ana.int.interval_set --enable ana.int.interval_threshold_widening
 
 #include <pthread.h>
