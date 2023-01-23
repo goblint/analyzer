@@ -977,8 +977,7 @@ struct
     | Enter x -> Printf.sprintf "Enter %s" (Ints_t.to_string x) 
     | Exit x -> Printf.sprintf "Exit %s" (Ints_t.to_string x)
 
-  let sort_events =
-    let cmp x y = 
+  let cmp_events x y = 
       let res = Ints_t.compare (unbox_event x) (unbox_event y) in
       if res <> 0 then res
       else
@@ -988,13 +987,14 @@ struct
           | (Exit _, Enter _) -> 1
           | (_, _) -> 0
         end
-    in
-    List.sort cmp
 
   let interval_set_to_events (xs: t) = 
-    List.concat_map (fun (a, b) -> [Enter a; Exit b]) xs |> sort_events
+    List.concat_map (fun (a, b) -> [Enter a; Exit b]) xs
 
-  let two_interval_sets_to_events (xs: t) (ys: t) = (xs @ ys) |> interval_set_to_events
+  let two_interval_sets_to_events (xs: t) (ys: t) =
+    let xs = interval_set_to_events xs in
+    let ys = interval_set_to_events ys in
+    List.merge cmp_events xs ys
 
   (* Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
      This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
@@ -1019,7 +1019,8 @@ struct
     List.fold_left aux [] xs |> List.rev
 
   let canonize (xs: t) = 
-    interval_set_to_events xs |> 
+    interval_set_to_events xs |>
+    List.sort cmp_events |>
     combined_event_list `Join |> 
     events_to_intervals
 
@@ -1030,7 +1031,7 @@ struct
   let binary_op ik (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
-    | _::_, _::_ -> canonize (List.filter_map op (BatList.cartesian_product x y))
+    | _, _ -> canonize (List.filter_map op (BatList.cartesian_product x y))
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -1094,16 +1095,21 @@ struct
       List.for_all (fun x -> List.exists (fun y -> leq_interval x y) ys) xs   
 
   let join ik (x: t) (y: t): t = 
-    two_interval_sets_to_events x y |> 
+    let out = two_interval_sets_to_events x y |> 
     combined_event_list `Join |>
-    events_to_intervals |> 
-    remove_gaps
+    events_to_intervals |>
+    remove_gaps in
+    (* ignore (Pretty.printf "join: %s\n" (show out)); *)
+    out
 
   let meet ik (x: t) (y: t): t = 
-    two_interval_sets_to_events x y |> 
+    let out = two_interval_sets_to_events x y |> 
     combined_event_list  `Meet |> 
     events_to_intervals |> 
-    remove_gaps
+    remove_gaps in
+    (* ignore (Pretty.printf "meet: %s\n" (show out)); *)
+    out
+
 
   let to_int = function [(x, y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
@@ -1224,7 +1230,9 @@ struct
     unary_op x (wrap_unary_interval_function Interval.neg ik)
 
   let sub ?no_ov ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.sub ik)
+    let out = binary_op ik x y (wrap_binary_interval_function Interval.sub ik) in
+    (* ignore (Pretty.printf "sub out: %s\n" (show out)); *)
+    out
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
     binary_op ik x y (wrap_binary_interval_function Interval.mul ik)
@@ -1235,7 +1243,8 @@ struct
   let rem ik x y = 
     binary_op ik x y (wrap_binary_interval_function Interval.rem ik)
 
-  let cast_to ?torg ?no_ov ik x = List.map (fun x -> norm ~cast:true ik (Some x)) x |> List.flatten
+  let cast_to ?torg ?no_ov ik x = 
+    List.map (fun x -> norm ~cast:true ik (Some x)) x |> List.flatten |> canonize
 
 
   let partitions_are_approaching x y = match x, y with 
@@ -3294,7 +3303,7 @@ module IntDomTupleImpl = struct
       match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik in
     let no_ov_intv_set =
       match intv_set with Some i -> no_overflow_interval_set ik i | _ -> should_ignore_overflow ik in
-    let no_ov = no_ov_intv || no_ov_intv_set in
+  let no_ov = no_ov_intv || no_ov_intv_set in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
       , intv
