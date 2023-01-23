@@ -447,7 +447,8 @@ struct
     let loop_locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        if not loc.synthetic then
+        (* TODO: filter synthetic? *)
+        if WitnessInvariant.is_invariant_node n then
           Locator.add locator loc lvar;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then
           Locator.add loop_locator loc lvar
