@@ -84,7 +84,10 @@ struct
     }
     in
 
-    let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) in
+    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) with
+      | Ok yaml -> yaml
+      | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
+    in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
     let module InvariantParser = WitnessUtil.InvariantParser in
