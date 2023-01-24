@@ -13,6 +13,8 @@ module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
 
+module ML = LibraryDesc.MathLifted
+
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
@@ -99,6 +101,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | TmpSpecial:  varinfo -> ML.t t
 
 type 'a result = 'a
 
@@ -159,6 +162,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | TmpSpecial _ -> (module ML)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -218,6 +222,7 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | TmpSpecial _ -> ML.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -274,6 +279,7 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
+    | Any (TmpSpecial _) -> 42
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -316,6 +322,7 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
+      | Any (TmpSpecial vi1), Any (TmpSpecial vi2) -> CilType.Varinfo.compare vi1 vi2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -351,6 +358,7 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
+    | Any (TmpSpecial vi) -> CilType.Varinfo.hash vi
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -404,6 +412,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any (TmpSpecial vi) -> Pretty.dprintf "TmpSpecial %a" CilType.Varinfo.pretty vi
 end
 
 let to_value_domain_ask (ask: ask) =
