@@ -1015,7 +1015,7 @@ struct
     | (Enter x)::(Exit y)::xs  -> (x, y)::(events_to_intervals xs)
     | _ -> failwith "Invalid events list"
 
-  let remove_gaps (xs: t) = 
+  let remove_empty_gaps (xs: t) = 
     let aux acc (l, r) = match acc with
       | ((a, b)::acc') when Ints_t.compare (Ints_t.add b (Ints_t.one)) l >= 0 -> (a, r)::acc'
       | _ -> (l, r)::acc
@@ -1103,13 +1103,13 @@ struct
     two_interval_sets_to_events x y |> 
     combined_event_list `Join |>
     events_to_intervals |>
-    remove_gaps
+    remove_empty_gaps
 
   let meet ik (x: t) (y: t): t = 
     two_interval_sets_to_events x y |> 
     combined_event_list  `Meet |> 
     events_to_intervals |> 
-    remove_gaps
+    remove_empty_gaps
 
   let to_int = function [(x, y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
