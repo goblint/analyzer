@@ -1054,7 +1054,7 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
-  let norm ?(cast=false) ik = function 
+  let norm_interval ?(cast=false) ik = function 
     | None -> [] 
     | Some (x,y) ->
       if Ints_t.compare x y > 0 then 
@@ -1128,7 +1128,7 @@ struct
 
   let is_false x = x == zero
 
-  let of_interval ik (x, y) = norm ik @@ Some (x, y)
+  let of_interval ik (x, y) = norm_interval ik @@ Some (x, y)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
 
@@ -1211,7 +1211,7 @@ struct
 
   let bit f ik (i1, i2) =
     match (interval_to_int i1), (interval_to_int i2) with
-    | Some x, Some y -> (try norm ik (Interval.of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
+    | Some x, Some y -> (try norm_interval ik (Interval.of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
     | _ -> top_of ik
 
   let bit1 f ik i1 =
@@ -1221,7 +1221,7 @@ struct
 
   let bitcomp f ik (i1, i2) = 
     match (interval_to_int i1, interval_to_int i2) with 
-    | Some x, Some y -> (try norm ik (Interval.of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
+    | Some x, Some y -> (try norm_interval ik (Interval.of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
     | _, _ -> (set_overflow_flag ~cast:false ~underflow:true ~overflow:true ik;  top_of ik)
 
   let bitand ik x y = 
@@ -1261,22 +1261,22 @@ struct
     binary_op x y interval_logor
 
   let add ?no_ov ik x y =
-    let interval_add ((x1, x2), (y1, y2)) = norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2) in
+    let interval_add ((x1, x2), (y1, y2)) = norm_interval ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2) in
     binary_op x y interval_add
 
   let neg ?no_ov ik x = 
-    let neg_interval ((x, y)) = norm ik @@ Some (Ints_t.neg y, Ints_t.neg x) in
+    let neg_interval ((x, y)) = norm_interval ik @@ Some (Ints_t.neg y, Ints_t.neg x) in
     unary_op x neg_interval
 
   let sub ?no_ov ik x y = 
-    let interval_sub ((x1, x2), (y1, y2)) = norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) in
+    let interval_sub ((x1, x2), (y1, y2)) = norm_interval ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) in
     binary_op x y interval_sub
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
     let interval_mul ((x1, x2), (y1, y2)) = 
       let x1y1 = (Ints_t.mul x1 y1) in let x1y2 = (Ints_t.mul x1 y2) in
       let x2y1 = (Ints_t.mul x2 y1) in let x2y2 = (Ints_t.mul x2 y2) in
-      norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)), (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))
+      norm_interval ik @@ Some ((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)), (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))
     in
     binary_op x y interval_mul
 
@@ -1293,7 +1293,7 @@ struct
         let x2y1n = (Ints_t.div x2 y1) in let x2y2n = (Ints_t.div x2 y2) in
         let x1y1p = (Ints_t.div x1 y1) in let x1y2p = (Ints_t.div x1 y2) in
         let x2y1p = (Ints_t.div x2 y1) in let x2y2p = (Ints_t.div x2 y2) in
-        norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
+        norm_interval ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
                          (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
     end
     in
@@ -1313,7 +1313,7 @@ struct
     binary_op x y interval_rem
 
   let cast_to ?torg ?no_ov ik x = 
-    List.concat_map (fun x -> norm ~cast:true ik (Some x)) x |> canonize
+    List.concat_map (fun x -> norm_interval ~cast:true ik (Some x)) x |> canonize
 
 
   let partitions_are_approaching x y = match x, y with 
@@ -1400,9 +1400,9 @@ struct
     |> List.rev
     |> List.map snd  
 
-  let starting ?(suppress_ovwarn=false) ik n = norm ik @@ Some (n, snd (range ik))
+  let starting ?(suppress_ovwarn=false) ik n = norm_interval ik @@ Some (n, snd (range ik))
 
-  let ending ?(suppress_ovwarn=false) ik n = norm ik @@ Some (fst (range ik), n)
+  let ending ?(suppress_ovwarn=false) ik n = norm_interval ik @@ Some (fst (range ik), n)
 
   let minimal = function 
     | [] -> None 
@@ -1412,7 +1412,7 @@ struct
     | [] -> None
     | xs ->  let last = BatList.last xs |> snd in Some last
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm ik @@ Some (x,y)
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm_interval ik @@ Some (x,y)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
 
@@ -1441,8 +1441,8 @@ struct
             if Ints_t.equal y max_ik then y else
               Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
           if Ints_t.compare rcx lcy > 0 then []
-          else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx)
-          else norm ik @@ Some (rcx, lcy)
+          else if Ints_t.equal rcx lcy then norm_interval ik @@ Some (rcx, rcx)
+          else norm_interval ik @@ Some (rcx, lcy)
       | _ -> []
     in
     List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
@@ -1454,8 +1454,8 @@ struct
     | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
 
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t = 
-    let intv1 = norm ik @@ Some (min, Ints_t.sub excl Ints_t.one) in
-    let intv2 = norm ik @@ Some (Ints_t.add excl Ints_t.one, max) in
+    let intv1 = norm_interval ik @@ Some (min, Ints_t.sub excl Ints_t.one) in
+    let intv2 = norm_interval ik @@ Some (Ints_t.add excl Ints_t.one, max) in
     intv1 @ intv2
 
   let of_excl_list ik (excls: int_t list) = 
@@ -1480,7 +1480,7 @@ struct
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let list_pair_arb = QCheck.small_list pair_arb in
-    let canonize_randomly_generated_list = fun x -> List.map (fun x -> Some x) x |> List.map (norm ik) |> List.flatten |> canonize in
+    let canonize_randomly_generated_list = fun x -> List.map (fun x -> Some x) x |> List.map (norm_interval ik) |> List.flatten |> canonize in
     let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
 
