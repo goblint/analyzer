@@ -1030,12 +1030,12 @@ struct
 
   let unary_op (x: t) op = match x with 
     | [] -> []
-    | _ -> canonize (List.filter_map op x)
+    | _ -> canonize @@ List.concat_map op x
 
-  let binary_op ik (x: t) (y: t) op : t = match x, y with
+  let binary_op (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
-    | _, _ -> canonize (List.filter_map op (BatList.cartesian_product x y))
+    | _, _ -> canonize @@ List.concat_map op (BatList.cartesian_product x y)
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -1099,31 +1099,26 @@ struct
     | (xl,xr)::xs', (yl,yr)::ys' -> if leq_interval (xl,xr) (yl,yr) then
       leq xs' ys else if Ints_t.compare xr yl < 0 then false else  leq xs ys'
   let join ik (x: t) (y: t): t = 
-    let out = two_interval_sets_to_events x y |> 
+    two_interval_sets_to_events x y |> 
     combined_event_list `Join |>
     events_to_intervals |>
-    remove_gaps in
-    (* ignore (Pretty.printf "join: %s\n" (show out)); *)
-    out
+    remove_gaps
 
   let meet ik (x: t) (y: t): t = 
-    let out = two_interval_sets_to_events x y |> 
+    two_interval_sets_to_events x y |> 
     combined_event_list  `Meet |> 
     events_to_intervals |> 
-    remove_gaps in
-    (* ignore (Pretty.printf "meet: %s\n" (show out)); *)
-    out
-
+    remove_gaps
 
   let to_int = function [(x, y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
 
   let zero = [(Ints_t.zero, Ints_t.zero)]
-  let one =  [(Ints_t.one, Ints_t.one)]
+  let one = [(Ints_t.one, Ints_t.one)]
 
   let top_bool = [(Ints_t.zero, Ints_t.one)]
 
   let to_bool = function  
-    | [(l,u)]  when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
+    | [(l,u)] when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
 
   let of_bool _ = function true -> one | false -> zero 
@@ -1132,9 +1127,9 @@ struct
 
   let is_false x = x == zero
 
-  let wrap_unary_interval_function f ik a = f ik (Some a)
+  let of_interval ik (x, y) = norm ik @@ Some (x, y)
 
-  let wrap_binary_interval_function f ik (a, b) = f ik (Some a) (Some b)
+  let of_int ik (x: int_t) = of_interval ik (x, x)
 
   let get_lhs_rhs_boundaries (x: t) (y: t) = 
     let lhs = List.hd x in
@@ -1200,55 +1195,124 @@ struct
     else 
     if is_false res then one else top_bool
 
+  let interval_to_int i = Interval.to_int (Some i)
+  let interval_to_bool i = Interval.to_bool (Some i)
+
+  let log f ik (i1, i2) = 
+    match (interval_to_bool i1, interval_to_bool i2) with
+    | Some x, Some y -> of_bool ik (f x y)
+    | _ -> top_of ik
+
+  let log1 f ik i1 = 
+    match interval_to_bool i1 with
+    | Some x -> of_bool ik (f ik x)
+    | _ -> top_of ik
+
+  let bit f ik (i1, i2) =
+    match (interval_to_int i1), (interval_to_int i2) with
+    | Some x, Some y -> (try norm ik (Interval.of_int ik (f ik x y)) with Division_by_zero -> top_of ik)
+    | _ -> top_of ik
+
+  let bit1 f ik i1 =
+    match interval_to_int i1 with
+    | Some x -> of_int ik (f ik x)
+    | _ -> top_of ik
+
+  let bitcomp f ik (i1, i2) = 
+    match (interval_to_int i1, interval_to_int i2) with 
+    | Some x, Some y -> (try norm ik (Interval.of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
+    | _, _ -> (set_overflow_flag ~cast:false ~underflow:true ~overflow:true ik;  top_of ik)
+
   let bitand ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.bitand ik)
+    let interval_bitand = bit (fun _ik -> Ints_t.bitand) ik in
+    binary_op x y interval_bitand
 
   let bitor ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.bitor ik)
-
-  let bitnot ik x = 
-    unary_op x (wrap_unary_interval_function Interval.bitnot ik)
+    let interval_bitor = bit (fun _ik -> Ints_t.bitor) ik in
+    binary_op x y interval_bitor
 
   let bitxor ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.bitxor ik)
+    let interval_bitxor = bit (fun _ik -> Ints_t.bitxor) ik in
+    binary_op x y interval_bitxor
+
+  let bitnot ik x = 
+    let interval_bitnot = bit1 (fun _ik -> Ints_t.bitnot) ik in
+    unary_op x interval_bitnot
 
   let shift_left ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.shift_left ik)
+    let interval_shiftleft = bitcomp (fun _ik x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
+    binary_op x y interval_shiftleft
 
   let shift_right ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.shift_right ik)
+    let interval_shiftright = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
+    binary_op x y interval_shiftright
 
   let lognot ik x = 
-    unary_op x (wrap_unary_interval_function Interval.lognot ik)
+    let interval_lognot = log1 (fun _ik -> not) ik in
+    unary_op x interval_lognot
 
   let logand ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.logand ik)
+    let interval_logand = log (&&) ik in
+    binary_op x y interval_logand
 
   let logor ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.logor ik)
+    let interval_logor = log (||) ik in
+    binary_op x y interval_logor
 
-  let add ?no_ov ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.add ik)
+  let add ?no_ov ik x y =
+    let interval_add ((x1, x2), (y1, y2)) = norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2) in
+    binary_op x y interval_add
 
   let neg ?no_ov ik x = 
-    unary_op x (wrap_unary_interval_function Interval.neg ik)
+    let neg_interval ((x, y)) = norm ik @@ Some (Ints_t.neg y, Ints_t.neg x) in
+    unary_op x neg_interval
 
   let sub ?no_ov ik x y = 
-    let out = binary_op ik x y (wrap_binary_interval_function Interval.sub ik) in
-    (* ignore (Pretty.printf "sub out: %s\n" (show out)); *)
-    out
+    let interval_sub ((x1, x2), (y1, y2)) = norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) in
+    binary_op x y interval_sub
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) : t = 
-    binary_op ik x y (wrap_binary_interval_function Interval.mul ik)
+    let interval_mul ((x1, x2), (y1, y2)) = 
+      let x1y1 = (Ints_t.mul x1 y1) in let x1y2 = (Ints_t.mul x1 y2) in
+      let x2y1 = (Ints_t.mul x2 y1) in let x2y2 = (Ints_t.mul x2 y2) in
+      norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)), (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))
+    in
+    binary_op x y interval_mul
 
   let div ?no_ov ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.div ik)
+    let rec interval_div ((x1, x2), (y1, y2)) = begin
+      let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
+      match y1, y2 with
+      | l, u when is_zero l && is_zero u -> top_of ik (* TODO warn about undefined behavior *)
+      | l, _ when is_zero l              -> interval_div ((x1,x2), (Ints_t.one,y2))
+      | _, u when is_zero u              -> interval_div ((x1,x2), (y1, Ints_t.(neg one)))
+      | _ when leq (of_int ik (Ints_t.zero)) ([(y1,y2)]) -> top_of ik
+      | _ ->
+        let x1y1n = (Ints_t.div x1 y1) in let x1y2n = (Ints_t.div x1 y2) in
+        let x2y1n = (Ints_t.div x2 y1) in let x2y2n = (Ints_t.div x2 y2) in
+        let x1y1p = (Ints_t.div x1 y1) in let x1y2p = (Ints_t.div x1 y2) in
+        let x2y1p = (Ints_t.div x2 y1) in let x2y2p = (Ints_t.div x2 y2) in
+        norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
+                          (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
+      end
+    in
+    binary_op x y interval_div
 
   let rem ik x y = 
-    binary_op ik x y (wrap_binary_interval_function Interval.rem ik)
+    let interval_rem (x, y) = 
+      if Interval.is_top_of ik (Some x) && Interval.is_top_of ik (Some y) then
+        top_of ik
+      else
+        let (xl, xu) = x in let (yl, yu) = y in
+        let pos x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
+        let b = Ints_t.sub (Ints_t.max (pos yl) (pos yu)) Ints_t.one in
+        let range = if Ints_t.compare xl Ints_t.zero>= 0 then (Ints_t.zero, Ints_t.min xu b) else (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
+        meet ik (bit (fun _ik -> Ints_t.rem) ik (x, y)) [range]
+    in
+    binary_op x y interval_rem
 
   let cast_to ?torg ?no_ov ik x = 
-    List.map (fun x -> norm ~cast:true ik (Some x)) x |> List.flatten |> canonize
+    List.concat_map (fun x -> norm ~cast:true ik (Some x)) x |> canonize
 
 
   let partitions_are_approaching x y = match x, y with 
@@ -1339,7 +1403,9 @@ struct
 
   let ending ?(suppress_ovwarn=false) ik n = norm ik @@ Some (fst (range ik), n)
 
-  let minimal = function [] -> None | (x, _)::_ -> Some x
+  let minimal = function 
+    | [] -> None 
+    | (x, _)::_ -> Some x
 
   let maximal = function
     | [] -> None
