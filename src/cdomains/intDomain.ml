@@ -1091,13 +1091,13 @@ struct
           [(x,y)]
       end
 
-  let leq (xs: t) (ys: t) = match xs, ys with
+  let rec leq (xs: t) (ys: t) =
+    let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
+    match xs, ys with
     | [], _ -> true
     | _, [] -> false
-    | _::_, _::_ -> 
-      let leq_interval = fun (al, au) (bl, bu) -> Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
-      List.for_all (fun x -> List.exists (fun y -> leq_interval x y) ys) xs   
-
+    | (xl,xr)::xs', (yl,yr)::ys' -> if leq_interval (xl,xr) (yl,yr) then
+      leq xs' ys else if Ints_t.compare xr yl < 0 then false else  leq xs ys'
   let join ik (x: t) (y: t): t = 
     let out = two_interval_sets_to_events x y |> 
     combined_event_list `Join |>
