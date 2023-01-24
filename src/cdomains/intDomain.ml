@@ -971,7 +971,7 @@ struct
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
-
+  
   (* New type definition for the sweeping line algorithm used for implementiong join/meet functions. *)
   type 'a event = Enter of 'a | Exit of 'a
 
@@ -1039,6 +1039,14 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
+  let minimal = function 
+  | [] -> None 
+  | (x, _)::_ -> Some x
+
+  let maximal = function
+  | [] -> None
+  | xs ->  let last = BatList.last xs |> snd in Some last
+
   let equal_to_interval i (a, b) = 
     if a = b && b = i then 
       `Eq 
@@ -1051,8 +1059,6 @@ struct
     | [] -> failwith "unsupported: equal_to with bottom"
     | [`Eq] ->  `Eq 
     | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
-
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let norm_interval ?(cast=false) ik = function 
     | None -> [] 
@@ -1131,40 +1137,29 @@ struct
   let of_interval ik (x, y) = norm_interval ik @@ Some (x, y)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
-
-  let get_lhs_rhs_boundaries (x: t) (y: t) = 
-    let lhs = List.hd x in
-    let rhs = BatList.last y in
-    (fst lhs, snd rhs)
-
-  let get_rhs_lhs_boundaries (x: t) (y: t) = 
-    let lhs = BatList.last x in 
-    let rhs = List.hd y in
-    (snd lhs, fst rhs)
-
   let lt ik x y = 
     match x, y with 
     | [], [] -> bot_of ik
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
-      let (d, a') = get_rhs_lhs_boundaries x y in
-      let (a, d') = get_lhs_rhs_boundaries x y in
-      if d < a' then 
+      let (max_x, min_y) = (maximal x |> Option.get , minimal y |> Option.get) in
+      let (min_x, max_y) = (minimal x |> Option.get , maximal y |> Option.get) in
+      if max_x < min_y then 
         of_bool ik true
       else
-      if a >= d' then of_bool ik false else top_bool
+      if min_x >= max_y then of_bool ik false else top_bool
 
   let le ik x y =
     match x, y with 
     | [], [] -> bot_of ik
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
-      let (d, a') = get_rhs_lhs_boundaries x y in
-      let (a, d') = get_lhs_rhs_boundaries x y in
-      if d <= a' then 
+      let (max_x, min_y) = (maximal x |> Option.get , minimal y |> Option.get) in
+      let (min_x, max_y) = (minimal x |> Option.get , maximal y |> Option.get) in
+      if max_x <= min_y then 
         of_bool ik true
       else
-      if a > d' then of_bool ik false else top_bool
+      if min_x > max_y then of_bool ik false else top_bool
 
   let gt ik x y = 
     let res = le ik x y in
@@ -1404,13 +1399,7 @@ struct
 
   let ending ?(suppress_ovwarn=false) ik n = norm_interval ik @@ Some (fst (range ik), n)
 
-  let minimal = function 
-    | [] -> None 
-    | (x, _)::_ -> Some x
-
-  let maximal = function
-    | [] -> None
-    | xs ->  let last = BatList.last xs |> snd in Some last
+  
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm_interval ik @@ Some (x,y)
 
