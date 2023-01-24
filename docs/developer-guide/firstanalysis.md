@@ -17,15 +17,15 @@ int main() {
   int unknown;
 
   if (unknown) {
-    x = 5;
+    x = -5;
   } else {
-    x = 7;
+    x = -7;
   }
 
   // The above code branches on an uninitialized variable.
-  // The value of x could be either 5 or 7.
+  // The value of x could be either -5 or -7.
 
-  assert(x > 0); // TODO: Thus, this assertion should hold!
+  assert(x < 0); // TODO: Thus, this assertion should hold!
 
   return 0;
 }
@@ -53,7 +53,7 @@ It may still be useful to use Goblint's HTML output to [see the result](../user-
 We first need to design the abstract domain. It may help if you have read some theoretical tutorial on abstract domains. Our first sign lattice will simply contain the elements `{-, 0, +}` with top and bottom added. These elements are defined in the module `Signs` and then we define the sign lattice `SL` by adding bottom and top elements. This is done by the functor `Lattice.Flat`. You should look at the following functions and fix their problems.
 
 1. `of_int i` should abstract integers to their best representation in our abstract domain. Our sign domain can distinguish positive, negative and zero values, so do it right!
-2. `gt x y` should answer true if the value represented by `x` is definitely greater than the value represented by `y`. There seems to be a crucial case missing here in the otherwise excellent implementation...
+2. `lt x y` should answer true if the value represented by `x` is definitely less than the value represented by `y`. There seems to be a crucial case missing here in the otherwise excellent implementation...
 
 We will represent the abstract state of the program as a map from variables to the newly created sign domain.
 
