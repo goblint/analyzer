@@ -82,7 +82,8 @@ let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo
 let intersect_sigma sigma1 sigma2 =
   SigmaMap.fold (fun vinfo varDom sigAcc -> if SigmaMap.mem vinfo sigma2 = false then sigAcc else if equal_varDomain varDom (SigmaMap.find vinfo sigma2) then SigmaMap.add vinfo varDom sigAcc else sigAcc) sigma1 SigmaMap.empty
 
-let destruct_add_sigma sigma1 sigma2 = SigmaMap.fold (fun vinfo varDom sigAcc -> SigmaMap.add vinfo varDom sigAcc) sigma2 sigma1
+let destruct_add_sigma sigma1 sigma2 = if SigmaMap.is_empty sigma1 then sigma2 else
+  SigmaMap.fold (fun vinfo varDom sigAcc -> SigmaMap.add vinfo varDom sigAcc) sigma2 sigma1
 
 let hash {programPoint=n;sigma=s;id=id} = Node.hash n + hash_sigma s + id
 
