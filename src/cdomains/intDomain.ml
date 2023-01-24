@@ -655,18 +655,20 @@ struct
     else
       narrow ik x y
 
-  let log f ik i1 i2 =
+  let log f annihilator ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_bool i1, to_bool i2 with
+      | Some x, _ when x = annihilator -> of_bool ik annihilator
+      | _, Some y when y = annihilator -> of_bool ik annihilator
       | Some x, Some y -> of_bool ik (f x y)
       | _              -> top_of ik
 
-  let logor = log (||)
-  let logand = log (&&)
+  let logor = log (||) true
+  let logand = log (&&) false
 
   let log1 f ik i1 =
     if is_bot i1 then
@@ -1456,6 +1458,7 @@ struct
     | `Definite x -> BigInt.to_bool x
     | `Excluded (s,r) when S.mem BI.zero s -> Some true
     | _ -> None
+  let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
 
@@ -1569,10 +1572,32 @@ struct
     | _ -> lift2_inj BigInt.mul ik x y
   let div ?no_ov ik x y = lift2 BigInt.div ik x y
   let rem ik x y = lift2 BigInt.rem ik x y
-  let lt ik = lift2 BigInt.lt ik
-  let gt ik = lift2 BigInt.gt ik
-  let le ik = lift2 BigInt.le ik
-  let ge ik = lift2 BigInt.ge ik
+
+  (* Comparison handling copied from Enums. *)
+  let handle_bot x y f = match x, y with
+    | `Bot, `Bot -> `Bot
+    | `Bot, _
+    | _, `Bot -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | _, _ -> f ()
+
+  let lt ik x y =
+    handle_bot x y (fun () ->
+      match minimal x, maximal x, minimal y, maximal y with
+      | _, Some x2, Some y1, _ when BigInt.compare x2 y1 < 0 -> of_bool ik true
+      | Some x1, _, _, Some y2 when BigInt.compare x1 y2 >= 0 -> of_bool ik false
+      | _, _, _, _ -> top_bool)
+
+  let gt ik x y = lt ik y x
+
+  let le ik x y =
+    handle_bot x y (fun () ->
+      match minimal x, maximal x, minimal y, maximal y with
+      | _, Some x2, Some y1, _ when BigInt.compare x2 y1 <= 0 -> of_bool ik true
+      | Some x1, _, _, Some y2 when BigInt.compare x1 y2 > 0 -> of_bool ik false
+      | _, _, _, _ -> top_bool)
+
+  let ge ik x y = le ik y x
+
   let bitnot = lift1 BigInt.bitnot
   let bitand = lift2 BigInt.bitand
   let bitor  = lift2 BigInt.bitor
