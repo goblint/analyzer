@@ -982,15 +982,15 @@ struct
     | Exit x -> Printf.sprintf "Exit %s" (Ints_t.to_string x)
 
   let cmp_events x y = 
-      let res = Ints_t.compare (unbox_event x) (unbox_event y) in
-      if res <> 0 then res
-      else
-        begin
-          match (x, y) with
-          | (Enter _, Exit _) -> -1
-          | (Exit _, Enter _) -> 1
-          | (_, _) -> 0
-        end
+    let res = Ints_t.compare (unbox_event x) (unbox_event y) in
+    if res <> 0 then res
+    else
+      begin
+        match (x, y) with
+        | (Enter _, Exit _) -> -1
+        | (Exit _, Enter _) -> 1
+        | (_, _) -> 0
+      end
 
   let interval_set_to_events (xs: t) = 
     List.concat_map (fun (a, b) -> [Enter a; Exit b]) xs
@@ -1097,7 +1097,8 @@ struct
     | [], _ -> true
     | _, [] -> false
     | (xl,xr)::xs', (yl,yr)::ys' -> if leq_interval (xl,xr) (yl,yr) then
-      leq xs' ys else if Ints_t.compare xr yl < 0 then false else  leq xs ys'
+        leq xs' ys else if Ints_t.compare xr yl < 0 then false else leq xs ys'
+
   let join ik (x: t) (y: t): t = 
     two_interval_sets_to_events x y |> 
     combined_event_list `Join |>
@@ -1293,8 +1294,8 @@ struct
         let x1y1p = (Ints_t.div x1 y1) in let x1y2p = (Ints_t.div x1 y2) in
         let x2y1p = (Ints_t.div x2 y1) in let x2y2p = (Ints_t.div x2 y2) in
         norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
-                          (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
-      end
+                         (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
+    end
     in
     binary_op x y interval_div
 
@@ -1321,30 +1322,30 @@ struct
 
   let merge_pair ik (a,b) (c,d) =
     let (min_ik, max_ik) = range ik in
-      let threshold = get_bool "ana.int.interval_threshold_widening" in
-      let upper_threshold (_,u) =
-        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-        let u = Ints_t.to_bigint u in
-        let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-        BatOption.map_default Ints_t.of_bigint max_ik t
-      in
-      let lower_threshold (l,_) =
-        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-        let l = Ints_t.to_bigint l in
-        let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-        BatOption.map_default Ints_t.of_bigint min_ik t
-      in
+    let threshold = get_bool "ana.int.interval_threshold_widening" in
+    let upper_threshold (_,u) =
+      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+      let u = Ints_t.to_bigint u in
+      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+      BatOption.map_default Ints_t.of_bigint max_ik t
+    in
+    let lower_threshold (l,_) =
+      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+      let l = Ints_t.to_bigint l in
+      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+      BatOption.map_default Ints_t.of_bigint min_ik t
+    in
     if threshold && Ints_t.compare (lower_threshold d) (upper_threshold b) > 1 then 
       let new_a = function
-      | None -> Some (upper_threshold b, upper_threshold b)
-      | Some (ax,ay) -> Some (ax, upper_threshold b)
+        | None -> Some (upper_threshold b, upper_threshold b)
+        | Some (ax,ay) -> Some (ax, upper_threshold b)
       in
       let new_c = function
-      | None -> Some (lower_threshold d, lower_threshold d)
-      | Some (cx,cy) -> Some (lower_threshold d, cy)
+        | None -> Some (lower_threshold d, lower_threshold d)
+        | Some (cx,cy) -> Some (lower_threshold d, cy)
       in
       [(new_a a,(fst b, upper_threshold b)); (new_c c, (lower_threshold d, snd d))] else
-    [(Interval.join ik a c, (Interval.join ik (Some b) (Some d) |> Option.get))]
+      [(Interval.join ik a c, (Interval.join ik (Some b) (Some d) |> Option.get))]
 
   let rec merge_list ik = function 
     | [] -> []
@@ -3397,7 +3398,7 @@ module IntDomTupleImpl = struct
       match intv with Some i -> no_overflow ik i | _ -> should_ignore_overflow ik in
     let no_ov_intv_set =
       match intv_set with Some i -> no_overflow_interval_set ik i | _ -> should_ignore_overflow ik in
-  let no_ov = no_ov_intv || no_ov_intv_set in
+    let no_ov = no_ov_intv || no_ov_intv_set in
     refine ik
       ( opt_map2 (r.f2 (module I1)) xa ya
       , intv
