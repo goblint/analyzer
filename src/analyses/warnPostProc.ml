@@ -375,7 +375,7 @@ let finalize _ =
        If no unique successor assume only refinements possible -> use current state;
        if there is a unique successor, we use the state at that node. 
        Also, if target node has another incoming edge, less precise but safe.  *)
-    let node' = if List.length next_nodes = 1 then List.hd next_nodes else node in
+    let node' = if List.compare_length_with next_nodes 1 = 0 then List.hd next_nodes else node in
     filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
       (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
       (Ant.kill node @@ HM.find solution (`G node)) in
