@@ -99,6 +99,19 @@ let set_related (message : Alarm.t) node =
     {message with multipiece = Group group}
   | _ -> failwith "TODO"
 
+let filter_eq_locs loc1 loc2 =
+  match loc1, loc2 with
+  | Some (M.Location.Node n1), Some (M.Location.Node n2) -> not @@ Node.equal n1 n2
+  | _, _ -> true
+
+let rem_related (message : Alarm.t) node =
+  match message.multipiece with
+  | Group group ->
+    let pieces = List.filter (fun (piece : M.Piece.t) -> filter_eq_locs (Some (RM.Location.Node node)) piece.loc || piece.text != "Related") group.pieces in
+    let group = {group with pieces = pieces} in
+    {message with multipiece = Group group}
+  | _ -> failwith "TODO"
+
 let rec append_unique l1 l2 =
   match l2 with
   | [] -> l1
@@ -363,6 +376,18 @@ let finalize _ =
       (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
       (Ant.kill node @@ HM.find solution (`G node)) in
 
+  (* Update hashtable of hoisted conditions *)
+  HM.iter (fun k v ->
+      match k with
+      | `G (FunctionEntry _) | `G Function _ -> () (* handling entry nodes separately later; cannot find next nodes for end node *)
+      | `L node ->
+        HM.replace hoistHM k @@ hoist_entry node;
+        HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v (* Add hoisted location as a related piece in each message. *)
+      | `G node ->
+        HM.replace hoistHM k @@ hoist_exit node;
+        HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v (* Add hoisted location as a related piece in each message. *)
+    ) solution;
+
   (* Similarly to handling the conditions in the end node during sinking,
      as a special case, the algorithm utilizes every condition from
      the exit of the first node for repositioning,
@@ -380,25 +405,13 @@ let finalize _ =
             | Some Node n -> n
             | _ -> node
           end
-        | _ -> node in
-      HM.modify_def (D.empty ()) (`L og_node) (D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol) solution;
+        | _ -> node
+      in
+      let merge = D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol in
+      let filter = D.map (fun alarm -> rem_related alarm og_node) in
+      HM.modify_def (D.empty ()) (`L og_node) (fun alarm -> filter (merge alarm)) solution;
       HM.modify_def (CondSet.empty ()) (`L og_node) (CondSet.union conds) hoistHM;
   in
-
-  (* Update hashtable of hoisted conditions *)
-  HM.iter (fun k v ->
-      match k with
-      (* | `G (FunctionEntry n) -> conds_start (FunctionEntry n) *)
-      | `G Function _ -> () (* cannot find next nodes for end node *)
-      | `L node ->
-        HM.replace hoistHM k @@ hoist_entry node;
-        (* Add hoisted location as a related piece in each message. *)
-        HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
-      | `G node ->
-        HM.replace hoistHM k @@ hoist_exit node;
-        (* Add hoisted location as a related piece in each message. *)
-        HM.replace solution k @@ Ant.Dom.map (fun alarm -> set_related alarm node) v
-    ) solution;
 
   conds_start (Node.FunctionEntry fd);
 
@@ -433,12 +446,10 @@ let finalize _ =
       | `G node -> HM.replace sinkHM k @@ conds_exit node
     ) solution_av;
 
-(*
-  As a special case, the algorithm utilizes every condition from
-  the entry of the last node for repositioning,
-  because a few avconds can reach the program end point,
-  but not get computed by equations conds_entry and conds_exit.
-*)
+  (* As a special case, the algorithm utilizes every condition from
+     the entry of the last node for repositioning,
+     because a few avconds can reach the program end point,
+     but not get computed by equations conds_entry and conds_exit. *)
   let conds_end node =
     let module CFG = (val !MyCFG.current_cfg) in
     let prev_nodes = List.map snd (CFG.prev node) in
