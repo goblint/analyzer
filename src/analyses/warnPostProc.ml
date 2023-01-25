@@ -371,7 +371,11 @@ let finalize _ =
   let hoist_exit node =
     let module CFG = (val !MyCFG.current_cfg) in
     let next_nodes = List.map snd (CFG.next node) in
-    let node' = List.hd next_nodes in
+    (* TODO: Evaluating at the post-state of a transfer function before the join. 
+       If no unique successor assume only refinements possible -> use current state;
+       if there is a unique successor, we use the state at that node. 
+       Also, if target node has another incoming edge, less precise but safe.  *)
+    let node' = if List.length next_nodes = 1 then List.hd next_nodes else node in
     filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
       (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
       (Ant.kill node @@ HM.find solution (`G node)) in
