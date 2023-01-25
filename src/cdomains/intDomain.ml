@@ -1582,19 +1582,19 @@ struct
 
   let lt ik x y =
     handle_bot x y (fun () ->
-      match minimal x, maximal x, minimal y, maximal y with
-      | _, Some x2, Some y1, _ when BigInt.compare x2 y1 < 0 -> of_bool ik true
-      | Some x1, _, _, Some y2 when BigInt.compare x1 y2 >= 0 -> of_bool ik false
-      | _, _, _, _ -> top_bool)
+        match minimal x, maximal x, minimal y, maximal y with
+        | _, Some x2, Some y1, _ when BigInt.compare x2 y1 < 0 -> of_bool ik true
+        | Some x1, _, _, Some y2 when BigInt.compare x1 y2 >= 0 -> of_bool ik false
+        | _, _, _, _ -> top_bool)
 
   let gt ik x y = lt ik y x
 
   let le ik x y =
     handle_bot x y (fun () ->
-      match minimal x, maximal x, minimal y, maximal y with
-      | _, Some x2, Some y1, _ when BigInt.compare x2 y1 <= 0 -> of_bool ik true
-      | Some x1, _, _, Some y2 when BigInt.compare x1 y2 > 0 -> of_bool ik false
-      | _, _, _, _ -> top_bool)
+        match minimal x, maximal x, minimal y, maximal y with
+        | _, Some x2, Some y1, _ when BigInt.compare x2 y1 <= 0 -> of_bool ik true
+        | Some x1, _, _, Some y2 when BigInt.compare x1 y2 > 0 -> of_bool ik false
+        | _, _, _, _ -> top_bool)
 
   let ge ik x y = le ik y x
 

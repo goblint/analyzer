@@ -14,6 +14,7 @@ struct
   include Analyses.IdentitySpec
   let name () = "unassume"
 
+  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
   module C = Printable.Unit
   module D = SetDomain.Make (CilType.Exp)
 
