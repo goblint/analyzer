@@ -1600,6 +1600,7 @@ struct
     let get a gs st addrs exp = get a gs st addrs exp
     let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:true gs st lval lval_type value
 
+    let refine_entire_var = true
     let map_oldval oldval _ = oldval
     let eval_rv_lval_refine a gs st exp lval = eval_rv a gs st (Lval lval)
 
@@ -2388,6 +2389,7 @@ struct
           let get a gs st addrs exp = get a gs st addrs exp
           let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:false gs st lval lval_type value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
+          let refine_entire_var = false
           let map_oldval oldval t_lval =
             if VD.is_bot oldval then VD.top_value t_lval else oldval
           let eval_rv_lval_refine a gs st exp lv =
