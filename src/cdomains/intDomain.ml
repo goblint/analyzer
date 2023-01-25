@@ -655,7 +655,7 @@ struct
     else
       narrow ik x y
 
-  let log f annihilator ik i1 i2 =
+  let log f ~annihilator ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
@@ -667,8 +667,8 @@ struct
       | Some x, Some y -> of_bool ik (f x y)
       | _              -> top_of ik
 
-  let logor = log (||) true
-  let logand = log (&&) false
+  let logor = log (||) ~annihilator:true
+  let logand = log (&&) ~annihilator:false
 
   let log1 f ik i1 =
     if is_bot i1 then
