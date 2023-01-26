@@ -2238,13 +2238,7 @@ struct
       (* TODO: Distinguish between different ways to return from it! *)
       invalidate_ret_lv st'
     | Longjmp {env; value; sigrestore}, _ ->
-      (match eval_rv (Analyses.ask_of_ctx ctx) gs st env with
-       | `Address jmp_buf ->
-         begin match get (Analyses.ask_of_ctx ctx) gs st jmp_buf None with
-           | `JmpBuf x -> M.warn "Jump targets %s" (ValueDomain.JmpBufs.show x)
-           | _ -> failwith "problem?!"
-         end
-       | _ -> failwith "problem?!");
+      (* TODO: raise Deadcode? *)
       ctx.local
     | _, _ -> begin
         let st =

@@ -568,6 +568,7 @@ struct
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.join x y)
     | _ ->
       warn_type "join" x y;
       `Top

@@ -8,33 +8,6 @@ open GobConfig
 
 module M = Messages
 
-(** Lifts a [Spec] so it can take care of Longjmp *)
-module LongjmpLifter (S:Spec)
-  : Spec with module D = S.D
-          and module G = S.G
-          and module C = S.C
-=
-struct
-  include S
-
-  let handle_longjmp ctx (node, c) =
-    let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-    if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = (Node.find_fundec (Option.get !Node.current_node)).svar.vname then
-      (Messages.warn "Potentially from same context")
-    else
-      ()
-
-  let special ctx r f args =
-    let desc = LibraryFunctions.find f in
-    match desc.special args with
-    | Longjmp {env; value; sigrestore} ->
-      (let targets = ctx.ask (EvalJumpBuf env) in
-      M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
-      (try List.iter (handle_longjmp ctx) (JmpBufDomain.JmpBufSet.elements targets)
-       with _ -> ());
-      ctx.local)
-    | _ -> S.special ctx r f args
-end
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
@@ -677,17 +650,33 @@ struct
     if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
     r
 
-  let tf_special_call ctx (getl: lv -> ld) lv f args =
+  let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) lv f args =
+    let jmptarget = function
+      | Statement s -> LongjmpTo s
+      | _ -> failwith "should not happen"
+    in
     match (LibraryFunctions.find f).special args with
     | Setjmp { env; savesigs} ->
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
-      let jmptarget = function
-        | Statement s -> LongjmpTo s
-        | _ -> failwith "should not happen"
-      in
+      Messages.warn "reading from %s" (Node.show (jmptarget ctx.node));
       let later_return = getl (jmptarget ctx.node, ctx.context ()) in
       S.D.join first_return later_return
+    | Longjmp {env; value; sigrestore} ->
+      let targets = ctx.ask (EvalJumpBuf env) in
+      M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
+      let handle_longjmp (node, c) =
+        let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = (Node.find_fundec (Option.get !Node.current_node)).svar.vname then
+          (Messages.warn "Potentially from same context";
+           Messages.warn "side-effect to %s" (Node.show node);
+           sidel (jmptarget node, ctx.context ()) ctx.local)
+        else
+          failwith "Not supported yet!"
+      in
+      List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
+      (* raise Deadcode??? *)
+      S.special ctx lv f args
     | _ -> S.special ctx lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
@@ -714,11 +703,11 @@ struct
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call ctx getl lv f args
+                tf_special_call ctx getl sidel lv f args
               | fd ->
                 tf_normal_call ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
-                tf_special_call ctx getl lv f args)
+                tf_special_call ctx getl sidel lv f args)
           end
         else begin
           let geq = if var_arg then ">=" else "" in
@@ -804,6 +793,8 @@ struct
   let system (v,c) =
     match v with
     | FunctionEntry _ ->
+      None
+    | LongjmpTo _ ->
       None
     | _ ->
       let tf getl sidel getg sideg =
