@@ -11,6 +11,7 @@ let name () = "node"
 (** Pretty node plainly with entire stmt. *)
 let pretty_plain () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
+  | LongjmpTo s -> text "LongjmpTo Statement" ++ dn_stmt () s
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
@@ -18,12 +19,14 @@ let pretty_plain () = function
 (** Pretty node plainly with stmt location. *)
 let pretty_plain_short () = function
   | Statement s -> text "Statement @ " ++ CilType.Location.pretty () (Cilfacade.get_stmtLoc s)
+  | LongjmpTo s -> text "LongjmpTo Statement @ " ++ CilType.Location.pretty () (Cilfacade.get_stmtLoc s)
   | Function f -> text "Function " ++ text f.svar.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.svar.vname
 
 (** Pretty node for solver variable tracing with short stmt. *)
 let pretty_trace () = function
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
+  | LongjmpTo stmt   -> dprintf "LongjmpTo node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
   | Function      fd -> dprintf "call of %s (%d)" fd.svar.vname fd.svar.vid
   | FunctionEntry fd -> dprintf "entry state of %s (%d)" fd.svar.vname fd.svar.vid
 
@@ -40,12 +43,14 @@ include Printable.SimplePretty (
 (** Show node ID for CFG and results output. *)
 let show_id = function
   | Statement stmt   -> string_of_int stmt.sid
+  | LongjmpTo stmt   -> "longjmpto" ^ string_of_int stmt.sid
   | Function fd      -> "ret" ^ string_of_int fd.svar.vid
   | FunctionEntry fd -> "fun" ^ string_of_int fd.svar.vid
 
 (** Show node label for CFG. *)
 let show_cfg = function
   | Statement stmt   -> string_of_int stmt.sid (* doesn't use this but defaults to no label and uses ID from show_id instead *)
+  | LongjmpTo stmt   -> "longjmpto" ^ string_of_int stmt.sid
   | Function fd      -> "return of " ^ fd.svar.vname ^ "()"
   | FunctionEntry fd -> fd.svar.vname ^ "()"
 
@@ -53,7 +58,8 @@ let show_cfg = function
 (** Find [fundec] which the node is in. In an incremental run this might yield old fundecs for pseudo-return nodes from the old file. *)
 let find_fundec (node: t) =
   match node with
-  | Statement stmt -> Cilfacade.find_stmt_fundec stmt
+  | Statement stmt
+  | LongjmpTo stmt  -> Cilfacade.find_stmt_fundec stmt
   | Function fd -> fd
   | FunctionEntry fd -> fd
 
@@ -69,4 +75,4 @@ let of_id s =
     | "ret" -> Function fundec
     | "fun" -> FunctionEntry fundec
     | _     -> invalid_arg "Node.of_id: invalid prefix"
-
+(* TODO: longjmpTo? *)

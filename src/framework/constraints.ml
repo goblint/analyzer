@@ -20,7 +20,7 @@ struct
   let handle_longjmp ctx (node, c) =
     let controlctx = ControlSpecC.hash (ctx.control_context ()) in
     if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = (Node.find_fundec (Option.get !Node.current_node)).svar.vname then
-      Messages.warn "Potentially from same context"
+      (Messages.warn "Potentially from same context")
     else
       ()
 
@@ -31,7 +31,7 @@ struct
       (let targets = ctx.ask (EvalJumpBuf env) in
       M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
       (try List.iter (handle_longjmp ctx) (JmpBufDomain.JmpBufSet.elements targets)
-      with _ -> ());
+       with _ -> ());
       ctx.local)
     | _ -> S.special ctx r f args
 end
@@ -677,7 +677,18 @@ struct
     if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
     r
 
-  let tf_special_call ctx lv f args = S.special ctx lv f args
+  let tf_special_call ctx (getl: lv -> ld) lv f args =
+    match (LibraryFunctions.find f).special args with
+    | Setjmp { env; savesigs} ->
+      (* Handling of returning for the first time *)
+      let first_return = S.special ctx lv f args in
+      let jmptarget = function
+        | Statement s -> LongjmpTo s
+        | _ -> failwith "should not happen"
+      in
+      let later_return = getl (jmptarget ctx.node, ctx.context ()) in
+      S.D.join first_return later_return
+    | _ -> S.special ctx lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
@@ -703,11 +714,11 @@ struct
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call ctx lv f args
+                tf_special_call ctx getl lv f args
               | fd ->
                 tf_normal_call ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
-                tf_special_call ctx lv f args)
+                tf_special_call ctx getl lv f args)
           end
         else begin
           let geq = if var_arg then ">=" else "" in

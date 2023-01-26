@@ -303,6 +303,7 @@ struct
         let i_str = string_of_int i in
         match n with
         | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
+        | LongjmpTo stmt  -> "" (* TODO: Correct? *)
         | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
         | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
 
