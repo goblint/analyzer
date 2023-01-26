@@ -1124,15 +1124,16 @@ struct
 
   let top_bool = [(Ints_t.zero, Ints_t.one)]
 
+  let not_bool (x:t) = 
+    let is_false = fun x -> x = zero in
+    let is_true =  fun x -> x = one in
+    if is_true x then zero else if is_false x then one else top_bool 
+
   let to_bool = function  
     | [(l,u)] when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
 
   let of_bool _ = function true -> one | false -> zero 
-
-  let is_true x = x == one
-
-  let is_false x = x == zero
 
   let of_interval ik (x, y) = norm_interval ik @@ Some (x, y)
 
@@ -1161,19 +1162,9 @@ struct
       else
       if min_x > max_y then of_bool ik false else top_bool
 
-  let gt ik x y = 
-    let res = le ik x y in
-    if is_true res then 
-      zero 
-    else
-    if is_false res then one else top_bool
+  let gt ik x y = not_bool @@ le ik x y
 
-  let ge ik x y = 
-    let res = lt ik x y in
-    if is_true res then 
-      zero 
-    else 
-    if is_false res then one else top_bool
+  let ge ik x y = not_bool @@ lt ik x y
 
   let eq ik x y = match x, y with
     | (a, b)::[], (c, d)::[] when (Ints_t.compare a b) == 0 && (Ints_t.compare c d) == 0 && (Ints_t.compare a c) == 0 -> 
@@ -1184,13 +1175,7 @@ struct
       else 
         top_bool
 
-  let ne ik x y = 
-    let res = eq ik x y in
-    if is_true res then 
-      zero 
-    else 
-    if is_false res then one else top_bool
-
+  let ne ik x y = not_bool @@ eq ik x y
   let interval_to_int i = Interval.to_int (Some i)
   let interval_to_bool i = Interval.to_bool (Some i)
 
