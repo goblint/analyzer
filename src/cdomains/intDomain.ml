@@ -1060,7 +1060,7 @@ struct
     | [`Eq] ->  `Eq 
     | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
 
-  let norm_interval ?(cast=false) ik = function 
+  let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik = function 
     | None -> [] 
     | Some (x,y) ->
       if Ints_t.compare x y > 0 then 
@@ -1071,7 +1071,7 @@ struct
         let overflow = Ints_t.compare max_ik y < 0 in
         if underflow || overflow then
           begin
-            set_overflow_flag ~cast ~underflow ~overflow ik;
+            if not suppress_ovwarn then set_overflow_flag ~cast ~underflow ~overflow ik;
             if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
               (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
               (* on Z will not safely contain the minimal and maximal elements after the cast *)
