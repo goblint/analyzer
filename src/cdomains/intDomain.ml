@@ -1292,45 +1292,8 @@ struct
     in
     binary_op x y interval_rem
 
-  let cast_to ?torg ?no_ov ik x = 
+  let cast_to ?torg ?no_ov ik x =
     List.concat_map (fun x -> norm_interval ~cast:true ik (Some x)) x |> canonize
-
-
-  let partitions_are_approaching x y = match x, y with 
-      (Some (_, ar), (_, br)), (Some (al, _), (bl, _)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
-    | _,_ -> false
-
-  let merge_pair ik (a,b) (c,d) =
-    let (min_ik, max_ik) = range ik in
-    let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold (_,u) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-      let u = Ints_t.to_bigint u in
-      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
-      BatOption.map_default Ints_t.of_bigint max_ik t
-    in
-    let lower_threshold (l,_) =
-      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-      let l = Ints_t.to_bigint l in
-      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
-      BatOption.map_default Ints_t.of_bigint min_ik t
-    in
-    if threshold && Ints_t.compare (lower_threshold d) (upper_threshold b) > 1 then 
-      let new_a = function
-        | None -> Some (upper_threshold b, upper_threshold b)
-        | Some (ax,ay) -> Some (ax, upper_threshold b)
-      in
-      let new_c = function
-        | None -> Some (lower_threshold d, lower_threshold d)
-        | Some (cx,cy) -> Some (lower_threshold d, cy)
-      in
-      [(new_a a,(fst b, upper_threshold b)); (new_c c, (lower_threshold d, snd d))] else
-      [(Interval.join ik a c, (Interval.join ik (Some b) (Some d) |> Option.get))]
-
-  let rec merge_list ik = function 
-    | [] -> []
-    | x::y::xs  when partitions_are_approaching x y -> merge_list ik ((merge_pair ik x y) @ xs)
-    | x::xs -> x :: merge_list ik xs
 
   let narrow ik xs ys = match xs ,ys with 
     | [], _ -> [] | _ ,[] -> xs
@@ -1344,41 +1307,75 @@ struct
       let max = if Ints_t.compare max_xs max_range == 0 then max_ys else max_xs in
       xs |> (function (_, y)::z -> (min, y)::z | _ -> []) |> List.rev |> (function (x, _)::z -> (x, max)::z | _ -> []) |> List.rev 
 
+  (*
+    1. partitions xs' intervals by assigning each of them to the an interval in ys that includes it.
+     and joins all intervals in xs assigned to the same interval in ys as one interval.
+    2. checks for every pair of adjacent pairs whether the pairs did approach (if you compare the intervals from xs and ys) and merges them if it is the case.
+    3. checks whether partitions at the extremeties are approaching infinity (and expands them to infinity. in that case)
+    
+    The expansion (between a pair of adjacent partitions or at extremeties ) stops at a threshold.
+  *)
   let widen ik xs ys = 
     let (min_ik,max_ik) = range ik in 
     let threshold = get_bool "ana.int.interval_threshold_widening" in
-    let upper_threshold u =
+    let upper_threshold (_,u) =
       let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
       let u = Ints_t.to_bigint u in
       let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
       BatOption.map_default Ints_t.of_bigint max_ik t
     in
-    let lower_threshold l =
+    let lower_threshold (l,_) =
       let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
       let l = Ints_t.to_bigint l in
       let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
       BatOption.map_default Ints_t.of_bigint min_ik t
     in
+    (*obtain partitioning of xs intervals according to the ys interval that includes them*)
     let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)= 
-    match xs,ys with 
+     match xs,ys with 
     | _, [] -> []
     |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
     |(x::xs), (y::ys) when  Interval.leq (Some x) (Some y) -> interval_sets_to_partitions ik (Interval.join ik acc (Some x)) xs (y::ys)
     |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
-    in let interval_sets_to_partitions ik xs ys = interval_sets_to_partitions ik None xs ys in
-    interval_sets_to_partitions ik xs ys |> merge_list ik |> 
-    (function
+    in 
+    let interval_sets_to_partitions ik xs ys = interval_sets_to_partitions ik None xs ys in
+    (*merge a pair of adjacent partitions*)
+    let merge_pair ik (a,b) (c,d) =
+      let new_a = function
+          | None -> Some (upper_threshold b, upper_threshold b)
+          | Some (ax,ay) -> Some (ax, upper_threshold b)
+        in
+        let new_c = function
+          | None -> Some (lower_threshold d, lower_threshold d)
+          | Some (cx,cy) -> Some (lower_threshold d, cy)
+        in
+      if threshold && Ints_t.compare (lower_threshold d) (upper_threshold b) > 1 then 
+        [(new_a a,(fst b, upper_threshold b)); (new_c c, (lower_threshold d, snd d))] else
+        [(Interval.join ik a c, (Interval.join ik (Some b) (Some d) |> Option.get))]
+    in
+    let partitions_are_approaching x y = match x, y with 
+        | (Some (_, ar), (_, br)), (Some (al, _), (bl, _)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
+        | _,_ -> false 
+    in
+    (*merge all approaching pairs of adjacent partitions*)
+    let rec merge_list ik = function 
+        | [] -> []
+        | x::y::xs  when partitions_are_approaching x y -> merge_list ik ((merge_pair ik x y) @ xs)
+        | x::xs -> x :: merge_list ik xs 
+    in 
+    (*expands left extremety*)
+    let widen_left = function
     | [] -> []
-    | (None,(lb,rb))::ts -> let lt = if threshold then lower_threshold lb else min_ik in (None, (lt,rb))::ts
-    | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare lb la < 0 ->  let lt = if threshold then lower_threshold lb else min_ik in (Some (la,ra),(lt,rb))::ts    | x  -> x)
-    |> List.rev
-    |> (function
+    | (None,(lb,rb))::ts -> let lt = if threshold then lower_threshold (lb,lb) else min_ik in (None, (lt,rb))::ts
+    | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare lb la < 0 ->  let lt = if threshold then lower_threshold (lb,lb) else min_ik in (Some (la,ra),(lt,rb))::ts    | x  -> x
+    in 
+    (*expands right extremety*)
+    let widen_right x = List.rev x |>  (function
     | [] -> []
-    | (None,(lb,rb))::ts -> let ut = if threshold then upper_threshold rb else max_ik in (None, (lb,ut))::ts
-    | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare ra rb < 0 -> let ut = if threshold then upper_threshold rb else max_ik in (Some (la,ra),(lb,ut))::ts
-    | x  -> x)
-    |> List.rev
-    |> List.map snd  
+    | (None,(lb,rb))::ts -> let ut = if threshold then upper_threshold (rb,rb) else max_ik in (None, (lb,ut))::ts
+    | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare ra rb < 0 -> let ut = if threshold then upper_threshold (rb,rb) else max_ik in (Some (la,ra),(lb,ut))::ts
+    | x  -> x)|> List.rev
+   in interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd  
 
   let starting ?(suppress_ovwarn=false) ik n = norm_interval ik @@ Some (n, snd (range ik))
 
