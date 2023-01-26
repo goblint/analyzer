@@ -1246,13 +1246,7 @@ struct
   | None, z | z, None -> z
   | Some (x1,x2), Some (y1,y2) -> Some (Ints_t.min x1 y1, Ints_t.max x2 y2)
 
-  let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)= 
-    match xs,ys with 
-    | _, [] -> []
-    |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
-    |(x::xs), (y::ys) when  leq_interval (Some x) (Some y) -> interval_sets_to_partitions ik (join_interval ik acc (Some x)) xs (y::ys)
-    |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
-  
+
   let partitions_are_approaching x y = match x, y with 
     (Some (_, ar), (_, br)), (Some (al, _), (bl, _)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
     | _,_ -> false
@@ -1277,7 +1271,28 @@ struct
     xs |> (function (_, y)::z -> (min, y)::z | _ -> []) |> List.rev |> (function (x, _)::z -> (x, max)::z | _ -> []) |> List.rev 
 
   let widen ik xs ys = 
-    let (min_ik,max_ik) = range ik in interval_sets_to_partitions ik None xs ys |> merge_list ik |> 
+    let (min_ik,max_ik) = range ik in 
+    let threshold = get_bool "ana.int.interval_threshold_widening" in
+    let upper_threshold u =
+      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+      let u = Ints_t.to_bigint u in
+      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+      BatOption.map_default Ints_t.of_bigint max_ik t
+    in
+    let lower_threshold l =
+      let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+      let l = Ints_t.to_bigint l in
+      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+      BatOption.map_default Ints_t.of_bigint min_ik t
+    in
+    let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)= 
+    match xs,ys with 
+    | _, [] -> []
+    |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
+    |(x::xs), (y::ys) when  leq_interval (Some x) (Some y) -> interval_sets_to_partitions ik (join_interval ik acc (Some x)) xs (y::ys)
+    |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
+    in let interval_sets_to_partitions ik xs ys = interval_sets_to_partitions ik None xs ys in
+    interval_sets_to_partitions ik xs ys |> merge_list ik |> 
     (function
     | [] -> []
     | (None,(lb,rb))::ts -> (None, (min_ik,rb))::ts
