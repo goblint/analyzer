@@ -1,5 +1,3 @@
-open Analyses
-
 module type S =
   functor (D: Lattice.S) ->
   sig
