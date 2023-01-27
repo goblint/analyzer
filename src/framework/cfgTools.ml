@@ -525,6 +525,7 @@ struct
       | Statement _
       | LongjmpTo _ -> [] (* use default shape *)
       | Function _
+      | LongjmpFromFunction _
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
