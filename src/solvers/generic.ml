@@ -97,11 +97,11 @@ struct
     ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
     let topn = 5 in
     Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" !ncontexts (Hashtbl.length histo) topn;
-    Hashtbl.to_list histo
-    |> List.sort (fun (_,n1) (_,n2) -> compare n2 n1)
-    |> List.take topn
-    |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
-
+    Iter.(of_hashtbl histo
+          |> sort
+          |> take topn
+          |> iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k)
+    
   let stats_csv =
     let save_run_str = GobConfig.get_string "save_run" in
     if save_run_str <> "" then (
