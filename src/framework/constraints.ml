@@ -675,8 +675,8 @@ struct
           failwith "Not supported yet!"
       in
       List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
-      (* raise Deadcode??? *)
-      S.special ctx lv f args
+      let _ = S.special ctx lv f args in
+      S.D.bot ()
     | _ -> S.special ctx lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
