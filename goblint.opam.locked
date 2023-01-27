@@ -59,6 +59,7 @@ depends: [
   "fpath" {= "0.7.3"}
   "goblint-cil" {= "2.0.1"}
   "integers" {= "0.7.0"}
+  "iter" {>= "1.6"}
   "json-data-encoding" {= "0.12.1"}
   "jsonrpc" {= "1.15.0~5.0preview1"}
   "logs" {= "0.7.0"}

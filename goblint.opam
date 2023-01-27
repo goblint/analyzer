@@ -47,6 +47,7 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
+  "iter"
 ]
 depopts: ["apron" "z3"]
 conflicts: [
