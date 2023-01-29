@@ -26,8 +26,6 @@ module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
-open ConfigUtil
-
 
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
