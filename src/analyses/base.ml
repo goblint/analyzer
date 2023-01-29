@@ -2255,17 +2255,15 @@ struct
         let address = eval_lv ask ctx.global st lval in
         let lval_type = (AD.get_type address) in
         if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
-        match CPA.find_opt v (fun_st.cpa) with
-        | None -> st
-        | Some (`Array a) when (CArrays.domain_of_t a) = PartitionedDomain -> begin
-          (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
-          let new_arry_opt = CPA.find_opt v fun_st.cpa in
-          match new_arry_opt with
-          | None -> st
-          | Some new_arry -> {st with cpa = CPA.add v new_arry st.cpa}
-          end
-        | _ -> begin
+        match (CPA.find_opt v (fun_st.cpa)), lval_type with
+        | None, _ -> st
+        (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
+        | Some (`Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (`Array a) st.cpa}
+        (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
+        | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
+        | _, _ -> begin
           let new_val = get ask ctx.global fun_st address None in
+          if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
           let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
           let partDep = Dep.find_opt v fun_st.deps in
           match partDep with 
