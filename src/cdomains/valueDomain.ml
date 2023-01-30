@@ -120,6 +120,7 @@ struct
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TFloat _ -> `Bot
     | TPtr _ -> `Address (AD.bot ())

@@ -663,16 +663,18 @@ struct
       let later_return = getl (jmptarget ctx.node, ctx.context ()) in
       S.D.join first_return later_return
     | Longjmp {env; value; sigrestore} ->
+      let current_fundec = Node.find_fundec ctx.node in
       let targets = ctx.ask (EvalJumpBuf env) in
       M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
       let handle_longjmp (node, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = (Node.find_fundec (Option.get !Node.current_node)).svar.vname then
+        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Potentially from same context";
            Messages.warn "side-effect to %s" (Node.show node);
            sidel (jmptarget node, ctx.context ()) ctx.local)
         else
-          failwith "Not supported yet!"
+          (Messages.warn "Longjmp to somewhere else";
+           sidel (LongjmpFromFunction current_fundec, ctx.context ()) ctx.local)
       in
       List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
       let _ = S.special ctx lv f args in
@@ -795,6 +797,8 @@ struct
     | FunctionEntry _ ->
       None
     | LongjmpTo _ ->
+      None
+    | LongjmpFromFunction _ ->
       None
     | _ ->
       let tf getl sidel getg sideg =

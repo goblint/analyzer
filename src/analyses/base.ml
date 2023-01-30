@@ -1253,7 +1253,7 @@ struct
        | `Address jmp_buf ->
          begin match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
            | `JmpBuf x -> x
-           | _ -> failwith "problem?!"
+           | y -> failwith (Printf.sprintf "problem?! is %s" (VD.show y))
          end
        | _ -> failwith "problem?!");
     | Q.EvalInt e ->
@@ -1694,7 +1694,7 @@ struct
      | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-    | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+    | (Var v, offs) when v.vglob ->
       (* Optimization: In case of simple integral types, we not need to evaluate the old value.
           v is not an allocated block, as v directly appears as a variable in the program;
           so no explicit check is required here (unlike in set) *)
