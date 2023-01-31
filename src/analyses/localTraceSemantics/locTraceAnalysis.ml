@@ -259,13 +259,10 @@ in
 print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n"^(NodeImpl.show_sigma sigma_fold)) "" allSigmas)^"\n");
 sigNew, true
 
-let assign ctx (lval:lval) (rval:exp) : D.t = 
-  print_string ("assign wurde aufgerufen with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in
-let assign_helper graph sigma =
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-  (let (myEdge:(node * edge * node)) , success =  match lval with (Var x, _) ->
+(* ASSIGN helper functions *)
+(* iterate over all IDs of destination node and current sigma *)
+let assign_iter_IDNodes (graph, ctx, lval, rval) {programPoint=programPoint;id=id;sigma=sigma} =
+  let (myEdge:(node * edge * node)) , success =  match lval with (Var x, _) ->
     let evaluated,success_inner = eval_wrapper sigma x rval  graph {programPoint=programPoint;sigma=sigma;id=id} in 
     print_string ("new sigma in assign: "^(NodeImpl.show_sigma evaluated )^"\n");
 
@@ -274,90 +271,131 @@ let assign_helper graph sigma =
 
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   in
-  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph_iter_nodes myEdge) 
-  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph_iter_nodes ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1}) )
-  )
+  let result_graph = 
+  if success then (print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge) 
+  else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1}) )
 in
-let tmp3 = (LocalTraces.get_nodes ctx.prev_node sigma graph) (* bei dummy prüfen ob -1 enthalten ist, dann random ID generieren*)
+    (result_graph, ctx, lval, rval)
+
+(* iterate over all sigmas of previous node in current graph *)
+let assign_iter_oldSigma (graph, ctx, lval, rval) sigma =
+  let allIDPrevNodes_undone = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
-let allIDNodes = if List.exists (fun ({id=id;_}) -> id = (-1) ) tmp3 then [{programPoint=ctx.prev_node;sigma=sigma;id=idGenerator#getID {programPoint=ctx.prev_node;sigma=SigmaMap.empty;id=(-1)} ctx.edge ctx.node sigma}] else tmp3
+
+let allIDPrevNodes = if List.exists (fun ({id=id;_}) -> id = (-1) ) allIDPrevNodes_undone then [{programPoint=ctx.prev_node;sigma=sigma;id=idGenerator#getID {programPoint=ctx.prev_node;sigma=SigmaMap.empty;id=(-1)} ctx.edge ctx.node sigma}] else allIDPrevNodes_undone
 in
-print_string ("in assign we get for ctx.prev_node="^(Node.show ctx.prev_node)^" and sigma="^(NodeImpl.show_sigma sigma)^":
-\n"^(List.fold (fun acc node_fold -> acc^", "^(NodeImpl.show node_fold)) "" tmp3)^"\n");
-List.fold iter_node_helper graph allIDNodes
+let result_graph, _, _, _ = 
+List.fold assign_iter_IDNodes (graph, ctx, lval, rval) allIDPrevNodes
 in
-let tmp = List.fold assign_helper g oldSigma 
-in
-print_string ("in assign, after folding over all sigmas and all IDs we have the graph:\n"^(LocalTraces.show tmp)^"\n");
-if LocalTraces.equal g tmp then set else
-  D.add tmp set 
-in
-let tmp2 =
-   D.fold fold_helper ctx.local (D.empty ())
-in if D.is_empty tmp2 then (*D.add LocTraceGraph.empty*) D.empty () else tmp2
-  
-let branch ctx (exp:exp) (tv:bool) : D.t = print_string ("branch wurde aufgerufen mit exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
-in
-let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in
-let branch_helper graph sigma =
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-(let branch_sigma = SigmaMap.add branch_vinfo Error sigma 
+(result_graph, ctx, lval, rval)
+
+(* iterate over the graphs in previous state *)
+let assign_iter_graphSet graph (lval, rval, ctx,set_acc) =
+  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+ in
+ let result_graph, _, _, _ = 
+  List.fold assign_iter_oldSigma (graph, ctx, lval, rval) oldSigma
+  in
+  let new_set = if (List.is_empty oldSigma) || (LocalTraces.equal graph result_graph)  then set_acc else D.add result_graph set_acc
+  in
+  (lval, rval, ctx, new_set)
+
+let assign ctx (lval:lval) (rval:exp) : D.t = 
+  print_string ("assign wurde aufgerufen with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+let _, _, _, result =
+   D.fold assign_iter_graphSet ctx.local (lval, rval, ctx, D.empty ())
+in result
+
+(* BRANCH helper functions *)
+(* iterate over all IDs of destination node and current sigma *)
+let branch_iter_IDNodes (graph, ctx, exp, tv) {programPoint=programPoint;id=id;sigma=sigma} =
+  let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error sigma 
 in
 print_string ("sigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
-let result_branch,success = eval_wrapper branch_sigma branch_vinfo exp graph {programPoint=programPoint;sigma=sigma;id=id}
+let result_branch,success = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph {programPoint=programPoint;sigma=sigma;id=id}
 in
-let result_as_int = match (SigmaMap.find_default Error branch_vinfo result_branch) with
+let result_as_int = match (SigmaMap.find_default Error LocalTraces.branch_vinfo result_branch) with
 Int(i1,i2,_) -> print_string ("in branch, the result is ["^(Big_int_Z.string_of_big_int i1)^";"^(Big_int_Z.string_of_big_int i2)^"]");if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
 else 1
   |_ -> -1
 in
-let sigmaNew = SigmaMap.remove branch_vinfo (NodeImpl.destruct_add_sigma sigma result_branch)
+let sigmaNew = SigmaMap.remove LocalTraces.branch_vinfo (NodeImpl.destruct_add_sigma sigma result_branch)
 in
 print_string ("result_as_int: "^(string_of_int result_as_int)^"\n");
 let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigmaNew)})
 in
 print_string ("success="^(string_of_bool success)^", tv="^(string_of_bool tv)^", result_as_int="^(string_of_int result_as_int)^"\nand possible edge="^(LocalTraces.show_edge myEdge)^"\n");
-if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph_iter_nodes myEdge else (print_string "no edge added for current sigma in branch\n";graph_iter_nodes))
+let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph myEdge else (print_string "no edge added for current sigma in branch\n";graph)
 in
-List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+    (result_graph, ctx, exp, tv)
+
+(* iterate over all sigmas of previous node in current graph *)
+let branch_iter_oldSigma (graph, ctx, exp, tv) sigma =
+  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
-let tmp = List.fold branch_helper g oldSigma 
+let result_graph, _, _, _ = 
+List.fold branch_iter_IDNodes (graph, ctx, exp, tv) allIDPrevNodes
 in
-if LocalTraces.equal g tmp then (print_string "No changes on graph in branch, thus this one is not added\n";set) else
-  D.add tmp set 
+(result_graph, ctx, exp, tv)
+
+(* iterate over the graphs in previous state *)
+let branch_iter_graphSet graph (exp, tv, ctx,set_acc) =
+  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+ in
+ let result_graph, _, _, _ = 
+  List.fold branch_iter_oldSigma (graph, ctx, exp, tv) oldSigma
+  in
+  let new_set = if (List.is_empty oldSigma) || (LocalTraces.equal graph result_graph) then set_acc else D.add result_graph set_acc
+  in
+  (exp, tv, ctx, new_set)
+
+let branch ctx (exp:exp) (tv:bool) : D.t = print_string ("branch wurde aufgerufen mit exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+let _, _, _, result =
+   D.fold branch_iter_graphSet ctx.local (exp, tv, ctx, D.empty ())
+in result
+
+(* BODY helper functions *)
+(* iterate over all IDs of destination node and current sigma *)
+let body_iter_IDNodes (graph, ctx) {programPoint=programPoint;id=id;sigma=sigma} =
+  let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
 in
-let tmp2 =
-   D.fold fold_helper ctx.local (D.empty ())
-in if D.is_empty tmp2 then D.empty () else tmp2
+let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+in
+    (result_graph, ctx)
+
+(* iterate over all sigmas of previous node in current graph *)
+let body_iter_oldSigma (graph, ctx) sigma =
+  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+in
+let result_graph, _ = 
+List.fold body_iter_IDNodes (graph, ctx) allIDPrevNodes
+in
+(result_graph, ctx)
+
+(* iterate over the graphs in previous state *)
+let body_iter_graphSet graph (ctx,set_acc) =
+  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+ in
+ let result_graph, _ = 
+  List.fold body_iter_oldSigma (graph, ctx) oldSigma
+  in
+  let new_set = 
+    if LocTraceGraph.is_empty graph then (
+      let first_ID = idGenerator#increment()
+    in
+    let second_ID = idGenerator#increment()
+      in
+      D.add (LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id= first_ID},ctx.edge,{programPoint=ctx.node;sigma=SigmaMap.empty; id= second_ID})) set_acc)
+    else if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+  in
+  (ctx, new_set)
 
 let body ctx (f:fundec) : D.t = 
   print_string ("body wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-let fold_helper g set = (let oldSigma = LocalTraces.get_sigma g ctx.prev_node
+let _, result =
+   D.fold body_iter_graphSet ctx.local (ctx, D.empty ())
 in
-let body_helper graph sigma =
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} = 
-    (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
-in 
-let existingNodes = LocalTraces.get_nodes ctx.prev_node sigma graph
-in
-List.fold iter_node_helper graph existingNodes 
-in
-if LocTraceGraph.is_empty g then (
-  let first_ID = idGenerator#increment()
-in
-let second_ID = idGenerator#increment()
-  in
-  D.add (LocalTraces.extend_by_gEdge g ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id= first_ID},ctx.edge,{programPoint=ctx.node;sigma=SigmaMap.empty; id= second_ID})) set)
-else if List.is_empty oldSigma then set else
-  D.add (List.fold body_helper g oldSigma) set )
-in
-let tmp =
-   D.fold fold_helper ctx.local (D.empty ())
-in
- print_string ("Resulting state of body: "^(D.fold (fun foldGraph acc -> (LocalTraces.show foldGraph)^", "^acc) tmp "")^"\n");tmp
+ print_string ("Resulting state of body: "^(D.fold (fun foldGraph acc -> (LocalTraces.show foldGraph)^", "^acc) result "")^"\n");result
    
  (* RETURN helper functions *)
  (* iterate over all IDs of destination node and current sigma *)

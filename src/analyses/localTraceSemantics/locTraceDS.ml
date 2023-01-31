@@ -225,6 +225,8 @@ else (let tmp = LocTraceGraph.add_edge_e gr gEdge in print_string ("extend_by_gE
 
   let return_vinfo = makeVarinfo false "__goblint__traces__return" (TInt(IInt,[]))
 
+  let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
+
     let get_predecessors_edges graph node = 
       List.fold 
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node dest_node then edge::list else list)
