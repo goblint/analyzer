@@ -387,33 +387,44 @@ if List.is_empty oldSigma then set else
 in
    D.fold fold_helper ctx.local (D.empty ())
 
+   (* SPECIAL helper functions *)
+   (* iterate over all IDs of destination node and current sigma *)
+  let special_iter_IDNodes (graph, ctx) {programPoint=programPoint;id=id;sigma=sigma} =
+    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+  in
+  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+  in
+      (result_graph, ctx)
+
+   (* iterate over all sigmas of previous node in current graph *)
+  let special_iter_oldSigma (graph, ctx) sigma =
+    let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+  in
+  let result_graph, _ = 
+  List.fold special_iter_IDNodes (graph, ctx) allIDPrevNodes
+  in
+  (result_graph, ctx)
+
+   (* iterate over the graphs in previous state *)
+   let special_iter_graphSet graph (ctx,set_acc) =
+    let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+   in
+   let result_graph, _ = 
+    List.fold special_iter_oldSigma (graph, ctx) oldSigma
+    in
+    let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+    in
+    (ctx, new_set)
+
 let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = 
   print_string ("special wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in
-let special_helper graph sigma =
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-  (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
-in
-List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-if List.is_empty oldSigma then set else
-  D.add (List.fold special_helper g oldSigma) set 
-in
-   D.fold fold_helper ctx.local (D.empty ())
+let _, result =   D.fold special_iter_graphSet ctx.local (ctx, D.empty ())
+in result
     
-
-   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
-    print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show ctx.edge)^"
-  with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
-  let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
-  let oldSigma = LocalTraces.get_sigma g ctx.prev_node 
-  in
-  if List.is_empty oldSigma then print_string("In enter, oldSigma-list is empty\n") else print_string("In enter, oldSigma-list is not empty\n");
-  let enter_helper graph sigma = print_string "enter_helper wurde aufgerufen\n";
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-    (let sigma_formals, _ = List.fold (
+(* ENTER helper functions *)
+(* iterate over all IDs of destination node and current sigma *)
+let enter_iter_IDNodes (graph, ctx, f, args) {programPoint=programPoint;id=id;sigma=sigma} =
+  let sigma_formals, _ = List.fold (
       fun (sigAcc, formalExp) formal -> (match formalExp with 
         | x::xs -> (let result, success = eval_wrapper sigAcc formal x graph {programPoint=programPoint;sigma=sigma;id=id}
   in if success = true then (result, xs) else (sigAcc, xs))
@@ -421,13 +432,34 @@ in
       ) (sigma, args) f.sformals
     in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
       let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge (FunctionEntry(f)) sigma)})
-  in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
+  in
+  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
-List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+    (result_graph, ctx, f, args)
+
+(* iterate over all sigmas of previous node in current graph *)
+let enter_iter_oldSigma (graph, ctx, f, args) sigma =
+  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+in
+let result_graph, _, _, _ = 
+List.fold enter_iter_IDNodes (graph, ctx, f, args) allIDPrevNodes
+in
+(result_graph, ctx, f, args)
+
+(* iterate over the graphs in previous state *)
+let enter_iter_graphSet graph (f, args, ctx,set_acc) =
+  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+ in
+ let result_graph, _, _, _ =
+ List.fold enter_iter_oldSigma (graph, ctx, f, args) oldSigma
   in
-  if List.is_empty oldSigma then set else
-    D.add (List.fold enter_helper g oldSigma) set 
+  let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
   in
+  (f, args,ctx, new_set)
+
+   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
+    print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show ctx.edge)^"
+  with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
   if D.is_empty ctx.local then (
     let first_ID = idGenerator#increment()
 in
@@ -435,9 +467,10 @@ let second_ID = idGenerator#increment()
 in
     [ctx.local, D.add (LocalTraces.extend_by_gEdge (LocTraceGraph.empty) ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id=first_ID}, ctx.edge, {programPoint=(FunctionEntry(f));sigma=SigmaMap.empty;id= second_ID})) (D.empty ())] )
   else
-  let state = print_string ("In enter, neuer state wird erstellt\n mit ctx.local: "^(D.show ctx.local)^" und |ctx.local| = "^(string_of_int (D.cardinal ctx.local))^"\n"); D.fold fold_helper ctx.local (D.empty ())
+  let _, _, _, result = print_string ("In enter, neuer state wird erstellt\n mit ctx.local: "^(D.show ctx.local)^" und |ctx.local| = "^(string_of_int (D.cardinal ctx.local))^"\n"); 
+  D.fold enter_iter_graphSet ctx.local (f, args, ctx, D.empty ())
   in
-    [ctx.local, state]  
+    [ctx.local, result]  
   
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
@@ -467,7 +500,6 @@ if List.is_empty oldSigma then set else
 in
    D.fold fold_helper (*ctx.local*) callee_local (D.empty ())
 
-   (* Versuch von Umsetzung einer Refactor-Idee*)
    (* THREADENTER helper functions *)
    (* iterate over all IDs of destination node and current sigma *)
   let threadenter_iter_IDNodes (graph, ctx) {programPoint=programPoint;id=id;sigma=sigma} =
