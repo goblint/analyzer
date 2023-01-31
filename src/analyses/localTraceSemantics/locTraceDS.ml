@@ -320,6 +320,7 @@ object(self)
   val mutable traceVarList:((int * varinfo * int) list) = []
 
   method getRandomValue (hash:int) (var:varinfo) = 
+    if List.is_empty traceVarList then Random.init 100;
     print_string ("random_int_generator#getRandomValue was invoked with hash="^(string_of_int hash)^", var="^(CilType.Varinfo.show var)^";
     \nwith current traceVarList="^(List.fold (fun acc (int_fold, vinfo_fold, value_fold) -> acc^"; ("^(string_of_int int_fold)^","^(CilType.Varinfo.show vinfo_fold)^","^(string_of_int value_fold)^")") "" traceVarList)^"\n");
     if List.exists ( fun (int_list, vinfo_list,_) -> (int_list = hash)&&(CilType.Varinfo.equal var vinfo_list) ) traceVarList 
@@ -328,7 +329,7 @@ object(self)
 in randomValue) 
   else
     ( print_string "new random value is generated\n";
-      let randomValue = (Random.int 1000) - (Random.int 1000)
+      let randomValue = (Random.int 10) - (Random.int 10)
   in
   traceVarList <- (hash, var, randomValue)::traceVarList;
   randomValue)

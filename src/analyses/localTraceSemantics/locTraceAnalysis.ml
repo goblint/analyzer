@@ -278,11 +278,13 @@ let assign_helper graph sigma =
   else (print_string "assignment did not succeed!\n"; LocalTraces.extend_by_gEdge graph_iter_nodes ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1}) )
   )
 in
-let tmp3 = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+let tmp3 = (LocalTraces.get_nodes ctx.prev_node sigma graph) (* bei dummy prüfen ob -1 enthalten ist, dann random ID generieren*)
+in
+let allIDNodes = if List.exists (fun ({id=id;_}) -> id = (-1) ) tmp3 then [{programPoint=ctx.prev_node;sigma=sigma;id=idGenerator#getID {programPoint=ctx.prev_node;sigma=SigmaMap.empty;id=(-1)} ctx.edge ctx.node sigma}] else tmp3
 in
 print_string ("in assign we get for ctx.prev_node="^(Node.show ctx.prev_node)^" and sigma="^(NodeImpl.show_sigma sigma)^":
 \n"^(List.fold (fun acc node_fold -> acc^", "^(NodeImpl.show node_fold)) "" tmp3)^"\n");
-List.fold iter_node_helper graph tmp3
+List.fold iter_node_helper graph allIDNodes
 in
 let tmp = List.fold assign_helper g oldSigma 
 in
@@ -465,13 +467,75 @@ if List.is_empty oldSigma then set else
 in
    D.fold fold_helper (*ctx.local*) callee_local (D.empty ())
 
-   
+   (* Versuch von Umsetzung einer Refactor-Idee*)
+   (* THREADENTER helper functions *)
+   (* iterate over all IDs of destination node and current sigma *)
+  let threadenter_iter_IDNodes (graph, ctx) {programPoint=programPoint;id=id;sigma=sigma} =
+  let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+in
+let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+in
+    (result_graph, ctx)
+  
+
+   (* iterate over all sigmas of previous node in current graph *)
+  let threadenter_iter_oldSigma (graph, ctx) sigma =
+    let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+  in
+  let result_graph, _ = List.fold threadenter_iter_IDNodes (graph, ctx) allIDPrevNodes
+  in
+  (result_graph, ctx)
+
+   (* iterate over the graphs in previous state *)
+   let threadenter_iter_graphSet graph (ctx,set_acc) =
+    let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+   in
+   let result_graph, _ = List.fold threadenter_iter_oldSigma (graph, ctx) oldSigma
+    in
+    let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+    in
+    (ctx, new_set)
+
+    (* ist hier auch der erste State der vom Caller und der zweite vom Callee? *)
     let threadenter ctx lval f args = 
       print_string ("threadenter wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-      [D.top ()]
+      let _, result = D.fold threadenter_iter_graphSet (ctx.local) (ctx, D.empty())
+    in
+      [result] (* was ist diese Liste hier? *)
+      (* [ctx.local, ctx.local] das klappt nicht? *)
+
+    (* THREADSPAWN helper functions *)
+   (* iterate over all IDs of destination node and current sigma *)
+  let threadspawn_iter_IDNodes (graph, ctx) {programPoint=programPoint;id=id;sigma=sigma} =
+    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+  in
+  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+  in
+      (result_graph, ctx)
+    
+  
+     (* iterate over all sigmas of previous node in current graph *)
+    let threadspawn_iter_oldSigma (graph, ctx) sigma =
+      let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+    in
+    let result_graph, _ = List.fold threadenter_iter_IDNodes (graph, ctx) allIDPrevNodes
+    in
+    (result_graph, ctx)
+  
+     (* iterate over the graphs in previous state *)
+     let threadspawn_iter_graphSet graph (ctx,set_acc) =
+      let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+     in
+     let result_graph, _ = List.fold threadenter_iter_oldSigma (graph, ctx) oldSigma
+      in
+      let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+      in
+      (ctx, new_set)
     let threadspawn ctx lval f args fctx = 
       print_string ("threadspawn wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-    ctx.local  
+      let _, result = D.fold threadspawn_iter_graphSet (ctx.local) (ctx, D.empty())
+    in
+    result
 end
 
 let _ =
