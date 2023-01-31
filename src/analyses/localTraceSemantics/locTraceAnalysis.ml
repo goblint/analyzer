@@ -358,34 +358,49 @@ let tmp =
    D.fold fold_helper ctx.local (D.empty ())
 in
  print_string ("Resulting state of body: "^(D.fold (fun foldGraph acc -> (LocalTraces.show foldGraph)^", "^acc) tmp "")^"\n");tmp
-      
-let return ctx (exp:exp option) (f:fundec) : D.t = 
-  print_string ("return wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-  let return_vinfo = LocalTraces.return_vinfo
-in
-let fold_helper g set = print_string "fold_helper wurde aufgerufen\n";
-   let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in 
-let return_helper graph sigma =
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-  ( let myEdge = (
+   
+ (* RETURN helper functions *)
+ (* iterate over all IDs of destination node and current sigma *)
+ let return_iter_IDNodes (graph, ctx, exp) {programPoint=programPoint;id=id;sigma=sigma} =
+  let myEdge = (
 match exp with 
 | None ->  print_string "In return case None\n";
 ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
 | Some(ret_exp) -> (
-  let result, success = eval_wrapper sigma return_vinfo ret_exp graph {programPoint=programPoint;sigma=sigma;id=id}
-in if success = false then (print_string "Evaluation of return expression was unsuccesful\n"; exit 0)
-  (* ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge graph ctx.node sigma)}) *)
+  let result, success = eval_wrapper sigma LocalTraces.return_vinfo ret_exp graph {programPoint=programPoint;sigma=sigma;id=id}
+in if success = false then (print_string "Evaluation of return expression was unsuccessful\n"; exit 0)
 else ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
 ))
-in LocalTraces.extend_by_gEdge graph_iter_nodes myEdge)
 in
-List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
-if List.is_empty oldSigma then set else
-  D.add (List.fold return_helper g oldSigma) set 
+    (result_graph, ctx, exp)
+
+ (* iterate over all sigmas of previous node in current graph *)
+ let return_iter_oldSigma (graph, ctx, exp) sigma =
+  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
 in
-   D.fold fold_helper ctx.local (D.empty ())
+let result_graph, _, _ = 
+List.fold return_iter_IDNodes (graph, ctx, exp) allIDPrevNodes
+in
+(result_graph, ctx, exp)
+
+ (* iterate over the graphs in previous state *)
+ let return_iter_graphSet graph (exp, ctx,set_acc) =
+  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+ in
+ let result_graph, _, _ = 
+  List.fold return_iter_oldSigma (graph, ctx, exp) oldSigma
+  in
+  let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+  in
+  (exp, ctx, new_set)
+
+let return ctx (exp:exp option) (f:fundec) : D.t = 
+  print_string ("return wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+   let _, _, result = D.fold return_iter_graphSet ctx.local (exp, ctx, D.empty ())
+in 
+result
 
    (* SPECIAL helper functions *)
    (* iterate over all IDs of destination node and current sigma *)
@@ -472,33 +487,55 @@ in
   in
     [ctx.local, result]  
   
+(* COMBINE helper functions *)
+(* iterate over all graphs of callee *)
+let combine_iter_calleeLocal callee_graph (ctx, {programPoint=programPoint;id=id;sigma=sigma}, callee_local, lval, graph_acc) =
+  
+  D.iter (fun g_iter -> print_string ("in combine, I test LocalTrace.find_returning_node with node="^(NodeImpl.show {programPoint=programPoint;id=id;sigma=sigma})^"\nI get "^(NodeImpl.show (LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma}) ctx.edge (* TODO this has to be a graph from the callee-state *)g_iter))^"\n")) callee_local;
+  let {programPoint=progP_returning;id=id_returning;sigma=sigma_returning} = LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma}) ctx.edge callee_graph
+  in
+    let (myEdge:(node * edge * node)) = 
+    (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)}
+     |Some (Var x, _) ->  (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
+  in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma= SigmaMap.add x return_value sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+     | _ -> Printf.printf "Invalid Lval format in combine\n"; exit 0)
+  in
+  let result_graph = LocalTraces.extend_by_gEdge graph_acc myEdge
+in
+(ctx, {programPoint=programPoint;id=id;sigma=sigma}, callee_local, lval, result_graph)
+
+(* iterate over all IDs of destination node and current sigma *)
+let combine_iter_IDNodes (graph, ctx, callee_local, lval) ({programPoint=programPoint;id=id;sigma=sigma}) =
+  let _, _, _, _, result_graph = D.fold combine_iter_calleeLocal callee_local (ctx, {programPoint=programPoint;id=id;sigma=sigma}, callee_local, lval, graph) 
+in
+    (result_graph, ctx, callee_local, lval)
+
+(* iterate over all sigmas of previous node in current graph *)
+let combine_iter_oldSigma (graph, ctx, callee_local, lval) sigma =
+  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
+in
+let result_graph, _, _, _ =
+ List.fold combine_iter_IDNodes (graph, ctx, callee_local, lval) allIDPrevNodes
+in
+(result_graph, ctx, callee_local, lval)
+
+(* iterate over the graphs in previous state *)
+let combine_iter_graphSet graph (lval, callee_local, ctx,set_acc) =
+  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+ in
+ let result_graph, _, _ , _ = 
+ List.fold combine_iter_oldSigma (graph, ctx, callee_local, lval) oldSigma
+  in
+  let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+  in
+  ( lval, callee_local, ctx, new_set)
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
     print_string ("combine wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show ctx.edge)^"
     und lval "^(match lval with None -> "None" | Some(l) -> CilType.Lval.show l)^" und fexp "^(CilType.Exp.show fexp)^"\n");
-  let fold_helper g set = let oldSigma = LocalTraces.get_sigma g ctx.prev_node
-in
-let combine_helper graph sigma =
-  let iter_node_helper graph_iter_nodes {programPoint=programPoint;id=id;_} =
-    let iter_callee_state callee_graph graph_acc =
-  ( D.iter (fun g_iter -> print_string ("in combine, I test LocalTrace.find_returning_node with node="^(NodeImpl.show {programPoint=programPoint;id=id;sigma=sigma})^"\nI get "^(NodeImpl.show (LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma}) ctx.edge (* TODO this has to be a graph from the callee-state *)g_iter))^"\n")) callee_local;
-let {programPoint=progP_returning;id=id_returning;sigma=sigma_returning} = LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma}) ctx.edge callee_graph
-in
-  let (myEdge:(node * edge * node)) = 
-  (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)}
-   |Some (Var x, _) ->  (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
-in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma= SigmaMap.add x return_value sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
-   | _ -> Printf.printf "Invalid Lval format in combine\n"; exit 0)
-in LocalTraces.extend_by_gEdge graph_acc myEdge)
-in
-D.fold iter_callee_state callee_local graph_iter_nodes 
-in
-List.fold iter_node_helper graph (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-if List.is_empty oldSigma then set else
-  D.add (List.fold combine_helper g oldSigma) set 
-in
-   D.fold fold_helper (*ctx.local*) callee_local (D.empty ())
+let _,_,_, result=
+   D.fold combine_iter_graphSet (*ctx.local*) callee_local (lval, callee_local, ctx, D.empty ())
+in result
 
    (* THREADENTER helper functions *)
    (* iterate over all IDs of destination node and current sigma *)
@@ -509,7 +546,6 @@ let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
     (result_graph, ctx)
   
-
    (* iterate over all sigmas of previous node in current graph *)
   let threadenter_iter_oldSigma (graph, ctx) sigma =
     let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
