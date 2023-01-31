@@ -1269,7 +1269,7 @@
               "description":
                 "For the purposes of detecting dead code, assume that functions marked noreturn don't return.",
               "type": "boolean",
-              "default": true
+              "default": false
             }
           },
           "additionalProperties": false
