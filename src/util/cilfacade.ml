@@ -26,6 +26,7 @@ let init_options () =
 let init () =
   initCIL ();
   removeBranchingOnConstants := false;
+  addReturnOnNoreturnFallthrough := true;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)

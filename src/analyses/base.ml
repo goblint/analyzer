@@ -1768,7 +1768,7 @@ struct
 
   let return ctx exp fundec: store =
     if Cil.hasAttribute "noreturn" fundec.svar.vattr then
-      M.warn ~category:(Behavior (Undefined Other)) "Function declared 'noreturn' should not return";
+      M.warn ~category:(Behavior (Undefined Other)) "Function declared 'noreturn' could return";
     let st: store = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
