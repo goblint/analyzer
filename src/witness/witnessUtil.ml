@@ -70,11 +70,27 @@ struct
           ) edges
       ) (Cfg.prev to_node)
 
+  let is_after_thread_create to_node =
+    List.exists (fun (edges, from_node) ->
+        List.exists (fun (_, edge) ->
+            match edge with
+            | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
+              let desc = LibraryFunctions.find fv in
+              begin match desc.special args with
+                | ThreadCreate _ -> true
+                | _ -> false
+              end
+            | _ -> false
+          ) edges
+      ) (Cfg.prev to_node)
+
   let is_invariant_node cfgnode =
     if NH.mem loop_heads cfgnode then
       emit_loop_head
     else if is_after_lock cfgnode then
       emit_after_lock
+    else if is_after_thread_create cfgnode then
+      true
     else
       emit_other
 end

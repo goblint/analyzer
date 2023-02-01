@@ -208,6 +208,7 @@ struct
       if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
         NH.fold (fun n local acc ->
             let loc = Node.location n in
+            ignore (Pretty.printf "yaml %a: %B\n" Node.pretty n (is_invariant_node n));
             if is_invariant_node n then (
               let lvals = local_lvals n local in
               match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with

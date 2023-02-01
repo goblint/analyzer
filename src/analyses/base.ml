@@ -1195,6 +1195,7 @@ struct
     let module I = ValueDomain.ValueInvariant (Arg) in
 
     let var_invariant ?offset v =
+      ignore (Pretty.printf "var_invariant %a\n" CilType.Varinfo.pretty v);
       if not (InvariantCil.var_is_heap v) then
         I.key_invariant v ?offset (Arg.find v)
       else
@@ -1211,7 +1212,14 @@ struct
                 a
             ) cpa Invariant.none
         in
-        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        (* let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in *)
+        let priv_vars = Cil.foldGlobals !Cilfacade.current_file (fun acc g ->
+            match g with
+            | GVar (v, _, _) -> v :: acc
+            | _ -> acc
+          ) []
+        in
+        ignore (Pretty.printf "priv_vars: %a\n" (Pretty.d_list ", " CilType.Varinfo.pretty) priv_vars);
         let priv_invariant =
           List.fold_left (fun acc v ->
               Invariant.(var_invariant v && acc)
@@ -2222,10 +2230,18 @@ struct
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           let ik = Cilfacade.ptrdiff_ikind () in
-          let blobsize = ID.mul (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st size) (ID.cast_to ik @@ eval_int (Analyses.ask_of_ctx ctx) gs st n) in
-          (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), blobsize, false))));
-                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+          let sizeval = eval_int (Analyses.ask_of_ctx ctx) gs st size in
+          let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
+          if ID.to_int countval = Some Z.one then (
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.from_var heap_var), TVoid [], `Blob (VD.bot (), sizeval, false));
+          (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var heap_var)))]
+          )
+          else (
+            let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
+            (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), blobsize, false))));
+                                                          (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+          )
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
