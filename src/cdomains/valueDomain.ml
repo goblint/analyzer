@@ -1250,6 +1250,7 @@ struct
   module VS = Set.Make (Basetype.Variables)
 
   let rec ad_invariant ~vs ~offset ~lval x =
+    ignore (Pretty.printf "ad_invariant %a: %a\n" d_lval lval AD.pretty x);
     let c_exp = Lval lval in
     let is_opt = AD.fold (fun addr acc_opt ->
         let* acc = acc_opt in
@@ -1258,6 +1259,7 @@ struct
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
           (* Addr.Offs.is_definite implies to_cil doesn't contain Offset.any_index_exp. *)
+          ignore (Pretty.printf "ad_invariant definite %a\n" CilType.Varinfo.pretty vi);
           let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
@@ -1287,9 +1289,14 @@ struct
               let c_exp = Cilfacade.mkCast ~e:c_exp ~newt in
               deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
             | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
+              ->
+                ignore (Pretty.printf "typeoferror\n");
+                Invariant.none
             | _ ->
               Invariant.none
           in
+
+          ignore (Pretty.printf "i = %a; i_deref = %a\n" Invariant.pretty i Invariant.pretty i_deref);
 
           Some (Invariant.(i && i_deref) :: acc)
         | Addr.NullPtr ->
@@ -1336,6 +1343,7 @@ struct
 
   and deref_invariant ~vs vi ~offset ~lval =
     let v = find vi in
+    ignore (Pretty.printf "deref_invariant %a: %a\n" d_lval lval Compound.pretty v);
     key_invariant_lval ~vs vi ~offset ~lval v
 
   and key_invariant_lval ?(vs=VS.empty) k ~offset ~lval v =
