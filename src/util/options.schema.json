@@ -595,6 +595,13 @@
                     "Integer values of the Interval domain in function contexts.",
                   "type": "boolean",
                   "default": true
+                },
+                "interval_set": {
+                  "title": "ana.base.context.interval_set",
+                  "description":
+                    "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -1436,7 +1443,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }

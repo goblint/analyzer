@@ -3131,6 +3131,7 @@ module IntDomTupleImpl = struct
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
   let no_interval = Tuple5.map2 (const None)
+  let no_intervalSet = Tuple5.map5 (const None)
 
   type 'a m = (module S with type t = 'a)
   type 'a m2 = (module S with type t = 'a and type int_t = int_t )
@@ -3558,6 +3559,7 @@ struct
   let top () = failwith "top in IntDomTuple not supported. Use top_of instead."
   let no_interval (x: I.t) = {x with v = IntDomTupleImpl.no_interval x.v}
 
+  let no_intervalSet (x: I.t) = {x with v = IntDomTupleImpl.no_intervalSet x.v}
 end
 
 let of_const (i, ik, str) = IntDomTuple.of_int ik i

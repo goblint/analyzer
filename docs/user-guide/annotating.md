@@ -21,10 +21,13 @@ The attribute `goblint_context` can be used to fine-tune function contexts.
 The following string arguments are supported:
 
 1. `base.interval`/`base.no-interval` to override the `ana.base.context.interval` option.
-2. `base.int`/`base.no-int` to override the `ana.base.context.interval` option.
-3. `base.non-ptr`/`base.no-non-ptr` to override the `ana.base.context.non-ptr` option.
-4. `relation.context`/`relation.no-context` to override the `ana.relation.context` option.
-5. `widen`/`no-widen` to override the `ana.context.widen` option.
+2. `base.interval_set`/`base.no-interval_set` to override the `ana.base.context.interval_set` option.
+3. `base.int`/`base.no-int` to override the `ana.base.context.interval` option.
+4. `base.non-ptr`/`base.no-non-ptr` to override the `ana.base.context.non-ptr` option.
+5. `relation.context`/`relation.no-context` to override the `ana.relation.context` option.
+6. `widen`/`no-widen` to override the `ana.context.widen` option.
+
+
 
 ### Apron attributes
 The Apron library can be set to only track variables with the attribute `goblint_apron_track`
