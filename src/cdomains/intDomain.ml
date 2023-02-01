@@ -655,18 +655,20 @@ struct
     else
       narrow ik x y
 
-  let log f ik i1 i2 =
+  let log f ~annihilator ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
     | true, _
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_bool i1, to_bool i2 with
+      | Some x, _ when x = annihilator -> of_bool ik annihilator
+      | _, Some y when y = annihilator -> of_bool ik annihilator
       | Some x, Some y -> of_bool ik (f x y)
       | _              -> top_of ik
 
-  let logor = log (||)
-  let logand = log (&&)
+  let logor = log (||) ~annihilator:true
+  let logand = log (&&) ~annihilator:false
 
   let log1 f ik i1 =
     if is_bot i1 then
