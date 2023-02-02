@@ -28,6 +28,11 @@ noreturn void chain2() {
 } // NOWARN!
 
 
+// declared but undefined functions can also have noreturn attribute
+
+noreturn void no_definition(void);
+
+
 int main() {
   // switch over an unknown int, otherwise the first call
   // to a function that aborts will dead-code the rest of main
@@ -46,6 +51,11 @@ int main() {
 
     case 2:
       chain2();
+      break;
+
+    case 3:
+      no_definition();
+      __goblint_check(0); // NOWARN (unreachable)
       break;
   }
 }
