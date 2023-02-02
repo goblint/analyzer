@@ -535,21 +535,6 @@ struct
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
-  let set_overflow_flag ~cast ~underflow ~overflow ik =
-    let signed = Cil.isSigned ik in
-    if !GU.postsolving && signed && not cast then (
-      Goblintutil.svcomp_may_overflow := true);
-
-    let sign = if signed then "Signed" else "Unsigned" in
-    match underflow, overflow with
-    | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-    | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
-    | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-    | false, false -> assert false
-
   let norm ?(suppress_ovwarn=false) ?(cast=false) ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
     else (
@@ -592,7 +577,7 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2)
-
+ 
   let meet ik (x:t) y =
     match x, y with
     | None, z | z, None -> None
@@ -1114,10 +1099,11 @@ struct
   let meet ik (x: t) (y: t): t = 
     two_interval_sets_to_events x y |> 
     combined_event_list  `Meet |> 
-    events_to_intervals |> 
-    remove_empty_gaps
+    events_to_intervals 
 
-  let to_int = function [(x, y)] when Ints_t.compare x y = 0 -> Some x | _ -> None
+  let to_int = function 
+    | [(x, y)] when Ints_t.compare x y = 0 -> Some x 
+    | _ -> None
 
   let zero = [(Ints_t.zero, Ints_t.zero)]
   let one = [(Ints_t.one, Ints_t.one)]
