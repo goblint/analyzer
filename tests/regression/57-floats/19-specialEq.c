@@ -2,19 +2,33 @@
 #include <float.h>
 #include <goblint.h>
 
+
 void main() {
   float f;
-  int c;
+  float g;
+  float common;
+  float* fptr;
+  float* gptr;
+  int unk1;
+  int unk2;
+
+  float other;
+
+  if (unk1)
+    fptr = &f;
+  else
+    fptr = &common;
+
+  if (unk2)
+    gptr = &g;
+  else
+    gptr = &common;
+
 
   
 
-  if ( __builtin_isfinite(f)  ) {
-    __goblint_check(f);
-  }
-  float x;
-  x = __builtin_atan2(f, 0.4);
-  if (__builtin_isnan(f) && __builtin_isinf(__builtin_inff()))
-  {
-    f = 0;
-  }
+  other = __builtin_cos(*fptr);
+  *gptr = 0.7;
+
+  __builtin_inf();
 }

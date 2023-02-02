@@ -1,4 +1,5 @@
-(* Analysis that tracks which variables hold the results of calls to math library functions. *)
+(* Analysis that tracks which variables hold the results of calls to math library functions.
+  For each equivalence a set of lvals is tracked, that contains all lvals on which the arguments of the corresponding call depend, so an equivalence can be removed if one of the lvals is written.*)
 
 open Prelude.Ana
 open Analyses
@@ -9,17 +10,49 @@ struct
 
   let name () = "tmpSpecial"
   module ML = LibraryDesc.MathLifted
-  module D = MapDomain.MapBot (Basetype.Variables) (ML)
+  module LS = SetDomain.ToppedSet(Lval.CilLval) (struct let topname = "All" end)
+  module MlLsProd = Lattice.Prod (ML) (LS)
+  module D = MapDomain.MapBot (Basetype.Variables) (MlLsProd)
   module C = Lattice.Unit
+
+  let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
+    match offs with
+    | NoOffset -> `NoOffset
+    | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
+    | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
+
+  let ls_of_lv ctx (lval:lval) : LS.t =
+    match lval with
+    | (Var v, offs) -> LS.of_list [(v, resolve offs)]
+    | (Mem e, _) -> (ctx.ask (Queries.MayPointTo e))
+
+  let rec ls_of_exp ctx (exp:exp) : LS.t = 
+  match exp with
+  | Const _ -> LS.bot ()
+  | Lval lv -> ls_of_lv ctx lv
+  | SizeOf _ -> LS.bot ()
+  | Real e -> ls_of_exp ctx e
+  | Imag e -> ls_of_exp ctx e
+  | SizeOfE e -> ls_of_exp ctx e
+  | SizeOfStr _ -> LS.empty ()
+  | AlignOf _ -> LS.top () (* TODO: what is this*)
+  | AlignOfE _ -> LS.top () (* TODO: what is this*)
+  | UnOp (_,e,_) -> ls_of_exp ctx e
+  | BinOp (_,e1,e2,_) -> LS.union (ls_of_exp ctx e1) (ls_of_exp ctx e2)
+  | Question (q,e1,e2,_) -> LS.union (ls_of_exp ctx q) (LS.union (ls_of_exp ctx e1) (ls_of_exp ctx e2))
+  | CastE (_,e) -> ls_of_exp ctx e
+  | AddrOf _ -> ctx.ask (Queries.MayPointTo exp)
+  | AddrOfLabel _ -> LS.top () (* TODO: what is this*)
+  | StartOf _ -> LS.top () (* TODO: what is this*)
+
 
   let context _ _ = ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    match lval with
-    | (Var v, _) -> D.remove v ctx.local 
-    (* TODO: Handle mem -> may point to*)
-    | _ -> ctx.local
+    (* get the set of all lvals written by the assign. Then remove all entrys from the map where the dependencies overlap with the set of written lvals *)
+    let lvalsWritten = ls_of_lv ctx lval in
+    D.filter (fun v (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -37,22 +70,69 @@ struct
     D.bot ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let d = ctx.local in
+
     (* Just dbg prints *)
     (match lval with
     | Some (Var v, offs) -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with\n lval %a; vinfo %a; attr %a \n" f.vname d_lval (Var v, offs) d_varinfo v d_attrlist v.vattr
     | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s\n" f.vname);
-
     let desc = LibraryFunctions.find f in
-    let res =
+    (* add new math fun dec*)
+    let d =
     match lval, desc.special arglist with
-      | (Some (Var v, _)), (Math { fun_args; }) -> D.add v (ML.lift fun_args) ctx.local 
-      | _ -> ctx.local 
+      | (Some (Var v, _)), (Math { fun_args; }) -> 
+        let lvalDep = List.fold LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
+        if LS.is_top lvalDep then
+          d
+        else
+          D.add v ((ML.lift fun_args, lvalDep)) d
+      | _ -> d 
     in
-    if M.tracing then M.tracel "tmpSpecial" "Result: %a\n\n" D.pretty res;
-    res
 
-    let query ctx (type a) (q: a Queries.t): a Queries.result =
-      Queries.Result.top q
+    (* remove entrys, dependent on lvals that were possibly written by the special function *)
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
+    let deep_addrs =
+      if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? (see "base.ml -> special_unknown_invalidate")*)
+            | _ -> acc
+          ) deep_addrs
+      )
+      else
+        deep_addrs
+    in
+    let d = List.fold_left (fun accD addr -> 
+      let lvalsWritten = ctx.ask (Queries.MayPointTo addr) in
+      D.filter (fun v (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d shallow_addrs
+    in
+    let d = List.fold_left (fun accD addr -> 
+      let lvalsWritten = ctx.ask (Queries.ReachableFrom addr) in
+      D.filter (fun v (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d deep_addrs
+    in
+
+    (* same for lval assignment of the call (though this should always be a "tmp___n")*)
+    let d =
+    match lval with
+    | Some lv -> (
+      (* get the set of all lvals written by the assign. Then remove all entrys from the map where the dependencies overlap with the set of written lvals *)
+      let lvalsWritten = ls_of_lv ctx lv in
+      D.filter (fun v (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) d
+      )
+    | None -> d 
+    in
+    if M.tracing then M.tracel "tmpSpecial" "Result: %a\n\n" D.pretty d;
+    d
+
+    let query ctx (type a) (q: a Queries.t) : a Queries.result =
+      match q with
+      | TmpSpecial v -> let ml = fst (D.find v ctx.local) in
+        if ML.is_bot ml then Queries.Result.top q
+        else ml
+      | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
