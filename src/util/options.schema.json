@@ -1259,6 +1259,21 @@
           },
           "additionalProperties": false
         },
+        "noreturn": {
+          "title": "sem.noreturn",
+          "description": "Handling of C11 _Noreturn function specifier.",
+          "type": "object",
+          "properties": {
+            "dead_code": {
+              "title": "sem.noreturn.dead_code",
+              "description":
+                "For the purposes of detecting dead code, assume that functions marked noreturn don't return.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "int": {
           "title": "sem.int",
           "type": "object",
