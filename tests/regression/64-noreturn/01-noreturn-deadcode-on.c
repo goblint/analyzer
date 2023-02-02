@@ -4,8 +4,6 @@
 #include <stdio.h>
 
 
-void no_op() {}
-
 noreturn void does_not_return() {
   abort();
 }
@@ -38,12 +36,12 @@ int main() {
   switch (unknown) {
     case 0:
       does_not_return();
-      no_op(); // TODO WARN (test script can't handle dead code warnings)
+      __goblint_check(0); // NOWARN (unreachable)
       break;
 
     case 1:
       does_return();
-      no_op(); // TODO WARN (still detect as dead, since we "trust" the noreturn annotation)
+      __goblint_check(0); // NOWARN (unreachable)
       break;
 
     case 2:

@@ -63,6 +63,7 @@ struct
     let nullpointer_dereference: category = create @@ NullPointerDereference
     let use_after_free: category = create @@ UseAfterFree
     let uninitialized: category = create @@ Uninitialized
+    let other: category = create @@ Other
 
     module ArrayOutOfBounds =
     struct
@@ -97,6 +98,7 @@ struct
         | "nullpointer_dereference" -> nullpointer_dereference
         | "use_after_free" -> use_after_free
         | "uninitialized" -> uninitialized
+        | "other" -> other
         | _ -> Unknown
 
     let path_show (e: t) =
