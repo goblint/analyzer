@@ -12,4 +12,5 @@ void main() {
   y = 9;
   y = f(12);
   x = 3;
+  int k = y;
 }

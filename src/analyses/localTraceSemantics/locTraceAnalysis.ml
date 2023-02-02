@@ -407,7 +407,7 @@ match exp with
 | Some(ret_exp) -> (
   let result, success = eval_wrapper sigma LocalTraces.return_vinfo ret_exp graph {programPoint=programPoint;sigma=sigma;id=id}
 in if success = false then (print_string "Evaluation of return expression was unsuccessful\n"; exit 0)
-else ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+else ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node result)})
 ))
 in
 let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -484,7 +484,7 @@ let enter_iter_IDNodes (graph, ctx, f, args) {programPoint=programPoint;id=id;si
         | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
       ) (sigma, args) f.sformals
     in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
-      let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge (FunctionEntry(f)) sigma)})
+      let myEdge = ({programPoint=programPoint;sigma=sigma;id=id},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge (FunctionEntry(f)) sigma_formals)})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
@@ -534,8 +534,11 @@ let combine_iter_calleeLocal callee_graph (ctx, {programPoint=programPoint;id=id
   in
     let (myEdge:(node * edge * node)) = 
     (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)}
-     |Some (Var x, _) ->  (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
-  in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma= SigmaMap.add x return_value sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)})
+     |Some (Var x, y) ->  if x.vglob 
+      then ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Assign((Var(x), y), (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node sigma)}) else
+      (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
+      in let result_sigma = SigmaMap.add x return_value sigma
+  in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning},Skip,{programPoint=ctx.node;sigma=result_sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id} ctx.edge ctx.node result_sigma)})
      | _ -> Printf.printf "Invalid Lval format in combine\n"; exit 0)
   in
   let result_graph = LocalTraces.extend_by_gEdge graph_acc myEdge
@@ -607,7 +610,7 @@ in
       print_string ("threadenter wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
       let _, result = D.fold threadenter_iter_graphSet (ctx.local) (ctx, D.empty())
     in
-      [result] (* was ist diese Liste hier? *)
+      [result] (* Zustand von neuem Thread *)
       (* [ctx.local, ctx.local] das klappt nicht? *)
 
     (* THREADSPAWN helper functions *)
@@ -637,7 +640,7 @@ in
       let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
       in
       (ctx, new_set)
-    let threadspawn ctx lval f args fctx = 
+    let threadspawn ctx lval f args fctx = (* Creator; lval speichert neue Thread-ID *)
       print_string ("threadspawn wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
       let _, result = D.fold threadspawn_iter_graphSet (ctx.local) (ctx, D.empty())
     in
