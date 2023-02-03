@@ -558,7 +558,6 @@ struct
         | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
         | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | _ -> join x y  (* Others can not contain array -> normal join  *)
 
   let rec smart_widen x_eval_int y_eval_int x y:t =
