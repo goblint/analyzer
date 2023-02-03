@@ -109,6 +109,7 @@ type _ t =
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
+  | ActiveJumpBuf: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | MustProtectedVars: mustprotectedvars -> LS.t t
@@ -162,6 +163,7 @@ struct
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | EvalJumpBuf _ -> (module JmpBufDomain.JmpBufSet)
+    | ActiveJumpBuf -> (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | MustProtectedVars _ -> (module LS)
@@ -214,6 +216,7 @@ struct
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
+    | ActiveJumpBuf -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | MustProtectedVars _ -> LS.top ()
@@ -271,6 +274,7 @@ struct
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
     | Any (EvalJumpBuf _) -> 41
+    | Any ActiveJumpBuf -> 42
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -372,6 +376,7 @@ struct
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
     | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
     | Any (EvalJumpBuf e) -> Pretty.dprintf "EvalJumpBuf %a" CilType.Exp.pretty e
+    | Any ActiveJumpBuf ->  Pretty.dprintf "ActiveJumpBuf"
     | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"

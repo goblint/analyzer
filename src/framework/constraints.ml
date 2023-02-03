@@ -617,6 +617,11 @@ struct
     common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ctx lv e (f:fundec) args  getl sidel getg sideg =
+    let jmptarget = function
+      | Statement s -> LongjmpTo s
+      | _ -> failwith "should not happen"
+    in
+    let current_fundec = Node.find_fundec ctx.node in
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       (* Extra sync in case function has multiple returns.
@@ -638,12 +643,40 @@ struct
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
+    let handlelongjmp (cd,fc,fd) =
+      (* TODO: Identify current longjmp target for return from given context, and dispatch side-effect appropriately *)
+      let targets =
+        let rec ctx' = { ctx with
+                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q);
+                         local = fd;
+                         prev_node = Function f
+                       }
+        in
+        ctx'.ask ActiveJumpBuf
+      in
+      let handle_longjmp (node, c) =
+        let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
+          (Messages.warn "Fun: Potentially from same context";
+           Messages.warn "Fun: side-effect to %s" (Node.show node);
+           sidel (jmptarget node, ctx.context ()) fd)
+        else
+          (Messages.warn "Fun: Longjmp to somewhere else";
+           sidel (LongjmpFromFunction current_fundec, ctx.context ()) fd)
+      in
+      (Messages.warn "Fun: Considering jump";
+       List.iter handle_longjmp (JmpBufDomain.JmpBufSet.elements targets))
+    in
     let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    let ld_fc_fd_list = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) ld_fc_fd_list;
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) ld_fc_fd_list in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     let paths = List.map (Tuple3.map2 Option.some) paths in
+    let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else (Messages.warn "asking for side-effect to %i" (S.C.hash fc); getl (LongjmpFromFunction f, fc)))) ld_fc_fd_list in
+    let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
+    let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
+    let _ = List.iter handlelongjmp longjmppaths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
@@ -663,7 +696,9 @@ struct
       let later_return = getl (jmptarget ctx.node, ctx.context ()) in
       S.D.join first_return later_return
     | Longjmp {env; value; sigrestore} ->
+      let res = S.special ctx lv f args in
       let current_fundec = Node.find_fundec ctx.node in
+      (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
       let targets = ctx.ask (EvalJumpBuf env) in
       M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
       let handle_longjmp (node, c) =
@@ -671,13 +706,13 @@ struct
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Potentially from same context";
            Messages.warn "side-effect to %s" (Node.show node);
-           sidel (jmptarget node, ctx.context ()) ctx.local)
+           sidel (jmptarget node, ctx.context ()) res)
         else
           (Messages.warn "Longjmp to somewhere else";
-           sidel (LongjmpFromFunction current_fundec, ctx.context ()) ctx.local)
+           Messages.warn "side-effect to %i" (S.C.hash (ctx.context ()));
+           sidel (LongjmpFromFunction current_fundec, ctx.context ()) res)
       in
       List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
-      let _ = S.special ctx lv f args in
       S.D.bot ()
     | _ -> S.special ctx lv f args
 
