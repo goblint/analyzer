@@ -273,6 +273,37 @@ sig
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
+module type SOverFlow = 
+sig
+
+  include S
+
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool * bool
+  
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool * bool
+
+  val of_int : Cil.ikind -> int_t -> t * bool * bool * bool
+
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * bool  * bool * bool
+
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool  * bool * bool
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool * bool
+
+  val shift_left : Cil.ikind -> t -> t -> t * bool * bool * bool
+
+  val shift_right: Cil.ikind -> t -> t -> t * bool * bool * bool
+
+
+end
+
 module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
 
@@ -370,9 +401,9 @@ module FlattenedBI : IkindUnawareS with type t = [`Top | `Lifted of IntOps.BigIn
 module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
 (** Artificially bounded integers in their natural ordering. *)
 
-module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+module IntervalFunctor(Ints_t : IntOps.IntOps): SOverFlow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
 
-module IntervalSetFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
+module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverFlow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
@@ -382,9 +413,9 @@ module BigInt:
     val cast_to: Cil.ikind -> Z.t -> Z.t
   end
 
-module Interval : S with type int_t = IntOps.BigIntOps.t
+module Interval : SOverFlow with type int_t = IntOps.BigIntOps.t
 
-module IntervalSet : S with type int_t = IntOps.BigIntOps.t
+module IntervalSet : SOverFlow with type int_t = IntOps.BigIntOps.t
 
 module Congruence : S with type int_t = IntOps.BigIntOps.t
 
