@@ -99,31 +99,28 @@ module Ikind: S with type t = ikind =
 struct
   include Std
 
-  type t = ikind
+  type t = ikind =
+    | IChar
+    | ISChar 
+    | IUChar
+    | IBool
+    | IInt
+    | IUInt
+    | IShort
+    | IUShort
+    | ILong
+    | IULong
+    | ILongLong
+    | IULongLong
+    | IInt128
+    | IUInt128
+  [@@deriving hash]
 
   let name () = "ikind"
 
   (* Identity *)
-  let _equal (xy: t * t) = match xy with
-    | (IChar, IChar) -> true
-    | (ISChar, ISChar) -> true
-    | (IUChar, IUChar) -> true
-    | (IBool, IBool) -> true
-    | (IInt, IInt) -> true
-    | (IUInt, IUInt) -> true
-    | (IShort, IShort) -> true
-    | (IUShort, IUShort) -> true
-    | (ILong, ILong) -> true
-    | (IULong, IULong) -> true
-    | (ILongLong, ILongLong) -> true
-    | (IULongLong, IULongLong) -> true
-    | (IInt128, IInt128) -> true
-    | (IUInt128, IUInt128) -> true
-    | _ -> false;;
-
-  let equal (x: t) (y: t) = _equal (x,y)
+  let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_ikind () x
@@ -139,23 +136,20 @@ module Fkind: S with type t = fkind =
 struct
   include Std
 
-  type t = fkind
+  type t = fkind =
+    | FFloat
+    | FDouble
+    | FLongDouble
+    | FComplexFloat
+    | FComplexDouble
+    | FComplexLongDouble
+  [@@deriving hash]
 
   let name () = "fkind"
 
   (* Identity *)
-  let _equal (xy: t * t) = match xy with
-    | (FFloat, FFloat) -> true
-    | (FDouble, FDouble) -> true
-    | (FLongDouble, FLongDouble) -> true
-    | (FComplexFloat, FComplexFloat) -> true
-    | (FComplexDouble, FComplexDouble) -> true
-    | (FComplexLongDouble, FComplexLongDouble) -> true
-    | _ -> false;;
-
-  let equal (x: t) (y: t) = _equal (x,y)
+  let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_fkind () x
@@ -171,20 +165,17 @@ module Unop: S with type t = unop =
 struct
   include Std
 
-  type t = unop
+  type t = unop =
+    | Neg
+    | BNot
+    | LNot
+  [@@deriving hash]
 
   let name () = "unop"
 
   (* Identity *)
-  let _equal (xy: t * t) = match xy with
-    | (Neg, Neg) -> true
-    | (BNot, BNot) -> true
-    | (LNot, LNot) -> true
-    | _ -> false;;
-
-  let equal (x: t) (y: t) = _equal (x,y)
+  let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_unop () x
@@ -200,39 +191,36 @@ module Binop: S with type t = binop =
 struct
   include Std
 
-  type t = binop
+  type t = binop =
+    | PlusA
+    | PlusPI
+    | IndexPI
+    | MinusA
+    | MinusPI
+    | MinusPP
+    | Mult
+    | Div
+    | Mod
+    | Shiftlt
+    | Shiftrt
+    | Lt
+    | Gt
+    | Le
+    | Ge
+    | Eq
+    | Ne
+    | BAnd 
+    | BXor 
+    | BOr
+    | LAnd
+    | LOr
+  [@@deriving hash]
 
   let name () = "binop"
 
   (* Identity *)
-  let _equal (xy: t * t) = match xy with
-      | (PlusA, PlusA) -> true
-      | (PlusPI, PlusPI) -> true
-      | (IndexPI, IndexPI) -> true
-      | (MinusA, MinusA) -> true
-      | (MinusPI, MinusPI) -> true
-      | (MinusPP, MinusPP) -> true
-      | (Mult, Mult) -> true
-      | (Div, Div) -> true
-      | (Mod, Mod) -> true
-      | (Shiftlt, Shiftlt) -> true
-      | (Shiftrt, Shiftrt) -> true
-      | (Lt, Lt) -> true
-      | (Gt, Gt) -> true
-      | (Le, Le) -> true
-      | (Ge, Ge) -> true
-      | (Eq, Eq) -> true
-      | (Ne, Ne) -> true
-      | (BAnd, BAnd) -> true
-      | (BXor, BXor) -> true
-      | (BOr, BOr) -> true
-      | (LAnd, LAnd) -> true
-      | (LOr, LOr) -> true
-      | _ -> false;;
-
-  let equal (x: t) (y: t) = _equal (x,y)
+  let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_binop () x
@@ -248,20 +236,17 @@ module Wstring_type: S with type t = wstring_type =
 struct
   include Std
 
-  type t = wstring_type
+  type t = wstring_type =
+    | Wchar_t
+    | Char16_t
+    | Char32_t
+  [@@deriving hash]
 
   let name () = "wstring_type"
 
   (* Identity *)
-  let _equal (xy: t * t) = match xy with
-    | (Wchar_t, Wchar_t) -> true
-    | (Char16_t, Char16_t) -> true
-    | (Char32_t, Char32_t) -> true
-    | _ -> false;;
-
-  let equal (x: t) (y: t) = _equal(x,y)
+  let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let show = function
@@ -280,19 +265,17 @@ module Encoding: S with type t = encoding =
 struct
   include Std
 
-  type t = encoding
+  type t = encoding =
+    | No_encoding
+    | Utf8
+  [@@deriving hash]
+
 
   let name () = "encoding"
 
   (* Identity *)
-  let _equal (xy: t * t) = match xy with
-      | (No_encoding, No_encoding) -> true
-      | (Utf8, Utf8) -> true
-      | _ -> false;;
-
-  let equal (x: t) (y: t) = _equal(x,y)
+  let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let show = function
