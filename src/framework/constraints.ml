@@ -659,6 +659,7 @@ struct
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Fun: Potentially from same context";
            Messages.warn "Fun: side-effect to %s" (Node.show node);
+           (* TODO: Prepare appropriate value here *)
            sidel (jmptarget node, ctx.context ()) fd)
         else
           (Messages.warn "Fun: Longjmp to somewhere else";
