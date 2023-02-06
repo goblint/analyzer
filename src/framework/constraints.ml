@@ -695,6 +695,7 @@ struct
       Messages.warn "reading from %s" (Node.show (jmptarget ctx.node));
       let later_return = getl (jmptarget ctx.node, ctx.context ()) in
       if not @@ S.D.is_bot later_return then
+        (* TODO: actually the combine would have to be with the state at the caller, we would only set the return value here! *)
         let later_return' = S.combine ctx lv (Cil.one) (Cil.dummyFunDec) args None later_return in
         S.D.join first_return later_return'
       else
