@@ -3,19 +3,19 @@
 #include <assert.h>
 
 int global = 0;
+jmp_buf jmp_buffer;
 
 int main(void)
 {
-    jmp_buf jmp_buf;
 
     assert(1);
-    setjmp(jmp_buf);
+    setjmp(jmp_buffer);
     switch (global)
     {
     case 0:
         assert(1);
         global = 1;
-        longjmp(jmp_buf, 1);
+        longjmp(jmp_buffer, 1);
         assert(0); // NOWARN
         break;
     case 1:
