@@ -2240,8 +2240,11 @@ struct
          set ~ctx (Analyses.ask_of_ctx ctx) gs st' (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
        | None -> st')
     | Longjmp {env; value; sigrestore}, _ ->
+      let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
+      let t = Cil.typeOf value in
+      let res = set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv in
+      res
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
-      ctx.local
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args

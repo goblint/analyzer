@@ -8,10 +8,9 @@ open Analyses
 module Spec =
 struct
   include Analyses.DefaultSpec
-  module VD = ValueDomain.Compound
 
   let name () = "activeLongjmp"
-  module D = Lattice.ProdSimple(JmpBufDomain.JmpBufSet)(VD)
+  module D = JmpBufDomain.JmpBufSet
   module C = Lattice.Unit
 
   (* transfer functions *)
@@ -38,7 +37,8 @@ struct
     match desc.special arglist, f.vname with
     | Longjmp {env; value; sigrestore}, _ ->
       (* Put current buffer into set *)
-      (ctx.ask (EvalJumpBuf env), VD.bot ())
+      let bufs = ctx.ask (EvalJumpBuf env) in
+      bufs
     | _ -> ctx.local
 
   let startstate v = D.bot ()
@@ -52,7 +52,7 @@ struct
     match q with
     | ActiveJumpBuf ->
       (* Does not compile without annotation: "This instance (...) is ambiguous: it would escape the scope of its equation" *)
-      ((fst ctx.local):JmpBufDomain.JmpBufSet.t)
+      (ctx.local:JmpBufDomain.JmpBufSet.t)
     | _ -> Queries.Result.top q
 end
 

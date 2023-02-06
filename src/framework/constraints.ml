@@ -659,7 +659,6 @@ struct
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Fun: Potentially from same context";
            Messages.warn "Fun: side-effect to %s" (Node.show node);
-           (* TODO: Prepare appropriate value here *)
            sidel (jmptarget node, ctx.context ()) fd)
         else
           (Messages.warn "Fun: Longjmp to somewhere else";
@@ -674,7 +673,7 @@ struct
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) ld_fc_fd_list in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     let paths = List.map (Tuple3.map2 Option.some) paths in
-    let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else (Messages.warn "asking for side-effect to %i" (S.C.hash fc); getl (LongjmpFromFunction f, fc)))) ld_fc_fd_list in
+    let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else (Messages.tracel "longjmp" "asking for side-effect to %i" (S.C.hash fc); getl (LongjmpFromFunction f, fc)))) ld_fc_fd_list in
     let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
     let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
     let _ = List.iter handlelongjmp longjmppaths in
@@ -695,7 +694,11 @@ struct
       let first_return = S.special ctx lv f args in
       Messages.warn "reading from %s" (Node.show (jmptarget ctx.node));
       let later_return = getl (jmptarget ctx.node, ctx.context ()) in
-      S.D.join first_return later_return
+      if not @@ S.D.is_bot later_return then
+        let later_return' = S.combine ctx lv (Cil.one) (Cil.dummyFunDec) args None later_return in
+        S.D.join first_return later_return'
+      else
+        first_return
     | Longjmp {env; value; sigrestore} ->
       let res = S.special ctx lv f args in
       let current_fundec = Node.find_fundec ctx.node in
