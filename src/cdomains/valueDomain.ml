@@ -604,6 +604,7 @@ struct
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.widen x y)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -632,6 +633,7 @@ struct
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
     | (`Mutex, `Mutex) -> true
+    | (`JmpBuf x, `JmpBuf y) -> JmpBufs.leq x y
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
@@ -657,6 +659,7 @@ struct
     | (`Thread y, `Address x) ->
       `Address x (* TODO: ignores thread! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.meet x y)
     | _ ->
       warn_type "meet" x y;
       `Bot
