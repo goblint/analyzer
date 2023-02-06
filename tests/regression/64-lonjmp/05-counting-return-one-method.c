@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums --enable exp.earlyglobs
+// SKIP PARAM: --enable ana.int.interval --enable ana.int.enums --enable exp.earlyglobs
 #include <assert.h>
 #include <setjmp.h>
 

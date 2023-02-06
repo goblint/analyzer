@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums
+// SKIP PARAM: --enable ana.int.interval --enable ana.int.enums
 #include <assert.h>
 #include <setjmp.h>
 

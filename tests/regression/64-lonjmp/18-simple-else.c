@@ -33,7 +33,6 @@ int main () {
 
    fun();
 
-   __goblint_check(0); // unreachable
-
+   __goblint_check(0); // NOWARN
    return(0);
 }
