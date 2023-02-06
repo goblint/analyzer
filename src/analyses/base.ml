@@ -2228,17 +2228,19 @@ struct
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env; savesigs}, _ ->
-      let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
-       | `Address jmp_buf ->
-         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-         let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.node, IntDomain.Flattened.of_int (Int64.of_int controlctx))) in
-         set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
-       | _      -> failwith "problem?!")
-      in
-      (* TODO: Distinguish between different ways to return from it! *)
-      invalidate_ret_lv st'
+      (let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
+           | `Address jmp_buf ->
+             let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+             let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.node, IntDomain.Flattened.of_int (Int64.of_int controlctx))) in
+             set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
+           | _      -> failwith "problem?!")
+       in
+       match lv with
+       | Some lv ->
+         set ~ctx (Analyses.ask_of_ctx ctx) gs st' (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
+       | None -> st')
     | Longjmp {env; value; sigrestore}, _ ->
-      (* TODO: raise Deadcode? *)
+      (* Not rasing Deadode here, deadcode is raised at a higher level! *)
       ctx.local
     | _, _ -> begin
         let st =
