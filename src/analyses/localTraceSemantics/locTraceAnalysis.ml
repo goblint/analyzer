@@ -408,7 +408,13 @@ in
 match exp with 
 | None ->  print_string "In return case None\n";
 ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
-| Some(ret_exp) -> (
+| Some(ret_exp) -> ( print_string ("return expression: "^(CilType.Exp.show ret_exp)^"\n");
+  match ret_exp with
+  | CastE(TPtr(TVoid(_), attrList2),Const(CInt(cilint,IInt,_))) ->
+    if Cilint.is_zero_cilint cilint then (
+      let sigma_returnVinfo= SigmaMap.add LocalTraces.return_vinfo Error sigma in
+      {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma_returnVinfo;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma_returnVinfo);tid=tid}) else (print_string "In return, unsupported expression\n"; exit 0)
+    | _ -> 
   let result, success = eval_wrapper sigma LocalTraces.return_vinfo ret_exp graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid}
 in if success = false then (print_string "Evaluation of return expression was unsuccessful\n"; exit 0)
 else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result);tid=tid})
@@ -540,9 +546,11 @@ let combine_iter_calleeLocal callee_graph (ctx, {programPoint=programPoint;id=id
     let (myEdge:(node * edge * node)) = 
     (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma);tid=tid_returning}
      |Some (Var x, y) ->  if x.vglob 
-      then ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Assign((Var(x), y), (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma);tid=tid_returning}) else
+      then ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Assign((Var(x), y), (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma);tid=tid_returning}) 
+    else
       (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
-      in let result_sigma = SigmaMap.add x return_value sigma
+      in if equal_varDomain return_value Error then (print_string "In combine, a returning Nullpointer is assigned to some lval, this is not supported\n";exit 0) else
+      let result_sigma = SigmaMap.add x return_value sigma
   in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=result_sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node result_sigma);tid=tid_returning})
      | _ -> Printf.printf "Invalid Lval format in combine\n"; exit 0)
   in
@@ -585,35 +593,54 @@ in result
 
    (* THREADENTER helper functions *)
    (* iterate over all IDs of destination node and current sigma *)
-  let threadenter_iter_IDNodes (graph, ctx) {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
-  let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
-in
-let result_graph = LocalTraces.extend_by_gEdge graph myEdge
-in
-    (result_graph, ctx)
+  let threadenter_iter_IDNodes (graph, ctx, (f:varinfo), args) {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
+    match Cilfacade.find_varinfo_fundec f with
+    | fd -> print_string ("fd.sformals ={"^(List.fold (fun acc_fold formal_fold -> acc_fold^(CilType.Varinfo.show formal_fold)^"; ") "" fd.sformals )^"}\n");
+      ( let sigma_formals, _ = 
+    List.fold (
+      fun (sigAcc, formalExp) formal -> (match formalExp with 
+        | CastE(TPtr(TVoid(_), attrList2),CastE(TPtr(TVoid(_), _),Const(CInt(cilint,IInt,_))))::xs -> if Cilint.is_zero_cilint cilint 
+          then (SigmaMap.empty, xs) 
+      else (print_string "Inputs for threads is not yet supported\n"; exit 0)
+        | x::xs -> (print_string "Inputs for threads is not yet supported\n"; exit 0)
+        | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
+      ) (sigma, args) fd.sformals 
+    in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
+    let new_id = idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma_formals
+    in
+    let myEdge = {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=(FunctionEntry(fd));sigma=sigma_formals;id=new_id;tid=new_id}
+    (* einspeichern der create-Beziehung *)
+  in
+  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+  in
+      (result_graph, ctx, f, args)
+      )
+      | exception Not_found -> Printf.printf "Error: function does not exist, in threadenter\n"; exit 0
+
   
    (* iterate over all sigmas of previous node in current graph *)
-  let threadenter_iter_oldSigma (graph, ctx) sigma =
+  let threadenter_iter_oldSigma (graph, ctx, f, args) sigma =
     let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
   in
-  let result_graph, _ = List.fold threadenter_iter_IDNodes (graph, ctx) allIDPrevNodes
+  let result_graph, _, _, _ = List.fold threadenter_iter_IDNodes (graph, ctx, f, args) allIDPrevNodes
   in
-  (result_graph, ctx)
+  (result_graph, ctx, f, args)
 
    (* iterate over the graphs in previous state *)
-   let threadenter_iter_graphSet graph (ctx,set_acc) =
+   let threadenter_iter_graphSet graph (args, f, ctx,set_acc) =
     let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
    in
-   let result_graph, _ = List.fold threadenter_iter_oldSigma (graph, ctx) oldSigma
+   let result_graph, _, _, _ = List.fold threadenter_iter_oldSigma (graph, ctx, f, args) oldSigma
     in
     let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
     in
-    (ctx, new_set)
+    (args, f, ctx, new_set)
 
-    let threadenter ctx lval f args = 
+    let threadenter ctx lval f (args:exp list) = 
       print_string ("threadenter wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show ctx.edge)^" und ctx.node "^(Node.show ctx.node)^"
-      und lval "^(match lval with None -> "None" |Some(l) -> CilType.Lval.show l)^"\n");
-      let _, result = D.fold threadenter_iter_graphSet (ctx.local) (ctx, D.empty())
+    , lval "^(match lval with None -> "None" |Some(l) -> CilType.Lval.show l)^"
+    \nund args={"^(List.fold (fun acc_fold exp_fold -> acc_fold^(CilType.Exp.show exp_fold)^"; ") "" args)^"}\n");
+      let _, _, _, result = D.fold threadenter_iter_graphSet (ctx.local) (args, f, ctx, D.empty())
     in
       [result] (* Zustand von neuem Thread *)
 

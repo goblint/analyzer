@@ -37,6 +37,7 @@ let equal_varDomain vd1 vd2 =
   Int(iLower1, iUpper1, ik1), Int(iLower2, iUpper2, ik2) -> (Big_int_Z.eq_big_int iLower1 iLower2) && (Big_int_Z.eq_big_int iUpper1 iUpper2)
   && (CilType.Ikind.equal ik1 ik2)
   | Address(vinfo1), Address(vinfo2) -> CilType.Varinfo.equal vinfo1 vinfo2
+  | Error, Error -> true
   | _ -> false
 
   let show_valuedomain vd =
@@ -313,7 +314,9 @@ object(self)
     let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find}) -> 
      if (NodeImpl.equal prev_node prev_node_find)&&(Edge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find) then id_find else acc) (-1) edges 
   in 
-  if id = (-1) then ( print_string "No existing edge for this combination was found, so we create a new ID\n";
+  if id = (-1) then ( print_string ("No existing edge for this combination was found, so we create a new ID\n
+    for prev_node="^(NodeImpl.show prev_node)^", edge="^(EdgeImpl.show edge)^", dest_progPoint="^(Node.show dest_programPoint)^", dest_sigma="^(NodeImpl.show_sigma dest_sigma)^"\n
+in edges={"^(List.fold (fun acc_fold edge_fold -> acc_fold^(LocalTraces.show_edge edge_fold)^"\n") "" edges)^"}\n");
   (* TID should not matter here *)
   edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=(-1)})::edges; 
   self#increment ()) else (print_string ("id was found: "^(string_of_int id)^"\n"); id)
