@@ -3272,7 +3272,6 @@ module IntDomTupleImpl = struct
     create2 r x (int_precision_from_node_or_config ())
   
   let no_overflow ik = function
-    | _ when should_ignore_overflow ik -> true
     | Some(_,underflow, overflow, _) -> not (underflow || overflow)
     | _ -> false
   let create2_ovc ik r x ((p1, p2, p3, p4, p5): int_precision) =
@@ -3281,11 +3280,12 @@ module IntDomTupleImpl = struct
       let intv =  f p2 @@ r.fi2_ovc (module I2) in
       let intv_set = f p5 @@ r.fi2_ovc (module I5) in
       let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
-        if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set  ) then (
-      let (_,underflow_intv, overflow_intv, cast) = match intv with None -> (I2.bot (), true, true, true) | Some x -> x in
-      let (_,underflow_intv_set, overflow_intv_set, _) = match intv_set with None -> (I5.bot (), true, true , true) | Some x -> x in
+        if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
+      let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
+      let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
+      let cast = cast_intv || cast_intv_set in
       set_overflow_flag ~cast ~underflow ~overflow ik; 
     );
       map unlift @@ f p1 @@ r.fi2_ovc (module I1), map unlift @@ f p2 @@ r.fi2_ovc (module I2), map unlift @@ f p3 @@ r.fi2_ovc (module I3), map unlift @@ f p4 @@ r.fi2_ovc (module I4), map unlift @@ f p5 @@ r.fi2_ovc (module I5)
@@ -3471,12 +3471,14 @@ module IntDomTupleImpl = struct
     let intv_set = map (r.f1_ovc (module I5)) e in
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set  ) then (
-      let (_,underflow_intv, overflow_intv, cast) = match intv with None -> (I2.bot (), true, true, true) | Some x -> x in
-      let (_,underflow_intv_set, overflow_intv_set, _) = match intv_set with None -> (I5.bot (), true, true , true) | Some x -> x in
+      let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
+      let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
+      let cast = cast_intv || cast_intv_set in
       set_overflow_flag ~cast ~underflow ~overflow ik; 
     );
+    let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> unlift) a
       , BatOption.map unlift intv
@@ -3490,12 +3492,14 @@ module IntDomTupleImpl = struct
     let intv_set = opt_map2 (r.f2_ovc (module I5)) xe ye in
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov  && ( BatOption.is_some intv || BatOption.is_some intv_set  ) then (
-      let (_,underflow_intv, overflow_intv, cast) = match intv with None -> (I2.bot (), true, true, true) | Some x -> x in
-      let (_,underflow_intv_set, overflow_intv_set, _) = match intv_set with None -> (I5.bot (), true, true , true) | Some x -> x in
+      let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
+      let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
+      let cast = cast_intv || cast_intv_set in
       set_overflow_flag ~cast ~underflow ~overflow ik; 
     );
+    let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> unlift) xa ya
       , BatOption.map unlift intv
