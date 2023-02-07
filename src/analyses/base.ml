@@ -2302,6 +2302,8 @@ struct
           (* add variables from callee that are not in caller yet *)
           let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
           let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
+          (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
+          let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
