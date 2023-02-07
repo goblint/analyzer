@@ -244,7 +244,7 @@ else (let tmp = LocTraceGraph.add_edge_e gr gEdge in print_string ("extend_by_gE
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node prev_node then edge::list else list)
        [] (get_all_edges graph)
 
-  let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
+    let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
   let rec loop visited = (print_string ("\nloop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^" und visited: "^(List.fold (fun s n -> ((NodeImpl.show n)^", "^s)) "" visited)^" and |visited| = "^(string_of_int (List.length visited))^"\n");
@@ -266,7 +266,7 @@ match tmp_result with
   )
 in loop []
 
-let get_succeeding_node prev_node edge_label graph =
+    let get_succeeding_node prev_node edge_label graph =
   print_string ("LocalTraces.get_succeeding_node was invoked with prev_node="^(NodeImpl.show prev_node)^", edge_label="^(EdgeImpl.show edge_label)^" and\n"^(show graph)^"\n");
   let edgeList = get_all_edges graph
 in let tmp =
@@ -278,7 +278,7 @@ List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
   in print_string ("in LocalTraces.get_succeeding_node we found the node "^(NodeImpl.show tmp)^"\n"); tmp
 
 (* finds the return endpoints of a calling node *)
-let find_returning_node prev_node edge_label graph =
+    let find_returning_node prev_node edge_label graph =
   let node_start = get_succeeding_node prev_node edge_label graph
 in
 let rec find_returning_node_helper current_node current_saldo =(
@@ -292,6 +292,57 @@ List.fold (fun acc_node ((prev_fold:node), (edge_fold:Edge.t), (dest_fold:node))
   ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1} succeeding_edges
   )
 in find_returning_node_helper node_start 1
+
+(* Interface for possible improvement: integrate last-component to LocalTraces-datastructure *)
+(* Searches for last node in a trace. It has to contain the programPoint, otherwise an error-node is returned *)
+    let get_last_node_progPoint graph programPoint =
+      let allNodes = get_all_nodes graph
+    in 
+    let rec loop nodeList =
+      match nodeList with 
+        | x::xs -> if (List.is_empty (get_successors_edges graph x))&&(Node.equal x.programPoint programPoint) then x else loop xs
+        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1}
+    in loop allNodes
+
+    let get_last_node graph =
+      let allNodes = get_all_nodes graph
+    in 
+    let rec loop nodeList =
+      match nodeList with 
+        | x::xs -> if (List.is_empty (get_successors_edges graph x)) then x else loop xs
+        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1}
+    in loop allNodes
+
+    let get_all_nodes_progPoint graph programPoint=
+    let allNodes = get_all_nodes graph
+  in 
+  let rec loop nodeList acc =
+    match nodeList with 
+      | x::xs -> if (Node.equal x.programPoint programPoint) then loop xs (x::acc) else loop xs acc
+      | [] -> acc
+  in loop allNodes []
+  
+(* Interface for future efficient implementation *)
+let find_calling_node return_node graph progPoint =
+  let allNodes = get_all_nodes_progPoint graph progPoint
+in
+let rec inner_loop node_candidate edgeList =
+  match edgeList with (_,e,_)::es -> 
+  if NodeImpl.equal return_node (find_returning_node node_candidate e graph) then node_candidate
+  else inner_loop node_candidate es
+  | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1}
+in
+let rec loop nodeList =
+  match nodeList with
+  | x::xs -> (
+    let succeedingEdgesList = get_successors_edges graph x
+in
+    let tmp_result = inner_loop x succeedingEdgesList
+in 
+if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
+  )
+    | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1}
+    in loop allNodes
 
 end
 
@@ -346,3 +397,11 @@ in randomValue)
 end
 
 let randomIntGenerator = new random_int_generator
+(* 
+class extended_edges_mgmt =
+object(self)
+  val mutable createEdgesList:((node * edge * node) list) = []
+  val mutable hasCreatedList:(int * int) list = []
+
+
+end *)

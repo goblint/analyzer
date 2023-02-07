@@ -277,30 +277,17 @@ let assign_iter_IDNodes (graph, ctx, lval, rval) {programPoint=programPoint;id=i
 in
     (result_graph, ctx, lval, rval)
 
-(* iterate over all sigmas of previous node in current graph *)
-let assign_iter_oldSigma (graph, ctx, lval, rval) sigma =
-  let allIDPrevNodes_undone = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-(* if prev_node does not exist yet, then this has to be the very first node in the trace, that's why this gets node-ID*)
-let allIDPrevNodes = if List.exists (fun ({id=id;_}) -> id = (-1) ) allIDPrevNodes_undone 
-  then [
-let new_id = idGenerator#getID {programPoint=ctx.prev_node;sigma=SigmaMap.empty;id=(-1);tid=(-1)} ctx.edge ctx.node sigma
-in    
-{programPoint=ctx.prev_node;sigma=sigma;id=new_id;tid=new_id}] else allIDPrevNodes_undone
-in
-let result_graph, _, _, _ = 
-List.fold assign_iter_IDNodes (graph, ctx, lval, rval) allIDPrevNodes
-in
-(result_graph, ctx, lval, rval)
-
 (* iterate over the graphs in previous state *)
 let assign_iter_graphSet graph (lval, rval, ctx,set_acc) =
-  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
- in
+  let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
+   in
+  let new_set = 
+    (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In assign, we have a trace that does not end in previous node:
+    "^(LocalTraces.show graph)^"\n"); set_acc) else 
  let result_graph, _, _, _ = 
-  List.fold assign_iter_oldSigma (graph, ctx, lval, rval) oldSigma
+  assign_iter_IDNodes (graph, ctx, lval, rval) lastNode
   in
-  let new_set = if (List.is_empty oldSigma) || (LocalTraces.equal graph result_graph)  then set_acc else D.add result_graph set_acc
+  if (LocalTraces.equal graph result_graph)  then set_acc else D.add result_graph set_acc)
   in
   (lval, rval, ctx, new_set)
 
@@ -333,23 +320,17 @@ let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&resul
 in
     (result_graph, ctx, exp, tv)
 
-(* iterate over all sigmas of previous node in current graph *)
-let branch_iter_oldSigma (graph, ctx, exp, tv) sigma =
-  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-let result_graph, _, _, _ = 
-List.fold branch_iter_IDNodes (graph, ctx, exp, tv) allIDPrevNodes
-in
-(result_graph, ctx, exp, tv)
-
 (* iterate over the graphs in previous state *)
 let branch_iter_graphSet graph (exp, tv, ctx,set_acc) =
-  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
- in
+  let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
+   in
+  let new_set =
+ (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In branch, we have a trace that does not end in previous node:
+  "^(LocalTraces.show graph)^"\n"); set_acc) else
  let result_graph, _, _, _ = 
-  List.fold branch_iter_oldSigma (graph, ctx, exp, tv) oldSigma
+  branch_iter_IDNodes (graph, ctx, exp, tv) lastNode
   in
-  let new_set = if (List.is_empty oldSigma) || (LocalTraces.equal graph result_graph) then set_acc else D.add result_graph set_acc
+  if (LocalTraces.equal graph result_graph) then set_acc else D.add result_graph set_acc)
   in
   (exp, tv, ctx, new_set)
 
@@ -367,30 +348,23 @@ let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
     (result_graph, ctx)
 
-(* iterate over all sigmas of previous node in current graph *)
-let body_iter_oldSigma (graph, ctx) sigma =
-  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-let result_graph, _ = 
-List.fold body_iter_IDNodes (graph, ctx) allIDPrevNodes
-in
-(result_graph, ctx)
-
 (* iterate over the graphs in previous state *)
 let body_iter_graphSet graph (ctx,set_acc) =
-  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
- in
- let result_graph, _ = 
-  List.fold body_iter_oldSigma (graph, ctx) oldSigma
+  let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
+   in
+  let new_set = (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In body, we have a trace that does not end in previous node:
+    "^(LocalTraces.show graph)^"\n");if LocTraceGraph.is_empty graph 
+      then(
+  let first_ID = idGenerator#increment()
+in
+let second_ID = idGenerator#increment()
   in
-  let new_set = 
-    if LocTraceGraph.is_empty graph then (
-      let first_ID = idGenerator#increment()
-    in
-    let second_ID = idGenerator#increment()
-      in
-      D.add (LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id= first_ID;tid=first_ID},ctx.edge,{programPoint=ctx.node;sigma=SigmaMap.empty; id= second_ID;tid=first_ID})) set_acc)
-    else if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+  D.add (LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id= first_ID;tid=first_ID},ctx.edge,{programPoint=ctx.node;sigma=SigmaMap.empty; id= second_ID;tid=first_ID})) set_acc)
+else set_acc) else
+ let result_graph, _ = 
+  body_iter_IDNodes (graph, ctx) lastNode
+  in
+    D.add result_graph set_acc)
   in
   (ctx, new_set)
 
@@ -424,23 +398,17 @@ let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
     (result_graph, ctx, exp)
 
- (* iterate over all sigmas of previous node in current graph *)
- let return_iter_oldSigma (graph, ctx, exp) sigma =
-  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-let result_graph, _, _ = 
-List.fold return_iter_IDNodes (graph, ctx, exp) allIDPrevNodes
-in
-(result_graph, ctx, exp)
-
  (* iterate over the graphs in previous state *)
  let return_iter_graphSet graph (exp, ctx,set_acc) =
-  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
- in
+  let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
+   in
+   let new_set = 
+ if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In return, we have a trace that does not end in previous node:
+  "^(LocalTraces.show graph)^"\n"); set_acc) else
  let result_graph, _, _ = 
-  List.fold return_iter_oldSigma (graph, ctx, exp) oldSigma
+  return_iter_IDNodes (graph, ctx, exp) lastNode
   in
-  let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+  D.add result_graph set_acc
   in
   (exp, ctx, new_set)
 
@@ -459,23 +427,17 @@ result
   in
       (result_graph, ctx)
 
-   (* iterate over all sigmas of previous node in current graph *)
-  let special_iter_oldSigma (graph, ctx) sigma =
-    let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-  in
-  let result_graph, _ = 
-  List.fold special_iter_IDNodes (graph, ctx) allIDPrevNodes
-  in
-  (result_graph, ctx)
-
    (* iterate over the graphs in previous state *)
    let special_iter_graphSet graph (ctx,set_acc) =
-    let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+    let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
    in
+   let new_set =
+   if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In special, we have a trace that does not end in previous node:
+    "^(LocalTraces.show graph)^"\n"); set_acc) else 
    let result_graph, _ = 
-    List.fold special_iter_oldSigma (graph, ctx) oldSigma
+    special_iter_IDNodes (graph, ctx) lastNode
     in
-    let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+    D.add result_graph set_acc
     in
     (ctx, new_set)
 
@@ -500,23 +462,17 @@ let enter_iter_IDNodes (graph, ctx, f, args) {programPoint=programPoint;id=id;si
 in
     (result_graph, ctx, f, args)
 
-(* iterate over all sigmas of previous node in current graph *)
-let enter_iter_oldSigma (graph, ctx, f, args) sigma =
-  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-let result_graph, _, _, _ = 
-List.fold enter_iter_IDNodes (graph, ctx, f, args) allIDPrevNodes
-in
-(result_graph, ctx, f, args)
-
 (* iterate over the graphs in previous state *)
 let enter_iter_graphSet graph (f, args, ctx,set_acc) =
-  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
- in
+  let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
+   in
+   let new_set = 
+ if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In enter, we have a trace that does not end in previous node:
+  "^(LocalTraces.show graph)^"\n"); set_acc) else
  let result_graph, _, _, _ =
- List.fold enter_iter_oldSigma (graph, ctx, f, args) oldSigma
+ enter_iter_IDNodes (graph, ctx, f, args) lastNode
   in
-  let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+  D.add result_graph set_acc
   in
   (f, args,ctx, new_set)
 
@@ -537,11 +493,8 @@ in
   
 (* COMBINE helper functions *)
 (* iterate over all graphs of callee *)
-let combine_iter_calleeLocal callee_graph (ctx, {programPoint=programPoint;id=id;sigma=sigma;tid=tid}, callee_local, lval, graph_acc) =
-  
+let combine_iter_calleeLocal callee_graph (ctx, {programPoint=programPoint;id=id;sigma=sigma;tid=tid},{programPoint=progP_returning;id=id_returning;sigma=sigma_returning;tid=tid_returning}, callee_local, lval, graph_acc) =
   D.iter (fun g_iter -> print_string ("in combine, I test LocalTrace.find_returning_node with node="^(NodeImpl.show {programPoint=programPoint;id=id;sigma=sigma;tid=tid})^"\nI get "^(NodeImpl.show (LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma;tid=tid}) ctx.edge g_iter))^"\n")) callee_local;
-  let {programPoint=progP_returning;id=id_returning;sigma=sigma_returning;tid=tid_returning} = LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma;tid=tid}) ctx.edge callee_graph
-  in
   if tid != tid_returning then (Printf.printf "TIDs from current node and found returning node are different in combine\n"; exit 0);
     let (myEdge:(node * edge * node)) = 
     (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma);tid=tid_returning}
@@ -558,31 +511,24 @@ let combine_iter_calleeLocal callee_graph (ctx, {programPoint=programPoint;id=id
 in
 (ctx, {programPoint=programPoint;id=id;sigma=sigma;tid=tid}, callee_local, lval, result_graph)
 
-(* iterate over all IDs of destination node and current sigma *)
-let combine_iter_IDNodes (graph, ctx, callee_local, lval) ({programPoint=programPoint;id=id;sigma=sigma;tid=tid}) =
-  let _, _, _, _, result_graph = D.fold combine_iter_calleeLocal callee_local (ctx, {programPoint=programPoint;id=id;sigma=sigma;tid=tid}, callee_local, lval, graph) 
-in
-    (result_graph, ctx, callee_local, lval)
-
-(* iterate over all sigmas of previous node in current graph *)
-let combine_iter_oldSigma (graph, ctx, callee_local, lval) sigma =
-  let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-in
-let result_graph, _, _, _ =
- List.fold combine_iter_IDNodes (graph, ctx, callee_local, lval) allIDPrevNodes
-in
-(result_graph, ctx, callee_local, lval)
 
 (* iterate over the graphs in previous state *)
 let combine_iter_graphSet graph (lval, callee_local, ctx,set_acc) =
-  let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
- in
- let result_graph, _, _ , _ = 
- List.fold combine_iter_oldSigma (graph, ctx, callee_local, lval) oldSigma
+  (* wir müssen schauen, ob ein returnender Knoten für irgendein ctx.prev_node ein last node ist*)
+  let lastGraphNode = LocalTraces.get_last_node graph 
+in if Node.equal lastGraphNode.programPoint LocalTraces.error_node then (print_string "In combine, we have an empty graph\n"; ( lval, callee_local, ctx,set_acc)) 
+else (
+   let currentNode = LocalTraces.find_calling_node lastGraphNode graph ctx.prev_node
   in
-  let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+   let new_set = 
+    (if Node.equal currentNode.programPoint LocalTraces.error_node then (print_string ("In combine, we could not find the calling node:
+      "^(LocalTraces.show graph)^"\n"); set_acc) else
+ let _, _, _, _, result_graph= 
+ combine_iter_calleeLocal graph (ctx, currentNode, lastGraphNode, callee_local, lval, graph)
   in
-  ( lval, callee_local, ctx, new_set)
+  D.add result_graph set_acc)
+  in
+  ( lval, callee_local, ctx, new_set))
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
     print_string ("combine wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show ctx.edge)^"
@@ -611,28 +557,25 @@ in result
     let myEdge = {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=(FunctionEntry(fd));sigma=sigma_formals;id=new_id;tid=new_id}
     (* einspeichern der create-Beziehung *)
   in
-  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+  let result_graph = print_string ("In threadenter, we add the edge "^(LocalTraces.show_edge myEdge)^"\n
+  to the graph:"^(LocalTraces.show graph)^"\n"); LocalTraces.extend_by_gEdge graph myEdge
   in
       (result_graph, ctx, f, args)
       )
       | exception Not_found -> Printf.printf "Error: function does not exist, in threadenter\n"; exit 0
 
-  
-   (* iterate over all sigmas of previous node in current graph *)
-  let threadenter_iter_oldSigma (graph, ctx, f, args) sigma =
-    let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-  in
-  let result_graph, _, _, _ = List.fold threadenter_iter_IDNodes (graph, ctx, f, args) allIDPrevNodes
-  in
-  (result_graph, ctx, f, args)
 
    (* iterate over the graphs in previous state *)
    let threadenter_iter_graphSet graph (args, f, ctx,set_acc) =
-    let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
+    let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
    in
-   let result_graph, _, _, _ = List.fold threadenter_iter_oldSigma (graph, ctx, f, args) oldSigma
+   let new_set = 
+   if Node.equal lastNode.programPoint LocalTraces.error_node 
+    then (print_string ("In threadenter, we have a trace that does not end in previous node:
+   "^(LocalTraces.show graph)^"\n"); set_acc) else(
+   let result_graph, _, _, _ = threadenter_iter_IDNodes (graph, ctx, f, args) lastNode
     in
-    let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+    D.add result_graph set_acc)
     in
     (args, f, ctx, new_set)
 
@@ -658,28 +601,26 @@ in result
     (* print_string ("Invalid Lval format in threadspawn. Lval="^(CilType.Lval.show z)^"\n"); exit 0 *)
     )
   in
-  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+  let result_graph = 
+    print_string ("In threadspawn, we add the edge "^(LocalTraces.show_edge myEdge)^"\n
+    to the graph:"^(LocalTraces.show graph)^"\n"); LocalTraces.extend_by_gEdge graph myEdge
   in
       (result_graph, ctx, lval)
-    
-  
-     (* iterate over all sigmas of previous node in current graph *)
-    let threadspawn_iter_oldSigma (graph, ctx, lval) sigma  =
-      let allIDPrevNodes = (LocalTraces.get_nodes ctx.prev_node sigma graph) 
-    in
-    let result_graph, _, _ = List.fold threadspawn_iter_IDNodes (graph, ctx, lval) allIDPrevNodes
-    in
-    (result_graph, ctx, lval)
-  
+
      (* iterate over the graphs in previous state *)
      let threadspawn_iter_graphSet graph (lval, ctx,set_acc) =
-      let oldSigma = LocalTraces.get_sigma graph ctx.prev_node
-     in
-     let result_graph, _, _ = List.fold threadspawn_iter_oldSigma (graph, ctx, lval) oldSigma
+      let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
+   in
+   let new_set = 
+     if Node.equal lastNode.programPoint LocalTraces.error_node 
+      then (print_string ("In threadspawn, we have a trace that does not end in previous node:\n
+     "^(LocalTraces.show graph)^"\n"); set_acc) else(
+     let result_graph, _, _ = threadspawn_iter_IDNodes (graph, ctx, lval) lastNode
       in
-      let new_set = if List.is_empty oldSigma then set_acc else D.add result_graph set_acc
+      D.add result_graph set_acc)
       in
       (lval, ctx, new_set)
+
     let threadspawn ctx lval f args fctx = (* Creator; lval speichert neue Thread-ID *)
       print_string ("threadspawn wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show ctx.edge)^" und ctx.node "^(Node.show ctx.node)^"\n");
       let _, _, result = D.fold threadspawn_iter_graphSet (ctx.local) (lval, ctx, D.empty())
