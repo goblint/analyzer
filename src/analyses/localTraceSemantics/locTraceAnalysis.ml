@@ -421,11 +421,15 @@ result
    (* SPECIAL helper functions *)
    (* perform special-effect on given node *)
   let special_on_node graph ctx {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
+    print_string ("in special, we have ctx.edge="^(EdgeImpl.show ctx.edge)^"\n");
+    if (match ctx.edge with
+    | Proc(_, Lval(Var(v),_), _) -> String.equal v.vname "pthread_create"
+    | _ -> false) then graph else (
     let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
   in
-      result_graph
+      result_graph)
 
    (* iterate over the graphs in previous state *)
    let special_fold_graphSet graph (ctx,set_acc) =
