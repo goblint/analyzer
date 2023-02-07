@@ -658,6 +658,12 @@ struct
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
+    (* Before SV-COMP, so result can depend on YAML witness validation. *)
+    if get_string "witness.yaml.validate" <> "" then (
+      let module YWitness = YamlWitness.Validator (R) in
+      YWitness.validate ()
+    );
+
     if get_bool "ana.sv-comp.enabled" then (
       (* SV-COMP and witness generation *)
       let module WResult = Witness.Result (R) in
@@ -667,11 +673,6 @@ struct
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
       YWitness.write ()
-    );
-
-    if get_string "witness.yaml.validate" <> "" then (
-      let module YWitness = YamlWitness.Validator (R) in
-      YWitness.validate ()
     );
 
     let marshal = Spec.finalize () in
