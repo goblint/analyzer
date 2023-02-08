@@ -148,7 +148,7 @@ struct
     | `NoOffset -> `NoOffset
 end
 
-module OffsetWithSemanticEqual (Idx: IntDomain.Z) =
+module OffsetLatWithSemanticEqual (Idx: IntDomain.Z) =
 struct
   include OffsetLat (Idx)
 
@@ -389,7 +389,7 @@ end
 module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
-  module Offs = OffsetWithSemanticEqual (Idx)
+  module Offs = OffsetLatWithSemanticEqual (Idx)
 
   let semantic_equal x y = match x, y with
     | Addr (x, xoffs), Addr (y, yoffs) ->
