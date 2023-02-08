@@ -24,7 +24,7 @@ sig
   include Lattice.S with type t := t
 end
 
-module OffsetPrintable (Idx: IdxPrintable) =
+module Offset (Idx: IdxPrintable) =
 struct
   type t = (fieldinfo, Idx.t) offs
   include Printable.Std
@@ -111,9 +111,9 @@ struct
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 end
 
-module Offset (Idx: IdxDomain) =
+module OffsetLat (Idx: IdxDomain) =
 struct
-  include OffsetPrintable (Idx)
+  include Offset (Idx)
 
   let rec leq x y =
     match x, y with
@@ -150,7 +150,7 @@ end
 
 module OffsetWithSemanticEqual (Idx: IntDomain.Z) =
 struct
-  include Offset (Idx)
+  include OffsetLat (Idx)
 
   let ikind () = Cilfacade.ptrdiff_ikind ()
 
@@ -259,7 +259,7 @@ module Normal (Idx: IdxPrintable) =
 struct
   type field = fieldinfo
   type idx = Idx.t
-  module Offs = OffsetPrintable (Idx)
+  module Offs = Offset (Idx)
   include PreNormal (Offs)
 
   include Printable.Std
