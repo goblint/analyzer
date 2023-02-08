@@ -76,7 +76,12 @@ let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThres
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
-  ResettableLazy.reset widening_thresholds_desc
+  ResettableLazy.reset widening_thresholds_desc;
+  ana_int_config.interval_threshold_widening <- None;
+  ana_int_config.interval_narrow_by_meet <- None;
+  ana_int_config.def_exc_widen_by_join <- None;
+  ana_int_config.interval_threshold_widening_constants <- None;
+  ana_int_config.refinement <- None
 
 module type Arith =
 sig
