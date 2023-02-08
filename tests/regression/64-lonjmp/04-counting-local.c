@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.int.interval --enable ana.int.enums --disable exp.volatiles_are_top
+// PARAM: --enable ana.int.interval --enable ana.int.enums --disable exp.volatiles_are_top --set solvers.td3.side_widen never
 #include <goblint.h>
 #include <setjmp.h>
 

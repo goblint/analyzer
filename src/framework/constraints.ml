@@ -659,7 +659,11 @@ struct
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Fun: Potentially from same context";
            Messages.warn "Fun: side-effect to %s" (Node.show node);
-           sidel (jmptarget node, ctx.context ()) fd)
+           match node with
+           | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
+             let value = S.combine ctx lv (Cil.one) (Cil.dummyFunDec) args None fd in
+             sidel (jmptarget node, ctx.context ()) value
+           | _ -> failwith "wtf")
         else
           (Messages.warn "Fun: Longjmp to somewhere else";
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) fd)
@@ -692,12 +696,11 @@ struct
     | Setjmp { env; savesigs} ->
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
-      Messages.warn "reading from %s" (Node.show (jmptarget ctx.node));
-      let later_return = getl (jmptarget ctx.node, ctx.context ()) in
+      Messages.warn "reading from %s" (Node.show (jmptarget ctx.prev_node));
+      let later_return = getl (jmptarget ctx.prev_node, ctx.context ()) in
       if not @@ S.D.is_bot later_return then
         (* TODO: actually the combine would have to be with the state at the caller, we would only set the return value here! *)
-        let later_return' = S.combine ctx lv (Cil.one) (Cil.dummyFunDec) args None later_return in
-        S.D.join first_return later_return'
+        S.D.join first_return later_return
       else
         first_return
     | Longjmp {env; value; sigrestore} ->
@@ -711,7 +714,15 @@ struct
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Potentially from same context";
            Messages.warn "side-effect to %s" (Node.show node);
-           sidel (jmptarget node, ctx.context ()) res)
+           match node with
+           | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
+             let res' = match lval with
+               | Some lv ->  S.assign ctx lv value
+               | None -> res
+             in
+             sidel (jmptarget node, ctx.context ()) res'
+           | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
+          )
         else
           (Messages.warn "Longjmp to somewhere else";
            Messages.warn "side-effect to %i" (S.C.hash (ctx.context ()));
