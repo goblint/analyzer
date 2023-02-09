@@ -420,34 +420,48 @@ result
 
    (* SPECIAL helper functions *)
    (* perform special-effect on given node *)
-  let special_on_node graph ctx {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
+  let special_on_node graph ctx {programPoint=programPoint;id=id;sigma=sigma;tid=tid} f arglist =
     print_string ("in special, we have ctx.edge="^(EdgeImpl.show ctx.edge)^"\n");
-    if (match ctx.edge with
-    | Proc(_, Lval(Var(v),_), _) -> String.equal v.vname "pthread_create"
-    | _ -> false) then graph else (
-    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, f.vname with
+    | ThreadJoin { thread = tidExpCast; ret_var }, _ -> (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExpCast)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
+    match tidExpCast with CastE(TNamed(t, attr),tidExp) -> 
+      if not (String.equal t.tname "pthread_t") then (Printf.printf "Error: casted type in pthread_join is not pthread_t in special\n"; exit 0);
+      print_string ("arg is a CastE(TNamed(_), _) with tidExp="^(CilType.Exp.show tidExp)^"\n");
+      let special_varinfo = makeVarinfo false "__goblint__traces__special" (TInt(IInt,[]))
+  in
+      let tidSigma, success = eval_wrapper sigma special_varinfo tidExp graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid}
+in if not success then (Printf.printf "Error: could not evaluate argument of pthread_join in special\n"; exit 0);
+    let tidJoin = SigmaMap.find special_varinfo tidSigma
+in
+(* TODO: we now have the tid to join, we need to pick the right traces here from the side-effects *)
+print_string ("in special, we evaluated the tid-arg for thread_join: "^(show_valuedomain tidJoin)^"\n");
+    graph
+    | _ -> Printf.printf "Error: argument of pthread_join is not a cast, but I only support Integers for now\n"; exit 0)
+    | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); graph
+    | _ -> (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
   in
       result_graph)
 
    (* iterate over the graphs in previous state *)
-   let special_fold_graphSet graph (ctx,set_acc) =
+   let special_fold_graphSet graph (f, arglist, ctx,set_acc) =
     let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
    in
    let new_set =
    if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In special, we have a trace that does not end in previous node:
     "^(LocalTraces.show graph)^"\n"); set_acc) else 
    let result_graph = 
-    special_on_node graph ctx lastNode
+    special_on_node graph ctx lastNode f arglist
     in
     D.add result_graph set_acc
     in
-    (ctx, new_set)
+    (f, arglist, ctx, new_set)
 
 let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = 
-  print_string ("special wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
-let _, result =   D.fold special_fold_graphSet ctx.local (ctx, D.empty ())
+  print_string ("special wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^" und f "^(CilType.Varinfo.show f)^"\n");
+let _, _, _, result =   D.fold special_fold_graphSet ctx.local (f, arglist, ctx, D.empty ())
 in result
     
 (* ENTER helper functions *)
