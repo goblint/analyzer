@@ -645,24 +645,25 @@ struct
     in
     let handlelongjmp (cd,fc,fd) =
       (* TODO: Identify current longjmp target for return from given context, and dispatch side-effect appropriately *)
-      let targets =
-        let rec ctx' = { ctx with
-                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q);
-                         local = fd;
-                         prev_node = Function f
-                       }
-        in
-        ctx'.ask ActiveJumpBuf
+      let rec ctx' = { ctx with
+                       ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q);
+                       local = fd;
+                       prev_node = Function f
+                     }
       in
-      let handle_longjmp (node, c) =
+      let targets = ctx'.ask ActiveJumpBuf
+      in
+      let handle_longjmp (goalnode, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
+        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec goalnode).svar.vname = current_fundec.svar.vname then
           (Messages.warn "Fun: Potentially from same context";
-           Messages.warn "Fun: side-effect to %s" (Node.show node);
-           match node with
-           | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-             let value = S.combine ctx lv (Cil.one) (Cil.dummyFunDec) args None fd in
-             sidel (jmptarget node, ctx.context ()) value
+           Messages.warn "Fun: side-effect to %s" (Node.show goalnode);
+           match goalnode with
+           | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
+             let fd' = S.return ctx' None f in
+             (* Using f from called function on purpose here! Needed? *)
+             let value = S.combine ctx setjmplval (Cil.one) f setjmpargs None fd' in
+             sidel (jmptarget goalnode, ctx.context ()) value
            | _ -> failwith "wtf")
         else
           (Messages.warn "Fun: Longjmp to somewhere else";
