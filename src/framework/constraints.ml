@@ -667,6 +667,8 @@ struct
            | _ -> failwith "wtf")
         else
           (Messages.warn "Fun: Longjmp to somewhere else";
+           (* Globals are non-problematic here, as they are always carried around without any issues! *)
+           (* A combine call is mostly needed to ensure locals have appropriate values. *)
            let fd' = S.return ctx' None f in
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) fd')
       in
