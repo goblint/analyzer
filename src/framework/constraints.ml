@@ -667,7 +667,8 @@ struct
            | _ -> failwith "wtf")
         else
           (Messages.warn "Fun: Longjmp to somewhere else";
-           sidel (LongjmpFromFunction current_fundec, ctx.context ()) fd)
+           let fd' = S.return ctx' None f in
+           sidel (LongjmpFromFunction current_fundec, ctx.context ()) fd')
       in
       (Messages.warn "Fun: Considering jump";
        List.iter handle_longjmp (JmpBufDomain.JmpBufSet.elements targets))
