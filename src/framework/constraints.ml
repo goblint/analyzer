@@ -670,7 +670,8 @@ struct
            (* Globals are non-problematic here, as they are always carried around without any issues! *)
            (* A combine call is mostly needed to ensure locals have appropriate values. *)
            let fd' = S.return ctx' None f in
-           sidel (LongjmpFromFunction current_fundec, ctx.context ()) fd')
+           let value = S.combine ctx None (Cil.one) f [] None fd' in
+           sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
       (Messages.warn "Fun: Considering jump";
        List.iter handle_longjmp (JmpBufDomain.JmpBufSet.elements targets))

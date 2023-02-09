@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --disable exp.volatiles_are_top
+// PARAM: --enable ana.int.interval --disable exp.volatiles_are_top --enable ana.int.enums
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
@@ -23,10 +23,12 @@ int main () {
    volatile int val = 0;
 
    __goblint_check(global == 0);
-   if(0 == setjmp( env_buffer )) {
+   int x = setjmp( env_buffer);
+   if(0 == x) {
       fun(&val);
    } else {
-      __goblint_check(val == 1);
+      __goblint_check(x == 2);
+      __goblint_check(val == 1); //TODO
       __goblint_check(global == 42); //TODO
    }
 
