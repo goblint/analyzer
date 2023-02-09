@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval
+// PARAM: --enable ana.int.interval --enable ana.int.enums
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
@@ -27,7 +27,8 @@ int main () {
 
    if( val != 0 ) {
       printf("Returned from a longjmp() with value = %i\n", val);
-      __goblint_check(global == 2); //TODO
+      __goblint_check(val == 2);
+      __goblint_check(global == 2); //TODO (requires path-sensitivity distinguishing between returns)
       exit(0);
    }
 
