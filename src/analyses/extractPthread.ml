@@ -1059,6 +1059,7 @@ module Spec : Analyses.MCPSpec = struct
 
   let combine
       ctx
+      ?(longjmpthrough = false)
       (lval : lval option)
       fexp
       (f : fundec)

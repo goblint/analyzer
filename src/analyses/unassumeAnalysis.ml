@@ -269,7 +269,7 @@ struct
   let enter ctx lv f args =
     [(ctx.local, D.empty ())]
 
-  let combine ctx lv fe f args fc fd =
+  let combine ctx ?(longjmpthrough = false) lv fe f args fc fd =
     emit_unassume ctx
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)

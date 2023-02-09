@@ -350,7 +350,7 @@ struct
         st'
     end
 
-  let combine ctx r fe f args fc fun_st =
+  let combine ctx ?(longjmpthrough = false) r fe f args fc fun_st =
     let st = ctx.local in
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let fundec = Node.find_fundec ctx.node in

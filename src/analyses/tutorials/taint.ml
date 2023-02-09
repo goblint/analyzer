@@ -104,7 +104,7 @@ struct
   (** For a function call "lval = f(args)" or "f(args)",
       computes the state of the caller after the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
+  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
     let caller_state = ctx.local in
     (* TODO: Record whether lval was tainted. *)
     caller_state

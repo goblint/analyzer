@@ -27,7 +27,7 @@ struct
   let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let assert_fn ctx e check refine =

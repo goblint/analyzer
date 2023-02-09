@@ -249,7 +249,7 @@ struct
     in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a fc d =
+  let combine ctx ?(longjmpthrough = false) l fe f a fc d =
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
     let k x (y, sync) =
