@@ -670,7 +670,7 @@ struct
            (* Globals are non-problematic here, as they are always carried around without any issues! *)
            (* A combine call is mostly needed to ensure locals have appropriate values. *)
            let fd' = S.return ctx' None f in
-           let value = S.combine ctx None (Cil.one) f [] None fd' in
+           let value = S.combine ctx ~longjmpthrough:true None (Cil.one) f [] None fd' in
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
       (Messages.warn "Fun: Considering jump";
@@ -1279,7 +1279,7 @@ struct
     let k x y =
       if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
       try
-        let r = Spec.combine (conv ctx cd) l fe f a fc x in
+        let r = Spec.combine (conv ctx cd) ~longjmpthrough l fe f a fc x in
         if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
         D.add r y
       with Deadcode ->

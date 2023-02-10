@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --disable exp.volatiles_are_top --enable ana.int.enums
+// PARAM: --enable ana.int.interval --disable exp.volatiles_are_top --enable ana.int.enums --set solvers.td3.side_widen never
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>

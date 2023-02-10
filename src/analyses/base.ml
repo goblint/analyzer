@@ -2279,7 +2279,14 @@ struct
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+        let cpa_noreturn =
+          if not longjmpthrough then
+            (* Remove the return value as this is dealt with separately. *)
+            CPA.remove (return_varinfo ()) fun_st.cpa
+          else
+            (* Keep the return value as this is not actually the return value but the thing supplied in longjmp *)
+            fun_st.cpa
+        in
         let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
         let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
         { fun_st with cpa = cpa' }
