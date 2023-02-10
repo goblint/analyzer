@@ -397,6 +397,32 @@ in randomValue)
 end
 
 let randomIntGenerator = new random_int_generator
+
+module ThreadIDLocTrace = struct
+  type t = int
+  let is_write_only _ = false
+
+  let equal (tid1:t) (tid2:t) = tid1 = tid2
+
+  let hash tid = tid
+
+  let compare tid1 tid2 = tid1 - tid2
+
+  let show tid = string_of_int tid
+
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
+
+    let name () = "threadID"
+
+    let tag tid = failwith ("tag")
+
+    let arbitrary tid = failwith ("no arbitrary")
+
+    let relift tid = failwith ("no relift")
+end
 (* 
 class extended_edges_mgmt =
 object(self)

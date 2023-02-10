@@ -22,6 +22,11 @@ module D = GraphSet
 
 module C = Lattice.Unit 
 
+(* side effect components *)
+module V = ThreadIDLocTrace
+
+module G = GraphSet
+
 let context fundec l =
   ()
 
@@ -396,6 +401,15 @@ else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoi
 in
 let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
+(
+  (* TODO Das ist noch nicht richtig, ich möchte den resultierenden Graphen in das side-effect hnzufügen, nicht de Gesamtzustand *)
+      match ctx.ask CurrentThreadId with
+      | `Lifted tid_lifted when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> print_string("In return, I reached ThreadReturn\n");
+      let ctxGlobalTid = ctx.global tid
+  in
+     ctx.sideg tid (D.add result_graph ctxGlobalTid)
+      | _ -> () 
+    );
     result_graph
 
  (* iterate over the graphs in previous state *)
@@ -439,6 +453,14 @@ print_string ("in special, we evaluated the tid-arg for thread_join: "^(show_val
     graph
     | _ -> Printf.printf "Error: argument of pthread_join is not a cast, but I only support Integers for now\n"; exit 0)
     | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); graph
+    | ThreadExit _, _ -> print_string "In special, I reached ThreadExit\n"; 
+    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
+      in
+      let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+      in
+        let ctxGlobalTid = ctx.global tid
+      in
+        ctx.sideg tid (D.add result_graph ctxGlobalTid); result_graph
     | _ -> (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
