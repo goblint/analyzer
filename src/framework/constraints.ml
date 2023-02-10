@@ -656,8 +656,7 @@ struct
       let handle_longjmp (goalnode, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec goalnode).svar.vname = current_fundec.svar.vname then
-          (Messages.warn "Fun: Potentially from same context";
-           Messages.warn "Fun: side-effect to %s" (Node.show goalnode);
+          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s" (Node.show goalnode);
            match goalnode with
            | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
              let fd' = S.return ctx' None f in
@@ -666,15 +665,14 @@ struct
              sidel (jmptarget goalnode, ctx.context ()) value
            | _ -> failwith "wtf")
         else
-          (Messages.warn "Fun: Longjmp to somewhere else";
+          (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else";
            (* Globals are non-problematic here, as they are always carried around without any issues! *)
            (* A combine call is mostly needed to ensure locals have appropriate values. *)
            let fd' = S.return ctx' None f in
            let value = S.combine ctx ~longjmpthrough:true None (Cil.one) f [] None fd' in
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
-      (Messages.warn "Fun: Considering jump";
-       List.iter handle_longjmp (JmpBufDomain.JmpBufSet.elements targets))
+      List.iter handle_longjmp (JmpBufDomain.JmpBufSet.elements targets)
     in
     let paths = S.enter ctx lv f args in
     let ld_fc_fd_list = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
@@ -701,7 +699,7 @@ struct
     | Setjmp { env; savesigs} ->
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
-      Messages.warn "reading from %s" (Node.show (jmptarget ctx.prev_node));
+      if M.tracing then Messages.tracel "longjmp" "reading from %s" (Node.show (jmptarget ctx.prev_node));
       let later_return = getl (jmptarget ctx.prev_node, ctx.context ()) in
       if not @@ S.D.is_bot later_return then
         (* TODO: actually the combine would have to be with the state at the caller, we would only set the return value here! *)
@@ -713,12 +711,11 @@ struct
       let current_fundec = Node.find_fundec ctx.node in
       (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
       let targets = ctx.ask (EvalJumpBuf env) in
-      M.warn "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
+      if M.tracing then Messages.tracel "longjmp" "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
       let handle_longjmp (node, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
-          (Messages.warn "Potentially from same context";
-           Messages.warn "side-effect to %s" (Node.show node);
+          (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s" (Node.show node);
            match node with
            | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
              let res' = match lval with
@@ -729,8 +726,7 @@ struct
            | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
           )
         else
-          (Messages.warn "Longjmp to somewhere else";
-           Messages.warn "side-effect to %i" (S.C.hash (ctx.context ()));
+          (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i" (S.C.hash (ctx.context ()));
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) res)
       in
       List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
