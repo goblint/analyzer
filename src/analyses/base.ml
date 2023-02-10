@@ -2240,10 +2240,15 @@ struct
          set ~ctx (Analyses.ask_of_ctx ctx) gs st' (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
        | None -> st')
     | Longjmp {env; value; sigrestore}, _ ->
-      let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
+      let ensure_not_zero rv = match rv with
+        | `Int i when ID.to_bool i = Some true -> rv
+        | `Int i when ID.to_bool i = Some false -> M.warn "Must: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.of_int (ID.ikind i) Z.one)
+        | `Int i when ID.to_bool i = None -> M.warn "May: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.meet i (ID.of_excl_list (ID.ikind i) [Z.one]))
+        | _ -> M.warn "Arguments to longjmp are strange!"; rv
+      in
+      let rv = ensure_not_zero @@ eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
       let t = Cil.typeOf value in
-      let res = set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv in
-      res
+      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
     | _, _ -> begin
         let st =
