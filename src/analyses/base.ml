@@ -2247,7 +2247,7 @@ struct
         | _ -> M.warn "Arguments to longjmp are strange!"; rv
       in
       let rv = ensure_not_zero @@ eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
-      let t = Cil.typeOf value in
+      let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
     | _, _ -> begin
