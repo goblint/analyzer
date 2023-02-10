@@ -680,7 +680,14 @@ struct
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) ld_fc_fd_list in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     let paths = List.map (Tuple3.map2 Option.some) paths in
-    let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else (Messages.tracel "longjmp" "asking for side-effect to %i" (S.C.hash fc); getl (LongjmpFromFunction f, fc)))) ld_fc_fd_list in
+    let longjmpv fc v =
+      if S.D.is_bot v then
+        v
+      else
+        (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i" (S.C.hash fc);
+         getl (LongjmpFromFunction f, fc))
+    in
+    let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, longjmpv fc v)) ld_fc_fd_list in
     let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
     let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
     let _ = List.iter handlelongjmp longjmppaths in
