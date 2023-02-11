@@ -336,7 +336,7 @@ struct
     | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
-      Some (v.vglob || (ask.f (Queries.IsMultiple v)))
+      Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
