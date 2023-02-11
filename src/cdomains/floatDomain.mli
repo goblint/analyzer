@@ -42,6 +42,14 @@ module type FloatArith = sig
   val tan : t -> t
   (** tan(x) *)
 
+  (** {inversions of unary functions}*)
+  val inv_ceil : t -> t
+  (** (inv_ceil z -> x) if (z = ceil(x)) *)
+  val inv_floor : t -> t
+  (** (inv_floor z -> x) if (z = floor(x)) *)
+  val inv_fabs : t -> t
+  (** (inv_fabs z -> x) if (z = fabs(x)) *)
+
 
   (** {b Comparison operators} *)
   val lt : t -> t -> IntDomain.IntDomTuple.t
@@ -89,11 +97,13 @@ module type FloatDomainBase = sig
   val starting : float -> t
   val ending_before : float -> t
   val starting_after : float -> t
+  val finite : t
 
   val minimal: t -> float option
   val maximal: t -> float option
 
   val is_exact : t -> bool
+  val is_interval : t -> bool
 end
 
 (* Only exposed for testing *)
@@ -123,11 +133,13 @@ module type FloatDomain = sig
   val starting : Cil.fkind -> float -> t
   val ending_before : Cil.fkind -> float -> t
   val starting_after : Cil.fkind -> float -> t
+  val finite : Cil.fkind -> t
 
   val minimal: t -> float option
   val maximal: t -> float option
 
   val is_exact : t -> bool
+  val is_interval : t -> bool
   val get_fkind : t -> Cil.fkind
   val invariant: Cil.exp -> t -> Invariant.t
 end

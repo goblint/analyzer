@@ -4,31 +4,12 @@
 
 
 void main() {
-  float f;
-  float g;
-  float common;
-  float* fptr;
-  float* gptr;
-  int unk1;
-  int unk2;
+  double f;
+  int unk;
 
-  float other;
-
-  if (unk1)
-    fptr = &f;
-  else
-    fptr = &common;
-
-  if (unk2)
-    gptr = &g;
-  else
-    gptr = &common;
-
-
-  
-
-  other = __builtin_cos(*fptr);
-  *gptr = 0.7;
-
-  __builtin_inf();
+  if (__builtin_isnan(f) ) {
+    __goblint_check( __builtin_isfinite(f));
+  } else {
+    __goblint_check( __builtin_isnan(f));
+  }
 }

@@ -547,6 +547,11 @@ struct
     in
     let eval e st = eval_rv a gs st e in
     let eval_bool e st = match eval e st with `Int i -> ID.to_bool i | _ -> None in
+    let unroll_fk_of_exp e = 
+      match unrollType (Cilfacade.typeOf e) with 
+      | TFloat (fk, _) -> fk
+      | _ -> failwith "impossible"
+    in
     let rec inv_exp c_typed exp (st:D.t): D.t =
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if VD.is_bot_value c_typed then contra st else
@@ -682,6 +687,7 @@ struct
       | Lval x, (`Int _ | `Float _ | `Address _) -> (* meet x with c *)
         let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
         let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
+        if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a\n" d_lval x VD.pretty c_typed d_type t;
         begin match c_typed with
           | `Int c ->
             let c' = match t with
@@ -691,7 +697,30 @@ struct
               | TFloat (fk, _) -> `Float (FD.of_int fk c)
               | _ -> `Int c
             in
-            update_lval c x c' ID.pretty
+            let st = update_lval c x c' ID.pretty in
+            (* handle special calls *)
+            begin match t with
+            | TInt (ik, _) ->
+              begin match x with
+                | ((Var v), _) -> 
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial v)); 
+                  let tv = not (ID.leq c (ID.of_bool ik false)) in
+                  begin match ctx.ask (Queries.TmpSpecial v) with
+                  | `Lifted (Isfinite xFloat) when tv -> inv_exp (`Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                  | `Lifted (Isnan xFloat) when tv -> inv_exp (`Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                  (* should be correct according to C99 standard*)
+                  | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                  | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                  | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                  | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                  | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (`Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                  | `Lifted (Isunordered (xFloat, yFloat)) -> st (* something can probably be done here *)
+                  | _ -> st
+                  end
+                | _ -> st
+              end
+            | _ -> st
+            end
           | `Float c ->
             let c' = match t with
               (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
@@ -701,7 +730,28 @@ struct
               | TFloat (fk, _) -> `Float (FD.cast_to fk c)
               | _ -> `Float c
             in
-            update_lval c x c' FD.pretty
+            let st = update_lval c x c' FD.pretty in
+            (* handle special calls *)
+            begin match t with
+            | TFloat (fk, _) ->
+              begin match x with
+                | ((Var v), _) -> 
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial v)); 
+                  begin match ctx.ask (Queries.TmpSpecial v) with
+                  | `Lifted (Ceil (ret_fk, xFloat)) when FD.is_interval c -> inv_exp (`Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
+                  | `Lifted (Floor (ret_fk, xFloat)) when FD.is_interval c -> inv_exp (`Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
+                  | `Lifted (Fabs (ret_fk, xFloat)) -> 
+                    let inv = FD.inv_fabs (FD.cast_to ret_fk c) in
+                    if FD.is_bot inv then
+                      raise Analyses.Deadcode
+                    else
+                      inv_exp (`Float inv) xFloat st
+                  | _ -> st
+                  end
+                | _ -> st
+              end
+            | _ -> st
+            end
           | `Address c ->
             let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
             update_lval c x c' AD.pretty

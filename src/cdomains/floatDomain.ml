@@ -41,6 +41,13 @@ module type FloatArith = sig
   val tan : t -> t
   (** tan(x) *)
 
+  (** {inversions of unary functions}*)
+  val inv_ceil : t -> t
+  (** (inv_ceil z -> x) if (z = ceil(x)) *)
+  val inv_floor : t -> t
+  (** (inv_floor z -> x) if (z = floor(x)) *)
+  val inv_fabs : t -> t
+  (** (inv_fabs z -> x) if (z = fabs(x)) *)
 
   (** {b Comparison operators} *)
   val lt : t -> t -> IntDomain.IntDomTuple.t
@@ -88,11 +95,13 @@ module type FloatDomainBase = sig
   val starting : float -> t
   val ending_before : float -> t
   val starting_after : float -> t
+  val finite : t
 
   val minimal: t -> float option
   val maximal: t -> float option
 
   val is_exact : t -> bool
+  val is_interval : t -> bool
 end
 
 module FloatIntervalImpl(Float_t : CFloatType) = struct
@@ -173,6 +182,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | MinusInfinity -> true
     | _ -> false
 
+  let is_interval = function
+    | Interval _ -> true
+    | _ -> false
+
   let norm = function
     | Interval (low, high) as x ->
       if Float_t.is_finite low && Float_t.is_finite high then
@@ -210,6 +223,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let ending_before e = of_interval' (Float_t.lower_bound, Float_t.pred @@ Float_t.of_float Up e)
   let starting s = of_interval' (Float_t.of_float Down s, Float_t.upper_bound)
   let starting_after s = of_interval' (Float_t.succ @@ Float_t.of_float Down s, Float_t.upper_bound)
+  let finite = of_interval' (Float_t.lower_bound, Float_t.upper_bound)
 
   let minimal = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "minimal %s" (show Bot)))
@@ -661,6 +675,16 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
+  let eval_inv_ceil = function
+    | (l, h) -> Interval (Float_t.floor (Float_t.pred l), h)
+
+  let eval_inv_floor = function
+    | (l, h) -> Interval (l, Float_t.ceil (Float_t.succ h))
+
+  let eval_inv_fabs = function
+    | (_, h) when h > Float_t.zero -> Interval (Float_t.neg h, h)
+    | _ -> top ()
+
   let isfinite op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
@@ -733,6 +757,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let cos = eval_unop (top ()) eval_cos
   let sin = eval_unop (top ()) eval_sin
   let tan = eval_unop (top ()) eval_tan
+
+  let inv_ceil = eval_unop (top ()) eval_inv_ceil
+  let inv_floor = eval_unop (top ()) eval_inv_floor
+  let inv_fabs = eval_unop (top ()) eval_inv_fabs
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)
@@ -761,11 +789,13 @@ module type FloatDomain = sig
   val starting : Cil.fkind -> float -> t
   val ending_before : Cil.fkind -> float -> t
   val starting_after : Cil.fkind -> float -> t
+  val finite : Cil.fkind -> t
 
   val minimal: t -> float option
   val maximal: t -> float option
 
   val is_exact : t -> bool
+  val is_interval : t -> bool
   val get_fkind : t -> Cil.fkind
   val invariant: Cil.exp -> t -> Invariant.t
 end
@@ -836,6 +866,9 @@ module FloatIntervalImplLifted = struct
   let cos = lift (F1.cos, F2.cos)
   let sin = lift (F1.sin, F2.sin)
   let tan = lift (F1.tan, F2.tan)
+  let inv_ceil = lift (F1.inv_ceil, F2.inv_ceil)
+  let inv_floor = lift (F1.inv_floor, F2.inv_floor)
+  let inv_fabs = lift (F1.inv_fabs, F2.inv_fabs)
   let add = lift2 (F1.add, F2.add)
   let sub = lift2 (F1.sub, F2.sub)
   let mul = lift2 (F1.mul, F2.mul)
@@ -860,7 +893,7 @@ module FloatIntervalImplLifted = struct
   let is_bot = dispatch (F1.is_bot, F2.is_bot)
   let top_of fkind = dispatch_fkind fkind (F1.top, F2.top)
   let top () = failwith "top () is not implemented for FloatIntervalImplLifted."
-  let is_top = dispatch (F1.is_bot, F2.is_bot)
+  let is_top = dispatch (F1.is_top, F2.is_top)
 
   let nan_of fkind = dispatch_fkind fkind (F1.nan, F2.nan)
   let is_nan = dispatch (F1.is_nan, F2.is_nan)
@@ -869,6 +902,7 @@ module FloatIntervalImplLifted = struct
   let minus_inf_of fkind = dispatch_fkind fkind (F1.minus_inf, F2.minus_inf)
   let is_inf = dispatch (F1.is_inf, F2.is_inf)
   let is_neg_inf = dispatch (F1.is_minus_inf, F2.is_minus_inf)
+  let is_interval = dispatch (F1.is_interval, F2.is_interval)
 
   let get_fkind = function
     | F32 _ -> FFloat
@@ -900,6 +934,7 @@ module FloatIntervalImplLifted = struct
   let of_interval fkind i = dispatch_fkind fkind ((fun () -> F1.of_interval i), (fun () -> F2.of_interval i))
   let starting fkind s = dispatch_fkind fkind ((fun () -> F1.starting s), (fun () -> F2.starting s))
   let starting_after fkind s = dispatch_fkind fkind ((fun () -> F1.starting_after s), (fun () -> F2.starting_after s))
+  let finite fkind = dispatch_fkind fkind ((fun () -> F1.finite), (fun () -> F2.finite))
   let ending fkind e = dispatch_fkind fkind ((fun () -> F1.ending e), (fun () -> F2.ending e))
   let ending_before fkind e = dispatch_fkind fkind ((fun () -> F1.ending_before e), (fun () -> F2.ending_before e))
   let minimal = dispatch (F1.minimal, F2.minimal)
@@ -1003,6 +1038,8 @@ module FloatDomTupleImpl = struct
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending_before fkind); }
   let starting_after fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting_after fkind); }
+  let finite =
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.finite); } 
 
   let of_string fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_string fkind); }
@@ -1031,6 +1068,9 @@ module FloatDomTupleImpl = struct
   let is_exact =
     exists
     % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_exact); }
+  let is_interval =
+    for_all
+    % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_interval); }
   let is_top =
     for_all
     % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_top); }
@@ -1080,6 +1120,13 @@ module FloatDomTupleImpl = struct
   let tan =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.tan); }
 
+  let inv_ceil =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_ceil); }
+  let inv_floor =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_floor); }
+  let inv_fabs =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.inv_fabs); }
+  
   (* f2: binary ops *)
   let join =
     map2 { f2= (fun (type a) (module F : FloatDomain with type t = a) -> F.join); }
