@@ -245,7 +245,7 @@ let isComparison = function
 
 let rec extractVar = function
   | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) -> Some info
+  | Lval ((Var info),_) when not (List.exists (fun (Attr(s,_)) -> s = "goblint_stub") info.vattr) ->  Some info
   | _ -> None
 
 let extractOctagonVars = function
@@ -283,7 +283,7 @@ class octagonVariableVisitor(varMap, globals) = object
         handle varMap 5 globals (extractOctagonVars e2) ;
         DoChildren
       )
-    | Lval ((Var info),_) -> handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | Lval ((Var info),_) when not (List.exists (fun (Attr(s,_)) -> s = "goblint_stub") info.vattr) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
