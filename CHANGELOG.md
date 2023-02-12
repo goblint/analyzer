@@ -1,3 +1,12 @@
+## v2.1.0
+Functionally equivalent to Goblint in SV-COMP 2023.
+
+* Add automatic configuration tuning (#772).
+* Add many library function specifications (#865, #868, #878, #884, #886).
+* Reorganize library stubs (#814, #845).
+* Add Trace Event Format output to timing (#844).
+* Optimize domains for address and path sets (#803, #809).
+
 ## v2.0.1
 * Fix compilation with z3.
 

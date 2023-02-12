@@ -6,7 +6,6 @@ module Offs = ValueDomain.Offs
 
 open Prelude.Ana
 open Analyses
-open GobConfig
 
 module Spec =
 struct
@@ -238,7 +237,6 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    set_bool "sem.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 

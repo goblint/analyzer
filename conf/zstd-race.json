@@ -41,9 +41,6 @@
     }
   },
   "incremental": {
-    "reluctant": {
-      "compare": "leq"
-    },
     "restart": {
       "sided": {
         "enabled": false

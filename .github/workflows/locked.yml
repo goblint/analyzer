@@ -20,7 +20,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -55,6 +55,9 @@ jobs:
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group octagon -s
 
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
+
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
@@ -67,6 +70,9 @@ jobs:
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
 
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
+
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
 
@@ -76,7 +82,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -114,7 +120,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
         node-version:
           - 14
