@@ -656,7 +656,7 @@ struct
       let handle_longjmp (goalnode, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec goalnode).svar.vname = current_fundec.svar.vname then
-          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s" (Node.show goalnode);
+          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show goalnode);
            match goalnode with
            | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
              let fd' = S.return ctx' None f in
@@ -664,8 +664,10 @@ struct
              let value = S.combine ctx setjmplval (Cil.one) f setjmpargs None fd' in
              sidel (jmptarget goalnode, ctx.context ()) value
            | _ -> failwith "wtf")
+        else if ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then
+          M.warn "Longjmp to potentially invalid location"
         else
-          (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else";
+          (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else\n";
            (* Globals are non-problematic here, as they are always carried around without any issues! *)
            (* A combine call is mostly needed to ensure locals have appropriate values. *)
            let fd' = S.return ctx' None f in
@@ -684,7 +686,7 @@ struct
       if S.D.is_bot v then
         v
       else
-        (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i" (S.C.hash fc);
+        (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i\n" (S.C.hash fc);
          getl (LongjmpFromFunction f, fc))
     in
     let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, longjmpv fc v)) ld_fc_fd_list in
@@ -706,7 +708,7 @@ struct
     | Setjmp { env; savesigs} ->
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
-      if M.tracing then Messages.tracel "longjmp" "reading from %s" (Node.show (jmptarget ctx.prev_node));
+      if M.tracing then Messages.tracel "longjmp" "reading from %s\n" (Node.show (jmptarget ctx.prev_node));
       let later_return = getl (jmptarget ctx.prev_node, ctx.context ()) in
       if not @@ S.D.is_bot later_return then
         (* TODO: actually the combine would have to be with the state at the caller, we would only set the return value here! *)
@@ -718,11 +720,11 @@ struct
       let current_fundec = Node.find_fundec ctx.node in
       (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
       let targets = ctx.ask (EvalJumpBuf env) in
-      if M.tracing then Messages.tracel "longjmp" "Jumping to %s" (JmpBufDomain.JmpBufSet.show targets);
+      if M.tracing then Messages.tracel "longjmp" "Jumping to %s\n" (JmpBufDomain.JmpBufSet.show targets);
       let handle_longjmp (node, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
-          (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s" (Node.show node);
+          (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
            match node with
            | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
              let res' = match lval with
@@ -733,7 +735,7 @@ struct
            | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
           )
         else
-          (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i" (S.C.hash (ctx.context ()));
+          (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) res)
       in
       List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
