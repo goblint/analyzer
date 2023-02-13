@@ -148,12 +148,12 @@ let rec equal_helper1 edgeList1 edgeList2 =
   | [] -> true
 let equal g1 g2 = print_string "\nGraph.equal BEGIN\n";
 if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (print_string "g1 and g2 are NOT the same, they have different length\nGraph.equal END\n";false) else (
-print_string ("g1-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g1 "")^"\n");
-print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g2 "")^"\n");
+(* print_string ("g1-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g1 "")^"\n");
+print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g2 "")^"\n"); *)
 let edgeList1 = get_all_edges g1
 in let edgeList2 = get_all_edges g2
 in
-print_string ("equal_helper1 wird jetzt aufgerufen mit\nedgeList1="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList1)^"\nedgeList2="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList2)^"\n");
+(* print_string ("equal_helper1 wird jetzt aufgerufen mit\nedgeList1="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList1)^"\nedgeList2="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList2)^"\n"); *)
   let tmp = equal_helper1 (edgeList1) (edgeList2)
   in if tmp = false then print_string "g1 and g2 are NOT the same with even length\n" else print_string "g1 and g2 are the same with even length\n"; print_string "\nGraph.equal END\n";tmp)
 
@@ -166,10 +166,12 @@ in
 (* needs to be a total order! *)
   let compare g1 g2 =   print_string "\nGraph.compare BEGIN\n";
   if equal g1 g2 then (
-    print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n"); 0) else
-      (print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n");
+    (* print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n"); *)
+   print_string("Graph.compare END\n"); 0) else
+      (
+        (* print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n"); *)
       (* relying on the polymorphic equal here is a bit of a stop-gap, one should do this properly by using the compares of the edges and nodes*)
-      compare g1 g2)
+      print_string("Graph.compare END\n"); compare g1 g2)
 
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
@@ -405,16 +407,17 @@ object(self)
   currentID <- currentID + 1; 
   currentID
 
-  method getID (prev_node:node) (edge:MyCFG.edge) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) =
+  (* TODO: TID vom destination node muss auch geprüft werden mit tid_find*)
+  method getID (prev_node:node) (edge:MyCFG.edge) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) =
     print_string "getID wurde aufgerufen\n";
     let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find}) -> 
-     if (NodeImpl.equal prev_node prev_node_find)&&(Edge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find) then id_find else acc) (-1) edges 
+     if (NodeImpl.equal prev_node prev_node_find)&&(Edge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid) then id_find else acc) (-1) edges 
   in 
   if id = (-1) then ( print_string ("No existing edge for this combination was found, so we create a new ID\n
     for prev_node="^(NodeImpl.show prev_node)^", edge="^(EdgeImpl.show edge)^", dest_progPoint="^(Node.show dest_programPoint)^", dest_sigma="^(NodeImpl.show_sigma dest_sigma)^"\n
 in edges={"^(List.fold (fun acc_fold edge_fold -> acc_fold^(LocalTraces.show_edge edge_fold)^"\n") "" edges)^"}\n");
-  (* TID should not matter here *)
-  edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=(-1)})::edges; 
+  (* TID should not matter here --- but it does! *)
+  edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=dest_tid})::edges; 
   self#increment ()) else (print_string ("id was found: "^(string_of_int id)^"\n"); id)
 end
 

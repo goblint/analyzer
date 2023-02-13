@@ -271,8 +271,8 @@ let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=si
     let evaluated,success_inner = eval_wrapper sigma x rval  graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid} in 
     print_string ("new sigma in assign: "^(NodeImpl.show_sigma evaluated )^"\n");
 
-     (if Edge.equal ctx.edge Skip then ({programPoint=programPoint;sigma=sigma;id=id;tid=tid}, (Assign(lval,rval)),{programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node evaluated);tid=tid})
-    else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=evaluated; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node evaluated);tid=tid})), success_inner
+     (if Edge.equal ctx.edge Skip then ({programPoint=programPoint;sigma=sigma;id=id;tid=tid}, (Assign(lval,rval)),{programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node evaluated tid);tid=tid})
+    else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=evaluated; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node evaluated tid);tid=tid})), success_inner
 
     | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
   in
@@ -318,7 +318,7 @@ in
 let sigmaNew = SigmaMap.remove LocalTraces.branch_vinfo (NodeImpl.destruct_add_sigma sigma result_branch)
 in
 print_string ("result_as_int: "^(string_of_int result_as_int)^"\n");
-let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigmaNew);tid=tid})
+let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigmaNew tid);tid=tid})
 in
 print_string ("success="^(string_of_bool success)^", tv="^(string_of_bool tv)^", result_as_int="^(string_of_int result_as_int)^"\nand possible edge="^(LocalTraces.show_edge myEdge)^"\n");
 let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph myEdge else (print_string "no edge added for current sigma in branch\n";graph)
@@ -347,7 +347,7 @@ in result
 (* BODY helper functions *)
 (* perform body-effect on given node *)
 let body_on_node graph ctx {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
-  let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
+  let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid})
 in
 let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
@@ -386,17 +386,17 @@ in
   let myEdge = (
 match exp with 
 | None ->  print_string "In return case None\n";
-({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
+({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid})
 | Some(ret_exp) -> ( print_string ("return expression: "^(CilType.Exp.show ret_exp)^"\n");
   match ret_exp with
   | CastE(TPtr(TVoid(_), attrList2),Const(CInt(cilint,IInt,_))) ->
     if Cilint.is_zero_cilint cilint then (
       let sigma_returnVinfo= SigmaMap.add LocalTraces.return_vinfo Error sigma in
-      {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma_returnVinfo;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma_returnVinfo);tid=tid}) else (print_string "In return, unsupported expression\n"; exit 0)
+      {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma_returnVinfo;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma_returnVinfo tid);tid=tid}) else (print_string "In return, unsupported expression\n"; exit 0)
     | _ -> 
   let result, success = eval_wrapper sigma LocalTraces.return_vinfo ret_exp graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid}
 in if success = false then (print_string "Evaluation of return expression was unsuccessful\n"; exit 0)
-else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result);tid=tid})
+else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result tid);tid=tid})
 ))
 in
 let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -490,7 +490,7 @@ print_string ("in special, joinable traces are: ["^(List.fold (fun acc g -> acc^
     List.fold (
       fun list_fold trace_fold -> let tmp_graph = LocalTraces.merge_graphs graph trace_fold
 in
-let destination_node = {programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid}
+let destination_node = {programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}
 in
 let tmp_graph_edge1 = LocalTraces.extend_by_gEdge tmp_graph (LocalTraces.get_last_node trace_fold,ctx.edge,destination_node)
 in
@@ -502,14 +502,14 @@ in
     | _ -> Printf.printf "Error: argument of pthread_join is not a cast, but I only support Integers for now\n"; exit 0)
     | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); [graph]
     | ThreadExit _, _ -> print_string "In special, I reached ThreadExit\n"; 
-    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
+    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid})
       in
       let result_graph = LocalTraces.extend_by_gEdge graph myEdge
       in
         let ctxGlobalTid = ctx.global tid
       in
         ctx.sideg tid (D.add result_graph ctxGlobalTid); [result_graph]
-    | _ -> (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
+    | _ -> (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
   in
@@ -544,7 +544,7 @@ let enter_on_node graph ctx f args {programPoint=programPoint;id=id;sigma=sigma;
         | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
       ) (sigma, args) f.sformals
     in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
-      let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge (FunctionEntry(f)) sigma_formals);tid=tid})
+      let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_formals;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge (FunctionEntry(f)) sigma_formals tid);tid=tid})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
 in
@@ -585,14 +585,14 @@ let combine_on_node ctx {programPoint=programPoint;id=id;sigma=sigma;tid=tid} {p
   D.iter (fun g_iter -> print_string ("in combine, I test LocalTrace.find_returning_node with node="^(NodeImpl.show {programPoint=programPoint;id=id;sigma=sigma;tid=tid})^"\nI get "^(NodeImpl.show (LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma;tid=tid}) ctx.edge g_iter))^"\n")) callee_local;
   if tid != tid_returning then (Printf.printf "TIDs from current node and found returning node are different in combine\n"; exit 0);
     let (myEdge:(node * edge * node)) = 
-    (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma);tid=tid_returning}
+    (match lval with None -> {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma tid_returning);tid=tid_returning}
      |Some (Var x, y) ->  if x.vglob 
-      then ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Assign((Var(x), y), (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma);tid=tid_returning}) 
+      then ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Assign((Var(x), y), (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node sigma tid_returning);tid=tid_returning}) 
     else
       (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
       in if equal_varDomain return_value Error then (print_string "In combine, a returning Nullpointer is assigned to some lval, this is not supported\n";exit 0) else
       let result_sigma = SigmaMap.add x return_value sigma
-  in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=result_sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node result_sigma);tid=tid_returning})
+  in {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning},Skip,{programPoint=ctx.node;sigma=result_sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid_returning} ctx.edge ctx.node result_sigma tid_returning);tid=tid_returning})
      | _ -> Printf.printf "Invalid Lval format in combine\n"; exit 0)
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -640,9 +640,9 @@ in result
         | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
       ) (sigma, args) fd.sformals 
     in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
-    let new_id = idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma_formals
+    let new_id = idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma_formals id
     in
-    let myEdge = {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=(FunctionEntry(fd));sigma=sigma_formals;id=new_id;tid=new_id}
+    let myEdge = {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=(FunctionEntry(fd));sigma=sigma_formals;id=new_id;tid=id}
     (* einspeichern der create-Beziehung *)
   in
   let result_graph = print_string ("In threadenter, we add the edge "^(LocalTraces.show_edge myEdge)^"\n
@@ -679,13 +679,13 @@ in result
    (* perform threadspawn-effect on given node *)
   let threadspawn_on_node graph ctx lval {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
     let myEdge =  (match lval with None ->
-    {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid}
+    {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}
   |Some((Var x, _)) -> (
     let result_sigma = SigmaMap.add x (Int(Big_int_Z.big_int_of_int id, Big_int_Z.big_int_of_int id, IInt)) sigma
     in 
-    {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result_sigma);tid=tid}
+    {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result_sigma tid);tid=tid}
   )
-  | Some(z) -> {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid}
+  | Some(z) -> {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}
     (* print_string ("Invalid Lval format in threadspawn. Lval="^(CilType.Lval.show z)^"\n"); exit 0 *)
     )
   in
