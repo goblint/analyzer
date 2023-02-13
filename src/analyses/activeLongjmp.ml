@@ -3,14 +3,14 @@
 open Prelude.Ana
 open Analyses
 
-(* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit and type marshal = unit = *)
-(* No signature so others can override module G *)
 module Spec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "activeLongjmp"
-  module D = JmpBufDomain.JmpBufSet
+
+  (* The first component are the longjmp targets, the second are the longjmp callers *)
+  module D = JmpBufDomain.ActiveLongjmps
   module C = Lattice.Unit
 
   (* transfer functions *)
@@ -38,7 +38,7 @@ struct
     | Longjmp {env; value; sigrestore}, _ ->
       (* Put current buffer into set *)
       let bufs = ctx.ask (EvalJumpBuf env) in
-      bufs
+      bufs, JmpBufDomain.NodeSet.singleton(ctx.prev_node)
     | _ -> ctx.local
 
   let startstate v = D.bot ()
@@ -52,7 +52,7 @@ struct
     match q with
     | ActiveJumpBuf ->
       (* Does not compile without annotation: "This instance (...) is ambiguous: it would escape the scope of its equation" *)
-      (ctx.local:JmpBufDomain.JmpBufSet.t)
+      (ctx.local:JmpBufDomain.ActiveLongjmps.t)
     | _ -> Queries.Result.top q
 end
 

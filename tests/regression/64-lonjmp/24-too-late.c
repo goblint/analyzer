@@ -8,7 +8,7 @@ int global = 0;
 
 int fun() {
    int top;
-   longjmp(env_buffer, 2); //NOWARN
+   longjmp(env_buffer, 2); //WARN
 }
 
 int bar() {

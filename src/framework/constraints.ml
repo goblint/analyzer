@@ -653,7 +653,7 @@ struct
       in
       let targets = ctx'.ask ActiveJumpBuf
       in
-      let handle_longjmp (goalnode, c) =
+      let handle_longjmp origins (goalnode, c) =
         let controlctx = ControlSpecC.hash (ctx.control_context ()) in
         if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec goalnode).svar.vname = current_fundec.svar.vname then
           (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show goalnode);
@@ -665,7 +665,10 @@ struct
              sidel (jmptarget goalnode, ctx.context ()) value
            | _ -> failwith "wtf")
         else if ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then
-          M.warn "Longjmp to potentially invalid location"
+          (M.warn "Longjmp to potentially invalid location detected at this top-level-invocation";
+           M.warn ~loc:(Node goalnode) "Later invocations may attempt to invalidly jump back to this setjmp!";
+           JmpBufDomain.NodeSet.iter (fun node -> M.warn ~loc:(Node node) "Longjmp to potentially invalid target! (Target %s in Function %s which may have already returned or is in a different thread)" (Node.show goalnode) (Node.find_fundec goalnode).svar.vname) origins
+          )
         else
           (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else\n";
            (* Globals are non-problematic here, as they are always carried around without any issues! *)
@@ -674,7 +677,7 @@ struct
            let value = S.combine ctx ~longjmpthrough:true None (Cil.one) f [] None fd' in
            sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
-      List.iter handle_longjmp (JmpBufDomain.JmpBufSet.elements targets)
+      List.iter (handle_longjmp (snd targets)) (JmpBufDomain.JmpBufSet.elements (fst targets))
     in
     let paths = S.enter ctx lv f args in
     let ld_fc_fd_list = List.map (fun (c,v) -> (c, S.context f v, v)) paths in

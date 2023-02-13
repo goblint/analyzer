@@ -109,7 +109,7 @@ type _ t =
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
-  | ActiveJumpBuf: JmpBufDomain.JmpBufSet.t t
+  | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | MustProtectedVars: mustprotectedvars -> LS.t t
@@ -163,7 +163,7 @@ struct
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | EvalJumpBuf _ -> (module JmpBufDomain.JmpBufSet)
-    | ActiveJumpBuf -> (module JmpBufDomain.JmpBufSet)
+    | ActiveJumpBuf -> (module JmpBufDomain.ActiveLongjmps)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | MustProtectedVars _ -> (module LS)
@@ -216,7 +216,7 @@ struct
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
-    | ActiveJumpBuf -> JmpBufDomain.JmpBufSet.top ()
+    | ActiveJumpBuf -> JmpBufDomain.ActiveLongjmps.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | MustProtectedVars _ -> LS.top ()
