@@ -176,6 +176,36 @@ let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data Sol
     Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
   | _ -> None, true
 
+
+module Locator = WitnessUtil.Locator (Node)
+let node_locator: Locator.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let locator = Locator.create () in
+
+      (* DFS, copied from CfgTools.find_backwards_reachable *)
+      let module NH = MyCFG.NodeH in
+      let reachable = NH.create 100 in
+      let rec iter_node node =
+        if not (NH.mem reachable node) then begin
+          NH.replace reachable node ();
+            Locator.add locator (Node.location node) node;
+          List.iter (fun (_, prev_node) ->
+              iter_node prev_node
+            ) (Cfg.prev node)
+        end
+      in
+
+      Cil.iterGlobals !Cilfacade.current_file (function
+          | GFun (fd, _) ->
+            let return_node = Node.Function fd in
+            iter_node return_node
+          | _ -> ()
+        );
+
+      locator
+    )
+
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
   Messages.Table.messages_list := [];
@@ -186,6 +216,7 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data SolverData;
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
+  ResettableLazy.reset node_locator;
   Cilfacade.reset_lazy ();
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
@@ -319,7 +350,8 @@ let () =
   register (module struct
     let name = "cfg/lookup"
     type params = {
-      node: string;
+      node: string option [@default None];
+      location: CilType.Location.t option [@default None];
     } [@@deriving of_yojson]
     type response = {
       node: string;
@@ -327,8 +359,17 @@ let () =
       next: (Edge.t list * string) list;
       prev: (Edge.t list * string) list;
     } [@@deriving to_yojson]
-    let process ({node = node_id}: params) serv =
-      let node = Node.of_id node_id in
+    let process (params: params) serv =
+      let node = match params.node, params.location with
+        | Some node_id, None ->
+          Node.of_id node_id
+        | None, Some location ->
+          Locator.find_opt (ResettableLazy.force node_locator) location
+          |> Option.get
+          |> Locator.ES.choose
+        | _, _ -> invalid_arg "cfg/lookup requires node xor location"
+      in
+      let node_id = Node.show_id node in
       let location = Node.location node in
       let module Cfg = (val !MyCFG.current_cfg) in
       let next =
