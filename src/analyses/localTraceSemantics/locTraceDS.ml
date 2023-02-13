@@ -344,12 +344,57 @@ if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
     | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1}
     in loop allNodes
 
+    (* In this function I assume, that traces do not contain circles *)
+let find_creating_node last_node graph =
+  let lastNodeId = last_node.tid
+in
+let workQueue = Queue.create ()
+  in Queue.add last_node workQueue;
+  
+  let rec loop () =
+    let current_node = Queue.pop workQueue
+  in
+  let rec inner_loop edges =
+    match edges with
+    (precedingNode, (edgeLabel:edge),_)::xs ->
+      (match edgeLabel with (Proc(_, Lval(Var(v),_), _)) -> (if (precedingNode.tid != lastNodeId)&&(current_node.tid = lastNodeId) then Some(precedingNode)
+      else inner_loop xs)
+        | _ ->  inner_loop xs )
+      | [] -> None
+  in
+    let precedingEdges = get_predecessors_edges graph current_node
+  in
+  match inner_loop precedingEdges with
+  None -> List.iter (fun node -> Queue.add node workQueue ) (get_predecessors_nodes graph current_node);
+  loop ()
+  | Some(found_node) -> found_node
+in loop ()
+
+let exists_node graph node =
+let all_nodes = get_all_nodes graph
+in
+List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
+
+  let equal_edge_lists edgeList1 edgeList2 =
+    if List.length edgeList1 != List.length edgeList2 then false else
+      (
+        let rec loop list =
+          match list with x::xs ->  if List.exists (fun edge -> equal_edge edge x) edgeList2 then loop xs else false
+            | [] -> true
+        in
+        loop edgeList1
+      )
+  let merge_graphs graph1 graph2 =
+    List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)
 end
 
 (* Set domain for analysis framework *)
 module GraphSet = struct
 include SetDomain.Make(LocalTraces)
 end
+
+let graphSet_to_list graphSet =
+  GraphSet.fold (fun g acc -> g::acc) graphSet []
 
 (* ID Generator *)
 class id_generator = 

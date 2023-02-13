@@ -433,26 +433,74 @@ in
 result
 
    (* SPECIAL helper functions *)
+   let is_trace_joinable candidate graph = 
+    let create_node = LocalTraces.find_creating_node (LocalTraces.get_last_node candidate) candidate
+   in
+   if not (LocalTraces.exists_node graph create_node) then (print_string ("create_node does not exists in creator-trace\n"); false) else
+    (
+      let rec inner_loop edgeList =
+        match edgeList with (pred_node,_,_)::xs -> if loop pred_node then inner_loop xs else (print_string("loop in inner_loop resulted in false\n"); false)
+          | [] -> true
+      and
+      loop current_prefix =
+        let candidate_pred_edges = LocalTraces.get_predecessors_edges candidate current_prefix
+      in let graph_pred_edges = LocalTraces.get_predecessors_edges graph current_prefix
+    in
+    if not (LocalTraces.equal_edge_lists candidate_pred_edges graph_pred_edges) 
+      then (print_string ("predecessor lists of creator-trace and thread-trace are different\n"); false)
+    else (
+  inner_loop candidate_pred_edges
+    )
+  in
+  loop create_node
+    )
+
+
+   let rec find_joinable_traces candidates graph = 
+    match candidates with
+    x::xs -> if is_trace_joinable x graph then x::(find_joinable_traces xs graph) else find_joinable_traces xs graph
+      | [] -> []
+    (* TODO implement *)
+
    (* perform special-effect on given node *)
   let special_on_node graph ctx {programPoint=programPoint;id=id;sigma=sigma;tid=tid} f arglist =
     print_string ("in special, we have ctx.edge="^(EdgeImpl.show ctx.edge)^"\n");
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
     | ThreadJoin { thread = tidExpCast; ret_var }, _ -> (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExpCast)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
-    match tidExpCast with CastE(TNamed(t, attr),tidExp) -> 
+    match tidExpCast with CastE(TNamed(t, attr),tidExp) -> (
       if not (String.equal t.tname "pthread_t") then (Printf.printf "Error: casted type in pthread_join is not pthread_t in special\n"; exit 0);
       print_string ("arg is a CastE(TNamed(_), _) with tidExp="^(CilType.Exp.show tidExp)^"\n");
       let special_varinfo = makeVarinfo false "__goblint__traces__special" (TInt(IInt,[]))
   in
       let tidSigma, success = eval_wrapper sigma special_varinfo tidExp graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid}
 in if not success then (Printf.printf "Error: could not evaluate argument of pthread_join in special\n"; exit 0);
-    let tidJoin = SigmaMap.find special_varinfo tidSigma
+    let tidJoin = 
+      match SigmaMap.find special_varinfo tidSigma with
+      Int(l,u,_) -> Big_int_Z.int_of_big_int l (* TODO iterate over interval or pick a few values *)
+      | _ -> Printf.printf "Error: wrong type of argument of pthread_join in special\n"; exit 0
 in
-(* TODO: we now have the tid to join, we need to pick the right traces here from the side-effects *)
-print_string ("in special, we evaluated the tid-arg for thread_join: "^(show_valuedomain tidJoin)^"\n");
-    graph
+  let endingTraces = graphSet_to_list (ctx.global tidJoin)
+in
+print_string("in special, ending traces: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" endingTraces)^"]\n");
+let joinableTraces = find_joinable_traces endingTraces graph
+in
+print_string ("in special, joinable traces are: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" joinableTraces)^"]\n");
+(* TODO: now join *)
+    List.fold (
+      fun list_fold trace_fold -> let tmp_graph = LocalTraces.merge_graphs graph trace_fold
+in
+let destination_node = {programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid}
+in
+let tmp_graph_edge1 = LocalTraces.extend_by_gEdge tmp_graph (LocalTraces.get_last_node trace_fold,ctx.edge,destination_node)
+in
+let tmp_graph_edge2 = LocalTraces.extend_by_gEdge tmp_graph_edge1 ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,destination_node)
+in
+(tmp_graph_edge2)::list_fold
+        ) [] joinableTraces
+    )
     | _ -> Printf.printf "Error: argument of pthread_join is not a cast, but I only support Integers for now\n"; exit 0)
-    | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); graph
+    | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); [graph]
     | ThreadExit _, _ -> print_string "In special, I reached ThreadExit\n"; 
     let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
       in
@@ -460,12 +508,12 @@ print_string ("in special, we evaluated the tid-arg for thread_join: "^(show_val
       in
         let ctxGlobalTid = ctx.global tid
       in
-        ctx.sideg tid (D.add result_graph ctxGlobalTid); result_graph
+        ctx.sideg tid (D.add result_graph ctxGlobalTid); [result_graph]
     | _ -> (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma);tid=tid})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
   in
-      result_graph)
+      [result_graph])
 
    (* iterate over the graphs in previous state *)
    let special_fold_graphSet graph (f, arglist, ctx,set_acc) =
@@ -477,7 +525,7 @@ print_string ("in special, we evaluated the tid-arg for thread_join: "^(show_val
    let result_graph = 
     special_on_node graph ctx lastNode f arglist
     in
-    D.add result_graph set_acc
+    List.fold (fun set_fold graph_fold -> D.add graph_fold set_fold) set_acc result_graph
     in
     (f, arglist, ctx, new_set)
 
