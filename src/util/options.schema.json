@@ -326,7 +326,7 @@
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
-            "assert","activeLongjmp"
+            "assert","activeLongjmp","activeSetjmp"
           ]
         },
         "path_sens": {
@@ -334,7 +334,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
