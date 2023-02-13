@@ -317,6 +317,33 @@ let () =
   end);
 
   register (module struct
+    let name = "cfg/lookup"
+    type params = {
+      node: string;
+    } [@@deriving of_yojson]
+    type response = {
+      next: (Edge.t list * string) list;
+      prev: (Edge.t list * string) list;
+    } [@@deriving to_yojson]
+    let process {node} serv =
+      let node = Node.of_id node in
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let next =
+        Cfg.next node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      let prev =
+        Cfg.prev node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      {next; prev}
+  end);
+
+  register (module struct
     let name = "node_state"
     type params = { nid: string }  [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
