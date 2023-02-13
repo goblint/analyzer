@@ -322,11 +322,14 @@ let () =
       node: string;
     } [@@deriving of_yojson]
     type response = {
+      node: string;
+      location: CilType.Location.t;
       next: (Edge.t list * string) list;
       prev: (Edge.t list * string) list;
     } [@@deriving to_yojson]
-    let process {node} serv =
-      let node = Node.of_id node in
+    let process ({node = node_id}: params) serv =
+      let node = Node.of_id node_id in
+      let location = Node.location node in
       let module Cfg = (val !MyCFG.current_cfg) in
       let next =
         Cfg.next node
@@ -340,7 +343,7 @@ let () =
             (List.map snd edges, Node.show_id to_node)
           )
       in
-      {next; prev}
+      {node = node_id; location; next; prev}
   end);
 
   register (module struct
