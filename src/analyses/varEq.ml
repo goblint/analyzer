@@ -336,7 +336,7 @@ struct
     | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
-      Some (v.vglob || (ask.f (Queries.IsMultiple v)))
+      Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
@@ -558,6 +558,15 @@ struct
       |> List.fold_left (fun st lv ->
           remove (Analyses.ask_of_ctx ctx) lv st
         ) ctx.local
+    | Events.Escape vars ->
+      if EscapeDomain.EscapedVars.is_top vars then 
+        D.top () 
+      else
+      let ask = Analyses.ask_of_ctx ctx in
+      let remove_var st v =
+        remove ask (Cil.var v) st
+      in
+      List.fold_left remove_var ctx.local (EscapeDomain.EscapedVars.elements vars)
     | _ ->
       ctx.local
 end
