@@ -189,7 +189,9 @@ let node_locator: Locator.t ResettableLazy.t =
       let rec iter_node node =
         if not (NH.mem reachable node) then begin
           NH.replace reachable node ();
-            Locator.add locator (Node.location node) node;
+          let loc = Node.location node in
+          if not loc.synthetic then
+            Locator.add locator loc node;
           List.iter (fun (_, prev_node) ->
               iter_node prev_node
             ) (Cfg.prev node)
