@@ -187,7 +187,8 @@ struct
     let fd = Cilfacade.find_varinfo_fundec f in
     match args, fd.sformals with
     | [exp], [param] -> 
-      let reg = Reg.assign (Analyses.ask_of_ctx ctx) (var param) exp (ctx.global (), RegMap.bot ()) in
+      (* The parameter may not have escaped here (for the first thread). *)
+      let reg = Reg.assign ~thread_arg:true (Analyses.ask_of_ctx ctx) (var param) exp (ctx.global (), RegMap.bot ()) in
       [`Lifted (snd reg)] 
     | _ -> [`Lifted (RegMap.bot ())]
   let threadspawn ctx lval f args fctx = ctx.local

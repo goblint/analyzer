@@ -195,7 +195,7 @@ struct
       let p = RegPart.add s p in
       p, closure p m
 
-  let assign (ask: Queries.ask) (lval: lval) (rval: exp) (st: t): t =
+  let assign ?(thread_arg=false) (ask: Queries.ask) (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let t = Cilfacade.typeOf rval in
     if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
@@ -209,7 +209,7 @@ struct
                 | `Right () -> `Right ()
               )
             in
-            match BaseUtil.is_global ask (fst x), deref_x, BaseUtil.is_global ask (fst y) with
+            match BaseUtil.is_global ask (fst x), deref_x, BaseUtil.is_global ask (fst y) || thread_arg with
             | false, false, true  ->
               p, RegMap.add x (append_offs_y (RegPart.closure p (RS.single_vf y))) m
             | false, false, false ->
