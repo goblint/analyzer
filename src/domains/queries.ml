@@ -110,6 +110,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
   | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
+  | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | MustProtectedVars: mustprotectedvars -> LS.t t
@@ -164,6 +165,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | EvalJumpBuf _ -> (module JmpBufDomain.JmpBufSet)
     | ActiveJumpBuf -> (module JmpBufDomain.ActiveLongjmps)
+    | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | MustProtectedVars _ -> (module LS)
@@ -217,6 +219,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
     | ActiveJumpBuf -> JmpBufDomain.ActiveLongjmps.top ()
+    | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | MustProtectedVars _ -> LS.top ()
@@ -275,6 +278,7 @@ struct
     | Any MayAccessed -> 40
     | Any (EvalJumpBuf _) -> 41
     | Any ActiveJumpBuf -> 42
+    | Any ValidLongJmp -> 43
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -377,6 +381,7 @@ struct
     | Any (EvalThread e) -> Pretty.dprintf "EvalThread %a" CilType.Exp.pretty e
     | Any (EvalJumpBuf e) -> Pretty.dprintf "EvalJumpBuf %a" CilType.Exp.pretty e
     | Any ActiveJumpBuf ->  Pretty.dprintf "ActiveJumpBuf"
+    | Any ValidLongJmp -> Pretty.dprintf "ValidLongJmp"
     | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"

@@ -34,8 +34,7 @@ int main () {
 
    // In this second invocation of bar() the jumpbuffer could still contain the old value set during the first invocation, making the longjmp in fun()
    // an illegal longjmp :/
-   bar(); //WARN
+   bar();
 
-   __goblint_check(0); // NOWARN
    return(0);
 }

@@ -50,6 +50,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
+    | ValidLongJmp -> (ctx.local: D.t)
     | _ -> Queries.Result.top q
 end
 

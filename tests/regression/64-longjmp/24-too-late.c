@@ -23,7 +23,7 @@ int main () {
 
    __goblint_check(global == 0);
    bar();
-   fun(); //WARN
+   fun();
 
    __goblint_check(0); // NOWARN
    return(0);
