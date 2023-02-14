@@ -20,19 +20,20 @@ struct
     include StdV
   end
 
-  let regions exp part st : Lval.CilLval.t list =
-    match st with
+  let regions ctx exp part : Lval.CilLval.t list =
+    match ctx.local with
     | `Lifted reg ->
-      let ev = Reg.eval_exp exp in
+      let ask = Analyses.ask_of_ctx ctx in
+      let ev = Reg.eval_exp ask exp in
       let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
-      List.map to_exp (Reg.related_globals ev (part,reg))
+      List.map to_exp (Reg.related_globals ask ev (part,reg))
     | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
-  let is_bullet exp part st : bool =
-    match st with
+  let is_bullet ctx exp part : bool =
+    match ctx.local with
     | `Lifted reg ->
-      begin match Reg.eval_exp exp with
+      begin match Reg.eval_exp (Analyses.ask_of_ctx ctx) exp with
         | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
         | _ -> false
       end
@@ -41,18 +42,18 @@ struct
 
   let get_region ctx e =
     let regpart = ctx.global () in
-    if is_bullet e regpart ctx.local then
+    if is_bullet ctx e regpart then
       None
     else
-      Some (regions e regpart ctx.local)
+      Some (regions ctx e regpart)
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Regions e ->
       let regpart = ctx.global () in
-      if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
-        let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
+      if is_bullet ctx e regpart then Queries.Result.bot q (* TODO: remove bot *) else
+        let ls = List.fold_right Queries.LS.add (regions ctx e regpart) (Queries.LS.empty ()) in
         ls
     | _ -> Queries.Result.top q
 
@@ -93,7 +94,7 @@ struct
     match ctx.local with
     | `Lifted reg ->
       let old_regpart = ctx.global () in
-      let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
+      let regpart, reg = Reg.assign (Analyses.ask_of_ctx ctx) lval rval (old_regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
         ctx.sideg () regpart;
       `Lifted reg
@@ -113,7 +114,7 @@ struct
       let regpart, reg = match exp with
         | Some exp ->
           let module BS = (val Base.get_main ()) in
-          Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
+          Reg.assign (Analyses.ask_of_ctx ctx) (BS.return_lval ()) exp (old_regpart, reg)
         | None -> (old_regpart, reg)
       in
       let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
@@ -131,7 +132,7 @@ struct
     in
     match ctx.local with
     | `Lifted reg ->
-      let f x r reg = Reg.assign (var x) r reg in
+      let f x r reg = Reg.assign (Analyses.ask_of_ctx ctx) (var x) r reg in
       let old_regpart = ctx.global () in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
       if not (RegPart.leq regpart old_regpart) then
@@ -146,7 +147,7 @@ struct
       let module BS = (val Base.get_main ()) in
       let regpart, reg = match lval with
         | None -> (old_regpart, reg)
-        | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
+        | Some lval -> Reg.assign (Analyses.ask_of_ctx ctx) lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
       in
       let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
@@ -163,7 +164,7 @@ struct
         | `Lifted reg, Some lv ->
           let old_regpart = ctx.global () in
           (* TODO: should realloc use arg region if failed/in-place? *)
-          let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
+          let regpart, reg = Reg.assign_bullet (Analyses.ask_of_ctx ctx) lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             ctx.sideg () regpart;
           `Lifted reg
@@ -186,7 +187,7 @@ struct
     let fd = Cilfacade.find_varinfo_fundec f in
     match args, fd.sformals with
     | [exp], [param] -> 
-      let reg = Reg.assign (var param) exp (ctx.global (), RegMap.bot ()) in
+      let reg = Reg.assign (Analyses.ask_of_ctx ctx) (var param) exp (ctx.global (), RegMap.bot ()) in
       [`Lifted (snd reg)] 
     | _ -> [`Lifted (RegMap.bot ())]
   let threadspawn ctx lval f args fctx = ctx.local
