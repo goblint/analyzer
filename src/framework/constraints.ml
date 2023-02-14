@@ -661,69 +661,72 @@ struct
       r
     in
     let handlelongjmp (cd,fc,fd) =
-      (* TODO: Identify current longjmp target for return from given context, and dispatch side-effect appropriately *)
-      let rec ctx' = { ctx with
-                       ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q);
+      let rec ctx_fd = { ctx with
+                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd q);
                        local = fd;
                        prev_node = Function f
                      }
       in
-      let rec ctx'' = { ctx with
-                        ask = (fun (type a) (q: a Queries.t) -> S.query ctx'' q);
+      let rec ctx_cd = { ctx with
+                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx_cd q);
                         local = cd}
       in
-      let targets = ctx'.ask ActiveJumpBuf
-      in
-      let handle_longjmp origins (goalnode, c) =
-        let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec goalnode).svar.vname = current_fundec.svar.vname then
-          (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
-          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show goalnode);
-           match goalnode with
+      (* Set of jumptargets and longjmp calls with which the callee may return here *)
+      let targets = ctx_fd.ask ActiveJumpBuf in
+      (* Handle a longjmp called in one of the locations in origins to targetnode in targetcontext  *)
+      let handle_longjmp origins (targetnode, targetcontext) =
+        let target_in_caller () = CilType.Fundec.equal (Node.find_fundec targetnode) current_fundec in
+        let targetcontext_matches () =
+          let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+          targetcontext = IntDomain.Flattened.of_int (Int64.of_int controlctx)
+        in
+        (* Check if corresponding setjmp call was in current function & in current context *)
+        if targetcontext_matches () && target_in_caller () then
+          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show targetnode);
+           match targetnode with
            | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
-             let fd' = S.return ctx' None f in
+             let fd' = S.return ctx_fd None f in
              (* Using f from called function on purpose here! Needed? *)
-             let value = S.combine ctx'' setjmplval (Cil.one) f setjmpargs None fd' in
-             sidel (jmptarget goalnode, ctx.context ()) value
-           | _ -> failwith "wtf")
+             let value = S.combine ctx_cd setjmplval (Cil.one) f setjmpargs fc fd' in
+             sidel (jmptarget targetnode, ctx.context ()) value
+           (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
+           | _ -> failwith "target of longjmp is node that is not a call to setjmp!")
         else
-          (* Appropriate setjmp is not in here *)
-          let validBuffers = ctx''.ask ValidLongJmp in
-          if not (JmpBufDomain.JmpBufSet.mem (goalnode,c) validBuffers) then
-            (* It actually is not handled here, we already warned at the location where this issue is caused. *)
+          (* Appropriate setjmp is not in current function & current context *)
+          let validBuffers = ctx_cd.ask ValidLongJmp in
+          if not (JmpBufDomain.JmpBufSet.mem (targetnode,targetcontext) validBuffers) then
+            (* It actually is not handled here but was propagated her spuriously, we already warned at the location where this issue is caused *)
+            (* As the validlongjumps inside the callee is a a superset of the ones inside the caller*)
             ()
           else
             (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else\n";
              (* Globals are non-problematic here, as they are always carried around without any issues! *)
              (* A combine call is mostly needed to ensure locals have appropriate values. *)
-             let fd' = S.return ctx' None f in
-             let value = S.combine ctx'' ~longjmpthrough:true None (Cil.one) f [] None fd' in
+             let fd' = S.return ctx_fd None f in
+             let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' in
              sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
       List.iter (handle_longjmp (snd targets)) (JmpBufDomain.JmpBufSet.elements (fst targets))
     in
+    (* Handle normal calls to function *)
     let paths = S.enter ctx lv f args in
     let ld_fc_fd_list = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) ld_fc_fd_list;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) ld_fc_fd_list in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     let paths = List.map (Tuple3.map2 Option.some) paths in
-    let longjmpv fc v =
-      if S.D.is_bot v then
-        v
-      else
-        (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i\n" (S.C.hash fc);
-         getl (LongjmpFromFunction f, fc))
-    in
+    if M.tracing then M.traceli "combine" "combining\n";
+    let paths = List.map combine paths in
+    let result = List.fold_left D.join (D.bot ()) paths in
+    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty result;
+    (* Handle "longjumpy" ;p returns from this function by producing appropriate side-effects *)
+    let longjmpv fc v = if S.D.is_bot v then v else (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i\n" (S.C.hash fc); getl (LongjmpFromFunction f, fc)) in
     let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, longjmpv fc v)) ld_fc_fd_list in
     let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
     let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
     let _ = List.iter handlelongjmp longjmppaths in
-    if M.tracing then M.traceli "combine" "combining\n";
-    let paths = List.map combine paths in
-    let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
-    r
+    (* Return result of normal call, longjmp om;y happens via side-effect *)
+    result
 
   let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) lv f args =
     let jmptarget = function
