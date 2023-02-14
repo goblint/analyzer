@@ -62,11 +62,13 @@ struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
     let name () = "region"
     let may_race r1 r2 = match r1, r2 with
+      (* Fresh memory does not race: *)
       | None, _
       | _, None -> false
-      (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
-      | Some r1, _ when Lvals.is_empty r1 -> true
-      | _, Some r2 when Lvals.is_empty r2 -> true
+      (* The following cases are needed if RegMap has empty values, due to bugs.
+         When not handling escape, 09-regions/34-escape_rc would fail without this: 
+         | Some r1, _ when Lvals.is_empty r1 -> true
+         | _, Some r2 when Lvals.is_empty r2 -> true *)
       | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
       | _, _ -> true
     let should_print r = match r with
