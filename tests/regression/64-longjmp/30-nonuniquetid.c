@@ -4,6 +4,7 @@
 
 jmp_buf buf;
 jmp_buf buf1;
+pthread_mutex_t m;
 
 void *t_benign(void *arg) {
     if(setjmp(buf1)) {
@@ -14,11 +15,15 @@ void *t_benign(void *arg) {
 }
 
 void *t_fun(void *arg) {
+    pthread_mutex_lock(&m);
     if(setjmp(buf)) {
         return NULL;
     }
+    pthread_mutex_unlock(&m);
 
+    pthread_mutex_lock(&m);
     longjmp(buf, 1); //WARN
+    pthread_mutex_unlock(&m);
 }
 
 int main(void) {
