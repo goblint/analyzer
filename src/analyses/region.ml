@@ -142,7 +142,7 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     match au with
-    | `Lifted reg -> begin
+    | `Lifted reg -> 
       let old_regpart = ctx.global () in
       let module BS = (val Base.get_main ()) in
       let regpart, reg = match lval with
@@ -153,7 +153,6 @@ struct
       if not (RegPart.leq regpart old_regpart) then
         ctx.sideg () regpart;
       `Lifted reg
-      end
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
