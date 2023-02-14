@@ -574,4 +574,8 @@ struct
     do_sideg ctx !sides;
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
+
+
+  (* Just to satisfy signature *)
+  let paths_as_set ctx = [ctx.local]
 end

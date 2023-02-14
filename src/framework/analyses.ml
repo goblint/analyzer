@@ -453,6 +453,9 @@ sig
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t, V.t) ctx -> ?longjmpthrough:bool -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> D.t
 
+  (* Paths as sets: I know this is ugly! *)
+  val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
+
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
 
@@ -662,6 +665,8 @@ struct
 
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  let paths_as_set ctx = [ctx.local]
 
   module A = UnitA
   let access _ _ = ()

@@ -172,6 +172,12 @@ struct
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
+
+  let paths_as_set ctx =
+    let (a,b) = ctx.local in
+    let r = Dom.bindings a in
+    List.map (fun (x,v) -> (Dom.singleton x v, b)) r
+
   (* TODO: do additional witness things here *)
   let threadenter ctx lval f args =
     let g xs x' ys =

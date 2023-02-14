@@ -152,6 +152,10 @@ struct
 
   let lift' d ts = (d, ts)
 
+  let paths_as_set ctx =
+    let liftmap l ts = List.map (fun x -> (x, ts)) l in
+    lift_fun ctx liftmap S.paths_as_set (Fun.id)
+
   let sync ctx reason = lift_fun ctx lift'   S.sync   ((|>) reason)
 
   let enter ctx r f args =

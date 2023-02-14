@@ -81,6 +81,9 @@ struct
 
   let threadspawn ctx lval f args fctx =
     D.lift @@ S.threadspawn (conv ctx) lval f args (conv fctx)
+
+  let paths_as_set ctx =
+    List.map (fun x -> D.lift x) @@ S.paths_as_set (conv ctx)
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -157,6 +160,8 @@ struct
 
   let threadspawn ctx lval f args fctx =
     S.threadspawn (conv ctx) lval f args (conv fctx)
+
+  let paths_as_set ctx = S.paths_as_set (conv ctx)
 end
 
 (* see option ana.opt.equal *)
@@ -242,6 +247,10 @@ struct
   let add1 = function
     | `Lifted x -> `Lifted (Int64.add x 1L)
     | x -> x
+
+  let paths_as_set ctx =
+    let liftmap = List.map (fun x -> (x, snd ctx.local)) in
+    lift_fun ctx liftmap S.paths_as_set (Fun.id)
 
   let enter ctx r f args =
     let (d,l) = ctx.local in
@@ -369,6 +378,10 @@ struct
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
 
+  let paths_as_set ctx =
+    let m = snd ctx.local in
+    S.paths_as_set (conv ctx) |> List.map (fun v -> (v,m))
+
   let combine ctx ?(longjmpthrough = false) r fe f args fc es = lift_fun ctx S.combine (fun p -> p ~longjmpthrough r fe f args fc (fst es))
 end
 
@@ -416,6 +429,10 @@ struct
   let enter ctx r f args =
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
+
+  let paths_as_set ctx =
+    let liftmap = List.map (fun x -> D.lift x) in
+    lift_fun ctx liftmap S.paths_as_set (Fun.id) []
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
@@ -721,27 +738,39 @@ struct
     | Longjmp {env; value; sigrestore} ->
       let res = S.special ctx lv f args in
       let current_fundec = Node.find_fundec ctx.node in
-      (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
-      let targets = ctx.ask (EvalJumpBuf env) in
-      if M.tracing then Messages.tracel "longjmp" "Jumping to %s\n" (JmpBufDomain.JmpBufSet.show targets);
-      let handle_longjmp (node, c) =
-        let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-        if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
-          (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
-           match node with
-           | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-             let res' = match lval with
-               | Some lv ->  S.assign ctx lv value
-               | None -> res
-             in
-             sidel (jmptarget node, ctx.context ()) res'
-           | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
-          )
-        else
-          (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
-           sidel (LongjmpFromFunction current_fundec, ctx.context ()) res)
+      let one_path s = (
+        let rec path_ctx = { ctx with
+                             ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
+                             local = s;
+                           }
+        in
+        (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
+        let targets = path_ctx.ask (EvalJumpBuf env) in
+        if M.tracing then Messages.tracel "longjmp" "Jumping to %s\n" (JmpBufDomain.JmpBufSet.show targets);
+        try
+          let handle_longjmp (node, c) =
+            let controlctx = ControlSpecC.hash (ctx.control_context ()) in
+            if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
+              (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
+               match node with
+               | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
+                 let res' = match lval with
+                   | Some lv ->  S.assign path_ctx lv value
+                   | None -> res
+                 in
+                 sidel (jmptarget node, ctx.context ()) res'
+               | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
+              )
+            else
+              (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
+               sidel (LongjmpFromFunction current_fundec, ctx.context ()) res)
+          in
+          List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets)
+        with SetDomain.Unsupported _ ->
+          M.warn "longjmp to unknown location, content of %a unknown!" d_exp env
+      )
       in
-      List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets);
+      List.iter one_path (S.paths_as_set ctx);
       S.D.bot ()
     | _ -> S.special ctx lv f args
 
@@ -1281,6 +1310,11 @@ struct
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
+  let paths_as_set ctx =
+    (* Path-sensitivity is only here, not below! *)
+    let elems = D.elements ctx.local in
+    List.map (D.singleton) elems
+
   let combine ctx ?(longjmpthrough = false) l fe f a fc d =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
@@ -1415,6 +1449,7 @@ struct
   let assign ctx = S.assign (conv ctx)
   let vdecl ctx = S.vdecl (conv ctx)
   let enter ctx = S.enter (conv ctx)
+  let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
   let combine ctx ?(longjmpthrough = false) = S.combine (conv ctx) ~longjmpthrough
