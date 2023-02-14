@@ -8,7 +8,7 @@ int main () {
   int  y __attribute__((goblint_stub));
 
   if( x < y) {
-    __goblint_check(x < y); //UNKNOWN!
+    __goblint_check(x < y); //UNKNOWN
   }
 
   return 0;
