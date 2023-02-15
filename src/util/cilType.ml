@@ -99,9 +99,10 @@ module Ikind: S with type t = ikind =
 struct
   include Std
 
+  (* Re-export constructors for monomorphization and deriving. *)
   type t = ikind =
     | IChar
-    | ISChar 
+    | ISChar
     | IUChar
     | IBool
     | IInt
@@ -115,10 +116,13 @@ struct
     | IInt128
     | IUInt128
   [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "ikind"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
 
@@ -136,6 +140,7 @@ module Fkind: S with type t = fkind =
 struct
   include Std
 
+  (* Re-export constructors for monomorphization and deriving. *)
   type t = fkind =
     | FFloat
     | FDouble
@@ -144,10 +149,13 @@ struct
     | FComplexDouble
     | FComplexLongDouble
   [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "fkind"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
 
@@ -165,15 +173,19 @@ module Unop: S with type t = unop =
 struct
   include Std
 
+  (* Re-export constructors for monomorphization and deriving. *)
   type t = unop =
     | Neg
     | BNot
     | LNot
   [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "unop"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
 
@@ -191,6 +203,7 @@ module Binop: S with type t = binop =
 struct
   include Std
 
+  (* Re-export constructors for monomorphization and deriving. *)
   type t = binop =
     | PlusA
     | PlusPI
@@ -209,16 +222,19 @@ struct
     | Ge
     | Eq
     | Ne
-    | BAnd 
-    | BXor 
+    | BAnd
+    | BXor
     | BOr
     | LAnd
     | LOr
   [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "binop"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
 
@@ -236,15 +252,19 @@ module Wstring_type: S with type t = wstring_type =
 struct
   include Std
 
+  (* Re-export constructors for monomorphization and deriving. *)
   type t = wstring_type =
     | Wchar_t
     | Char16_t
     | Char32_t
   [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "wstring_type"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
 
@@ -265,15 +285,18 @@ module Encoding: S with type t = encoding =
 struct
   include Std
 
+  (* Re-export constructors for monomorphization and deriving. *)
   type t = encoding =
     | No_encoding
     | Utf8
   [@@deriving hash]
-
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "encoding"
 
   (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
 
