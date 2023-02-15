@@ -190,6 +190,9 @@ let parse_arguments () =
     raise Exit
   )
 
+
+exception FrontendError of string
+
 let basic_preprocess_counts = Preprocessor.FpathH.create 3
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
@@ -254,13 +257,17 @@ let preprocess_files () =
     print_endline "Warning, cannot find goblint's custom include files.";
 
   let find_custom_include subpath =
-    List.find_map (fun custom_include_dir ->
+    let custom_include_opt = List.find_map_opt (fun custom_include_dir ->
         let path = Fpath.append custom_include_dir subpath in
         if Sys.file_exists (Fpath.to_string path) then
           Some path
         else
           None
       ) custom_include_dirs
+    in
+    match custom_include_opt with
+    | Some custom_include -> custom_include
+    | None -> raise (FrontendError (Format.asprintf "custom include %a not found" Fpath.pp subpath))
   in
 
   (* include flags*)
@@ -290,8 +297,7 @@ let preprocess_files () =
       try
         List.find (Sys.file_exists % Fpath.to_string) kernel_roots
       with Not_found ->
-        prerr_endline "Root directory for kernel include files not found!";
-        raise Exit
+        raise (FrontendError "root directory for kernel include files not found")
     in
 
     let kernel_dir = Fpath.(kernel_root / "include") in
@@ -322,6 +328,9 @@ let preprocess_files () =
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
 
   let rec preprocess_arg_file = function
+    | filename when not (Sys.file_exists (Fpath.to_string filename)) ->
+      raise (FrontendError (Format.asprintf "file argument %a not found" Fpath.pp filename))
+
     | filename when Fpath.filename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
       [basic_preprocess ~all_cppflags comb_file]
@@ -339,8 +348,7 @@ let preprocess_files () =
         [] (* don't recurse for anything else *)
 
     | filename when Fpath.get_ext filename = ".json" ->
-      Format.eprintf "Unexpected JSON file argument (possibly missing --conf): %a\n" Fpath.pp filename;
-      raise Exit
+      raise (FrontendError (Format.asprintf "unexpected JSON file argument %a (possibly missing --conf)" Fpath.pp filename))
 
     | filename ->
       [basic_preprocess ~all_cppflags filename]
@@ -356,9 +364,10 @@ let preprocess_files () =
   let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map Fpath.v (get_string_list "files")) in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
-    let terminated task = function
+    let terminated (task: ProcessPool.task) = function
       | Unix.WEXITED 0 -> ()
-      | process_status -> failwith (GobUnix.string_of_process_status process_status)
+      | process_status ->
+        raise (FrontendError (Format.sprintf "preprocessor %s: %s" (GobUnix.string_of_process_status process_status) task.command))
     in
     Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
   );
