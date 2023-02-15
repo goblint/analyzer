@@ -39,8 +39,12 @@ let current_file = ref dummyFile
     @raise GoblintCil.Errormsg.Error *)
 let parse fileName =
   let fileName_str = Fpath.to_string fileName in
+  Errormsg.hadErrors := false; (* reset because CIL doesn't *)
   let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
-  Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil ()
+  let file = Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil () in
+  if !E.hadErrors then
+    E.s (E.error "There were parsing errors in %s" fileName_str);
+  file
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
@@ -96,6 +100,7 @@ end
 
 (** @raise GoblintCil.Errormsg.Error *)
 let getMergedAST fileASTs =
+  Errormsg.hadErrors := false; (* reset because CIL doesn't *)
   let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
