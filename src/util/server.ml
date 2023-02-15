@@ -302,7 +302,10 @@ let () =
     let name = "functions"
     type params = unit [@@deriving of_yojson]
     type response = Function.t list [@@deriving to_yojson]
-    let process () serv = Function.getFunctionsList (Option.get serv.file).globals
+    let process () serv =
+      match serv.file with
+      | Some file -> Function.getFunctionsList file.globals
+      | None -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed" ()))
   end);
 
   register (module struct
