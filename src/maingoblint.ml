@@ -397,7 +397,13 @@ let parse_preprocessed preprocessed =
     in
     Errormsg.transformLocation := transformLocation;
 
-    Cilfacade.getAST preprocessed_file
+    try
+      Cilfacade.getAST preprocessed_file
+    with
+    | Frontc.ParseError s ->
+      raise (FrontendError (Format.sprintf "Frontc.ParseError: %s" s))
+    | Errormsg.Error ->
+      raise (FrontendError "Errormsg.Error")
   in
   List.map get_ast_and_record_deps preprocessed
 

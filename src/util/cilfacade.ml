@@ -35,6 +35,8 @@ let init () =
 
 let current_file = ref dummyFile
 
+(** @raise GoblintCil.FrontC.ParseError
+    @raise GoblintCil.Errormsg.Error *)
 let parse fileName =
   let fileName_str = Fpath.to_string fileName in
   let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
@@ -60,6 +62,8 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 
+(** @raise GoblintCil.FrontC.ParseError
+    @raise GoblintCil.Errormsg.Error *)
 let getAST fileName =
   let fileAST = parse fileName in
   (*  rmTemps fileAST; *)
@@ -90,6 +94,7 @@ class addConstructors cons = object
   method! vtype _ = SkipChildren
 end
 
+(** @raise GoblintCil.Errormsg.Error *)
 let getMergedAST fileASTs =
   let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
