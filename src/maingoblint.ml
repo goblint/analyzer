@@ -473,7 +473,7 @@ let do_analyze change_info merged_AST =
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
-    if stf@exf@otf = [] then failwith "No suitable function to start from.";
+    if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
     if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
                                              L.pretty stf L.pretty exf L.pretty otf);
     (* and here we run the analysis! *)
