@@ -324,10 +324,13 @@ let () =
     type params = { nid: string }  [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process { nid } serv =
-      let n = Node.of_id nid in
-      match !Control.current_node_state_json n with
-      | Some json -> json
-      | None -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed, non-existent or dead node" ()))
+      match Node.of_id nid with
+      | n ->
+        begin match !Control.current_node_state_json n with
+          | Some json -> json
+          | None -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed, non-existent or dead node" ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed or non-existent node" ()))
   end);
 
   register (module struct
