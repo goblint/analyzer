@@ -216,8 +216,11 @@ let () =
       try
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
-      with Sys.Break ->
+      with
+      | Sys.Break ->
         {status = Aborted}
+      | Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
@@ -289,13 +292,16 @@ let () =
     type params = unit [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () s =
-      if GobConfig.get_bool "server.reparse" then (
-        GoblintDir.init ();
-        Fun.protect ~finally:GoblintDir.finalize (fun () ->
-            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
-          )
-      );
-      Preprocessor.dependencies_to_yojson ()
+      try
+        if GobConfig.get_bool "server.reparse" then (
+          GoblintDir.init ();
+          Fun.protect ~finally:GoblintDir.finalize (fun () ->
+              ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+            )
+        );
+        Preprocessor.dependencies_to_yojson ()
+      with Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
