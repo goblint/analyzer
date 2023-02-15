@@ -420,9 +420,12 @@ let merge_parsed parsed =
     match parsed with
     | [one] -> Cilfacade.callConstructors one
     | [] ->
-      prerr_endline "No files to analyze!";
-      raise Exit
-    | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
+      raise (FrontendError "no files to analyze")
+    | xs ->
+      try
+        Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
+      with Errormsg.Error ->
+        raise (FrontendError "Errormsg.Error")
   in
 
   Cilfacade.rmTemps merged_AST;
