@@ -99,7 +99,24 @@ module Ikind: S with type t = ikind =
 struct
   include Std
 
-  type t = ikind
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = ikind =
+    | IChar
+    | ISChar
+    | IUChar
+    | IBool
+    | IInt
+    | IUInt
+    | IShort
+    | IUShort
+    | ILong
+    | IULong
+    | ILongLong
+    | IULongLong
+    | IInt128
+    | IUInt128
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "ikind"
 
@@ -108,7 +125,6 @@ struct
   (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_ikind () x
@@ -124,7 +140,18 @@ module Fkind: S with type t = fkind =
 struct
   include Std
 
-  type t = fkind
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = fkind =
+    | FFloat
+    | FDouble
+    | FLongDouble
+    | FFloat128
+    | FComplexFloat
+    | FComplexDouble
+    | FComplexLongDouble
+    | FComplexFloat128
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "fkind"
 
@@ -133,7 +160,6 @@ struct
   (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_fkind () x
@@ -149,7 +175,13 @@ module Unop: S with type t = unop =
 struct
   include Std
 
-  type t = unop
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = unop =
+    | Neg
+    | BNot
+    | LNot
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "unop"
 
@@ -158,7 +190,6 @@ struct
   (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_unop () x
@@ -174,7 +205,32 @@ module Binop: S with type t = binop =
 struct
   include Std
 
-  type t = binop
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = binop =
+    | PlusA
+    | PlusPI
+    | IndexPI
+    | MinusA
+    | MinusPI
+    | MinusPP
+    | Mult
+    | Div
+    | Mod
+    | Shiftlt
+    | Shiftrt
+    | Lt
+    | Gt
+    | Le
+    | Ge
+    | Eq
+    | Ne
+    | BAnd
+    | BXor
+    | BOr
+    | LAnd
+    | LOr
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "binop"
 
@@ -183,7 +239,6 @@ struct
   (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let pretty () x = d_binop () x
@@ -199,7 +254,13 @@ module Wstring_type: S with type t = wstring_type =
 struct
   include Std
 
-  type t = wstring_type
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = wstring_type =
+    | Wchar_t
+    | Char16_t
+    | Char32_t
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "wstring_type"
 
@@ -208,7 +269,6 @@ struct
   (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let show = function
@@ -227,7 +287,12 @@ module Encoding: S with type t = encoding =
 struct
   include Std
 
-  type t = encoding
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = encoding =
+    | No_encoding
+    | Utf8
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
   let name () = "encoding"
 
@@ -236,7 +301,6 @@ struct
   (* Monomorphize polymorphic operations for optimization. *)
   let equal (x: t) (y: t) = x = y
   let compare (x: t) (y: t) = Stdlib.compare x y
-  let hash (x: t) = Hashtbl.hash x
 
   (* Output *)
   let show = function
