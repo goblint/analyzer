@@ -145,9 +145,11 @@ struct
     | FFloat
     | FDouble
     | FLongDouble
+    | FFloat128
     | FComplexFloat
     | FComplexDouble
     | FComplexLongDouble
+    | FComplexFloat128
   [@@deriving hash]
   (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 

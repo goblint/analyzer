@@ -144,7 +144,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -161,7 +161,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -191,7 +191,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _} as ci,_) ->
@@ -280,10 +280,13 @@ struct
     | TFloat (FDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FFloat,_) -> true
+    | TFloat (FFloat128, _), TFloat (FDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FLongDouble,_) -> true
     | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
-    | TFloat ((FFloat | FDouble | FLongDouble), _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) -> true (* resonably small integers can be stored in all fkinds *)
-    | TFloat ((FDouble | FLongDouble), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
-    | TFloat _, _ -> false (* all wider integers can not be completly put into a float, partially because our internal representation of long double is the same as for doubles *)
+    | TFloat (fk, _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
+    | TFloat ((FDouble | FLongDouble | FFloat128), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
+    | TFloat _, _ -> false (* all wider integers can not be completely put into a float, partially because our internal representation of long double is the same as for doubles *)
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
     | _ -> false
@@ -388,7 +391,7 @@ struct
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top_of ik
             ))
-        | TFloat ((FFloat | FDouble | FLongDouble as fkind),_) ->
+        | TFloat (fkind,_) when not (Cilfacade.isComplexFKind fkind) ->
           (match v with
            |`Int ix ->  `Float (FD.of_int fkind ix)
            |`Float fx ->  `Float (FD.cast_to fkind fx)
@@ -809,7 +812,7 @@ struct
                (* only return an actual value if we have a type and return actually the exact same type *)
                | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
                | `Float _, t -> top_value t
-               | _, TFloat((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
                | _ ->
                  let x = cast ~torg:l_fld.ftype fld.ftype value in
                  let l', o' = shift_one_over l o in

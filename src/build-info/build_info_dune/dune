@@ -1,0 +1,6 @@
+; goblint.build-info implementation which properly uses dune-build-info
+(library
+  (name goblint_build_info_dune)
+  (public_name goblint.build-info.dune)
+  (implements goblint.build-info)
+  (libraries dune-build-info))
