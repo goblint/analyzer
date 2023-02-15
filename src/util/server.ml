@@ -305,7 +305,7 @@ let () =
     let process () serv =
       match serv.file with
       | Some file -> Function.getFunctionsList file.globals
-      | None -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed" ()))
+      | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed" ()))
   end);
 
   register (module struct
@@ -328,9 +328,9 @@ let () =
       | n ->
         begin match !Control.current_node_state_json n with
           | Some json -> json
-          | None -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed, non-existent or dead node" ()))
+          | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed, non-existent or dead node" ()))
         end
-      | exception Not_found -> Response.Error.(raise (make ~code:InvalidRequest ~message:"not analyzed or non-existent node" ()))
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
   end);
 
   register (module struct
