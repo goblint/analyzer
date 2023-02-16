@@ -10,17 +10,13 @@ let old_div a b = if Z.lt a Z.zero then Z.neg (Z.ediv (Z.neg a) b) else Z.ediv a
 let old_rem a b = Z.sub a (Z.mul b (old_div a b))
 
 let test_bigint_div =
-  QCheck.(Test.make ~name:"div"
-    (pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int)
-    (fun (x, y) ->
+  QCheck.(Test.make ~name:"div" (pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int) (fun (x, y) ->
       assume (Z.compare y Z.zero <> 0);
       Z.equal (Z.div x y) (old_div x y)
     ))
 
 let test_bigint_rem =
-  QCheck.(Test.make ~name:"rem"
-    (pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int)
-    (fun (x, y) ->
+  QCheck.(Test.make ~name:"rem" (pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int) (fun (x, y) ->
       assume (Z.compare y Z.zero <> 0);
       Z.equal (Z.rem x y) (old_rem x y)
     ))
