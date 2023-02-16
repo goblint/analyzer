@@ -557,7 +557,17 @@ struct
   let write entrystates =
     match !Goblintutil.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
-    | _ -> write entrystates
+    | _ ->
+      if get_string "witness.yaml.validate" <> "" then (
+        if !YamlWitness.cnt_refuted > 0 then
+          print_svcomp_result (Result.to_string (False None))
+        else if !YamlWitness.cnt_unconfirmed > 0 then
+          print_svcomp_result (Result.to_string Unknown)
+        else
+          write entrystates
+      )
+      else
+        write entrystates
 
   let write entrystates =
     Timing.wrap "witness" write entrystates

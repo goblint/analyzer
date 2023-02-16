@@ -45,6 +45,8 @@ sig
   type idx
   type value
 
+  val domain_of_t: t -> domain
+
   val get: ?checkBounds:bool -> Q.ask -> t -> Basetype.CilExp.t option * idx -> value
   val set: Q.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
@@ -76,6 +78,8 @@ struct
   let name () = "trivial arrays"
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = TrivialDomain
 
   let show x = "Array: " ^ Val.show x
   let pretty () x = text "Array: " ++ pretty () x
@@ -112,6 +116,9 @@ struct
   let name () = "unrolled arrays"
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = UnrolledDomain
+
   let join_of_all_parts (xl, xr) = List.fold_left Val.join xr xl
   let show (xl, xr) =
     let rec show_list xlist = match xlist with
@@ -201,6 +208,8 @@ struct
 
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = PartitionedDomain
 
   let name () = "partitioned array"
 
@@ -728,6 +737,8 @@ struct
   type idx = Idx.t
   type value = Val.t
 
+  let domain_of_t _ = TrivialDomain
+
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
@@ -766,6 +777,8 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = PartitionedDomain
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
@@ -815,6 +828,8 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = UnrolledDomain
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
@@ -870,6 +885,12 @@ struct
 
   module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
   include LatticeFlagHelper (P) (I) (K)
+
+  let domain_of_t = function
+    | (Some p, None) -> PartitionedDomain
+    | (None, Some (Some t, None)) -> TrivialDomain
+    | (None, Some (None, Some u)) -> UnrolledDomain
+    | _ -> failwith "Array of invalid domain"
 
   let binop' opp opt opu = binop opp (I.binop opt opu)
   let unop' opp opt opu = unop opp (I.unop opt opu)

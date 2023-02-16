@@ -14,6 +14,7 @@ struct
   include Analyses.IdentitySpec
   let name () = "unassume"
 
+  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
   module C = Printable.Unit
   module D = SetDomain.Make (CilType.Exp)
 
@@ -84,7 +85,10 @@ struct
     }
     in
 
-    let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) in
+    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) with
+      | Ok yaml -> yaml
+      | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
+    in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
     let module InvariantParser = WitnessUtil.InvariantParser in
@@ -269,7 +273,7 @@ struct
   let enter ctx lv f args =
     [(ctx.local, D.empty ())]
 
-  let combine ctx ?(longjmpthrough = false) lv fe f args fc fd =
+  let combine ctx ?(longjmpthrough = false) lv fe f args fc fd f_ask =
     emit_unassume ctx
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)

@@ -46,7 +46,7 @@ struct
     List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local
 
   let enter ctx lval f args = [(ctx.local,ctx.local)]
-  let combine ctx ?(longjmpthrough = false) lval fexp f args fc st2 = st2
+  let combine ctx ?(longjmpthrough = false) lval fexp f args fc st2 f_ask = st2
 
   let get_locks e st =
     let add_perel x xs =

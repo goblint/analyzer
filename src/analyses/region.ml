@@ -137,7 +137,7 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
     | `Lifted reg -> begin
       let old_regpart = ctx.global () in

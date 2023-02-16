@@ -3,13 +3,13 @@
 
 int further(int n) {
     // Even sides-local can not save us here :(
-    __goblint_check(n <= 1); //TODO
+    __goblint_check(n <= 2); //TODO
 }
 
 
 int fun(int n, const char* arg) {
     // Fails with solvers.td3.side_widen sides, needs sides-local
-    __goblint_check(n <= 1);
+    __goblint_check(n <= 2);
     further(n);
 }
 
@@ -26,5 +26,5 @@ int main() {
     doIt("two");
 
     // In the setting with solvers.td3.side_widen sides, widening happens and the bound is lost
-    fun(1, "org");
+    fun(2, "org");
 }

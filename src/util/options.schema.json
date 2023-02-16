@@ -515,7 +515,7 @@
             },
             "activated": {
               "title": "ana.autotune.activated",
-              "description": "Lists of activated tuning options. By default all are activated",
+              "description": "Lists of activated tuning options.",
               "type": "array",
               "items": { "type": "string" },
               "default": [
@@ -1253,6 +1253,21 @@
               "title": "sem.builtin_unreachable.dead_code",
               "description":
                 "__builtin_unreachable is assumed to be dead code",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "noreturn": {
+          "title": "sem.noreturn",
+          "description": "Handling of C11 _Noreturn function specifier.",
+          "type": "object",
+          "properties": {
+            "dead_code": {
+              "title": "sem.noreturn.dead_code",
+              "description":
+                "For the purposes of detecting dead code, assume that functions marked noreturn don't return.",
               "type": "boolean",
               "default": false
             }
@@ -2294,7 +2309,7 @@
               "title": "witness.yaml.certificate",
               "description": "YAML witness certificate output path",
               "type": "string",
-              "default": "witness.certificate.yml"
+              "default": ""
             }
           },
           "additionalProperties": false

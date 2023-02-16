@@ -255,7 +255,7 @@ struct
     in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx ?(longjmpthrough = false) l fe f a fc d =
+  let combine ctx ?(longjmpthrough = false) l fe f a fc d  f_ask =
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
     let k x (y, sync) =
@@ -268,7 +268,7 @@ struct
           step_ctx_edge ctx cd
       in
       try
-        let x' = Spec.combine (conv ctx cd) l fe f a fc x in
+        let x' = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
         (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in

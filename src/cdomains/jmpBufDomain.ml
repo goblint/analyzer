@@ -16,3 +16,11 @@ module ActiveLongjmps =
 struct
   include Lattice.ProdSimple(JmpBufSet)(NodeSet)
 end
+
+module LocallyModifiedMap =
+struct
+  module VarSet = SetDomain.Make(Basetype.Variables)
+  include MapDomain.MapBot_LiftTop (BufferEntry)(VarSet)
+
+  let name () = "Locally modified variables since the corresponding setjmp"
+end
