@@ -1014,7 +1014,7 @@ struct
     List.merge cmp_events xs ys
 
   (* Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap 
-     This function could be then used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
+     This function is used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)   
   let combined_event_list lattice_op (xs: int_t event list)  =
     let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
     let aux (interval_count, acc) = function
