@@ -1341,6 +1341,9 @@ struct
 
   let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x |> (function (intvs,underflow,overflow,cast) -> (canonize intvs, underflow,overflow,cast))
 
+  (*
+      narrows down the extremeties of xs if they are equal to boundary values of the ikind with (possibly) narrower values from ys
+  *)
   let narrow ik xs ys = match xs ,ys with 
     | [], _ -> [] | _ ,[] -> xs
     | _, _ ->
