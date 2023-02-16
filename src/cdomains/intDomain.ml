@@ -129,7 +129,7 @@ sig
   val cast_to: ?torg:Cil.typ -> Cil.ikind -> t -> t
 end
 
-
+(** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet. TODO: Should be ported to S in the future. *)
 module type IkindUnawareS =
 sig
   include B
@@ -144,7 +144,6 @@ sig
   val invariant: Cil.exp -> t -> Invariant.t
 end
 
-(** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet. TODO: Should be ported to S in the future. *)
 module type S =
 sig
   include B
