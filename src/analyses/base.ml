@@ -2250,31 +2250,31 @@ struct
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
     let ask = (Analyses.ask_of_ctx ctx) in
     Q.LS.fold (fun (v, o) st -> 
-      if CPA.mem v fun_st.cpa then
-        let lval = Lval.CilLval.to_lval (v,o) in
-        let address = eval_lv ask ctx.global st lval in
-        let lval_type = (AD.get_type address) in
-        if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
-        match (CPA.find_opt v (fun_st.cpa)), lval_type with
-        | None, _ -> st
-        (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
-        | Some (`Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (`Array a) st.cpa}
-        (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
-        | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
-        | _, _ -> begin
-          let new_val = get ask ctx.global fun_st address None in
-          if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
-          let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
-          let partDep = Dep.find_opt v fun_st.deps in
-          match partDep with 
-          | None -> st'
-          (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
-          | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
-            match val_opt with
-            | None -> accCPA
-            | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
-          end
-      else st) tainted_lvs local_st
+        if CPA.mem v fun_st.cpa then
+          let lval = Lval.CilLval.to_lval (v,o) in
+          let address = eval_lv ask ctx.global st lval in
+          let lval_type = (AD.get_type address) in
+          if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
+          match (CPA.find_opt v (fun_st.cpa)), lval_type with
+          | None, _ -> st
+          (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
+          | Some (`Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (`Array a) st.cpa}
+          (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
+          | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
+          | _, _ -> begin
+              let new_val = get ask ctx.global fun_st address None in
+              if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
+              let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
+              let partDep = Dep.find_opt v fun_st.deps in
+              match partDep with 
+              | None -> st'
+              (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
+              | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
+                                                                match val_opt with
+                                                                | None -> accCPA
+                                                                | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
+            end
+        else st) tainted_lvs local_st
 
   let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =

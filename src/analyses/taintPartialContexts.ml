@@ -1,6 +1,6 @@
 (* TaintPartialContexts: Set of Lvalues, which are tainted at a specific Node. *)
 (* An Lvalue is tainted, if its Rvalue might have been altered in the context of the current function,
-  implying that the Rvalue of any Lvalue not in the set has definitely not been changed within the current context. *)
+   implying that the Rvalue of any Lvalue not in the set has definitely not been changed within the current context. *)
 open Prelude.Ana
 open Analyses
 
@@ -22,8 +22,8 @@ struct
   let taint_lval ctx (lval:lval) : D.t =
     let d = ctx.local in
     (match lval with 
-    | (Var v, offs) -> D.add (v, resolve offs) d
-    | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
+     | (Var v, offs) -> D.add (v, resolve offs) d
+     | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
     )
 
   (* this analysis is context insensitive*)

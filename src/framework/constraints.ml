@@ -623,10 +623,10 @@ struct
          Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
       (* TODO: don't do this extra sync here *)
       let rec sync_ctx = { ctx with
-          ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
-          local = fd;
-          prev_node = Function f
-        }
+                           ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+                           local = fd;
+                           prev_node = Function f
+                         }
       in
       (* TODO: more accurate ctx? *)
       let fd = sync sync_ctx in

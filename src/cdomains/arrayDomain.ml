@@ -887,10 +887,10 @@ struct
   include LatticeFlagHelper (P) (I) (K)
 
   let domain_of_t = function
-  | (Some p, None) -> PartitionedDomain
-  | (None, Some (Some t, None)) -> TrivialDomain
-  | (None, Some (None, Some u)) -> UnrolledDomain
-  | _ -> failwith "Array of invalid domain"
+    | (Some p, None) -> PartitionedDomain
+    | (None, Some (Some t, None)) -> TrivialDomain
+    | (None, Some (None, Some u)) -> UnrolledDomain
+    | _ -> failwith "Array of invalid domain"
 
   let binop' opp opt opu = binop opp (I.binop opt opu)
   let unop' opp opt opu = unop opp (I.unop opt opu)
