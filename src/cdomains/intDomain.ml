@@ -1144,7 +1144,7 @@ struct
     | _ -> let (res,underflow,overflow,cast) = norm_intvs ik @@ List.concat_map op x in (canonize res, underflow,overflow,cast)
 
   let rec leq (xs: t) (ys: t) =
-    let leq_interval  (al, au) (bl, bu)  = Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
+    let leq_interval (al, au) (bl, bu) = Ints_t.compare al bl >= 0 && Ints_t.compare au bu <= 0 in
     match xs, ys with
     | [], _ -> true
     | _, [] -> false
