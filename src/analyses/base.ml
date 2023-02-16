@@ -2249,7 +2249,7 @@ struct
 
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
     let ask = (Analyses.ask_of_ctx ctx) in
-    Q.LS.fold (fun (v, o) st -> 
+    Q.LS.fold (fun (v, o) st ->
         if CPA.mem v fun_st.cpa then
           let lval = Lval.CilLval.to_lval (v,o) in
           let address = eval_lv ask ctx.global st lval in
@@ -2266,7 +2266,7 @@ struct
               if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
               let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
               let partDep = Dep.find_opt v fun_st.deps in
-              match partDep with 
+              match partDep with
               | None -> st'
               (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
               | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
@@ -2291,7 +2291,7 @@ struct
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-        begin if (Q.LS.is_top tainted) then
+        if (Q.LS.is_top tainted) then
           let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
           let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
@@ -2307,7 +2307,6 @@ struct
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
-        end
       in
       let return_var = return_var () in
       let return_val =
