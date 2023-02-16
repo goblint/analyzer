@@ -174,9 +174,16 @@ rules:
     languages: [ocaml]
     severity: WARNING
 
-  - id: big_int_z-compare-lt
-    pattern: Big_int_Z.lt_big_int $X $Y
-    fix: Z.compare $X $Y < 0
+  - id: big_int_z-lt
+    pattern: Big_int_Z.lt_big_int
+    fix: Z.lt
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-gt
+    pattern: Big_int_Z.gt_big_int
+    fix: Z.gt
     message: use Z instead
     languages: [ocaml]
     severity: WARNING

@@ -422,8 +422,8 @@ module Size = struct (* size in bits as int, range as int64 *)
     let c = card t in
     (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
     let y = Z.erem x c in
-    let y = if Z.compare y b > 0 then Z.sub y c
-      else if Z.compare y a < 0 then Z.add y c
+    let y = if Z.gt y b then Z.sub y c
+      else if Z.lt y a then Z.add y c
       else y
     in
     if M.tracing then M.tracel "cast_int" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (Z.to_string x) (Z.to_string a) (Z.to_string b) (Z.to_string c) (Z.to_string y) (if is_int64_big_int y then "fits" else "does not fit");
