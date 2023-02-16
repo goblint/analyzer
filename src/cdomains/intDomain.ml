@@ -1060,7 +1060,7 @@ struct
 
   let maximal = function
     | [] -> None
-    | xs ->  let last = BatList.last xs |> snd in Some last
+    | xs -> let max = BatList.last xs |> snd in Some max
 
   let equal_to_interval i (a, b) = 
     if a = b && b = i then 
