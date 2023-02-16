@@ -1057,16 +1057,7 @@ module Spec : Analyses.MCPSpec = struct
     [ (d_caller, d_callee) ]
 
 
-  let combine
-      ctx
-      ?(longjmpthrough = false)
-      (lval : lval option)
-      fexp
-      (f : fundec)
-      (args : exp list)
-      fc
-      (au : D.t)
-      (f_ask: Queries.ask) : D.t =
+  let combine ctx ?(longjmpthrough = false) (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
     if D.any_is_bot ctx.local || D.any_is_bot au
     then ctx.local
     else
