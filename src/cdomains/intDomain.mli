@@ -323,7 +323,7 @@ module IntDomTuple : sig
   val ikind: t -> ikind
 end
 
-val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
+val of_const: Z.t * Cil.ikind * string option -> IntDomTuple.t
 
 
 module Size : sig
