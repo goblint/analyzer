@@ -227,14 +227,14 @@ let rec loopIterations start diff comp =
          else if shouldBeExact then
            None
          else
-           Some (Z.add roundedDown Z.one)
+           Some (Z.succ roundedDown)
        )
   in
   match comp with
   | BinOp (op, (Const _ as c), var, t) -> loopIterations start diff (BinOp (flip op, var, c, t))
   | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Cilint.big_int_of_cilint cint) false
   | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Cilint.big_int_of_cilint cint) false
-  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.add Z.one @@ Cilint.big_int_of_cilint cint) false
+  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.succ @@ Cilint.big_int_of_cilint cint) false
   | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Z.pred @@ Cilint.big_int_of_cilint cint ) false
   | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (Cilint.big_int_of_cilint cint) true
   | _ -> failwith "unexpected comparison in loopIterations"

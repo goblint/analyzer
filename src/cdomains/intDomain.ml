@@ -408,7 +408,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then Z.neg (Z.shift_left Z.one a) (* -2^a *) else Z.zero in
-    let y = Z.sub (Z.shift_left Z.one b) Z.one in (* 2^b - 1 *)
+    let y = Z.pred (Z.shift_left Z.one b) in (* 2^b - 1 *)
     x,y
 
   let is_cast_injective ~from_type ~to_type =

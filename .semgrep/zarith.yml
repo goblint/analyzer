@@ -213,3 +213,34 @@ rules:
     message: use Z instead
     languages: [ocaml]
     severity: WARNING
+
+  - id: z-add-one
+    pattern-either:
+      - pattern: Z.add $X Z.one
+      - pattern: Z.add Z.one $X
+      - pattern: Z.add Z.one @@ $X
+    fix: Z.succ $X
+    message: use Z.succ instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-sub-one
+    pattern: Z.sub $X Z.one
+    fix: Z.pred $X
+    message: use Z.pred instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-of_int-0
+    pattern: Z.of_int 0
+    fix: Z.zero
+    message: use Z.zero instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-of_int-1
+    pattern: Z.of_int 1
+    fix: Z.one
+    message: use Z.one instead
+    languages: [ocaml]
+    severity: WARNING

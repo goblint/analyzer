@@ -587,8 +587,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     in
     IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
 
-  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Z.of_int 0)]
-  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Z.of_int 0)
+  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [Z.zero]
+  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt Z.zero
   let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
 
   let eval_isnormal = function

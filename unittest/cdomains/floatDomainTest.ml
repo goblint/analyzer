@@ -24,9 +24,9 @@ struct
   let fi_zero = FI.of_const 0.
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
-  let itb_true = IT.of_int IBool (Z.of_int 1)
-  let itb_false = IT.of_int IBool (Z.of_int 0)
-  let itb_unknown = IT.of_interval IBool (Z.of_int 0, Z.of_int 1)
+  let itb_true = IT.of_int IBool Z.one
+  let itb_false = IT.of_int IBool Z.zero
+  let itb_unknown = IT.of_interval IBool (Z.zero, Z.one)
 
   let assert_equal v1 v2 =
     assert_equal ~cmp:FI.equal ~printer:FI.show v1 v2
@@ -139,7 +139,7 @@ struct
       cast (IT.of_int IInt Z.zero) fi_zero;
       cast (IT.of_int IInt Z.one) fi_one;
       (* no IChar because char has unknown signedness (particularly, unsigned on arm64) *)
-      cast (IT.of_interval IUChar (Z.of_int 0, Z.of_int 128)) (FI.of_interval (0., 128.));
+      cast (IT.of_interval IUChar (Z.zero, Z.of_int 128)) (FI.of_interval (0., 128.));
       cast (IT.of_interval ISChar (Z.of_int (-8), Z.of_int (-1))) (FI.of_interval (-. 8., - 1.));
       cast (IT.of_interval IUInt (Z.of_int 2, Z.of_int 100)) (FI.of_interval (2., 100.));
       cast (IT.of_interval IInt (Z.of_int (- 100), Z.of_int 100)) (FI.of_interval (-. 100., 100.));
@@ -171,7 +171,7 @@ struct
       cast IBool fi_zero (IT.of_bool IBool false);
 
       (* no IChar because char has unknown signedness (particularly, unsigned on arm64) *)
-      cast IUChar (FI.of_interval (0.123, 128.999)) (IT.of_interval IUChar (Z.of_int 0, Z.of_int 128));
+      cast IUChar (FI.of_interval (0.123, 128.999)) (IT.of_interval IUChar (Z.zero, Z.of_int 128));
       cast ISChar (FI.of_interval (-. 8.0000000, 127.)) (IT.of_interval ISChar (Z.of_int (-8), Z.of_int 127));
       cast IUInt (FI.of_interval (2., 100.)) (IT.of_interval IUInt (Z.of_int 2, Z.of_int 100));
       cast IInt (FI.of_interval (-. 100.2, 100.1)) (IT.of_interval IInt (Z.of_int (- 100), Z.of_int 100));
