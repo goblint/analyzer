@@ -219,16 +219,8 @@ struct
   let add = Z.add
   let sub = Z.sub
   let mul = Z.mul
-
-  (* If the first operand of a div is negative, Zarith rounds the result away from zero.
-     We thus always transform this into a division with a non-negative first operand.
-  *)
-  let div a b = if Z.lt a zero then Z.neg (Z.ediv (Z.neg a) b) else Z.ediv a b
-
-  (* Z.erem computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
-     -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4
-  *)
-  let rem a b = Z.sub a (mul b (div a b))
+  let div = Z.div
+  let rem = Z.rem
 
   let gcd x y = abs @@ Z.gcd x y
   let compare = Z.compare
