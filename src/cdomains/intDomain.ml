@@ -1356,7 +1356,11 @@ struct
       let min_range,max_range = range ik in
       let min = if Ints_t.compare min_xs min_range == 0 then min_ys else min_xs in
       let max = if Ints_t.compare max_xs max_range == 0 then max_ys else max_xs in
-      xs |> (function (_, y)::z -> (min, y)::z | _ -> []) |> List.rev |> (function (x, _)::z -> (x, max)::z | _ -> []) |> List.rev 
+      xs 
+      |> (function (_, y)::z -> (min, y)::z | _ -> []) 
+      |> List.rev 
+      |> (function (x, _)::z -> (x, max)::z | _ -> []) 
+      |> List.rev 
 
   (*
     1. partitions the intervals of xs by assigning each of them to the an interval in ys that includes it.
@@ -1385,9 +1389,9 @@ struct
     let rec interval_sets_to_partitions (ik: ikind) (acc : (int_t * int_t) option) (xs: t) (ys: t)= 
       match xs,ys with 
       | _, [] -> []
-      |[], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
-      |(x::xs), (y::ys) when  Interval.leq (Some x) (Some y) -> interval_sets_to_partitions ik (Interval.join ik acc (Some x)) xs (y::ys)
-      |(x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
+      | [], (y::ys) -> (acc,y):: interval_sets_to_partitions ik None [] ys 
+      | (x::xs), (y::ys) when  Interval.leq (Some x) (Some y) -> interval_sets_to_partitions ik (Interval.join ik acc (Some x)) xs (y::ys)
+      | (x::xs), (y::ys) -> (acc,y) :: interval_sets_to_partitions ik None  (x::xs) ys
     in 
     let interval_sets_to_partitions ik xs ys = interval_sets_to_partitions ik None xs ys in
     (*merge a pair of adjacent partitions*)
