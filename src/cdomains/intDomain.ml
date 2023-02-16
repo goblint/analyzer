@@ -1111,9 +1111,6 @@ struct
       end
 
 
-  let norm_interval_opt ?(suppress_ovwarn=false) ?(cast=false) ik  : Interval.t -> t*bool*bool*bool = function
-    |  None  -> ([],false,false,cast)
-    |  Some x -> norm_interval ~suppress_ovwarn ~cast ik x
     
   let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool*bool = 
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
