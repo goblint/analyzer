@@ -37,6 +37,13 @@ let get_annotation_int_enabled () =
     annotation_int_enabled := Some (GobConfig.get_bool "annotation.int.enabled");
   Option.get !annotation_int_enabled
 
+let reset_lazy () =
+  def_exc := None;
+  interval := None;
+  enums := None;
+  congruence := None;
+  annotation_int_enabled := None
+
 (* Thus for maximum precision we activate all Domains *)
 let max_int_precision : int_precision = (true, true, true, true)
 let max_float_precision : float_precision = (true)
