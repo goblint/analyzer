@@ -1230,20 +1230,12 @@ struct
     | Some x, Some y -> of_bool ik (f x y)
     | _ -> top_of ik
 
-  let log1 f ik i1 = 
-    match interval_to_bool i1 with
-    | Some x -> of_bool ik (f x)
-    | _ -> top_of ik
 
   let bit f ik (i1, i2) =
     match (interval_to_int i1), (interval_to_int i2) with
     | Some x, Some y -> (try of_int ik (f x y) |> unlift with Division_by_zero -> top_of ik)
     | _ -> top_of ik
 
-  let bit1 f ik i1 =
-    match interval_to_int i1 with
-    | Some x -> of_int ik (f x) |> unlift
-    | _ -> top_of ik
 
   let bitcomp f ik (i1, i2) = 
     match (interval_to_int i1, interval_to_int i2) with 
@@ -1263,6 +1255,11 @@ struct
     binary_op x y interval_bitxor
 
   let bitnot ik x = 
+    let bit1 f ik i1 =
+      match interval_to_int i1 with
+      | Some x -> of_int ik (f x) |> unlift
+      | _ -> top_of ik
+    in
     let interval_bitnot = bit1 Ints_t.bitnot ik in
     unary_op x interval_bitnot
 
@@ -1275,6 +1272,11 @@ struct
     binary_op_with_ovc x y interval_shiftright
 
   let lognot ik x = 
+    let log1 f ik i1 = 
+      match interval_to_bool i1 with
+      | Some x -> of_bool ik (f x)
+      | _ -> top_of ik
+    in
     let interval_lognot = log1 not ik in
     unary_op x interval_lognot
 
