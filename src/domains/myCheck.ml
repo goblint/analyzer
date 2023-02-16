@@ -41,7 +41,7 @@ struct
     in
     set_shrink shrink int64
 
-  let big_int: Big_int_Z.big_int arbitrary =
+  let big_int: Z.t arbitrary =
     let open Big_int_Z in
     let shrink x yield =
       let y = ref x in

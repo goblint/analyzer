@@ -53,8 +53,8 @@ sig
   val to_int64 : t -> int64
   val of_string : string -> t (* TODO: unused *)
   val to_string : t -> string
-  val of_bigint : Big_int_Z.big_int -> t
-  val to_bigint : t -> Big_int_Z.big_int
+  val of_bigint : Z.t -> t
+  val to_bigint : t -> Z.t
 end
 
 module type IntOps =
@@ -206,9 +206,9 @@ struct
   let to_bigint = Z.of_int64
 end
 
-module BigIntOpsBase : IntOpsBase with type t = Big_int_Z.big_int =
+module BigIntOpsBase : IntOpsBase with type t = Z.t =
 struct
-  type t = Big_int_Z.big_int
+  type t = Z.t
   let zero = Z.zero
   let one = Z.one
   let upper_bound = None
@@ -225,7 +225,7 @@ struct
   *)
   let div a b = if Z.compare a zero < 0 then Z.neg (Z.ediv (Z.neg a) b) else Z.ediv a b
 
-  (* Big_int_Z.mod_big_int computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
+  (* Z.erem computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
      -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4
   *)
   let rem a b = Z.sub a (mul b (div a b))
