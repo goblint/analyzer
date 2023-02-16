@@ -781,8 +781,10 @@ struct
     | None, None -> (bot (),false,false,false)
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      let x1y1 = (Ints_t.mul x1 y1) in let x1y2 = (Ints_t.mul x1 y2) in
-      let x2y1 = (Ints_t.mul x2 y1) in let x2y2 = (Ints_t.mul x2 y2) in
+      let x1y1 = (Ints_t.mul x1 y1) in
+      let x1y2 = (Ints_t.mul x1 y2) in
+      let x2y1 = (Ints_t.mul x2 y1) in
+      let x2y2 = (Ints_t.mul x2 y2) in
       norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)),
                        (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))
 
