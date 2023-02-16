@@ -1401,8 +1401,8 @@ struct
         [(new_a a,(fst b, upper_threshold b)); (new_c c, (lower_threshold d, snd d))] else
         [(Interval.join ik a c, (Interval.join ik (Some b) (Some d) |> Option.get))]
     in
-    let partitions_are_approaching x y = match x, y with 
-      | (Some (_, ar), (_, br)), (Some (al, _), (bl, _)) -> Ints_t.compare (Ints_t.sub al ar) (Ints_t.sub bl br) > 0  
+    let partitions_are_approaching part_left part_right = match part_left, part_right with 
+      | (Some (_, left_x), (_, left_y)), (Some (right_x, _), (right_y, _)) -> Ints_t.compare (Ints_t.sub right_x left_x) (Ints_t.sub right_y left_y) > 0  
       | _,_ -> false 
     in
     (*merge all approaching pairs of adjacent partitions*)
