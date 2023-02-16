@@ -134,6 +134,7 @@ struct
     let cast a b = assert_equal b (FI.of_int a) in
     begin
       GobConfig.set_bool "ana.int.interval" true;
+      PrecisionUtil.reset_lazy ();
       cast (IT.top_of IInt) (FI.of_interval (-2147483648.,2147483647.));
       cast (IT.top_of IBool) (FI.of_interval (0., 1.));
       cast (IT.of_int IInt Big_int_Z.zero_big_int) fi_zero;
@@ -155,6 +156,7 @@ struct
       cast (IT.of_interval ILongLong (Big_int_Z.big_int_of_int64 Int64.min_int, Big_int_Z.zero_big_int)) (FI.of_interval (-. 9223372036854775808., 0.));
       cast (IT.of_interval ILongLong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
       GobConfig.set_bool "ana.int.interval" false;
+      PrecisionUtil.reset_lazy ();
     end
 
   let test_FI_castf2i_specific _ =
@@ -162,6 +164,7 @@ struct
       OUnit2.assert_equal ~cmp:IT.equal ~printer:IT.show b (FI.to_int ikind a) in
     begin
       GobConfig.set_bool "ana.int.interval" true;
+      PrecisionUtil.reset_lazy ();
       cast IInt (FI.of_interval (-2147483648.,2147483647.)) (IT.top_of IInt);
       cast IInt (FI.of_interval (-9999999999.,9999999999.)) (IT.top_of IInt);
       cast IInt (FI.of_interval (-10.1,20.9)) (IT.of_interval IInt ( Big_int_Z.big_int_of_int (-10),  Big_int_Z.big_int_of_int 20));
@@ -185,6 +188,7 @@ struct
       cast ILongLong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILongLong ((Big_int_Z.big_int_of_string "-9223372036854775808"), Big_int_Z.zero_big_int));
       cast ILongLong  (FI.of_interval (-. 100., 100.)) (IT.of_interval ILongLong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
       GobConfig.set_bool "ana.int.interval" false;
+      PrecisionUtil.reset_lazy ();
     end
 
   let test_FI_meet_specific _ =
