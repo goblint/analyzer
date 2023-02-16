@@ -389,7 +389,7 @@ struct
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
-  open Cil open Big_int_Z
+  open Cil
   let sign x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
   let top_typ = TInt (ILongLong, [])
@@ -400,15 +400,15 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_int64_big_int x = Z.fits_int64 x
   let card ik = (* cardinality *)
     let b = bit ik in
-    shift_left_big_int unit_big_int b
+    Z.shift_left Z.one b
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
   let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
   let range ik =
     let a,b = bits ik in
-    let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
-    let y = sub_big_int (shift_left_big_int unit_big_int b) unit_big_int in (* 2^b - 1 *)
+    let x = if isSigned ik then Z.neg (Z.shift_left Z.one a) (* -2^a *) else Z.zero in
+    let y = Z.sub (Z.shift_left Z.one b) Z.one in (* 2^b - 1 *)
     x,y
 
   let is_cast_injective ~from_type ~to_type =
@@ -421,12 +421,12 @@ module Size = struct (* size in bits as int, range as int64 *)
     let a,b = range t in
     let c = card t in
     (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
-    let y = mod_big_int x c in
-    let y = if gt_big_int y b then sub_big_int y c
-      else if lt_big_int y a then add_big_int y c
+    let y = Z.erem x c in
+    let y = if Z.compare y b > 0 then Z.sub y c
+      else if Z.compare y a < 0 then Z.add y c
       else y
     in
-    if M.tracing then M.tracel "cast_int" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (string_of_big_int x) (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
+    if M.tracing then M.tracel "cast_int" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (Z.to_string x) (Z.to_string a) (Z.to_string b) (Z.to_string c) (Z.to_string y) (if is_int64_big_int y then "fits" else "does not fit");
     y
 
   let min_range_sign_agnostic x =

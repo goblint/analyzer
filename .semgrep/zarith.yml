@@ -200,3 +200,9 @@ rules:
     message: use Z instead
     languages: [ocaml]
     severity: WARNING
+
+  - id: big_int_z-open
+    pattern: open Big_int_Z
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
