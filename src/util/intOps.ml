@@ -222,7 +222,7 @@ struct
   let div = Z.div
   let rem = Z.rem
 
-  let gcd x y = abs @@ Z.gcd x y
+  let gcd = Z.gcd
   let compare = Z.compare
   let equal = Z.equal
   let hash = Z.hash
