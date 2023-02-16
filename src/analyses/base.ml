@@ -2247,7 +2247,36 @@ struct
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
+  let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
+    let ask = (Analyses.ask_of_ctx ctx) in
+    Q.LS.fold (fun (v, o) st -> 
+      if CPA.mem v fun_st.cpa then
+        let lval = Lval.CilLval.to_lval (v,o) in
+        let address = eval_lv ask ctx.global st lval in
+        let lval_type = (AD.get_type address) in
+        if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
+        match (CPA.find_opt v (fun_st.cpa)), lval_type with
+        | None, _ -> st
+        (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
+        | Some (`Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (`Array a) st.cpa}
+        (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
+        | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
+        | _, _ -> begin
+          let new_val = get ask ctx.global fun_st address None in
+          if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
+          let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
+          let partDep = Dep.find_opt v fun_st.deps in
+          match partDep with 
+          | None -> st'
+          (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
+          | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
+            match val_opt with
+            | None -> accCPA
+            | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
+          end
+      else st) tainted_lvs local_st
+
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2258,9 +2287,27 @@ struct
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
-        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
-        { fun_st with cpa = cpa' }
+        let ask = (Analyses.ask_of_ctx ctx) in
+        let tainted = f_ask.f Q.MayBeTainted in
+        if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
+        if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
+        begin if (Q.LS.is_top tainted) then
+          let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
+          let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
+          { fun_st with cpa = cpa' }
+        else
+          (* remove variables from caller cpa, that are global and not in the callee cpa *)
+          let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
+          (* add variables from callee that are not in caller yet *)
+          let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
+          let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
+          (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
+          let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
+          let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
+          { fun_st with cpa = st_combined.cpa }
+        end
       in
       let return_var = return_var () in
       let return_val =
@@ -2271,7 +2318,7 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node ()in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let callerFundec = match !MyCFG.current_node with
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
