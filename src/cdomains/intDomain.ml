@@ -1232,50 +1232,50 @@ struct
 
   let log1 f ik i1 = 
     match interval_to_bool i1 with
-    | Some x -> of_bool ik (f ik x)
+    | Some x -> of_bool ik (f x)
     | _ -> top_of ik
 
   let bit f ik (i1, i2) =
     match (interval_to_int i1), (interval_to_int i2) with
-    | Some x, Some y -> (try of_int ik (f ik x y) |> unlift with Division_by_zero -> top_of ik)
+    | Some x, Some y -> (try of_int ik (f x y) |> unlift with Division_by_zero -> top_of ik)
     | _ -> top_of ik
 
   let bit1 f ik i1 =
     match interval_to_int i1 with
-    | Some x -> of_int ik (f ik x) |> unlift
+    | Some x -> of_int ik (f x) |> unlift
     | _ -> top_of ik
 
   let bitcomp f ik (i1, i2) = 
     match (interval_to_int i1, interval_to_int i2) with 
-    | Some x, Some y -> (try  of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,false,false,false))
+    | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,false,false,false))
     | _, _ -> (top_of ik,true,true,false)
 
   let bitand ik x y = 
-    let interval_bitand = bit (fun _ik -> Ints_t.bitand) ik in
+    let interval_bitand = bit Ints_t.bitand ik in
     binary_op x y interval_bitand
 
   let bitor ik x y = 
-    let interval_bitor = bit (fun _ik -> Ints_t.bitor) ik in
+    let interval_bitor = bit Ints_t.bitor ik in
     binary_op x y interval_bitor
 
   let bitxor ik x y = 
-    let interval_bitxor = bit (fun _ik -> Ints_t.bitxor) ik in
+    let interval_bitxor = bit Ints_t.bitxor ik in
     binary_op x y interval_bitxor
 
   let bitnot ik x = 
-    let interval_bitnot = bit1 (fun _ik -> Ints_t.bitnot) ik in
+    let interval_bitnot = bit1 Ints_t.bitnot ik in
     unary_op x interval_bitnot
 
   let shift_left ik x y = 
-    let interval_shiftleft = bitcomp (fun _ik x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
+    let interval_shiftleft = bitcomp (fun x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftleft
 
   let shift_right ik x y = 
-    let interval_shiftright = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
+    let interval_shiftright = bitcomp (fun x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftright
 
   let lognot ik x = 
-    let interval_lognot = log1 (fun _ik -> not) ik in
+    let interval_lognot = log1 not ik in
     unary_op x interval_lognot
 
   let logand ik x y = 
@@ -1333,7 +1333,7 @@ struct
         let pos x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
         let b = Ints_t.sub (Ints_t.max (pos yl) (pos yu)) Ints_t.one in
         let range = if Ints_t.compare xl Ints_t.zero>= 0 then (Ints_t.zero, Ints_t.min xu b) else (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
-        meet ik (bit (fun _ik -> Ints_t.rem) ik (x, y)) [range]
+        meet ik (bit Ints_t.rem ik (x, y)) [range]
     in
     binary_op x y interval_rem
 
