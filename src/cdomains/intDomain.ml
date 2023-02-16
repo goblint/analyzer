@@ -1358,7 +1358,7 @@ struct
       xs |> (function (_, y)::z -> (min, y)::z | _ -> []) |> List.rev |> (function (x, _)::z -> (x, max)::z | _ -> []) |> List.rev 
 
   (*
-    1. partitions xs' intervals by assigning each of them to the an interval in ys that includes it.
+    1. partitions the intervals of xs by assigning each of them to the an interval in ys that includes it.
      and joins all intervals in xs assigned to the same interval in ys as one interval.
     2. checks for every pair of adjacent pairs whether the pairs did approach (if you compare the intervals from xs and ys) and merges them if it is the case.
     3. checks whether partitions at the extremeties are approaching infinity (and expands them to infinity. in that case)
