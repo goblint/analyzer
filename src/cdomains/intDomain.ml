@@ -801,10 +801,14 @@ struct
         | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
         | _ when leq (of_int ik (Ints_t.zero) |> unlift) (Some (y1,y2)) -> (top_of ik,false,false,false)
         | _ ->
-          let x1y1n = (Ints_t.div x1 y1) in let x1y2n = (Ints_t.div x1 y2) in
-          let x2y1n = (Ints_t.div x2 y1) in let x2y2n = (Ints_t.div x2 y2) in
-          let x1y1p = (Ints_t.div x1 y1) in let x1y2p = (Ints_t.div x1 y2) in
-          let x2y1p = (Ints_t.div x2 y1) in let x2y2p = (Ints_t.div x2 y2) in
+          let x1y1n = (Ints_t.div x1 y1) in
+          let x1y2n = (Ints_t.div x1 y2) in
+          let x2y1n = (Ints_t.div x2 y1) in 
+          let x2y2n = (Ints_t.div x2 y2) in
+          let x1y1p = (Ints_t.div x1 y1) in 
+          let x1y2p = (Ints_t.div x1 y2) in
+          let x2y1p = (Ints_t.div x2 y1) in
+          let x2y2p = (Ints_t.div x2 y2) in
           norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
                            (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
       end
