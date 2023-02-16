@@ -107,8 +107,8 @@ struct
         | (info,value)::xs ->
           match value with
           | `Address t when hasAttribute "goblint_array_domain" info.vattr ->
-            let possibleVars = PreValueDomain.AD.to_var_may t in
-            List.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ List.filter (fun info -> isArrayType info.vtype) possibleVars
+            let possibleVars = List.to_seq (PreValueDomain.AD.to_var_may t) in
+            Seq.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ Seq.filter (fun info -> isArrayType info.vtype) possibleVars
           | _ -> pointedArrayMap xs
       in
       match VarH.find_option !array_map fundec.svar with
@@ -780,10 +780,10 @@ struct
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
+        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
-      | Const (CReal (_, (FFloat | FDouble | FLongDouble as fkind), Some str)) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
-      | Const (CReal (num, (FFloat | FDouble | FLongDouble as fkind), None)) -> `Float (FD.of_const fkind num)
+      | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
+      | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind num)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
@@ -944,7 +944,7 @@ struct
               true
             else
               match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-              | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+              | Some i1, Some i2 -> Z.compare i1 i2 <= 0
               | _ ->
                 if contains_vla t || contains_vla (get_type_addr (x, o)) then
                   begin
@@ -1251,13 +1251,13 @@ struct
     | Q.EvalLength e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
-          let slen = List.map String.length (AD.to_string a) in
+          let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf = function
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
-          let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
+          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in
+          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (Seq.append slen alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
@@ -1644,7 +1644,7 @@ struct
       in
       match last_index lval, stripCasts rval with
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
-        let i = Cilint.int_of_cilint i in
+        let i = Z.to_int i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
         let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
@@ -1680,8 +1680,8 @@ struct
          | None -> xs
        in
        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-       let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-       List.iter (fun x -> ctx.spawn None x []) funs
+       let funs = Seq.filter (fun x -> isFunctionType x.vtype)@@ List.to_seq vars in
+       Seq.iter (fun x -> ctx.spawn None x []) funs
      | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
@@ -1767,6 +1767,8 @@ struct
     set_many ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local inits
 
   let return ctx exp fundec: store =
+    if Cil.hasAttribute "noreturn" fundec.svar.vattr then
+      M.warn ~category:(Behavior (Undefined Other)) "Function declared 'noreturn' could return";
     let st: store = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
@@ -2015,7 +2017,7 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in
-    match desc.special args, f.vname with
+    let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
       let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
@@ -2232,17 +2234,49 @@ struct
         let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         LibraryFunctionEffects.effects_for f.vname args
-        |> List.map (fun sets ->
-            List.fold_left (fun acc (lv, x) ->
+        |> List.to_seq
+        |> Seq.map (fun sets ->
+            BatList.fold_left (fun acc (lv, x) ->
                 set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
               ) st sets
           )
-        |> BatList.fold_left D.meet st
+        |> Seq.fold_left D.meet st
 
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
+    in
+    if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
+  let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
+    let ask = (Analyses.ask_of_ctx ctx) in
+    Q.LS.fold (fun (v, o) st ->
+        if CPA.mem v fun_st.cpa then
+          let lval = Lval.CilLval.to_lval (v,o) in
+          let address = eval_lv ask ctx.global st lval in
+          let lval_type = (AD.get_type address) in
+          if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
+          match (CPA.find_opt v (fun_st.cpa)), lval_type with
+          | None, _ -> st
+          (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
+          | Some (`Array a), _ when (CArrays.domain_of_t a) = PartitionedDomain -> {st with cpa = CPA.add v (`Array a) st.cpa}
+          (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
+          | Some voidVal, TVoid _ -> {st with cpa = CPA.add v voidVal st.cpa}
+          | _, _ -> begin
+              let new_val = get ask ctx.global fun_st address None in
+              if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
+              let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
+              let partDep = Dep.find_opt v fun_st.deps in
+              match partDep with
+              | None -> st'
+              (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
+              | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
+                                                                match val_opt with
+                                                                | None -> accCPA
+                                                                | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
+            end
+        else st) tainted_lvs local_st
+
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2253,9 +2287,26 @@ struct
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
         let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
-        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
-        { fun_st with cpa = cpa' }
+        let ask = (Analyses.ask_of_ctx ctx) in
+        let tainted = f_ask.f Q.MayBeTainted in
+        if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
+        if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
+        if (Q.LS.is_top tainted) then
+          let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
+          let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
+          { fun_st with cpa = cpa' }
+        else
+          (* remove variables from caller cpa, that are global and not in the callee cpa *)
+          let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
+          (* add variables from callee that are not in caller yet *)
+          let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
+          let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
+          (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
+          let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
+          let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
+          { fun_st with cpa = st_combined.cpa }
       in
       let return_var = return_var () in
       let return_val =
@@ -2266,13 +2317,15 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node ()in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let callerFundec = match !MyCFG.current_node with
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
       in
       let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
       let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
+
+      if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
