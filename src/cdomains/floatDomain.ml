@@ -784,38 +784,44 @@ module FloatIntervalImplLifted = struct
   type t =
     | F32 of F1.t
     | F64 of F2.t
-    | FLong of F2.t [@@deriving to_yojson, eq, ord, hash]
+    | FLong of F2.t
+    | FFloat128 of F2.t [@@deriving to_yojson, eq, ord, hash]
 
   let show = function
     | F32 a -> "float: " ^ F1.show a
     | F64 a -> "double: " ^ F2.show a
     | FLong a -> "long double: " ^ F2.show a
+    | FFloat128 a -> "float128: " ^ F2.show a
 
   let lift2 (op32, op64) x y = match x, y with
     | F32 a, F32 b -> F32 (op32 a b)
     | F64 a, F64 b -> F64 (op64 a b)
     | FLong a, FLong b -> FLong (op64 a b)
+    | FFloat128 a, FFloat128 b -> FFloat128 (op64 a b)
     | _ -> failwith ("fkinds do not match. Values: " ^ show x ^ " and " ^ show y)
 
   let lift2_cmp (op32, op64) x y = match x, y with
     | F32 a, F32 b -> op32 a b
     | F64 a, F64 b -> op64 a b
     | FLong a, FLong b -> op64 a b
+    | FFloat128 a, FFloat128 b -> op64 a b
     | _ -> failwith ("fkinds do not match. Values: " ^ show x ^ " and " ^ show y)
 
   let lift (op32, op64) = function
     | F32 a -> F32 (op32 a)
     | F64 a -> F64 (op64 a)
     | FLong a -> FLong (op64 a)
+    | FFloat128 a -> FFloat128 (op64 a)
 
   let dispatch (op32, op64) = function
     | F32 a -> op32 a
-    | F64 a | FLong a -> op64 a
+    | F64 a | FLong a  | FFloat128 a-> op64 a
 
   let dispatch_fkind fkind (op32, op64) = match fkind with
     | FFloat -> F32 (op32 ())
     | FDouble -> F64 (op64 ())
     | FLongDouble -> FLong (op64 ())
+    | FFloat128 -> FFloat128 (op64 ())
     | _ ->
       (* this should never be reached, as we have to check for invalid fkind elsewhere,
          however we could instead of crashing also return top_of some fkind to avoid this and nonetheless have no actual information about anything*)
@@ -869,6 +875,7 @@ module FloatIntervalImplLifted = struct
     | F32 _ -> FFloat
     | F64 _ -> FDouble
     | FLong _ -> FLongDouble
+    | FFloat128 _ -> FFloat128
 
   let leq = lift2_cmp (F1.leq, F2.leq)
   let join = lift2 (F1.join, F2.join)

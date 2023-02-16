@@ -87,7 +87,7 @@ struct
     let callee = (counter, new_wrapper_node) in
     [(ctx.local, callee)]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) (f_ask: Queries.ask) : D.t =
     (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
     let _, lnode = ctx.local in
     (counter, lnode)

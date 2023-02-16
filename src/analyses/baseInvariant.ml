@@ -23,6 +23,7 @@ sig
   val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
   val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> VD.t -> D.t
 
+  val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
   val eval_rv_lval_refine: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> lval -> VD.t
 
@@ -89,7 +90,7 @@ struct
   let refine_lv ctx a gs st c x c' pretty exp =
     let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~ctx in
     match x with
-    | Var var, o ->
+    | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
       let oldv = get_var a gs st var in
       let oldv = map_oldval oldv var.vtype in
@@ -103,6 +104,7 @@ struct
         if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
         r
       )
+    | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
       let oldv = eval_rv_lval_refine a gs st exp x in
