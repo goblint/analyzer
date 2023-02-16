@@ -133,6 +133,7 @@ struct
     in
     let a = if GobConfig.get_bool "annotation.goblint_array_domain" then array_attr else None in
     VD.project ask p a value
+
   let project ask p_opt cpa fundec =
     CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
