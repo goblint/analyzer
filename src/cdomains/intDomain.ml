@@ -193,7 +193,7 @@ sig
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool * bool
-  
+
   val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool * bool 
 
   val of_int : Cil.ikind -> int_t -> t * bool * bool * bool
@@ -605,7 +605,7 @@ struct
     match x, y with
     | None, z | z, None -> z
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2) |> unlift
- 
+
   let meet ik (x:t) y =
     match x, y with
     | None, z | z, None -> None
@@ -986,7 +986,7 @@ struct
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
-  
+
   (* New type definition for the sweeping line algorithm used for implementiong join/meet functions. *)
   type 'a event = Enter of 'a | Exit of 'a
 
@@ -1052,8 +1052,8 @@ struct
     | [], _ -> []
     | _, [] -> []
     | _, _ -> canonize @@ List.concat_map op (BatList.cartesian_product x y)
-  
- 
+
+
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let minimal = function 
@@ -1078,61 +1078,61 @@ struct
     | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top  
 
   let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik (x,y) : t*bool*bool*bool = 
-      if Ints_t.compare x y > 0 then ([],false,false,cast)  
-      else begin
-        let (min_ik, max_ik) = range ik in
-        let underflow = Ints_t.compare min_ik x > 0 in
-        let overflow = Ints_t.compare max_ik y < 0 in
-        if underflow || overflow then
-          begin
-            if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
-              (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
-              (* on Z will not safely contain the minimal and maximal elements after the cast *)
-              let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
-              let resdiff = Ints_t.abs (Ints_t.sub y x) in
-              if Ints_t.compare resdiff diff > 0 then
-                ([range ik], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-              else
-                let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
-                let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
-                if Ints_t.compare l u <= 0 then
-                  ([(l, u)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-                else
-                  (* Interval that wraps around (begins to the right of its end). We CAN represent such intervals *)
-                  ([(min_ik, u); (l, max_ik)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-            else if not cast && should_ignore_overflow ik then
-              let tl, tu = range ik in
-              ([Ints_t.max tl x, Ints_t.min tu y], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-            else
+    if Ints_t.compare x y > 0 then ([],false,false,cast)  
+    else begin
+      let (min_ik, max_ik) = range ik in
+      let underflow = Ints_t.compare min_ik x > 0 in
+      let overflow = Ints_t.compare max_ik y < 0 in
+      if underflow || overflow then
+        begin
+          if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
+            (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
+            (* on Z will not safely contain the minimal and maximal elements after the cast *)
+            let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
+            let resdiff = Ints_t.abs (Ints_t.sub y x) in
+            if Ints_t.compare resdiff diff > 0 then
               ([range ik], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-          end
-        else 
-          ([(x,y)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-      end
+            else
+              let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
+              let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
+              if Ints_t.compare l u <= 0 then
+                ([(l, u)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+              else
+                (* Interval that wraps around (begins to the right of its end). We CAN represent such intervals *)
+                ([(min_ik, u); (l, max_ik)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+          else if not cast && should_ignore_overflow ik then
+            let tl, tu = range ik in
+            ([Ints_t.max tl x, Ints_t.min tu y], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+          else
+            ([range ik], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+        end
+      else 
+        ([(x,y)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+    end
 
 
-    
+
   let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool*bool = 
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map unlift res in
     let underflow = List.exists (fun (_,underflow,_,_) -> underflow) res in
     let overflow = List.exists (fun (_,_,overflow,_) -> overflow) res
-  in (intvs,underflow,overflow,cast)
+    in (intvs,underflow,overflow,cast)
 
   let binary_op_with_norm  (ik:ikind) (x: t) (y: t) op : t*bool*bool*bool = match x, y with
-  | [], _ -> ([],false,false,false)
-  | _, [] -> ([],false,false,false)
-  | _, _ -> let (res,underflow,overflow,cast) = norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y) 
-  in (canonize res, underflow,overflow,cast)
+    | [], _ -> ([],false,false,false)
+    | _, [] -> ([],false,false,false)
+    | _, _ -> let (res,underflow,overflow,cast) = norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y) 
+      in (canonize res, underflow,overflow,cast)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*bool*bool*bool = match x, y with
-  | [], _ -> ([],false,false,false)
-  | _, [] -> ([],false,false,false)
-  | _, _ ->
-    let res = List.map op (BatList.cartesian_product x y) in
-    let intvs = List.concat_map unlift res in
-    let underflow = List.exists (fun (_,underflow,_,_) -> underflow) res in
-    let overflow = List.exists (fun (_,_,overflow,_) -> overflow) res
+    | [], _ -> ([],false,false,false)
+    | _, [] -> ([],false,false,false)
+    | _, _ ->
+      let res = List.map op (BatList.cartesian_product x y) in
+      let intvs = List.concat_map unlift res in
+      let underflow = List.exists (fun (_,underflow,_,_) -> underflow) res in
+      let overflow = List.exists (fun (_,_,overflow,_) -> overflow) res
       in (canonize intvs, underflow,overflow,false)
 
   let unary_op_with_norm (ik:ikind) (x: t) op = match x with 
@@ -1192,7 +1192,7 @@ struct
       if max_x < min_y then 
         of_bool ik true
       else
-        if min_x >= max_y then of_bool ik false else top_bool
+      if min_x >= max_y then of_bool ik false else top_bool
 
   let le ik x y =
     match x, y with 
@@ -1204,7 +1204,7 @@ struct
       if max_x <= min_y then 
         of_bool ik true
       else
-        if min_x > max_y then of_bool ik false else top_bool
+      if min_x > max_y then of_bool ik false else top_bool
 
   let gt ik x y = not_bool @@ le ik x y
 
@@ -1320,9 +1320,9 @@ struct
         let x1y1p = (Ints_t.div x1 y1) in let x1y2p = (Ints_t.div x1 y2) in
         let x2y1p = (Ints_t.div x2 y1) in let x2y2p = (Ints_t.div x2 y2) in
         [((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
-                                  (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))]
+          (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))]
     end
-  in binary_op_with_norm ik x y interval_div
+    in binary_op_with_norm ik x y interval_div
 
   let rem ik x y = 
     let interval_rem (x, y) = 
@@ -1508,9 +1508,9 @@ module SOverFlowUnlifter (D : SOverFlow) : S with type int_t = D.int_t and type 
   let add ?no_ov ik x y = unlift @@ D.add ?no_ov ik x y
 
   let sub ?no_ov ik x y = unlift @@ D.sub ?no_ov ik x y
-  
+
   let mul ?no_ov ik x y = unlift @@ D.mul ?no_ov ik x y
-  
+
   let div ?no_ov ik x y = unlift @@ D.div ?no_ov ik x y
 
   let neg ?no_ov ik x = unlift @@ D.neg ?no_ov ik x
@@ -3200,9 +3200,9 @@ module SOverFlowLifter (D : S) : SOverFlow with type int_t = D.int_t and type t 
   let add ?no_ov ik x y = lift @@ D.add ?no_ov ik x y
 
   let sub ?no_ov ik x y = lift @@ D.sub ?no_ov ik x y
-  
+
   let mul ?no_ov ik x y = lift @@ D.mul ?no_ov ik x y
-  
+
   let div ?no_ov ik x y = lift @@ D.div ?no_ov ik x y
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
@@ -3273,17 +3273,17 @@ module IntDomTupleImpl = struct
     f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4), f p5 @@ r.fi2 (module I5)
   let create2 r x = (* use where values are introduced *)
     create2 r x (int_precision_from_node_or_config ())
-  
+
   let no_overflow ik = function
     | Some(_,underflow, overflow, _) -> not (underflow || overflow)
     | _ -> false
   let create2_ovc ik r x ((p1, p2, p3, p4, p5): int_precision) =
-      let f b g = if b then Some (g x) else None in
-      let map f  = function Some x -> Some (f x) | _ -> None  in
-      let intv =  f p2 @@ r.fi2_ovc (module I2) in
-      let intv_set = f p5 @@ r.fi2_ovc (module I5) in
-      let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
-        if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
+    let f b g = if b then Some (g x) else None in
+    let map f  = function Some x -> Some (f x) | _ -> None  in
+    let intv =  f p2 @@ r.fi2_ovc (module I2) in
+    let intv_set = f p5 @@ r.fi2_ovc (module I5) in
+    let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
+    if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
       let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
       let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
@@ -3291,8 +3291,8 @@ module IntDomTupleImpl = struct
       let cast = cast_intv || cast_intv_set in
       set_overflow_flag ~cast ~underflow ~overflow ik; 
     );
-      map unlift @@ f p1 @@ r.fi2_ovc (module I1), map unlift @@ f p2 @@ r.fi2_ovc (module I2), map unlift @@ f p3 @@ r.fi2_ovc (module I3), map unlift @@ f p4 @@ r.fi2_ovc (module I4), map unlift @@ f p5 @@ r.fi2_ovc (module I5)
-  
+    map unlift @@ f p1 @@ r.fi2_ovc (module I1), map unlift @@ f p2 @@ r.fi2_ovc (module I2), map unlift @@ f p3 @@ r.fi2_ovc (module I3), map unlift @@ f p4 @@ r.fi2_ovc (module I4), map unlift @@ f p5 @@ r.fi2_ovc (module I5)
+
   let create2_ovc ik r x = (* use where values are introduced *)
     create2_ovc ik r x (int_precision_from_node_or_config ())
 
@@ -3465,7 +3465,7 @@ module IntDomTupleImpl = struct
      | _ -> ()
     ); !dt
 
-  
+
 
   (* map with overflow check *)
   let mapovc ik r (a, b, c, d, e) =
