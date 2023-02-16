@@ -200,7 +200,7 @@ let test_ex_set _ =
 
 module Interval =
 struct
-  module I = IntDomain.Interval
+  module I = IntDomain.SOverFlowUnlifter(IntDomain.Interval)
 
   let assert_equal x y =
     assert_equal ~cmp:I.equal ~printer:I.show x y

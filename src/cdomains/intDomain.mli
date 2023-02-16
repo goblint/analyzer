@@ -304,6 +304,8 @@ sig
 
 end
 
+module SOverFlowUnlifter (D : SOverFlow) : S with type int_t = D.int_t and type t = D.t 
+
 module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
 
