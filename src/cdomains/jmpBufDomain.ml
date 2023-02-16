@@ -19,7 +19,7 @@ end
 
 module LocallyModifiedMap =
 struct
-  module VarSet = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All vars" end)
+  module VarSet = SetDomain.ToppedSet(CilType.Varinfo) (struct let topname = "All vars" end)
   include MapDomain.MapBot_LiftTop (BufferEntry)(VarSet)
 
   let name () = "Locally modified variables since the corresponding setjmp"

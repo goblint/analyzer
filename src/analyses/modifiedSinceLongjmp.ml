@@ -32,7 +32,10 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    add_to_all_defined (relevants_from_lval_opt ctx (Some lval)) ctx.local
+    if not !Goblintutil.assign_is_setjmp then
+      add_to_all_defined (relevants_from_lval_opt ctx (Some lval)) ctx.local
+    else
+      ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -47,7 +50,7 @@ struct
     [ctx.local, D.bot ()]
 
   let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
-    let fromlv = relevants_from_lval_opt ctx lval in
+    let fromlv = if not longjmpthrough then relevants_from_lval_opt ctx lval else VS.empty () in
     let taintedcallee = relevants_from_ls (f_ask.f Queries.MayBeTainted) in
     add_to_all_defined (VS.union taintedcallee fromlv) ctx.local
 
@@ -78,6 +81,11 @@ struct
   let exitstate  v = D.top ()
 
   let context _ _ = ()
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.MayBeModifiedSinceSetjmp entry -> D.find entry ctx.local
+    | _ -> Queries.Result.top q
 end
 
 let _ =

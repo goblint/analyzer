@@ -765,9 +765,17 @@ struct
                  match node with
                  | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
                    let res' = match lval with
-                     | Some lv ->  S.assign path_ctx lv value
+                     | Some lv -> Goblintutil.assign_is_setjmp := true; let r = S.assign path_ctx lv value in Goblintutil.assign_is_setjmp := false; r
                      | None -> res
                    in
+                   let modified_vars = path_ctx.ask (MayBeModifiedSinceSetjmp (node, c)) in
+                   (if Queries.VS.is_top modified_vars then
+                      M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
+                    else if not (Queries.VS.is_empty modified_vars) then
+                      M.warn "Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
+                    else
+                      ()
+                   );
                    sidel (jmptarget node, ctx.context ()) res'
                  | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
                 )

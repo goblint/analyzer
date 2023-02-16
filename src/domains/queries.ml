@@ -43,6 +43,7 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
+module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -120,6 +121,7 @@ type _ t =
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
+  | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
 
 type 'a result = 'a
 
@@ -176,6 +178,7 @@ struct
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
+    | MayBeModifiedSinceSetjmp _ -> (module VS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -231,6 +234,7 @@ struct
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
+    | MayBeModifiedSinceSetjmp _ -> VS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -283,6 +287,7 @@ struct
     | Any (EvalJumpBuf _) -> 42
     | Any ActiveJumpBuf -> 43
     | Any ValidLongJmp -> 44
+    | Any (MayBeModifiedSinceSetjmp _) -> 45
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -317,6 +322,7 @@ struct
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
+      | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -349,6 +355,8 @@ struct
     | Any (Invariant i) -> hash_invariant_context i
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
+    | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
+    (* TODO: Why is IterSysVars not here? *)
     (* only argumentless queries should remain *)
     | _ -> 0
 
@@ -395,6 +403,7 @@ struct
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
+    | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
 end
 
 
