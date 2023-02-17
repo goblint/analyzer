@@ -493,7 +493,7 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   )
 
-let do_gobview () =
+let do_gobview cilfile =
   (* TODO: Fpath *)
   let create_symlink target link =
     if not (Sys.file_exists link) then Unix.symlink target link
@@ -508,6 +508,24 @@ let do_gobview () =
     if Sys.file_exists js_file then (
       let save_run = GobConfig.get_string "save_run" in
       let run_dir = if save_run <> "" then save_run else "run" in
+      (* copy relevant c files to gobview directory *)
+      let file_dir = Fpath.((Fpath.v run_dir) / "files") in
+      GobSys.mkdir_or_exists file_dir;
+      let file_loc = Hashtbl.create 113 in
+      let copy_rem p =
+        let _, name = BatFile.open_temporary_out ~prefix:(Fpath.filename p) ~suffix:".c" ~temp_dir:(Fpath.to_string file_dir) () in
+        let gobview_path = match Fpath.relativize ~root:(Fpath.v run_dir) (Fpath.v name) with
+          | Some p -> Fpath.to_string p
+          | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
+        Hashtbl.add file_loc (Fpath.to_string p) gobview_path;
+        BatFile.write_lines name (BatFile.lines_of (Fpath.to_string p)) in
+      let paths = Cil.foldGlobals cilfile (
+          fun acc g -> match g with GFun (_,loc) -> if not (List.mem loc.file acc) then loc.file :: acc else acc | _ -> acc) [] in
+      List.iter copy_rem (List.map Fpath.v paths);
+      Serialize.marshal file_loc (Fpath.(Fpath.v run_dir / "file_loc.marshalled"));
+      (* marshal timing statistics *)
+      let stats = Fpath.(Fpath.v run_dir / "stats.marshalled") in
+      Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
       let dist_files =
         Sys.files_of dist_dir
         |> Enum.filter (fun n -> n <> "dune")
