@@ -84,6 +84,9 @@ struct
 
   let paths_as_set ctx =
     List.map (fun x -> D.lift x) @@ S.paths_as_set (conv ctx)
+
+  let event ctx e octx =
+    D.lift @@ S.event (conv ctx) e (conv octx)
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -162,6 +165,7 @@ struct
     S.threadspawn (conv ctx) lval f args (conv fctx)
 
   let paths_as_set ctx = S.paths_as_set (conv ctx)
+  let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
 (* see option ana.opt.equal *)
@@ -251,6 +255,9 @@ struct
   let paths_as_set ctx =
     let liftmap = List.map (fun x -> (x, snd ctx.local)) in
     lift_fun ctx liftmap S.paths_as_set (Fun.id)
+
+  let event ctx e octx =
+    lift_fun ctx (lift ctx) S.event ((|>) (conv octx) % (|>) e)
 
   let enter ctx r f args =
     let (d,l) = ctx.local in
@@ -360,6 +367,8 @@ struct
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
+  let event ctx e octx = lift_fun ctx S.event ((|>) (conv octx) % (|>) e)
+
   let threadenter ctx lval f args = S.threadenter (conv ctx) lval f args |> List.map (fun d -> (d, snd ctx.local))
   let threadspawn ctx lval f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
 
@@ -448,6 +457,8 @@ struct
 
   let threadenter ctx lval f args = lift_fun ctx (List.map D.lift) S.threadenter ((|>) args % (|>) f % (|>) lval) []
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
+
+  let event (ctx:(D.t,G.t,C.t,V.t) ctx) (e:Events.t) (octx:(D.t,G.t,C.t,V.t) ctx):D.t = lift_fun ctx D.lift S.event ((|>) (conv octx) % (|>) e) `Bot
 end
 
 module type Increment =
@@ -776,7 +787,13 @@ struct
                     else
                       ()
                    );
-                   sidel (jmptarget node, ctx.context ()) res'
+                   let rec res_ctx = { ctx with
+                                       ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
+                                       local = res';
+                                     }
+                   in
+                   let r = S.event res_ctx (Events.Poison modified_vars) res_ctx in
+                   sidel (jmptarget node, ctx.context ()) r
                  | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
                 )
               else
@@ -1309,6 +1326,10 @@ struct
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
+  let event ctx e octx =
+    let fd1 = D.choose octx.local in
+    map ctx Spec.event (fun h -> h e (conv octx fd1))
+
   let threadenter ctx lval f args =
     let g xs ys = (List.map (fun y -> D.singleton y) ys) @ xs in
     fold' ctx Spec.threadenter (fun h -> h lval f args) g []
@@ -1477,6 +1498,7 @@ struct
   let sync ctx = S.sync (conv ctx)
   let skip ctx = S.skip (conv ctx)
   let asm ctx = S.asm (conv ctx)
+  let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
 module CompareGlobSys (SpecSys: SpecSys) =

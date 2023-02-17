@@ -461,6 +461,8 @@ sig
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
 module type MCPA =
@@ -473,7 +475,6 @@ end
 module type MCPSpec =
 sig
   include Spec
-  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t

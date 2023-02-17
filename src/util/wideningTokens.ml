@@ -176,4 +176,5 @@ struct
 
   let threadenter ctx lval f args = lift_fun ctx (fun l ts -> List.map (Fun.flip lift' ts) l) S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx lift' S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
+  let event ctx e octx = lift_fun ctx lift' S.event ((|>) (conv octx) % (|>) e)
 end

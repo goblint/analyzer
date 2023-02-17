@@ -149,6 +149,19 @@ struct
     let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
 
+  (* TODO???? *)
+  let map_event ctx e =
+    (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
+    let h x (xs, sync) =
+      try
+        let x' = Spec.event (conv ctx x) e (conv ctx x) in
+        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+      with Deadcode -> (xs, sync)
+    in
+    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
+
+
   let fold' ctx f g h a =
     let k x a =
       try h a x @@ g @@ f @@ conv ctx x
@@ -171,7 +184,7 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-
+  let event ctx e octx = map_event ctx e (* TODO: ???? *)
 
   let paths_as_set ctx =
     let (a,b) = ctx.local in
