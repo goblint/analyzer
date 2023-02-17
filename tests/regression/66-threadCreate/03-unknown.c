@@ -2,16 +2,19 @@
 #include <goblint.h>
 #include <pthread.h>
 
+extern void unknown_fun(void *(*fun));
+
 int glob;
 
 void *t_FST(void *arg) {
 }
 
 void *t_SND(void *arg) {
-  glob = 1; //NORACE
+  glob = 1; //RACE
 }
 
 int nothing () {
+  unknown_fun(t_SND);
 }
 
 
@@ -22,7 +25,7 @@ int main() {
 
   nothing();
 
-  glob = 2; //NORACE
+  glob = 2; //RACE
 
   pthread_t id;
   pthread_create(&id, NULL, t_SND, NULL);
