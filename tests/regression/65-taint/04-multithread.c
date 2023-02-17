@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] taintPartialContexts
+// NOMARSHAL PARAM: --set ana.activated[+] taintPartialContexts
 #include <goblint.h>
 #include <pthread.h>
 
