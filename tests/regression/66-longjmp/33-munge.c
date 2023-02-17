@@ -22,12 +22,14 @@ void *t_benign(void *arg) {
   int t = 42, top;
 
   if(setjmp(buf1)) {
-      return NULL;
+    t = t+1; //WARN
+    return NULL;
   }
 
   t = 19;
 
   if(setjmp(buf)) {
+    t = t+1; //NOWARN
     return NULL;
   }
 
