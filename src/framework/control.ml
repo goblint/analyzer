@@ -694,10 +694,8 @@ struct
     let df fmt = Pretty.gprintf (Pretty.sprint ~width:Int.max_num) fmt in
     let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:Int.max_num doc) fmt in
 
-    (* what to do about goto to removed statements? probably just check if the target of a goto should be removed, if so remove the goto? <- don't do that.
-       but if the target is not live, the goto can't be live anyway *)
 
-    let filter_map_block f (block : Cil.block) : bool =
+    (* let filter_map_block f (block : Cil.block) : bool =
       (* blocks and statements: modify in place, then return true if should be kept *)
       let rec impl_block block =
         block.bstmts <- List.filter impl_stmt block.bstmts;
@@ -726,19 +724,19 @@ struct
           keep
         in
         impl_block block
-    in
+    in *)
 
     begin
       let open DeadcodeTransform in
 
-      Result.iter
+      (* Result.iter
         (fun (n:node) _ ->
           dpf "<%a> (%s)" Node.pretty_plain n (if liveness n then "live" else "dead")
         )
         (* why is this called XML? *)
-        local_xml;
+        local_xml; *)
 
-      (* TODO: the marking of statements as live/not live doesn't seem to be completely accurate
+      (* (* TODO: the marking of statements as live/not live doesn't seem to be completely accurate
          current fix: only eliminate statements *that are in the result (local_xml)* and marked live *)
       Cil.iterGlobals file (function
         | GFun (fd, _) ->
@@ -757,23 +755,24 @@ struct
               fd.sbody
           in
           pf "keep=%b" keep; (* TODO: use keep? discard function if keep is false. should not be necessary, function should be dead already *)
-        | _ -> ());
-
+        | _ -> ()); *)
+(* 
       file.globals <-
         List.filter
           (function
           | GFun (fd, l) -> not (is_uncalled ~bad_only:false fd.svar l)
           | _ -> true)
-          file.globals;
+          file.globals; *)
 
-      let refsVisitor = new globalReferenceTrackerVisitor in
-      Cil.visitCilFileSameGlobals (refsVisitor :> Cil.cilVisitor) file;
+      (* let refsVisitor = new globalReferenceTrackerVisitor in
+      Cil.visitCilFileSameGlobals (refsVisitor :> Cil.cilVisitor) file; *)
 
-      refsVisitor#get_references ()
-      |> Seq.iter (fun (k, v) -> dpf "%a -> %a" pretty_globinfo k (Pretty.d_list ", " pretty_globinfo) (List.of_seq v));
+      (* keep for debugging *)
+      (* refsVisitor#get_references ()
+      |> Seq.iter (fun (k, v) -> dpf "%a -> %a" pretty_globinfo k (Pretty.d_list ", " pretty_globinfo) (List.of_seq v)); *)
 
       (* since we've removed dead code and functions already, probably could just pass main as start for live search? *)
-      let live_globinfo =
+      (* let live_globinfo =
         find_live_globinfo'
           (file.globals |> List.to_seq |> Seq.filter (function GFun _ -> true | _ -> false))
           (refsVisitor#get_references_raw ())
@@ -785,7 +784,7 @@ struct
           | Some gi -> GlobinfoH.mem live_globinfo gi
           | None -> true (* dependencies for some types of globals (e.g. assembly) are not tracked, always keep them *)
           )
-        file.globals;
+        file.globals; *)
 
       let dcrf = Stdlib.open_out "transformed.c" in
       Cil.dumpFile Cil.defaultCilPrinter dcrf "" file;

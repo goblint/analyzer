@@ -23,7 +23,6 @@ module GlobinfoH =
       let hash = hash_globinfo
     end)
 
-
 let globinfo_of_global = function
   | GType (ti, _) -> Some (GTypeInfo ti)
   | GCompTag (ci, _) | GCompTagDecl (ci, _) -> Some (GCompInfo ci)
@@ -31,7 +30,6 @@ let globinfo_of_global = function
   | GVarDecl (vi, _) | GVar (vi, _, _) | GFun ({ svar = vi; _ }, _) -> Some (GVarInfo vi)
   | _ -> None
 
-(* TODO: why does OCaml warn about overridden methods? have to use [@warning "-7"] *)
 class globalReferenceTrackerVisitor = object (self)
   inherit Cil.nopCilVisitor (* as nop *)
 
@@ -60,17 +58,17 @@ class globalReferenceTrackerVisitor = object (self)
     |> Option.iter (fun ctx -> self#add_ref ctx glob_to)
 
   (* TODO: is the typeinfo in a global traversed? looks like yes *)
-  method [@warning "-7"] vglob g =
+  method! vglob g =
     (* upon entering a new global, update the context *)
     context := Some g;
     DoChildren
 
-  method [@warning "-7"] vvrbl vi =
+  method! vvrbl vi =
     (* if variable is global, add reference from current context *)
     if vi.vglob then self#ctx_add_ref (GVarInfo vi);
     DoChildren
 
-  method [@warning "-7"] vtype t =
+  method! vtype t =
     (match t with
     | TNamed (ti, _) -> self#ctx_add_ref @@ GTypeInfo ti
     | TComp (ci, _) -> self#ctx_add_ref @@ GCompInfo ci
@@ -104,43 +102,3 @@ let find_live_globinfo' live_from result =
       GlobinfoH.find_opt result gi
       |> Option.to_seq
       |> Seq.concat_map GlobinfoH.to_seq_keys)
-
-  (* let live =
-    live_from
-    |> Seq.filter_map globinfo_of_global
-    |> Seq.map (fun gi -> gi, ())
-    |> GlobinfoH.of_seq
-  in *)
-
-
-
-
-
-
-
-  (* method [@warning "-7"] vexpr (e : exp) =
-    (match e with
-    | Lval ((Var (vi : varinfo), off) : lval) when vi.vglob ->
-      (* use of a global variable: add a reference from the current context to the referenced global *)
-      self#ctx_add_ref (GVarInfo vi)
-    | _ -> ());
-    DoChildren *)
-
-  
-
-    (* g |> function
-  | GType (ti, _) -> let _ : typ = ti.ttype in DoChildren
-  | _ -> DoChildren *)
-
-  (* (g : global) = SkipChildren *)
-
-  (* also skip global initializers *)
-  (* method [@warning "-7"] vinit _ _ (i : init) = let _ : compinfo = failwith "" in SkipChildren *)
-
-  (*
-  typeinfo -> all references to named types must be shared
-  compinfo -> ckey, looks like must also be shared
-  enuminfo -> shared by all references
-  varinfo -> shared
-
-  *)
