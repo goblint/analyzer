@@ -17,6 +17,6 @@ int main() {
     z = z + 1;
   }
   pthread_create(NULL, NULL, &f_exit, NULL);
-  pthread_join(6, NULL);
+  pthread_join(5, NULL);
   return 0;
 }

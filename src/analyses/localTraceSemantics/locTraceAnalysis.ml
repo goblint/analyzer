@@ -8,6 +8,7 @@ exception Overflow_addition_Int
 exception Overflow_multiplication_Int
 exception Underflow_multiplication_Int
 exception Underflow_subtraction_Int
+exception Join_Nonexistent_Tid
 
 (* Constants *)
 let intMax = 2147483647
@@ -506,6 +507,7 @@ result
     print_string ("in special, we have ctx.edge="^(EdgeImpl.show ctx.edge)^"\n");
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
+
     | ThreadJoin { thread = tidExpCast; ret_var }, _ -> (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExpCast)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
     match tidExpCast with CastE(TNamed(t, attr),tidExp) -> (
       if not (String.equal t.tname "pthread_t") then (Printf.printf "Error: casted type in pthread_join is not pthread_t in special\n"; exit 0);
@@ -517,7 +519,7 @@ in if not success then (Printf.printf "Error: could not evaluate argument of pth
 List.fold (fun graphList tidSigma -> 
   let tidJoin = 
     match SigmaMap.find special_varinfo tidSigma with
-    Int(l,u,_) -> Big_int_Z.int_of_big_int l (* TODO iterate over interval or pick a few values *)
+    Int(l,u,_) -> if l = u then Big_int_Z.int_of_big_int l (* TODO iterate over interval or pick a few values *) else (Printf.printf "Intervals for pthread_join is not supported in special\n"; exit 0)
     | _ -> Printf.printf "Error: wrong type of argument of pthread_join in special\n"; exit 0
 in
 let endingTraces = graphSet_to_list (ctx.global tidJoin)
@@ -525,8 +527,14 @@ in
 print_string("in special, ending traces: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" endingTraces)^"]\n");
 let joinableTraces = find_joinable_traces endingTraces graph
 in
-print_string ("in special, joinable traces are: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" joinableTraces)^"]\n");
-(* TODO: now join *)
+if List.is_empty joinableTraces then (
+Messages.warn "ThreadJoin on non-existent Thread-ID";
+let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid}, ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1}) 
+in
+graph_error_edge::graphList
+) else 
+(
+print_string ("in special, joinable traces for tidJoin "^(string_of_int tidJoin)^" are: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" joinableTraces)^"]\n");
   List.fold (
     fun list_fold trace_fold -> let tmp_graph = LocalTraces.merge_graphs graph trace_fold
 in
@@ -537,7 +545,7 @@ in
 let tmp_graph_edge2 = LocalTraces.extend_by_gEdge tmp_graph_edge1 ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,destination_node)
 in
 ((tmp_graph_edge2)::list_fold)@graphList
-      ) [] joinableTraces
+      ) [] joinableTraces)
   ) [] tidSigmaList
     
     )
