@@ -390,7 +390,15 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       )
   let merge_graphs graph1 graph2 =
     List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)
-end
+
+  let exists_TID tid graph =
+    let allNodes = get_all_nodes graph
+  in
+  let rec loop nodeList =
+    match nodeList with node::xs -> if node.tid = tid then true else loop xs
+      | [] -> false
+    in loop allNodes  
+  end
 
 (* Set domain for analysis framework *)
 module GraphSet = struct
@@ -473,11 +481,3 @@ module ThreadIDLocTrace = struct
 
     let relift tid = failwith ("no relift")
 end
-(* 
-class extended_edges_mgmt =
-object(self)
-  val mutable createEdgesList:((node * edge * node) list) = []
-  val mutable hasCreatedList:(int * int) list = []
-
-
-end *)

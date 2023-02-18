@@ -522,6 +522,13 @@ List.fold (fun graphList tidSigma ->
     Int(l,u,_) -> if l = u then Big_int_Z.int_of_big_int l (* TODO iterate over interval or pick a few values *) else (Printf.printf "Intervals for pthread_join is not supported in special\n"; exit 0)
     | _ -> Printf.printf "Error: wrong type of argument of pthread_join in special\n"; exit 0
 in
+if LocalTraces.exists_TID tidJoin graph then (
+  Messages.warn "ThreadJoin on already joined Thread-ID";
+let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid}, ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1}) 
+in
+graph_error_edge::graphList
+)
+else 
 let endingTraces = graphSet_to_list (ctx.global tidJoin)
 in
 print_string("in special, ending traces: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" endingTraces)^"]\n");
