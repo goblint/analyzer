@@ -473,10 +473,10 @@ in
 result
 
    (* SPECIAL helper functions *)
-   let is_trace_joinable candidate graph = 
-    let create_node = LocalTraces.find_creating_node (LocalTraces.get_last_node candidate) candidate
+   let is_trace_joinable candidate graph creatorTID = 
+    let create_node = LocalTraces.find_creating_node (LocalTraces.get_last_node candidate) candidate creatorTID
    in
-   if not (LocalTraces.exists_node graph create_node) then (print_string ("create_node does not exists in creator-trace\n"); false) else
+   if not (LocalTraces.exists_node graph create_node) then (print_string ("create_node does not exists in creator-trace with\ncreate_node="^(NodeImpl.show create_node)^"\ngraph="^(LocalTraces.show graph)^"\n"); false) else
     (
       let rec inner_loop edgeList =
         match edgeList with (pred_node,_,_)::xs -> if loop pred_node then inner_loop xs else (print_string("loop in inner_loop resulted in false\n"); false)
@@ -496,9 +496,9 @@ result
     )
 
 
-   let rec find_joinable_traces candidates graph = 
+   let rec find_joinable_traces candidates graph creatorTID = 
     match candidates with
-    x::xs -> if is_trace_joinable x graph then x::(find_joinable_traces xs graph) else find_joinable_traces xs graph
+    x::xs -> if is_trace_joinable x graph creatorTID then x::(find_joinable_traces xs graph creatorTID) else find_joinable_traces xs graph creatorTID
       | [] -> []
     (* TODO implement *)
 
@@ -525,7 +525,7 @@ in
 let endingTraces = graphSet_to_list (ctx.global tidJoin)
 in
 print_string("in special, ending traces: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" endingTraces)^"]\n");
-let joinableTraces = find_joinable_traces endingTraces graph
+let joinableTraces = find_joinable_traces endingTraces graph tid
 in
 if List.is_empty joinableTraces then (
 Messages.warn "ThreadJoin on non-existent Thread-ID";

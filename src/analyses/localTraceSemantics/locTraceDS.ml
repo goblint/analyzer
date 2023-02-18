@@ -347,8 +347,9 @@ if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
     in loop allNodes
 
     (* In this function I assume, that traces do not contain circles *)
-let find_creating_node last_node graph =
-  let lastNodeId = last_node.tid
+let find_creating_node last_node graph creatorTID =
+  print_string ("find_creating_node was invoked with last_node="^(NodeImpl.show last_node)^",\ngraph="^(show graph)^"\n");
+  let lastNodeTid = last_node.tid
 in
 let workQueue = Queue.create ()
   in Queue.add last_node workQueue;
@@ -359,7 +360,8 @@ let workQueue = Queue.create ()
   let rec inner_loop edges =
     match edges with
     (precedingNode, (edgeLabel:edge),_)::xs ->
-      (match edgeLabel with (Proc(_, Lval(Var(v),_), _)) -> (if (precedingNode.tid != lastNodeId)&&(current_node.tid = lastNodeId) then Some(precedingNode)
+      (match edgeLabel with (Proc(_, Lval(Var(v),_), _)) -> (
+        if (precedingNode.tid = creatorTID)&&(current_node.tid = lastNodeTid) then Some(precedingNode)
       else inner_loop xs)
         | _ ->  inner_loop xs )
       | [] -> None
