@@ -12,11 +12,13 @@ void *f_exit(void *arg) {
 
 int main() {
   int z = 0;
+  pthread_t id_thread;
+  pthread_t id_thread2;
   while (z < 2) {
-    pthread_create(NULL, NULL, &f, NULL);
+    pthread_create(&id_thread, NULL, &f, NULL);
     z = z + 1;
   }
-  pthread_create(NULL, NULL, &f_exit, NULL);
-  pthread_join(5, NULL);
+  pthread_create(&id_thread2, NULL, &f_exit, NULL);
+  pthread_join(id_thread, NULL);
   return 0;
 }

@@ -10,15 +10,17 @@ void *f_exit(void *arg) {
 
 void *f(void *arg) {
   int z = 9;
-  pthread_create(NULL, NULL, &f_exit, NULL);
+  pthread_t id_thread;
+  pthread_create(&id_thread, NULL, &f_exit, NULL);
 
-  pthread_join(7, NULL);
+  pthread_join(id_thread, NULL);
 }
 
 int main() {
   int z = 0;
-  pthread_create(NULL, NULL, &f, NULL);
+  pthread_t id_thread;
+  pthread_create(&id_thread, NULL, &f, NULL);
 
-  pthread_join(4, NULL);
+  pthread_join(id_thread, NULL);
   return 0;
 }

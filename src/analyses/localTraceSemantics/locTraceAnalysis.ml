@@ -508,12 +508,13 @@ result
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
 
-    | ThreadJoin { thread = tidExpCast; ret_var }, _ -> (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExpCast)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
-    match tidExpCast with CastE(TNamed(t, attr),tidExp) -> (
-      if not (String.equal t.tname "pthread_t") then (Printf.printf "Error: casted type in pthread_join is not pthread_t in special\n"; exit 0);
-      print_string ("arg is a CastE(TNamed(_), _) with tidExp="^(CilType.Exp.show tidExp)^"\n");
+    | ThreadJoin { thread = tidExp; ret_var }, _ -> (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExp)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
+    (* match tidExp with CastE(TNamed(t, attr),tidExpCast) -> ( *)
+      (* if not (String.equal t.tname "pthread_t") then (Printf.printf "Error: casted type in pthread_join is not pthread_t in special\n"; exit 0); *)
+      (* print_string ("arg is a CastE(TNamed(_), _) with tidExpCast="^(CilType.Exp.show tidExpCast)^"\n"); *)
       let special_varinfo = makeVarinfo false "__goblint__traces__special" (TInt(IInt,[]))
   in
+      (* let tidSigmaList, success = eval_wrapper sigma special_varinfo tidExpCast graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid} *)
       let tidSigmaList, success = eval_wrapper sigma special_varinfo tidExp graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid}
 in if not success then (Printf.printf "Error: could not evaluate argument of pthread_join in special\n"; exit 0);
 List.fold (fun graphList tidSigma -> 
@@ -555,8 +556,9 @@ in
       ) [] joinableTraces)
   ) [] tidSigmaList
     
-    )
-    | _ -> Printf.printf "Error: argument of pthread_join is not a cast, but I only support Integers for now\n"; exit 0
+    (* )
+    (* | Lval(Var(v), _) -> print_string ("in ThreadJoin, Lval-type is "^(CilType.Typ.show v.vtype)^"\n");[] *)
+    | _ -> Printf.printf "Error: argument of pthread_join is not a cast, but I only support Integers for now\n"; exit 0 *)
     )
 
     | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); [graph]
@@ -752,14 +754,24 @@ in result
   let threadspawn_on_node graph ctx lval {programPoint=programPoint;id=id;sigma=sigma;tid=tid} =
     let myEdge =  (match lval with None ->
     {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}
-  |Some((Var x, _)) -> (
+  (* |Some((Var x, _)) -> (
+    print_string ("in threadspawn, we have some Lval "^(CilType.Varinfo.show x)^"\n");
     let result_sigma = SigmaMap.add x (Int(Big_int_Z.big_int_of_int id, Big_int_Z.big_int_of_int id, IInt)) sigma
     in 
     {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result_sigma tid);tid=tid}
-  )
-  | Some(z) -> {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}
-    (* print_string ("Invalid Lval format in threadspawn. Lval="^(CilType.Lval.show z)^"\n"); exit 0 *)
+  ) *)
+  | Some(Mem(CastE(TPtr(TNamed(tInfo, tAttr), ptrAttr), AddrOf(Var(lvalVinfo),_))), offset) -> (
+    if String.equal tInfo.tname "pthread_t" 
+      then (print_string ("input in threadspawn is pthread_t\n");
+    let result_sigma = SigmaMap.add lvalVinfo (Int(Big_int_Z.big_int_of_int id, Big_int_Z.big_int_of_int id, IInt)) sigma
+    in 
+    {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result_sigma tid);tid=tid}  
     )
+  else (Printf.printf "Unsupported argument in threadspawn\n"; exit 0))
+    (* | Some(Mem(CastE (_, CastE(_,Const(CInt(cilint,_,_))))), _) -> 
+      (if (cilint_to_int cilint) = 0 then ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}) else (print_string ("Unsupported argument in threadspawn\n"); exit 0)) *)
+    | Some(lvalOption) -> (print_string ("Unsupported argument in threadspawn with "^(CilType.Lval.show lvalOption)^"\n"); exit 0)
+          )
   in
   let result_graph = 
     print_string ("In threadspawn, we add the edge "^(LocalTraces.show_edge myEdge)^"\n

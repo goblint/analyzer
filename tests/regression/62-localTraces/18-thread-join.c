@@ -10,7 +10,8 @@ void *f_exit(void *arg) {
 }
 
 int main() {
-  pthread_create(NULL, NULL, &f_exit, NULL);
-  pthread_join(3, NULL);
+  pthread_t id_thread;
+  pthread_create(&id_thread, NULL, &f_exit, NULL);
+  pthread_join(id_thread, NULL);
   return 0;
 }
