@@ -1223,8 +1223,10 @@ struct
       let (min_x, max_y) = (minimal x |> Option.get , maximal y |> Option.get) in
       if max_x <=. min_y then
         of_bool ik true
+      else if min_x >. max_y then
+        of_bool ik false
       else
-      if min_x >. max_y then of_bool ik false else top_bool
+        top_bool
 
   let gt ik x y = not_bool @@ le ik x y
 
