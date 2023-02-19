@@ -9,7 +9,10 @@ let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:m
 (* what to do about goto to removed statements? probably just check if the target of a goto should be removed, if so remove the goto? <- don't do that.
    but if the target is not live, the goto can't be live anyway *)
 
-(** Filter statements out of a block (recursively). CFG fields (prev, next, etc.) are rendered invalid after calling. *)
+(** Filter statements out of a block (recursively). CFG fields (prev, next, etc.) are no longer valid after calling.
+    Invariants:
+    - f (goto label) ==> f (labelled stmt), i.e. if a goto statement is not filtered out, the target may not be filtered out either.
+    - block may not contain switch statements *)
 let filter_map_block f (block : Cil.block) : bool =
   (* blocks and statements: modify in place, then return true if should be kept *)
   let rec impl_block block =
