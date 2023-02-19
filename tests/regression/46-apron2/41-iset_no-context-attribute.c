@@ -3,7 +3,7 @@ extern int __VERIFIER_nondet_int();
 
 #include <goblint.h>
 
-int oct(int x, int y) __attribute__((goblint_context("apron.no-context"))); // attributes are not permitted in a function definition
+int oct(int x, int y) __attribute__((goblint_context("relation.no-context"))); // attributes are not permitted in a function definition
 int oct(int x, int y) {
   int s;
   if (x <= y)
