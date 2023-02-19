@@ -1054,11 +1054,11 @@ struct
     events_to_intervals |>
     remove_empty_gaps
 
-  let unary_op (x: t) op = match x with
+  let unop (x: t) op = match x with
     | [] -> []
     | _ -> canonize @@ List.concat_map op x
 
-  let binary_op (x: t) (y: t) op : t = match x, y with
+  let binop (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
     | _, _ -> canonize @@ List.concat_map op (BatList.cartesian_product x y)
@@ -1252,15 +1252,15 @@ struct
 
   let bitand ik x y =
     let interval_bitand = bit Ints_t.bitand ik in
-    binary_op x y interval_bitand
+    binop x y interval_bitand
 
   let bitor ik x y =
     let interval_bitor = bit Ints_t.bitor ik in
-    binary_op x y interval_bitor
+    binop x y interval_bitor
 
   let bitxor ik x y =
     let interval_bitxor = bit Ints_t.bitxor ik in
-    binary_op x y interval_bitxor
+    binop x y interval_bitxor
 
   let bitnot ik x =
     let bit1 f ik i1 =
@@ -1269,7 +1269,7 @@ struct
       | _ -> top_of ik
     in
     let interval_bitnot = bit1 Ints_t.bitnot ik in
-    unary_op x interval_bitnot
+    unop x interval_bitnot
 
   let shift_left ik x y =
     let interval_shiftleft = bitcomp (fun x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
@@ -1286,15 +1286,15 @@ struct
       | _ -> top_of ik
     in
     let interval_lognot = log1 not ik in
-    unary_op x interval_lognot
+    unop x interval_lognot
 
   let logand ik x y =
     let interval_logand = log (&&) ik in
-    binary_op x y interval_logand
+    binop x y interval_logand
 
   let logor ik x y =
     let interval_logor = log (||) ik in
-    binary_op x y interval_logor
+    binop x y interval_logor
 
   let add ?no_ov ik x y =
     let interval_add ((x1, x2), (y1, y2)) = [(x1 +. y1, x2 +. y2)] in
@@ -1351,7 +1351,7 @@ struct
         let range = if xl >=. Ints_t.zero then (Ints_t.zero, Ints_t.min xu b) else (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
         meet ik (bit Ints_t.rem ik (x, y)) [range]
     in
-    binary_op x y interval_rem
+    binop x y interval_rem
 
   let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x |> (function (intvs,underflow,overflow,cast) -> (canonize intvs, underflow,overflow,cast))
 
