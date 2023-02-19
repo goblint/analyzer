@@ -278,28 +278,28 @@ sig
 
   include S
 
-  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool * bool
-                                              
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool * bool
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool
 
-  val of_int : Cil.ikind -> int_t -> t * bool * bool * bool
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool
 
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * bool  * bool * bool
+  val of_int : Cil.ikind -> int_t -> t * bool * bool
 
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool  * bool * bool
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool * bool
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * bool  * bool
 
-  val shift_left : Cil.ikind -> t -> t -> t * bool * bool * bool
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool  * bool
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool
 
-  val shift_right: Cil.ikind -> t -> t -> t * bool * bool * bool
+  val shift_left : Cil.ikind -> t -> t -> t * bool * bool
+
+  val shift_right: Cil.ikind -> t -> t -> t * bool * bool
 
 
 end

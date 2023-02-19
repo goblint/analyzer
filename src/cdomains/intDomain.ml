@@ -184,28 +184,28 @@ sig
 
   include S
 
-  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool
 
-  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool * bool
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool
 
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool * bool
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool
 
-  val of_int : Cil.ikind -> int_t -> t * bool * bool * bool
+  val of_int : Cil.ikind -> int_t -> t * bool * bool
 
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * bool * bool * bool
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * bool * bool
 
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool * bool
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool * bool
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * bool * bool
 
-  val shift_left : Cil.ikind -> t -> t -> t * bool * bool * bool
+  val shift_left : Cil.ikind -> t -> t -> t * bool * bool
 
-  val shift_right : Cil.ikind -> t -> t -> t * bool * bool * bool
+  val shift_right : Cil.ikind -> t -> t -> t * bool * bool
 end
 
 module type Y =
@@ -556,7 +556,7 @@ struct
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
-  let unlift (v,_,_,_) = v
+  let unlift (v,_,_) = v
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -565,8 +565,8 @@ struct
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
-  let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t -> t * bool *bool*bool) = function None -> (None,false,false,cast) | Some (x,y) ->
-    if Ints_t.compare x y > 0 then (None,false,false,cast)
+  let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t -> t * bool *bool) = function None -> (None,false,false) | Some (x,y) ->
+    if Ints_t.compare x y > 0 then (None,false,false)
     else (
       let (min_ik, max_ik) = range ik in
       let underflow = Ints_t.compare min_ik x > 0 in
@@ -578,22 +578,22 @@ struct
           let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
           let resdiff = Ints_t.abs (Ints_t.sub y x) in
           if Ints_t.compare resdiff diff > 0 then
-            (top_of ik,underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn,cast)
+            (top_of ik,underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn)
           else
             let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
             let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
             if Ints_t.compare l u <= 0 then
-              (Some (l, u),underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn ,cast)
+              (Some (l, u),underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn)
             else
               (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
-              (top_of ik,underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn ,cast)
+              (top_of ik,underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn)
         else if not cast && should_ignore_overflow ik then
           let tl, tu = BatOption.get @@ top_of ik in
-          (Some (Ints_t.max tl x, Ints_t.min tu y),underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn ,cast)
+          (Some (Ints_t.max tl x, Ints_t.min tu y),underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn)
         else
-          (top_of ik,underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn ,cast)
+          (top_of ik,underflow && not suppress_ovwarn ,overflow && not suppress_ovwarn)
       )
-      else (Some (x,y),underflow && not suppress_ovwarn,overflow && not suppress_ovwarn,cast)
+      else (Some (x,y),underflow && not suppress_ovwarn,overflow && not suppress_ovwarn)
     )
 
   let leq (x:t) (y:t) =
@@ -719,13 +719,13 @@ struct
 
   let bitcomp f ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, true -> (bot_of ik,false,false,false)
+    | true, true -> (bot_of ik,false,false)
     | true, _
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,false,false,false))
-      | _              -> (top_of ik,true,true,false)
+      | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,false,false))
+      | _              -> (top_of ik,true,true)
 
   let bitxor = bit (fun _ik -> Ints_t.bitxor)
   let bitand = bit (fun _ik -> Ints_t.bitand)
@@ -743,15 +743,15 @@ struct
   let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
   let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
-  let neg ?no_ov ik = function None -> (None,false,false,false) | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
+  let neg ?no_ov ik = function None -> (None,false,false) | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
 
   let add ?no_ov ik x y = match x, y with
-    | None, None -> (None,false,false,false)
+    | None, None -> (None,false,false)
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2)
 
   let sub ?no_ov ik x y = match x, y with
-    | None, None -> (None,false,false,false)
+    | None, None -> (None,false,false)
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) (* y1, y2 are in different order here than in add *)
 
@@ -779,7 +779,7 @@ struct
 
   let mul ?no_ov ik x y =
     match x, y with
-    | None, None -> (bot (),false,false,false)
+    | None, None -> (bot (),false,false)
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       let x1y1 = (Ints_t.mul x1 y1) in
@@ -791,16 +791,16 @@ struct
 
   let rec div ?no_ov ik x y =
     match x, y with
-    | None, None -> (bot (),false,false,false)
+    | None, None -> (bot (),false,false)
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       begin
         let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
         match y1, y2 with
-        | l, u when is_zero l && is_zero u -> (top_of ik,false,false,false) (* TODO warn about undefined behavior *)
+        | l, u when is_zero l && is_zero u -> (top_of ik,false,false) (* TODO warn about undefined behavior *)
         | l, _ when is_zero l              -> div ik (Some (x1,x2)) (Some (Ints_t.one,y2))
         | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
-        | _ when leq (of_int ik (Ints_t.zero) |> unlift) (Some (y1,y2)) -> (top_of ik,false,false,false)
+        | _ when leq (of_int ik (Ints_t.zero) |> unlift) (Some (y1,y2)) -> (top_of ik,false,false)
         | _ ->
           let x1y1n = (Ints_t.div x1 y1) in
           let x1y2n = (Ints_t.div x1 y2) in
@@ -1005,7 +1005,7 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
 
-  let unlift (v,_,_,_) = v
+  let unlift (v,_,_) = v
 
   (* New type definition for the sweeping line algorithm used for implementing join/meet functions. *)
   type event = Enter of Ints_t.t | Exit of Ints_t.t
@@ -1094,9 +1094,9 @@ struct
     | ys when List.for_all ((=) `Neq) ys -> `Neq
     | _ -> `Top
 
-  let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik (x,y) : t*bool*bool*bool =
+  let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik (x,y) : t*bool*bool =
     if x >. y then
-      ([],false,false,cast)
+      ([],false,false)
     else
       let (min_ik, max_ik) = range ik in
       let underflow = min_ik >. x in
@@ -1127,32 +1127,32 @@ struct
       else
         [(x,y)]
       in
-      if suppress_ovwarn then (v, false, false, cast) else (v, underflow, overflow, cast)
+      if suppress_ovwarn then (v, false, false) else (v, underflow, overflow)
 
-  let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool*bool =
+  let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool =
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map unlift res in
-    let underflow = List.exists Batteries.Tuple4.second res in
-    let overflow = List.exists Batteries.Tuple4.third res in
-    (canonize intvs,underflow,overflow,cast)
+    let underflow = List.exists Batteries.Tuple3.second res in
+    let overflow = List.exists Batteries.Tuple3.third res in
+    (canonize intvs,underflow,overflow)
 
-  let binary_op_with_norm  (ik:ikind) (x: t) (y: t) op : t*bool*bool*bool = match x, y with
-    | [], _ -> ([],false,false,false)
-    | _, [] -> ([],false,false,false)
+  let binary_op_with_norm  (ik:ikind) (x: t) (y: t) op : t*bool*bool = match x, y with
+    | [], _ -> ([],false,false)
+    | _, [] -> ([],false,false)
     | _, _ -> norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y)
 
-  let binary_op_with_ovc (x: t) (y: t) op : t*bool*bool*bool = match x, y with
-    | [], _ -> ([],false,false,false)
-    | _, [] -> ([],false,false,false)
+  let binary_op_with_ovc (x: t) (y: t) op : t*bool*bool = match x, y with
+    | [], _ -> ([],false,false)
+    | _, [] -> ([],false,false)
     | _, _ ->
       let res = List.map op (BatList.cartesian_product x y) in
       let intvs = List.concat_map unlift res in
-      let underflow = List.exists Batteries.Tuple4.second res in
-      let overflow = List.exists Batteries.Tuple4.third res in
-      (canonize intvs, underflow,overflow,false)
+      let underflow = List.exists Batteries.Tuple3.second res in
+      let overflow = List.exists Batteries.Tuple3.third res in
+      (canonize intvs, underflow,overflow)
 
   let unary_op_with_norm (ik:ikind) (x: t) op = match x with
-    | [] -> ([],false,false,false)
+    | [] -> ([],false,false)
     | _ -> norm_intvs ik @@ List.concat_map op x
 
   let rec leq (xs: t) (ys: t) =
@@ -1262,8 +1262,8 @@ struct
 
   let bitcomp f ik (i1, i2) =
     match (interval_to_int i1, interval_to_int i2) with
-    | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,false,false,false))
-    | _, _ -> (top_of ik,true,true,false)
+    | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,false,false))
+    | _, _ -> (top_of ik,true,true)
 
   let bitand ik x y =
     let interval_bitand = bit Ints_t.bitand ik in
@@ -1539,7 +1539,7 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   include D
 
-  let unlift (v,_,_,_) = v
+  let unlift (v,_,_) = v
 
   let add ?no_ov ik x y = unlift @@ D.add ?no_ov ik x y
 
@@ -3231,7 +3231,7 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   include D
 
-  let lift v = (v, false,false,false)
+  let lift v = (v, false,false)
 
   let add ?no_ov ik x y = lift @@ D.add ?no_ov ik x y
 
@@ -3277,7 +3277,7 @@ module IntDomTupleImpl = struct
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
   [@@deriving to_yojson, eq, ord]
 
-  let unlift (v,_,_,_) = v
+  let unlift (v,_,_) = v
 
   let name () = "intdomtuple"
 
@@ -3291,15 +3291,15 @@ module IntDomTupleImpl = struct
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
   type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } (* inject *)
   type 'b poly2_in  = { fi2  : 'a. 'a m2 -> 'b -> 'a } (* inject for functions that depend on int_t *)
-  type 'b poly2_in_ovc  = { fi2_ovc  : 'a. 'a m2 -> 'b -> 'a * bool * bool *bool } (* inject for functions that depend on int_t *)
+  type 'b poly2_in_ovc  = { fi2_ovc  : 'a. 'a m2 -> 'b -> 'a * bool * bool } (* inject for functions that depend on int_t *)
 
   type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } (* project *)
   type 'b poly_pr2  = { fp2  : 'a. 'a m2 -> 'a -> 'b } (* project for functions that depend on int_t *)
   type 'b poly2_pr = {f2p: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'b}
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
-  type poly1_ovc = {f1_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a * bool * bool * bool} (* needed b/c above 'b must be different from 'a *)
+  type poly1_ovc = {f1_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a * bool * bool } (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
-  type poly2_ovc = {f2_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a * bool * bool * bool}
+  type poly2_ovc = {f2_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a * bool * bool }
   type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
   let create r x ((p1, p2, p3, p4, p5): int_precision) =
     let f b g = if b then Some (g x) else None in
@@ -3313,8 +3313,9 @@ module IntDomTupleImpl = struct
     create2 r x (int_precision_from_node_or_config ())
 
   let no_overflow ik = function
-    | Some(_,underflow, overflow, _) -> not (underflow || overflow)
+    | Some(_,underflow, overflow) -> not (underflow || overflow)
     | _ -> false
+      
   let create2_ovc ik r x ((p1, p2, p3, p4, p5): int_precision) =
     let f b g = if b then Some (g x) else None in
     let map f  = function Some x -> Some (f x) | _ -> None  in
@@ -3322,12 +3323,11 @@ module IntDomTupleImpl = struct
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set) then (
-      let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
-      let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
+      let (_,underflow_intv, overflow_intv) = match intv with None -> (I2.bot (), true, true) | Some x -> x in
+      let (_,underflow_intv_set, overflow_intv_set) = match intv_set with None -> (I5.bot (), true, true) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
-      let cast = cast_intv || cast_intv_set in
-      set_overflow_flag ~cast ~underflow ~overflow ik;
+      set_overflow_flag ~cast:false ~underflow ~overflow ik;
     );
     map unlift @@ f p1 @@ r.fi2_ovc (module I1), map unlift @@ f p2 @@ r.fi2_ovc (module I2), map unlift @@ f p3 @@ r.fi2_ovc (module I3), map unlift @@ f p4 @@ r.fi2_ovc (module I4), map unlift @@ f p5 @@ r.fi2_ovc (module I5)
 
@@ -3506,17 +3506,16 @@ module IntDomTupleImpl = struct
 
 
   (* map with overflow check *)
-  let mapovc ik r (a, b, c, d, e) =
+  let mapovc ?(cast=false) ik r (a, b, c, d, e) =
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1_ovc (module I2)) b in
     let intv_set = map (r.f1_ovc (module I5)) e in
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov && ( BatOption.is_some intv || BatOption.is_some intv_set  ) then (
-      let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
-      let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
+      let (_,underflow_intv, overflow_intv) = match intv with None -> (I2.bot (), true, true) | Some x -> x in
+      let (_,underflow_intv_set, overflow_intv_set) = match intv_set with None -> (I5.bot (), true, true) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
-      let cast = cast_intv || cast_intv_set in
       set_overflow_flag ~cast ~underflow ~overflow ik;
     );
     let no_ov = no_ov || should_ignore_overflow ik in
@@ -3533,12 +3532,11 @@ module IntDomTupleImpl = struct
     let intv_set = opt_map2 (r.f2_ovc (module I5)) xe ye in
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) in
     if not no_ov  && ( BatOption.is_some intv || BatOption.is_some intv_set  ) then (
-      let (_,underflow_intv, overflow_intv, cast_intv) = match intv with None -> (I2.bot (), true, true, false) | Some x -> x in
-      let (_,underflow_intv_set, overflow_intv_set, cast_intv_set) = match intv_set with None -> (I5.bot (), true, true , false) | Some x -> x in
+      let (_,underflow_intv, overflow_intv) = match intv with None -> (I2.bot (), true, true) | Some x -> x in
+      let (_,underflow_intv_set, overflow_intv_set) = match intv_set with None -> (I5.bot (), true, true) | Some x -> x in
       let underflow = underflow_intv && underflow_intv_set in
       let overflow = overflow_intv && overflow_intv_set in
-      let cast = cast_intv || cast_intv_set in
-      set_overflow_flag ~cast ~underflow ~overflow ik;
+      set_overflow_flag ~cast:false ~underflow ~overflow ik;
     );
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
@@ -3579,7 +3577,7 @@ module IntDomTupleImpl = struct
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lognot ik)}
 
   let cast_to ?torg ?no_ov t =
-    mapovc t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
+    mapovc ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
 
   (* fp: projections *)
   let equal_to i x =
