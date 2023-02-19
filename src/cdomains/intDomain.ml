@@ -208,7 +208,6 @@ sig
   val shift_right : Cil.ikind -> t -> t -> t * bool * bool * bool
 end
 
-let unlift (v,_,_,_) = v
 module type Y =
 sig
   (* include B *)
@@ -556,6 +555,8 @@ struct
   let bot_of ik = bot () (* TODO: improve *)
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
+  let unlift (v,_,_,_) = v
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -1003,6 +1004,8 @@ struct
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
+
+  let unlift (v,_,_,_) = v
 
   (* New type definition for the sweeping line algorithm used for implementing join/meet functions. *)
   type event = Enter of Ints_t.t | Exit of Ints_t.t
@@ -3273,6 +3276,8 @@ module IntDomTupleImpl = struct
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
   [@@deriving to_yojson, eq, ord]
+
+  let unlift (v,_,_,_) = v
 
   let name () = "intdomtuple"
 
