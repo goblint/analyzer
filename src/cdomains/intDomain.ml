@@ -978,6 +978,8 @@ struct
   let (<=.) a b = Ints_t.compare a b <= 0
   let (+.) a b = Ints_t.add a b
   let (-.) a b = Ints_t.sub a b
+  let ( *.) a b = Ints_t.mul a b
+  let (/.) a b = Ints_t.div a b
 
   (*
     Each domain's element is guaranteed to be in canonical form. That is, each interval contained
@@ -1308,10 +1310,10 @@ struct
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) =
     let interval_mul ((x1, x2), (y1, y2)) =
-      let x1y1 = (Ints_t.mul x1 y1) in
-      let x1y2 = (Ints_t.mul x1 y2) in
-      let x2y1 = (Ints_t.mul x2 y1) in
-      let x2y2 = (Ints_t.mul x2 y2) in
+      let x1y1 = x1 *. y1 in
+      let x1y2 = x1 *. y2 in
+      let x2y1 = x2 *. y1 in
+      let x2y2 = x2 *. y2 in
       [((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)), (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))]
     in
     binary_op_with_norm ik x y interval_mul
@@ -1325,14 +1327,14 @@ struct
       | _, u when is_zero u              -> interval_div ((x1,x2), (y1, Ints_t.(neg one)))
       | _ when leq (of_int ik (Ints_t.zero) |> unlift) ([(y1,y2)]) -> top_of ik
       | _ ->
-        let x1y1n = (Ints_t.div x1 y1) in
-        let x1y2n = (Ints_t.div x1 y2) in
-        let x2y1n = (Ints_t.div x2 y1) in
-        let x2y2n = (Ints_t.div x2 y2) in
-        let x1y1p = (Ints_t.div x1 y1) in
-        let x1y2p = (Ints_t.div x1 y2) in
-        let x2y1p = (Ints_t.div x2 y1) in
-        let x2y2p = (Ints_t.div x2 y2) in
+        let x1y1n = x1 /. y1 in
+        let x1y2n = x1 /. y2 in
+        let x2y1n = x2 /. y1 in
+        let x2y2n = x2 /. y2 in
+        let x1y1p = x1 /. y1 in
+        let x1y2p = x1 /. y2 in
+        let x2y1p = x2 /. y1 in
+        let x2y2p = x2 /. y2 in
         [((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
           (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))]
     end
