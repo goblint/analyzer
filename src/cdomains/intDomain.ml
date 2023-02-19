@@ -1066,9 +1066,9 @@ struct
     | xs -> let max = BatList.last xs |> snd in Some max
 
   let equal_to_interval i (a, b) =
-    if a = b && b = i then
+    if Ints_t.equal a b && Ints_t.equal b i then
       `Eq
-    else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then
+    else if Ints_t.compare a i <= 0 && Ints_t.compare i b <= 0 then
       `Top
     else
       `Neq
