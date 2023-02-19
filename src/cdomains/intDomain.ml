@@ -558,8 +558,6 @@ struct
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
-  let unlift (v,_) = v
-
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let equal_to i = function
@@ -607,12 +605,12 @@ struct
   let join ik (x:t) y =
     match x, y with
     | None, z | z, None -> z
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2) |> unlift
+    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2) |> fst
 
   let meet ik (x:t) y =
     match x, y with
     | None, z | z, None -> None
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2) |> unlift
+    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2) |> fst
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int = function Some (x,y) when Ints_t.compare x y = 0 -> Some x | _ -> None
@@ -662,7 +660,7 @@ struct
       let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt min_ik) in
       let ut = if threshold then upper_threshold u1 else max_ik in
       let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut max_ik) in
-      norm ik @@ Some (l2,u2) |> unlift
+      norm ik @@ Some (l2,u2) |> fst
   let widen ik x y =
     let r = widen ik x y in
     if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
@@ -676,7 +674,7 @@ struct
       let (min_ik, max_ik) = range ik in
       let lr = if Ints_t.compare min_ik x1 = 0 then y1 else x1 in
       let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
-      norm ik @@ Some (lr,ur) |> unlift
+      norm ik @@ Some (lr,ur) |> fst
 
   let narrow ik x y =
     if get_bool "ana.int.interval_narrow_by_meet" then
@@ -716,7 +714,7 @@ struct
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik (f ik x y) |> unlift with Division_by_zero -> top_of ik)
+      | Some x, Some y -> (try of_int ik (f ik x y) |> fst with Division_by_zero -> top_of ik)
       | _              -> top_of ik
 
   let bitcomp f ik i1 i2 =
@@ -738,7 +736,7 @@ struct
       bot_of ik
     else
       match to_int i1 with
-      | Some x -> of_int ik (f ik x) |> unlift
+      | Some x -> of_int ik (f ik x) |> fst
       | _      -> top_of ik
 
   let bitnot = bit1 (fun _ik -> Ints_t.bitnot)
@@ -802,7 +800,7 @@ struct
         | l, u when is_zero l && is_zero u -> (top_of ik,{underflow=false; overflow=false}) (* TODO warn about undefined behavior *)
         | l, _ when is_zero l              -> div ik (Some (x1,x2)) (Some (Ints_t.one,y2))
         | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
-        | _ when leq (of_int ik (Ints_t.zero) |> unlift) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false})
+        | _ when leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false})
         | _ ->
           let x1y1n = (Ints_t.div x1 y1) in
           let x1y2n = (Ints_t.div x1 y2) in
@@ -898,10 +896,10 @@ struct
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let shrink = function
-      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik >|= unlift)
+      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval ik >|= fst)
       | None -> empty
     in
-    QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> unlift ) pair_arb)
+    QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
   let relift x = x
 
   let modulo n k =
@@ -924,8 +922,8 @@ struct
           if Ints_t.equal y max_ik then y else
             Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
         if Ints_t.compare rcx lcy > 0 then None
-        else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx) |> unlift
-        else norm ik @@ Some (rcx, lcy) |> unlift
+        else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx) |> fst
+        else norm ik @@ Some (rcx, lcy) |> fst
     | _ -> None
 
   let refine_with_congruence ik x y =
@@ -946,8 +944,8 @@ struct
       let (min_ik, max_ik) = range ik in
       let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
       let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
-      let intv' = norm ik @@ Some (l', u') |> unlift in
-      let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> unlift in
+      let intv' = norm ik @@ Some (l', u') |> fst in
+      let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> fst in
       meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
@@ -1006,8 +1004,6 @@ struct
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
-
-  let unlift (v,_) = v
 
   (* New type definition for the sweeping line algorithm used for implementing join/meet functions. *)
   type event = Enter of Ints_t.t | Exit of Ints_t.t
@@ -1133,7 +1129,7 @@ struct
 
   let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*overflow_info =
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
-    let intvs = List.concat_map unlift res in
+    let intvs = List.concat_map fst res in
     let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
     let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
     (canonize intvs,{underflow; overflow})
@@ -1148,7 +1144,7 @@ struct
     | _, [] -> ([],{overflow=false; underflow=false})
     | _, _ ->
       let res = List.map op (BatList.cartesian_product x y) in
-      let intvs = List.concat_map unlift res in
+      let intvs = List.concat_map fst res in
       let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
       let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
       (canonize intvs,{underflow; overflow})
@@ -1258,7 +1254,7 @@ struct
 
   let bit f ik (i1, i2) =
     match (interval_to_int i1), (interval_to_int i2) with
-    | Some x, Some y -> (try of_int ik (f x y) |> unlift with Division_by_zero -> top_of ik)
+    | Some x, Some y -> (try of_int ik (f x y) |> fst with Division_by_zero -> top_of ik)
     | _ -> top_of ik
 
 
@@ -1282,7 +1278,7 @@ struct
   let bitnot ik x =
     let bit1 f ik i1 =
       match interval_to_int i1 with
-      | Some x -> of_int ik (f x) |> unlift
+      | Some x -> of_int ik (f x) |> fst
       | _ -> top_of ik
     in
     let interval_bitnot = bit1 Ints_t.bitnot ik in
@@ -1342,7 +1338,7 @@ struct
       | l, u when is_zero l && is_zero u -> top_of ik (* TODO warn about undefined behavior *)
       | l, _ when is_zero l              -> interval_div ((x1,x2), (Ints_t.one,y2))
       | _, u when is_zero u              -> interval_div ((x1,x2), (y1, Ints_t.(neg one)))
-      | _ when leq (of_int ik (Ints_t.zero) |> unlift) ([(y1,y2)]) -> top_of ik
+      | _ when leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) -> top_of ik
       | _ ->
         let x1y1n = x1 /. y1 in
         let x1y2n = x1 /. y2 in
@@ -1491,8 +1487,8 @@ struct
             if y =. max_ik then y else
               y -. (modulo (y -. c) (Ints_t.abs m)) in
           if rcx >. lcy then []
-          else if rcx =. lcy then norm_interval ik (rcx, rcx) |> unlift
-          else norm_interval ik (rcx, lcy) |> unlift
+          else if rcx =. lcy then norm_interval ik (rcx, rcx) |> fst
+          else norm_interval ik (rcx, lcy) |> fst
       | _ -> []
     in
     List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
@@ -1506,7 +1502,7 @@ struct
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t =
     let intv1 = (min, excl -. Ints_t.one) in
     let intv2 = (excl +. Ints_t.one, max) in
-    norm_intvs ik ~suppress_ovwarn:true [intv1 ; intv2] |> unlift
+    norm_intvs ik ~suppress_ovwarn:true [intv1 ; intv2] |> fst
 
   let of_excl_list ik (excls: int_t list) =
     let excl_list = List.map (excl_range_to_intervalset ik (range ik)) excls in
@@ -1531,41 +1527,38 @@ struct
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let list_pair_arb = QCheck.small_list pair_arb in
-    let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> unlift) in
+    let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
     let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
 
 end
 
 module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
-
   include D
 
-  let unlift (v,_) = v
+  let add ?no_ov ik x y = fst @@ D.add ?no_ov ik x y
 
-  let add ?no_ov ik x y = unlift @@ D.add ?no_ov ik x y
+  let sub ?no_ov ik x y = fst @@ D.sub ?no_ov ik x y
 
-  let sub ?no_ov ik x y = unlift @@ D.sub ?no_ov ik x y
+  let mul ?no_ov ik x y = fst @@ D.mul ?no_ov ik x y
 
-  let mul ?no_ov ik x y = unlift @@ D.mul ?no_ov ik x y
+  let div ?no_ov ik x y = fst @@ D.div ?no_ov ik x y
 
-  let div ?no_ov ik x y = unlift @@ D.div ?no_ov ik x y
+  let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let neg ?no_ov ik x = unlift @@ D.neg ?no_ov ik x
+  let cast_to ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
 
-  let cast_to ?torg ?no_ov ik x = unlift @@ D.cast_to ?torg ?no_ov ik x
+  let of_int ik x = fst @@ D.of_int ik x
 
-  let of_int ik x = unlift @@ D.of_int ik x
+  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ?suppress_ovwarn ik x
 
-  let of_interval ?suppress_ovwarn ik x = unlift @@ D.of_interval ?suppress_ovwarn ik x
+  let starting ?suppress_ovwarn ik x = fst @@ D.starting ?suppress_ovwarn ik x
 
-  let starting ?suppress_ovwarn ik x = unlift @@ D.starting ?suppress_ovwarn ik x
+  let ending ?suppress_ovwarn ik x = fst @@ D.ending ?suppress_ovwarn ik x
 
-  let ending ?suppress_ovwarn ik x = unlift @@ D.ending ?suppress_ovwarn ik x
+  let shift_left ik x y = fst @@ D.shift_left ik x y
 
-  let shift_left ik x y = unlift @@ D.shift_left ik x y
-
-  let shift_right ik x y = unlift @@ D.shift_right ik x y
+  let shift_right ik x y = fst @@ D.shift_right ik x y
 
 end
 
@@ -3279,8 +3272,6 @@ module IntDomTupleImpl = struct
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option
   [@@deriving to_yojson, eq, ord]
 
-  let unlift (v,_) = v
-
   let name () = "intdomtuple"
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
@@ -3518,11 +3509,11 @@ module IntDomTupleImpl = struct
     let no_ov = check_ov ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> unlift) a
-      , BatOption.map unlift intv
-      , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I3) x |> unlift) c
-      , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I4) x |> unlift) ~no_ov d
-      , BatOption.map unlift intv_set )
+      ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
+      , BatOption.map fst intv
+      , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I3) x |> fst) c
+      , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I4) x |> fst) ~no_ov d
+      , BatOption.map fst intv_set )
 
   (* map2 with overflow check *)
   let map2ovc ik r (xa, xb, xc, xd, xe) (ya, yb, yc, yd, ye) =
@@ -3531,11 +3522,11 @@ module IntDomTupleImpl = struct
     let no_ov = check_ov ik intv intv_set in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> unlift) xa ya
-      , BatOption.map unlift intv
-      , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I3) x y |> unlift) xc yc
-      , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I4) x y |> unlift) ~no_ov:no_ov xd yd
-      , BatOption.map unlift intv_set )
+      ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> fst) xa ya
+      , BatOption.map fst intv
+      , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I3) x y |> fst) xc yc
+      , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I4) x y |> fst) ~no_ov:no_ov xd yd
+      , BatOption.map fst intv_set )
 
   let map ik r (a, b, c, d, e) =
     refine ik
