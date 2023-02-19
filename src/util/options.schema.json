@@ -223,6 +223,12 @@
           "items": { "type": "string" },
           "default": []
         },
+        "skipcpp": {
+          "title": "pre.skipcpp",
+          "description": "Skip running the C preprocessor.",
+          "type": "boolean",
+          "default": false
+        },
         "compdb": {
           "title": "pre.compdb",
           "type": "object",

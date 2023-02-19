@@ -197,6 +197,8 @@ let basic_preprocess_counts = Preprocessor.FpathH.create 3
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
+  (* The extension of the file *)
+  let ext = Fpath.get_ext fname in
   (* The actual filename of the preprocessed sourcefile *)
   let basename = Fpath.rem_ext (Fpath.base fname) in
   (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
@@ -209,11 +211,16 @@ let basic_preprocess ~all_cppflags fname =
   in
   Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
   let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
-  (* Preprocess using cpp. *)
-  let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
-  let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
-  if get_bool "dbg.verbose" then print_endline command;
-  (nname, Some {ProcessPool.command; cwd = None})
+  if ext <> ".i" && not (GobConfig.get_bool "pre.skipcpp") then
+    (* Preprocess using cpp. *)
+    let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
+    let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
+    if get_bool "dbg.verbose" then print_endline command;
+    (nname, Some {ProcessPool.command; cwd = None})
+  else
+    (* No preprocessing needed. *)
+    (FileUtil.cp [(Fpath.to_string fname)] (Fpath.to_string nname);
+     (nname, None))
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
