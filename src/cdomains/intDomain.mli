@@ -273,7 +273,7 @@ sig
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
-module type SOverFlow = 
+module type SOverflow =
 sig
 
   include S
@@ -287,7 +287,7 @@ sig
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * bool * bool * bool
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * bool * bool * bool
-  
+                                              
   val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * bool * bool * bool
 
   val of_int : Cil.ikind -> int_t -> t * bool * bool * bool
@@ -304,7 +304,7 @@ sig
 
 end
 
-module SOverFlowUnlifter (D : SOverFlow) : S with type int_t = D.int_t and type t = D.t 
+module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t
 
 module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
@@ -403,9 +403,9 @@ module FlattenedBI : IkindUnawareS with type t = [`Top | `Lifted of IntOps.BigIn
 module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
 (** Artificially bounded integers in their natural ordering. *)
 
-module IntervalFunctor(Ints_t : IntOps.IntOps): SOverFlow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
 
-module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverFlow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
+module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
@@ -415,9 +415,9 @@ module BigInt:
     val cast_to: Cil.ikind -> Z.t -> Z.t
   end
 
-module Interval : SOverFlow with type int_t = IntOps.BigIntOps.t
+module Interval : SOverflow with type int_t = IntOps.BigIntOps.t
 
-module IntervalSet : SOverFlow with type int_t = IntOps.BigIntOps.t
+module IntervalSet : SOverflow with type int_t = IntOps.BigIntOps.t
 
 module Congruence : S with type int_t = IntOps.BigIntOps.t
 
