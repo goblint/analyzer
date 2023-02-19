@@ -27,8 +27,6 @@ The following string arguments are supported:
 5. `relation.context`/`relation.no-context` to override the `ana.relation.context` option.
 6. `widen`/`no-widen` to override the `ana.context.widen` option.
 
-
-
 ### Apron attributes
 The Apron library can be set to only track variables with the attribute `goblint_apron_track`
 
@@ -43,7 +41,7 @@ struct array {
 	int arr[5] __attribute__((goblint_array_domain("partitioned")));
 };
 ```
-It is also possible to annotate a type, so that all arrays of this type without an own attribute will use this one: 
+It is also possible to annotate a type, so that all arrays of this type without an own attribute will use this one:
 
 ```c
 typedef int unrollInt __attribute__((goblint_array_domain("trivial")));
