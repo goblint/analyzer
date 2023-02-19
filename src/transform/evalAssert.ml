@@ -139,15 +139,14 @@ module EvalAssert = struct
       ChangeDoChildrenPost (s, instrument_statement)
   end
 
-  let transform (ask: ?node:Node.t -> Cil.location -> Queries.ask) file = begin
+  let transform (ask: ?node:Node.t -> Cil.location -> Queries.ask) file =
     visitCilFile (new visitor ask) file;
 
     (* Add function declarations before function definitions.
        This way, asserts may reference functions defined later. *)
-    Cilfacade.add_function_declarations file;
+    Cilfacade.add_function_declarations file
 
-    let assert_filename = GobConfig.get_string "trans.output" in
-    let oc = Stdlib.open_out assert_filename in
-    dumpFile defaultCilPrinter oc assert_filename file; end
+  let requires_file_output = true
+
 end
 let _ = Transform.register "assert" (module EvalAssert)

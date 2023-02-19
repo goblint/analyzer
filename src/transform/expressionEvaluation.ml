@@ -206,6 +206,8 @@ struct
       List.iter print results
     | Error e -> prerr_endline e
 
+  let requires_file_output = false
+
 end
 
 let _ =

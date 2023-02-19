@@ -93,10 +93,17 @@ struct
 
   module Query = ResultQuery.Query (SpecSys)
 
+  module NH = Hashtbl.Make (Node)
+
+  let is_dead = LT.for_all (fun (_, x, f) -> Spec.D.is_bot x)
+
+  let mk_liveness (xs : Result.t) =
+    let live_nodes : unit NH.t = NH.create 13 in
+    Result.iter (fun n v -> if not (is_dead v) then NH.replace live_nodes n ()) xs;
+    NH.mem live_nodes
+
   (* print out information about dead code *)
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
-    let module NH = Hashtbl.Make (Node) in
-    let live_nodes : unit NH.t = NH.create 10 in
     let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
     let live_lines = ref StringMap.empty in
@@ -176,8 +183,7 @@ struct
         (Pretty.dprintf "dead: %d%s" dead_total (if uncalled_fn_loc > 0 then Printf.sprintf " (%d in uncalled functions)" uncalled_fn_loc else ""), None);
         (Pretty.dprintf "total lines: %d" total, None);
       ]
-    );
-    NH.mem live_nodes
+    )
 
   (* convert result that can be out-put *)
   let solver2source_result h : Result.t =
@@ -601,6 +607,24 @@ struct
       if get_bool "dump_globs" then
         print_globals gh;
 
+      let local_xml = solver2source_result lh in
+      let liveness = mk_liveness local_xml in
+
+      (* TODO: do this better, without having to register the transform here *)
+      let module DeadCodeArgs : DeadCode.DeadCodeArgs = struct
+        let stmt_live stmt =
+          (* the marking of statements as live/not live doesn't seem to be completely accurate
+            current fix: only eliminate statements *that are in the result (local_xml)* and marked live, this should be the correct behaviour *)
+          let cfgStmt = Statement stmt in
+          let live = liveness cfgStmt in
+          let in_result = Result.mem local_xml cfgStmt in (* does this even work, since result is a hash map? same in line above actually *)
+          not in_result || live
+
+        let fundec_live fd l = not (is_uncalled ~bad_only:false fd.svar l)
+      end in
+
+      Transform.register "remove_dead_code" (module DeadCode.RemoveDeadCode (DeadCodeArgs));
+
       (* run activated transformations with the analysis result *)
       let active_transformations = get_string_list "trans.activated" in
       (if active_transformations <> [] then
@@ -624,10 +648,10 @@ struct
           )
         in
         let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
-        List.iter (fun name -> Transform.run name ask file) active_transformations
+        Transform.run_transforms file active_transformations ask
       );
 
-      lh, gh, is_uncalled
+      lh, gh, local_xml, liveness
     in
 
     (* Use "normal" constraint solving *)
@@ -640,7 +664,7 @@ struct
       raise GU.Timeout
     in
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
-    let lh, gh, is_uncalled = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let lh, gh, local_xml, liveness = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let module SpecSysSol: SpecSysSol with module SpecSys = SpecSys =
     struct
       module SpecSys = SpecSys
@@ -679,118 +703,12 @@ struct
         `Assoc assoc
       );
 
-    let liveness =
-      if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
-        print_dead_code local_xml !uncalled_dead
-      else
-        fun _ -> true (* TODO: warn about conflicting options *)
-    in
+    if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches"
+      then print_dead_code local_xml !uncalled_dead;
+      (* TODO: warn about conflicting options *)
 
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg (module FileCfg) liveness;
-
-    let f = Printf.sprintf in
-    let pf fmt = Printf.ksprintf print_endline fmt in
-    let df fmt = Pretty.gprintf (Pretty.sprint ~width:Int.max_num) fmt in
-    let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:Int.max_num doc) fmt in
-
-
-    (* let filter_map_block f (block : Cil.block) : bool =
-      (* blocks and statements: modify in place, then return true if should be kept *)
-      let rec impl_block block =
-        block.bstmts <- List.filter impl_stmt block.bstmts;
-        block.bstmts <> []
-      and impl_stmt stmt =
-        if not (f stmt) then false
-        else
-          let skind', keep =
-          (* TODO: if sk is not changed in the end, simplify here *)
-            match stmt.skind with
-            | If (_, b1, b2, _, _) as sk ->
-              (* be careful to not short-circuit, since call to impl_block b2 is always needed for side-effects *)
-              sk, let keep_b1, keep_b2 = impl_block b1, impl_block b2 in keep_b1 || keep_b2
-            | Switch (e, b, stmts, l1, l2) ->
-              (* TODO: why a block and a statement list in a Switch? *)
-              let keep_b = impl_block b in
-              let stmts' = List.filter impl_stmt stmts in
-              Switch (e, b, stmts', l1, l2), keep_b || stmts' <> []
-            | Loop (b, _, _, _, _) as sk ->
-              sk, impl_block b (* TODO: remove the stmt options in sk? since they point to possibly removed statements *)
-            | Block b as sk ->
-              sk, impl_block b
-            | sk -> sk, true
-          in
-          stmt.skind <- skind';
-          keep
-        in
-        impl_block block
-    in *)
-
-    begin
-      let open DeadcodeTransform in
-
-      (* Result.iter
-        (fun (n:node) _ ->
-          dpf "<%a> (%s)" Node.pretty_plain n (if liveness n then "live" else "dead")
-        )
-        (* why is this called XML? *)
-        local_xml; *)
-
-      (* (* TODO: the marking of statements as live/not live doesn't seem to be completely accurate
-         current fix: only eliminate statements *that are in the result (local_xml)* and marked live *)
-      Cil.iterGlobals file (function
-        | GFun (fd, _) ->
-          pf "global name=%s" fd.svar.vname;
-          let keep =
-            filter_map_block
-              (fun stmt ->
-                let cfgStmt = Statement stmt in
-                let live = liveness cfgStmt in
-                let in_result = Result.mem local_xml cfgStmt in
-                dpf "<%a> live=%b in_result=%b" Node.pretty_plain cfgStmt live in_result;
-                not in_result || live)
-                (* match stmt.skind with
-                | If _ | Switch _ | Loop _ | Block _ -> true (* compound statements are sometimes marked not live even though they contain live statements *)
-                | _ -> live) *)
-              fd.sbody
-          in
-          pf "keep=%b" keep; (* TODO: use keep? discard function if keep is false. should not be necessary, function should be dead already *)
-        | _ -> ()); *)
-(* 
-      file.globals <-
-        List.filter
-          (function
-          | GFun (fd, l) -> not (is_uncalled ~bad_only:false fd.svar l)
-          | _ -> true)
-          file.globals; *)
-
-      (* let refsVisitor = new globalReferenceTrackerVisitor in
-      Cil.visitCilFileSameGlobals (refsVisitor :> Cil.cilVisitor) file; *)
-
-      (* keep for debugging *)
-      (* refsVisitor#get_references ()
-      |> Seq.iter (fun (k, v) -> dpf "%a -> %a" pretty_globinfo k (Pretty.d_list ", " pretty_globinfo) (List.of_seq v)); *)
-
-      (* since we've removed dead code and functions already, probably could just pass main as start for live search? *)
-      (* let live_globinfo =
-        find_live_globinfo'
-          (file.globals |> List.to_seq |> Seq.filter (function GFun _ -> true | _ -> false))
-          (refsVisitor#get_references_raw ())
-      in
-
-      file.globals <-
-        List.filter
-          (fun g -> match globinfo_of_global g with
-          | Some gi -> GlobinfoH.mem live_globinfo gi
-          | None -> true (* dependencies for some types of globals (e.g. assembly) are not tracked, always keep them *)
-          )
-        file.globals; *)
-
-      let dcrf = Stdlib.open_out "transformed.c" in
-      Cil.dumpFile Cil.defaultCilPrinter dcrf "" file;
-      Stdlib.close_out dcrf
-
-    end;
 
     let warn_global g v =
       (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
