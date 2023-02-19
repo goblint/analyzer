@@ -1451,12 +1451,16 @@ struct
       | x  -> x
     in
     (*expands right extremity*)
-    let widen_right x = List.rev x |>  (function
+    let widen_right x =
+      let map_rightmost = function
         | [] -> []
         | (None,(lb,rb))::ts -> let ut = if threshold then upper_threshold (rb,rb) else max_ik in (None, (lb,ut))::ts
         | (Some (la,ra), (lb,rb))::ts  when ra <. rb -> let ut = if threshold then upper_threshold (rb,rb) else max_ik in (Some (la,ra),(lb,ut))::ts
-        | x  -> x)|> List.rev
-    in interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd
+        | x  -> x
+      in
+      List.rev x |> map_rightmost |> List.rev
+    in
+    interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd
 
   let starting ?(suppress_ovwarn=false) ik n = norm_interval ik ~suppress_ovwarn (n, snd (range ik))
 
