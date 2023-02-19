@@ -1276,12 +1276,11 @@ struct
     binop x y interval_bitxor
 
   let bitnot ik x =
-    let bit1 f ik i1 =
-      match interval_to_int i1 with
-      | Some x -> of_int ik (f x) |> fst
+    let interval_bitnot i =
+      match interval_to_int i with
+      | Some x -> of_int ik (Ints_t.bitnot x) |> fst
       | _ -> top_of ik
     in
-    let interval_bitnot = bit1 Ints_t.bitnot ik in
     unop x interval_bitnot
 
   let shift_left ik x y =
