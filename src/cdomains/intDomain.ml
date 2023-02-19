@@ -1220,8 +1220,8 @@ struct
     | [], [] -> bot_of ik
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
-      let (max_x, min_y) = (maximal x |> Option.get , minimal y |> Option.get) in
-      let (min_x, max_y) = (minimal x |> Option.get , maximal y |> Option.get) in
+      let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
+      let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <=. min_y then
         of_bool ik true
       else if min_x >. max_y then
