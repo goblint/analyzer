@@ -1319,7 +1319,7 @@ struct
 
   let sub ?no_ov ik x y =
     let interval_sub ((x1, x2), (y1, y2)) = [(x1 -. y2, x2 -. y1)] in
-    binary_op_with_norm  ik x y interval_sub
+    binary_op_with_norm ik x y interval_sub
 
   let mul ?no_ov (ik: ikind) (x: t) (y: t) =
     let interval_mul ((x1, x2), (y1, y2)) =
