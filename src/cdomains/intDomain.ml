@@ -996,7 +996,6 @@ struct
 
   let unbox_event = function Enter x -> x | Exit x -> x
 
-
   let cmp_events x y =
     let res = Ints_t.compare (unbox_event x) (unbox_event y) in
     if res <> 0 then res
@@ -1076,7 +1075,7 @@ struct
   let equal_to i xs = match List.map (equal_to_interval i) xs with
     | [] -> failwith "unsupported: equal_to with bottom"
     | [`Eq] ->  `Eq
-    | ys -> if List.for_all (fun x -> x = `Neq) ys  then `Neq else `Top
+    | ys -> if List.for_all ((=) `Neq) ys then `Neq else `Top
 
   let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik (x,y) : t*bool*bool*bool =
     if Ints_t.compare x y > 0 then ([],false,false,cast)
@@ -1111,8 +1110,6 @@ struct
         ([(x,y)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
     end
 
-
-
   let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool*bool =
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map unlift res in
@@ -1124,7 +1121,7 @@ struct
     | [], _ -> ([],false,false,false)
     | _, [] -> ([],false,false,false)
     | _, _ -> let (res,underflow,overflow,cast) = norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y)
-      in (canonize res, underflow,overflow,cast)
+      in (canonize res, underflow, overflow, cast)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*bool*bool*bool = match x, y with
     | [], _ -> ([],false,false,false)
@@ -1169,8 +1166,8 @@ struct
   let top_bool = [(Ints_t.zero, Ints_t.one)]
 
   let not_bool (x:t) =
-    let is_false x = x = zero in
-    let is_true x = x = one in
+    let is_false x = equal x zero in
+    let is_true x = equal x one in
     if is_true x then zero else if is_false x then one else top_bool
 
   let to_bool = function
