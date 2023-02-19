@@ -973,7 +973,7 @@ struct
 
   (*
     Each domain's element is guaranteed to be in canonical form. That is, each interval contained
-    inside the set does not overlap with each other and they are not adjecent.
+    inside the set does not overlap with each other and they are not adjacent.
   *)
   type t = (Ints_t.t * Ints_t.t) list [@@deriving eq, hash, ord]
 
