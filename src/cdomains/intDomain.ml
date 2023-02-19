@@ -967,7 +967,7 @@ struct
 
   module Interval = IntervalFunctor(Ints_t)
 
-  let name () = "IntervalSets"
+  let name () = "interval_sets"
 
   type int_t = Ints_t.t
 
