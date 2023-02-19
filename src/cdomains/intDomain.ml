@@ -1072,7 +1072,7 @@ struct
 
   let maximal = function
     | [] -> None
-    | xs -> let max = BatList.last xs |> snd in Some max
+    | xs -> Some (BatList.last xs |> snd)
 
   let equal_to_interval i (a, b) =
     if a =. b && b =. i then
@@ -1085,15 +1085,17 @@ struct
   let equal_to i xs = match List.map (equal_to_interval i) xs with
     | [] -> failwith "unsupported: equal_to with bottom"
     | [`Eq] ->  `Eq
-    | ys -> if List.for_all ((=) `Neq) ys then `Neq else `Top
+    | ys when List.for_all ((=) `Neq) ys -> `Neq
+    | _ -> `Top
 
   let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik (x,y) : t*bool*bool*bool =
-    if x >. y then ([],false,false,cast)
-    else begin
+    if x >. y then
+      ([],false,false,cast)
+    else
       let (min_ik, max_ik) = range ik in
       let underflow = min_ik >. x in
       let overflow = max_ik <. y in
-      if underflow || overflow then
+      let v = if underflow || overflow then
         begin
           if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
             (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
@@ -1101,37 +1103,37 @@ struct
             let diff = Ints_t.abs (max_ik -. min_ik) in
             let resdiff = Ints_t.abs (y -. x) in
             if resdiff >. diff then
-              ([range ik], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+              [range ik]
             else
               let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
               let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
               if l <=. u then
-                ([(l, u)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+                [(l, u)]
               else
                 (* Interval that wraps around (begins to the right of its end). We CAN represent such intervals *)
-                ([(min_ik, u); (l, max_ik)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+                [(min_ik, u); (l, max_ik)]
           else if not cast && should_ignore_overflow ik then
             let tl, tu = range ik in
-            ([Ints_t.max tl x, Ints_t.min tu y], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+            [Ints_t.max tl x, Ints_t.min tu y]
           else
-            ([range ik], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
+            [range ik]
         end
       else
-        ([(x,y)], underflow && not suppress_ovwarn, overflow && not suppress_ovwarn, cast)
-    end
+        [(x,y)]
+      in
+      if suppress_ovwarn then (v, false, false, cast) else (v, underflow, overflow, cast)
 
   let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool*bool =
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map unlift res in
     let underflow = List.exists (fun (_,underflow,_,_) -> underflow) res in
     let overflow = List.exists (fun (_,_,overflow,_) -> overflow) res
-    in (intvs,underflow,overflow,cast)
+    in (canonize intvs,underflow,overflow,cast)
 
   let binary_op_with_norm  (ik:ikind) (x: t) (y: t) op : t*bool*bool*bool = match x, y with
     | [], _ -> ([],false,false,false)
     | _, [] -> ([],false,false,false)
-    | _, _ -> let (res,underflow,overflow,cast) = norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y)
-      in (canonize res, underflow, overflow, cast)
+    | _, _ -> norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*bool*bool*bool = match x, y with
     | [], _ -> ([],false,false,false)
@@ -1145,7 +1147,7 @@ struct
 
   let unary_op_with_norm (ik:ikind) (x: t) op = match x with
     | [] -> ([],false,false,false)
-    | _ -> let (res,underflow,overflow,cast) = norm_intvs ik @@ List.concat_map op x in (canonize res, underflow,overflow,cast)
+    | _ -> norm_intvs ik @@ List.concat_map op x
 
   let rec leq (xs: t) (ys: t) =
     let leq_interval (al, au) (bl, bu) = al >=. bl && au <=. bu in
@@ -1211,10 +1213,10 @@ struct
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get , minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get , maximal y |> Option.get) in
-      if max_x <= min_y then
+      if max_x <=. min_y then
         of_bool ik true
       else
-      if min_x > max_y then of_bool ik false else top_bool
+      if min_x >. max_y then of_bool ik false else top_bool
 
   let gt ik x y = not_bool @@ le ik x y
 
@@ -1353,7 +1355,7 @@ struct
     in
     binop x y interval_rem
 
-  let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x |> (function (intvs,underflow,overflow,cast) -> (canonize intvs, underflow,overflow,cast))
+  let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
 
   (*
       narrows down the extremeties of xs if they are equal to boundary values of the ikind with (possibly) narrower values from ys
@@ -1490,7 +1492,7 @@ struct
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t =
     let intv1 = (min, excl -. Ints_t.one) in
     let intv2 = (excl +. Ints_t.one, max) in
-    norm_intvs ik ~suppress_ovwarn:true [intv1 ; intv2] |> unlift |> canonize
+    norm_intvs ik ~suppress_ovwarn:true [intv1 ; intv2] |> unlift
 
   let of_excl_list ik (excls: int_t list) =
     let excl_list = List.map (excl_range_to_intervalset ik (range ik)) excls in
@@ -1515,7 +1517,7 @@ struct
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
     let list_pair_arb = QCheck.small_list pair_arb in
-    let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> unlift |> canonize) in
+    let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> unlift) in
     let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
 
