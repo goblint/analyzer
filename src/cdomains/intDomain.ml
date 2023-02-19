@@ -1002,7 +1002,7 @@ struct
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
 
   (* New type definition for the sweeping line algorithm used for implementing join/meet functions. *)
-  type 'a event = Enter of 'a | Exit of 'a
+  type event = Enter of Ints_t.t | Exit of Ints_t.t
 
   let unbox_event = function Enter x -> x | Exit x -> x
 
@@ -1027,7 +1027,7 @@ struct
 
   (* Using the sweeping line algorithm, combined_event_list returns a new event list representing the intervals in which at least n intervals in xs overlap
      This function is used for both join and meet operations with different parameter n: 1 for join, 2 for meet *)
-  let combined_event_list lattice_op (xs: int_t event list)  =
+  let combined_event_list lattice_op (xs:event list)  =
     let l = match lattice_op with `Join -> 1 | `Meet -> 2 in
     let aux (interval_count, acc) = function
       | Enter x -> (interval_count + 1, if (interval_count + 1) >= l && interval_count < l then (Enter x)::acc else acc)
