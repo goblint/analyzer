@@ -996,9 +996,6 @@ struct
 
   let unbox_event = function Enter x -> x | Exit x -> x
 
-  let _show_event = function
-    | Enter x -> Printf.sprintf "Enter %s" (Ints_t.to_string x)
-    | Exit x -> Printf.sprintf "Exit %s" (Ints_t.to_string x)
 
   let cmp_events x y =
     let res = Ints_t.compare (unbox_event x) (unbox_event y) in
