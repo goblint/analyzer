@@ -975,6 +975,14 @@
                 "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
+            },
+            "wrappers": {
+              "title": "ana.thread.wrappers",
+              "description":
+                "Loads a list of known thread spawn (pthread_create) wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
             }
           },
           "additionalProperties": false

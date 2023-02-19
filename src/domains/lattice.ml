@@ -598,7 +598,7 @@ struct
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
-module Chain (P: Printable.ChainParams) =
+module Chain (P: Printable.ChainParams) : S with type t = int =
 struct
   include Printable.Std
   include Printable.Chain (P)
