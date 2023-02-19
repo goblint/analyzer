@@ -981,6 +981,9 @@ struct
   let ( *.) a b = Ints_t.mul a b
   let (/.) a b = Ints_t.div a b
 
+  let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
+  let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
+
   (*
     Each domain's element is guaranteed to be in canonical form. That is, each interval contained
     inside the set does not overlap with each other and they are not adjacent.
@@ -1126,9 +1129,9 @@ struct
   let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*bool*bool*bool =
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map unlift res in
-    let underflow = List.exists (fun (_,underflow,_,_) -> underflow) res in
-    let overflow = List.exists (fun (_,_,overflow,_) -> overflow) res
-    in (canonize intvs,underflow,overflow,cast)
+    let underflow = List.exists Batteries.Tuple4.second res in
+    let overflow = List.exists Batteries.Tuple4.third res in
+    (canonize intvs,underflow,overflow,cast)
 
   let binary_op_with_norm  (ik:ikind) (x: t) (y: t) op : t*bool*bool*bool = match x, y with
     | [], _ -> ([],false,false,false)
@@ -1141,9 +1144,9 @@ struct
     | _, _ ->
       let res = List.map op (BatList.cartesian_product x y) in
       let intvs = List.concat_map unlift res in
-      let underflow = List.exists (fun (_,underflow,_,_) -> underflow) res in
-      let overflow = List.exists (fun (_,_,overflow,_) -> overflow) res
-      in (canonize intvs, underflow,overflow,false)
+      let underflow = List.exists Batteries.Tuple4.second res in
+      let overflow = List.exists Batteries.Tuple4.third res in
+      (canonize intvs, underflow,overflow,false)
 
   let unary_op_with_norm (ik:ikind) (x: t) op = match x with
     | [] -> ([],false,false,false)
@@ -1154,8 +1157,13 @@ struct
     match xs, ys with
     | [], _ -> true
     | _, [] -> false
-    | (xl,xr)::xs', (yl,yr)::ys' -> if leq_interval (xl,xr) (yl,yr) then
-        leq xs' ys else if xr <. yl then false else leq xs ys'
+    | (xl,xr)::xs', (yl,yr)::ys' ->
+      if leq_interval (xl,xr) (yl,yr) then
+        leq xs' ys
+      else if xr <. yl then
+        false
+      else
+        leq xs ys'
 
   let join ik (x: t) (y: t): t =
     two_interval_sets_to_events x y |>
@@ -1316,7 +1324,7 @@ struct
       let x1y2 = x1 *. y2 in
       let x2y1 = x2 *. y1 in
       let x2y2 = x2 *. y2 in
-      [((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)), (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))]
+      [(min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)]
     in
     binary_op_with_norm ik x y interval_mul
 
@@ -1337,8 +1345,7 @@ struct
         let x1y2p = x1 /. y2 in
         let x2y1p = x2 /. y1 in
         let x2y2p = x2 /. y2 in
-        [((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
-          (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))]
+        [(min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)]
     end
     in binary_op_with_norm ik x y interval_div
 
