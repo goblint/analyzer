@@ -1740,6 +1740,12 @@
           "type": "boolean",
           "default": false
         },
+        "cil_dead_glob": {
+          "title": "dbg.cil_dead_glob",
+          "description": "[TEMPORARY] use CIL to remove unreferenced globals in dead code transform",
+          "type": "boolean",
+          "default": true
+        },
         "verbose": {
           "title": "dbg.verbose",
           "description": "Prints some status information.",

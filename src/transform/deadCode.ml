@@ -1,5 +1,5 @@
 open GoblintCil
-
+open GobConfig
 
 (* let f = Printf.sprintf
 let pf fmt = Printf.ksprintf print_endline fmt
@@ -9,7 +9,7 @@ let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:m
 (* what to do about goto to removed statements? probably just check if the target of a goto should be removed, if so remove the goto? <- don't do that.
    but if the target is not live, the goto can't be live anyway *)
 
-(** Filter statements out of a block (recursively). *)
+(** Filter statements out of a block (recursively). CFG fields (prev, next, etc.) are rendered invalid after calling. *)
 let filter_map_block f (block : Cil.block) : bool =
   (* blocks and statements: modify in place, then return true if should be kept *)
   let rec impl_block block =
@@ -20,17 +20,22 @@ let filter_map_block f (block : Cil.block) : bool =
     else
       let skind', keep =
       (* TODO: if sk is not changed in the end, simplify here *)
-        match stmt.skind with
+        match (stmt.skind : stmtkind) with
         | If (_, b1, b2, _, _) as sk ->
           (* be careful to not short-circuit, since call to impl_block b2 is always needed for side-effects *)
           sk, let keep_b1, keep_b2 = impl_block b1, impl_block b2 in keep_b1 || keep_b2
-        | Switch (e, b, stmts, l1, l2) ->
-          (* TODO: why a block and a statement list in a Switch? *)
-          let keep_b = impl_block b in
+        | Switch _ -> failwith "switch statements must be removed"
+          (* handling switch statements correctly would be very difficult; consider that the switch
+          labels may be located within arbitrarily nested statements within the switch statement's block
+          TODO: are switch statements always removed by goblint/CIL? *)
+          (* TODO: block and stmt list in Switch: each stmt in list points to the first statement for a case, filtering twice seems silly, and is probably not even correct!
+          Instead, we should filter the block, and then pick out the stmt for each case. *)
+        (* | Switch (e, b, stmts, l1, l2) -> *)
+          (* let keep_b = impl_block b in
           let stmts' = List.filter impl_stmt stmts in
-          Switch (e, b, stmts', l1, l2), keep_b || stmts' <> []
+          Switch (e, b, stmts', l1, l2), keep_b || stmts' <> [] *)
         | Loop (b, _, _, _, _) as sk ->
-          sk, impl_block b (* TODO: remove the stmt options in sk? since they point to possibly removed statements *)
+          sk, impl_block b
         | Block b as sk ->
           sk, impl_block b
         | sk -> sk, true
@@ -161,32 +166,50 @@ module RemoveDeadCode (A : DeadCodeArgs) : Transform.S = struct
         pf "keep=%b" keep; *) (* TODO: use keep? discard function if keep is false. should not be necessary, function should be dead already *)
       | _ -> ());
 
-    (* step 2: remove function globals found to be dead *)
-    file.globals <-
-      List.filter
-        (function
-        | GFun (fd, l) -> A.fundec_live fd l
-        | _ -> true)
-        file.globals;
-
-    (* step 3: track dependencies between globals *)
-    let refsVisitor = new globalReferenceTrackerVisitor in
-    Cil.visitCilFileSameGlobals (refsVisitor :> Cil.cilVisitor) file;
-
-    (* step 4: find globals referenced by remaining (live) functions and remove them *)
-    let live_globinfo =
-      find_live_globinfo'
-        (file.globals |> List.to_seq |> Seq.filter (function GFun _ -> true | _ -> false))
-        (refsVisitor#get_references_raw ())
+    let global_live ~non_functions_live = function
+      | GFun (fd, l) -> A.fundec_live fd l
+      | _ -> non_functions_live
     in
-    file.globals <-
-      List.filter
-        (fun g -> match globinfo_of_global g with
-        | Some gi -> GlobinfoH.mem live_globinfo gi
-        | None -> true (* dependencies for some types of globals (e.g. assembly) are not tracked, always keep them *)
-        )
-      file.globals
 
+    if get_bool "dbg.cil_dead_glob" then (
+      let open GoblintCil.Rmtmps in
+      (* dpf "using cil to remove dead globals, keepUnused=%b" !keepUnused; *)
+      let keepUnused0 = !keepUnused in
+      Fun.protect ~finally:(fun () -> keepUnused := keepUnused0) (fun () ->
+        keepUnused := false;
+        removeUnusedTemps (* ~isRoot:isCompleteProgramRoot *) ~isRoot:(global_live ~non_functions_live:false) file
+      )
+      (* let open GoblintCil in
+      let open Rmtmps in
+      Rmtmps.clearReferencedBits file;
+      Cfg.cfgFun |> ignore *)
+      (* GoblintCil.Cfg.clearFileCFG file;
+      GoblintCil.Cfg.clearCFGinfo *)
+    )
+    else (
+      print_endline "using custom code to remove dead globals";
+
+      (* step 2: remove function globals found to be dead *)
+      file.globals <- List.filter (global_live ~non_functions_live:true) file.globals;
+
+      (* step 3: track dependencies between globals *)
+      let refsVisitor = new globalReferenceTrackerVisitor in
+      Cil.visitCilFileSameGlobals (refsVisitor :> Cil.cilVisitor) file;
+
+      (* step 4: find globals referenced by remaining (live) functions and remove them *)
+      let live_globinfo =
+        find_live_globinfo'
+          (file.globals |> List.to_seq |> Seq.filter (function GFun _ -> true | _ -> false))
+          (refsVisitor#get_references_raw ())
+      in
+      file.globals <-
+        List.filter
+          (fun g -> match globinfo_of_global g with
+          | Some gi -> GlobinfoH.mem live_globinfo gi
+          | None -> true (* dependencies for some types of globals (e.g. assembly) are not tracked, always keep them *)
+          )
+        file.globals
+    )
   let requires_file_output = true
 
 end
