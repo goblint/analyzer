@@ -991,7 +991,7 @@ struct
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
 
-  (* New type definition for the sweeping line algorithm used for implementiong join/meet functions. *)
+  (* New type definition for the sweeping line algorithm used for implementing join/meet functions. *)
   type 'a event = Enter of 'a | Exit of 'a
 
   let unbox_event = function Enter x -> x | Exit x -> x
@@ -1424,13 +1424,13 @@ struct
       | x::y::xs  when partitions_are_approaching x y -> merge_list ik ((merge_pair ik x y) @ xs)
       | x::xs -> x :: merge_list ik xs
     in
-    (*expands left extremety*)
+    (*expands left extremity*)
     let widen_left = function
       | [] -> []
       | (None,(lb,rb))::ts -> let lt = if threshold then lower_threshold (lb,lb) else min_ik in (None, (lt,rb))::ts
       | (Some (la,ra), (lb,rb))::ts  when Ints_t.compare lb la < 0 ->  let lt = if threshold then lower_threshold (lb,lb) else min_ik in (Some (la,ra),(lt,rb))::ts    | x  -> x
     in
-    (*expands right extremety*)
+    (*expands right extremity*)
     let widen_right x = List.rev x |>  (function
         | [] -> []
         | (None,(lb,rb))::ts -> let ut = if threshold then upper_threshold (rb,rb) else max_ik in (None, (lb,ut))::ts

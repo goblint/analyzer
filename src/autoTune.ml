@@ -172,7 +172,7 @@ let focusOnSpecification () =
   match Svcomp.Specification.of_option () with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
     List.iter enableAnalysis notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
