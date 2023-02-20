@@ -45,6 +45,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
+    ("system", unknown [drop "command" [r]]);
+    ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
+    ("abs", unknown [drop "j" []]);
   ]
 
 (** C POSIX library functions.
@@ -90,6 +93,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gethostbyaddr", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
+    ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [r_deep]]);
+    ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [w_deep]]);
+    ("access", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("ttyname", unknown [drop "fd" []]);
+    ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
   ]
 
 (** Pthread functions. *)
@@ -180,6 +188,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]);
+    ("__ctype_tolower_loc", unknown []);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -329,6 +338,30 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+  ]
+
+let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("echo", unknown []);
+    ("noecho", unknown []);
+    ("wattrset", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []]);
+    ("endwin", unknown []);
+    ("wgetch", unknown [drop "win" [r_deep; w_deep]]);
+    ("wmove", unknown [drop "win" [r_deep; w_deep]; drop "y" []; drop "x" []]);
+    ("waddch", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+    ("waddnwstr", unknown [drop "win" [r_deep; w_deep]; drop "wstr" [r]; drop "n" []]);
+    ("wattr_on", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []; drop "opts" []]); (* opts argument currently not used *)
+    ("wrefresh", unknown [drop "win" [r_deep; w_deep]]);
+    ("mvprintw", unknown (drop "win" [r_deep; w_deep] :: drop "y" [] :: drop "x" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("initscr", unknown []);
+    ("curs_set", unknown [drop "visibility" []]);
+    ("wtimeout", unknown [drop "win" [r_deep; w_deep]; drop "delay" []]);
+    ("start_color", unknown []);
+    ("use_default_colors", unknown []);
+    ("wclear", unknown [drop "win" [r_deep; w_deep]]);
+    ("can_change_color", unknown []);
+    ("init_color", unknown [drop "color" []; drop "red" []; drop "green" []; drop "blue" []]);
+    ("init_pair", unknown [drop "pair" []; drop "f" [r]; drop "b" [r]]);
+    ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
   ]
 
 (* TODO: allow selecting which lists to use *)
