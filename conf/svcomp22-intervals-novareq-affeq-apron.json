@@ -17,12 +17,15 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
       "apron",
       "symb_locks",
       "region",
-      "thread"
+      "thread",
+      "mhp",
+      "assert"
     ],
     "context": {
       "widen": false
