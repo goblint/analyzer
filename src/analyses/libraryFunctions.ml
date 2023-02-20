@@ -101,6 +101,12 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
     ("sched_get_priority_max", unknown [drop "policy" []]);
     ("mprotect", unknown [drop "addr" []; drop "len" []; drop "prot" []]);
+    ("ftime", unknown [drop "tp" [w]]);
+    ("timer_create", unknown [drop "clockid" []; drop "sevp" [r; w; s]; drop "timerid" [w]]);
+    ("timer_settime", unknown [drop "timerid" []; drop "flags" []; drop "new_value" [r_deep]; drop "old_value" [w_deep]]);
+    ("timer_gettime", unknown [drop "timerid" []; drop "curr_value" [w_deep]]);
+    ("timer_getoverrun", unknown [drop "timerid" []]);
+    ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
   ]
 
 (** Pthread functions. *)
@@ -119,6 +125,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
     ("pthread_detach", unknown [drop "thread" []]);
     ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
+    ("pthread_condattr_init", unknown [drop "attr" [w]]);
+    ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
   ]
 
 (** GCC builtin functions.
