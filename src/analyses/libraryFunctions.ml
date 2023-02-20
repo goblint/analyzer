@@ -100,6 +100,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ttyname", unknown [drop "fd" []]);
     ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
     ("sched_get_priority_max", unknown [drop "policy" []]);
+    ("mprotect", unknown [drop "addr" []; drop "len" []; drop "prot" []]);
   ]
 
 (** Pthread functions. *)
