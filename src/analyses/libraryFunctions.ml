@@ -48,6 +48,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("system", unknown [drop "command" [r]]);
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
     ("abs", unknown [drop "j" []]);
+    ("localtime_r", unknown [drop "timep" [r]]);
   ]
 
 (** C POSIX library functions.
@@ -98,6 +99,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("access", unknown [drop "pathname" [r]; drop "mode" []]);
     ("ttyname", unknown [drop "fd" []]);
     ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
+    ("sched_get_priority_max", unknown [drop "policy" []]);
   ]
 
 (** Pthread functions. *)
@@ -115,6 +117,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_cancel", unknown [drop "thread" []]);
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
     ("pthread_detach", unknown [drop "thread" []]);
+    ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
   ]
 
 (** GCC builtin functions.
