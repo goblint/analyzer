@@ -50,7 +50,7 @@ in
   let tmp_sigma_global,otherValues = eval result_node.sigma custom_glob_vinfo edgeExp graph result_node
 in 
 let tmp = SigmaMap.find custom_glob_vinfo tmp_sigma_global
-in print_string ("eval_global evaluated to "^(show_valuedomain tmp)^"\n");
+in print_string ("eval_global evaluated to "^(show_varDomain tmp)^"\n");
 (tmp ,true,SigmaMap.empty, otherValues))
   | _ -> Printf.printf "Assignment to global variable was not found\n"; exit 0 )
 
@@ -259,7 +259,7 @@ in iter_otherValues ((var,vd)::doneValues) newWorkList (if (List.exists (fun sig
   let (sigNew,otherValues), success = eval_catch_exceptions sigOld vinfo rval graph node 
 in 
 print_string ("in eval_wrapper we get otherValues={"
-^(List.fold (fun s (vinfo_fold, varDom_fold) -> s^";("^(CilType.Varinfo.show vinfo_fold)^","^(show_valuedomain varDom_fold)^")") "" otherValues)^"}\n");
+^(List.fold (fun s (vinfo_fold, varDom_fold) -> s^";("^(CilType.Varinfo.show vinfo_fold)^","^(show_varDomain varDom_fold)^")") "" otherValues)^"}\n");
 let allSigmas = iter_otherValues [] otherValues [sigNew]
 in
 print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n"^(NodeImpl.show_sigma sigma_fold)) "" allSigmas)^"\n");
@@ -521,6 +521,7 @@ List.fold (fun graphList tidSigma ->
   let tidJoin = 
     match SigmaMap.find special_varinfo tidSigma with
     Int(l,u,_) -> if l = u then Big_int_Z.int_of_big_int l (* TODO iterate over interval or pick a few values *) else (Printf.printf "Intervals for pthread_join is not supported in special\n"; exit 0)
+    | ThreadID(tid_find) -> tid_find
     | _ -> Printf.printf "Error: wrong type of argument of pthread_join in special\n"; exit 0
 in
 if LocalTraces.exists_TID tidJoin graph then (
@@ -763,7 +764,7 @@ in result
   | Some(Mem(CastE(TPtr(TNamed(tInfo, tAttr), ptrAttr), AddrOf(Var(lvalVinfo),_))), offset) -> (
     if String.equal tInfo.tname "pthread_t" 
       then (print_string ("input in threadspawn is pthread_t\n");
-    let result_sigma = SigmaMap.add lvalVinfo (Int(Big_int_Z.big_int_of_int id, Big_int_Z.big_int_of_int id, IInt)) sigma
+    let result_sigma = SigmaMap.add lvalVinfo (ThreadID(id)) sigma
     in 
     {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result_sigma tid);tid=tid}  
     )

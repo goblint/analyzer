@@ -19,8 +19,10 @@ void *f(void *arg) {
 
 int main() {
   int z = 0;
-  pthread_create(NULL, NULL, &f, NULL);
   pthread_t id_thread;
-  pthread_join(id_thread, NULL);
+  pthread_t id_thread2;
+  pthread_create(&id_thread, NULL, &f, NULL);
+
+  pthread_join(id_thread2, NULL);
   return 0;
 }

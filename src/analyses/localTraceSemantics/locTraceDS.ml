@@ -21,7 +21,8 @@ module SigmaMap = Map.Make(VarinfoImpl)
    The supported types are: Integer and Address of a variable *)
 type varDomain = 
   Int of Cilint.cilint * Cilint.cilint * ikind
-| Address of varinfo   
+| Address of varinfo  
+| ThreadID of int 
 | Error 
 (* [@@deriving hash] *) (* Erwartet hash-Funktionen von den Untertypen *)
 
@@ -38,17 +39,20 @@ let equal_varDomain vd1 vd2 =
   && (CilType.Ikind.equal ik1 ik2)
   | Address(vinfo1), Address(vinfo2) -> CilType.Varinfo.equal vinfo1 vinfo2
   | Error, Error -> true
+  | ThreadID(tid1), ThreadID(tid2) -> tid1 = tid2
   | _ -> false
 
-  let show_valuedomain vd =
+  let show_varDomain vd =
     match vd with Int(iLower, iUpper, ik) -> "Integer of ["^(Big_int_Z.string_of_big_int iLower)^";"^(Big_int_Z.string_of_big_int iUpper)^"] with ikind: "^(CilType.Ikind.show ik)
     | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
+    | ThreadID(tid) -> "ThreadID of "^(string_of_int tid)
     | Error -> "ERROR"
 
     (* I need a better hash function for intervals!! *)
-let hash_valuedomain vd =
+let hash_varDomain vd =
   match vd with Int(iLower, iUpper, ik) -> Big_int_Z.int_of_big_int (Big_int_Z.add_big_int iLower iUpper)
   | Address(vinfo) -> CilType.Varinfo.hash vinfo
+  | ThreadID(tid) -> tid
   | Error -> 13
 
 (* Pure node type *)
@@ -64,7 +68,7 @@ module NodeImpl =
 struct 
 type t = node
 
-let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")
+let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")
 
 
 let equal_sigma s1 s2 = 
@@ -74,12 +78,12 @@ let equal_sigma s1 s2 =
     SigmaMap.fold (fun vinfo varDom b -> b && (if SigmaMap.mem vinfo s2 then equal_varDomain (SigmaMap.find vinfo s2) varDom else false)) s1 true
 
   let show n = 
-    match n with {programPoint=p;sigma=s;id=id;tid=tid} -> "node:{programPoint="^(Node.show p)^"; id="^(string_of_int id)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_valuedomain vd)^";") s "")^"]; tid="^(string_of_int tid)^"}"
+    match n with {programPoint=p;sigma=s;id=id;tid=tid} -> "node:{programPoint="^(Node.show p)^"; id="^(string_of_int id)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")^"]; tid="^(string_of_int tid)^"}"
 
 let compare n1 n2 = match (n1, n2) with 
 ({programPoint=p1;sigma=s1;id=id1;tid=tid1},{programPoint=p2;sigma=s2;id=id2;tid=tid2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2) then Node.compare p1 p2 else -13 
 
-let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_valuedomain vd) + i) s 0)
+let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_varDomain vd) + i) s 0)
 
 let intersect_sigma sigma1 sigma2 =
   SigmaMap.fold (fun vinfo varDom sigAcc -> if SigmaMap.mem vinfo sigma2 = false then sigAcc else if equal_varDomain varDom (SigmaMap.find vinfo sigma2) then SigmaMap.add vinfo varDom sigAcc else sigAcc) sigma1 SigmaMap.empty
