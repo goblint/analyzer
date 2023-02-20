@@ -109,6 +109,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("timer_gettime", unknown [drop "timerid" []; drop "curr_value" [w_deep]]);
     ("timer_getoverrun", unknown [drop "timerid" []]);
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("getpwnam", unknown [drop "name" [r]]);
+    ("strndup", unknown [drop "s" [r]; drop "n" []]);
+    ("freeaddrinfo", unknown [drop "res" [f_deep]]);
+    ("getgid", unknown []);
   ]
 
 (** Pthread functions. *)
@@ -201,6 +205,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svcerr_systemerr", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svc_sendreply", unknown [drop "xprt" [r_deep; w_deep]; drop "outproc" [s]; drop "out" [r]]);
     ("shutdown", unknown [drop "socket" []; drop "how" []]);
+    ("getaddrinfo_a", unknown [drop "mode" []; drop "list" [w_deep]; drop "nitems" []; drop "sevp" [r; w; s]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
