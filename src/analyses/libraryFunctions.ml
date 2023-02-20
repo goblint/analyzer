@@ -49,6 +49,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]]);
+    ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
+    ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
   ]
 
 (** C POSIX library functions.
@@ -169,6 +171,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
     ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
     ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -197,11 +200,15 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svcerr_decode", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svcerr_systemerr", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svc_sendreply", unknown [drop "xprt" [r_deep; w_deep]; drop "outproc" [s]; drop "out" [r]]);
+    ("shutdown", unknown [drop "socket" []; drop "how" []]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]);
     ("__ctype_tolower_loc", unknown []);
+    ("epoll_create", unknown [drop "size" []]);
+    ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
+    ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
