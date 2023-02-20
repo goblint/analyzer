@@ -403,6 +403,7 @@ let library_descs = Hashtbl.of_list (List.concat [
     zstd_descs_list;
     math_descs_list;
     svcomp_descs_list;
+    ncurses_descs_list;
   ])
 
 
