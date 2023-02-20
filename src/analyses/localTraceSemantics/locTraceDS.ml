@@ -351,7 +351,7 @@ if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
     in loop allNodes
 
     (* In this function I assume, that traces do not contain circles *)
-let find_creating_node last_node graph creatorTID =
+let find_creating_node last_node graph  =
   print_string ("find_creating_node was invoked with last_node="^(NodeImpl.show last_node)^",\ngraph="^(show graph)^"\n");
   let lastNodeTid = last_node.tid
 in
@@ -365,7 +365,7 @@ let workQueue = Queue.create ()
     match edges with
     (precedingNode, (edgeLabel:edge),_)::xs ->
       (match edgeLabel with (Proc(_, Lval(Var(v),_), _)) -> (
-        if (precedingNode.tid = creatorTID)&&(current_node.tid = lastNodeTid) then Some(precedingNode)
+        if (precedingNode.tid != lastNodeTid)&&(current_node.tid = lastNodeTid)&&(String.equal v.vname "pthread_create") then Some(precedingNode)
       else inner_loop xs)
         | _ ->  inner_loop xs )
       | [] -> None
@@ -471,6 +471,41 @@ module ThreadIDLocTrace = struct
   let compare tid1 tid2 = tid1 - tid2
 
   let show tid = string_of_int tid
+
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
+
+    let name () = "threadID"
+
+    let tag tid = failwith ("tag")
+
+    let arbitrary tid = failwith ("no arbitrary")
+
+    let relift tid = failwith ("no relift")
+end
+
+module SideEffectDomain = struct
+  type t = ThreadID of int | Mutex of varinfo
+  let is_write_only _ = false
+
+  let equal (t1:t) (t2:t) = 
+    match t1, t2 with ThreadID(tid1), ThreadID(tid2) -> tid1 = tid2
+    | Mutex(m1), Mutex(m2) -> CilType.Varinfo.equal m1 m2
+    | _ -> false
+
+  let hash t = match t with ThreadID(tid) -> tid
+  | Mutex(m) -> CilType.Varinfo.hash m
+
+  (* Mutex has a higher value then thread ID *)
+  let compare t1 t2 = match t1, t2 with ThreadID(tid1), ThreadID(tid2) -> tid1 - tid2
+  | Mutex(m1), Mutex(m2) -> CilType.Varinfo.compare m1 m2
+  | ThreadID(tid), Mutex(m) -> let tmp = (hash (ThreadID tid)) - (hash (Mutex m)) in if tmp < 0 then tmp else -1000
+  | Mutex(m), ThreadID(tid) -> let tmp = (hash (Mutex m)) - (hash (ThreadID tid)) in if tmp > 0 then tmp else 1000
+
+  let show t = match t with ThreadID(tid) -> "ThreadID of"^(string_of_int tid)
+  | Mutex(m) -> "Mutex of "^(CilType.Varinfo.show m) 
 
   include Printable.SimpleShow (struct
       type nonrec t = t

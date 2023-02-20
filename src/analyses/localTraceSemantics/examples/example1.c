@@ -1,8 +1,29 @@
-// PARAM: --set ana.activated[+] "localTraces"
+// PARAM: --set ana.activated[-] thread
+#include <goblint.h>
+#include <pthread.h>
+#include <stdio.h>
 
-int global = 5;
+int counter;
+pthread_mutex_t lock;
+
+void *f(void *arg) {
+  pthread_mutex_lock(&lock);
+  counter = 7;
+  pthread_mutex_unlock(&lock);
+}
+
+void *g(void *arg) {
+  pthread_mutex_lock(&lock);
+  counter = -12;
+  pthread_mutex_unlock(&lock);
+}
 
 void main() {
-  int x = 7;
-  x = (2 - global) + x;
+  pthread_t id_threadF;
+  pthread_create(&id_threadF, NULL, &f, NULL);
+
+  pthread_t id_threadG;
+  pthread_create(&id_threadG, NULL, &g, NULL);
+
+  pthread_mutex_destroy(&lock);
 }
