@@ -44,6 +44,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
+    ("difftime", unknown [drop "time1" []; drop "time2" []]);
   ]
 
 (** C POSIX library functions.
@@ -88,6 +89,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
     ("gethostbyaddr", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
+    ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
   ]
 
 (** Pthread functions. *)
@@ -104,6 +106,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_key_delete", unknown [drop "key" [f]]);
     ("pthread_cancel", unknown [drop "thread" []]);
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
+    ("pthread_detach", unknown [drop "thread" []]);
   ]
 
 (** GCC builtin functions.
@@ -173,6 +176,10 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svcerr_decode", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svcerr_systemerr", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svc_sendreply", unknown [drop "xprt" [r_deep; w_deep]; drop "outproc" [s]; drop "out" [r]]);
+  ]
+
+let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -331,6 +338,7 @@ let library_descs = Hashtbl.of_list (List.concat [
     pthread_descs_list;
     gcc_descs_list;
     glibc_desc_list;
+    linux_userspace_descs_list;
     linux_descs_list;
     goblint_descs_list;
     zstd_descs_list;
