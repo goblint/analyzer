@@ -48,7 +48,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("system", unknown [drop "command" [r]]);
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
     ("abs", unknown [drop "j" []]);
-    ("localtime_r", unknown [drop "timep" [r]]);
+    ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
     ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
   ]
