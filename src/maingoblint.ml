@@ -519,9 +519,8 @@ let do_gobview cilfile =
           | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
         Hashtbl.add file_loc (Fpath.to_string p) gobview_path;
         BatFile.write_lines name (BatFile.lines_of (Fpath.to_string p)) in
-      let paths = Cil.foldGlobals cilfile (
-          fun acc g -> match g with GFun (_,loc) -> if not (List.mem loc.file acc) then loc.file :: acc else acc | _ -> acc) [] in
-      List.iter copy_rem (List.map Fpath.v paths);
+      let paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
+      List.iter copy_rem paths;
       Serialize.marshal file_loc (Fpath.(Fpath.v run_dir / "file_loc.marshalled"));
       (* marshal timing statistics *)
       let stats = Fpath.(Fpath.v run_dir / "stats.marshalled") in
