@@ -80,7 +80,7 @@ struct
           let accs = G.access (ctx.global g) in
           let (lv, ty) = g' in
           let mem_loc_str = Pretty.sprint ~width:max_int (Access.d_memo () (ty, lv)) in
-          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe g') accs
+          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (AccessPostProc.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)
           ()
       end
