@@ -124,6 +124,12 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setpgid", unknown [drop "pid" []; drop "pgid" []]);
     ("dup2", unknown [drop "oldfd" []; drop "newfd" []]);
     ("pclose", unknown [drop "stream" [w; f]]);
+    ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
+    ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
+    ("gethostent", unknown []);
+    ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
   ]
 
 (** Pthread functions. *)
@@ -220,6 +226,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("shutdown", unknown [drop "socket" []; drop "how" []]);
     ("getaddrinfo_a", unknown [drop "mode" []; drop "list" [w_deep]; drop "nitems" []; drop "sevp" [r; w; s]]);
     ("__uflow", unknown [drop "file" [r; w]]);
+    ("getservbyname_r", unknown [drop "name" [r]; drop "proto" [r]; drop "result_buf" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
