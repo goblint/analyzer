@@ -373,12 +373,20 @@ let () =
     let process (params: params) serv =
       let node = match params.node, params.location with
         | Some node_id, None ->
-          Node.of_id node_id
+          begin try
+              Node.of_id node_id
+            with Not_found ->
+              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          end
         | None, Some location ->
-          Locator.find_opt (ResettableLazy.force node_locator) location
-          |> Option.get
-          |> Locator.ES.choose
-        | _, _ -> invalid_arg "cfg/lookup requires node xor location"
+          let node_opt =
+            let open GobOption.Syntax in
+            let* nodes = Locator.find_opt (ResettableLazy.force node_locator) location in
+            Locator.ES.choose_opt nodes
+          in
+          Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+        | _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
       in
       let node_id = Node.show_id node in
       let location = Node.location node in
