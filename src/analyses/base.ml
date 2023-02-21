@@ -351,8 +351,8 @@ struct
             match AD.Addr.semantic_equal ax ay with
             | Some true ->
               handle_address_is_multiple ax
-            | eq ->
-              eq
+            | Some false -> Some false
+            | None -> None
           else
             None
         in
