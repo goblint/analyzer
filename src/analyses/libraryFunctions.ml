@@ -117,6 +117,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
     ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("getnameinfo", unknown [drop "addr" [r_deep]; drop "addrlen" []; drop "host" [w]; drop "hostlen" []; drop "serv" [w]; drop "servlen" []; drop "flags" []]);
+    ("strtok_r", unknown [drop "str" [r; w]; drop "delim" [r]; drop "saveptr" [w]]);
+    ("kill", unknown [drop "pid" []; drop "sig" []]);
+    ("closelog", unknown []);
+    ("dirname", unknown [drop "path" [r]]);
+    ("setpgid", unknown [drop "pid" []; drop "pgid" []]);
+    ("dup2", unknown [drop "oldfd" []; drop "newfd" []]);
+    ("pclose", unknown [drop "stream" [w; f]]);
   ]
 
 (** Pthread functions. *)
@@ -223,6 +230,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("epoll_create", unknown [drop "size" []]);
     ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
     ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
+    ("sysinfo", unknown [drop "info" [w_deep]]);
+    ("__xpg_basename", unknown [drop "path" [r]]);
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
