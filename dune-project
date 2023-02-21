@@ -37,6 +37,7 @@
     (odoc :with-doc)
     fpath
     dune-site
+    dune-build-info
     json-data-encoding
     (jsonrpc (>= 1.12))
     (sha (>= 1.12))
