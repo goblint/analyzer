@@ -134,6 +134,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_condattr_init", unknown [drop "attr" [w]]);
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
+    ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
   ]
 
 (** GCC builtin functions.
