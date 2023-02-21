@@ -210,6 +210,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svc_sendreply", unknown [drop "xprt" [r_deep; w_deep]; drop "outproc" [s]; drop "out" [r]]);
     ("shutdown", unknown [drop "socket" []; drop "how" []]);
     ("getaddrinfo_a", unknown [drop "mode" []; drop "list" [w_deep]; drop "nitems" []; drop "sevp" [r; w; s]]);
+    ("__uflow", unknown [drop "file" [r; w]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
