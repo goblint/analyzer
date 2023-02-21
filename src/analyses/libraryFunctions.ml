@@ -51,6 +51,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
     ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
+    ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
   ]
 
 (** C POSIX library functions.
@@ -113,6 +114,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strndup", unknown [drop "s" [r]; drop "n" []]);
     ("freeaddrinfo", unknown [drop "res" [f_deep]]);
     ("getgid", unknown []);
+    ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
   ]
 
 (** Pthread functions. *)
@@ -214,6 +216,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     (* ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]); *)
     ("prctl", unknown (drop "option" [] :: VarArgs (drop' []))); (* man page has 5 arguments, but header has varargs and real-world programs may call with <5 *)
     ("__ctype_tolower_loc", unknown []);
+    ("__ctype_toupper_loc", unknown []);
     ("epoll_create", unknown [drop "size" []]);
     ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
     ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
