@@ -16,6 +16,7 @@ let compare vinfo1 vinfo2 =
 end
 
 module SigmaMap = Map.Make(VarinfoImpl)
+module LockSet = Set.Make(CilType.Varinfo)
 
 (* Value domain for variables contained in sigma mapping.
    The supported types are: Integer and Address of a variable *)
@@ -61,6 +62,7 @@ type node = {
   programPoint : MyCFG.node;
   sigma : varDomain SigmaMap.t;
   tid:int;
+  lockSet: LockSet.t;
 }
 
 (* Module wrap for node implementing necessary functions for ocamlgraph *)
@@ -70,6 +72,7 @@ type t = node
 
 let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")
 
+let show_lockSet ls = LockSet.fold (fun mutex s_fold -> (CilType.Varinfo.show mutex)^"; "^s_fold) ls ""
 
 let equal_sigma s1 s2 = 
   if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true 
@@ -78,12 +81,15 @@ let equal_sigma s1 s2 =
     SigmaMap.fold (fun vinfo varDom b -> b && (if SigmaMap.mem vinfo s2 then equal_varDomain (SigmaMap.find vinfo s2) varDom else false)) s1 true
 
   let show n = 
-    match n with {programPoint=p;sigma=s;id=id;tid=tid} -> "node:{programPoint="^(Node.show p)^"; id="^(string_of_int id)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")^"]; tid="^(string_of_int tid)^"}"
+    match n with {programPoint=p;sigma=s;id=id;tid=tid;lockSet=lockSet} -> "node:{programPoint="^(Node.show p)^"; id="^(string_of_int id)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")^"]; 
+    tid="^(string_of_int tid)^"; lockSet=["^(show_lockSet lockSet)^"]}"
 
 let compare n1 n2 = match (n1, n2) with 
-({programPoint=p1;sigma=s1;id=id1;tid=tid1},{programPoint=p2;sigma=s2;id=id2;tid=tid2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2) then Node.compare p1 p2 else -13 
+({programPoint=p1;sigma=s1;id=id1;tid=tid1;lockSet=ls1},{programPoint=p2;sigma=s2;id=id2;tid=tid2;lockSet=ls2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2)&&(LockSet.equal ls1 ls2) then Node.compare p1 p2 else -13 
 
 let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_varDomain vd) + i) s 0)
+
+let hash_lockSet ls = LockSet.fold (fun mutex acc -> acc+(CilType.Varinfo.hash mutex)) ls 0
 
 let intersect_sigma sigma1 sigma2 =
   SigmaMap.fold (fun vinfo varDom sigAcc -> if SigmaMap.mem vinfo sigma2 = false then sigAcc else if equal_varDomain varDom (SigmaMap.find vinfo sigma2) then SigmaMap.add vinfo varDom sigAcc else sigAcc) sigma1 SigmaMap.empty
@@ -91,7 +97,7 @@ let intersect_sigma sigma1 sigma2 =
 let destruct_add_sigma sigma1 sigma2 = if SigmaMap.is_empty sigma1 then sigma2 else
   SigmaMap.fold (fun vinfo varDom sigAcc -> SigmaMap.add vinfo varDom sigAcc) sigma2 sigma1
 
-let hash {programPoint=n;sigma=s;id=id;tid=tid} = Node.hash n + hash_sigma s + id + tid
+let hash {programPoint=n;sigma=s;id=id;tid=tid;lockSet=ls} = Node.hash n + hash_sigma s + id + tid + hash_lockSet ls
 
   let equal n1 n2 = (compare n1 n2) = 0
 end
@@ -197,10 +203,10 @@ LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1;_} l ->
   let get_nodes programPoint sigma graph =
 let all_nodes = get_all_nodes graph
   in 
-  let tmp = List.fold (fun acc {programPoint=p1;sigma=s1;id=i1;tid=tid1} -> if (Node.equal programPoint p1)&&(NodeImpl.equal_sigma sigma s1) then ({programPoint=p1;sigma=s1;id=i1;tid=tid1})::acc else acc ) [] all_nodes 
+  let tmp = List.fold (fun acc {programPoint=p1;sigma=s1;id=i1;tid=tid1;lockSet=ls1} -> if (Node.equal programPoint p1)&&(NodeImpl.equal_sigma sigma s1) then ({programPoint=p1;sigma=s1;id=i1;tid=tid1;lockSet=ls1})::acc else acc ) [] all_nodes 
 in
 if Node.equal programPoint MyCFG.dummy_node then (* then I want to have the 'latest' dummy node *)
-  [(List.fold (fun {id=id_acc;programPoint=progP_acc;sigma=s_acc;tid=tid_acc} {id=id_fold;programPoint=progP_fold;sigma=s_fold;tid=tid_fold} -> if id_acc > id_fold then {id=id_acc;programPoint=progP_acc;sigma=s_acc;tid=tid_acc} else {id=id_fold;programPoint=progP_fold;sigma=s_fold;tid=tid_fold} ) {programPoint=programPoint;sigma=sigma;id=(-1);tid=(-1)} tmp)] else tmp
+  [(List.fold (fun {id=id_acc;programPoint=progP_acc;sigma=s_acc;tid=tid_acc;lockSet=ls_acc} {id=id_fold;programPoint=progP_fold;sigma=s_fold;tid=tid_fold;lockSet=ls_fold} -> if id_acc > id_fold then {id=id_acc;programPoint=progP_acc;sigma=s_acc;tid=tid_acc;lockSet=ls_acc} else {id=id_fold;programPoint=progP_fold;sigma=s_fold;tid=tid_fold;lockSet=ls_fold} ) {programPoint=programPoint;sigma=sigma;id=(-1);tid=(-1);lockSet=LockSet.empty} tmp)] else tmp
 
 let check_for_duplicates g =
   let edgeList = get_all_edges g
@@ -267,7 +273,7 @@ let skip_edge:edge = Skip (* This is needed otherwise it errors with unbound con
 in
 match tmp_result with
 | None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (get_predecessors_nodes graph q);
-  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1}, skip_edge) else (print_string ("we recursively call loop again while working on node "^(NodeImpl.show q)^"\n");loop (q::visited))
+  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}, skip_edge) else (print_string ("we recursively call loop again while working on node "^(NodeImpl.show q)^"\n");loop (q::visited))
 | Some(nodeGlobalAssignment) -> nodeGlobalAssignment
   )
 in loop []
@@ -280,7 +286,7 @@ List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
   if (NodeImpl.equal prev_node prev_fold)&&(Edge.equal edge_label edge_fold) 
     then dest_fold
     else acc_node
-      ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1} edgeList
+      ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=LockSet.empty} edgeList
   in print_string ("in LocalTraces.get_succeeding_node we found the node "^(NodeImpl.show tmp)^"\n"); tmp
 
 (* finds the return endpoints of a calling node *)
@@ -295,7 +301,7 @@ List.fold (fun acc_node ((prev_fold:node), (edge_fold:Edge.t), (dest_fold:node))
   match edge_fold with Proc(_) -> find_returning_node_helper dest_fold (current_saldo +1)
     | Ret(_) -> if current_saldo = 1 then dest_fold else find_returning_node_helper dest_fold (current_saldo - 1)
     | _ -> find_returning_node_helper dest_fold current_saldo
-  ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1} succeeding_edges
+  ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=LockSet.empty} succeeding_edges
   )
 in find_returning_node_helper node_start 1
 
@@ -307,7 +313,7 @@ in find_returning_node_helper node_start 1
     let rec loop nodeList =
       match nodeList with 
         | x::xs -> if (List.is_empty (get_successors_edges graph x))&&(Node.equal x.programPoint programPoint) then x else loop xs
-        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1}
+        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
     in loop allNodes
 
     let get_last_node graph =
@@ -316,7 +322,7 @@ in find_returning_node_helper node_start 1
     let rec loop nodeList =
       match nodeList with 
         | x::xs -> if (List.is_empty (get_successors_edges graph x)) then x else loop xs
-        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1}
+        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
     in loop allNodes
 
     let get_all_nodes_progPoint graph programPoint=
@@ -336,7 +342,7 @@ let rec inner_loop node_candidate edgeList =
   match edgeList with (_,e,_)::es -> 
   if NodeImpl.equal return_node (find_returning_node node_candidate e graph) then node_candidate
   else inner_loop node_candidate es
-  | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1}
+  | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
 in
 let rec loop nodeList =
   match nodeList with
@@ -347,7 +353,7 @@ in
 in 
 if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
   )
-    | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1}
+    | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
     in loop allNodes
 
     (* In this function I assume, that traces do not contain circles *)
@@ -422,16 +428,15 @@ object(self)
   currentID
 
   (* TODO: TID vom destination node muss auch geprüft werden mit tid_find*)
-  method getID (prev_node:node) (edge:MyCFG.edge) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) =
+  method getID (prev_node:node) (edge:MyCFG.edge) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) (dest_ls:LockSet.t) =
     print_string "getID wurde aufgerufen\n";
-    let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find}) -> 
-     if (NodeImpl.equal prev_node prev_node_find)&&(Edge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid) then id_find else acc) (-1) edges 
+    let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find;lockSet=ls_find}) -> 
+     if (NodeImpl.equal prev_node prev_node_find)&&(Edge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid)&&(LockSet.equal ls_find dest_ls) then id_find else acc) (-1) edges 
   in 
   if id = (-1) then ( print_string ("No existing edge for this combination was found, so we create a new ID\n
     for prev_node="^(NodeImpl.show prev_node)^", edge="^(EdgeImpl.show edge)^", dest_progPoint="^(Node.show dest_programPoint)^", dest_sigma="^(NodeImpl.show_sigma dest_sigma)^"\n
 in edges={"^(List.fold (fun acc_fold edge_fold -> acc_fold^(LocalTraces.show_edge edge_fold)^"\n") "" edges)^"}\n");
-  (* TID should not matter here --- but it does! *)
-  edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=dest_tid})::edges; 
+  edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=dest_tid;lockSet=dest_ls})::edges; 
   self#increment ()) else (print_string ("id was found: "^(string_of_int id)^"\n"); id)
 end
 
