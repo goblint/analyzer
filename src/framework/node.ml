@@ -57,6 +57,7 @@ let find_fundec (node: t) =
   | Function fd -> fd
   | FunctionEntry fd -> fd
 
+(** @raise Not_found *)
 let of_id s =
   let ix = Str.search_forward (Str.regexp {|[0-9]+$|}) s 0 in
   let id = int_of_string (Str.string_after s ix) in
@@ -68,5 +69,5 @@ let of_id s =
     match prefix with
     | "ret" -> Function fundec
     | "fun" -> FunctionEntry fundec
-    | _     -> invalid_arg "Node.of_id: invalid prefix"
+    | _     -> raise Not_found
 

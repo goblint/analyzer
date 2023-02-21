@@ -515,7 +515,7 @@
             },
             "activated": {
               "title": "ana.autotune.activated",
-              "description": "Lists of activated tuning options. By default all are activated",
+              "description": "Lists of activated tuning options.",
               "type": "array",
               "items": { "type": "string" },
               "default": [

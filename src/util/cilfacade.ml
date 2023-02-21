@@ -35,10 +35,16 @@ let init () =
 
 let current_file = ref dummyFile
 
+(** @raise GoblintCil.FrontC.ParseError
+    @raise GoblintCil.Errormsg.Error *)
 let parse fileName =
   let fileName_str = Fpath.to_string fileName in
+  Errormsg.hadErrors := false; (* reset because CIL doesn't *)
   let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
-  Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil ()
+  let file = Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil () in
+  if !E.hadErrors then
+    E.s (E.error "There were parsing errors in %s" fileName_str);
+  file
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
@@ -60,6 +66,8 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 
+(** @raise GoblintCil.FrontC.ParseError
+    @raise GoblintCil.Errormsg.Error *)
 let getAST fileName =
   let fileAST = parse fileName in
   (*  rmTemps fileAST; *)
@@ -90,7 +98,9 @@ class addConstructors cons = object
   method! vtype _ = SkipChildren
 end
 
+(** @raise GoblintCil.Errormsg.Error *)
 let getMergedAST fileASTs =
+  Errormsg.hadErrors := false; (* reset because CIL doesn't *)
   let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
@@ -201,12 +211,24 @@ let typeOfRealAndImagComponents t =
       | FFloat -> FFloat      (* [float] *)
       | FDouble -> FDouble     (* [double] *)
       | FLongDouble -> FLongDouble (* [long double] *)
+      | FFloat128 -> FFloat128 (* [float128] *)
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
+      | FComplexFloat128 -> FComplexFloat128
     in
     TFloat (newfkind fkind, attrs)
   | _ -> raise (TypeOfError RealImag_NonNumerical)
+
+let isComplexFKind = function
+  | FFloat
+  | FDouble
+  | FLongDouble
+  | FFloat128 -> false
+  | FComplexFloat
+  | FComplexDouble
+  | FComplexLongDouble
+  | FComplexFloat128 -> true
 
 let rec typeOf (e: exp) : typ =
   match e with

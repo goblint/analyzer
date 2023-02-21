@@ -15,6 +15,7 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "mallocWrapper",
       "mhp",
       "assert",

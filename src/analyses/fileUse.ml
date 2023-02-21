@@ -84,7 +84,7 @@ struct
       | Lval lval, Const (CInt(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
         let k = D.key_from_lval lval in
-        if Cilint.compare_cilint i Cilint.zero_cilint = 0 && tv then (
+        if Z.compare i Z.zero = 0 && tv then (
           (* ignore(printf "error-branch\n"); *)
           D.error k m
         )else
@@ -163,7 +163,7 @@ struct
       D.extend_value unclosed_var (mustOpen, mayOpen) m
     ) else m
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let m = ctx.local in
     (* pop the last location off the stack *)
     let m = D.edit_callstack List.tl m in (* TODO could it be problematic to keep this in the caller instead of callee domain? if we only add the stack for the callee in enter, then there would be no need to pop a location anymore... *)

@@ -135,8 +135,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let of_int x =
     match IntDomain.IntDomTuple.minimal x, IntDomain.IntDomTuple.maximal x with
     | Some l, Some h when l >= Float_t.to_big_int Float_t.lower_bound && h <= Float_t.to_big_int Float_t.upper_bound ->
-      let l' = Float_t.of_float Down (Big_int_Z.float_of_big_int l) in
-      let h' = Float_t.of_float Up (Big_int_Z.float_of_big_int h) in
+      let l' = Float_t.of_float Down (Z.to_float l) in
+      let h' = Float_t.of_float Up (Z.to_float h) in
       if not (Float_t.is_finite l' && Float_t.is_finite h') then
         Top
       else
@@ -353,7 +353,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
-      (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+      (Z.of_int a, Z.of_int b)
 
 
   let eval_neg = function
@@ -555,7 +555,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _ -> (0, 0)
     in
     IntDomain.IntDomTuple.of_interval IBool
-      (Big_int_Z.big_int_of_int l, Big_int_Z.big_int_of_int u)
+      (Z.of_int l, Z.of_int u)
 
   let ne a b =
     Messages.warn
@@ -575,7 +575,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _ -> (1, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
-      (Big_int_Z.big_int_of_int l, Big_int_Z.big_int_of_int u)
+      (Z.of_int l, Z.of_int u)
 
   let unordered op1 op2 =
     let a, b =
@@ -585,10 +585,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
       | _ -> (0, 0)
     in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+    IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
 
-  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
-  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
+  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [Z.zero]
+  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt Z.zero
   let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
 
   let eval_isnormal = function
@@ -784,38 +784,44 @@ module FloatIntervalImplLifted = struct
   type t =
     | F32 of F1.t
     | F64 of F2.t
-    | FLong of F2.t [@@deriving to_yojson, eq, ord, hash]
+    | FLong of F2.t
+    | FFloat128 of F2.t [@@deriving to_yojson, eq, ord, hash]
 
   let show = function
     | F32 a -> "float: " ^ F1.show a
     | F64 a -> "double: " ^ F2.show a
     | FLong a -> "long double: " ^ F2.show a
+    | FFloat128 a -> "float128: " ^ F2.show a
 
   let lift2 (op32, op64) x y = match x, y with
     | F32 a, F32 b -> F32 (op32 a b)
     | F64 a, F64 b -> F64 (op64 a b)
     | FLong a, FLong b -> FLong (op64 a b)
+    | FFloat128 a, FFloat128 b -> FFloat128 (op64 a b)
     | _ -> failwith ("fkinds do not match. Values: " ^ show x ^ " and " ^ show y)
 
   let lift2_cmp (op32, op64) x y = match x, y with
     | F32 a, F32 b -> op32 a b
     | F64 a, F64 b -> op64 a b
     | FLong a, FLong b -> op64 a b
+    | FFloat128 a, FFloat128 b -> op64 a b
     | _ -> failwith ("fkinds do not match. Values: " ^ show x ^ " and " ^ show y)
 
   let lift (op32, op64) = function
     | F32 a -> F32 (op32 a)
     | F64 a -> F64 (op64 a)
     | FLong a -> FLong (op64 a)
+    | FFloat128 a -> FFloat128 (op64 a)
 
   let dispatch (op32, op64) = function
     | F32 a -> op32 a
-    | F64 a | FLong a -> op64 a
+    | F64 a | FLong a  | FFloat128 a-> op64 a
 
   let dispatch_fkind fkind (op32, op64) = match fkind with
     | FFloat -> F32 (op32 ())
     | FDouble -> F64 (op64 ())
     | FLongDouble -> FLong (op64 ())
+    | FFloat128 -> FFloat128 (op64 ())
     | _ ->
       (* this should never be reached, as we have to check for invalid fkind elsewhere,
          however we could instead of crashing also return top_of some fkind to avoid this and nonetheless have no actual information about anything*)
@@ -869,6 +875,7 @@ module FloatIntervalImplLifted = struct
     | F32 _ -> FFloat
     | F64 _ -> FDouble
     | FLong _ -> FLongDouble
+    | FFloat128 _ -> FFloat128
 
   let leq = lift2_cmp (F1.leq, F2.leq)
   let join = lift2 (F1.join, F2.join)

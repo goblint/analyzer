@@ -249,8 +249,11 @@ let () =
       try
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
-      with Sys.Break ->
+      with
+      | Sys.Break ->
         {status = Aborted}
+      | Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
@@ -322,20 +325,26 @@ let () =
     type params = unit [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () s =
-      if GobConfig.get_bool "server.reparse" then (
-        GoblintDir.init ();
-        Fun.protect ~finally:GoblintDir.finalize (fun () ->
-            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
-          )
-      );
-      Preprocessor.dependencies_to_yojson ()
+      try
+        if GobConfig.get_bool "server.reparse" then (
+          GoblintDir.init ();
+          Fun.protect ~finally:GoblintDir.finalize (fun () ->
+              ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+            )
+        );
+        Preprocessor.dependencies_to_yojson ()
+      with Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
     let name = "functions"
     type params = unit [@@deriving of_yojson]
     type response = Function.t list [@@deriving to_yojson]
-    let process () serv = Function.getFunctionsList (Option.get serv.file).globals
+    let process () serv =
+      match serv.file with
+      | Some file -> Function.getFunctionsList file.globals
+      | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed" ()))
   end);
 
   register (module struct
@@ -394,10 +403,13 @@ let () =
     type params = { nid: string }  [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process { nid } serv =
-      let f = !Control.current_node_state_json in
-      let n = Node.of_id nid in
-      let json = f n in
-      json
+      match Node.of_id nid with
+      | n ->
+        begin match !Control.current_node_state_json n with
+          | Some json -> json
+          | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed, non-existent or dead node" ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
   end);
 
   register (module struct
