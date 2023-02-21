@@ -115,6 +115,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("freeaddrinfo", unknown [drop "res" [f_deep]]);
     ("getgid", unknown []);
     ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
+    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("getnameinfo", unknown [drop "addr" [r_deep]; drop "addrlen" []; drop "host" [w]; drop "hostlen" []; drop "serv" [w]; drop "servlen" []; drop "flags" []]);
   ]
 
 (** Pthread functions. *)
