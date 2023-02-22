@@ -131,6 +131,39 @@ let rec append_unique l1 l2 =
     then append_unique l1 xs
     else append_unique (x::l1) xs
 
+(* Find the set of those messages, where an operand of the condition is changed in the given node *)
+let var_changed_in_node stmt exp =
+  begin match stmt.skind with
+    | Instr [] -> false
+    | Instr xs ->
+      let assigned_vars = List.fold (fun acc instr ->
+          match instr with
+          | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
+          (* TODO: other lval cases *)
+          | _ -> acc
+        ) [] xs in
+      List.fold (fun acc var -> Basetype.CilExp.occurs var exp || acc) false assigned_vars
+    | _ -> false
+  end
+
+let lock_acquired_in_node stmt =
+  begin match stmt.skind with
+    | Instr [] -> false
+    | Instr xs ->
+      let varinfos = List.fold (fun acc instr ->
+          match instr with
+          | Call (_, Lval (Var varinfo, NoOffset), exp_list, _, _) -> (varinfo, exp_list) :: acc
+          | _ -> acc
+        ) [] xs in
+      let is_lock library_desc = 
+        match library_desc with
+        | LibraryDesc.Lock _ -> true
+        | _ -> false
+      in
+      List.fold (fun acc (var, exp_list) -> is_lock ((LibraryFunctions.find var).special exp_list) || acc) false varinfos
+    | _ -> false
+  end
+
 (* Anticipable Alarm Conditions Analysis *)
 module Ant =
 struct
@@ -150,35 +183,21 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
-  (* Find the set of those messages, where an operand of the condition is changed in the given node *)
-  let changed_in_node var (cond : RM.Cond.t) =
-    match cond with
-    | Aob (exp, _) -> Basetype.CilExp.occurs var exp
-
-  let var_changed_in_node stmt x =
-    begin match stmt.skind with
-      | Instr [] -> Dom.empty ()
-      | Instr xs ->
-        let assigned_vars = List.fold (fun acc instr ->
-            match instr with
-            | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
-            (* TODO: other lval cases *)
-            | _ -> acc
-          ) [] xs in
-        Dom.filter (fun alarm -> List.fold (fun acc var -> changed_in_node var alarm.cond || acc) false assigned_vars) x
-      | _ -> Dom.empty ()
-    end
+  let filter_killed stmt (alarm : Alarm.t) = 
+    match alarm.cond with 
+    | Aob (exp, _) -> var_changed_in_node stmt exp
+    | Acc _ -> lock_acquired_in_node stmt 
 
   let kill node x =
     match node with
-    | Statement stmt -> var_changed_in_node stmt x
+    | Statement stmt -> Dom.filter (filter_killed stmt) x
     | _ -> Dom.empty ()
 
   let process (alarm : Alarm.t) y = alarm
 
   let gen' node x =
-    match RM.NH.find_opt RM.messagesNH node with
-    | Some alarm -> Dom.singleton (process alarm (conds_in x))
+    match RM.NH.find_option RM.messagesNH node with
+    | Some alarms -> RM.RMSet.fold (fun alarm acc -> Dom.add alarm acc) alarms (Dom.empty ()) 
     | None -> Dom.empty ()
 
   let gen node x = Dom.union (gen' node x) (dep_gen node (kill node x))
@@ -233,27 +252,14 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
-  let changed_in_node var (cond : RM.Cond.t) =
-    match cond with
-    | Aob (exp, _) -> Basetype.CilExp.occurs var exp
-
-  let var_changed_in_node stmt x =
-    begin match stmt.skind with
-      | Instr [] -> Dom.empty ()
-      | Instr xs ->
-        let assigned_vars = List.fold (fun acc instr ->
-            match instr with
-            | Set ((Var varinfo, NoOffset), _, _, _) -> varinfo :: acc
-            (* TODO: other lval cases *)
-            | _ -> acc
-          ) [] xs in
-        Dom.filter (fun alarm -> List.fold (fun acc var -> changed_in_node var alarm.cond || acc) false assigned_vars) x
-      | _ -> Dom.empty ()
-    end
+  let filter_killed stmt (alarm : Alarm.t) =
+    match alarm.cond with
+    | Aob (exp, _) -> var_changed_in_node stmt exp
+    | Acc _ -> lock_acquired_in_node stmt 
 
   let kill node x =
     match node with
-    | Statement stmt -> var_changed_in_node stmt x
+    | Statement stmt -> Dom.filter (filter_killed stmt) x
     | _ -> Dom.empty ()
 
   let set_locs alarm node rel_alarms =
@@ -366,9 +372,11 @@ let finalize _ =
       (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
       let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
       and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-      match (idx_before_end, idx_after_start) with
-      | Some true, Some true -> false (* Certainly in bounds on both sides.*)
-      | _ -> true
+      begin match (idx_before_end, idx_after_start) with
+        | Some true, Some true -> false (* Certainly in bounds on both sides.*)
+        | _ -> true
+      end
+    | Acc (_,_,_,_,mcpa) -> true
   in
 
   let filter_always_true node cs = CondSet.filter (cond_holds node) cs in

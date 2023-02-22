@@ -63,6 +63,13 @@ let race_conf accs =
   else
     Some (AS.max_conf accs)
 
+let race_severity conf : Messages.Severity.t  =
+  let race_threshold = get_int "warn.race-threshold" in
+  if conf >= race_threshold then
+    Warning
+  else
+    Info
+
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
@@ -81,45 +88,44 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) grouped_accs =
+let print_accesses (lv, ty) grouped_accs nongrouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let race_threshold = get_int "warn.race-threshold" in
-  let msgs race_accs =
-    let h (conf,kind,node,e,a) =
-      let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
-      let doc =
-        if debug then
-          dprintf "%t  (exp: %a)" d_msg d_exp e
-        else
-          d_msg ()
-      in
-      (doc, Some (Messages.Location.Node node))
+  let h (conf,kind,node,e,a) =
+    let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
+    let doc =
+      if debug then
+        dprintf "%t  (exp: %a)" d_msg d_exp e
+      else
+        d_msg ()
     in
+    (doc, Some (Messages.Location.Node node))
+  in
+  let msgs race_accs =
     AS.elements race_accs
     |> List.map h
   in
-  grouped_accs
-  |> List.fold_left (fun safe_accs accs ->
-      match race_conf accs with
-      | None ->
-        AS.union safe_accs accs (* group all safe accs together for allglobs *)
-      | Some conf ->
-        let severity: Messages.Severity.t =
-          if conf >= race_threshold then
-            Warning
-          else
-            Info
-        in
-        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
-        safe_accs
-    ) (AS.empty ())
-  |> (fun safe_accs ->
-      if allglobs && not (AS.is_empty safe_accs) then
-        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
-    )
+  if get_bool "ana.warn-postprocess.enabled"
+  then nongrouped_accs
+       |> AS.iter (fun a ->
+           let loc (_,_,node,_,_) = M.Location.Node node in
+           RM.msg_group (race_severity (A.conf a)) (Acc a) ~loc:(loc a) ~category:Race "" [h a])
+  else grouped_accs
+       |> List.fold_left (fun safe_accs accs ->
+           match race_conf accs with
+           | None ->
+             AS.union safe_accs accs (* group all safe accs together for allglobs *)
+           | Some conf ->
+             let severity = race_severity conf in
+             M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+             safe_accs
+         ) (AS.empty ())
+       |> (fun safe_accs ->
+           if allglobs && not (AS.is_empty safe_accs) then
+             M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
+         )
 
 let warn_global safe vulnerable unsafe g accs =
   let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
   incr_summary safe vulnerable unsafe g grouped_accs;
-  print_accesses g grouped_accs
+  print_accesses g grouped_accs accs
