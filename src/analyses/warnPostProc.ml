@@ -133,7 +133,8 @@ struct
 
   let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
 
-  let rel_alarms c s = Dom.fold (fun alarm alarms -> AlarmSet.add alarm alarms) s (AlarmSet.empty ())
+  let rel_alarms c s = Dom.fold (fun alarm alarms -> 
+      if (RM.Cond.equal alarm.cond c) then AlarmSet.add alarm alarms else alarms) s (AlarmSet.empty ())
 
   let dep_gen node x = Dom.empty ()
 
