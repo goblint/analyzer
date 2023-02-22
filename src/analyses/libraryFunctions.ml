@@ -130,6 +130,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
     ("gethostent", unknown []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
+    ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
+    ("semctl", unknown (drop "semid" [] :: drop "semnum" [] :: drop "cmd" [] :: VarArgs (drop "semun" [r_deep])));
+    ("semop", unknown [drop "semid" []; drop "sops" [r]; drop "nsops" []]);
   ]
 
 (** Pthread functions. *)
@@ -152,6 +155,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
     ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
     ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
+    ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
   ]
 
 (** GCC builtin functions.
