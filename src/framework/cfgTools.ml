@@ -236,6 +236,7 @@ let createCFG (file: file) =
           let newst = mkStmt (Return (None, fd_loc)) in
           newst.sid <- get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
+          Cilfacade.IntH.replace Cilfacade.pseudo_return_stmt_sids newst.sid newst;
           let newst_node = Statement newst in
           addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
           newst_node
