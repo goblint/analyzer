@@ -1,6 +1,6 @@
 # Configuring
 
-On top of passing options via the command line, Goblint can be configured with `json` files following the schema outlined in `/src/util/options.schema.json`
+On top of passing options via the command line, Goblint can be configured with `json` files following the schema outlined in [`src/util/options.schema.json`](../../jsfh/options.schema.html)
 or using one of the default configurations we provide.
 
 # Example Configurations for Goblint
