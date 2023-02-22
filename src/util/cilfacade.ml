@@ -506,12 +506,12 @@ class stmtSidVisitor h = object
 end
 
 let stmt_sids: stmt IntH.t ResettableLazy.t =
-ResettableLazy.from_fun (fun () ->
-    let h = IntH.create 113 in
-    let visitor = new stmtSidVisitor h in
-    visitCilFileSameGlobals visitor !current_file;
-    h
-  )
+  ResettableLazy.from_fun (fun () ->
+      let h = IntH.create 113 in
+      let visitor = new stmtSidVisitor h in
+      visitCilFileSameGlobals visitor !current_file;
+      h
+    )
 
 (** Find [stmt] by its [sid]. *)
 let find_stmt_sid sid = IntH.find_opt (ResettableLazy.force stmt_sids) sid
