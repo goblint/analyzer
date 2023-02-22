@@ -471,15 +471,16 @@ let finalize _ =
   in
 
   (* Merge the grouped alarms to one grouped message. *)
-  let warn alarms =
+  let warn cond alarms =
+    let filtered_alarms = D.filter (fun alarm -> RM.Cond.equal alarm.cond cond) alarms in
     let merged_pieces = D.fold (fun alarm acc ->
         match alarm.multipiece with
         | Group group -> append_unique group.pieces acc
         | _ -> acc)
-        alarms []
+        filtered_alarms []
     in
     (* TODO: remove related alarms that have same location as original. or is this a bug? probably related to the fishy thing up there *)
-    let alarm = D.choose alarms in (* TODO: choose a related alarm reasonably instead of random *)
+    let alarm = D.choose filtered_alarms in (* TODO: choose a related alarm reasonably instead of random *)
     match alarm.multipiece with
     (* TODO: how to merge different categories of the message groups? *)
     | Group group -> if (List.length merged_pieces == 1) 
@@ -489,13 +490,13 @@ let finalize _ =
   in
 
   (* Find the corresponding messages for the sinked alarms from solution_av and print them out. *)
-  HM.iter (fun n s -> CondSet.iter (fun _ ->
+  HM.iter (fun n s -> CondSet.iter (fun c ->
       let msg = HM.find !avSolHM n in
-      match D.is_empty @@ msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
-      | false -> warn msg
+      match D.is_empty msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
+      | false -> warn c msg
       | true ->
         let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
-        match D.is_empty @@ msg with
-        | false -> warn msg
+        match D.is_empty msg with
+        | false -> warn c msg
         | true -> ()
     ) s) sinkHM;
