@@ -91,12 +91,24 @@ let set_loc (message : Alarm.t) loc =
   | Single piece -> {message with multipiece = Single {piece with loc = Some loc}}
   | Group group -> {message with multipiece = Group {group with loc = Some loc}}
 
+(* Do not add related alarm when an alarm with that location already exists in the pieces list
+   because otherwise the original alarm is set as related and duplicated *)
+let contains_alarm_with_loc node (pieces : M.Piece.t list) =
+  let node_equals loc node =
+    match loc with
+    | Some M.Location.Node n -> Node.equal n node
+    | _ -> false
+  in
+  List.fold (fun acc (piece : M.Piece.t) -> node_equals piece.loc node || acc) false pieces
+
+
 let set_related (message : Alarm.t) node =
   match message.multipiece with
   | Group group ->
-    let piece = RM.Piece.{text = "Related"; loc = Some (RM.Location.Node node); context = None} in
-    let group = {group with pieces = (piece::group.pieces)} in
-    {message with multipiece = Group group}
+    if contains_alarm_with_loc node group.pieces then message else
+      let piece = RM.Piece.{text = "Related"; loc = Some (RM.Location.Node node); context = None} in
+      let group = {group with pieces = (piece::group.pieces)} in
+      {message with multipiece = Group group}
   | _ -> failwith "TODO"
 
 let filter_eq_locs loc1 loc2 =
