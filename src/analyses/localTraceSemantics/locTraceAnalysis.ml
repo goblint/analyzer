@@ -262,7 +262,7 @@ print_string ("in eval_wrapper we get otherValues={"
 ^(List.fold (fun s (vinfo_fold, varDom_fold) -> s^";("^(CilType.Varinfo.show vinfo_fold)^","^(show_varDomain varDom_fold)^")") "" otherValues)^"}\n");
 let allSigmas = iter_otherValues [] otherValues [sigNew]
 in
-print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n"^(NodeImpl.show_sigma sigma_fold)) "" allSigmas)^"\n");
+print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n<"^(NodeImpl.show_sigma sigma_fold)^">") "" allSigmas)^"\n|allSigmas| = "^(string_of_int (List.length allSigmas))^"\n");
 allSigmas, true
 
 (* ASSIGN helper functions *)
@@ -641,13 +641,16 @@ let _, _, _, result =   D.fold special_fold_graphSet ctx.local (f, arglist, ctx,
 in result
     
 (* ENTER helper functions *)
-let rec construct_sigma_combinations varinfo varDomList sigmaList =
-  match varDomList with x::xs -> construct_sigma_combinations varinfo xs ((List.map (fun sigma -> (SigmaMap.add varinfo x sigma)) sigmaList)@sigmaList)
-    | [] -> sigmaList
+let construct_sigma_combinations varinfo varDomList sigmaList =
+  let rec loop varDomList_loop sigAcc =
+    match varDomList_loop with x::xs -> loop xs ((List.map (fun sigma -> (SigmaMap.add varinfo x sigma)) sigmaList)@sigAcc)
+    | [] -> sigAcc
+  in
+  loop varDomList []
 
 (* perform enter-effect on given node *)
 let enter_on_node graph ctx f args {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} =
-  let sigma_formalList, _ = List.fold (
+  let sigma_formalList, _ = List.fold ( (*diesen Part hier debuggen*)
       fun (sigAcc, formalExp) formal -> (match formalExp with 
         | x::xs -> (
           let resultList, success = eval_wrapper sigma formal x graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
@@ -660,9 +663,10 @@ in
   )
         | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
       ) ([sigma], args) f.sformals
-    (* in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n"); *)
 in
+print_string ("sigma_formalList={"^(List.fold (fun s_fold sigma_fold -> (NodeImpl.show_sigma sigma_fold)^";"^s_fold) "" sigma_formalList)^"}\n");
   List.map (fun sigma_map ->
+    print_string ("in enter_on_node, sigma_map="^(NodeImpl.show_sigma sigma_map)^"\n");
     let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},ctx.edge,{programPoint=(FunctionEntry(f));sigma=sigma_map;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} ctx.edge (FunctionEntry(f)) sigma_map tid ls);tid=tid;lockSet=ls})
   in
   LocalTraces.extend_by_gEdge graph myEdge

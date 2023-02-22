@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[-] thread
+// PARAM: --set ana.activated[+] "localTraces"
 #include <goblint.h>
 #include <pthread.h>
 #include <stdio.h>
