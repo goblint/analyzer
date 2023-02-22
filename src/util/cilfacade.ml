@@ -513,8 +513,9 @@ let stmt_sids: stmt IntH.t ResettableLazy.t =
       h
     )
 
-(** Find [stmt] by its [sid]. *)
-let find_stmt_sid sid = IntH.find_opt (ResettableLazy.force stmt_sids) sid
+(** Find [stmt] by its [sid].
+    @raise Not_found *)
+let find_stmt_sid sid = IntH.find (ResettableLazy.force stmt_sids) sid
 
 
 let reset_lazy () =
