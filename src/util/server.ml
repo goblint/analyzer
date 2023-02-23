@@ -117,7 +117,7 @@ let serve serv =
 
 let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-      let module Arg = (val (Option.get !ArgTools.current_arg)) in
+      let module Arg = (val (Option.get_exn !ArgTools.current_arg Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or arg disabled" ())))) in
       let module Locator = WitnessUtil.Locator (Arg.Node) in
       let module StringH = Hashtbl.Make (Printable.Strings) in
 
@@ -469,7 +469,7 @@ let () =
           begin try
               [ArgWrapper.find_node node_id]
             with Not_found ->
-              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+              Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
           end
         | None, Some location ->
           let nodes_opt =
