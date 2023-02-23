@@ -455,6 +455,8 @@ let () =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
       let open ArgWrapper in
       let n: Arg.Node.t = match params.node, params.location with
+        | None, None ->
+          Arg.main_entry
         | Some node_id, None ->
           let found = ref None in
           begin try
@@ -475,8 +477,8 @@ let () =
             Locator.ES.choose_opt nodes
           in
           Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
-        | _, _ ->
-          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
+        | Some _, Some _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node nand location" ()))
       in
       let node = Arg.Node.cfgnode n in
       let node_id = Node.show_id node in
