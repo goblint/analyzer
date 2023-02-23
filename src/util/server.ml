@@ -445,19 +445,21 @@ let () =
       node: string option [@default None];
       location: CilType.Location.t option [@default None];
     } [@@deriving of_yojson]
-    type response = {
+    type one_response = {
       node: string;
       cfg_node: string;
       location: CilType.Location.t;
       next: (MyARG.inline_edge * string) list;
       prev: (MyARG.inline_edge * string) list;
     } [@@deriving to_yojson]
+    type response = one_response list [@@deriving to_yojson]
     let process (params: params) serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
       let open ArgWrapper in
-      let n: Arg.Node.t = match params.node, params.location with
+      let open GobList.Syntax in
+      let+ n: Arg.Node.t = match params.node, params.location with
         | None, None ->
-          Arg.main_entry
+          [Arg.main_entry]
         | Some node_id, None ->
           let found = ref None in
           begin try
@@ -470,14 +472,14 @@ let () =
               )
             with Exit -> ()
           end;
-          Option.get_exn !found Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          [Option.get_exn !found Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))]
         | None, Some location ->
-          let node_opt =
+          let nodes_opt =
             let open GobOption.Syntax in
-            let* nodes = Locator.find_opt locator location in
-            Locator.ES.choose_opt nodes
+            let+ nodes = Locator.find_opt locator location in
+            Locator.ES.elements nodes
           in
-          Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+          Option.get_exn nodes_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
         | Some _, Some _ ->
           Response.Error.(raise (make ~code:RequestFailed ~message:"requires node nand location" ()))
       in
