@@ -191,13 +191,13 @@ struct
     let octx = ctx in
     let ctx_with_local ctx local' =
       (* let rec ctx' =
-        { ctx with
+         { ctx with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
+         }
+         and ask q = query ctx' q
+         in
+         ctx' *)
       {ctx with local = local'}
     in
     let do_emit ctx = function
@@ -296,6 +296,9 @@ struct
             f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
           | Queries.PartAccess a ->
             Obj.repr (access ctx a)
+          | Queries.MayRace a ->
+            let a' = access ctx (Point) in
+            MCPAccess.A.may_race (Obj.obj a) a'
           | Queries.IterSysVars (vq, fi) ->
             (* IterSysVars is special: argument function is lifted for each analysis *)
             iter (fun ((n,(module S:MCPSpec),d) as t) ->

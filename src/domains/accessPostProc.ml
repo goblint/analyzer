@@ -88,7 +88,7 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) grouped_accs nongrouped_accs =
+let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let h (conf,kind,node,e,a) =
@@ -105,27 +105,31 @@ let print_accesses (lv, ty) grouped_accs nongrouped_accs =
     AS.elements race_accs
     |> List.map h
   in
-  if get_bool "ana.warn-postprocess.enabled"
-  then nongrouped_accs
-       |> AS.iter (fun a ->
-           let loc (_,_,node,_,_) = M.Location.Node node in
-           RM.msg_group (race_severity (A.conf a)) (Acc a) ~loc:(loc a) ~category:Race "" [h a])
-  else grouped_accs
-       |> List.fold_left (fun safe_accs accs ->
-           match race_conf accs with
-           | None ->
-             AS.union safe_accs accs (* group all safe accs together for allglobs *)
-           | Some conf ->
-             let severity = race_severity conf in
-             M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
-             safe_accs
-         ) (AS.empty ())
-       |> (fun safe_accs ->
-           if allglobs && not (AS.is_empty safe_accs) then
-             M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
-         )
+  grouped_accs
+  |> List.fold_left (fun safe_accs accs ->
+      match race_conf accs with
+      | None -> AS.union safe_accs accs (* group all safe accs together for allglobs *)
+      | Some conf ->
+        if get_bool "ana.warn-postprocess.enabled"
+        then 
+          let loc (_,_,node,_,_) = M.Location.Node node in
+          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, AS.remove a accs)) ~loc:(loc a) ~category:Race "" [h a]);
+          safe_accs
+        else
+          let severity = race_severity conf in
+          M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+          safe_accs
+    ) (AS.empty ())
+  |> (fun safe_accs ->
+      if allglobs && not (AS.is_empty safe_accs) then
+        if get_bool "ana.warn-postprocess.enabled"
+        then 
+          let loc (_,_,node,_,_) = M.Location.Node node in
+          safe_accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, AS.remove a safe_accs)) ~loc:(loc a) ~category:Race "" [h a]);
+        else M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
+    )
 
 let warn_global safe vulnerable unsafe g accs =
   let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
   incr_summary safe vulnerable unsafe g grouped_accs;
-  print_accesses g grouped_accs accs
+  print_accesses g grouped_accs

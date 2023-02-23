@@ -106,7 +106,7 @@ let set_related (message : Alarm.t) node =
   match message.multipiece with
   | Group group ->
     if contains_alarm_with_loc node group.pieces then message else
-      let piece = RM.Piece.{text = "Related"; loc = Some (RM.Location.Node node); context = None} in
+      let piece = RM.Piece.{text = "Possible cause"; loc = Some (RM.Location.Node node); context = None} in
       let group = {group with pieces = (piece::group.pieces)} in
       {message with multipiece = Group group}
   | _ -> failwith "TODO"
@@ -119,7 +119,7 @@ let filter_eq_locs loc1 loc2 =
 let rem_related (message : Alarm.t) node =
   match message.multipiece with
   | Group group ->
-    let pieces = List.filter (fun (piece : M.Piece.t) -> filter_eq_locs (Some (RM.Location.Node node)) piece.loc || piece.text != "Related") group.pieces in
+    let pieces = List.filter (fun (piece : M.Piece.t) -> filter_eq_locs (Some (RM.Location.Node node)) piece.loc || piece.text != "Possible cause") group.pieces in
     let group = {group with pieces = pieces} in
     {message with multipiece = Group group}
   | _ -> failwith "TODO"
@@ -146,23 +146,25 @@ let var_changed_in_node stmt exp =
     | _ -> false
   end
 
-let lock_acquired_in_node stmt =
-  begin match stmt.skind with
-    | Instr [] -> false
-    | Instr xs ->
-      let varinfos = List.fold (fun acc instr ->
-          match instr with
-          | Call (_, Lval (Var varinfo, NoOffset), exp_list, _, _) -> (varinfo, exp_list) :: acc
-          | _ -> acc
-        ) [] xs in
-      let is_lock library_desc = 
-        match library_desc with
-        | LibraryDesc.Lock _ -> true
-        | _ -> false
-      in
-      List.fold (fun acc (var, exp_list) -> is_lock ((LibraryFunctions.find var).special exp_list) || acc) false varinfos
-    | _ -> false
-  end
+let lock_acquired_in_node stmt node acc = 
+  if (!ask node).f (MayRace (Obj.repr acc)) then
+    begin match stmt.skind with
+      | Instr [] -> false
+      | Instr xs ->
+        let varinfos = List.fold (fun acc instr ->
+            match instr with
+            | Call (_, Lval (Var varinfo, NoOffset), exp_list, _, _) -> (varinfo, exp_list) :: acc
+            | _ -> acc
+          ) [] xs in
+        let is_lock library_desc = 
+          match library_desc with
+          | LibraryDesc.Lock _ -> true
+          | _ -> false
+        in
+        List.fold (fun acc (var, exp_list) -> is_lock ((LibraryFunctions.find var).special exp_list) || acc) false varinfos
+      | _ -> false
+    end
+  else true
 
 (* Anticipable Alarm Conditions Analysis *)
 module Ant =
@@ -183,14 +185,14 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
-  let filter_killed stmt (alarm : Alarm.t) = 
+  let filter_killed stmt node (alarm : Alarm.t) = 
     match alarm.cond with 
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc _ -> lock_acquired_in_node stmt 
+    | Acc (_, accs) -> Access.AS.choose accs |> (fun (_,_,_,_,acc) -> acc) |> lock_acquired_in_node stmt node
 
   let kill node x =
     match node with
-    | Statement stmt -> Dom.filter (filter_killed stmt) x
+    | Statement stmt -> Dom.filter (filter_killed stmt node) x
     | _ -> Dom.empty ()
 
   let process (alarm : Alarm.t) y = alarm
@@ -252,14 +254,14 @@ struct
 
   let dep_gen node x = Dom.empty ()
 
-  let filter_killed stmt (alarm : Alarm.t) =
+  let filter_killed stmt node (alarm : Alarm.t) =
     match alarm.cond with
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc _ -> lock_acquired_in_node stmt 
+    | Acc (_, accs) -> Access.AS.choose accs |> (fun (_,_,_,_,acc) -> acc) |> lock_acquired_in_node stmt node
 
   let kill node x =
     match node with
-    | Statement stmt -> Dom.filter (filter_killed stmt) x
+    | Statement stmt -> Dom.filter (filter_killed stmt node) x
     | _ -> Dom.empty ()
 
   let set_locs alarm node rel_alarms =
@@ -354,7 +356,7 @@ let finalize _ =
   end
   in
 
-  (* RM.NH.iter (fun n alarm -> ignore (Pretty.printf "%a->%a\n" Node.pretty_trace n RM.ReposMessage.pretty alarm)) RM.messagesNH; *)
+  (* RM.NH.iter (fun n alarms -> ignore (Pretty.printf "%a->%a\n" Node.pretty_trace n RM.RMSet.pretty alarms)) RM.messagesNH; *)
 
   let module Solver = Td3.Basic (IncrSolverArg) (Ant) (HM) in
   let (solution, _) = Solver.solve [] [start_node] None in
@@ -376,7 +378,9 @@ let finalize _ =
         | Some true, Some true -> false (* Certainly in bounds on both sides.*)
         | _ -> true
       end
-    | Acc (_,_,_,_,mcpa) -> true
+    | Acc ((_,_,_,_,mcpa), accs) -> true
+    (* TODO: why removes everything? *)
+    (* let acc = Access.AS.choose accs |> (fun (_,_,_,_,acc) -> acc) in not @@ (!ask node).f (MayRace (Obj.repr acc)) *)
   in
 
   let filter_always_true node cs = CondSet.filter (cond_holds node) cs in

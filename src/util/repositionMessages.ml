@@ -17,7 +17,7 @@ module Tags = Messages.Tags
 module Idx = PreValueDomain.IndexDomain
 
 module AOB = Printable.Prod (Basetype.CilExp) (Idx)
-module ACC = Access.A
+module ACC = Printable.Prod (Access.A) (Access.AS)
 
 module Cond =
 struct
@@ -26,7 +26,7 @@ struct
   type t =
     | Aob of AOB.t 
     | Acc of ACC.t
-  [@@deriving eq, ord, hash, to_yojson]
+  [@@deriving eq, ord, hash, yojson]
 
   let show cond = 
     match cond with
@@ -81,12 +81,12 @@ end
 module NH = BatHashtbl.Make (Node)
 let messagesNH = NH.create 100
 
-module RMSet = Set.Make (ReposMessage)
+module RMSet = SetDomain.Make (ReposMessage)
 
 let add (m : ReposMessage.t) =
   let add_message (loc : Location.t option) =
     begin match loc with
-      | Some (Node n) -> NH.modify_def RMSet.empty n (RMSet.add m) messagesNH;
+      | Some (Node n) -> NH.modify_def (RMSet.empty ()) n (RMSet.add m) messagesNH;
       | _ -> ()
     end
   in

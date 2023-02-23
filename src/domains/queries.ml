@@ -119,6 +119,7 @@ type _ t =
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
+  | MayRace: Obj.t -> MayBool.t t
 
 type 'a result = 'a
 
@@ -172,6 +173,7 @@ struct
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
+    | MayRace _ -> (module MayBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -224,6 +226,7 @@ struct
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
+    | MayRace _ -> MayBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -273,6 +276,7 @@ struct
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
+    | Any (MayRace _) -> 42
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -306,6 +310,7 @@ struct
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
+      | Any (MayRace a1), Any (MayRace a2) -> compare (Hashtbl.hash a1) (Hashtbl.hash a2) 
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -380,6 +385,7 @@ struct
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
+    | Any MayRace _ -> Pretty.dprintf "MayRace _"
 end
 
 
