@@ -2,9 +2,17 @@ open Batteries
 open Jsonrpc
 open GoblintCil
 
+module type ArgWrapper =
+sig
+  module Arg: ArgTools.BiArg
+  module Locator: module type of WitnessUtil.Locator (Arg.Node)
+  val locator: Locator.t
+end
+
 type t = {
   mutable file: Cil.file option;
   mutable max_ids: MaxIdUtil.max_ids;
+  arg_wrapper: (module ArgWrapper) ResettableLazy.t;
   input: IO.input;
   output: unit IO.output;
 }
@@ -106,6 +114,29 @@ let serve serv =
   |> Seq.map Packet.t_of_yojson
   |> Seq.iter (handle_packet serv)
 
+let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Arg = (val (Option.get !ArgTools.current_arg)) in
+      let module Locator = WitnessUtil.Locator (Arg.Node) in
+
+      let locator = Locator.create () in
+      Arg.iter_nodes (fun n ->
+          let cfgnode = Arg.Node.cfgnode n in
+          let loc = Node.location cfgnode in
+          if not loc.synthetic then
+            Locator.add locator loc n
+        );
+
+      let module ArgWrapper =
+      struct
+        module Arg = Arg
+        module Locator = Locator
+        let locator = locator
+      end
+      in
+      (module ArgWrapper: ArgWrapper)
+    )
+
 let make ?(input=stdin) ?(output=stdout) file : t =
   let max_ids =
     match file with
@@ -115,6 +146,7 @@ let make ?(input=stdin) ?(output=stdout) file : t =
   {
     file;
     max_ids;
+    arg_wrapper;
     input;
     output
   }
@@ -208,26 +240,6 @@ let node_locator: Locator.t ResettableLazy.t =
       locator
     )
 
-module ArgNode =
-struct
-  type t = Node.t * Analyses.ControlSpecC.t * int [@@deriving ord]
-end
-module ArgLocator = WitnessUtil.Locator (ArgNode)
-let arg_node_locator: ArgLocator.t ResettableLazy.t =
-  ResettableLazy.from_fun (fun () ->
-      let module Arg = (val (Option.get !ArgTools.current_arg)) in
-      let locator = ArgLocator.create () in
-
-      Arg.iter_nodes (fun n ->
-          let cfgnode = Arg.Node.cfgnode n in
-          let loc = Node.location cfgnode in
-          if not loc.synthetic then
-            ArgLocator.add locator loc (Obj.magic n) (* TODO: bad magic *)
-        );
-
-      locator
-    )
-
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
   Messages.Table.messages_list := [];
@@ -239,6 +251,7 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
   ResettableLazy.reset node_locator;
+  ResettableLazy.reset s.arg_wrapper;
   Cilfacade.reset_lazy ();
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
@@ -439,7 +452,8 @@ let () =
       prev: (MyARG.inline_edge * string) list;
     } [@@deriving to_yojson]
     let process (params: params) serv =
-      let module Arg = (val (Option.get !ArgTools.current_arg)) in
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let open ArgWrapper in
       let n: Arg.Node.t = match params.node, params.location with
         | Some node_id, None ->
           let found = ref None in
@@ -457,11 +471,10 @@ let () =
         | None, Some location ->
           let node_opt =
             let open GobOption.Syntax in
-            let* nodes = ArgLocator.find_opt (ResettableLazy.force arg_node_locator) location in
-            ArgLocator.ES.choose_opt nodes
+            let* nodes = Locator.find_opt locator location in
+            Locator.ES.choose_opt nodes
           in
           Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
-          |> Obj.magic (* TODO: bad magic *)
         | _, _ ->
           Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
       in

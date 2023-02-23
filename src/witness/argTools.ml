@@ -42,6 +42,13 @@ struct
     let equal (n1, c1, i1) (n2, c2, i2) =
       EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
 
+    let compare (n1, c1, i1) (n2, c2, i2) =
+      let r = EQSys.LVar.compare (n1, c1) (n2, c2) in
+      if r <> 0 then
+        r
+      else
+        Int.compare i1 i2
+
     let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
 
     let cfgnode (n, c, i) = n

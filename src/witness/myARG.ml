@@ -4,6 +4,7 @@ open GoblintCil
 module type Node =
 sig
   include Hashtbl.HashedType
+  include Set.OrderedType with type t := t
 
   val cfgnode: t -> MyCFG.node
   val to_string: t -> string
@@ -78,7 +79,7 @@ end
 module StackNode (Node: Node):
   Node with type t = Node.t list =
 struct
-  type t = Node.t list [@@deriving eq, hash]
+  type t = Node.t list [@@deriving eq, ord, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
   let to_string nl =
