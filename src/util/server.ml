@@ -208,6 +208,26 @@ let node_locator: Locator.t ResettableLazy.t =
       locator
     )
 
+module ArgNode =
+struct
+  type t = Node.t * Analyses.ControlSpecC.t * int [@@deriving ord]
+end
+module ArgLocator = WitnessUtil.Locator (ArgNode)
+let arg_node_locator: ArgLocator.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Arg = (val (Option.get !ArgTools.current_arg)) in
+      let locator = ArgLocator.create () in
+
+      Arg.iter_nodes (fun n ->
+          let cfgnode = Arg.Node.cfgnode n in
+          let loc = Node.location cfgnode in
+          if not loc.synthetic then
+            ArgLocator.add locator loc (Obj.magic n) (* TODO: bad magic *)
+        );
+
+      locator
+    )
+
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
   Messages.Table.messages_list := [];
@@ -401,6 +421,63 @@ let () =
         Cfg.prev node
         |> List.map (fun (edges, to_node) ->
             (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      {node = node_id; location; next; prev}
+  end);
+
+  register (module struct
+    let name = "arg/lookup"
+    type params = {
+      node: string option [@default None];
+      location: CilType.Location.t option [@default None];
+    } [@@deriving of_yojson]
+    type response = {
+      node: string;
+      location: CilType.Location.t;
+      next: (MyARG.inline_edge * string) list;
+      prev: (MyARG.inline_edge * string) list;
+    } [@@deriving to_yojson]
+    let process (params: params) serv =
+      let module Arg = (val (Option.get !ArgTools.current_arg)) in
+      let n: Arg.Node.t = match params.node, params.location with
+        | Some node_id, None ->
+          let found = ref None in
+          begin try
+            (* TODO: better find *)
+            Arg.iter_nodes (fun n ->
+                if Arg.Node.to_string n = node_id then (
+                  found := Some n;
+                  raise Exit
+                )
+              )
+            with Exit -> ()
+          end;
+          Option.get_exn !found Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+        | None, Some location ->
+          let node_opt =
+            let open GobOption.Syntax in
+            let* nodes = ArgLocator.find_opt (ResettableLazy.force arg_node_locator) location in
+            ArgLocator.ES.choose_opt nodes
+          in
+          Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+          |> Obj.magic (* TODO: bad magic *)
+        | _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
+      in
+      let node = Arg.Node.cfgnode n in
+      let node_id = Node.show_id node in
+      let location = Node.location node in
+      let next =
+        Arg.next n
+        |> List.map (fun (edge, to_node) ->
+            (edge, Arg.Node.to_string to_node)
+          )
+      in
+      let prev =
+        Arg.prev n
+        |> List.map (fun (edge, to_node) ->
+            (edge, Arg.Node.to_string to_node)
           )
       in
       {node = node_id; location; next; prev}

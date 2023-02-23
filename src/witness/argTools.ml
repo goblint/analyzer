@@ -13,6 +13,8 @@ sig
   val iter_nodes: (Node.t -> unit) -> unit
 end
 
+let current_arg: (module BiArg) option ref = ref None
+
 module Make (R: ResultQuery.SpecSysSol2) =
 struct
   open R
@@ -113,6 +115,7 @@ struct
 
       let prev = witness_prev
       let iter_nodes f =
+        f main_entry;
         NHT.iter (fun n _ ->
             f n
           ) witness_prev_map
