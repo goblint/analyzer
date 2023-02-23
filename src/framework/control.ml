@@ -663,10 +663,6 @@ struct
       let module ArgTool = ArgTools.Make (R) in
       let module Arg = (val ArgTool.create entrystates) in
       ArgTools.current_arg := Some (module Arg);
-      ignore (Pretty.printf "ARG main: %s\n" (Arg.Node.to_string Arg.main_entry));
-      Arg.iter_nodes (fun n ->
-          ignore (Pretty.printf "%s\n" (Arg.Node.to_string n))
-        )
     );
 
     (* Before SV-COMP, so result can depend on YAML witness validation. *)
