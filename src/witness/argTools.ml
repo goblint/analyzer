@@ -1,9 +1,4 @@
 open MyCFG
-open Graphml
-open Svcomp
-open GobConfig
-
-module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 module type BiArg =
 sig
@@ -19,7 +14,6 @@ module Make (R: ResultQuery.SpecSysSol2) =
 struct
   open R
   open SpecSys
-  open Svcomp
 
   module Query = ResultQuery.Query (SpecSys)
 
