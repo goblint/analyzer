@@ -275,8 +275,7 @@ struct
   module NHT = ArgTool.NHT
 
   let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
-    let (witness_prev_map, arg_module) = ArgTool.create entrystates in
-    let module Arg = (val arg_module) in
+    let module Arg = (val ArgTool.create entrystates) in
 
     let find_invariant (n, c, i) =
       let context = {Invariant.default_context with path = Some i} in
@@ -319,12 +318,13 @@ struct
           |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
         let violations =
-          NHT.fold (fun lvar _ acc ->
+          (* TODO: fold_nodes?s *)
+          let acc = ref [] in
+          Arg.iter_nodes (fun lvar ->
               if is_violation lvar then
-                lvar :: acc
-              else
-                acc
-            ) witness_prev_map []
+                acc := lvar :: !acc
+            );
+          !acc
         in
         let module ViolationArg =
         struct

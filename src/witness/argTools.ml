@@ -10,6 +10,7 @@ sig
   include MyARG.S with module Edge = MyARG.InlineEdge
 
   val prev: Node.t -> (Edge.t * Node.t) list
+  val iter_nodes: (Node.t -> unit) -> unit
 end
 
 module Make (R: ResultQuery.SpecSysSol2) =
@@ -68,7 +69,7 @@ struct
 
   module NHT = BatHashtbl.Make (Node)
 
-  let create entrystates: (MyARG.inline_edge * Node.t) list NHT.t * (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
+  let create entrystates: (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
     let (witness_prev_map, witness_prev, witness_next) =
       let prev = NHT.create 100 in
       let next = NHT.create 100 in
@@ -111,9 +112,13 @@ struct
       include Intra (ArgIntra) (Arg)
 
       let prev = witness_prev
+      let iter_nodes f =
+        NHT.iter (fun n _ ->
+            f n
+          ) witness_prev_map
     end
     in
-    (witness_prev_map, (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int))
+    (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int)
 
   let create entrystates =
     Timing.wrap "arg create" create entrystates
