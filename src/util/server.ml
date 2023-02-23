@@ -7,6 +7,7 @@ sig
   module Arg: ArgTools.BiArg
   module Locator: module type of WitnessUtil.Locator (Arg.Node)
   val locator: Locator.t
+  val find_node: string -> Arg.Node.t
 end
 
 type t = {
@@ -118,13 +119,16 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
       let module Arg = (val (Option.get !ArgTools.current_arg)) in
       let module Locator = WitnessUtil.Locator (Arg.Node) in
+      let module StringH = Hashtbl.Make (Printable.Strings) in
 
       let locator = Locator.create () in
+      let ids = StringH.create 113 in
       Arg.iter_nodes (fun n ->
           let cfgnode = Arg.Node.cfgnode n in
           let loc = Node.location cfgnode in
           if not loc.synthetic then
-            Locator.add locator loc n
+            Locator.add locator loc n;
+          StringH.replace ids (Arg.Node.to_string n) n;
         );
 
       let module ArgWrapper =
@@ -132,6 +136,7 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
         module Arg = Arg
         module Locator = Locator
         let locator = locator
+        let find_node = StringH.find ids
       end
       in
       (module ArgWrapper: ArgWrapper)
@@ -461,18 +466,11 @@ let () =
         | None, None ->
           [Arg.main_entry]
         | Some node_id, None ->
-          let found = ref None in
           begin try
-            (* TODO: better find *)
-            Arg.iter_nodes (fun n ->
-                if Arg.Node.to_string n = node_id then (
-                  found := Some n;
-                  raise Exit
-                )
-              )
-            with Exit -> ()
-          end;
-          [Option.get_exn !found Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))]
+              [ArgWrapper.find_node node_id]
+            with Not_found ->
+              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          end
         | None, Some location ->
           let nodes_opt =
             let open GobOption.Syntax in
