@@ -447,6 +447,7 @@ let () =
     } [@@deriving of_yojson]
     type response = {
       node: string;
+      cfg_node: string;
       location: CilType.Location.t;
       next: (MyARG.inline_edge * string) list;
       prev: (MyARG.inline_edge * string) list;
@@ -480,9 +481,9 @@ let () =
         | Some _, Some _ ->
           Response.Error.(raise (make ~code:RequestFailed ~message:"requires node nand location" ()))
       in
-      let node = Arg.Node.cfgnode n in
-      let node_id = Node.show_id node in
-      let location = Node.location node in
+      let cfg_node = Arg.Node.cfgnode n in
+      let cfg_node_id = Node.show_id cfg_node in
+      let location = Node.location cfg_node in
       let next =
         Arg.next n
         |> List.map (fun (edge, to_node) ->
@@ -495,7 +496,7 @@ let () =
             (edge, Arg.Node.to_string to_node)
           )
       in
-      {node = node_id; location; next; prev}
+      {node = Arg.Node.to_string n; cfg_node = cfg_node_id; location; next; prev}
   end);
 
   register (module struct
