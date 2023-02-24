@@ -43,6 +43,7 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
+module CES = Lattice.LiftTop(ThreadIdDomain.Thread.D)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -117,7 +118,7 @@ type _ t =
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
-  | MayThreadcreate: BoolDomain.MayBool.t t
+  | CreateEdges: CES.t t
 
 type 'a result = 'a
 
@@ -171,7 +172,7 @@ struct
     | IterSysVars _ -> (module Unit)
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
-    | MayThreadcreate -> (module BoolDomain.MayBool)
+    | CreateEdges -> (module CES)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -224,7 +225,7 @@ struct
     | IterSysVars _ -> Unit.top ()
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
-    | MayThreadcreate -> BoolDomain.MayBool.top ()
+    | CreateEdges -> CES.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -274,7 +275,7 @@ struct
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
-    | Any MayThreadcreate -> 42
+    | Any CreateEdges -> 42
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -382,7 +383,7 @@ struct
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
-    | Any MayThreadcreate-> Pretty.dprintf "MayThreadcreate"
+    | Any CreateEdges-> Pretty.dprintf "CreateEdges"
 end
 
 

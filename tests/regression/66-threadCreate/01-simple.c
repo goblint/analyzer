@@ -1,4 +1,4 @@
-// PARAM: --disable ana.thread.context.createEdges --set ana.activated[+] threadCreate
+// PARAM: --disable ana.thread.context.createEdges --set ana.activated[+] threadCreateEdges
 #include <goblint.h>
 #include <pthread.h>
 

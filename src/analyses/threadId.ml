@@ -70,13 +70,14 @@ struct
     [ctx.local,ctx.local]
 
   let combine ctx lval fexp f args fc st2 (f_ask: Queries.ask) =
-    if (f_ask.f Queries.MayThreadcreate) then
-      st2
-    else
-      ctx.local
+    match (f_ask.f Queries.CreateEdges) with
+    | `Top -> st2
+    | `Lifted ces ->
+      let (current, td) = ctx.local in
+        (current, TD.join td ces)
 
   let special ctx lval f args =
-    if M.tracing then M.trace "threadCreate" "Current Tid State at %s: %a\n" f.vname D.pretty ctx.local;
+    if M.tracing then M.trace "threadCreateEdges" "Current Tid State at %s: %a\n" f.vname D.pretty ctx.local;
     ctx.local
 
   let is_unique ctx =
