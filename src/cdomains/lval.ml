@@ -177,18 +177,7 @@ struct
   let semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs =
     let x_index = offset_to_index_offset xtyp xoffs in
     let y_index = offset_to_index_offset ytyp yoffs in
-    match Idx.to_int  x_index, Idx.to_int y_index with
-    | Some x, Some y ->
-      if x = y then
-        Some true
-      else
-        Some false
-    | _, _ ->
-      let meet = Idx.meet x_index y_index in
-      if Idx.is_bot meet then
-        Some false
-      else
-        None
+    Idx.to_bool (Idx.eq x_index y_index)
 
 end
 
