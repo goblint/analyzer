@@ -229,7 +229,7 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module PreNormal (Offset: Comparable.S) =
+module PreNormal (Offset: Printable.S) =
 struct
   type t =
     | Addr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
