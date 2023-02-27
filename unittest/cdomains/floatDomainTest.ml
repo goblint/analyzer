@@ -24,9 +24,9 @@ struct
   let fi_zero = FI.of_const 0.
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
-  let itb_true = IT.of_int IBool (Big_int_Z.big_int_of_int 1)
-  let itb_false = IT.of_int IBool (Big_int_Z.big_int_of_int 0)
-  let itb_unknown = IT.of_interval IBool (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 1)
+  let itb_true = IT.of_int IBool Z.one
+  let itb_false = IT.of_int IBool Z.zero
+  let itb_unknown = IT.of_interval IBool (Z.zero, Z.one)
 
   let assert_equal v1 v2 =
     assert_equal ~cmp:FI.equal ~printer:FI.show v1 v2
@@ -126,7 +126,7 @@ struct
 
   let test_FI_casti2f_specific _ =
     let cast_bool a b =
-      assert_equal b (FI.of_int (IT.of_int IBool (Big_int_Z.big_int_of_int a))) in
+      assert_equal b (FI.of_int (IT.of_int IBool (Z.of_int a))) in
     begin
       cast_bool 0 fi_zero;
       cast_bool 1 fi_one
@@ -137,24 +137,24 @@ struct
       PrecisionUtil.reset_lazy ();
       cast (IT.top_of IInt) (FI.of_interval (-2147483648.,2147483647.));
       cast (IT.top_of IBool) (FI.of_interval (0., 1.));
-      cast (IT.of_int IInt Big_int_Z.zero_big_int) fi_zero;
-      cast (IT.of_int IInt Big_int_Z.unit_big_int) fi_one;
+      cast (IT.of_int IInt Z.zero) fi_zero;
+      cast (IT.of_int IInt Z.one) fi_one;
       (* no IChar because char has unknown signedness (particularly, unsigned on arm64) *)
-      cast (IT.of_interval IUChar (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 128)) (FI.of_interval (0., 128.));
-      cast (IT.of_interval ISChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int (-1))) (FI.of_interval (-. 8., - 1.));
-      cast (IT.of_interval IUInt (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100)) (FI.of_interval (2., 100.));
-      cast (IT.of_interval IInt (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
-      cast (IT.of_interval IUShort (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100)) (FI.of_interval (2., 100.));
-      cast (IT.of_interval IShort (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
+      cast (IT.of_interval IUChar (Z.zero, Z.of_int 128)) (FI.of_interval (0., 128.));
+      cast (IT.of_interval ISChar (Z.of_int (-8), Z.of_int (-1))) (FI.of_interval (-. 8., - 1.));
+      cast (IT.of_interval IUInt (Z.of_int 2, Z.of_int 100)) (FI.of_interval (2., 100.));
+      cast (IT.of_interval IInt (Z.of_int (- 100), Z.of_int 100)) (FI.of_interval (-. 100., 100.));
+      cast (IT.of_interval IUShort (Z.of_int 2, Z.of_int 100)) (FI.of_interval (2., 100.));
+      cast (IT.of_interval IShort (Z.of_int (- 100), Z.of_int 100)) (FI.of_interval (-. 100., 100.));
 
-      cast (IT.of_interval IULong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 Int64.max_int)) (FI.of_interval (0., 9223372036854775807.));
-      cast (IT.of_interval IULong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 (9223372036854775806L))) (FI.of_interval (0., 9223372036854775807.));
-      cast (IT.of_interval ILong (Big_int_Z.big_int_of_int64 Int64.min_int, Big_int_Z.zero_big_int)) (FI.of_interval (-. 9223372036854775808., 0.));
-      cast (IT.of_interval ILong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
-      cast (IT.of_interval IULongLong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 Int64.max_int)) (FI.of_interval (0., 9223372036854775807.));
-      cast (IT.of_interval IULongLong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 (9223372036854775806L))) (FI.of_interval (0., 9223372036854775807.));
-      cast (IT.of_interval ILongLong (Big_int_Z.big_int_of_int64 Int64.min_int, Big_int_Z.zero_big_int)) (FI.of_interval (-. 9223372036854775808., 0.));
-      cast (IT.of_interval ILongLong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
+      cast (IT.of_interval IULong (Z.zero, Z.of_int64 Int64.max_int)) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval IULong (Z.zero, Z.of_int64 (9223372036854775806L))) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval ILong (Z.of_int64 Int64.min_int, Z.zero)) (FI.of_interval (-. 9223372036854775808., 0.));
+      cast (IT.of_interval ILong (Z.of_int (- 100), Z.of_int 100)) (FI.of_interval (-. 100., 100.));
+      cast (IT.of_interval IULongLong (Z.zero, Z.of_int64 Int64.max_int)) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval IULongLong (Z.zero, Z.of_int64 (9223372036854775806L))) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval ILongLong (Z.of_int64 Int64.min_int, Z.zero)) (FI.of_interval (-. 9223372036854775808., 0.));
+      cast (IT.of_interval ILongLong (Z.of_int (- 100), Z.of_int 100)) (FI.of_interval (-. 100., 100.));
       GobConfig.set_bool "ana.int.interval" false;
       PrecisionUtil.reset_lazy ();
     end
@@ -167,26 +167,26 @@ struct
       PrecisionUtil.reset_lazy ();
       cast IInt (FI.of_interval (-2147483648.,2147483647.)) (IT.top_of IInt);
       cast IInt (FI.of_interval (-9999999999.,9999999999.)) (IT.top_of IInt);
-      cast IInt (FI.of_interval (-10.1,20.9)) (IT.of_interval IInt ( Big_int_Z.big_int_of_int (-10),  Big_int_Z.big_int_of_int 20));
+      cast IInt (FI.of_interval (-10.1,20.9)) (IT.of_interval IInt ( Z.of_int (-10),  Z.of_int 20));
       cast IBool (FI.of_interval (0.,1.)) (IT.top_of IBool);
       cast IBool (FI.of_interval (-9999999999.,9999999999.)) (IT.top_of IBool);
       cast IBool fi_one (IT.of_bool IBool true);
       cast IBool fi_zero (IT.of_bool IBool false);
 
       (* no IChar because char has unknown signedness (particularly, unsigned on arm64) *)
-      cast IUChar (FI.of_interval (0.123, 128.999)) (IT.of_interval IUChar (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 128));
-      cast ISChar (FI.of_interval (-. 8.0000000, 127.)) (IT.of_interval ISChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int 127));
-      cast IUInt (FI.of_interval (2., 100.)) (IT.of_interval IUInt (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100));
-      cast IInt (FI.of_interval (-. 100.2, 100.1)) (IT.of_interval IInt (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
-      cast IUShort (FI.of_interval (2., 100.)) (IT.of_interval IUShort (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100));
-      cast IShort (FI.of_interval (-. 100., 100.)) (IT.of_interval IShort (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
+      cast IUChar (FI.of_interval (0.123, 128.999)) (IT.of_interval IUChar (Z.zero, Z.of_int 128));
+      cast ISChar (FI.of_interval (-. 8.0000000, 127.)) (IT.of_interval ISChar (Z.of_int (-8), Z.of_int 127));
+      cast IUInt (FI.of_interval (2., 100.)) (IT.of_interval IUInt (Z.of_int 2, Z.of_int 100));
+      cast IInt (FI.of_interval (-. 100.2, 100.1)) (IT.of_interval IInt (Z.of_int (- 100), Z.of_int 100));
+      cast IUShort (FI.of_interval (2., 100.)) (IT.of_interval IUShort (Z.of_int 2, Z.of_int 100));
+      cast IShort (FI.of_interval (-. 100., 100.)) (IT.of_interval IShort (Z.of_int (- 100), Z.of_int 100));
 
-      cast IULong (FI.of_interval (0., 9223372036854775808.)) (IT.of_interval IULong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_string "9223372036854775808"));
-      cast ILong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILong (Big_int_Z.big_int_of_string "-9223372036854775808", Big_int_Z.zero_big_int));
-      cast ILong (FI.of_interval (-. 100.99999, 100.99999)) (IT.of_interval ILong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
-      cast IULongLong (FI.of_interval (0., 9223372036854775808.)) (IT.of_interval IULongLong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_string "9223372036854775808"));
-      cast ILongLong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILongLong ((Big_int_Z.big_int_of_string "-9223372036854775808"), Big_int_Z.zero_big_int));
-      cast ILongLong  (FI.of_interval (-. 100., 100.)) (IT.of_interval ILongLong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
+      cast IULong (FI.of_interval (0., 9223372036854775808.)) (IT.of_interval IULong (Z.zero, Z.of_string "9223372036854775808"));
+      cast ILong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILong (Z.of_string "-9223372036854775808", Z.zero));
+      cast ILong (FI.of_interval (-. 100.99999, 100.99999)) (IT.of_interval ILong (Z.of_int (- 100), Z.of_int 100));
+      cast IULongLong (FI.of_interval (0., 9223372036854775808.)) (IT.of_interval IULongLong (Z.zero, Z.of_string "9223372036854775808"));
+      cast ILongLong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILongLong ((Z.of_string "-9223372036854775808"), Z.zero));
+      cast ILongLong  (FI.of_interval (-. 100., 100.)) (IT.of_interval ILongLong (Z.of_int (- 100), Z.of_int 100));
       GobConfig.set_bool "ana.int.interval" false;
       PrecisionUtil.reset_lazy ();
     end

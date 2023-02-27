@@ -291,7 +291,7 @@ struct
         let binop = BinOp (Eq, Lval lval, Const (CInt(i, kind, str)), Cil.intType) in
         let key = D.key_from_lval lval in
         let value = D.find key m in
-        if Cilint.is_zero_cilint i && tv then (
+        if Z.equal i Z.zero && tv then (
           M.debug ~category:Analyzer "error-branch";
           (* D.remove key m *)
         )else(

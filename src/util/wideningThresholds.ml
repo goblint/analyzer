@@ -7,7 +7,6 @@ module Thresholds = Set.Make(Z)
 (* differentiating between upper and lower bounds, because e.g. expr > 10 is definitely true for an interval [11, x] and definitely false for an interval [x, 10] *)
 (* apron octagons use thresholds for c in inequalities +/- x +/- y <= c *)
 let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref
-let one = Z.of_int 1
 
 class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, octagon_thresholds) = object
   inherit nopCilVisitor
@@ -19,9 +18,9 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Lt, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Gt, (Const (CInt(i,_,_))), _, (TInt _)) ->
       addThreshold upper_thresholds @@ i;
-      addThreshold lower_thresholds @@ Z.sub i one;
+      addThreshold lower_thresholds @@ Z.pred i;
 
-      let negI = Z.add one @@ Z.neg i in
+      let negI = Z.succ @@ Z.neg i in
       addThreshold octagon_thresholds @@ i; (* upper, just large enough: x + Y <= i *)
       addThreshold octagon_thresholds @@ negI; (* lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
       addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i *)
@@ -33,11 +32,11 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
     | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
-      let i = Z.add i one in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
+      let i = Z.succ i in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
       addThreshold upper_thresholds @@ i;
-      addThreshold lower_thresholds @@ Z.sub i one;
+      addThreshold lower_thresholds @@ Z.pred i;
 
-      let negI = Z.add one @@ Z.neg i in
+      let negI = Z.succ @@ Z.neg i in
       addThreshold octagon_thresholds @@ i;
       addThreshold octagon_thresholds @@ negI;
       addThreshold octagon_thresholds @@ Z.add i i;

@@ -40,7 +40,7 @@ let compare_name (a: string) (b: string) =
 
 let rec eq_constant ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) (a: constant) (b: constant) =
   match a, b with
-  | CInt (val1, kind1, str1), CInt (val2, kind2, str2) -> Cilint.compare_cilint val1 val2 = 0 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
+  | CInt (val1, kind1, str1), CInt (val2, kind2, str2) -> Z.compare val1 val2 = 0 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
   | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 ~rename_mapping ~acc (* Ignore name and enuminfo  *)
   | a, b -> a = b
 

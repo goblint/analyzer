@@ -780,7 +780,7 @@ struct
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
+        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind num)
@@ -944,7 +944,7 @@ struct
               true
             else
               match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-              | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+              | Some i1, Some i2 -> Z.compare i1 i2 <= 0
               | _ ->
                 if contains_vla t || contains_vla (get_type_addr (x, o)) then
                   begin
@@ -1644,7 +1644,7 @@ struct
       in
       match last_index lval, stripCasts rval with
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
-        let i = Cilint.int_of_cilint i in
+        let i = Z.to_int i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
         let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
@@ -2249,7 +2249,7 @@ struct
 
   let combine_st ctx (local_st : store) (fun_st : store) (tainted_lvs : Q.LS.t) : store =
     let ask = (Analyses.ask_of_ctx ctx) in
-    Q.LS.fold (fun (v, o) st -> 
+    Q.LS.fold (fun (v, o) st ->
         if CPA.mem v fun_st.cpa then
           let lval = Lval.CilLval.to_lval (v,o) in
           let address = eval_lv ask ctx.global st lval in
@@ -2266,7 +2266,7 @@ struct
               if M.tracing then M.trace "taintPC" "update val: %a\n\n" VD.pretty new_val;
               let st' = set_savetop ~ctx ask ctx.global st address lval_type new_val in
               let partDep = Dep.find_opt v fun_st.deps in
-              match partDep with 
+              match partDep with
               | None -> st'
               (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
               | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
@@ -2291,7 +2291,7 @@ struct
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-        begin if (Q.LS.is_top tainted) then
+        if (Q.LS.is_top tainted) then
           let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
           let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
@@ -2307,7 +2307,6 @@ struct
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
-        end
       in
       let return_var = return_var () in
       let return_val =
