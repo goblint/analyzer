@@ -18,12 +18,6 @@ sig
   val to_int: t -> IntOps.BigIntOps.t option
 end
 
-module type IdxDomain =
-sig
-  include IdxPrintable
-  include Lattice.S with type t := t
-end
-
 module Offset (Idx: IdxPrintable) =
 struct
   type t = (fieldinfo, Idx.t) offs
@@ -111,7 +105,7 @@ struct
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
 end
 
-module OffsetLat (Idx: IdxDomain) =
+module OffsetLat (Idx: IntDomain.Z) =
 struct
   include Offset (Idx)
 
@@ -235,7 +229,7 @@ struct
     | Addr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | StrPtr of string option
+    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
   let hash x = match x with
