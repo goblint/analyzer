@@ -7,6 +7,8 @@ sig
   include Set.OrderedType with type t := t
 
   val cfgnode: t -> MyCFG.node
+  val context_id: t -> int
+  val path_id: t -> int
   val to_string: t -> string
 
   val move_opt: t -> MyCFG.node -> t option
@@ -82,6 +84,8 @@ struct
   type t = Node.t list [@@deriving eq, ord, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
+  let context_id nl = Node.context_id (List.hd nl)
+  let path_id nl = Node.path_id (List.hd nl)
   let to_string nl =
     nl
     |> List.map Node.to_string

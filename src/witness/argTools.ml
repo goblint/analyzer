@@ -46,6 +46,8 @@ struct
     let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
 
     let cfgnode (n, c, i) = n
+    let context_id (n, c, i) = Spec.C.tag c
+    let path_id (n, c, i) = i
 
     let to_string (n, c, i) =
       (* copied from NodeCtxStackGraphMlWriter *)

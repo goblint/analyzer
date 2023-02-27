@@ -453,6 +453,8 @@ let () =
     type one_response = {
       node: string;
       cfg_node: string;
+      context: string;
+      path: string;
       location: CilType.Location.t;
       next: (MyARG.inline_edge * string) list;
       prev: (MyARG.inline_edge * string) list;
@@ -496,7 +498,15 @@ let () =
             (edge, Arg.Node.to_string to_node)
           )
       in
-      {node = Arg.Node.to_string n; cfg_node = cfg_node_id; location; next; prev}
+      {
+        node = Arg.Node.to_string n;
+        cfg_node = cfg_node_id;
+        context = string_of_int (Arg.Node.context_id n);
+        path = string_of_int (Arg.Node.path_id n);
+        location;
+        next;
+        prev
+      }
   end);
 
   register (module struct
