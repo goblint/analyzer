@@ -108,7 +108,7 @@ struct
 
   let array_length_idx default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
-    BatOption.map_default (fun x-> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint x) default l
+    BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) default l
 
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
@@ -144,7 +144,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -161,7 +161,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -191,7 +191,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _} as ci,_) ->
@@ -280,10 +280,13 @@ struct
     | TFloat (FDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FFloat,_) -> true
+    | TFloat (FFloat128, _), TFloat (FDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FLongDouble,_) -> true
     | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
-    | TFloat ((FFloat | FDouble | FLongDouble), _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) -> true (* resonably small integers can be stored in all fkinds *)
-    | TFloat ((FDouble | FLongDouble), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
-    | TFloat _, _ -> false (* all wider integers can not be completly put into a float, partially because our internal representation of long double is the same as for doubles *)
+    | TFloat (fk, _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
+    | TFloat ((FDouble | FLongDouble | FFloat128), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
+    | TFloat _, _ -> false (* all wider integers can not be completely put into a float, partially because our internal representation of long double is the same as for doubles *)
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
     | _ -> false
@@ -388,7 +391,7 @@ struct
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top_of ik
             ))
-        | TFloat ((FFloat | FDouble | FLongDouble as fkind),_) ->
+        | TFloat (fkind,_) when not (Cilfacade.isComplexFKind fkind) ->
           (match v with
            |`Int ix ->  `Float (FD.of_int fkind ix)
            |`Float fx ->  `Float (FD.cast_to fkind fx)
@@ -517,129 +520,6 @@ struct
       warn_type "join" x y;
       `Top
 
-  let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
-    let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
-    | (`Float x, `Float y) -> `Float (FD.join x y)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
-        | Some x -> AD.(join y not_null)
-        | None -> AD.join y AD.top_ptr)
-    | (`Address x, `Address y) -> `Address (AD.join x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `Blob can not contain array -> normal join  *)
-    | `Blob (x,s,o), y
-    | y, `Blob (x,s,o) ->
-      `Blob (join (x:t) y, s, o)
-    | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Thread y (* TODO: ignores address! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | _ ->
-      warn_type "join" x y;
-      `Top
-
-  let rec smart_widen x_eval_int y_eval_int x y:t =
-    let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
-    | (`Float x, `Float y) -> `Float (FD.widen x y)
-    (* TODO: symmetric widen, wtf? *)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
-        | Some x -> AD.(widen y (join y not_null))
-        | None -> AD.widen y (AD.join y AD.top_ptr))
-    | (`Address x, `Address y) -> `Address (AD.widen x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
-        | x -> x, `Top) (* f <> g *)
-    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
-    | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Thread y (* TODO: ignores address! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | _ ->
-      warn_type "widen" x y;
-      `Top
-
-
-  let rec smart_leq x_eval_int y_eval_int x y =
-    let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
-    match (x,y) with
-    | (_, `Top) -> true
-    | (`Top, _) -> false
-    | (`Bot, _) -> true
-    | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`Float x, `Float y) -> FD.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
-    | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
-    | (`Address x, `Address y) -> AD.leq x y
-    | (`Struct x, `Struct y) ->
-          Structs.leq_with_fct leq_elem x y
-    | (`Union (f, x), `Union (g, y)) ->
-        UnionDomain.Field.leq f g && leq_elem x y
-    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
-    | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
-    | (`Thread x, `Thread y) -> Threads.leq x y
-    | (`Int x, `Thread y) -> true
-    | (`Address x, `Thread y) -> true
-    | (`Mutex, `Mutex) -> true
-    | _ -> warn_type "leq" x y; false
-
-  let rec meet x y =
-    match (x,y) with
-    | (`Bot, _) -> `Bot
-    | (_, `Bot) -> `Bot
-    | (`Top, x) -> x
-    | (x, `Top) -> x
-    | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Float x, `Float y) -> `Float (FD.meet x y)
-    | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
-    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
-    | (`Address x, `Address y) -> `Address (AD.meet x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
-    | (`Union x, `Union y) -> `Union (Unions.meet x y)
-    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
-    | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Int x (* TODO: ignores thread! *)
-    | (`Address x, `Thread y)
-    | (`Thread y, `Address x) ->
-      `Address x (* TODO: ignores thread! *)
-    | (`Mutex, `Mutex) -> `Mutex
-    | _ ->
-      warn_type "meet" x y;
-      `Bot
-
   let rec widen x y =
     match (x,y) with
     | (`Top, _) -> `Top
@@ -672,6 +552,64 @@ struct
     | _ ->
       warn_type "widen" x y;
       `Top
+
+  let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
+    let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
+    match (x,y) with
+    | (`Struct x, `Struct y) -> `Struct (Structs.join_with_fct join_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
+        | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
+        | x -> (x, `Top)) (* f <> g *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
+    | _ -> join x y  (* Others can not contain array -> normal join  *)
+
+  let rec smart_widen x_eval_int y_eval_int x y:t =
+    let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
+    match (x,y) with
+    | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
+    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
+        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
+        | x -> x, `Top) (* f <> g *)
+    | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
+    | _ -> widen x y  (* Others can not contain array -> normal widen  *)
+
+
+  let rec smart_leq x_eval_int y_eval_int x y =
+    let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
+    match (x,y) with
+    | (`Struct x, `Struct y) ->
+          Structs.leq_with_fct leq_elem x y
+    | (`Union (f, x), `Union (g, y)) ->
+        UnionDomain.Field.leq f g && leq_elem x y
+    | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
+    | _ -> leq x y (* Others can not contain array -> normal leq *)
+
+  let rec meet x y =
+    match (x,y) with
+    | (`Bot, _) -> `Bot
+    | (_, `Bot) -> `Bot
+    | (`Top, x) -> x
+    | (x, `Top) -> x
+    | (`Int x, `Int y) -> `Int (ID.meet x y)
+    | (`Float x, `Float y) -> `Float (FD.meet x y)
+    | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
+    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (`Address x, `Address y) -> `Address (AD.meet x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
+    | (`Union x, `Union y) -> `Union (Unions.meet x y)
+    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
+    | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Int x (* TODO: ignores thread! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Address x (* TODO: ignores thread! *)
+    | (`Mutex, `Mutex) -> `Mutex
+    | _ ->
+      warn_type "meet" x y;
+      `Bot
 
   let rec narrow x y =
     match (x,y) with
@@ -874,7 +812,7 @@ struct
                (* only return an actual value if we have a type and return actually the exact same type *)
                | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
                | `Float _, t -> top_value t
-               | _, TFloat((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
                | _ ->
                  let x = cast ~torg:l_fld.ftype fld.ftype value in
                  let l', o' = shift_one_over l o in
@@ -1043,7 +981,7 @@ struct
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
-              let len_id = BatOption.map (fun ci -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint ci) len_ci in
+              let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
               let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value

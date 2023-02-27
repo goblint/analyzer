@@ -18,11 +18,14 @@
       "mutex",
       "affeq",
       "access",
+      "race",
       "escape",
       "expRelation",
       "symb_locks",
       "region",
-      "thread"
+      "thread",
+      "mhp",
+      "assert"
     ],
     "context": {
       "widen": false

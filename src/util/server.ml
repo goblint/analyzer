@@ -176,6 +176,38 @@ let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data Sol
     Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
   | _ -> None, true
 
+
+module Locator = WitnessUtil.Locator (Node)
+let node_locator: Locator.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let locator = Locator.create () in
+
+      (* DFS, copied from CfgTools.find_backwards_reachable *)
+      let module NH = MyCFG.NodeH in
+      let reachable = NH.create 100 in
+      let rec iter_node node =
+        if not (NH.mem reachable node) then begin
+          NH.replace reachable node ();
+          let loc = Node.location node in
+          if not loc.synthetic then
+            Locator.add locator loc node;
+          List.iter (fun (_, prev_node) ->
+              iter_node prev_node
+            ) (Cfg.prev node)
+        end
+      in
+
+      Cil.iterGlobals !Cilfacade.current_file (function
+          | GFun (fd, _) ->
+            let return_node = Node.Function fd in
+            iter_node return_node
+          | _ -> ()
+        );
+
+      locator
+    )
+
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
   Messages.Table.messages_list := [];
@@ -186,6 +218,7 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data SolverData;
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
+  ResettableLazy.reset node_locator;
   Cilfacade.reset_lazy ();
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
@@ -216,8 +249,11 @@ let () =
       try
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
-      with Sys.Break ->
+      with
+      | Sys.Break ->
         {status = Aborted}
+      | Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
@@ -289,20 +325,26 @@ let () =
     type params = unit [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () s =
-      if GobConfig.get_bool "server.reparse" then (
-        GoblintDir.init ();
-        Fun.protect ~finally:GoblintDir.finalize (fun () ->
-            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
-          )
-      );
-      Preprocessor.dependencies_to_yojson ()
+      try
+        if GobConfig.get_bool "server.reparse" then (
+          GoblintDir.init ();
+          Fun.protect ~finally:GoblintDir.finalize (fun () ->
+              ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+            )
+        );
+        Preprocessor.dependencies_to_yojson ()
+      with Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
     let name = "functions"
     type params = unit [@@deriving of_yojson]
     type response = Function.t list [@@deriving to_yojson]
-    let process () serv = Function.getFunctionsList (Option.get serv.file).globals
+    let process () serv =
+      match serv.file with
+      | Some file -> Function.getFunctionsList file.globals
+      | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed" ()))
   end);
 
   register (module struct
@@ -317,14 +359,65 @@ let () =
   end);
 
   register (module struct
+    let name = "cfg/lookup"
+    type params = {
+      node: string option [@default None];
+      location: CilType.Location.t option [@default None];
+    } [@@deriving of_yojson]
+    type response = {
+      node: string;
+      location: CilType.Location.t;
+      next: (Edge.t list * string) list;
+      prev: (Edge.t list * string) list;
+    } [@@deriving to_yojson]
+    let process (params: params) serv =
+      let node = match params.node, params.location with
+        | Some node_id, None ->
+          begin try
+              Node.of_id node_id
+            with Not_found ->
+              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          end
+        | None, Some location ->
+          let node_opt =
+            let open GobOption.Syntax in
+            let* nodes = Locator.find_opt (ResettableLazy.force node_locator) location in
+            Locator.ES.choose_opt nodes
+          in
+          Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+        | _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
+      in
+      let node_id = Node.show_id node in
+      let location = Node.location node in
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let next =
+        Cfg.next node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      let prev =
+        Cfg.prev node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      {node = node_id; location; next; prev}
+  end);
+
+  register (module struct
     let name = "node_state"
     type params = { nid: string }  [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process { nid } serv =
-      let f = !Control.current_node_state_json in
-      let n = Node.of_id nid in
-      let json = f n in
-      json
+      match Node.of_id nid with
+      | n ->
+        begin match !Control.current_node_state_json n with
+          | Some json -> json
+          | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed, non-existent or dead node" ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
   end);
 
   register (module struct

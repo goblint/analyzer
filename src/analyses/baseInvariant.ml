@@ -363,8 +363,8 @@ struct
                   let top_ik = ID.top_of ikind in
                   match ID.minimal b, ID.maximal b with
                   | Some lb, Some ub ->
-                    let starting = if Z.equal lb x then ID.starting ikind (Z.add lb Z.one) else top_ik in
-                    let ending = if Z.equal ub x then ID.ending ikind (Z.sub ub Z.one) else top_ik in
+                    let starting = if Z.equal lb x then ID.starting ikind (Z.succ lb) else top_ik in
+                    let ending = if Z.equal ub x then ID.ending ikind (Z.pred ub) else top_ik in
                     ID.meet starting ending
                   | _ ->
                     top_ik

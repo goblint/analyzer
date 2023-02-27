@@ -232,6 +232,7 @@ let createCFG (file: file) =
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
+          if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s.\n" fd.svar.vname;
           let newst = mkStmt (Return (None, fd_loc)) in
           newst.sid <- get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;

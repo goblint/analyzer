@@ -54,7 +54,7 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Z.compare i1 i2 = 0
     |	CStr (s1,_)        , CStr (s2,_)         -> s1=s2
     |	CWStr (s1,_)       , CWStr (s2,_)        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
