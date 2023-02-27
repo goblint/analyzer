@@ -4,7 +4,7 @@ Welcome to the Goblint project documentation! Here you may find *some* useful in
 
 Below is a picture of *Wettlaufweltmeister*, the Goblint organization mascot. The ranking of verifiers in the Race Detection category at SV-COMP 2023 explains the name.
 
-<img align="left" width=400px src="img/wettlaufweltmeister.svg">
+<img align="left" width="60%" src="img/wettlaufweltmeister.svg">
 
 
 1. **Goblint (1342)**
