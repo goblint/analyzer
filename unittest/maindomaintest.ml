@@ -41,8 +41,8 @@ let domains: (module Lattice.S) list = [
   (module ArbitraryLattice);
   (module HoareArbitrary);
   (module HoareArbitrary_NoTop);
-  (module HoareDomain.MapBot (ArbitraryLattice) (HoareArbitrary));
-  (module HoareDomain.MapBot (ArbitraryLattice) (HoareArbitrary_NoTop));
+  (module HoareDomain.MapBot[@alert "-deprecated"] (ArbitraryLattice) (HoareArbitrary));
+  (module HoareDomain.MapBot[@alert "-deprecated"] (ArbitraryLattice) (HoareArbitrary_NoTop));
 ]
 
 let nonAssocDomains: (module Lattice.S) list = []
