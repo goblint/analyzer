@@ -273,7 +273,7 @@ let fixedLoopSize loopStatement func =
     constBefore var loopStatement func >>= fun start ->
     assignmentDifference loopStatement var >>= fun diff ->
     print_endline "comparison: ";
-    Pretty.fprint stdout (dn_exp () comparison) ~width:50;
+    Pretty.fprint stdout (dn_exp () comparison) ~width:max_int;
     print_endline "";
     print_endline "variable: ";
     print_endline var.vname;

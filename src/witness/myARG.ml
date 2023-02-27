@@ -25,7 +25,7 @@ struct
   type t = edge
 
   let embed e = e
-  let to_string e = Pretty.sprint ~width:80 (Edge.pretty_plain () e)
+  let to_string e = Pretty.sprint ~width:max_int (Edge.pretty_plain () e)
 end
 
 type inline_edge =
