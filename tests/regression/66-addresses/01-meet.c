@@ -15,5 +15,9 @@ int main(){
 		__goblint_check(p == p2); //TODO
 	}
 
+	if(p2 == p){
+		__goblint_check(p == p2); //TODO
+	}
+
 	return 0;
 }
