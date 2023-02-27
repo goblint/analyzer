@@ -238,6 +238,7 @@ struct
           let yr =
             if should_inline f then
               step_ctx ctx x' (InlineEntry a)
+              (* TODO: keep inlined Proc edge as well *)
             else
               R.bot ()
           in

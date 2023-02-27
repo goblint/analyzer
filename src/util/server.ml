@@ -131,6 +131,8 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
           StringH.replace ids (Arg.Node.to_string n) n;
         );
 
+      (* TODO: lookup  by CFG node *)
+
       let module ArgWrapper =
       struct
         module Arg = Arg
@@ -456,7 +458,7 @@ let () =
       context: string;
       path: string;
       location: CilType.Location.t;
-      next: (MyARG.inline_edge * string) list;
+      next: (MyARG.inline_edge * string) list; (* TODO: tuple to record *)
       prev: (MyARG.inline_edge * string) list;
     } [@@deriving to_yojson]
     type response = one_response list [@@deriving to_yojson]
@@ -471,7 +473,7 @@ let () =
           begin try
               [ArgWrapper.find_node node_id]
             with Not_found ->
-              Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
+              Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ())) (* TODO: empty list *)
           end
         | None, Some location ->
           let nodes_opt =
@@ -479,7 +481,7 @@ let () =
             let+ nodes = Locator.find_opt locator location in
             Locator.ES.elements nodes
           in
-          Option.get_exn nodes_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+          Option.get_exn nodes_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ())) (* TODO: empty list *)
         | Some _, Some _ ->
           Response.Error.(raise (make ~code:RequestFailed ~message:"requires node nand location" ()))
       in
