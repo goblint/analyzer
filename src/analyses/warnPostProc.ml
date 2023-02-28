@@ -119,7 +119,7 @@ let filter_eq_locs loc1 loc2 =
 let rem_related (message : Alarm.t) node =
   match message.multipiece with
   | Group group ->
-    let pieces = List.filter (fun (piece : M.Piece.t) -> filter_eq_locs (Some (RM.Location.Node node)) piece.loc || piece.text != "Possible cause") group.pieces in
+    let pieces = List.filter (fun (piece : M.Piece.t) -> filter_eq_locs (Some (RM.Location.Node node)) piece.loc || piece.text != "Possible cause") group.pieces in (* TODO: remove the text check *)
     let group = {group with pieces = pieces} in
     {message with multipiece = Group group}
   | _ -> failwith "TODO"
@@ -146,7 +146,7 @@ let var_changed_in_node stmt exp =
     | _ -> false
   end
 
-let lock_acquired_in_node stmt node acc = 
+let no_race_or_lock stmt node acc = 
   if (!ask node).f (MayRace (Obj.repr acc)) then
     begin match stmt.skind with
       | Instr [] -> false
@@ -188,7 +188,7 @@ struct
   let filter_killed stmt node (alarm : Alarm.t) = 
     match alarm.cond with 
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc (_, accs) -> Access.AS.choose accs |> (fun (_,_,_,_,acc) -> acc) |> lock_acquired_in_node stmt node
+    | Acc (_, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) accs true
 
   let kill node x =
     match node with
@@ -257,7 +257,7 @@ struct
   let filter_killed stmt node (alarm : Alarm.t) =
     match alarm.cond with
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc (_, accs) -> Access.AS.choose accs |> (fun (_,_,_,_,acc) -> acc) |> lock_acquired_in_node stmt node
+    | Acc (_, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) accs true
 
   let kill node x =
     match node with
@@ -378,9 +378,7 @@ let finalize _ =
         | Some true, Some true -> false (* Certainly in bounds on both sides.*)
         | _ -> true
       end
-    | Acc ((_,_,_,_,mcpa), accs) -> true
-    (* TODO: why removes everything? *)
-    (* let acc = Access.AS.choose accs |> (fun (_,_,_,_,acc) -> acc) in not @@ (!ask node).f (MayRace (Obj.repr acc)) *)
+    | Acc ((_,_,_,_,mcpa), accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
   in
 
   let filter_always_true node cs = CondSet.filter (cond_holds node) cs in
