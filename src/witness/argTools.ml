@@ -8,6 +8,31 @@ sig
   val iter_nodes: (Node.t -> unit) -> unit
 end
 
+module Dot (Arg: BiArg) =
+struct
+  let dot_node_name ppf node =
+    Format.fprintf ppf "\"%s\"" (Arg.Node.to_string node)
+
+  let dot_edge ppf from_node (edge, to_node) =
+    Format.fprintf ppf "@,%a -> %a [label=\"%s\"];" dot_node_name from_node dot_node_name to_node (String.escaped (Arg.Edge.to_string edge))
+
+  let dot_node ppf node =
+    let shape = match Arg.Node.cfgnode node with
+      | Statement {skind=If (_,_,_,_,_); _}  -> "diamond"
+      | Statement _     -> "oval"
+      | Function _
+      | FunctionEntry _ -> "box"
+    in
+    Format.fprintf ppf "@,%a [shape=%s];" dot_node_name node shape;
+    List.iter (dot_edge ppf node) (Arg.next node)
+
+  let dot_nodes ppf =
+    Arg.iter_nodes (dot_node ppf)
+
+  let dot ppf =
+    Format.fprintf ppf "@[<v 2>digraph arg {%t@]@,}@\n" dot_nodes
+end
+
 let current_arg: (module BiArg) option ref = ref None
 
 module Make (R: ResultQuery.SpecSysSol2) =

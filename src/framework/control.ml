@@ -662,6 +662,17 @@ struct
     if get_bool "exp.arg" then (
       let module ArgTool = ArgTools.Make (R) in
       let module Arg = (val ArgTool.create entrystates) in
+      if get_bool "exp.argdot" then (
+        let module ArgDot = ArgTools.Dot (Arg) in
+        let oc = Stdlib.open_out "arg.dot" in
+        Fun.protect (fun () ->
+            let ppf = Format.formatter_of_out_channel oc in
+            ArgDot.dot ppf;
+            Format.pp_print_flush ppf ()
+          ) ~finally:(fun () ->
+            Stdlib.close_out oc
+          )
+      );
       ArgTools.current_arg := Some (module Arg);
     );
 
