@@ -452,16 +452,22 @@ let () =
       node: string option [@default None];
       location: CilType.Location.t option [@default None];
     } [@@deriving of_yojson]
+
+    type edge_node = {
+      edge: MyARG.inline_edge;
+      node: string;
+    } [@@deriving to_yojson]
     type one_response = {
       node: string;
       cfg_node: string;
       context: string;
       path: string;
       location: CilType.Location.t;
-      next: (MyARG.inline_edge * string) list; (* TODO: tuple to record *)
-      prev: (MyARG.inline_edge * string) list;
+      next: edge_node list;
+      prev: edge_node list;
     } [@@deriving to_yojson]
     type response = one_response list [@@deriving to_yojson]
+
     let process (params: params) serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
       let open ArgWrapper in
@@ -491,13 +497,13 @@ let () =
       let next =
         Arg.next n
         |> List.map (fun (edge, to_node) ->
-            (edge, Arg.Node.to_string to_node)
+            {edge; node = Arg.Node.to_string to_node}
           )
       in
       let prev =
         Arg.prev n
         |> List.map (fun (edge, to_node) ->
-            (edge, Arg.Node.to_string to_node)
+            {edge; node = Arg.Node.to_string to_node}
           )
       in
       {
