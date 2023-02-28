@@ -3,8 +3,8 @@
   [Warning][Assert] Assertion "unknown == 4" is unknown. (01-assert.c:11:3-11:33)
   [Error][Assert] Assertion "fail" will fail. (01-assert.c:12:3-12:25)
   [Warning][Deadcode] Function 'main' has dead code:
-    on lines 13..15 (01-assert.c:13-15)
+    on lines 13..14 (01-assert.c:13-14)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
-    dead: 3
-    total lines: 10
+    dead: 2
+    total lines: 9
