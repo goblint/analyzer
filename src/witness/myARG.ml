@@ -33,16 +33,16 @@ end
 
 type inline_edge =
   | CFGEdge of Edge.t
-  | InlineEntry of CilType.Exp.t list
-  | InlineReturn of CilType.Lval.t option
+  | InlineEntry of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
+  | InlineReturn of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
   | InlinedEdge of Edge.t
 [@@deriving eq, ord, hash]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
-  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
-  | InlineReturn None -> Pretty.dprintf "InlineReturn"
-  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+  | InlineEntry (_, _, args) -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+  | InlineReturn (None, _, _) -> Pretty.dprintf "InlineReturn"
+  | InlineReturn (Some ret, _, _) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
   | InlinedEdge e -> Pretty.dprintf "Inlined %a" Edge.pretty_plain e
 
 let inline_edge_to_yojson = function
@@ -50,16 +50,20 @@ let inline_edge_to_yojson = function
     `Assoc [
       ("cfg", Edge.to_yojson e)
     ]
-  | InlineEntry args ->
+  | InlineEntry (lval, function_, args) ->
     `Assoc [
       ("entry", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Fundec.to_yojson function_);
           ("args", [%to_yojson: CilType.Exp.t list] args);
         ]);
     ]
-  | InlineReturn lval ->
+  | InlineReturn (lval, function_, args) ->
     `Assoc [
       ("return", `Assoc [
           ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Fundec.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
         ]);
     ]
   | InlinedEdge e ->

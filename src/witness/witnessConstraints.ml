@@ -238,7 +238,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
-              step_ctx ctx x' (InlineEntry a)
+              step_ctx ctx x' (InlineEntry (l, f, a))
               (* TODO: keep inlined Proc edge as well *)
             else
               R.bot ()
@@ -259,7 +259,7 @@ struct
         if should_inline f then
           let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          let returnr = step (Function f) (Option.get fc) x (InlineReturn l) nosync in (* fc should be Some outside of MCP *)
+          let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) nosync in (* fc should be Some outside of MCP *)
           let procr = step_ctx_inlined_edge ctx cd in
           R.join procr returnr
         else
