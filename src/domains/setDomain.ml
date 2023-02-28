@@ -134,11 +134,11 @@ struct
       match x with
       | [] -> []
       | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
+      | (x::xs) -> x ++ (text "," ++ break) :: separate xs
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
+    (text "{" ++ align) ++ content ++ (unalign ++ text "}")
 
   (** Short summary for sets. *)
   let show x : string =
