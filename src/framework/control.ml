@@ -42,7 +42,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
 let get_spec (): (module Spec) =
   Lazy.force spec_module
 
-let current_node_state_json : (Node.t -> Yojson.Safe.t) ref = ref (fun _ -> assert false)
+let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
@@ -98,19 +98,24 @@ struct
     let live_lines = ref StringMap.empty in
     let dead_lines = ref StringMap.empty in
     let add_one n v =
-      (* Not using Node.location here to have updated locations in incremental analysis.
-          See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let l = UpdateCil.getLoc n in
-      let f = Node.find_fundec n in
-      let add_fun  = BatISet.add l.line in
-      let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-      let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
-      if is_dead then (
-        dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
-      ) else (
-        live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
-        NH.add live_nodes n ()
-      );
+      match n with
+      | Statement s when Cilfacade.(StmtH.mem pseudo_return_to_fun s) ->
+        (* Exclude pseudo returns from dead lines counting. No user code at "}". *)
+        ()
+      | _ ->
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let l = UpdateCil.getLoc n in
+        let f = Node.find_fundec n in
+        let add_fun  = BatISet.add l.line in
+        let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
+        let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+        if is_dead then (
+          dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
+        ) else (
+          live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
+          NH.add live_nodes n ()
+        );
     in
     Result.iter add_one xs;
     let live_count = StringMap.fold (fun _ file_lines acc ->
@@ -635,7 +640,7 @@ struct
     let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (FileCfg) (SpecSysSol) in
 
     let local_xml = solver2source_result lh in
-    current_node_state_json := (fun node -> LT.to_yojson (Result.find local_xml node));
+    current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
 
     let liveness =
       if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then

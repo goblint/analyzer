@@ -379,17 +379,15 @@ struct
   let is_bot = is_empty
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
-    let p key value =
-      not (try Range.leq value (find key m2) with Not_found -> false)
-    in
-    let report key v1 v2 =
-      Pretty.dprintf "Map: %a =@?@[%a@]"
-        Domain.pretty key Range.pretty_diff (v1,v2)
-    in
-    let diff_key k v = function
-      | None   when p k v -> Some (report k v (find k m2))
-      | Some w when p k v -> Some (w++Pretty.line++report k v (find k m2))
-      | x -> x
+    let diff_key k v acc_opt =
+      match find k m2 with
+      | v2 when not (Range.leq v v2) ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[%a@]" Domain.pretty k Range.pretty_diff (v, v2))
+      | exception Lattice.BotValue ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[%a not leq bot@]" Domain.pretty k Range.pretty v)
+      | v2 -> acc_opt
     in
     match fold diff_key m1 None with
     | Some w -> w
@@ -443,17 +441,15 @@ struct
   let narrow = long_map2 Range.narrow
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
-    let p key value =
-      not (try Range.leq (find key m1) value with Not_found -> false)
-    in
-    let report key v1 v2 =
-      Pretty.dprintf "Map: %a =@?@[%a@]"
-        Domain.pretty key Range.pretty_diff (v1,v2)
-    in
-    let diff_key k v = function
-      | None   when p k v -> Some (report k (find k m1) v)
-      | Some w when p k v -> Some (w++Pretty.line++report k (find k m1) v)
-      | x -> x
+    let diff_key k v acc_opt =
+      match find k m1 with
+      | v1 when not (Range.leq v1 v) ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[%a@]" Domain.pretty k Range.pretty_diff (v1, v))
+      | exception Lattice.TopValue ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[top not leq %a@]" Domain.pretty k Range.pretty v)
+      | v1 -> acc_opt
     in
     match fold diff_key m2 None with
     | Some w -> w

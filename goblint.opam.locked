@@ -51,6 +51,7 @@ depends: [
   "csexp" {= "1.5.1"}
   "ctypes" {= "0.20.1"}
   "dune" {= "3.6.1"}
+  "dune-build-info" {= "3.6.1"}
   "dune-configurator" {= "3.6.1"}
   "dune-private-libs" {= "3.6.1"}
   "dune-site" {= "3.6.1"}
@@ -128,7 +129,7 @@ conflicts: [
 pin-depends: [
   [
     "goblint-cil.2.0.1"
-    "git+https://github.com/goblint/cil.git#c03ade107208546ef59cd14dcefa7b55f1506494"
+    "git+https://github.com/goblint/cil.git#6137a35a88dbe16c29e77d0138f7f2ae117d228d"
   ]
   [
     "apron.v0.9.13"

@@ -45,6 +45,8 @@ sig
   type idx
   type value
 
+  val domain_of_t: t -> domain
+
   val get: ?checkBounds:bool -> Q.ask -> t -> Basetype.CilExp.t option * idx -> value
   val set: Q.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
@@ -76,6 +78,8 @@ struct
   let name () = "trivial arrays"
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = TrivialDomain
 
   let show x = "Array: " ^ Val.show x
   let pretty () x = text "Array: " ++ pretty () x
@@ -112,6 +116,9 @@ struct
   let name () = "unrolled arrays"
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = UnrolledDomain
+
   let join_of_all_parts (xl, xr) = List.fold_left Val.join xr xl
   let show (xl, xr) =
     let rec show_list xlist = match xlist with
@@ -131,8 +138,8 @@ struct
         | hd::tl ->
           begin
             match Z.gt i max_i, Z.lt i min_i with
-            | false,true -> subjoin tl (Z.add i Z.one)
-            | false,false -> Val.join hd (subjoin tl (Z.add i Z.one))
+            | false,true -> subjoin tl (Z.succ i)
+            | false,false -> Val.join hd (subjoin tl (Z.succ i))
             | _,_ -> Val.bot ()
           end in
       subjoin xl Z.zero in
@@ -147,13 +154,13 @@ struct
       let rec weak_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if Z.lt i min_i then hd::(weak_update tl (Z.add i Z.one))
+          if Z.lt i min_i then hd::(weak_update tl (Z.succ i))
           else if Z.gt i max_i then (hd::tl)
-          else (Val.join hd v)::(weak_update tl (Z.add i Z.one)) in
+          else (Val.join hd v)::(weak_update tl (Z.succ i)) in
       let rec full_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if Z.lt i min_i then hd::(full_update tl (Z.add i Z.one))
+          if Z.lt i min_i then hd::(full_update tl (Z.succ i))
           else v::tl in
       if Z.equal min_i max_i then full_update xl Z.zero
       else weak_update xl Z.zero in
@@ -201,6 +208,8 @@ struct
 
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = PartitionedDomain
 
   let name () = "partitioned array"
 
@@ -477,9 +486,6 @@ struct
             else if Cil.isConstant e && Cil.isConstant i' then
               match Cil.getInteger e, Cil.getInteger i' with
               | Some (e'': Cilint.cilint), Some i'' ->
-                let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
-                let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
-
                 if BI.equal  i'' (BI.add e'' BI.one) then
                   (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                   Partitioned (i', (Val.join xl xm, a, xr))
@@ -728,6 +734,8 @@ struct
   type idx = Idx.t
   type value = Val.t
 
+  let domain_of_t _ = TrivialDomain
+
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
@@ -766,6 +774,8 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = PartitionedDomain
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
@@ -815,6 +825,8 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
+
+  let domain_of_t _ = UnrolledDomain
 
   let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
@@ -870,6 +882,12 @@ struct
 
   module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
   include LatticeFlagHelper (P) (I) (K)
+
+  let domain_of_t = function
+    | (Some p, None) -> PartitionedDomain
+    | (None, Some (Some t, None)) -> TrivialDomain
+    | (None, Some (None, Some u)) -> UnrolledDomain
+    | _ -> failwith "Array of invalid domain"
 
   let binop' opp opt opu = binop opp (I.binop opt opu)
   let unop' opp opt opu = unop opp (I.unop opt opu)

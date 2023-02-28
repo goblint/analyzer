@@ -108,7 +108,7 @@ struct
 
   let array_length_idx default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
-    BatOption.map_default (fun x-> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint x) default l
+    BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) default l
 
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
@@ -144,7 +144,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -161,7 +161,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -191,7 +191,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-    | TFloat ((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.of_const fkind 0.0)
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _} as ci,_) ->
@@ -280,10 +280,13 @@ struct
     | TFloat (FDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FFloat,_) -> true
+    | TFloat (FFloat128, _), TFloat (FDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FLongDouble,_) -> true
     | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
-    | TFloat ((FFloat | FDouble | FLongDouble), _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) -> true (* resonably small integers can be stored in all fkinds *)
-    | TFloat ((FDouble | FLongDouble), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
-    | TFloat _, _ -> false (* all wider integers can not be completly put into a float, partially because our internal representation of long double is the same as for doubles *)
+    | TFloat (fk, _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
+    | TFloat ((FDouble | FLongDouble | FFloat128), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
+    | TFloat _, _ -> false (* all wider integers can not be completely put into a float, partially because our internal representation of long double is the same as for doubles *)
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
     | _ -> false
@@ -307,7 +310,7 @@ struct
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
-      let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
+      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
@@ -336,7 +339,7 @@ struct
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
             | _ -> err @@ "Cast to neither array index nor struct field."
-                          ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
+                          ^ Pretty.(sprint ~width:max_int @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
           end
     in
     let one_addr = let open Addr in function
@@ -388,7 +391,7 @@ struct
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top_of ik
             ))
-        | TFloat ((FFloat | FDouble | FLongDouble as fkind),_) ->
+        | TFloat (fkind,_) when not (Cilfacade.isComplexFKind fkind) ->
           (match v with
            |`Int ix ->  `Float (FD.of_int fkind ix)
            |`Float fx ->  `Float (FD.cast_to fkind fx)
@@ -809,7 +812,7 @@ struct
                (* only return an actual value if we have a type and return actually the exact same type *)
                | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
                | `Float _, t -> top_value t
-               | _, TFloat((FFloat | FDouble | FLongDouble as fkind), _) -> `Float (FD.top_of fkind)
+               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
                | _ ->
                  let x = cast ~torg:l_fld.ftype fld.ftype value in
                  let l', o' = shift_one_over l o in
@@ -978,7 +981,7 @@ struct
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
-              let len_id = BatOption.map (fun ci -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint ci) len_ci in
+              let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
               let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
