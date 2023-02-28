@@ -40,6 +40,7 @@
     json-data-encoding
     (jsonrpc (>= 1.12))
     (sha (>= 1.12))
+    (fileutils (>= 0.6.4))
     cpu
     arg-complete
     yaml
