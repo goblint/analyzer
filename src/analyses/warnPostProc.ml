@@ -339,26 +339,21 @@ struct
   let iter_vars _ _ _ = ()
 end
 
-let init _ =
-  RM.NH.clear RM.messagesNH; (* TODO: does not work with incremental *)
-  HM.clear hoistHM;
-  HM.clear sinkHM
 
-let finalize _ =
-  let fd = Cilfacade.find_name_fundec "main" in
-  let start_node = `L (Node.FunctionEntry fd) in
-  let module IncrSolverArg =
-  struct
-    let should_prune = false
-    let should_verify = false
-    let should_warn = false
-    let should_save_run = false
-  end
-  in
+module IncrSolverArg =
+struct
+  let should_prune = false
+  let should_verify = false
+  let should_warn = false
+  let should_save_run = false
+end
 
+module Solver = Td3.Basic (IncrSolverArg) (Ant) (HM)
+
+let warn_postprocess fd =
   (* RM.NH.iter (fun n alarms -> ignore (Pretty.printf "%a->%a\n" Node.pretty_trace n RM.RMSet.pretty alarms)) RM.messagesNH; *)
 
-  let module Solver = Td3.Basic (IncrSolverArg) (Ant) (HM) in
+  let start_node = `L (Node.FunctionEntry fd) in
   let (solution, _) = Solver.solve [] [start_node] None in
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k Ant.Dom.pretty v)) solution; *)
@@ -513,13 +508,25 @@ let finalize _ =
   in
 
   (* Find the corresponding messages for the sinked alarms from solution_av and print them out. *)
-  HM.iter (fun n s -> CondSet.iter (fun c ->
-      let msg = HM.find !avSolHM n in
-      match D.is_empty msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
-      | false -> warn c msg
-      | true ->
-        let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
-        match D.is_empty msg with
-        | false -> warn c msg
-        | true -> ()
-    ) s) sinkHM;
+  HM.iter (fun n condset -> 
+      CondSet.iter (fun c ->
+          let msg = HM.find !avSolHM n in
+          match D.is_empty msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
+          | false -> warn c msg
+          | true ->
+            let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
+            match D.is_empty msg with
+            | false -> warn c msg
+            | true -> ()
+        ) condset
+    ) sinkHM;;
+
+let init _ =
+  RM.NH.clear RM.messagesNH; (* TODO: does not work with incremental *)
+  HM.clear hoistHM;
+  HM.clear sinkHM
+
+let finalize _ = Cil.iterGlobals !Cilfacade.current_file (function
+    | GFun (fd, _) -> HM.clear hoistHM; HM.clear sinkHM; warn_postprocess fd
+    | _ -> ()
+  );
