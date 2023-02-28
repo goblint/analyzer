@@ -496,6 +496,27 @@ let original_names: string VarinfoH.t ResettableLazy.t =
     If it was inserted by CIL (or Goblint), then returns [None]. *)
 let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
+module IntH = Hashtbl.Make (struct type t = int [@@deriving eq, hash] end)
+
+class stmtSidVisitor h = object
+  inherit nopCilVisitor
+  method! vstmt s =
+    IntH.replace h s.sid s;
+    DoChildren
+end
+
+let stmt_sids: stmt IntH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let h = IntH.create 113 in
+      let visitor = new stmtSidVisitor h in
+      visitCilFileSameGlobals visitor !current_file;
+      h
+    )
+
+(** Find [stmt] by its [sid].
+    @raise Not_found *)
+let find_stmt_sid sid = IntH.find (ResettableLazy.force stmt_sids) sid
+
 
 let reset_lazy () =
   StmtH.clear pseudo_return_to_fun;
@@ -503,7 +524,8 @@ let reset_lazy () =
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;
   ResettableLazy.reset varinfo_roles;
-  ResettableLazy.reset original_names
+  ResettableLazy.reset original_names;
+  ResettableLazy.reset stmt_sids
 
 
 let stmt_pretty_short () x =
