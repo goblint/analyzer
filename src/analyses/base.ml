@@ -1249,11 +1249,12 @@ struct
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalJumpBuf e ->
-      (match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+      (match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
        | `Address jmp_buf ->
-         begin match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
+         if AD.mem Addr.UnknownPtr jmp_buf then M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
+         begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
            | `JmpBuf x -> x
-           | y -> failwith (Printf.sprintf "problem?! is %s" (VD.show y))
+           | y -> failwith (Printf.sprintf "problem?! is %s %s:\n state is %s" (CilType.Exp.show e) (VD.show y) (Pretty.sprint ~width:5000 (D.pretty () ctx.local)))
          end
        | _ -> failwith "problem?!");
     | Q.EvalInt e ->
