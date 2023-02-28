@@ -231,11 +231,20 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
         in
         List.iter (fun (edge, to_node) ->
-            write_node to_node;
-            write_edge node edge to_node
+            match edge with
+            | MyARG.CFGEdge _
+            | InlineEntry _
+            | InlineReturn _ ->
+              write_node to_node;
+              write_edge node edge to_node
+            | InlinedEdge _ -> ()
           ) edge_to_nodes;
         List.iter (fun (edge, to_node) ->
-            iter_node to_node
+            match edge with
+            | MyARG.CFGEdge _
+            | InlineEntry _
+            | InlineReturn _ -> iter_node to_node
+            | InlinedEdge _ -> ()
           ) edge_to_nodes
       end
     end
