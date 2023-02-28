@@ -8,6 +8,7 @@ sig
   module Locator: module type of WitnessUtil.Locator (Arg.Node)
   val locator: Locator.t
   val find_node: string -> Arg.Node.t
+  val find_cfg_node: string -> Arg.Node.t list
 end
 
 type t = {
@@ -123,15 +124,15 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
 
       let locator = Locator.create () in
       let ids = StringH.create 113 in
+      let cfg_nodes = StringH.create 113 in
       Arg.iter_nodes (fun n ->
           let cfgnode = Arg.Node.cfgnode n in
           let loc = Node.location cfgnode in
           if not loc.synthetic then
             Locator.add locator loc n;
           StringH.replace ids (Arg.Node.to_string n) n;
+          StringH.add cfg_nodes (Node.show_id cfgnode) n (* add for find_all *)
         );
-
-      (* TODO: lookup  by CFG node *)
 
       let module ArgWrapper =
       struct
@@ -139,6 +140,7 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
         module Locator = Locator
         let locator = locator
         let find_node = StringH.find ids
+        let find_cfg_node = StringH.find_all cfg_nodes
       end
       in
       (module ArgWrapper: ArgWrapper)
@@ -451,6 +453,7 @@ let () =
     type params = {
       node: string option [@default None];
       location: CilType.Location.t option [@default None];
+      cfg_node: string option [@default None];
     } [@@deriving of_yojson]
 
     type edge_node = {
@@ -472,24 +475,26 @@ let () =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
       let open ArgWrapper in
       let open GobList.Syntax in
-      let+ n: Arg.Node.t = match params.node, params.location with
-        | None, None ->
+      let+ n: Arg.Node.t = match params.node, params.location, params.cfg_node with
+        | None, None, None ->
           [Arg.main_entry]
-        | Some node_id, None ->
+        | Some node_id, None, None ->
           begin try
               [ArgWrapper.find_node node_id]
             with Not_found ->
               [] (* non-existent node *)
           end
-        | None, Some location ->
+        | None, Some location, None ->
           let nodes_opt =
             let open GobOption.Syntax in
             let+ nodes = Locator.find_opt locator location in
             Locator.ES.elements nodes
           in
           Option.default [] nodes_opt (* cannot find node for location *)
-        | Some _, Some _ ->
-          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node nand location" ()))
+        | None, None, Some cfg_node ->
+          ArgWrapper.find_cfg_node cfg_node
+        | _, _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires at most one of node, location and cfg_node" ()))
       in
       let cfg_node = Arg.Node.cfgnode n in
       let cfg_node_id = Node.show_id cfg_node in
