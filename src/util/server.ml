@@ -473,7 +473,7 @@ let () =
           begin try
               [ArgWrapper.find_node node_id]
             with Not_found ->
-              Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ())) (* TODO: empty list *)
+              [] (* non-existent node *)
           end
         | None, Some location ->
           let nodes_opt =
@@ -481,7 +481,7 @@ let () =
             let+ nodes = Locator.find_opt locator location in
             Locator.ES.elements nodes
           in
-          Option.get_exn nodes_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ())) (* TODO: empty list *)
+          Option.default [] nodes_opt (* cannot find node for location *)
         | Some _, Some _ ->
           Response.Error.(raise (make ~code:RequestFailed ~message:"requires node nand location" ()))
       in
