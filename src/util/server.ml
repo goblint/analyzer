@@ -459,6 +459,10 @@ let () =
     type edge_node = {
       edge: MyARG.inline_edge;
       node: string;
+      cfg_node: string;
+      context: string;
+      path: string;
+      location: CilType.Location.t;
     } [@@deriving to_yojson]
     type one_response = {
       node: string;
@@ -502,13 +506,29 @@ let () =
       let next =
         Arg.next n
         |> List.map (fun (edge, to_node) ->
-            {edge; node = Arg.Node.to_string to_node}
+            let cfg_to_node = Arg.Node.cfgnode to_node in
+            {
+              edge;
+              node = Arg.Node.to_string to_node;
+              cfg_node = Node.show_id cfg_to_node;
+              context = string_of_int (Arg.Node.context_id to_node);
+              path = string_of_int (Arg.Node.path_id to_node);
+              location = Node.location cfg_to_node;
+            }
           )
       in
       let prev =
         Arg.prev n
         |> List.map (fun (edge, to_node) ->
-            {edge; node = Arg.Node.to_string to_node}
+            let cfg_to_node = Arg.Node.cfgnode to_node in
+            {
+              edge;
+              node = Arg.Node.to_string to_node;
+              cfg_node = Node.show_id cfg_to_node;
+              context = string_of_int (Arg.Node.context_id to_node);
+              path = string_of_int (Arg.Node.path_id to_node);
+              location = Node.location cfg_to_node;
+            }
           )
       in
       {
