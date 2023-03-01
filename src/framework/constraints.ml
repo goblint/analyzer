@@ -697,7 +697,25 @@ struct
              let fd' = S.return ctx_fd None f in
              (* Using f from called function on purpose here! Needed? *)
              let value = S.combine ctx_cd setjmplval (Cil.one) f setjmpargs fc fd' (Analyses.ask_of_ctx ctx_fd) in
-             sidel (jmptarget targetnode, ctx.context ()) value
+             let rec res_ctx = { ctx with
+                                 ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
+                                 local = value
+                               }
+             in
+             let setjmpvar = match setjmplval with
+               | Some (Var v, NoOffset) -> Queries.VS.singleton v
+               | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
+             in
+             let modified_vars = Queries.VS.diff (res_ctx.ask (MayBeModifiedSinceSetjmp (targetnode, targetcontext))) setjmpvar in
+             (if Queries.VS.is_top modified_vars then
+                M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show targetnode)
+              else if not (Queries.VS.is_empty modified_vars) then
+                M.warn "Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show targetnode) (Queries.VS.show modified_vars)
+              else
+                ()
+             );
+             let value' = S.event res_ctx (Events.Poison modified_vars) res_ctx in
+             sidel (jmptarget targetnode, ctx.context ()) value'
            (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
            | _ -> failwith "target of longjmp is node that is not a call to setjmp!")
         else
