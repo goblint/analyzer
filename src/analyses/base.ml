@@ -2236,7 +2236,9 @@ struct
            | `Address jmp_buf ->
              let controlctx = ControlSpecC.hash (ctx.control_context ()) in
              let value = `JmpBuf (ValueDomain.JmpBufs.singleton (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx))) in
-             set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value
+             let r = set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value in
+             M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env  D.pretty st  D.pretty r;
+             r
            | _      -> failwith "problem?!")
        in
        match lv with
