@@ -93,17 +93,10 @@ struct
 
   module Query = ResultQuery.Query (SpecSys)
 
-  module NH = Hashtbl.Make (Node)
-
-  let is_dead = LT.for_all (fun (_, x, _) -> Spec.D.is_bot x)
-
-  let mk_liveness (xs : Result.t) =
-    let live_nodes : unit NH.t = NH.create 13 in
-    Result.iter (fun n v -> if not (is_dead v) then NH.replace live_nodes n ()) xs;
-    NH.mem live_nodes
-
   (* print out information about dead code *)
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
+    let module NH = Hashtbl.Make (Node) in
+    let live_nodes : unit NH.t = NH.create 10 in
     let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
     let live_lines = ref StringMap.empty in
@@ -183,7 +176,8 @@ struct
         (Pretty.dprintf "dead: %d%s" dead_total (if uncalled_fn_loc > 0 then Printf.sprintf " (%d in uncalled functions)" uncalled_fn_loc else ""), None);
         (Pretty.dprintf "total lines: %d" total, None);
       ]
-    )
+    );
+    NH.mem live_nodes
 
   (* convert result that can be out-put *)
   let solver2source_result h : Result.t =
@@ -578,19 +572,14 @@ struct
       in
       (* set of ids of called functions *)
       let calledFuns = LHT.fold insrt lh Set.Int.empty in
-      let is_uncalled ?(bad_only = true) fn loc =
-        not (
-          Set.Int.mem fn.vid calledFuns ||
-          bad_only &&
-          (
-            Str.last_chars loc.file 2 = ".h" ||
-            LibraryFunctions.is_safe_uncalled fn.vname ||
-            Cil.hasAttribute "goblint_stub" fn.vattr
-          )
-        )
+      let is_bad_uncalled fn loc =
+        not (Set.Int.mem fn.vid calledFuns) &&
+        not (Str.last_chars loc.file 2 = ".h") &&
+        not (LibraryFunctions.is_safe_uncalled fn.vname) &&
+        not (Cil.hasAttribute "goblint_stub" fn.vattr)
       in
       let print_and_calculate_uncalled = function
-        | GFun (fn, loc) when is_uncalled fn.svar loc->
+        | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "ana.dead-code.functions" then
@@ -606,23 +595,6 @@ struct
 
       if get_bool "dump_globs" then
         print_globals gh;
-
-      (* TODO: revert (almost) all changes in control.ml *)
-      let local_xml = solver2source_result lh in
-      let liveness = mk_liveness local_xml in
-
-      (* TODO: do this better, without having to register the transform here *)
-      (* let module DeadCodeArgs : DeadCode.DeadCodeArgs = struct
-        let stmt_live stmt =
-          (* the marking of statements as live/not live doesn't seem to be completely accurate
-            current fix: only eliminate statements *that are in the result (local_xml)* and marked live, this should be the correct behaviour *)
-          let cfgStmt = Statement stmt in
-          let live = liveness cfgStmt in
-          let in_result = Result.mem local_xml cfgStmt in (* does this even work, since result is a hash map? same in line above actually *)
-          not in_result || live
-
-        let fundec_live fd l = not (is_uncalled ~bad_only:false fd.svar l)
-      end in *)
 
       (* run activated transformations with the analysis result *)
       let active_transformations = get_string_list "trans.activated" in
@@ -670,7 +642,7 @@ struct
         Transform.run_transforms file active_transformations ask
       );
 
-      lh, gh, local_xml, liveness
+      lh, gh
     in
 
     (* Use "normal" constraint solving *)
@@ -683,7 +655,7 @@ struct
       raise GU.Timeout
     in
     let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
-    let lh, gh, local_xml, liveness = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let module SpecSysSol: SpecSysSol with module SpecSys = SpecSys =
     struct
       module SpecSys = SpecSys
@@ -722,9 +694,12 @@ struct
         `Assoc assoc
       );
 
-    if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches"
-      then print_dead_code local_xml !uncalled_dead;
-      (* TODO: warn about conflicting options *)
+    let liveness =
+      if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
+        print_dead_code local_xml !uncalled_dead
+      else
+        fun _ -> true (* TODO: warn about conflicting options *)
+    in
 
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg (module FileCfg) liveness;

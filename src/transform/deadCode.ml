@@ -1,6 +1,5 @@
 open BatPervasives open Stdlib
 open GoblintCil
-open GobConfig
 
 let f = Printf.sprintf
 let pf fmt = Printf.ksprintf print_endline fmt
@@ -189,7 +188,7 @@ module RemoveDeadCode : Transform.S = struct
       | _ -> non_functions_live
     in
 
-    if get_bool "dbg.cil_dead_glob" then (
+    if true then (
       let open GoblintCil.Rmtmps in
       (* dpf "using cil to remove dead globals, keepUnused=%b" !keepUnused; *)
       let keepUnused0 = !keepUnused in
