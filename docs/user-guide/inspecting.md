@@ -9,7 +9,7 @@
 
 Modern browsers' security settings forbid some file access which is necessary for g2html to work, hence the need for serving the results via Python's `http.server` (or similar).
 
-## Gobview
+## GobView
 
 1. Install Node.js (preferably ≥ 12.0.0) and npm (≥ 5.2.0)
 2. For the initial setup: `make setup_gobview`
