@@ -1,10 +1,11 @@
+open BatPervasives open Stdlib
 open GoblintCil
 open GobConfig
 
-(* let f = Printf.sprintf
+let f = Printf.sprintf
 let pf fmt = Printf.ksprintf print_endline fmt
 let df fmt = Pretty.gprintf (Pretty.sprint ~width:max_int) fmt
-let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:max_int doc) fmt *)
+let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:max_int doc) fmt
 
 (* what to do about goto to removed statements? probably just check if the target of a goto should be removed, if so remove the goto? <- don't do that.
    but if the target is not live, the goto can't be live anyway *)
@@ -152,25 +153,39 @@ let find_live_globinfo' live_from result =
       |> Seq.concat_map GlobinfoH.to_seq_keys)
 
 
-module type DeadCodeArgs = sig
-  val stmt_live : stmt -> bool
-  val fundec_live : fundec -> location -> bool
-end
-
-module RemoveDeadCode (A : DeadCodeArgs) : Transform.S = struct
+module RemoveDeadCode : Transform.S = struct
   let transform (ask : ?node:Node.t -> Cil.location -> Queries.ask) (file : file) : unit =
+
+    (* TODO: is making this all location-based safe? does it play nicely with incremental analysis? what about pseudo-returns? *)
+    let loc_live loc = not @@ (ask loc).f Queries.MustBeDead in
+
+    (* whether a statement (might) still be live, and should therefore be kept *)
+    let stmt_live = Cilfacade0.get_stmtLoc %> loc_live in
+
+    (* let stmt_live stmt = 
+      let loc = Cilfacade0.get_stmtLoc stmt in
+      let llive = loc_live loc in
+      dpf "stmt=%a loc=%a result=%b" dn_stmt stmt d_loc loc llive;
+      llive *)
+(* 
+      match stmtkind_location stmt.skind with
+      | Some loc -> loc_live loc
+      | None -> true *)
+
+    (* whether a global function (might) still be live, and should therefore be kept *)
+    let fundec_live (fd : fundec) = not @@ (ask @@ fd.svar.vdecl).f Queries.MustBeUncalled in
 
     (* step 1: remove statements found to be dead *)
     Cil.iterGlobals file
       (function
-      | GFun (fd, _) -> filter_map_block A.stmt_live fd.sbody |> ignore
+      | GFun (fd, _) -> filter_map_block stmt_live fd.sbody |> ignore
         (* pf "global name=%s" fd.svar.vname;
         let keep =  in
         pf "keep=%b" keep; *) (* TODO: use keep? discard function if keep is false. should not be necessary, function should be dead already *)
       | _ -> ());
 
     let global_live ~non_functions_live = function
-      | GFun (fd, l) -> A.fundec_live fd l
+      | GFun (fd, _) -> let fdl = fundec_live fd in dpf "%s live=%b" fd.svar.vname fdl; fdl
       | _ -> non_functions_live
     in
 
@@ -216,3 +231,6 @@ module RemoveDeadCode (A : DeadCodeArgs) : Transform.S = struct
   let requires_file_output = true
 
 end
+
+(* change name from remove_dead_code -> dead_code (?) *)
+let _ = Transform.register "remove_dead_code" (module RemoveDeadCode)

@@ -99,6 +99,9 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | MustBeDead: MustBool.t t (* Code at node must be dead. Only answered in code transforms. *)
+  (* TODO: is this really a good idea? the query isn't really even on a node, unless the query only applies to FunctionEntry/Function *)
+  | MustBeUncalled: MustBool.t t (* Function is never called. Only answered in code transforms. *)
 
 type 'a result = 'a
 
@@ -159,6 +162,8 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | MustBeDead -> (module MustBool)
+    | MustBeUncalled -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -218,6 +223,8 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | MustBeDead -> MustBool.top ()
+    | MustBeUncalled -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -274,6 +281,8 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
+    | Any MustBeDead -> 49
+    | Any MustBeUncalled -> 50
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -404,6 +413,8 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any MustBeDead -> Pretty.dprintf "MustBeDead"
+    | Any MustBeUncalled -> Pretty.dprintf "MustBeUncalled"
 end
 
 let to_value_domain_ask (ask: ask) =
