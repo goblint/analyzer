@@ -155,7 +155,7 @@
     "gobview": {
       "title": "gobview",
       "description":
-        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
+        "Include additional information for GobView (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
       "type": "boolean",
       "default": false
     },
