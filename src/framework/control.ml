@@ -98,19 +98,24 @@ struct
     let live_lines = ref StringMap.empty in
     let dead_lines = ref StringMap.empty in
     let add_one n v =
-      (* Not using Node.location here to have updated locations in incremental analysis.
-          See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let l = UpdateCil.getLoc n in
-      let f = Node.find_fundec n in
-      let add_fun  = BatISet.add l.line in
-      let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-      let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
-      if is_dead then (
-        dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
-      ) else (
-        live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
-        NH.add live_nodes n ()
-      );
+      match n with
+      | Statement s when Cilfacade.(StmtH.mem pseudo_return_to_fun s) ->
+        (* Exclude pseudo returns from dead lines counting. No user code at "}". *)
+        ()
+      | _ ->
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let l = UpdateCil.getLoc n in
+        let f = Node.find_fundec n in
+        let add_fun  = BatISet.add l.line in
+        let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
+        let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+        if is_dead then (
+          dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
+        ) else (
+          live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
+          NH.add live_nodes n ()
+        );
     in
     Result.iter add_one xs;
     let live_count = StringMap.fold (fun _ file_lines acc ->

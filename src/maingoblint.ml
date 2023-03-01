@@ -547,7 +547,7 @@ let do_gobview () =
         ) dist_files
     )
     else
-      eprintf "Warning: Cannot locate Gobview.\n"
+      eprintf "Warning: Cannot locate GobView.\n"
   )
 
 let handle_extraspecials () =
