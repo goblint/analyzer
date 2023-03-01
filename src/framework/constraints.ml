@@ -683,7 +683,9 @@ struct
       (* Set of jumptargets and longjmp calls with which the callee may return here *)
       let targets = ctx_fd.ask ActiveJumpBuf in
       (* Handle a longjmp called in one of the locations in origins to targetnode in targetcontext  *)
-      let handle_longjmp origins (targetnode, targetcontext) =
+      let handle_longjmp origins = function
+        | JmpBufDomain.BufferEntryOrTop.AllTargets -> () (* The warning is already emitted at the point where the longjmp happens *)
+        | Target (targetnode, targetcontext) ->
         let target_in_caller () = CilType.Fundec.equal (Node.find_fundec targetnode) current_fundec in
         let targetcontext_matches () =
           let controlctx = ControlSpecC.hash (ctx.control_context ()) in
@@ -721,7 +723,7 @@ struct
         else
           (* Appropriate setjmp is not in current function & current context *)
           let validBuffers = ctx_cd.ask ValidLongJmp in
-          if not (JmpBufDomain.JmpBufSet.mem (targetnode,targetcontext) validBuffers) then
+          if not (JmpBufDomain.JmpBufSet.mem (Target (targetnode,targetcontext)) validBuffers) then
             (* It actually is not handled here but was propagated her spuriously, we already warned at the location where this issue is caused *)
             (* As the validlongjumps inside the callee is a a superset of the ones inside the caller*)
             ()
@@ -781,46 +783,46 @@ struct
         in
         (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
         let targets = path_ctx.ask (EvalJumpBuf env) in
-        if M.tracing then Messages.tracel "longjmp" "Jumping to %s\n" (JmpBufDomain.JmpBufSet.show targets);
-        try
-          let handle_longjmp (node, c) =
+        if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
+        let handle_longjmp = function
+          | JmpBufDomain.BufferEntryOrTop.AllTargets ->
+            M.warn "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)"  d_exp env
+          | JmpBufDomain.BufferEntryOrTop.Target (node, c) ->
             let validBuffers = path_ctx.ask ValidLongJmp in
-            if not (JmpBufDomain.JmpBufSet.mem (node,c) validBuffers) then
+            if not (JmpBufDomain.JmpBufSet.mem (Target (node,c)) validBuffers) then
               M.warn "Longjmp to potentially invalid target! (Target %s in Function %s which may have already returned or is in a different thread)" (Node.show node) (Node.find_fundec node).svar.vname
             else
               (let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-              if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
-                (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
-                 match node with
-                 | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-                   let res' = match lval with
-                     | Some lv -> Goblintutil.assign_is_setjmp := true; let r = S.assign path_ctx lv value in Goblintutil.assign_is_setjmp := false; r
-                     | None -> res
-                   in
-                   let modified_vars = path_ctx.ask (MayBeModifiedSinceSetjmp (node, c)) in
-                   (if Queries.VS.is_top modified_vars then
-                      M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
-                    else if not (Queries.VS.is_empty modified_vars) then
-                      M.warn "Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
-                    else
-                      ()
-                   );
-                   let rec res_ctx = { ctx with
-                                       ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
-                                       local = res';
-                                     }
-                   in
-                   let r = S.event res_ctx (Events.Poison modified_vars) res_ctx in
-                   sidel (jmptarget node, ctx.context ()) r
-                 | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
-                )
-              else
-                (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
-                 sidel (LongjmpFromFunction current_fundec, ctx.context ()) res))
-          in
-          List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets)
-        with SetDomain.Unsupported _ ->
-          M.warn "longjmp to unknown location, content of %a unknown!" d_exp env
+               if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
+                 (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
+                  match node with
+                  | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
+                    let res' = match lval with
+                      | Some lv -> Goblintutil.assign_is_setjmp := true; let r = S.assign path_ctx lv value in Goblintutil.assign_is_setjmp := false; r
+                      | None -> res
+                    in
+                    let modified_vars = path_ctx.ask (MayBeModifiedSinceSetjmp (node, c)) in
+                    (if Queries.VS.is_top modified_vars then
+                       M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
+                     else if not (Queries.VS.is_empty modified_vars) then
+                       M.warn "Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
+                     else
+                       ()
+                    );
+                    let rec res_ctx = { ctx with
+                                        ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
+                                        local = res';
+                                      }
+                    in
+                    let r = S.event res_ctx (Events.Poison modified_vars) res_ctx in
+                    sidel (jmptarget node, ctx.context ()) r
+                  | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
+                 )
+               else
+                 (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
+                  sidel (LongjmpFromFunction current_fundec, ctx.context ()) res))
+        in
+        List.iter (handle_longjmp) (JmpBufDomain.JmpBufSet.elements targets)
       )
       in
       List.iter one_path (S.paths_as_set ctx);

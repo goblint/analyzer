@@ -37,7 +37,7 @@ struct
     | Setjmp _ ->
       let controlctx = ControlSpecC.hash (ctx.control_context ()) in
       let entry = (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx)) in
-      D.add entry ctx.local
+      D.add (Target entry) ctx.local
     | Longjmp {env; value; sigrestore} -> ctx.local
     | _ -> ctx.local
 

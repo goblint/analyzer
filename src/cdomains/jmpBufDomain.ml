@@ -1,10 +1,38 @@
 module BufferEntry = Printable.ProdSimple(Node)(IntDomain.Flattened)
 
+module BufferEntryOrTop = struct
+  include Printable.Std
+  type t = AllTargets | Target of BufferEntry.t [@@deriving eq, ord, hash, to_yojson]
+  let show = function AllTargets -> "All" | Target x -> BufferEntry.show x
+
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
+end
+
 module JmpBufSet =
 struct
-  include SetDomain.ToppedSet (BufferEntry) (struct let topname = "All jumpbufs" end)
+  include SetDomain.Make (BufferEntryOrTop)
+  let top () = singleton BufferEntryOrTop.AllTargets
   let name () = "Jumpbuffers"
+
+  let inter x y =
+    if mem BufferEntryOrTop.AllTargets x || mem BufferEntryOrTop.AllTargets y then
+      let fromx = if mem BufferEntryOrTop.AllTargets y then x else bot () in
+      let fromy = if mem BufferEntryOrTop.AllTargets x then y else bot () in
+      union fromx fromy
+    else
+      inter x y
+
+  let meet = inter
 end
+
+(* module JmpBufSet =
+   struct
+   include SetDomain.ToppedSet (BufferEntry) (struct let topname = "All jumpbufs" end)
+   let name () = "Jumpbuffers"
+   end *)
 
 module NodeSet =
 struct
