@@ -887,7 +887,22 @@ struct
           (* consider them in VD *)
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x (TComp (f.fcomp, [])) in
-          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+          (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+          let do_strong_update =
+            match v with
+            | (Var var, Field (fld,_)) ->
+              let toptype = fld.fcomp in
+              let blob_size_opt = ID.to_int s in
+              not @@ ask.f (Q.IsMultiple var)
+              && not @@ Cil.isVoidType t      (* Size of value is known *)
+              && Option.is_some blob_size_opt (* Size of blob is known *)
+              && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+            | _ -> false
+          in
+          if do_strong_update then
+            `Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+          else
+            mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
       | `Blob (x,s,orig), _ ->
         begin

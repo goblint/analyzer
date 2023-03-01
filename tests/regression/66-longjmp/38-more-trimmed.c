@@ -1,4 +1,4 @@
-//PARAM:
+// PARAM: --set ana.malloc.unique_address_count 1
 #include<setjmp.h>
 #include<stdlib.h>
 
