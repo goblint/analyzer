@@ -127,7 +127,7 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
       let cfg_nodes = StringH.create 113 in
       Arg.iter_nodes (fun n ->
           let cfgnode = Arg.Node.cfgnode n in
-          let loc = Node.location cfgnode in
+          let loc = UpdateCil.getLoc cfgnode in
           if not loc.synthetic then
             Locator.add locator loc n;
           StringH.replace ids (Arg.Node.to_string n) n;
@@ -230,7 +230,7 @@ let node_locator: Locator.t ResettableLazy.t =
       let rec iter_node node =
         if not (NH.mem reachable node) then begin
           NH.replace reachable node ();
-          let loc = Node.location node in
+          let loc = UpdateCil.getLoc node in
           if not loc.synthetic then
             Locator.add locator loc node;
           List.iter (fun (_, prev_node) ->
@@ -431,7 +431,7 @@ let () =
           Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
       in
       let node_id = Node.show_id node in
-      let location = Node.location node in
+      let location = UpdateCil.getLoc node in
       let module Cfg = (val !MyCFG.current_cfg) in
       let next =
         Cfg.next node
@@ -502,7 +502,7 @@ let () =
       in
       let cfg_node = Arg.Node.cfgnode n in
       let cfg_node_id = Node.show_id cfg_node in
-      let location = Node.location cfg_node in
+      let location = UpdateCil.getLoc cfg_node in
       let next =
         Arg.next n
         |> List.map (fun (edge, to_node) ->
@@ -513,7 +513,7 @@ let () =
               cfg_node = Node.show_id cfg_to_node;
               context = string_of_int (Arg.Node.context_id to_node);
               path = string_of_int (Arg.Node.path_id to_node);
-              location = Node.location cfg_to_node;
+              location = UpdateCil.getLoc cfg_to_node;
             }
           )
       in
@@ -527,7 +527,7 @@ let () =
               cfg_node = Node.show_id cfg_to_node;
               context = string_of_int (Arg.Node.context_id to_node);
               path = string_of_int (Arg.Node.path_id to_node);
-              location = Node.location cfg_to_node;
+              location = UpdateCil.getLoc cfg_to_node;
             }
           )
       in
