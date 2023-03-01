@@ -34,11 +34,16 @@ struct
     | Field (_, o) -> check_offset tainted o
     | Index (e, o) -> check_exp tainted e; check_offset tainted o
 
+  let rem_lval ask tainted lval = match lval with
+    | (Var v, NoOffset) -> VS.remove v tainted (* TODO: If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
+    | _ -> tainted
+
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     check_lval ~ignore_var:true ctx.local lval;
     check_exp ctx.local rval;
-    ctx.local
+    rem_lval ctx.ask ctx.local lval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     check_exp ctx.local exp;
@@ -57,12 +62,12 @@ struct
     [ctx.local, ctx.local]
 
   let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
+    Option.map_default (rem_lval f_ask au) au lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     Option.may (check_lval  ~ignore_var:true ctx.local) lval;
     List.iter (check_exp ctx.local) arglist;
-    ctx.local
+    Option.map_default (rem_lval ctx.ask ctx.local) ctx.local lval
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
