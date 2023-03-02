@@ -1,4 +1,4 @@
-// PARAM: --set ana.malloc.unique_address_count 2
+// PARAM: --set ana.malloc.unique_address_count 1
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -21,6 +21,6 @@ int main() {
 
   ptr->x = 1;
   ptr->y = 0;
-  __goblint_check(ptr->x == 1); //TODO
-  __goblint_check(ptr->y == 0); //TODO
+  __goblint_check(ptr->x == 1);
+  __goblint_check(ptr->y == 0);
 }
