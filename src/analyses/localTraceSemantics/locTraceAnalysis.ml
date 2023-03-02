@@ -614,8 +614,23 @@ in
       in
         ctx.sideg myTmp (D.add result_graph ctxGlobalTid); [result_graph]
 
-    | _ -> print_string ("This edge is not one of my considered special functions\n");
-      (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} ctx.edge ctx.node sigma tid ls);tid=tid;lockSet=ls})
+    | _ -> 
+      if String.equal f.vname "pthread_mutex_destroy" 
+        then (print_string ("In special, we found pthread_mutex_destroy 
+    with arglist: "^(List.fold (fun acc_fold arg_fold -> (CilType.Exp.show arg_fold)^"; "^acc_fold) "" arglist)^"\n");
+    match arglist with [AddrOf(Var(argVinfo),_)] -> if LockSet.mem argVinfo ls 
+      then ( Messages.warn "mutex_destroy on locked mutex";
+        let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty})
+  in
+    [graph_error_edge]) 
+  else (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} ctx.edge ctx.node sigma tid ls);tid=tid;lockSet=ls})
+  in
+  let result_graph = LocalTraces.extend_by_gEdge graph myEdge
+  in
+      [result_graph])
+      | _ -> Printf.printf "Error: wrong amount of arguments for pthread_mutex_destroy in special\n"; exit 0) else
+      
+      (print_string ("This edge is not one of my considered special functions\n"); let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} ctx.edge ctx.node sigma tid ls);tid=tid;lockSet=ls})
   in
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
   in
