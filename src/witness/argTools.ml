@@ -113,9 +113,9 @@ struct
         ) lh;
 
       (prev,
-        (fun n ->
+       (fun n ->
           NHT.find_default prev n []), (* main entry is not in prev at all *)
-        (fun n ->
+       (fun n ->
           NHT.find_default next n [])) (* main return is not in next at all *)
     in
     let witness_main =
