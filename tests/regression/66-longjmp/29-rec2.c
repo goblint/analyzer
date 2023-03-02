@@ -1,7 +1,8 @@
-// SKIP PARAM: --enable ana.int.interval --enable exp.earlyglobs
+//PARAM: --enable ana.int.interval --enable exp.earlyglobs
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
+#include <goblint.h>
 
 jmp_buf env_buffer;
 int global = 0;

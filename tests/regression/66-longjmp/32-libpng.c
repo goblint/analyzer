@@ -1,5 +1,6 @@
 #include<setjmp.h>
 #include<stdlib.h>
+#include <goblint.h>
 
 typedef void ( *png_longjmp_ptr) (jmp_buf, int);
 struct png_struct_def
