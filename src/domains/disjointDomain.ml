@@ -181,21 +181,40 @@ end
 module type MayEqualSetDomain =
 sig
   include SetDomain.S
-  val may_be_equal: t -> t -> bool
+  val may_be_equal: elt -> elt -> bool
 end
 
 module ProjectiveSetPairwiseMeet (E: Printable.S) (B: MayEqualSetDomain with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t = struct
   include ProjectiveSet (E) (B) (R)
 
+  let fold_buckets a b f s =
+    B.fold (fun e1 acc ->
+      B.fold (fun e2 acc ->
+          f e1 e2 acc
+        ) b acc
+      ) a s
+
+  module S = BatSet.Make(E)
   let meet m1 m2 =
+    let collect_equal a b =
+      let add_equal e1 e2 (s1, s2) =
+        if B.may_be_equal e1 e2 then
+          S.add e1 s1, S.add e2 s2
+        else
+          s1, s2
+      in
+      fold_buckets a b add_equal (S.empty, S.empty)
+    in
     let inner_fold key b key2 b2 acc =
-      let may_be_equal = B.may_be_equal b b2 in
-      if may_be_equal then
-        acc
-        |> M.add key b
-        |> M.add key2 b2
-      else
-        acc
+      let s1, s2 = collect_equal b b2 in
+      let add_entries key s m =
+        S.fold (fun e macc ->
+          M.add key (B.singleton e) m
+        ) s m
+      in
+      acc
+        |> add_entries key s1
+        |> add_entries key2 s2
     in
     let outer_fold key b acc =
       M.fold (inner_fold key b) m2 acc

@@ -466,7 +466,7 @@ end
 (** Set abstracted by a single (joined) element.
 
     Element-wise {!S} operations only observe the single element. *)
-module Joined (E: Lattice.S): S with type t = E.t and type elt = E.t =
+module Joined (E: Lattice.S): S with type elt = E.t =
 struct
   type elt = E.t
   include E
