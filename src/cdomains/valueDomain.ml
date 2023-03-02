@@ -938,10 +938,11 @@ struct
       | `JmpBuf _, _ ->
         (* hack for jmp_buf variables *)
         begin match value with
-          | `JmpBuf t -> value (* if actually assigning thread, use value *)
+          | `JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+          | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
           | _ ->
             if !GU.global_initialization then
-              `JmpBuf (JmpBufs.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+              `JmpBuf (JmpBufs.empty ()) (* if assigning global init, use empty set instead *)
             else
               `Top
         end

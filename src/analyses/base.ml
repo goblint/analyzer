@@ -1459,6 +1459,7 @@ struct
             Priv.read_global a priv_getg st x
         in
         let new_value = update_offset old_value in
+        M.tracel "hgh" "update_offset %a -> %a\n" VD.pretty old_value VD.pretty new_value;
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg ctx.sideg) st x new_value in
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
