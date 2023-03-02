@@ -936,7 +936,7 @@ struct
               `Top
         end
       | `JmpBuf _, _ ->
-        (* hack for pthread_t variables *)
+        (* hack for jmp_buf variables *)
         begin match value with
           | `JmpBuf t -> value (* if actually assigning thread, use value *)
           | _ ->
