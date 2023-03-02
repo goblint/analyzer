@@ -356,7 +356,9 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
-    (* TODO: Why is IterSysVars not here? *)
+    (* IterSysVars:                                                                    *)
+    (*   - argument is a function and functions cannot be compared in any meaningful way. *)
+    (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
     (* only argumentless queries should remain *)
     | _ -> 0
 
