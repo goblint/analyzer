@@ -49,6 +49,11 @@ struct
     match cond with
     | Aob aob -> Aob (AOB.relift aob)
     | Acc acc -> Acc (ACC.relift acc)
+
+  let equal c1 c2 =
+    match c1, c2 with
+    | Acc (_, a1), Acc (_, a2) -> Access.AS.equal a1 a2
+    | _, _ -> equal c1 c2
 end
 
 module ReposMessage =

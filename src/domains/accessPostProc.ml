@@ -7,6 +7,8 @@ open GobConfig
 module M = Messages
 module RM = RepositionMessages
 
+let g_accs : AS.t list ref = ref []
+
 (* Check if two accesses may race and if yes with which confidence *)
 let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),loc2,e2,a2) =
   if kind = Read && kind2 = Read then
@@ -113,7 +115,7 @@ let print_accesses (lv, ty) grouped_accs =
         if get_bool "ana.warn-postprocess.enabled"
         then 
           let loc (_,_,node,_,_) = M.Location.Node node in
-          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, AS.remove a accs)) ~loc:(loc a) ~category:Race "" [h a]);
+          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, accs)) ~loc:(loc a) ~category:Race "" [h a]);
           safe_accs
         else
           let severity = race_severity conf in
@@ -125,11 +127,12 @@ let print_accesses (lv, ty) grouped_accs =
         if get_bool "ana.warn-postprocess.enabled"
         then 
           let loc (_,_,node,_,_) = M.Location.Node node in
-          safe_accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, AS.remove a safe_accs)) ~loc:(loc a) ~category:Race "" [h a]);
+          safe_accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, safe_accs)) ~loc:(loc a) ~category:Race "" [h a]);
         else M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
     )
 
 let warn_global safe vulnerable unsafe g accs =
   let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
+  g_accs := grouped_accs;
   incr_summary safe vulnerable unsafe g grouped_accs;
   print_accesses g grouped_accs

@@ -78,11 +78,11 @@ module HM = Hashtbl.Make (V)
 
 let hoistHM = HM.create 10
 
-let antSolHM = ref (HM.create 10)
+let antSolHM = HM.create 10
 
 let sinkHM = HM.create 10
 
-let avSolHM = ref (HM.create 10)
+let avSolHM = HM.create 10
 
 let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
 
@@ -188,7 +188,7 @@ struct
   let filter_killed stmt node (alarm : Alarm.t) = 
     match alarm.cond with 
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc (_, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) accs true
+    | Acc (a, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) (Access.AS.remove a accs) true
 
   let kill node x =
     match node with
@@ -257,7 +257,7 @@ struct
   let filter_killed stmt node (alarm : Alarm.t) =
     match alarm.cond with
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc (_, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) accs true
+    | Acc (a, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) (Access.AS.remove a accs) true
 
   let kill node x =
     match node with
@@ -279,7 +279,7 @@ struct
     | _ -> alarm
 
   let gen node x = CondSet.fold (fun cond dom ->
-      let ant = HM.find !antSolHM node in
+      let ant = HM.find antSolHM node in
       let rel_alarms = Ant.rel_alarms cond ant in
       (* Update the message locations to correspond to the sinked location and add original and related alarms *)
       AlarmSet.fold (fun alarm dom_updated ->
@@ -373,7 +373,7 @@ let warn_postprocess fd =
         | Some true, Some true -> false (* Certainly in bounds on both sides.*)
         | _ -> true
       end
-    | Acc ((_,_,_,_,mcpa), accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
+    | Acc (a, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) (Access.AS.remove a accs) false (* does not work due to join *)
   in
 
   let filter_always_true node cs = CondSet.filter (cond_holds node) cs in
@@ -437,7 +437,7 @@ let warn_postprocess fd =
 
   conds_start (Node.FunctionEntry fd);
 
-  antSolHM := solution;
+  HM.iter (HM.add antSolHM) solution;
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Ant.Var.pretty_trace k CondSet.pretty v)) hoistHM; *)
 
@@ -445,7 +445,7 @@ let warn_postprocess fd =
   let module SolverAv = Td3.Basic (IncrSolverArg) (Av) (HM) in
   let (solution_av, _) = SolverAv.solve [] [end_node] None in
 
-  avSolHM := solution_av;
+  HM.iter (HM.add avSolHM) solution_av;
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k Av.Dom.pretty v)) solution_av; *)
 
@@ -479,54 +479,78 @@ let warn_postprocess fd =
     let conds = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
     List.fold (fun acc node -> HM.replace sinkHM (`G node) conds) () prev_nodes in
 
-  conds_end (Function fd);
+  conds_end (Function fd)
 
-  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
+(* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
+;;
+
+module HA = Hashtbl.Make (Access.AS)
+let accGroupsHM = HA.create 10
+
+let init _ =
+  RM.NH.clear RM.messagesNH; (* TODO: does not work with incremental *)
+  HM.clear antSolHM;
+  HM.clear avSolHM;
+  HM.clear hoistHM;
+  HM.clear sinkHM
+
+let finalize _ = Cil.iterGlobals !Cilfacade.current_file (function
+    | GFun (fd, _) -> warn_postprocess fd
+    | _ -> ()
+  );
 
   (* Add the repositioned messages as regular messages. *)
   let reposmessage_to_message (rm : Alarm.t) =
     M.add {tags = rm.tags; severity = rm.severity; multipiece = rm.multipiece}
   in
 
-  (* Merge the grouped alarms to one grouped message. *)
-  let warn cond alarms =
-    let filtered_alarms = D.filter (fun alarm -> RM.Cond.equal alarm.cond cond) alarms in
-    let merged_pieces = D.fold (fun alarm acc ->
-        match alarm.multipiece with
-        | Group group -> append_unique group.pieces acc
-        | _ -> acc)
-        filtered_alarms []
-    in
-    (* TODO: remove related alarms that have same location as original. or is this a bug? probably related to the fishy thing up there *)
-    let alarm = D.choose filtered_alarms in (* TODO: choose a related alarm reasonably instead of random *)
+  let convert_to_single (alarm : Alarm.t) merged_pieces = 
     match alarm.multipiece with
-    (* TODO: how to merge different categories of the message groups? *)
-    | Group group -> if (List.length merged_pieces == 1) 
-      then reposmessage_to_message {alarm with multipiece = Single (List.hd merged_pieces)}
-      else reposmessage_to_message {alarm with multipiece = Group {group with pieces = merged_pieces}}
-    | _ -> reposmessage_to_message alarm
+    | Group group -> 
+      if (List.length merged_pieces == 1) 
+      then {alarm with multipiece = Single (List.hd merged_pieces)}
+      else {alarm with multipiece = Group {group with pieces = merged_pieces}}
+    | _ -> alarm
+  in
+
+  let merge_group_warnings alarms = D.fold (fun alarm acc ->
+      (* TODO: how to merge different categories of the message groups? *)
+      match alarm.multipiece with
+      | Group group -> append_unique group.pieces acc
+      | _ -> acc)
+      alarms [] 
+  in
+
+  let merge_race_warnings alarms =
+    let merged_pieces = merge_group_warnings alarms in
+    let alarm = D.choose alarms in (* TODO: choose the shown alarm reasonably instead of random *)
+    convert_to_single alarm merged_pieces |> reposmessage_to_message
+  in 
+
+  (* Merge the grouped alarms to one grouped message. *)
+  let merge_alarms_with_same_cond cond alarms =
+    let filtered_alarms = D.filter (fun alarm -> RM.Cond.equal alarm.cond cond) alarms in
+    let merged_pieces = merge_group_warnings filtered_alarms in
+    let alarm = D.choose filtered_alarms in (* TODO: choose the shown alarm reasonably instead of random *)
+    let merged = convert_to_single alarm merged_pieces in
+    match alarm.cond with
+    | Acc (_,accs) -> HA.modify_def (D.empty ()) accs (D.add merged) accGroupsHM
+    | _ -> reposmessage_to_message merged
+
   in
 
   (* Find the corresponding messages for the sinked alarms from solution_av and print them out. *)
   HM.iter (fun n condset -> 
       CondSet.iter (fun c ->
-          let msg = HM.find !avSolHM n in
+          let msg = HM.find avSolHM n in
           match D.is_empty msg with (* TODO: this shouldn't actually happen: something being in sinkHM and not in avSolHM? *)
-          | false -> warn c msg
+          | false -> merge_alarms_with_same_cond c msg
           | true ->
-            let msg = HM.find !antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
+            let msg = HM.find antSolHM n in (* until this bug is fixed, there is a fix to ask antSolHM instead *)
             match D.is_empty msg with
-            | false -> warn c msg
+            | false -> merge_alarms_with_same_cond c msg
             | true -> ()
         ) condset
-    ) sinkHM;;
+    ) sinkHM;
 
-let init _ =
-  RM.NH.clear RM.messagesNH; (* TODO: does not work with incremental *)
-  HM.clear hoistHM;
-  HM.clear sinkHM
-
-let finalize _ = Cil.iterGlobals !Cilfacade.current_file (function
-    | GFun (fd, _) -> HM.clear hoistHM; HM.clear sinkHM; warn_postprocess fd
-    | _ -> ()
-  );
+  HA.iter (fun _ alarms -> merge_race_warnings alarms) accGroupsHM;
