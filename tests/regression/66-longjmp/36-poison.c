@@ -11,10 +11,16 @@ int myRandom() {
    return 42;
 }
 
-int fun() {
+int funjmp() {
    longjmp(env_buffer, 2);
 }
 
+int fun(int param) {
+   param = param +1; //NOWARN
+   if(param == 2) {
+      funjmp();
+   }
+}
 
 int main () {
    int val;
@@ -32,11 +38,12 @@ int main () {
       }
 
       x = val; //NOWARN
+      fun(5);
       return;
    };
 
    val = 8;
-   fun();
+   fun(1);
 
    __goblint_check(0); // NOWARN
    return(0);
