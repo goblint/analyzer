@@ -12,6 +12,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
+  let arg_enabled = get_bool "ana.sv-comp.enabled" || get_bool "exp.arg" in
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -19,10 +20,10 @@ let spec_module: (module Spec) Lazy.t = lazy (
             (module MCP.MCP2 : Spec)
             |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
-            |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
-            |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
-            |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
+            |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+            |> lift arg_enabled (module HashconsLifter)
+            |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
+            |> lift (not arg_enabled) (module PathSensitive2)
             |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
@@ -662,6 +663,23 @@ struct
         ()
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
+
+    if get_bool "exp.arg" then (
+      let module ArgTool = ArgTools.Make (R) in
+      let module Arg = (val ArgTool.create entrystates) in
+      if get_bool "exp.argdot" then (
+        let module ArgDot = ArgTools.Dot (Arg) in
+        let oc = Stdlib.open_out "arg.dot" in
+        Fun.protect (fun () ->
+            let ppf = Format.formatter_of_out_channel oc in
+            ArgDot.dot ppf;
+            Format.pp_print_flush ppf ()
+          ) ~finally:(fun () ->
+            Stdlib.close_out oc
+          )
+      );
+      ArgTools.current_arg := Some (module Arg);
+    );
 
     (* Before SV-COMP, so result can depend on YAML witness validation. *)
     if get_string "witness.yaml.validate" <> "" then (
