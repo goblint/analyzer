@@ -822,7 +822,7 @@ struct
                      else
                        ()
                     );
-                    let rec res_ctx = { ctx with
+                    let rec res_ctx = { path_ctx with
                                         ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
                                         local = res';
                                       }
