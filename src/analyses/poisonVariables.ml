@@ -54,7 +54,11 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     Option.may (check_exp ctx.local) exp;
-    ctx.local
+    (* remove locals, except ones which need to be weakly updated*)
+    let d = ctx.local in
+    let locals = (f.sformals @ f.slocals) in
+    let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
+    D.filter (fun v -> not (List.mem v locals_noweak)) d
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     Option.may (check_lval  ~ignore_var:true ctx.local) lval;
