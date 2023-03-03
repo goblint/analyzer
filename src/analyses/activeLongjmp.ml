@@ -36,7 +36,7 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
     | Longjmp {env; value; sigrestore}, _ ->
-      (* Put current buffer into set *)
+      (* Set target to current value of env *)
       let bufs = ctx.ask (EvalJumpBuf env) in
       bufs, JmpBufDomain.NodeSet.singleton(ctx.prev_node)
     | _ -> ctx.local
