@@ -32,10 +32,7 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    if not !Goblintutil.assign_is_setjmp then
-      add_to_all_defined (relevants_from_lval_opt ctx (Some lval)) ctx.local
-    else
-      ctx.local
+    add_to_all_defined (relevants_from_lval_opt ctx (Some lval)) ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local

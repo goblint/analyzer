@@ -809,11 +809,12 @@ struct
                  (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
                   match node with
                   | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-                    let res' = match lval with
-                      | Some lv -> Goblintutil.assign_is_setjmp := true; let r = S.assign path_ctx lv value in Goblintutil.assign_is_setjmp := false; r
-                      | None -> res
+                    let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) res lval in (* TODO: why res and not path_ctx.local ?*)
+                    let setjmpvar = match lval with
+                      | Some (Var v, NoOffset) -> Queries.VS.singleton v
+                      | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
                     in
-                    let modified_vars = path_ctx.ask (MayBeModifiedSinceSetjmp (node, c)) in
+                    let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (node, c))) setjmpvar in
                     (if Queries.VS.is_top modified_vars then
                        M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
                      else if not (Queries.VS.is_empty modified_vars) then
