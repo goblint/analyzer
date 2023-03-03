@@ -681,9 +681,9 @@ struct
                         local = cd}
       in
       (* Set of jumptargets and longjmp calls with which the callee may return here *)
-      let (targets, origins) = ctx_fd.ask ActiveJumpBuf in
-      (* Handle a longjmp called in one of the locations in origins to targetnode in targetcontext  *)
-      let handle_longjmp origins = function
+      let targets = fst @@ ctx_fd.ask ActiveJumpBuf in
+      (* Handle a longjmp to targetnode in targetcontext  *)
+      let handle_longjmp = function
         | JmpBufDomain.BufferEntryOrTop.AllTargets -> () (* The warning is already emitted at the point where the longjmp happens *)
         | Target (targetnode, targetcontext) ->
         let target_in_caller () = CilType.Fundec.equal (Node.find_fundec targetnode) current_fundec in
@@ -747,7 +747,7 @@ struct
              let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd') in
              sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
-      JmpBufDomain.JmpBufSet.iter (handle_longjmp origins) targets
+      JmpBufDomain.JmpBufSet.iter handle_longjmp targets
     in
     (* Handle normal calls to function *)
     let paths = S.enter ctx lv f args in
