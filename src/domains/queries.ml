@@ -104,6 +104,7 @@ type _ t =
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
+  | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
@@ -130,7 +131,7 @@ type ask = { f: 'a. 'a t -> 'a result }
 (* Result cannot implement Lattice.S because the function types are different due to GADT. *)
 module Result =
 struct
-  let lattice (type a) (q: a t): (module Lattice.S with type t = a) =
+  let rec lattice: type a. a t -> (module Lattice.S with type t = a) = fun q ->
     match q with
     (* Cannot group these GADTs... *)
     | EqualSet _ -> (module ES)
@@ -158,6 +159,7 @@ struct
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
+    | PathQuery (_, q) -> lattice q
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
@@ -177,7 +179,7 @@ struct
     Result.bot ()
 
   (** Get top result for query. *)
-  let top (type a) (q: a t): a result =
+  let rec top: type a. a t -> a result = fun q ->
     (* let module Result = (val lattice q) in
     Result.top () *)
     (* [lattice] and [top] manually inlined to avoid first-class module
@@ -210,6 +212,7 @@ struct
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
+    | PathQuery (_, q) -> top q
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
@@ -271,8 +274,9 @@ struct
     | Any (MustProtectedVars _) -> 39
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
+    | Any (PathQuery _) -> 42
 
-  let compare a b =
+  let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
       r
@@ -296,12 +300,18 @@ struct
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
+      | Any (PathQuery (i1, q1)), Any (PathQuery (i2, q2)) ->
+        let r = Stdlib.compare i1 i2 in
+        if r <> 0 then
+          r
+        else
+          compare (Any q1) (Any q2)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
-      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
-      | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       (* only argumentless queries should remain *)
@@ -309,7 +319,7 @@ struct
 
   let equal x y = compare x y = 0
 
-  let hash_arg = function
+  let rec hash_arg = function
     | Any (EqualSet e) -> CilType.Exp.hash e
     | Any (MayPointTo e) -> CilType.Exp.hash e
     | Any (ReachableFrom e) -> CilType.Exp.hash e
@@ -328,6 +338,7 @@ struct
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
+    | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
@@ -338,9 +349,9 @@ struct
     (* only argumentless queries should remain *)
     | _ -> 0
 
-  let hash x = 31 * order x + hash_arg x
+  and hash x = 31 * order x + hash_arg x
 
-  let pretty () = function
+  let rec pretty () = function
     | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
     | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
     | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
@@ -365,6 +376,7 @@ struct
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
+    | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
     | Any HeapVar -> Pretty.dprintf "HeapVar"
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
