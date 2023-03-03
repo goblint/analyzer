@@ -620,3 +620,25 @@ let get_short_list begin_str end_str list =
 
   let str = String.concat separator cut_str_list in
   begin_str ^ str ^ end_str
+
+
+module Yojson =
+struct
+  include Std
+  type t = Yojson.Safe.t [@@deriving eq]
+  let name () = "yojson"
+
+  let compare = Stdlib.compare
+  let hash = Hashtbl.hash
+
+  let pretty = GobYojson.pretty
+
+  include SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+
+  let to_yojson x = x (* override SimplePretty *)
+end

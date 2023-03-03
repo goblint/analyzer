@@ -577,6 +577,23 @@ let () =
   end);
 
   register (module struct
+    let name = "arg/state"
+    type params = {
+      node: string
+    } [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process {node} serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      match ArgWrapper.find_node node with
+      | n ->
+        begin match ArgWrapper.Arg.query n DYojson with
+          | `Lifted json -> json
+          | (`Bot | `Top) as r -> Response.Error.(raise (make ~code:RequestFailed ~message:("query returned " ^ Queries.FlatYojson.show r) ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
+  end);
+
+  register (module struct
     let name = "exp_eval"
     type params = ExpressionEvaluation.query [@@deriving of_yojson]
     type response =

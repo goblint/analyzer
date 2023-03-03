@@ -54,6 +54,11 @@ type itervar = int -> unit
 let compare_itervar _ _ = 0
 let compare_iterprevvar _ _ = 0
 
+module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
+  let top_name = "top yojson"
+  let bot_name = "bot yojson"
+end)
+
 module SD = Basetype.Strings
 
 module MayBool = BoolDomain.MayBool
@@ -105,6 +110,7 @@ type _ t =
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
+  | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
@@ -160,6 +166,7 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PathQuery (_, q) -> lattice q
+    | DYojson -> (module FlatYojson)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
@@ -213,6 +220,7 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PathQuery (_, q) -> top q
+    | DYojson -> FlatYojson.top ()
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
@@ -275,6 +283,7 @@ struct
     | Any MayAccessed -> 40
     | Any MayBeTainted -> 41
     | Any (PathQuery _) -> 42
+    | Any DYojson -> 43
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -390,6 +399,7 @@ struct
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
+    | Any DYojson -> Pretty.dprintf "DYojson"
 end
 
 
