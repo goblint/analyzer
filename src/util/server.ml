@@ -451,6 +451,19 @@ let () =
   end);
 
   register (module struct
+    let name = "arg/dot"
+    type params = unit [@@deriving of_yojson]
+    type response = {
+      arg: string
+    } [@@deriving to_yojson]
+    let process () serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) in
+      let arg = Format.asprintf "%t" ArgDot.dot in
+      {arg}
+  end);
+
+  register (module struct
     let name = "arg/lookup"
     type params = {
       node: string option [@default None];
