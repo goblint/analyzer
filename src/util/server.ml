@@ -409,6 +409,7 @@ let () =
     type response = {
       node: string;
       location: CilType.Location.t;
+      function_: CilType.Fundec.t [@key "function"];
       next: (Edge.t list * string) list;
       prev: (Edge.t list * string) list;
     } [@@deriving to_yojson]
@@ -432,6 +433,7 @@ let () =
       in
       let node_id = Node.show_id node in
       let location = UpdateCil.getLoc node in
+      let function_ = Node.find_fundec node in
       let module Cfg = (val !MyCFG.current_cfg) in
       let next =
         Cfg.next node
@@ -445,7 +447,7 @@ let () =
             (List.map snd edges, Node.show_id to_node)
           )
       in
-      {node = node_id; location; next; prev}
+      {node = node_id; location; function_; next; prev}
   end);
 
   register (module struct
@@ -463,6 +465,7 @@ let () =
       context: string;
       path: string;
       location: CilType.Location.t;
+      function_: CilType.Fundec.t [@key "function"];
     } [@@deriving to_yojson]
     type one_response = {
       node: string;
@@ -470,6 +473,7 @@ let () =
       context: string;
       path: string;
       location: CilType.Location.t;
+      function_: CilType.Fundec.t [@key "function"];
       next: edge_node list;
       prev: edge_node list;
     } [@@deriving to_yojson]
@@ -514,6 +518,7 @@ let () =
               context = string_of_int (Arg.Node.context_id to_node);
               path = string_of_int (Arg.Node.path_id to_node);
               location = UpdateCil.getLoc cfg_to_node;
+              function_ = Node.find_fundec cfg_to_node;
             }
           )
       in
@@ -528,6 +533,7 @@ let () =
               context = string_of_int (Arg.Node.context_id to_node);
               path = string_of_int (Arg.Node.path_id to_node);
               location = UpdateCil.getLoc cfg_to_node;
+              function_ = Node.find_fundec cfg_to_node;
             }
           )
       in
@@ -537,6 +543,7 @@ let () =
         context = string_of_int (Arg.Node.context_id n);
         path = string_of_int (Arg.Node.path_id n);
         location;
+        function_ = Node.find_fundec cfg_node;
         next;
         prev
       }
