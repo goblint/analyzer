@@ -680,9 +680,9 @@ struct
                          ask = (fun (type a) (q: a Queries.t) -> S.query ctx_cd q);
                         local = cd}
       in
-      (* Set of jumptargets and longjmp calls with which the callee may return here *)
+      (* Set of jumptargets with which the callee may return here *)
       let targets = fst @@ ctx_fd.ask ActiveJumpBuf in
-      (* Handle a longjmp to targetnode in targetcontext  *)
+      (* Handle a longjmp to targetnode in targetcontext *)
       let handle_longjmp = function
         | JmpBufDomain.BufferEntryOrTop.AllTargets -> () (* The warning is already emitted at the point where the longjmp happens *)
         | Target (targetnode, targetcontext) ->
