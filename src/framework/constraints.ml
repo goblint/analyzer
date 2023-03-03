@@ -738,7 +738,13 @@ struct
              (* Globals are non-problematic here, as they are always carried around without any issues! *)
              (* A combine call is mostly needed to ensure locals have appropriate values. *)
              let fd' = S.return ctx_fd None f in
-             let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd) in
+             let rec ctx_fd' = { ctx with
+                                 ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
+                                 local = fd';
+                                 prev_node = Function f
+                               }
+             in
+             let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd') in
              sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
       in
       List.iter (handle_longjmp (snd targets)) (JmpBufDomain.JmpBufSet.elements (fst targets))
