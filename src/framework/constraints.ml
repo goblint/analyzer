@@ -809,7 +809,7 @@ struct
                  (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
                   match node with
                   | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-                    let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) res lval in (* TODO: why res and not path_ctx.local ?*)
+                    let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in
                     let setjmpvar = match lval with
                       | Some (Var v, NoOffset) -> Queries.VS.singleton v
                       | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
