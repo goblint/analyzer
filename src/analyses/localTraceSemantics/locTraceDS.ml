@@ -365,6 +365,8 @@ let workQueue = Queue.create ()
   in Queue.add last_node workQueue;
   
   let rec loop () =
+    if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty})
+    else(
     let current_node = Queue.pop workQueue
   in
   let rec inner_loop edges =
@@ -381,7 +383,7 @@ let workQueue = Queue.create ()
   match inner_loop precedingEdges with
   None -> List.iter (fun node -> Queue.add node workQueue ) (get_predecessors_nodes graph current_node);
   loop ()
-  | Some(found_node) -> found_node
+  | Some(found_node) -> found_node)
 in loop ()
 
 let exists_node graph node =
@@ -408,6 +410,38 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
     match nodeList with node::xs -> if node.tid = tid then true else loop xs
       | [] -> false
     in loop allNodes  
+
+    let precedes_other_node node1 node2 graph =
+      let workQueue = Queue.create ()
+    in
+      let rec loop visited =
+        if Queue.is_empty workQueue then false else
+        let currentNode = Queue.pop workQueue
+      in
+        let precedingNodes = get_predecessors_nodes graph currentNode
+      in
+      if List.exists (fun node_exists -> NodeImpl.equal node_exists node1) precedingNodes then true
+      else
+        (List.iter (fun node_iter -> if (List.exists (fun node_exists -> NodeImpl.equal node_exists node_iter) visited)
+          then () else Queue.add node_iter workQueue
+          ) precedingNodes;
+        loop (currentNode::visited))
+      in 
+      Queue.add node2 workQueue;
+      loop []
+
+    let get_recent_divergent_node graph1 graph2 =
+      let creatingNode1 = find_creating_node (get_last_node graph1) graph1
+    in
+    let creatingNode2 = find_creating_node (get_last_node graph2) graph2
+  in
+  match (exists_node graph2 creatingNode1),(exists_node graph1 creatingNode2) with
+   true, true -> if precedes_other_node creatingNode1 creatingNode2 graph1 then creatingNode1
+   else creatingNode2
+  |false, true -> creatingNode2
+  | true, false -> creatingNode1
+  | false, false -> {programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}
+
   end
 
 (* Set domain for analysis framework *)
