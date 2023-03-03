@@ -697,7 +697,7 @@ struct
            match targetnode with
            | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
              let fd' = S.return ctx_fd None f in
-             let rec ctx_fd' = { ctx with
+             let rec ctx_fd' = { ctx_fd with
                                  ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
                                  local = fd';
                                  prev_node = Function f
