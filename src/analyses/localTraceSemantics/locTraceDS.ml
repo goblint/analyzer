@@ -501,17 +501,35 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       Queue.add node2 workQueue;
       loop []
 
-    let get_recent_divergent_node graph1 graph2 =
-      let creatingNode1 = find_creating_node (get_last_node graph1) graph1
+      let get_recent_divergent_node graph1 graph2 =
+          let lastNode1 = get_last_node graph1
+        in
+        let rec loop currentNode =
+          if exists_node graph2 currentNode then currentNode
+          else (
+            let predecessors = get_predecessors_nodes graph1 currentNode
+        in
+        let nextNode = List.fold (
+          fun acc_fold node_fold ->
+            if Node.equal acc_fold.programPoint error_node then node_fold 
+            else if currentNode.tid = node_fold.tid then node_fold 
+            else acc_fold
+        ) {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty} predecessors
+          in
+          if Node.equal nextNode.programPoint error_node then {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty} else
+          loop nextNode
+          )
+        in loop lastNode1
+        (* let creatingNode1 = find_creating_node (get_last_node graph1) graph1
+      in
+      let creatingNode2 = find_creating_node (get_last_node graph2) graph2
     in
-    let creatingNode2 = find_creating_node (get_last_node graph2) graph2
-  in
-  match (exists_node graph2 creatingNode1),(exists_node graph1 creatingNode2) with
-   true, true -> if precedes_other_node creatingNode1 creatingNode2 graph1 then creatingNode1
-   else creatingNode2
-  |false, true -> creatingNode2
-  | true, false -> creatingNode1
-  | false, false -> {programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}
+    match (exists_node graph2 creatingNode1),(exists_node graph1 creatingNode2) with
+     true, true -> if precedes_other_node creatingNode1 creatingNode2 graph1 then creatingNode1
+     else creatingNode2
+    |false, true -> creatingNode2
+    | true, false -> creatingNode1
+    | false, false -> {programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty} *)
 
   end
 
