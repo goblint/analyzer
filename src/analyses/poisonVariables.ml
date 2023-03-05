@@ -26,7 +26,7 @@ struct
     | Question (b, t, f, _) -> check_exp ask tainted b; check_exp ask tainted t; check_exp ask tainted f
   and check_lval ask ?(ignore_var = false) tainted lval = match lval with
     | (Var v, offset) ->
-      
+
       if not ignore_var && not v.vglob && VS.mem v tainted then M.warn "accessing poisonous variable %a" d_varinfo v;
       check_offset ask tainted offset
     | (Mem e, offset) ->
@@ -72,10 +72,12 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     Option.may (check_exp ctx.ask ctx.local) exp;
     (* remove locals, except ones which need to be weakly updated*)
-    let d = ctx.local in
-    let locals = (f.sformals @ f.slocals) in
-    let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
-    D.filter (fun v -> not (List.mem v locals_noweak)) d
+    if D.is_top ctx.local then
+      ctx.local
+    else
+      let locals = (f.sformals @ f.slocals) in
+      let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
+      D.filter (fun v -> not (List.mem v locals_noweak)) ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
