@@ -80,13 +80,21 @@ struct
       D.filter (fun v -> not (List.mem v locals_noweak)) ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
-    List.iter (check_exp ctx.ask ctx.local) args;
-    [ctx.local, ctx.local]
+    if VS.is_empty ctx.local then
+      [ctx.local,ctx.local]
+    else
+      (Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
+       List.iter (check_exp ctx.ask ctx.local) args;
+       let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+       if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
+         [ctx.local, ctx.local]
+       else
+         let reachable_vars = Queries.LS.elements reachable_from_args |> List.map fst |> VS.of_list in
+         [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local])
 
   let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* Actually, this ask would have to be on the post state?! *)
-    Option.map_default (rem_lval ctx.ask au) au lval
+    Option.map_default (rem_lval ctx.ask au) (VS.join au ctx.local) lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
