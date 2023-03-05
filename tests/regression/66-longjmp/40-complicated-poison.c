@@ -23,6 +23,10 @@ int fun(int param) {
    }
 }
 
+int eight() {
+   return 8;
+}
+
 int main () {
    int val;
    int x;
@@ -45,6 +49,7 @@ int main () {
       *ptr = 5; //NOWARN
       x = *ptr; //NOWARN
       *ptr2 = 9; //WARN (ptr2 still has indeterminate value)
+      *ptr2 = eight(); //WARN (ptr2 still has indeterminate value)
 
       x = val; //NOWARN
       fun(5);
