@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval
+// PARAM: 
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
@@ -27,5 +27,6 @@ int wrap () {
 
 int main() {
    wrap();
+   int y = 8;
    wrap();
 }
