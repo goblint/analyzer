@@ -631,8 +631,9 @@ List.fold (fun graphList tidSigma ->
     | ThreadID(tid_find) -> tid_find
     | _ -> Printf.printf "Error: wrong type of argument of pthread_join in special\n"; exit 0
 in
-if LocalTraces.exists_TID tidJoin graph then (
+if LocalTraces.is_already_joined tidJoin graph then (
   Messages.warn "ThreadJoin on already joined Thread-ID";
+print_string ("ThreadJoin did not succeed due to already joined TID for graph: \n"^(LocalTraces.show graph)^"\nand tidJoin: "^(string_of_int tidJoin)^"\n");
 let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}) 
 in
 graph_error_edge::graphList

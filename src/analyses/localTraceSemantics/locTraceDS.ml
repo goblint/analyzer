@@ -472,15 +472,18 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
         loop edgeList1
       )
   let merge_graphs graph1 graph2 =
-    List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)
+    List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)  
 
-  let exists_TID tid graph =
-    let allNodes = get_all_nodes graph
+  let is_already_joined tid graph =
+    let allEdges = get_all_edges graph
   in
-  let rec loop nodeList =
-    match nodeList with node::xs -> if node.tid = tid then true else loop xs
+  let rec loop (edgeList: ((node * CustomEdge.t * node) list)) =
+    match edgeList with (prev_node, Proc(_, Lval(Var(v),_), _), dest_node)::xs -> 
+      if (prev_node.tid = tid) && (dest_node.tid != tid)&&(String.equal v.vname "pthread_join") then true else loop xs
+      | (prev_node, edge, dest_node)::xs -> loop xs
       | [] -> false
-    in loop allNodes  
+    in loop allEdges  
+
 
     let precedes_other_node node1 node2 graph =
       let workQueue = Queue.create ()
