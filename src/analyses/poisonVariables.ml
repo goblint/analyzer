@@ -10,50 +10,67 @@ struct
   module D = VS
   module C = Lattice.Unit
 
-  let rec check_exp tainted e = match e with
+  let rec check_exp ask tainted e = match e with
     (* Recurse over the structure in the expression, returning true if any varinfo appearing in the expression is tainted *)
     | AddrOf v
     | StartOf v
-    | Lval v -> check_lval tainted v
-    | BinOp (_,e1,e2,_) -> check_exp tainted e1; check_exp tainted e2
+    | Lval v -> check_lval ask tainted v
+    | BinOp (_,e1,e2,_) -> check_exp ask tainted e1; check_exp ask tainted e2
     | Real e
     | Imag e
     | SizeOfE e
     | AlignOfE e
     | CastE (_,e)
-    | UnOp (_,e,_) -> check_exp tainted e
+    | UnOp (_,e,_) -> check_exp ask tainted e
     | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> ()
-    | Question (b, t, f, _) -> check_exp tainted b; check_exp tainted t; check_exp tainted f
-  and check_lval ?(ignore_var = false) tainted lval = match lval with
+    | Question (b, t, f, _) -> check_exp ask tainted b; check_exp ask tainted t; check_exp ask tainted f
+  and check_lval ask ?(ignore_var = false) tainted lval = match lval with
     | (Var v, offset) ->
+      
       if not ignore_var && not v.vglob && VS.mem v tainted then M.warn "accessing poisonous variable %a" d_varinfo v;
-      check_offset tainted offset
-    | _ -> () (* TODO: Consider mem *)
-  and check_offset tainted offset = match offset with
-    | NoOffset -> ()
-    | Field (_, o) -> check_offset tainted o
-    | Index (e, o) -> check_exp tainted e; check_offset tainted o
+      check_offset ask tainted offset
+    | (Mem e, offset) ->
+      (try
+         Queries.LS.iter (fun lv -> check_lval ~ignore_var ask tainted @@ Lval.CilLval.to_lval lv) (ask (Queries.MayPointTo e))
+       with
+         SetDomain.Unsupported _ -> if not @@ VS.is_empty tainted then M.warn "accessing unknown memory location, may be tainted!");
+      check_exp ask tainted e;
 
-  let rem_lval ask tainted lval = match lval with
+      check_offset ask tainted offset;
+      ()
+  and check_offset ask tainted offset = match offset with
+    | NoOffset -> ()
+    | Field (_, o) -> check_offset ask tainted o
+    | Index (e, o) -> check_exp ask tainted e; check_offset ask tainted o
+
+  let rec rem_lval ask tainted lval = match lval with
     | (Var v, NoOffset) -> VS.remove v tainted (* TODO: If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
-    | _ -> tainted
+    | (Mem e, NoOffset) ->
+      (try
+         let r = Queries.LS.elements (ask (Queries.MayPointTo e)) in
+         match r with
+         | [x] -> rem_lval ask tainted @@ Lval.CilLval.to_lval x
+         | _ -> tainted
+       with
+         SetDomain.Unsupported _ -> tainted)
+    | _ -> tainted (* If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
 
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    check_lval ~ignore_var:true ctx.local lval;
-    check_exp ctx.local rval;
+    check_lval ctx.ask ~ignore_var:true ctx.local lval;
+    check_exp ctx.ask ctx.local rval;
     rem_lval ctx.ask ctx.local lval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    check_exp ctx.local exp;
+    check_exp ctx.ask ctx.local exp;
     ctx.local
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    Option.may (check_exp ctx.local) exp;
+    Option.may (check_exp ctx.ask ctx.local) exp;
     (* remove locals, except ones which need to be weakly updated*)
     let d = ctx.local in
     let locals = (f.sformals @ f.slocals) in
@@ -61,16 +78,17 @@ struct
     D.filter (fun v -> not (List.mem v locals_noweak)) d
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    Option.may (check_lval  ~ignore_var:true ctx.local) lval;
-    List.iter (check_exp ctx.local) args;
+    Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
+    List.iter (check_exp ctx.ask ctx.local) args;
     [ctx.local, ctx.local]
 
   let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    Option.map_default (rem_lval f_ask au) au lval
+    (* Actually, this ask would have to be on the post state?! *)
+    Option.map_default (rem_lval ctx.ask au) au lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    Option.may (check_lval  ~ignore_var:true ctx.local) lval;
-    List.iter (check_exp ctx.local) arglist;
+    Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
+    List.iter (check_exp ctx.ask ctx.local) arglist;
     Option.map_default (rem_lval ctx.ask ctx.local) ctx.local lval
 
   let startstate v = D.bot ()
