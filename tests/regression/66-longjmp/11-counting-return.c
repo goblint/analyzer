@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums --set solvers.td3.side_widen never
+// PARAM: --enable ana.int.interval --enable ana.int.enums --set solvers.td3.side_widen never  --set ana.setjmp.split none
 #include <goblint.h>
 #include <setjmp.h>
 

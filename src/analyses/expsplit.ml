@@ -62,9 +62,18 @@ struct
         D.remove exp ctx.local
       | Setjmp { env; savesigs}, _ ->
         Option.map_default (fun lval ->
+            match GobConfig.get_string "ana.setjmp.split" with
+            | "none" -> ctx.local
+            | "precise" ->
             let e = Lval lval in
             let ik = Cilfacade.get_ikind_exp e in
             D.add e (ID.top_of ik) ctx.local
+            | "coarse" ->
+              let e = Lval lval in
+              let ik = Cilfacade.get_ikind_exp e in
+              let e = BinOp(Eq, e, integer 0, intType) in
+              D.add e (ID.top_of IInt) ctx.local
+            | _ -> failwith "Invalid value for ana.setjmp.split"
           ) ctx.local lval
       | _ ->
         ctx.local

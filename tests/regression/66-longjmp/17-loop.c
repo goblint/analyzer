@@ -1,3 +1,4 @@
+//PARAM: --set ana.setjmp.split coarse
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>

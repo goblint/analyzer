@@ -326,7 +326,7 @@
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
-            "assert","activeLongjmp","activeSetjmp","taintPartialContexts","modifiedSinceLongjmp","poisonVariables"
+            "assert","activeLongjmp","activeSetjmp","taintPartialContexts","modifiedSinceLongjmp","poisonVariables","expsplit"
           ]
         },
         "path_sens": {
@@ -342,6 +342,21 @@
           "type": "array",
           "items": { "type": "string" },
           "default": [ "stack_loc", "stack_trace_set" ]
+        },
+        "setjmp" : {
+          "title": "ana.setjmp",
+          "description": "Setjmp/Longjmp analysis",
+          "type": "object",
+          "properties": {
+            "split": {
+              "title": "ana.setjmp.split",
+              "description": "Split returns of setjmp",
+              "type": "string",
+              "enum": ["none", "coarse", "precise"],
+              "default": "precise"
+            }
+          },
+          "additionalProperties": false
         },
         "int": {
           "title": "ana.int",

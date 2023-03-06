@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums
+// PARAM: --enable ana.int.interval --enable ana.int.enums --set ana.setjmp.split none
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
