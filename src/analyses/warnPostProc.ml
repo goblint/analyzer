@@ -184,8 +184,6 @@ struct
   let rel_alarms c s = Dom.fold (fun alarm alarms -> 
       if (RM.Cond.equal alarm.cond c) then AlarmSet.add alarm alarms else alarms) s (AlarmSet.empty ())
 
-  let dep_gen node x = Dom.empty ()
-
   let filter_killed stmt node (alarm : Alarm.t) = 
     match alarm.cond with 
     | Aob (exp, _) -> var_changed_in_node stmt exp
@@ -198,12 +196,10 @@ struct
 
   let process (alarm : Alarm.t) y = alarm
 
-  let gen' node x =
+  let gen node x =
     match RM.NH.find_option RM.messagesNH node with
     | Some alarms -> RM.RMSet.fold (fun alarm acc -> Dom.add alarm acc) alarms (Dom.empty ()) 
     | None -> Dom.empty ()
-
-  let gen node x = Dom.union (gen' node x) (dep_gen node (kill node x))
 
   (* Compute the anticipable conditions at the entry (`L) and exit (`G) of a node.
      We set the message location to the hoisted location in the end,
@@ -383,9 +379,9 @@ let warn_postprocess fd =
     let module CFG = (val !MyCFG.current_cfg) in
     let prev_nodes = List.map snd (CFG.prev node) in
     let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
-    let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
-    (* TODO: there is something fishy going on here somewhere. *)
-    filter_always_true (!ask node) @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
+    let cs_in = Ant.conds_in (HM.find solution (`L node)) in
+    let cs_out = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
+    CondSet.diff cs_in cs_out |> filter_always_true (!ask node) in
 
   let hoist_exit node =
     let module CFG = (val !MyCFG.current_cfg) in
@@ -394,13 +390,12 @@ let warn_postprocess fd =
        If no unique successor assume only refinements possible -> use current state;
        if there is a unique successor, we use the state at that node. 
        Also, if target node has another incoming edge, less precise but safe.  *)
-    let ask = if List.compare_length_with next_nodes 1 = 0 then
+    let ask = if List.compare_length_with next_nodes 1 <> 0
+      then !ask node
+      else 
         let (edges, next_node) = List.hd next_nodes in
-        !ask' node (List.hd edges) next_node
-      else !ask node in
-    filter_always_true ask @@ Ant.conds_in @@ Ant.Dom.filter
-      (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
-      (Ant.kill node @@ HM.find solution (`G node)) in
+        !ask' node (List.hd edges) next_node in
+    Ant.kill node (HM.find solution (`G node)) |> Ant.conds_in |> filter_always_true ask in
 
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->
