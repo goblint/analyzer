@@ -277,6 +277,13 @@ module Base =
       let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
+      let destab_counts = HM.create 113 in
+
+      let stable_remove x =
+        Hooks.stable_remove x;
+        HM.modify_def 1 x ((+) 1) destab_counts
+      in
+
       let destabilize_stats f x =
         let stable_before = HM.length stable in
         f x;
@@ -358,7 +365,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
                 HM.remove superstable x;
-                Hooks.stable_remove x;
+                stable_remove x;
                 (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
               ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
@@ -508,7 +515,7 @@ module Base =
             if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             HM.remove superstable y;
-            Hooks.stable_remove x;
+            stable_remove x;
             if not (HM.mem called y) then destabilize_normal y
           ) w
       in
@@ -575,7 +582,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                Hooks.stable_remove x;
+                stable_remove x;
                 destabilize_with_side ~side_fuel y
               ) w_side_dep;
           );
@@ -586,7 +593,7 @@ module Base =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              Hooks.stable_remove x;
+              stable_remove x;
               destabilize_with_side ~side_fuel y
             ) w_infl;
 
@@ -604,7 +611,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                Hooks.stable_remove x;
+                stable_remove x;
                 destabilize_with_side ~side_fuel:side_fuel' y
               ) w_side_infl
           )
@@ -677,7 +684,7 @@ module Base =
                   if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
-                  Hooks.stable_remove x;
+                  stable_remove x;
                   destabilize_normal y
                 ) w
             )
@@ -1050,12 +1057,19 @@ module Base =
         Format.fprintf ppf "\"%s\"" (String.escaped (Pretty.sprint ~width:max_int (S.Var.pretty_trace () var)))
       in
 
+      let max_destab_count = HM.fold (fun _ x acc -> max x acc) destab_counts 0 in
+      let dot_var_attr ppf var =
+        let count = HM.find_default destab_counts var 0 in
+        let color = 8 * count / max_destab_count + 1 in
+        Format.fprintf ppf "[fillcolor=%d,tooltip=%d]" color count
+      in
+
       let oc = Stdlib.open_out "td3.infl.dot" in
       let ppf = Format.formatter_of_out_channel oc in
-      Format.fprintf ppf "@[<v 2>digraph infl {";
+      Format.fprintf ppf "@[<v 2>digraph infl {concentrate=true; node [style=filled;colorscheme=reds9];";
       HM.iter (fun k vs ->
           if not (S.Var.is_write_only k) then (
-            Format.fprintf ppf "@,%a;" dot_var_name k;
+            Format.fprintf ppf "@,%a %a;" dot_var_name k dot_var_attr k;
             VS.iter (fun v ->
                 if not (S.Var.is_write_only v) then
                   Format.fprintf ppf "@,%a -> %a;" dot_var_name k dot_var_name v;
@@ -1064,7 +1078,7 @@ module Base =
         ) infl;
       HM.iter (fun k vs ->
           if not (S.Var.is_write_only k) then (
-            Format.fprintf ppf "@,%a;" dot_var_name k;
+            Format.fprintf ppf "@,%a %a;" dot_var_name k dot_var_attr k;
             VS.iter (fun v ->
                 if not (S.Var.is_write_only v) then
                   Format.fprintf ppf "@,%a -> %a [style=dashed];" dot_var_name k dot_var_name v;
