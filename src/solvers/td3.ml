@@ -75,8 +75,16 @@ module Base =
     }
 
     let print_data data =
-      Printf.printf "|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|sides|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-        (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.sides) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.var_messages) (HM.length data.rho_write) (HM.length data.dep);
+      Printf.printf "|rho|=%d\n" (HM.length data.rho);
+      Printf.printf "|stable|=%d\n" (HM.length data.stable);
+      Printf.printf "|infl|=%d\n" (HM.length data.infl);
+      Printf.printf "|wpoint|=%d\n" (HM.length data.wpoint);
+      Printf.printf "|sides|=%d\n" (HM.length data.sides);
+      Printf.printf "|side_dep|=%d\n" (HM.length data.side_dep);
+      Printf.printf "|side_infl|=%d\n" (HM.length data.side_infl);
+      Printf.printf "|var_messages|=%d\n" (HM.length data.var_messages);
+      Printf.printf "|rho_write|=%d\n" (HM.length data.rho_write);
+      Printf.printf "|dep|=%d\n" (HM.length data.dep);
       Hooks.print_data ()
 
     let print_data_verbose data str =
