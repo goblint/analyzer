@@ -264,6 +264,15 @@ module Base =
       let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
+      let destabilize_stats f x =
+        let stable_before = HM.length stable in
+        f x;
+        let stable_after = HM.length stable in
+        let count = stable_before - stable_after in
+        if count <> 0 then
+          ignore (Pretty.printf "destabilize %a: %d\n" S.Var.pretty_trace x count)
+      in
+
       let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
@@ -582,7 +591,7 @@ module Base =
           )
         in
 
-        destabilize_ref :=
+        destabilize_ref := destabilize_stats @@
           if restart_sided then (
             let side_fuel =
               match GobConfig.get_int "incremental.restart.sided.fuel" with
@@ -752,7 +761,7 @@ module Base =
         List.iter set_start st;
       );
 
-      destabilize_ref := destabilize_normal; (* always use normal destabilize during actual solve *)
+      destabilize_ref := destabilize_stats destabilize_normal; (* always use normal destabilize during actual solve *)
 
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
