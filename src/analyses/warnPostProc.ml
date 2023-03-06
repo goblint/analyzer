@@ -85,6 +85,7 @@ let sinkHM = HM.create 10
 let avSolHM = HM.create 10
 
 let ask : (Node0.t -> Queries.ask) ref = ref (fun a -> assert false)
+let ask' : (Node0.t -> (CilType.Location.t * Edge.t) -> Node0.t -> Queries.ask) ref = ref (fun n e n' -> assert false)
 
 let set_loc (message : Alarm.t) loc =
   match message.multipiece with
@@ -376,7 +377,24 @@ let warn_postprocess fd =
     | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
   in
 
+  let cond_holds' node edge node' (cond : RM.Cond.t) =
+    match cond with
+    | Aob (exp, l) ->
+      let q = (!ask' node edge node').f (EvalInt exp) in
+      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
+      (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
+      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
+      begin match (idx_before_end, idx_after_start) with
+        | Some true, Some true -> false (* Certainly in bounds on both sides.*)
+        | _ -> true
+      end
+    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
+  in
+
   let filter_always_true node cs = CondSet.filter (cond_holds node) cs in
+
+  let filter_always_true' node (edges, node') cs = CondSet.filter (cond_holds' node (List.hd edges) node') cs in
 
   let hoist_entry node =
     let module CFG = (val !MyCFG.current_cfg) in
@@ -388,15 +406,19 @@ let warn_postprocess fd =
 
   let hoist_exit node =
     let module CFG = (val !MyCFG.current_cfg) in
-    let next_nodes = List.map snd (CFG.next node) in
+    let next_nodes = CFG.next node in
     (* TODO: Evaluating at the post-state of a transfer function before the join. 
        If no unique successor assume only refinements possible -> use current state;
        if there is a unique successor, we use the state at that node. 
        Also, if target node has another incoming edge, less precise but safe.  *)
-    let node' = if List.compare_length_with next_nodes 1 = 0 then List.hd next_nodes else node in
-    filter_always_true node' @@ Ant.conds_in @@ Ant.Dom.filter
-      (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
-      (Ant.kill node @@ HM.find solution (`G node)) in
+    if List.compare_length_with next_nodes 1 = 0 then
+      filter_always_true' node (List.hd next_nodes) @@ Ant.conds_in @@ Ant.Dom.filter
+        (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
+        (Ant.kill node @@ HM.find solution (`G node))
+    else
+      filter_always_true node @@ Ant.conds_in @@ Ant.Dom.filter
+        (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
+        (Ant.kill node @@ HM.find solution (`G node)) in
 
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->

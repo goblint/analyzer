@@ -477,6 +477,7 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = GVarG (S.G) (S.C)
+    val tf0 : node * Obj.t -> (MyCFG.node * S.C.t -> S.D.t) -> (node * S.C.t -> S.D.t -> unit) -> ([> `Left of S.V.t ] -> [> `Bot | `Lifted1 of S.G.t ]) -> ([> `Left of S.V.t | `Right of fundec ] -> [> `Lifted1 of S.G.t | `Lifted2 of G.CSet.t ] -> unit) -> node -> 'a * edge -> S.D.t -> location * location -> S.D.t
   end
 =
 struct
@@ -735,6 +736,8 @@ struct
         let d       = tf var getl sidel getg sideg prev_node edge d in
         d
       )
+
+  let tf0 = tf 
 
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in

@@ -48,7 +48,7 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ 
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
 struct
 
-  module SpecSys: SpecSys with module Spec = Spec =
+  module SpecSys(*: SpecSys with module Spec = Spec*) =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
@@ -642,7 +642,7 @@ struct
       let gh = gh
     end
     in
-    let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (FileCfg) (SpecSysSol) in
+    let module R (*: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys *) = ResultQuery.Make (FileCfg) (SpecSysSol) in
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
@@ -701,6 +701,12 @@ struct
     WarnPostProc.ask := (fun node ->
         let local = (NH.find nh node) in
         { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node local q)}
+      );
+
+    WarnPostProc.ask' := (fun node (loc, edge) node' ->
+        let local = (NH.find nh node) in
+        let local' = EQSys.tf0 (node', Obj.repr ()) (LHT.find lh) (fun _ _ -> ()) (GHT.find gh) (fun _ _ -> ()) node (loc,edge) local (loc, loc) in
+        { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node' local' q)}
       );
 
     if get_bool "ana.warn-postprocess.enabled" then (
