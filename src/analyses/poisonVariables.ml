@@ -13,7 +13,7 @@ struct
   let rec check_exp ask tainted e = match e with
     (* Recurse over the structure in the expression, returning true if any varinfo appearing in the expression is tainted *)
     | AddrOf v
-    | StartOf v
+    | StartOf v -> check_lval ~ignore_var:true ask tainted v
     | Lval v -> check_lval ask tainted v
     | BinOp (_,e1,e2,_) -> check_exp ask tainted e1; check_exp ask tainted e2
     | Real e
@@ -26,7 +26,6 @@ struct
     | Question (b, t, f, _) -> check_exp ask tainted b; check_exp ask tainted t; check_exp ask tainted f
   and check_lval ask ?(ignore_var = false) tainted lval = match lval with
     | (Var v, offset) ->
-
       if not ignore_var && not v.vglob && VS.mem v tainted then M.warn "accessing poisonous variable %a" d_varinfo v;
       check_offset ask tainted offset
     | (Mem e, offset) ->
