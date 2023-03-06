@@ -12,6 +12,7 @@ module type S2S = functor (X : Spec) -> Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
+  let arg_enabled = get_bool "ana.sv-comp.enabled" || get_bool "exp.arg" in
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -19,10 +20,10 @@ let spec_module: (module Spec) Lazy.t = lazy (
             (module MCP.MCP2 : Spec)
             |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-            |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
-            |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
-            |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
-            |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
+            |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+            |> lift arg_enabled (module HashconsLifter)
+            |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
+            |> lift (not arg_enabled) (module PathSensitive2)
             |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
@@ -519,7 +520,7 @@ struct
             let warnings = Fpath.(save_run / "warnings.marshalled") in
             let stats = Fpath.(save_run / "stats.marshalled") in
             if get_bool "dbg.verbose" then (
-              Format.printf "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
+              Format.printf "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a\n" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
             );
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
@@ -532,12 +533,11 @@ struct
             Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
             if gobview then (
               if get_bool "dbg.verbose" then (
-                Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
+                Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a\n" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               );
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
-              Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
@@ -666,6 +666,23 @@ struct
         ()
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;
+
+    if get_bool "exp.arg" then (
+      let module ArgTool = ArgTools.Make (R) in
+      let module Arg = (val ArgTool.create entrystates) in
+      if get_bool "exp.argdot" then (
+        let module ArgDot = ArgTools.Dot (Arg) in
+        let oc = Stdlib.open_out "arg.dot" in
+        Fun.protect (fun () ->
+            let ppf = Format.formatter_of_out_channel oc in
+            ArgDot.dot ppf;
+            Format.pp_print_flush ppf ()
+          ) ~finally:(fun () ->
+            Stdlib.close_out oc
+          )
+      );
+      ArgTools.current_arg := Some (module Arg);
+    );
 
     (* Before SV-COMP, so result can depend on YAML witness validation. *)
     if get_string "witness.yaml.validate" <> "" then (

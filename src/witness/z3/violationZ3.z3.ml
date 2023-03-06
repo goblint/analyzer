@@ -100,7 +100,7 @@ struct
         ) fd.sformals
       in
       (env', eqs)
-    | MyARG.InlineEntry args ->
+    | MyARG.InlineEntry (_, _, args) ->
       let env' = BatList.fold_lefti (fun acc i arg ->
           let arg_vname = get_arg_vname i in
           Env.freshen acc arg_vname
@@ -117,9 +117,9 @@ struct
     | MyARG.CFGEdge (MyCFG.Ret (Some e, fd)) ->
       let env' = Env.freshen env return_vname in
       (env', [Boolean.mk_eq ctx (Env.get_const env return_vname) (exp_to_expr env' e)])
-    | MyARG.InlineReturn None ->
+    | MyARG.InlineReturn (None, _, _) ->
       (env, [])
-    | MyARG.InlineReturn (Some (Var v, NoOffset)) ->
+    | MyARG.InlineReturn (Some (Var v, NoOffset), _, _) ->
       let env' = Env.freshen env v in
       (env', [Boolean.mk_eq ctx (Env.get_const env v) (Env.get_const env' return_vname)])
     | _ ->

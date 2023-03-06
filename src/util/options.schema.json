@@ -1648,6 +1648,18 @@
           "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
           "type": "boolean",
           "default": true
+        },
+        "arg": {
+          "title": "exp.arg",
+          "description": "Construct abstract reachability graph (ARG).",
+          "type": "boolean",
+          "default": false
+        },
+        "argdot": {
+          "title": "exp.argdot",
+          "description": "Output ARG as dot file.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false

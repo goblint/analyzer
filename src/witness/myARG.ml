@@ -4,8 +4,11 @@ open GoblintCil
 module type Node =
 sig
   include Hashtbl.HashedType
+  include Set.OrderedType with type t := t
 
   val cfgnode: t -> MyCFG.node
+  val context_id: t -> int
+  val path_id: t -> int
   val to_string: t -> string
 
   val move_opt: t -> MyCFG.node -> t option
@@ -30,15 +33,43 @@ end
 
 type inline_edge =
   | CFGEdge of Edge.t
-  | InlineEntry of CilType.Exp.t list
-  | InlineReturn of CilType.Lval.t option
-[@@deriving eq, ord, hash, to_yojson]
+  | InlineEntry of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
+  | InlineReturn of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
+  | InlinedEdge of Edge.t
+[@@deriving eq, ord, hash]
 
 let pretty_inline_edge () = function
   | CFGEdge e -> Edge.pretty_plain () e
-  | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
-  | InlineReturn None -> Pretty.dprintf "InlineReturn"
-  | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+  | InlineEntry (_, _, args) -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
+  | InlineReturn (None, _, _) -> Pretty.dprintf "InlineReturn"
+  | InlineReturn (Some ret, _, _) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
+  | InlinedEdge e -> Pretty.dprintf "Inlined %a" Edge.pretty_plain e
+
+let inline_edge_to_yojson = function
+  | CFGEdge e ->
+    `Assoc [
+      ("cfg", Edge.to_yojson e)
+    ]
+  | InlineEntry (lval, function_, args) ->
+    `Assoc [
+      ("entry", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Fundec.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
+        ]);
+    ]
+  | InlineReturn (lval, function_, args) ->
+    `Assoc [
+      ("return", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Fundec.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
+        ]);
+    ]
+  | InlinedEdge e ->
+    `Assoc [
+      ("inlined", Edge.to_yojson e)
+    ]
 
 module InlineEdgePrintable: Printable.S with type t = inline_edge =
 struct
@@ -78,9 +109,11 @@ end
 module StackNode (Node: Node):
   Node with type t = Node.t list =
 struct
-  type t = Node.t list [@@deriving eq, hash]
+  type t = Node.t list [@@deriving eq, ord, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
+  let context_id nl = Node.context_id (List.hd nl)
+  let path_id nl = Node.path_id (List.hd nl)
   let to_string nl =
     nl
     |> List.map Node.to_string
