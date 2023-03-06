@@ -1,12 +1,13 @@
 (** Abstract domains representing structs. *)
 
-open Cil
+open GoblintCil
 
 module type Arg =
 sig
   include Lattice.S
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
+  val top_value: ?varAttr:attributes -> typ -> t
 end
 
 module type S =
@@ -27,7 +28,7 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
-  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context -> t -> Invariant.t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module Simple (Val: Arg): S with type value = Val.t and type field = fieldinfo

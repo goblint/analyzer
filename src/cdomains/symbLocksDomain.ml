@@ -1,5 +1,7 @@
+open GoblintCil
 open Pretty
-open Cil
+
+module M = Messages
 
 module Exp =
 struct
@@ -52,7 +54,7 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Z.compare i1 i2 = 0
     |	CStr (s1,_)        , CStr (s2,_)         -> s1=s2
     |	CWStr (s1,_)       , CWStr (s2,_)        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
@@ -203,6 +205,7 @@ struct
     in
     let rec helper exp =
       match exp with
+      (* TODO: handle IndexPI like var_eq eq_set_clos? *)
       | SizeOf _
       | SizeOfE _
       | SizeOfStr _
@@ -210,7 +213,6 @@ struct
       | AlignOfE _
       | UnOp _
       | BinOp _
-      | StartOf _
       | Const _
       | Question _
       | Real _
@@ -220,6 +222,8 @@ struct
       | Lval (Mem e, os) -> helper e @ [EDeref] @ conv_o os
       | AddrOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
+      | StartOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
+      | StartOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | CastE (_,e) -> helper e
     in
     try helper exp
@@ -236,6 +240,7 @@ struct
     | _            ,             _ -> raise (Invalid_argument "")
 
   let from_exps a l : t option =
+    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)\n" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
     let a, l = toEl a, toEl l in
     (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =
@@ -300,7 +305,7 @@ struct
       )
 
     let equal_to _ _ = `Top
-    let is_int _ = false
+    let to_int _ = None
   end
 
   include Lval.Normal (Idx)

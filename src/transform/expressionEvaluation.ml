@@ -1,4 +1,6 @@
 open Batteries
+open GoblintCil
+open Syntacticsearch
 
 let transformation_identifier = "expeval"
 let transformation_query_file_name_identifier = "trans." ^ transformation_identifier ^ ".query_file_name"
@@ -17,7 +19,7 @@ type query =
 
   } [@@deriving yojson]
 
-(* These are meant to be used by Gobview *)
+(* These are meant to be used by GobView *)
 let gv_query = ref None
 let gv_results = ref []
 
@@ -50,7 +52,7 @@ struct
     (* Concatenate lines into one *)
     |> List.fold_left (^) ""
 
-  class evaluator (file : Cil.file) (ask : Cil.location -> Queries.ask) =
+  class evaluator (file : Cil.file) (ask : ?node:Node.t -> Cil.location -> Queries.ask) =
     object (self)
 
       val global_variables =
@@ -125,17 +127,19 @@ struct
                 value_after
 
       method private try_ask location expression =
-        try
-          (match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
-           (* Evaluable: Definite *)
-           | Some ((`Lifted x') as x) when Queries.ID.is_int x -> Some (Some (not(IntOps.BigIntOps.equal (Option.get @@ Queries.ID.to_int x) IntOps.BigIntOps.zero)))
-           (* Inapplicable: Unreachable *)
-           | Some x when Queries.ID.is_bot_ikind x -> None
-           (* Evaluable: Inconclusive *)
-           | Some x -> Some None
-           (* Inapplicable: Unlisted *)
-           | None -> None)
-        with Not_found -> None
+        match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
+        (* Inapplicable: Unreachable *)
+        | Some x when Queries.ID.is_bot_ikind x -> None
+        | Some x ->
+          begin match Queries.ID.to_int x with
+            (* Evaluable: Definite *)
+            | Some i -> Some (Some (not(IntOps.BigIntOps.equal i IntOps.BigIntOps.zero)))
+            (* Evaluable: Inconclusive *)
+            | None -> Some None
+          end
+        (* Inapplicable: Unlisted *)
+        | None
+        | exception Not_found -> None
 
     end
 
@@ -158,7 +162,7 @@ struct
   let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
   let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte
 
-  let transform (ask : Cil.location -> Queries.ask) (file : Cil.file) =
+  let transform (ask : ?node:Node.t -> Cil.location -> Queries.ask) (file : Cil.file) =
     let query = match !gv_query with
       | Some q -> Ok q
       | _ -> query_from_file (GobConfig.get_string transformation_query_file_name_identifier)

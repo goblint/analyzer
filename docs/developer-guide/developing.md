@@ -1,6 +1,8 @@
 # Developing
 
-Running `make dev` does the following:
+For development, Goblint must be installed from source: <https://github.com/goblint/analyzer#installing>.
+
+Then running `make dev` does the following:
 
 1. Installs some additional opam packages useful for developing.
 2. Installs a Git pre-commit hook for ocp-indent (see below).
@@ -24,6 +26,8 @@ When CIL is changed and the pin is updated, the upgrade must also be performed i
 
 1. Update pinned CIL version: `opam install --deps-only .` (note the `.` argument). Otherwise upgrading won't actually do anything.
 2. Actually upgrade CIL: `opam upgrade goblint-cil`.
+
+Documentation on CIL is available here: https://goblint.github.io/cil/
 
 #### Developing goblint-cil
 To set up:

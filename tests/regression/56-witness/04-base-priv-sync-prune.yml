@@ -1,4 +1,4 @@
-- entry_type: loop_invariant
+- entry_type: location_invariant
   metadata:
     format_version: "0.1"
     uuid: 640889a9-5b82-4fc0-9365-7d4a21f11a45
@@ -9,7 +9,7 @@
       command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''04-base-priv-sync-prune.c''
         ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
         ''witness.yaml.path'' ''04-base-priv-sync-prune.yml'' ''--set'' ''dbg.debug''
-        ''true'' ''--set'' ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code''
+        ''true'' ''--set'' ''printstats'' ''true''
         ''--set'' ''goblint-dir'' ''.goblint-56-03'''
     task:
       input_files:
@@ -24,7 +24,7 @@
     line: 8
     column: 2
     function: main
-  loop_invariant:
+  location_invariant:
     string: g == 2
     type: assertion
     format: C

@@ -1,5 +1,5 @@
 // PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint --set annotation.goblint_precision.f[+] def_exc --set annotation.goblint_precision.f[+] interval  --set annotation.goblint_precision.main[+] def_exc
-#include<assert.h>
+#include <goblint.h>
 
 int f(int in) {
   in++;
@@ -8,8 +8,8 @@ int f(int in) {
 
 int main() {
   int a = 0;
-  assert(a); // FAIL!
+  __goblint_check(a); // FAIL!
   a = f(a);
-  assert(a);
+  __goblint_check(a);
   return 0;
 }

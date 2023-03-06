@@ -1,4 +1,4 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 
 echo "You can also change profile to \"trace\" in ./dune-workspace directly!"
 

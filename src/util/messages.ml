@@ -1,7 +1,11 @@
+module Pretty = GoblintCil.Pretty
+
 open GobConfig
 module GU = Goblintutil
 
 module Category = MessageCategory
+
+open GobResult.Syntax
 
 
 module Severity =
@@ -37,10 +41,27 @@ struct
     | _ -> Result.Error "Messages.Severity.of_yojson"
 end
 
+module Location =
+struct
+  type t =
+    | Node of Node0.t (** Location identified by a node. Strongly preferred, because output location updates incrementally. *)
+    | CilLocation of CilType.Location.t (** Location identified by a literal CIL location. Strongly discouraged, because not updated incrementally. *)
+  [@@deriving eq, ord, hash]
+
+  let to_cil = function
+    | Node node -> UpdateCil0.getLoc node (* use incrementally updated location *)
+    | CilLocation loc -> loc
+
+  let to_yojson x = CilType.Location.to_yojson (to_cil x)
+  let of_yojson x =
+    let+ loc = CilType.Location.of_yojson x in
+    CilLocation loc
+end
+
 module Piece =
 struct
   type t = {
-    loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
+    loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq, ord, hash, yojson]
@@ -65,11 +86,11 @@ struct
 
   let of_yojson = function
     | (`Assoc l) as json when List.mem_assoc "group_text" l ->
-      group_of_yojson json
-      |> BatResult.map (fun group -> Group group)
+      let+ group = group_of_yojson json in
+      Group group
     | json ->
-      Piece.of_yojson json
-      |> BatResult.map (fun piece -> Single piece)
+      let+ piece = Piece.of_yojson json in
+      Single piece
 end
 
 module Tag =
@@ -93,10 +114,8 @@ struct
 
   let of_yojson = function
     | `Assoc [("Category", category)] ->
-      Category.of_yojson category
-      |> BatResult.map (fun category ->
-          Category category
-        )
+      let+ category = Category.of_yojson category in
+      Category category
     | `Assoc [("CWE", `Int n)] -> Result.Ok (CWE n)
     | _ -> Result.Error "Messages.Tag.of_yojson"
 end
@@ -119,9 +138,6 @@ struct
     severity: Severity.t;
     multipiece: MultiPiece.t;
   } [@@deriving eq, ord, hash, yojson]
-
-  let should_warn {tags; severity; _} =
-    Tags.should_warn tags && Severity.should_warn severity
 end
 
 module Table =
@@ -133,9 +149,12 @@ struct
 
   let mem = MH.mem messages_table
 
+  let add_hook: (Message.t -> unit) ref = ref (fun _ -> ())
+
   let add m =
     MH.replace messages_table m ();
-    messages_list := m :: !messages_list
+    messages_list := m :: !messages_list;
+    !add_hook m
 
   let to_list () =
     List.rev !messages_list (* reverse to get in addition order *)
@@ -170,9 +189,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_piece ppf piece =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
-    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.loc)
   in
-  let pp_quote ppf (loc: Cil.location) =
+  let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
     BatEnum.drop (loc.line - 1) lines;
     let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
@@ -197,8 +216,8 @@ let print ?(ppf= !formatter) (m: Message.t) =
   in
   let pp_piece ppf piece =
     if get_bool "warn.quote-code" then (
-      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
-      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote piece.loc
+      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" pp_quote in
+      Format.fprintf ppf "%a%a" pp_piece piece (Format.pp_print_option pp_cut_quote) (Option.map Location.to_cil piece.loc)
     )
     else
       pp_piece ppf piece
@@ -214,11 +233,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
 
 
 let add m =
-  if !GU.should_warn then (
-    if Message.should_warn m && not (Table.mem m) then (
-      print m;
-      Table.add m
-    )
+  if not (Table.mem m) then (
+    print m;
+    Table.add m
   )
 
 
@@ -230,30 +247,46 @@ let msg_context () =
   else
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let msg severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
-  let finish doc =
-    let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = msg_context ()}}
-  in
-  Pretty.gprintf finish fmt
+let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
+  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+    let finish doc =
+      let text = Pretty.sprint ~width:max_int doc in
+      let loc = match loc with
+        | Some node -> Some node
+        | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
+      in
+      add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
+    in
+    Pretty.gprintf finish fmt
+  )
+  else
+    Tracing.mygprintf () fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  let finish doc =
-    let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
-  in
-  Pretty.gprintf finish fmt
+  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+    let finish doc =
+      let text = Pretty.sprint ~width:max_int doc in
+      add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+    in
+    Pretty.gprintf finish fmt
+  )
+  else
+    Tracing.mygprintf () fmt
 
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  let finish doc msgs =
-    let group_text = Pretty.sprint ~width:max_int doc in
-    let piece_of_msg (doc, loc) =
-      let text = Pretty.sprint ~width:max_int doc in
-      Piece.{loc; text; context = None}
+  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+    let finish doc msgs =
+      let group_text = Pretty.sprint ~width:max_int doc in
+      let piece_of_msg (doc, loc) =
+        let text = Pretty.sprint ~width:max_int doc in
+        Piece.{loc; text; context = None}
+      in
+      add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
     in
-    add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
-  in
-  Pretty.gprintf finish fmt
+    Pretty.gprintf finish fmt
+  )
+  else
+    Tracing.mygprintf (fun msgs -> ()) fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?loc = msg Warning ?loc

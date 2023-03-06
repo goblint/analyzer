@@ -24,7 +24,7 @@ struct
   module ChainParams =
   struct
     (* let n = List.length Arg.path *)
-    let n = -1
+    let n () = -1
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
@@ -65,7 +65,7 @@ struct
     (* ctx.local doesn't matter here? *)
     [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f)]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     step au (Function f) ctx.node
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

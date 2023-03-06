@@ -1,15 +1,16 @@
 #define SVCOMP 0
 
 #include <pthread.h>
-#include <assert.h>
 
 extern void abort(void);
 
 #if SVCOMP
+#include <assert.h>
 void reach_error() { assert(0); }
 void __VERIFIER_assert(int cond) { if(!(cond)) { ERROR: {reach_error();abort();} } }
 #else
-#define __VERIFIER_assert assert
+#include <goblint.h>
+#define __VERIFIER_assert __goblint_check
 #endif
 
 extern int __VERIFIER_nondet_int();

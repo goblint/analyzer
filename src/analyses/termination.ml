@@ -91,7 +91,7 @@ let makeVar fd loc name =
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
     Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
-let f_commit = Lval (var (emptyFunction "__goblint_commit").svar)
+let f_assume = Lval (var (emptyFunction "__goblint_assume").svar)
 let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 class loopInstrVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
@@ -128,8 +128,8 @@ class loopInstrVisitor (fd : fundec) = object(self)
         let typ = intType in
         let e1 = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d1, typ), typ) in
         let e2 = BinOp (Eq, Lval t, BinOp (MinusA, Lval d2, Lval x, typ), typ) in
-        let inv1 = mkStmtOneInstr @@ Call (None, f_commit, [e1], loc, eloc) in
-        let inv2 = mkStmtOneInstr @@ Call (None, f_commit, [e2], loc, eloc) in
+        let inv1 = mkStmtOneInstr @@ Call (None, f_assume, [e1], loc, eloc) in
+        let inv2 = mkStmtOneInstr @@ Call (None, f_assume, [e2], loc, eloc) in
         (match b.bstmts with
          | cont :: cond :: ss ->
            (* changing succs/preds directly doesn't work -> need to replace whole stmts  *)
@@ -226,7 +226,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

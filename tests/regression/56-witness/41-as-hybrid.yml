@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 71b761c6-4f85-405e-8ee6-9a3a8f743513
+    creation_time: 2022-10-12T11:50:43Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g811f2aff3
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''41-as-hybrid.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-41'''
+    task:
+      input_files:
+      - 41-as-hybrid.c
+      input_file_hashes:
+        41-as-hybrid.c: 74adb6d33dd35bafe5415bc407a94fa277812ad9921726a7c1f5ee00d3a39af6
+      data_model: LP64
+      language: C
+  location:
+    file_name: 41-as-hybrid.c
+    file_hash: 74adb6d33dd35bafe5415bc407a94fa277812ad9921726a7c1f5ee00d3a39af6
+    line: 5
+    column: 2
+    function: main
+  location_invariant:
+    string: 0 <= i && i <= 9
+    type: assertion
+    format: C

@@ -1,5 +1,6 @@
 (** The lattice signature and simple functors for building lattices. *)
 
+module Pretty = GoblintCil.Pretty
 module GU = Goblintutil
 
 (* module type Rel =
@@ -37,9 +38,27 @@ sig
 end
 
 exception TopValue
+(** Exception raised by a topless lattice in place of a top value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception BotValue
+(** Exception raised by a bottomless lattice in place of a bottom value.
+    Surrounding lattice functors may handle this on their own. *)
+
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
+
+exception Invalid_widen of Pretty.doc
+
+let () = Printexc.register_printer (function
+    | Invalid_widen doc ->
+      Some (Pretty.sprint ~width:max_int (Pretty.dprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc))
+    | _ -> None (* for other exceptions *)
+  )
+
+let assert_valid_widen ~leq ~pretty_diff x y =
+  if not (leq x y) then
+    raise (Invalid_widen (pretty_diff () (x, y)))
 
 module UnitConf (N: Printable.Name) =
 struct
@@ -60,6 +79,15 @@ end
 module Unit = UnitConf (struct let name = "()" end)
 
 
+module NoBotTop =
+struct
+  let top () = raise TopValue
+  let is_top _ = false
+  let bot () = raise BotValue
+  let is_bot _ = false
+end
+
+
 module Fake (Base: Printable.S) =
 struct
   include Base
@@ -70,10 +98,7 @@ struct
   let meet x y =
     if equal x y then x else raise (Unsupported "fake meet")
   let narrow = meet
-  let top () = raise (Unsupported "fake top")
-  let is_top _ = false
-  let bot () = raise (Unsupported "fake bot")
-  let is_bot _ = false
+  include NoBotTop
 
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not equal %a" (Base.name ()) pretty x pretty y
@@ -127,11 +152,11 @@ module HConsed (Base:S) =
 struct
   include Printable.HConsed (Base)
   let lift_f2 f x y = f (unlift x) (unlift y)
-  let narrow x y = lift (lift_f2 Base.narrow x y)
-  let widen x y = lift (lift_f2 Base.widen x y)
-  let meet x y = lift (lift_f2 Base.meet x y)
-  let join x y = lift (lift_f2 Base.join x y)
-  let leq = lift_f2 Base.leq
+  let narrow x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
+  let widen x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.widen x y)
+  let meet x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
+  let join x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.join x y)
+  let leq x y = (x.BatHashcons.tag == y.BatHashcons.tag) || lift_f2 Base.leq x y
   let is_top = lift_f Base.is_top
   let is_bot = lift_f Base.is_bot
   let top () = lift (Base.top ())
@@ -580,8 +605,8 @@ struct
 
   let bot () = 0
   let is_bot x = x = 0
-  let top () = P.n - 1
-  let is_top x = x = P.n - 1
+  let top () = P.n () - 1
+  let is_top x = x = P.n () - 1
 
   let leq x y = x <= y
   let join x y = max x y

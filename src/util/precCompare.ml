@@ -1,4 +1,5 @@
 open Prelude
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 module Comparison =

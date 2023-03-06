@@ -10,6 +10,7 @@
 
 #include<stdlib.h>
 #include<pthread.h>
+#include<goblint.h>
 #define ZSTD_pthread_mutex_t            pthread_mutex_t
 #define ZSTD_pthread_mutex_init(a, b)   pthread_mutex_init((a), (b))
 #define ZSTD_pthread_mutex_destroy(a)   pthread_mutex_destroy((a))
@@ -175,7 +176,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
         }
     }  /* for (;;) */
-    assert(0);  //NOWARN (unreachable)
+    __goblint_check(0);  //NOWARN (unreachable)
 }
 
 POOL_ctx* POOL_create(size_t numThreads, size_t queueSize) {

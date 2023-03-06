@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 
@@ -22,6 +22,6 @@ int main(void) {
 
   x = g;
   y = g;
-  assert(x == y); // TODO (like 13/66)
+  __goblint_check(x == y); // TODO (like 13/66)
   return 0;
 }

@@ -1,7 +1,7 @@
 // PARAM: --set ana.malloc.wrappers '["Malloc", "Realloc", "Malloc2", "Realloc2", "ARR_CreateInstance", "realloc_array", "ARR_GetNewElement"]' --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals
 // extracted from chrony
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 // memory.c
 
@@ -62,7 +62,7 @@ ARR_CreateInstance(unsigned int elem_size)
 {
   ARR_Instance array;
 
-  assert(elem_size > 0);
+  __goblint_check(elem_size > 0);
 
   array = MallocNew(struct ARR_Instance_Record);
 
@@ -77,14 +77,14 @@ ARR_CreateInstance(unsigned int elem_size)
 void *
 ARR_GetElement(ARR_Instance array, unsigned int index)
 {
-  assert(index < array->used); // UNKNOWN
+  __goblint_check(index < array->used); // UNKNOWN
   return (void *)((char *)array->data + (size_t)index * array->elem_size);
 }
 
 static void
 realloc_array(ARR_Instance array, unsigned int min_size)
 {
-  assert(min_size <= 2 * min_size); // UNKNOWN
+  __goblint_check(min_size <= 2 * min_size); // UNKNOWN
   if (array->allocated >= min_size && array->allocated <= 2 * min_size)
     return;
 
@@ -148,7 +148,7 @@ SCH_AddFileHandler
   /* Don't want to allow the same fd to register a handler more than
      once without deleting a previous association - this suggests
      a bug somewhere else in the program. */
-  assert(!ptr->handler); // UNKNOWN
+  __goblint_check(!ptr->handler); // UNKNOWN
 
   ptr->handler = handler;
   ptr->arg = arg;
@@ -169,14 +169,14 @@ dispatch_filehandlers()
 // stub
 
 void foo(void *arg) {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
 }
 
 void bar(void *arg) {
   int *p = arg;
   int y = *p;
-  assert(1); // reachable
-  assert(y); // TODO
+  __goblint_check(1); // reachable
+  __goblint_check(y); // TODO
 }
 
 int main() {

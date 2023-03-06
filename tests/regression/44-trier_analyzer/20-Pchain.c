@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <goblint.h>
 
 extern void *malloc(size_t);
 extern int putchar(int);
@@ -26,8 +27,8 @@ main () {
     tail = tail -> next;
   }
   printf("That's all.\n");
-  assert(head->cAtom == 0);
-  assert(tail->cAtom != 0); //TODO
+  __goblint_check(head->cAtom == 0);
+  __goblint_check(tail->cAtom != 0); //TODO
   printf("1. %c\n", head -> cAtom);
   printf("2. %c\n", tail -> cAtom);
   return 0;

@@ -1,4 +1,5 @@
 (** Library function descriptor (specification). *)
+module Cil = GoblintCil
 
 (** Pointer argument access specification. *)
 module Access =
@@ -11,21 +12,56 @@ struct
   }
 end
 
+type math =
+  | Nan of (Cil.fkind * Cil.exp)
+  | Inf of Cil.fkind
+  | Isfinite of Cil.exp
+  | Isinf of Cil.exp
+  | Isnan of Cil.exp
+  | Isnormal of Cil.exp
+  | Signbit of Cil.exp
+  | Isgreater of (Cil.exp * Cil.exp)
+  | Isgreaterequal of (Cil.exp * Cil.exp)
+  | Isless of (Cil.exp * Cil.exp)
+  | Islessequal of (Cil.exp * Cil.exp)
+  | Islessgreater of (Cil.exp * Cil.exp)
+  | Isunordered of (Cil.exp * Cil.exp)
+  | Ceil of (Cil.fkind * Cil.exp)
+  | Floor of (Cil.fkind * Cil.exp)
+  | Fabs of (Cil.fkind * Cil.exp)
+  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
+  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
+  | Acos of (Cil.fkind * Cil.exp)
+  | Asin of (Cil.fkind * Cil.exp)
+  | Atan of (Cil.fkind * Cil.exp)
+  | Atan2 of (Cil.fkind * Cil.exp * Cil.exp)
+  | Cos of (Cil.fkind * Cil.exp)
+  | Sin of (Cil.fkind * Cil.exp)
+  | Tan of (Cil.fkind * Cil.exp)
+
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
   | Malloc of Cil.exp
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
-  | Assert of Cil.exp
+  | Assert of { exp: Cil.exp; check: bool; refine: bool; }
   | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
   | Unlock of Cil.exp
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
+  | Signal of Cil.exp
+  | Broadcast of Cil.exp
+  | Wait of { cond: Cil.exp; mutex: Cil.exp; }
+  | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; (** Unused *) }
+  | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
+  | Memcpy of { dest: Cil.exp; src: Cil.exp }
+  | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
   | Abort
+  | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
@@ -84,9 +120,18 @@ let special_of_old classify_name = fun args ->
   | `Malloc e -> Malloc e
   | `Calloc (count, size) -> Calloc { count; size; }
   | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Assert e -> Assert e
-  | `Lock (try_, write, return_on_success) -> Lock { lock = List.hd args; try_; write; return_on_success; }
-  | `Unlock -> Unlock (List.hd args)
+  | `Lock (try_, write, return_on_success) ->
+    begin match args with
+      | [lock] -> Lock { lock ; try_; write; return_on_success; }
+      | [] -> failwith "lock has no arguments"
+      | _ -> failwith "lock has multiple arguments"
+    end
+  | `Unlock ->
+    begin match args with
+      | [arg] -> Unlock arg
+      | [] -> failwith "unlock has no arguments"
+      | _ -> failwith "unlock has multiple arguments"
+    end
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
   | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
   | `Unknown _ -> Unknown

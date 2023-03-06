@@ -1,4 +1,6 @@
+open Goblint_lib
 open OUnit2
+open GoblintCil
 open Pretty
 
 (* variables are strings *)
@@ -13,6 +15,7 @@ struct
   let var_id x = x
   let node _ = failwith "no node"
   let relift x = x
+  let is_write_only _ = false
 end
 
 (* domain is (reversed) integers *)
@@ -26,8 +29,6 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  let increment = Analyses.empty_increment_data ()
-
   (*
     1. x := g
     2. y := 8
@@ -40,6 +41,9 @@ module ConstrSys = struct
     | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
     | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
     | _   -> None
+
+  let iter_vars _ _ _ _ _ = ()
+  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
@@ -55,7 +59,7 @@ module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFrom
 
 let test1 _ =
   let id x = x in
-  let ((sol, gsol), _) = Solver.solve [] [] ["w"] in
+  let ((sol, gsol), _) = Solver.solve [] [] ["w"] None in
   assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));
   assert_equal ~printer:id "42" (Int.show (LH.find sol "x"));
   assert_equal ~printer:id "8"  (Int.show (LH.find sol "y"));

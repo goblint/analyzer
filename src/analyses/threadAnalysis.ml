@@ -14,7 +14,11 @@ struct
   module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
-  module V = T
+  module V =
+  struct
+    include T
+    include StdV
+  end
 
   let should_join = D.equal
 
@@ -30,7 +34,7 @@ struct
     end;
     ctx.local
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t = au
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
@@ -47,16 +51,16 @@ struct
     match desc.special arglist with
     | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
-      (* TODO: elements might throw an exception *)
-      let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
-      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
-      let join_thread s tid =
-        if has_clean_exit tid && not (is_not_unique ctx tid) then
-          D.remove tid s
-        else
-          s
-      in
-      List.fold_left join_thread ctx.local threads
+      (let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
+       let join_thread s tid =
+         if has_clean_exit tid && not (is_not_unique ctx tid) then
+           D.remove tid s
+         else
+           s
+       in
+       match TS.elements (ctx.ask (Queries.EvalThread id)) with
+       | threads -> List.fold_left join_thread ctx.local threads
+       | exception SetDomain.Unsupported _ -> ctx.local)
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =

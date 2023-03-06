@@ -5,8 +5,7 @@ module LF = LibraryFunctions
 
 open Prelude.Ana
 open Analyses
-
-let (let+) xs f = List.map f xs (* TODO: move to general library *)
+open GobList.Syntax
 
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted
@@ -64,7 +63,7 @@ struct
   let enter ctx lval f args =
     [ctx.local,ctx.local]
 
-  let combine ctx lval fexp f args fc st2 = st2
+  let combine ctx lval fexp f args fc st2 f_ask = st2
 
   let special ctx lval f args =
     ctx.local

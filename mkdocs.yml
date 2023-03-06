@@ -16,21 +16,23 @@ markdown_extensions:
 dev_addr: '127.0.0.1:8010' # different port from default python http.server for g2html
 
 nav:
-  - Home: index.md
-  - 'User guide':
-    - user-guide/running.md
-    - user-guide/configuring.md
-    - user-guide/inspecting.md
-    - user-guide/annotating.md
-  - 'Developer guide':
-    - developer-guide/developing.md
-    - developer-guide/firstanalysis.md
-    - developer-guide/extending-library.md
-    - developer-guide/messaging.md
-    - developer-guide/testing.md
-    - developer-guide/debugging.md
-    - developer-guide/profiling.md
-    - developer-guide/documenting.md
-    - developer-guide/releasing.md
-  - 'Artifact descriptions':
-    - "SAS '21": artifact-descriptions/sas21.md
+  - 🏠 Home: index.md
+  - '👺 User guide':
+    - 🚚 Installing: https://github.com/goblint/analyzer#installing
+    - ▶️ Running: user-guide/running.md
+    - 🔧 Configuring: user-guide/configuring.md
+    - 🔍 Inspecting: user-guide/inspecting.md
+    - 📝 Annotating: user-guide/annotating.md
+    - 🐎 Benchmarking: user-guide/benchmarking.md
+  - '🚧 Developer guide':
+    - 🏗️ Developing: developer-guide/developing.md
+    - 👶 Your first analysis: developer-guide/firstanalysis.md
+    - 🏫 Extending library: developer-guide/extending-library.md
+    - 📢 Messaging: developer-guide/messaging.md
+    - 🚨 Testing: developer-guide/testing.md
+    - 🪲 Debugging: developer-guide/debugging.md
+    - 📉 Profiling: developer-guide/profiling.md
+    - 📚 Documenting: developer-guide/documenting.md
+    - 🚀 Releasing: developer-guide/releasing.md
+  - '📦 Artifact descriptions':
+    - "🇸 SAS '21": artifact-descriptions/sas21.md

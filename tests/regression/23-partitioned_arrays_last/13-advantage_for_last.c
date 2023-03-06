@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval  --set ana.base.partition-arrays.keep-expr last --set ana.base.arrays.domain partitioned --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --enable ana.int.interval  --set ana.base.partition-arrays.keep-expr last --set ana.base.arrays.domain partitioned
+#include <goblint.h>
+
 void main(void) {
   example1();
 }
@@ -13,6 +15,6 @@ void example1(void) {
         i++;
     }
 
-    assert(a[2] == 0);
-    assert(a[3] == 0);
+    __goblint_check(a[2] == 0);
+    __goblint_check(a[3] == 0);
 }

@@ -12,6 +12,7 @@ module SLR3 =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
 
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
@@ -23,7 +24,7 @@ module SLR3 =
 
     module HPM = Hashtbl.Make (P)
 
-    let solve box st vs =
+    let solve st vs =
       let key    = HM.create 10 in
       let count  = ref 0 in
       let get_key x = try HM.find key x with Not_found -> (let c = !count in HM.replace key  x c; decr count; (* print_endline ("Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int c); *) c) in
@@ -65,7 +66,7 @@ module SLR3 =
           let tmp =
             if wpx then
               if HM.mem globals x then S.Dom.widen old tmp
-              else box x old tmp
+              else box old tmp
             else tmp
           in
           if not (S.Dom.equal old tmp) then begin
@@ -170,11 +171,13 @@ module SLR3 =
 module type Version = sig val ver : int end
 
 (** the box solver *)
-module Make =
+module Make0 =
   functor (V:Version) ->
+  functor (Box: SolverBox.S) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    open Box (S.Dom)
 
     let h_find_option h x =
       try Some (HM.find h x)
@@ -296,7 +299,7 @@ module Make =
     let wpoint = HM.create 1024
     let restart_mode = HM.create 1024
 
-    let solve box st list =
+    let solve st list =
       let stable = HM.create 1024 in
       let work   = ref H.empty    in
 
@@ -398,7 +401,7 @@ module Make =
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = if use_box then box x old tmp else tmp in
+          let tmp = if use_box then box old tmp else tmp in
           if not (D.eq tmp old) then begin
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             let _ = X.set_value x tmp in
@@ -452,12 +455,14 @@ module Make =
 
   end
 
+module Make (V: Version) = Make0 (V) (SolverBox.Warrow)
 
-module type MyGenericEqBoxSolver =
+
+module type MyGenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   sig
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+    val solve : (S.v*S.d) list -> S.v list -> S.d H.t
     val wpoint : unit H.t
     val infl :  S.v list H.t
     module X :
@@ -467,17 +472,17 @@ module type MyGenericEqBoxSolver =
   end
 
 module PrintInfluence =
-  functor (Sol:MyGenericEqBoxSolver) ->
+  functor (Sol:MyGenericEqSolver) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     module S1 = Sol (S) (HM)
-    let solve box x y =
+    let solve x y =
       let ch = Legacy.open_out "test.dot" in
-      let r = S1.solve box x y in
+      let r = S1.solve x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
-        let s = Pretty.sprint ~width:80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
+        let s = Pretty.sprint ~width:max_int (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
         ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (XmlUtil.escape s) q);
         let f y =
           if try HM.find S1.X.keys k > HM.find S1.X.keys y with Not_found -> false then
@@ -500,27 +505,16 @@ module TwoPhased =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    include Make (V) (S) (HM)
-    let narrow = narrow S.Dom.narrow
-    let solve box is iv =
-      let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
+    module N = Make0 (V) (SolverBox.NarrowOption) (S) (HM)
+    module W = Make0 (V) (SolverBox.Widen) (S) (HM)
+
+    let solve is iv =
+      let sd = W.solve is iv in
       let iv' = HM.fold (fun k _ b -> k::b) sd [] in
-      let f v x y =
-        (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pretty_trace v S.Dom.pretty x S.Dom.pretty y); *)
-        narrow x y
-      in
-      solve f [] iv'
+      N.solve [] iv'
   end
 
-module JustWiden =
-  functor (V:Version) ->
-  functor (S:EqConstrSys) ->
-  functor (HM:Hashtbl.S with type key = S.v) ->
-  struct
-    include Make (V) (S) (HM)
-    let solve box is iv =
-      solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv
-  end
+module JustWiden (V:Version) = Make0 (V) (SolverBox.Widen)
 
 let _ =
   let module W1 = JustWiden (struct let ver = 1 end) in

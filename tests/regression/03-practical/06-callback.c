@@ -1,7 +1,7 @@
 // From the Trier benches...
 
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int x = 0;
 
@@ -16,6 +16,6 @@ void callfun(void (*fun)()) {
 
 int main() {
   callfun(& callme);
-  assert(x == 5);
+  __goblint_check(x == 5);
   return 0;
 }

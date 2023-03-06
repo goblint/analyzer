@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 module FundecForMap = struct
   type t = Cil.fundec

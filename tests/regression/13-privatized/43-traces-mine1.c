@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 3; // matches one expected precise read
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -22,9 +22,9 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g >= 2); // TODO
+  __goblint_check(g >= 2); // TODO
   pthread_mutex_lock(&B);
-  assert(g >= 2); // TODO
-  assert(g == 3); // TODO
+  __goblint_check(g >= 2); // TODO
+  __goblint_check(g == 3); // TODO
   return 0;
 }

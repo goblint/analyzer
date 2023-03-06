@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 
 struct list
 {
@@ -33,5 +33,5 @@ int main()
     l = append(l, 1);
     l = append(l, 2);
 
-    assert(l->next->next->n == 0); //UNKNOWN
+    __goblint_check(l->next->next->n == 0); //UNKNOWN
 }

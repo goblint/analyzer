@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int i, j, NUM;
 
@@ -39,8 +39,8 @@ int main() {
     pthread_join(t1, 0);
     pthread_join(t2, 0);
 
-    assert(i < 377); //TODO
-    assert(j < 377); //TODO
+    __goblint_check(i < 377); //TODO
+    __goblint_check(j < 377); //TODO
 
     return 0;
 }

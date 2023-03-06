@@ -1,64 +1,75 @@
-open Cil
+open GoblintCil
 open MyCFG
-open CompareGlobals
 include DetectRenamedFunctions
 include CompareAST
 include CompareCFG
 open CilMaps
 
-let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
+let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) option) = match old.def, current.def with
+  | Some (Var x), Some (Var y) -> unchanged_to_change_status (eq_varinfo x y ~rename_mapping:empty_rename_mapping |> fst), None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | Some (Fun f), Some (Fun g) -> (
+      let identical, diffOpt, funDep, globVarDep, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
+      (*Perform renames no matter what.*)
+      let _ = performRenames renamesOnSuccess in
+      match identical with
+      | Unchanged when VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep -> Unchanged, diffOpt
+      | _ -> Changed, None)
 
-let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) = match a, b with
-  | GFun (f,_), GFun (g,_) ->
-    let identical, unchangedHeader, diffOpt, funDep, globVarDep, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
-    (*Perform renames no matter what.*)
-    let _ = performRenames renamesOnSuccess in
-
-    identical && VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep, unchangedHeader, diffOpt
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y emptyRenameMapping |> fst, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y emptyRenameMapping |> fst, false, None
-  | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
+  | None, None -> (match old.decls, current.decls with
+      | Some x, Some y -> unchanged_to_change_status (eq_varinfo x y ~rename_mapping:empty_rename_mapping |> fst), None
+      | _, _ -> failwith "should never collect any empty entries in GlobalMap")
+  | _, _ -> Changed, None (* it is considered to be changed (not added or removed) because a global collection only exists in the map
+                             if there is at least one declaration or definition for this global *)
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
     else None in
 
-  let addGlobal map global  =
+  let addGlobal map global =
     try
-      let gid = identifier_of_global global in
-      let gid_to_string gid = match gid.global_t with
-        | Var -> "Var " ^ gid.name
-        | Decl -> "Decl " ^ gid.name
-        | Fun -> "Fun " ^ gid.name in
-      if GlobalMap.mem gid map then failwith ("Duplicate global identifier: " ^ gid_to_string gid) else GlobalMap.add gid global map
+      let name, col = match global with
+        | GVar (v,_,_) -> v.vname, {decls = None; def = Some (Var v)}
+        | GFun (f,_) -> f.svar.vname, {decls = None; def = Some (Fun f)}
+        | GVarDecl (v,_) -> v.vname, {decls = Some v; def = None}
+        | _ -> raise Not_found in
+      let merge_d def1 def2 = match def1, def2 with
+        | Some d, None -> Some d
+        | None, Some d -> Some d
+        | None, None -> None
+        | _ -> failwith "there can only be one definition and one declaration per global" in
+      let merge_global_col entry = match entry with
+        | None -> Some col
+        | Some col' -> Some {decls = merge_d col.decls col'.decls; def = merge_d col.def col'.def} in
+      GlobalMap.update name merge_global_col map;
     with
       Not_found -> map
   in
 
-  let changes = empty_change_info () in
-  global_typ_acc := [];
-  let findChanges map global =
-    try
-      let skipFindChanges = match global with
-        | GFun _-> true
-        | GVar _ -> true
-        | _ -> false
-      in
-
-      if not skipFindChanges || not (GobConfig.get_bool "incremental.detect-renames") then
-        let ident = identifier_of_global global in
-        let old_global = GlobalMap.find ident map in
-        (* Do a (recursive) equal comparison ignoring location information *)
-        let identical, unchangedHeader, diff = eq old_global global cfgs in
-        if identical
-        then changes.unchanged <- {current = global; old = old_global} :: changes.unchanged
-        else changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
-    with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
-  in
-
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
+  let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
+
+  let changes = empty_change_info () in
+  global_typ_acc := [];
+  let findChanges map name current_global =
+    try
+      if not (GobConfig.get_bool "incremental.detect-renames") then
+        let old_global = GlobalMap.find name map in
+        let change_status, diff = eq old_global current_global cfgs in
+        let append_to_changed ~unchangedHeader =
+          changes.changed <- {current = current_global; old = old_global; unchangedHeader; diff} :: changes.changed
+        in
+        match change_status with
+        | Changed ->
+          append_to_changed ~unchangedHeader:true
+        | Unchanged -> changes.unchanged <- {current = current_global; old = old_global} :: changes.unchanged
+        | ChangedFunHeader f
+        | ForceReanalyze f ->
+          changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
+          append_to_changed ~unchangedHeader:false;
+    with Not_found -> changes.added <- current_global::changes.added (* Global could not be found in old map -> added *)
+  in
 
   if GobConfig.get_bool "incremental.detect-renames" then (
     let renameDetectionResults = detectRenamedFunctions oldAST newAST in
@@ -74,9 +85,9 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
            | Removed ->  Messages.trace "compareCIL" "Removed\n";
            | Changed _ ->  Messages.trace "compareCIL" "Changed\n";
            | UnchangedButRenamed toFrom ->
-             match toFrom with
-             | GFun (f, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
-             | GVar(v, _, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
+             match toFrom.def with
+             | Some(Fun f) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
+             | Some(Var v) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
              | _ -> ();
         );
 
@@ -86,7 +97,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
         | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
         | Added -> (u, c, a @ [global], r)
         | Removed -> (u, c, a, r @ [global])
-        | Changed (now, unchangedHeader) -> (u, c @ [{old=global; current=now; unchangedHeader=unchangedHeader; diff=None}], a, r)
+        | Changed (now,unchangedHeader) -> (u, c @ [{old=global; current=now; unchangedHeader=unchangedHeader; diff=None}], a, r)
       ) renameDetectionResults (changes.unchanged, changes.changed, changes.added, changes.removed)
     in
 
@@ -98,24 +109,16 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
-  Cil.iterGlobals newAST
-    (fun glob -> findChanges oldMap glob);
+  GlobalMap.iter (fun name glob_col -> findChanges oldMap name glob_col) newMap;
 
-  if not (GobConfig.get_bool "incremental.detect-global-renames") then (
+  if not (GobConfig.get_bool "incremental.detect-renames") then (
     let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
 
-    let checkExists map global =
-      match identifier_of_global global with
-      | name -> GlobalMap.mem name map
-      | exception Not_found -> true (* return true, so isn't considered a change *)
-    in
-
-    Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then (changes.added <- (glob::changes.added)));
-    Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then (changes.removed <- (glob::changes.removed)));
+    GlobalMap.iter (fun name glob -> if not (GlobalMap.mem name newMap) then changes.removed <- (glob::changes.removed)) oldMap;
   );
   changes
 
 (** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
     which describes which [global]s are changed, unchanged, removed and added.  *)
 let compareCilFiles ?eq (oldAST: file) (newAST: file) =
-  Stats.time "compareCilFiles" (compareCilFiles ?eq oldAST) newAST
+  Timing.wrap "compareCilFiles" (compareCilFiles ?eq oldAST) newAST

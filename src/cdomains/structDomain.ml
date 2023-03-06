@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open GobConfig
 open Pretty
 open FlagHelper
@@ -12,6 +12,7 @@ sig
   include Lattice.S
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
+  val top_value: ?varAttr:attributes -> typ -> t
 end
 
 module type S =
@@ -28,7 +29,7 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
-  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context -> t -> Invariant.t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module Simple (Val: Arg) =
@@ -49,7 +50,11 @@ struct
 
   let pretty () = M.pretty ()
   let replace s field value = M.add field value s
-  let get s field = M.find field s
+  let get s field =
+    match M.find_opt field s with
+    | Some v -> v
+    | None -> Val.top_value field.ftype
+
   let fold = M.fold
   let map = M.map
   let keys x = M.fold (fun k _ a -> k::a) x []
@@ -77,21 +82,19 @@ struct
 
   let for_all_fields f = M.for_all f
 
-  let invariant ~value_invariant ~offset c x =
+  let invariant ~value_invariant ~offset ~lval x =
     match offset with
     (* invariants for all fields *)
     | NoOffset ->
-      let c_lval = BatOption.get c.Invariant.lval in
       fold (fun f v acc ->
-          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
-          let f_c = {c with lval=Some f_lval} in
-          let i = value_invariant ~offset f_c v in
+          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) lval in
+          let i = value_invariant ~offset ~lval:f_lval v in
           Invariant.(acc && i)
         ) x (Invariant.top ())
     (* invariant for one field *)
     | Field (f, offset) ->
       let v = get x f in
-      value_invariant ~offset c v
+      value_invariant ~offset ~lval v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none
@@ -226,7 +229,7 @@ struct
   let join = join_with_fct Val.join
 
   (* let invariant = HS.invariant *)
-  let invariant ~value_invariant ~offset _ _ = Invariant.none (* TODO *)
+  let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
 end
 
 module KeyedSets (Val: Arg) =
@@ -434,7 +437,7 @@ struct
   let join = join_with_fct Val.join
 
   (* let invariant c (x,_) = HS.invariant c x *)
-  let invariant ~value_invariant ~offset _ _ = Invariant.none (* TODO *)
+  let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
 end
 
 
@@ -468,7 +471,7 @@ struct
   module I = struct include LatticeFlagHelper (HS) (KS) (P) let name () = "" end
   include LatticeFlagHelper (S) (I) (P)
 
-  let invariant ~value_invariant ~offset c = unop (S.invariant ~value_invariant ~offset c) (I.unop (HS.invariant ~value_invariant ~offset c) (KS.invariant ~value_invariant ~offset c))
+  let invariant ~value_invariant ~offset ~lval = unop (S.invariant ~value_invariant ~offset ~lval) (I.unop (HS.invariant ~value_invariant ~offset ~lval) (KS.invariant ~value_invariant ~offset ~lval))
 
   let twoaccop_to_t ops ophs opks (s,r) a1 a2 = to_t @@ match of_t (s,r) with
     | (Some s, None, None) -> (Some (ops s a1 a2), None, None)

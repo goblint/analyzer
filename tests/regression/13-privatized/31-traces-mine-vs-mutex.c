@@ -1,6 +1,6 @@
 // Copied & modified from 13/28.
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -27,7 +27,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  assert(g == 0);
+  __goblint_check(g == 0);
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
 

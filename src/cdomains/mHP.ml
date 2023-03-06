@@ -1,12 +1,20 @@
 include Printable.Std
 
 module TID = ThreadIdDomain.FlagConfiguredTID
+module Pretty = GoblintCil.Pretty
 
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
+
+let current (ask:Queries.ask) =
+  {
+    tid = ask.f Queries.CurrentThreadId;
+    created = ask.f Queries.CreatedThreads;
+    must_joined = ask.f Queries.MustJoinedThreads
+  }
 
 let pretty () {tid; created; must_joined} =
   let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
@@ -54,7 +62,7 @@ let exists_definitely_not_started_in_joined (current,created) other_joined =
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
-    false
+    true (* top means all threads are joined, so [other] must be as well *)
   else
     List.mem other (ConcDomain.ThreadSet.elements joined)
 

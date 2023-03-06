@@ -47,71 +47,29 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let const_equal c1 c2 =
-    match c1, c2 with
-    |	CStr (s1,_)  , CStr (s2,_)	 -> s1 = s2
-    |	CWStr (is1,_), CWStr (is2,_) -> is1 = is2
-    |	CChr c1  , CChr c2   -> c1 = c2
-    |	CInt (v1,k1,_), CInt (v2,k2,_) -> Cilint.compare_cilint v1 v2 = 0 && k1 = k2
-    |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
-    |	CEnum (_,n1,e1), CEnum (_,n2,e2) -> n1 = n2 && e1.ename = e2.ename
-    | _ -> false
+  let typ_equal = CilType.Typ.equal (* TODO: Used to have equality checking, which ignores attributes. Is that needed? *)
 
-  let option_eq f x y =
-    match x, y with
-    | Some x, Some y -> f x y
-    | None, None -> true
-    | _ -> false
+  let contains_float_subexp e =
+    let visitor = object
+      inherit Cil.nopCilVisitor
 
-  let rec typ_equal t1 t2 =
-    let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
-    let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
-    match t1, t2 with
-    | TVoid _, TVoid _ -> true
-    | TInt (k1,_), TInt (k2,_) -> k1 = k2
-    | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
-    | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
-    | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
-    | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (GobList.equal args_eq) arg1 arg2
-    | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
-    | TComp (c1,_), TComp (c2,_) -> CilType.Compinfo.equal c1 c2
-    | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && GobList.equal eitem_eq e1.eitems e2.eitems
-    | TBuiltin_va_list _, TBuiltin_va_list _ -> true
-    | _ -> false
-
-  and lval_equal (l1,o1) (l2,o2) =
-    let rec offs_equal o1 o2 =
-      match o1, o2 with
-      | NoOffset, NoOffset -> true
-      | Field (f1, o1), Field (f2,o2) -> CilType.Fieldinfo.equal f1 f2 && (match Cil.unrollType f1.ftype with | TArray(TFloat _,_,_) | TFloat _ -> false | _ -> true)  &&offs_equal o1 o2
-      | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2
-      | _ -> false
+      method! vexpr e =
+        if Cilfacade.isFloatType (Cilfacade.typeOf e) then
+          raise Exit;
+        DoChildren
+    end
     in
-    offs_equal o1 o2
-    && match l1, l2 with
-    | Var v1, Var v2 -> CilType.Varinfo.equal v1 v2 && (match Cil.unrollTypeDeep v1.vtype with | TArray(TFloat _,_,_) | TFloat  _-> false | _ -> true)
-    | Mem m1, Mem m2 -> exp_equal m1 m2
+    match Cil.visitCilExpr visitor e with
     | _ -> false
-
-  and exp_equal e1 e2 =
-    match e1, e2 with
-    |	Const c1,	Const c2 -> const_equal c1 c2
-    |	AddrOf l1,	AddrOf l2
-    |	StartOf l1,	StartOf l2
-    |	Lval l1 ,	Lval  l2 -> lval_equal l1 l2
-    |	SizeOf t1,	SizeOf t2 -> typ_equal t1 t2
-    |	SizeOfE e1,	SizeOfE e2 -> exp_equal e1 e2
-    |	SizeOfStr s1,	SizeOfStr s2 -> s1 = s2
-    |	AlignOf t1,	AlignOf t2 -> typ_equal t1 t2
-    |	AlignOfE e1,	AlignOfE e2 -> exp_equal e1 e2
-    |	UnOp (o1,e1,t1),	UnOp (o2,e2,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e1 e2
-    |	BinOp (o1,e11,e21,t1),	BinOp(o2,e12,e22,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e11 e12 && exp_equal e21 e22
-    |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
-    | _ -> false
+    | exception Exit -> true
+  let exp_equal e1 e2 =
+    CilType.Exp.equal e1 e2 && not (contains_float_subexp e1)
 
   (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
+    | AddrOf (Mem (BinOp (IndexPI, a, _i, _)), _os) ->
+      interesting a
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
@@ -228,9 +186,6 @@ struct
     let rec type_may_change_apt a =
       (* With abstract points-to (like in type invariants in accesses).
          Here we implement it in part --- minimum to protect local integers. *)
-      (*       Messages.warn ~msg:("a: "^sprint 80 (d_plainexp () a)) (); *)
-      (*       Messages.warn ~msg:("b: "^sprint 80 (d_plainexp () b)) (); *)
-      (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)
@@ -252,12 +207,7 @@ struct
         | TPtr (t,a) -> t
         | at -> at
       in
-      (*      Messages.warn
-              ( sprint 80 (d_type () at)
-              ^ " : "
-              ^ sprint 80 (d_type () bt)
-              ^ (if bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt then ": yes" else ": no"));
-      *)      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
+      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
               match a with
               | Const _
               | SizeOf _
@@ -273,9 +223,9 @@ struct
               | Lval (Var _,o)
               | AddrOf (Var _,o)
               | StartOf (Var _,o) -> may_change_t_offset o
-              | Lval (Mem e,o)    -> (*Messages.warn "Lval" ;*) may_change_t_offset o || type_may_change_t true e
-              | AddrOf (Mem e,o)  -> (*Messages.warn "Addr" ;*) may_change_t_offset o || type_may_change_t false e
-              | StartOf (Mem e,o) -> (*Messages.warn "Start";*) may_change_t_offset o || type_may_change_t false e
+              | Lval (Mem e,o)    -> may_change_t_offset o || type_may_change_t true e
+              | AddrOf (Mem e,o)  -> may_change_t_offset o || type_may_change_t false e
+              | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
               | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
@@ -316,14 +266,7 @@ struct
           let als = pt e in
           (als, lval_is_not_disjoint bl als)
       in
-      (*      Messages.warn
-              ( sprint 80 (Lval.CilLval.pretty () bl)
-              ^ " in PT("
-              ^ sprint 80 (d_exp () a)
-              ^ ") = "
-              ^ sprint 80 (Queries.LS.pretty () als)
-              ^ (if Queries.LS.is_top als || test then ": yes" else ": no"));
-      *)      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
+      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
       then type_may_change_apt a
       else test ||
            match a with
@@ -348,15 +291,18 @@ struct
            | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
-      if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
-      then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
+      if Cil.isConstant b then false
+      else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
+      then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
-    *)    r
+          then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
+    *)
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    r
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp ask (e:exp) (st:D.t) : D.t =
@@ -390,7 +336,7 @@ struct
     | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
-      Some (v.vglob || (ask.f (Queries.IsMultiple v)))
+      Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
@@ -405,16 +351,17 @@ struct
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
-    (*    let is_local x =
-          match x with (Var v,_) -> not v.vglob | _ -> false
-          in
-          let st =
-    *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
-    (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
+    let lvt = unrollType @@ Cilfacade.typeOfLval lv in
+    if M.tracing then (
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
+      M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (interesting rv);
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv (isIntegralType lvt || isPointerType lvt);
+    );
     if is_global_var ask (Lval lv) = Some false
     && interesting rv
     && is_global_var ask rv = Some false
-    && ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt)
+    && (isIntegralType lvt || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
     else remove ask lv st
   (*    in
@@ -482,13 +429,24 @@ struct
     | true -> raise Analyses.Deadcode
     | false -> [ctx.local,nst]
 
-  let combine ctx lval fexp f args fc st2 =
+  let combine ctx lval fexp f args fc st2 (f_ask : Queries.ask) =
+    let tainted = f_ask.f Queries.MayBeTainted in
+    let d_local = 
+      (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
+         TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
+      if Queries.LS.is_top tainted || not (ctx.ask Queries.MustBeSingleThreaded) then
+        D.top ()
+      else
+        let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in
+        D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
+    in
+    let d = D.meet st2 d_local in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
     | false ->
       match lval with
-      | Some lval -> remove (Analyses.ask_of_ctx ctx) lval st2
-      | None -> st2
+      | Some lval -> remove (Analyses.ask_of_ctx ctx) lval d
+      | None -> d
 
   let remove_reachable ~deep ask es st =
     match reachables ~deep ask es with
@@ -518,27 +476,21 @@ struct
       |> remove_reachable ~deep:false ask shallow_args
       |> remove_reachable ~deep:true ask deep_args
 
-  let safe_fn = function
-    | "memcpy" -> true
-    | "__builtin_return_address" -> true
-    | _ -> false
-
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
     let desc = LibraryFunctions.find f in
-    match desc.special args, f.vname with
-    | Unknown, "spinlock_check" ->
+    match desc.special args with
+    | Identity e ->
       begin match lval with
-        | Some x -> assign ctx x (List.hd args)
+        | Some x -> assign ctx x e
         | None -> unknown_fn ctx lval f args
       end
-    | Unknown, x when safe_fn x -> ctx.local
-    | ThreadCreate { arg; _ }, _ ->
+    | ThreadCreate { arg; _ } ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
       end
-    | _, _ -> unknown_fn ctx lval f args
+    | _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =
@@ -553,30 +505,44 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    match e with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | Const _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _
-    | Question _
-    | AddrOfLabel _
-    | Real _
-    | Imag _
-    | AddrOf  (Var _,_)
-    | StartOf (Var _,_)
-    | Lval    (Var _,_) -> eq_set e s
-    | AddrOf  (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | StartOf (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | Lval    (Mem e,ofs) ->
-      Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | CastE (t,e) ->
-      Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
+    let r = match e with
+      | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
+        (* convert IndexPI to Index offset *)
+        (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
+        Queries.ES.fold (fun e acc -> (* filter_map *)
+            match e with
+            | CastE (_, StartOf a') -> (* eq_set adds casts *)
+              let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+              Queries.ES.add e' acc
+            | _ -> acc
+          ) (eq_set_clos a s) (Queries.ES.empty ())
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | Const _
+      | AlignOfE _
+      | UnOp _
+      | BinOp _
+      | Question _
+      | AddrOfLabel _
+      | Real _
+      | Imag _
+      | AddrOf  (Var _,_)
+      | StartOf (Var _,_)
+      | Lval    (Var _,_) -> eq_set e s
+      | AddrOf  (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | StartOf (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | Lval    (Mem e,ofs) ->
+        Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | CastE (t,e) ->
+        Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+    in
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    r
 
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
@@ -585,13 +551,35 @@ struct
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
-    | Queries.Invariant context ->
+    | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec ctx.node in
       D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
+  let event ctx e octx =
+    match e with
+    | Events.Unassume {exp; _} ->
+      (* Unassume must forget equalities,
+         otherwise var_eq may still have a numeric first iteration equality
+         while base has unassumed, causing unnecessary extra evals. *)
+      Basetype.CilExp.get_vars exp
+      |> List.map Cil.var
+      |> List.fold_left (fun st lv ->
+          remove (Analyses.ask_of_ctx ctx) lv st
+        ) ctx.local
+    | Events.Escape vars ->
+      if EscapeDomain.EscapedVars.is_top vars then
+        D.top ()
+      else
+        let ask = Analyses.ask_of_ctx ctx in
+        let remove_var st v =
+          remove ask (Cil.var v) st
+        in
+        List.fold_left remove_var ctx.local (EscapeDomain.EscapedVars.elements vars)
+    | _ ->
+      ctx.local
 end
 
 let _ =

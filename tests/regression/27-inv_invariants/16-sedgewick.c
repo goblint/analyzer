@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <assert.h>
+#include <goblint.h>
 
 struct node {
   struct node *left;
@@ -21,6 +21,6 @@ struct node* min(struct node *root) {
 int main() {
   struct node *root;
   struct node *m = min(root);
-  assert(m == NULL);
+  __goblint_check(m == NULL);
   return 0;
 }

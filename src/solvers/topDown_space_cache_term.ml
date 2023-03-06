@@ -21,7 +21,7 @@ module WP =
 
     type phase = Widen | Narrow
 
-    let solve box st vs =
+    let solve st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
       let called = HM.create  10 in
@@ -181,7 +181,7 @@ module WP =
           in
           List.iter get vs
         in
-        Stats.time "restore" restore ();
+        Timing.wrap "restore" restore ();
         if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
       );
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in

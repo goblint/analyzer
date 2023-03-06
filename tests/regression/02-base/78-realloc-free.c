@@ -1,11 +1,11 @@
 // PARAM: --disable ana.race.free
 // copy of 02-base/76-realloc with different PARAM
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 void test1_f() {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
 }
 
 void test1() {

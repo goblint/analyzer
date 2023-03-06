@@ -1,10 +1,9 @@
 open Batteries
 open Jsonrpc
-
-exception Failure of Response.Error.Code.t * string
+open GoblintCil
 
 type t = {
-  mutable file: Cil.file;
+  mutable file: Cil.file option;
   mutable max_ids: MaxIdUtil.max_ids;
   input: IO.input;
   output: unit IO.output;
@@ -34,7 +33,7 @@ module ParamParser (R : Request) = struct
   let parse params =
     let maybe_params =
       params
-      |> Option.map_default Message.Structured.to_json `Null
+      |> Option.map_default Structured.yojson_of_t `Null
       |> R.params_of_yojson
     in
     match maybe_params with
@@ -46,42 +45,73 @@ module ParamParser (R : Request) = struct
       | _ -> Error err
 end
 
-let handle_request (serv: t) (message: Message.either) (id: Id.t) =
-  let req = Hashtbl.find_option registry message.method_ in
-  let response = match req with
-    | Some (module R) ->
-      let module Parser = ParamParser (R) in (
-        match Parser.parse message.params with
-        | Ok params -> (
-            try
-              Maingoblint.reset_stats ();
-              let r =
-                R.process params serv
-                |> R.response_to_yojson
-                |> Response.ok id
-              in
-              Maingoblint.do_stats ();
-              r
-            with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
-        | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
-    | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
+module Function = struct
+  type t = {
+    funName: string;
+    location: CilType.Location.t;
+  } [@@deriving eq, ord, hash, yojson]
+
+  let filterFunctions = function
+    | Cil.GFun (fd, loc) -> Some {funName = fd.svar.vname; location = loc}
+    | _ -> None
+
+  let getFunctionsList files = List.filter_map filterFunctions files
+end
+
+let handle_request (serv: t) (request: Request.t): Response.t =
+  match Hashtbl.find_option registry request.method_ with
+  | Some (module R) ->
+    let module Parser = ParamParser (R) in
+    begin match Parser.parse request.params with
+      | Ok params ->
+        begin try
+            Maingoblint.reset_stats ();
+            let r =
+              R.process params serv
+              |> R.response_to_yojson
+              |> Response.ok request.id
+            in
+            Maingoblint.do_stats ();
+            r
+          with Response.Error.E error ->
+            Response.error request.id error
+        end
+      | Error message ->
+        Response.(Error.make ~code:InvalidParams ~message () |> error request.id)
+    end
+  | _ ->
+    Response.(Error.make ~code:MethodNotFound ~message:request.method_ () |> error request.id)
+
+let handle_packet (serv: t) (packet: Packet.t) =
+  let response_packet: Packet.t option = match packet with
+    | Request request -> Some (Response (handle_request serv request))
+    | Batch_call subpackets ->
+      let responses = List.filter_map (function
+          | `Request request -> Some (handle_request serv request)
+          | _ -> None (* ignore others for now *)
+        ) subpackets in
+      Some (Batch_response responses)
+    | _ -> None (* ignore others for now *)
   in
-  Response.yojson_of_t response |> Yojson.Safe.to_string |> IO.write_line serv.output;
-  IO.flush serv.output
+  match response_packet with
+  | Some response_packet ->
+    Packet.yojson_of_t response_packet |> Yojson.Safe.to_string |> IO.write_line serv.output;
+    IO.flush serv.output
+  | None -> ()
 
 let serve serv =
   serv.input
   |> Lexing.from_channel
-  |> GobYojson.seq_from_lexbuf (Yojson.init_lexer ())
-  |> Seq.iter (fun json ->
-      let message = Message.either_of_yojson json in
-      match message.id with
-      | Some id -> handle_request serv message id
-      | _ -> () (* We just ignore notifications for now. *)
-    )
+  |> Yojson.Safe.seq_from_lexbuf (Yojson.init_lexer ())
+  |> Seq.map Packet.t_of_yojson
+  |> Seq.iter (handle_packet serv)
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let max_ids = MaxIdUtil.get_file_max_ids file in
+  let max_ids =
+    match file with
+    | Some file -> MaxIdUtil.get_file_max_ids file
+    | None -> MaxIdUtil.get_file_max_ids Cil.dummyFile (* TODO: avoid this altogether *)
+  in
   {
     file;
     max_ids;
@@ -112,28 +142,71 @@ let start file =
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     GoblintDir.init ();
-    Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge, true)
-  else s.file, false
+    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_parse_merge in
+    begin match s.file with
+      | None ->
+        let max_ids = MaxIdUtil.get_file_max_ids file in
+        s.max_ids <- max_ids
+      | Some _ ->
+        ()
+    end;
+    (file, true)
+  )
+  else
+    (Option.get s.file, false)
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: Cil.global) _ _ = match glob with
-    | GFun (fdec, _) -> not (CompareGlobals.should_reanalyze fdec), false, None
-    | _ -> true, false, None
+  let eq (glob: CompareCIL.global_col) _ _ = match glob.def with
+    | Some (Fun fdec) when CompareGlobals.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
+    | _ -> Unchanged, None
   in
   CompareCIL.compareCilFiles ~eq file file
 
 let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data SolverData with
   | Some solver_data when reparsed ->
-    let changes = CompareCIL.compareCilFiles s.file file in
-    let old_data = Some { Analyses.solver_data } in
-    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file changes;
-    { server = true; Analyses.changes; old_data }, false
+    let s_file = Option.get s.file in
+    let changes = CompareCIL.compareCilFiles s_file file in
+    s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
+    (* TODO: get globals for restarting from config *)
+    Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
   | Some solver_data ->
     let changes = virtual_changes file in
-    let old_data = Some { Analyses.solver_data } in
-    { server = true; Analyses.changes; old_data }, false
-  | _ -> Analyses.empty_increment_data ~server:true (), true
+    (* TODO: get globals for restarting from config *)
+    Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
+  | _ -> None, true
+
+
+module Locator = WitnessUtil.Locator (Node)
+let node_locator: Locator.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let locator = Locator.create () in
+
+      (* DFS, copied from CfgTools.find_backwards_reachable *)
+      let module NH = MyCFG.NodeH in
+      let reachable = NH.create 100 in
+      let rec iter_node node =
+        if not (NH.mem reachable node) then begin
+          NH.replace reachable node ();
+          let loc = Node.location node in
+          if not loc.synthetic then
+            Locator.add locator loc node;
+          List.iter (fun (_, prev_node) ->
+              iter_node prev_node
+            ) (Cfg.prev node)
+        end
+      in
+
+      Cil.iterGlobals !Cilfacade.current_file (function
+          | GFun (fd, _) ->
+            let return_node = Node.Function fd in
+            iter_node return_node
+          | _ -> ()
+        );
+
+      locator
+    )
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
@@ -145,17 +218,20 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data SolverData;
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
+  ResettableLazy.reset node_locator;
   Cilfacade.reset_lazy ();
+  InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
+  AutoTune.reset_lazy ();
   Access.reset ();
-  s.file <- file;
+  s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      Maingoblint.do_analyze increment_data s.file
+      Maingoblint.do_analyze increment_data (Option.get s.file)
     )
 
 let () =
@@ -173,8 +249,11 @@ let () =
       try
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
-      with Sys.Break ->
+      with
+      | Sys.Break ->
         {status = Aborted}
+      | Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
@@ -185,8 +264,22 @@ let () =
     (* TODO: Check options for compatibility with the incremental analysis. *)
     let process (conf, json) _ =
       try
-        GobConfig.set_auto conf (Yojson.Safe.to_string json)
-      with exn -> raise (Failure (InvalidParams, Printexc.to_string exn))
+        GobConfig.set_auto conf (Yojson.Safe.to_string json);
+        Maingoblint.handle_options ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
+  end);
+
+  register (module struct
+    let name = "reset_config"
+    type params = unit [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
+    let process () _ =
+      try
+        GobConfig.set_conf Options.defaults;
+        Maingoblint.parse_arguments ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
   end);
 
   register (module struct
@@ -194,8 +287,23 @@ let () =
     type params = Yojson.Safe.t [@@deriving of_yojson]
     type response = unit [@@deriving to_yojson]
     let process json _ =
-      try GobConfig.merge json with exn -> (* TODO: Be more specific in what we catch. *)
-        raise (Failure (InvalidParams, Printexc.to_string exn))
+      try
+        GobConfig.merge json;
+        Maingoblint.handle_options ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
+  end);
+
+  register (module struct
+    let name = "read_config"
+    type params = { fname: string } [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
+    let process { fname } _ =
+      try
+        GobConfig.merge_file (Fpath.v fname);
+        Maingoblint.handle_options ();
+      with exn -> (* TODO: Be more specific in what we catch. *)
+        Response.Error.(raise (of_exn exn))
   end);
 
   register (module struct
@@ -210,6 +318,106 @@ let () =
     type params = unit [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () _ = Preprocessor.dependencies_to_yojson ()
+  end);
+
+  register (module struct
+    let name = "pre_files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () s =
+      try
+        if GobConfig.get_bool "server.reparse" then (
+          GoblintDir.init ();
+          Fun.protect ~finally:GoblintDir.finalize (fun () ->
+              ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+            )
+        );
+        Preprocessor.dependencies_to_yojson ()
+      with Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
+  end);
+
+  register (module struct
+    let name = "functions"
+    type params = unit [@@deriving of_yojson]
+    type response = Function.t list [@@deriving to_yojson]
+    let process () serv =
+      match serv.file with
+      | Some file -> Function.getFunctionsList file.globals
+      | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed" ()))
+  end);
+
+  register (module struct
+    let name = "cfg"
+    type params = { fname: string }  [@@deriving of_yojson]
+    type response = { cfg : string } [@@deriving to_yojson]
+    let process { fname } serv =
+      let fundec = Cilfacade.find_name_fundec fname in
+      let live _ = true in (* TODO: fix this *)
+      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
+      { cfg }
+  end);
+
+  register (module struct
+    let name = "cfg/lookup"
+    type params = {
+      node: string option [@default None];
+      location: CilType.Location.t option [@default None];
+    } [@@deriving of_yojson]
+    type response = {
+      node: string;
+      location: CilType.Location.t;
+      next: (Edge.t list * string) list;
+      prev: (Edge.t list * string) list;
+    } [@@deriving to_yojson]
+    let process (params: params) serv =
+      let node = match params.node, params.location with
+        | Some node_id, None ->
+          begin try
+              Node.of_id node_id
+            with Not_found ->
+              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          end
+        | None, Some location ->
+          let node_opt =
+            let open GobOption.Syntax in
+            let* nodes = Locator.find_opt (ResettableLazy.force node_locator) location in
+            Locator.ES.choose_opt nodes
+          in
+          Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+        | _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
+      in
+      let node_id = Node.show_id node in
+      let location = Node.location node in
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let next =
+        Cfg.next node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      let prev =
+        Cfg.prev node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      {node = node_id; location; next; prev}
+  end);
+
+  register (module struct
+    let name = "node_state"
+    type params = { nid: string }  [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process { nid } serv =
+      match Node.of_id nid with
+      | n ->
+        begin match !Control.current_node_state_json n with
+          | Some json -> json
+          | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed, non-existent or dead node" ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
   end);
 
   register (module struct

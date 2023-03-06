@@ -3,17 +3,17 @@
 
 // Previously using with MustBeEqual, MayBeEqual and MayBeLess queries:
 // Ran in 3.0-3.5s.
-// ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c
+// ./goblint --set ana.activated[+] apron --enable dbg.timing.enabled ./tests/regression/46-apron2/18-evalint-torture.c
 
 // Without those queries, but with deep-query:
 // Ran in 2.4-2.7s.
-// ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c --enable ana.base.eval.deep-query
+// ./goblint --set ana.activated[+] apron --enable dbg.timing.enabled ./tests/regression/46-apron2/18-evalint-torture.c --enable ana.base.eval.deep-query
 
 // Without those queries and deep-query:
 // Ran in 1.6-1.7s.
-// ./goblint --set ana.activated[+] apron --enable printstats ./tests/regression/46-apron2/18-evalint-torture.c --disable ana.base.eval.deep-query
+// ./goblint --set ana.activated[+] apron --enable dbg.timing.enabled ./tests/regression/46-apron2/18-evalint-torture.c --disable ana.base.eval.deep-query
 
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int x, y, z, w;
@@ -22,7 +22,7 @@ int main() {
   z = 3;
   w = 4;
 
-#define A1 assert(x + y + z + w == 10); // NOWARN (macro)
+#define A1 __goblint_check(x + y + z + w == 10); // NOWARN (macro)
 #define A2 A1 A1
 #define A4 A2 A2
 #define A8 A4 A4

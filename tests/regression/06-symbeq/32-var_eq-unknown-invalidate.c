@@ -1,6 +1,6 @@
 // PARAM: --set ana.activated[+] var_eq
 // ldv-benchmarks: u__linux-concurrency_safety__drivers---net---ethernet---ethoc.ko.cil.c
-#include <assert.h>
+#include <goblint.h>
 
 struct resource {
    char const *name ;
@@ -17,9 +17,9 @@ int main() {
   res = magic();
 
   if (res == (struct resource *)0)
-    assert(1); // reachable
+    __goblint_check(1); // reachable
   else
-    assert(1); // reachable
+    __goblint_check(1); // reachable
 
   return 0;
 }

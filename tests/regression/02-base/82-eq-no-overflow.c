@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   unsigned long x;
@@ -9,9 +9,9 @@ int main() {
   b = x == 7; // NOWARN
 
   if (b)
-    assert(0); // NOWARN (unreachable)
+    __goblint_check(0); // NOWARN (unreachable)
   else
-    assert(1); // reachable
+    __goblint_check(1); // reachable
 
   return 0;
 }
