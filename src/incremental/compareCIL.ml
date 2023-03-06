@@ -46,7 +46,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       Not_found -> map
   in
 
-  (* Store a map from functionNames in the old file to the function definition*)
+  (* Store a map from global names in the old file to the globals declarations and/or definition *)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
   let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
 
@@ -72,13 +72,13 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   in
 
   if GobConfig.get_bool "incremental.detect-renames" then (
-    let renameDetectionResults = detectRenamedFunctions oldAST newAST in
+    let renameDetectionResults = detectRenamedFunctions oldMap newMap in
 
     if Messages.tracing then
-      GlobalElemMap.to_seq renameDetectionResults |>
+      GlobalColMap.to_seq renameDetectionResults |>
       Seq.iter
         (fun (gT, (functionGlobal, status)) ->
-           Messages.trace "compareCIL" "Function status of %s is=" (globalElemName gT);
+           Messages.trace "compareCIL" "Function status of %s is=" (name_of_global_col gT);
            match status with
            | Unchanged _ ->  Messages.trace "compareCIL" "Same Name\n";
            | Added ->  Messages.trace "compareCIL" "Added\n";
@@ -91,7 +91,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
              | _ -> ();
         );
 
-    let unchanged, changed, added, removed = GlobalElemMap.fold (fun _ (global, status) (u, c, a, r) ->
+    let unchanged, changed, added, removed = GlobalColMap.fold (fun _ (global, status) (u, c, a, r) ->
         match status with
         | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
         | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
@@ -105,15 +105,13 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     changes.removed <- removed;
     changes.changed <- changed;
     changes.unchanged <- unchanged;
-  ) else ();
+  );
 
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
   GlobalMap.iter (fun name glob_col -> findChanges oldMap name glob_col) newMap;
 
   if not (GobConfig.get_bool "incremental.detect-renames") then (
-    let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
-
     GlobalMap.iter (fun name glob -> if not (GlobalMap.mem name newMap) then changes.removed <- (glob::changes.removed)) oldMap;
   );
   changes

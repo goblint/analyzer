@@ -9,6 +9,21 @@ module GlobalMap = Map.Make(String)
 type global_def = Var of varinfo | Fun of fundec
 type global_col = {decls: varinfo option; def: global_def option}
 
+let name_of_global_col gc = match gc.def with
+  | Some (Fun f) -> f.svar.vname
+  | Some (Var v) -> v.vname
+  | None -> match gc.decls with
+    | Some v -> v.vname
+    | None -> raise (Failure "empty global record")
+
+let compare_global_col gc1 gc2 = compare (name_of_global_col gc1) (name_of_global_col gc2)
+
+module GlobalColMap = Map.Make(
+  struct
+    type t = global_col
+    let compare = compare_global_col
+  end)
+
 let name_of_global g = match g with
   | GVar (v,_,_) -> v.vname
   | GFun (f,_) -> f.svar.vname
