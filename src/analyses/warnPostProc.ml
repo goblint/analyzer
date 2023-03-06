@@ -362,10 +362,10 @@ let warn_postprocess fd =
   (* The function to check if a condition holds in the given node.
      This function can be extended with other variant types when
      the message repositioning is implemented for other analyses. *)
-  let cond_holds node (cond : RM.Cond.t) =
+  let cond_holds (ask : Queries.ask) (cond : RM.Cond.t) =
     match cond with
     | Aob (exp, l) ->
-      let q = (!ask node).f (EvalInt exp) in
+      let q = ask.f (EvalInt exp) in
       let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
       (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
       let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
@@ -374,27 +374,10 @@ let warn_postprocess fd =
         | Some true, Some true -> false (* Certainly in bounds on both sides.*)
         | _ -> true
       end
-    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
+    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> ask.f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
   in
 
-  let cond_holds' node edge node' (cond : RM.Cond.t) =
-    match cond with
-    | Aob (exp, l) ->
-      let q = (!ask' node edge node').f (EvalInt exp) in
-      let v = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) (Option.get @@ Queries.ID.minimal q, Option.get @@ Queries.ID.maximal q) in
-      (* ignore (Pretty.printf "eval %a%a" Node.pretty node Idx.pretty v); *)
-      let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-      and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong Z.zero)) in (* check whether the index is non-negative *)
-      begin match (idx_before_end, idx_after_start) with
-        | Some true, Some true -> false (* Certainly in bounds on both sides.*)
-        | _ -> true
-      end
-    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
-  in
-
-  let filter_always_true node cs = CondSet.filter (cond_holds node) cs in
-
-  let filter_always_true' node (edges, node') cs = CondSet.filter (cond_holds' node (List.hd edges) node') cs in
+  let filter_always_true ask cs = CondSet.filter (cond_holds ask) cs in
 
   let hoist_entry node =
     let module CFG = (val !MyCFG.current_cfg) in
@@ -402,7 +385,7 @@ let warn_postprocess fd =
     let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
     let cs = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
     (* TODO: there is something fishy going on here somewhere. *)
-    filter_always_true node @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
+    filter_always_true (!ask node) @@ CondSet.diff (Ant.conds_in (HM.find solution (`L node))) cs in
 
   let hoist_exit node =
     let module CFG = (val !MyCFG.current_cfg) in
@@ -411,14 +394,13 @@ let warn_postprocess fd =
        If no unique successor assume only refinements possible -> use current state;
        if there is a unique successor, we use the state at that node. 
        Also, if target node has another incoming edge, less precise but safe.  *)
-    if List.compare_length_with next_nodes 1 = 0 then
-      filter_always_true' node (List.hd next_nodes) @@ Ant.conds_in @@ Ant.Dom.filter
-        (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
-        (Ant.kill node @@ HM.find solution (`G node))
-    else
-      filter_always_true node @@ Ant.conds_in @@ Ant.Dom.filter
-        (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
-        (Ant.kill node @@ HM.find solution (`G node)) in
+    let ask = if List.compare_length_with next_nodes 1 = 0 then
+        let (edges, next_node) = List.hd next_nodes in
+        !ask' node (List.hd edges) next_node
+      else !ask node in
+    filter_always_true ask @@ Ant.conds_in @@ Ant.Dom.filter
+      (fun c -> Ant.Dom.is_empty @@ Ant.dep_gen node (Ant.Dom.singleton c))
+      (Ant.kill node @@ HM.find solution (`G node)) in
 
   (* Update hashtable of hoisted conditions *)
   HM.iter (fun k v ->
