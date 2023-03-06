@@ -1089,6 +1089,15 @@ module Base =
       Format.pp_print_flush ppf ();
       Stdlib.close_out oc;
 
+      let () =
+        ignore (Pretty.printf "Destab counts:\n");
+        HM.to_list destab_counts
+        |> List.sort (fun (_, n1) (_, n2) -> Int.compare n2 n1) (* reversed for top *)
+        |> List.iter (fun (k, n) ->
+            ignore (Pretty.printf "%a: %d (stable=%B)\n" S.Var.pretty_trace k n (HM.mem stable k))
+          )
+      in
+
       verify_data data;
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
