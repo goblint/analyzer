@@ -278,6 +278,7 @@ module Base =
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
       let destab_counts = HM.create 113 in
+      let side_increase_counts = HM.create 113 in
 
       let stable_remove x =
         Hooks.stable_remove x;
@@ -445,6 +446,8 @@ module Base =
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          ignore (Pretty.printf "side increase %a: %a\n" S.Var.pretty_trace y S.Dom.pretty_diff (tmp, old));
+          HM.modify_def 1 y ((+) 1) side_increase_counts;
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in
@@ -1058,9 +1061,12 @@ module Base =
       in
 
       let max_destab_count = HM.fold (fun _ x acc -> max x acc) destab_counts 0 in
+      let max_side_increase_count = HM.fold (fun _ x acc -> max x acc) side_increase_counts 0 in
       let dot_var_attr ppf var =
-        let count = HM.find_default destab_counts var 0 in
-        let color = 8 * count / max_destab_count + 1 in
+        (* let count = HM.find_default destab_counts var 0 in
+        let color = 8 * count / max_destab_count + 1 in *)
+        let count = HM.find_default side_increase_counts var 0 in
+        let color = 8 * count / max_side_increase_count + 1 in
         Format.fprintf ppf "[fillcolor=%d,tooltip=%d]" color count
       in
 
@@ -1092,6 +1098,15 @@ module Base =
       let () =
         ignore (Pretty.printf "Destab counts:\n");
         HM.to_list destab_counts
+        |> List.sort (fun (_, n1) (_, n2) -> Int.compare n2 n1) (* reversed for top *)
+        |> List.iter (fun (k, n) ->
+            ignore (Pretty.printf "%a: %d (stable=%B)\n" S.Var.pretty_trace k n (HM.mem stable k))
+          )
+      in
+
+      let () =
+        ignore (Pretty.printf "Side increase counts:\n");
+        HM.to_list side_increase_counts
         |> List.sort (fun (_, n1) (_, n2) -> Int.compare n2 n1) (* reversed for top *)
         |> List.iter (fun (k, n) ->
             ignore (Pretty.printf "%a: %d (stable=%B)\n" S.Var.pretty_trace k n (HM.mem stable k))
