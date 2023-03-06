@@ -74,11 +74,15 @@ module Base =
       dep = HM.create 10;
     }
 
-    let print_data data str =
+    let print_data data =
+      Printf.printf "|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|sides|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
+        (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.sides) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.var_messages) (HM.length data.rho_write) (HM.length data.dep);
+      Hooks.print_data ()
+
+    let print_data_verbose data str =
       if GobConfig.get_bool "dbg.verbose" then (
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|sides|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.sides) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.var_messages) (HM.length data.rho_write) (HM.length data.dep);
-        Hooks.print_data ()
+        Printf.printf "%s:\n" str;
+        print_data data
       )
 
     let verify_data data =
@@ -243,14 +247,13 @@ module Base =
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|sides|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length sides) (HM.length side_dep) (HM.length side_infl) (HM.length var_messages) (HM.length rho_write) (HM.length dep);
-          Hooks.print_data ();
+          print_data data;
+          Printf.printf "|called|=%d\n" (HM.length called);
           print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then (
-        print_data data "Loaded data for incremental analysis";
+        print_data_verbose data "Loaded data for incremental analysis";
         verify_data data
       );
 
@@ -734,7 +737,7 @@ module Base =
         delete_marked rho_write;
         HM.iter (fun x w -> delete_marked w) rho_write;
 
-        print_data data "Data after clean-up";
+        print_data_verbose data "Data after clean-up";
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
@@ -836,7 +839,7 @@ module Base =
       );
 
       stop_event ();
-      print_data data "Data after solve completed";
+      print_data_verbose data "Data after solve completed";
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
@@ -1024,7 +1027,7 @@ module Base =
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
       Post.post st (stable_reluctant_vs @ vs) rho;
 
-      print_data data "Data after postsolve";
+      print_data_verbose data "Data after postsolve";
 
       verify_data data;
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
