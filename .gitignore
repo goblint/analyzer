@@ -45,6 +45,7 @@ cfgs/
 cfg.dot
 cilcfg.*.dot
 arg.dot
+td3.infl.dot
 
 *.graphml
 goblint.bc.js

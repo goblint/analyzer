@@ -1018,6 +1018,35 @@ module Base =
 
       print_data data "Data after postsolve";
 
+      let dot_var_name ppf var =
+        Format.fprintf ppf "\"%s\"" (String.escaped (Pretty.sprint ~width:max_int (S.Var.pretty_trace () var)))
+      in
+
+      let oc = Stdlib.open_out "td3.infl.dot" in
+      let ppf = Format.formatter_of_out_channel oc in
+      Format.fprintf ppf "@[<v 2>digraph infl {";
+      HM.iter (fun k vs ->
+          if not (S.Var.is_write_only k) then (
+            Format.fprintf ppf "@,%a;" dot_var_name k;
+            VS.iter (fun v ->
+                if not (S.Var.is_write_only v) then
+                  Format.fprintf ppf "@,%a -> %a;" dot_var_name k dot_var_name v;
+              ) vs
+          )
+        ) infl;
+      HM.iter (fun k vs ->
+          if not (S.Var.is_write_only k) then (
+            Format.fprintf ppf "@,%a;" dot_var_name k;
+            VS.iter (fun v ->
+                if not (S.Var.is_write_only v) then
+                  Format.fprintf ppf "@,%a -> %a [style=dashed];" dot_var_name k dot_var_name v;
+              ) vs
+          )
+        ) side_infl;
+      Format.fprintf ppf "@]@,}@\n";
+      Format.pp_print_flush ppf ();
+      Stdlib.close_out oc;
+
       verify_data data;
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
