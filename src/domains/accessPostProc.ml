@@ -107,16 +107,16 @@ let print_accesses (lv, ty) grouped_accs =
     AS.elements race_accs
     |> List.map h
   in
+  let loc (_,_,node,_,_) = M.Location.Node node in
+  let filter_no_race a accs = AS.filter (fun a1 -> may_race a a1) accs in
   grouped_accs
   |> List.fold_left (fun safe_accs accs ->
       match race_conf accs with
       | None -> AS.union safe_accs accs (* group all safe accs together for allglobs *)
       | Some conf ->
-        if get_bool "ana.warn-postprocess.enabled"
-        then 
-          let loc (_,_,node,_,_) = M.Location.Node node in
-          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, accs)) ~loc:(loc a) ~category:Race "" [h a]);
-          safe_accs
+        if get_bool "ana.warn-postprocess.enabled" then (
+          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, filter_no_race a accs, accs)) ~loc:(loc a) ~category:Race "" [h a]);
+          safe_accs) 
         else
           let severity = race_severity conf in
           M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
@@ -125,9 +125,7 @@ let print_accesses (lv, ty) grouped_accs =
   |> (fun safe_accs ->
       if allglobs && not (AS.is_empty safe_accs) then
         if get_bool "ana.warn-postprocess.enabled"
-        then 
-          let loc (_,_,node,_,_) = M.Location.Node node in
-          safe_accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, safe_accs)) ~loc:(loc a) ~category:Race "" [h a]);
+        then safe_accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, filter_no_race a safe_accs, safe_accs)) ~loc:(loc a) ~category:Race "" [h a])
         else M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
     )
 

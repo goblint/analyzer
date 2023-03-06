@@ -17,7 +17,7 @@ module Tags = Messages.Tags
 module Idx = PreValueDomain.IndexDomain
 
 module AOB = Printable.Prod (Basetype.CilExp) (Idx)
-module ACC = Printable.Prod (Access.A) (Access.AS)
+module ACC = Printable.Prod3 (Access.A) (Access.AS) (Access.AS)
 
 module Cond =
 struct
@@ -26,7 +26,7 @@ struct
   type t =
     | Aob of AOB.t 
     | Acc of ACC.t
-  [@@deriving eq, ord, hash, yojson]
+  [@@deriving eq, ord, hash, to_yojson]
 
   let show cond = 
     match cond with
@@ -52,7 +52,7 @@ struct
 
   let equal c1 c2 =
     match c1, c2 with
-    | Acc (_, a1), Acc (_, a2) -> Access.AS.equal a1 a2
+    | Acc (_, _, a1), Acc (_, _, a2) -> Access.AS.equal a1 a2
     | _, _ -> equal c1 c2
 end
 

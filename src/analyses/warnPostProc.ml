@@ -188,7 +188,7 @@ struct
   let filter_killed stmt node (alarm : Alarm.t) = 
     match alarm.cond with 
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc (a, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) (Access.AS.remove a accs) true
+    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) accs true
 
   let kill node x =
     match node with
@@ -257,7 +257,7 @@ struct
   let filter_killed stmt node (alarm : Alarm.t) =
     match alarm.cond with
     | Aob (exp, _) -> var_changed_in_node stmt exp
-    | Acc (a, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) (Access.AS.remove a accs) true
+    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> no_race_or_lock stmt node a && acc) accs true
 
   let kill node x =
     match node with
@@ -373,7 +373,7 @@ let warn_postprocess fd =
         | Some true, Some true -> false (* Certainly in bounds on both sides.*)
         | _ -> true
       end
-    | Acc (a, accs) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) (Access.AS.remove a accs) false (* does not work due to join *)
+    | Acc (a, accs, _) -> Access.AS.fold (fun (_,_,_,_,a) acc -> (!ask node).f (MayRace (Obj.repr a)) || acc) accs false (* does not work due to join *)
   in
 
   let filter_always_true node cs = CondSet.filter (cond_holds node) cs in
@@ -479,10 +479,9 @@ let warn_postprocess fd =
     let conds = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
     List.fold (fun acc node -> HM.replace sinkHM (`G node) conds) () prev_nodes in
 
-  conds_end (Function fd)
+  conds_end (Function fd);
 
-(* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
-;;
+  (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
 
 module HA = Hashtbl.Make (Access.AS)
 let accGroupsHM = HA.create 10
@@ -534,7 +533,7 @@ let finalize _ = Cil.iterGlobals !Cilfacade.current_file (function
     let alarm = D.choose filtered_alarms in (* TODO: choose the shown alarm reasonably instead of random *)
     let merged = convert_to_single alarm merged_pieces in
     match alarm.cond with
-    | Acc (_,accs) -> HA.modify_def (D.empty ()) accs (D.add merged) accGroupsHM
+    | Acc (_,_,group) -> HA.modify_def (D.empty ()) group (D.add merged) accGroupsHM
     | _ -> reposmessage_to_message merged
 
   in
