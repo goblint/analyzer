@@ -716,12 +716,12 @@ struct
       ) lh;
 
     WarnPostProc.ask := (fun node ->
-        let local = (NH.find nh node) in
+        let local = try (NH.find nh node) with Not_found -> Spec.D.bot () in
         { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node local q)}
       );
 
     WarnPostProc.ask' := (fun node (loc, edge) node' ->
-        let local = (NH.find nh node) in
+        let local =  try (NH.find nh node) with Not_found -> Spec.D.bot () in
         let local' = EQSys.tf0 (node', Obj.repr ()) (LHT.find lh) (fun _ _ -> ()) (GHT.find gh) (fun _ _ -> ()) node (loc,edge) local (loc, loc) in
         { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node' local' q)}
       );
