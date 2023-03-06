@@ -379,6 +379,7 @@ module Base =
                 HM.replace restarted_wpoint y ();
             )
           );
+          if tracing then trace "sol2" "eval adding wpoint %a from %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
           HM.replace wpoint y ();
         );
         let tmp = simple_solve l x y in
@@ -426,7 +427,12 @@ module Base =
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
           (* make y a widening point if ... This will only matter for the next side _ y.  *)
-          let wpoint_if e = if e then HM.replace wpoint y () in
+          let wpoint_if e =
+            if e then (
+              if tracing then trace "sol2" "side adding wpoint %a from %a\n" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x;
+              HM.replace wpoint y ()
+            )
+          in
           match side_widen with
           | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
             wpoint_if true
