@@ -51,15 +51,21 @@ struct
     emit_splits ctx d
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
-    let d = match f.vname with
-      | "__goblint_split_begin" ->
+    let d = match (LibraryFunctions.find f).special arglist, f.vname with
+      | _, "__goblint_split_begin" ->
         let exp = List.hd arglist in
         let ik = Cilfacade.get_ikind_exp exp in
         (* TODO: something different for pointers, currently casts pointers to ints and loses precision (other than NULL) *)
         D.add exp (ID.top_of ik) ctx.local (* split immediately follows *)
-      | "__goblint_split_end" ->
+      | _, "__goblint_split_end" ->
         let exp = List.hd arglist in
         D.remove exp ctx.local
+      | Setjmp { env; savesigs}, _ ->
+        Option.map_default (fun lval ->
+            let e = Lval lval in
+            let ik = Cilfacade.get_ikind_exp e in
+            D.add e (ID.top_of ik) ctx.local
+          ) ctx.local lval
       | _ ->
         ctx.local
     in

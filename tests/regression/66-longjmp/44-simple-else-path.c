@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums
+// PARAM: --enable ana.int.interval --enable ana.int.enums --set ana.activated[+] expsplit
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
@@ -22,17 +22,15 @@ int main () {
    /* save calling environment for longjmp */
    val = setjmp( env_buffer );
 
-   __goblint_check(global == 0); //UNKNOWN!
-   __goblint_check(global == 2); //UNKNOWN!
-   __goblint_check(global == 8); //FAIL!
 
    if( val != 0 ) {
       printf("Returned from a longjmp() with value = %i\n", val);
       __goblint_check(val == 2);
-      __goblint_check(global == 2); //TODO (requires path-sensitivity distinguishing between returns) -> see test 44
+      __goblint_check(global == 2);
       exit(0);
    }
 
+   __goblint_check(global == 0);
    fun();
 
    __goblint_check(0); // NOWARN
