@@ -515,7 +515,7 @@ module Base =
             if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             HM.remove superstable y;
-            stable_remove x;
+            stable_remove y;
             if not (HM.mem called y) then destabilize_normal y
           ) w
       in
@@ -582,7 +582,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                stable_remove x;
+                stable_remove y;
                 destabilize_with_side ~side_fuel y
               ) w_side_dep;
           );
@@ -593,7 +593,7 @@ module Base =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              stable_remove x;
+              stable_remove y;
               destabilize_with_side ~side_fuel y
             ) w_infl;
 
@@ -611,7 +611,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                stable_remove x;
+                stable_remove y;
                 destabilize_with_side ~side_fuel:side_fuel' y
               ) w_side_infl
           )
@@ -684,7 +684,7 @@ module Base =
                   if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
-                  stable_remove x;
+                  stable_remove y;
                   destabilize_normal y
                 ) w
             )
