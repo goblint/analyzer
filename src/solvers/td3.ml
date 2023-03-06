@@ -197,8 +197,10 @@ module Base =
             HM.clear data.stable;
             HM.clear data.infl
           );
-          if not reuse_wpoint then
+          if not reuse_wpoint then (
             HM.clear data.wpoint;
+            HM.clear data.sides
+          );
           data
         | None ->
           create_empty_data ()
