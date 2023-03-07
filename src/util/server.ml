@@ -2,6 +2,8 @@ open Batteries
 open Jsonrpc
 open GoblintCil
 
+module InvariantParser = WitnessUtil.InvariantParser
+
 module type ArgWrapper =
 sig
   module Arg: ArgTools.BiArg
@@ -15,6 +17,7 @@ type t = {
   mutable file: Cil.file option;
   mutable max_ids: MaxIdUtil.max_ids;
   arg_wrapper: (module ArgWrapper) ResettableLazy.t;
+  invariant_parser: InvariantParser.t ResettableLazy.t;
   input: IO.input;
   output: unit IO.output;
 }
@@ -146,6 +149,11 @@ let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
       (module ArgWrapper: ArgWrapper)
     )
 
+let invariant_parser: InvariantParser.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      InvariantParser.create !Cilfacade.current_file
+    )
+
 let make ?(input=stdin) ?(output=stdout) file : t =
   let max_ids =
     match file with
@@ -156,6 +164,7 @@ let make ?(input=stdin) ?(output=stdout) file : t =
     file;
     max_ids;
     arg_wrapper;
+    invariant_parser;
     input;
     output
   }
@@ -261,6 +270,7 @@ let analyze ?(reset=false) (s: t) =
   let increment_data, fresh = increment_data s file reparsed in
   ResettableLazy.reset node_locator;
   ResettableLazy.reset s.arg_wrapper;
+  ResettableLazy.reset s.invariant_parser;
   Cilfacade.reset_lazy ();
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
@@ -589,6 +599,37 @@ let () =
         begin match ArgWrapper.Arg.query n DYojson with
           | `Lifted json -> json
           | (`Bot | `Top) as r -> Response.Error.(raise (make ~code:RequestFailed ~message:("query returned " ^ Queries.FlatYojson.show r) ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
+  end);
+
+  register (module struct
+    let name = "arg/eval"
+    type params = {
+      node: string;
+      exp: string;
+    } [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process {node; exp} serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let open ArgWrapper in
+      match ArgWrapper.find_node node with
+      | n ->
+        begin match InvariantParser.parse_cabs exp with
+          | Ok exp_cabs ->
+            let cfg_node = Arg.Node.cfgnode n in
+            let fundec = Node.find_fundec cfg_node in
+            let loc = UpdateCil.getLoc cfg_node in
+
+            begin match InvariantParser.parse_cil (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+              | Ok exp ->
+                let x = Arg.query n (EvalInt exp) in
+                Queries.ID.to_yojson x
+              | Error e ->
+                Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
+            end
+          | Error e ->
+            Response.Error.(raise (make ~code:RequestFailed ~message:"Frontc couldn't parse expression (invalid syntax)" ()))
         end
       | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
   end);
