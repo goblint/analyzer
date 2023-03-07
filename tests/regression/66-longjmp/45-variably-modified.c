@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums --set ana.activated[+] expsplit
+// PARAM: --enable ana.int.interval --enable ana.int.enums --set ana.activated[+] expsplit --disable warn.deadcode
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
