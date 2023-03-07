@@ -227,8 +227,8 @@ let equal_edge (prev_node1, edge1, dest_node1) (prev_node2, edge2, dest_node2) =
 let rec equal_helper1 edgeList1 edgeList2 =
   match edgeList1 with x::xs -> (equal_helper2 x edgeList2)&&(equal_helper1 xs edgeList2)
   | [] -> true
-let equal g1 g2 = print_string "\nGraph.equal BEGIN\n";
-if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (print_string "g1 and g2 are NOT the same, they have different length\nGraph.equal END\n";false) else (
+let equal g1 g2 = 
+if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (false) else (
 (* print_string ("g1-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g1 "")^"\n");
 print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g2 "")^"\n"); *)
 let edgeList1 = get_all_edges g1
@@ -236,7 +236,7 @@ in let edgeList2 = get_all_edges g2
 in
 (* print_string ("equal_helper1 wird jetzt aufgerufen mit\nedgeList1="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList1)^"\nedgeList2="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList2)^"\n"); *)
   let tmp = equal_helper1 (edgeList1) (edgeList2)
-  in if tmp = false then print_string "g1 and g2 are NOT the same with even length\n" else print_string "g1 and g2 are the same with even length\n"; print_string "\nGraph.equal END\n";tmp)
+  in tmp)
 
     (* eventuell liegt hier der Fehler?*)
 let hash g1 =
@@ -245,14 +245,14 @@ in
   (LocTraceGraph.nb_edges g1) + (LocTraceGraph.nb_vertex g1) + tmp
 
 (* needs to be a total order! *)
-  let compare g1 g2 =   print_string "\nGraph.compare BEGIN\n";
+  let compare g1 g2 =  
   if equal g1 g2 then (
     (* print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n"); *)
-   print_string("Graph.compare END\n"); 0) else
+    0) else
       (
         (* print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n"); *)
       (* relying on the polymorphic equal here is a bit of a stop-gap, one should do this properly by using the compares of the edges and nodes*)
-      print_string("Graph.compare END\n"); compare g1 g2)
+       compare g1 g2)
 
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
@@ -590,6 +590,25 @@ in randomValue)
 end
 
 let randomIntGenerator = new random_int_generator
+
+module VinfoMap = Map.Make(String)
+
+class custom_vinfo_store =
+object(self)
+val mutable vinfoMap: varinfo VinfoMap.t = VinfoMap.empty
+
+  method getVarinfo (name:string) =
+    if VinfoMap.mem name vinfoMap 
+      then (VinfoMap.find name vinfoMap)
+      else (
+        let newVinfo = makeGlobalVar name (TVoid([]))
+    in
+    vinfoMap <- VinfoMap.add name newVinfo vinfoMap;
+    newVinfo
+      )
+end
+
+let customVinfoStore = new custom_vinfo_store
 
 module ThreadIDLocTrace = struct
   type t = int

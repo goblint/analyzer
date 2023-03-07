@@ -269,18 +269,50 @@ allSigmas, true
 (* perform assign-effect on given node *)
 let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} =
 (match lval with (Var x, _) -> 
+    (* if this is a global, we define a custom mutex and add lock/unlock edges 
+       additionally, we have to join other traces that 'unlock' the global, similiarly to special *)
   let sigmaList,success_inner = eval_wrapper sigma x rval  graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} in 
-    (* print_string ("new sigma in assign: "^(NodeImpl.show_sigma evaluated )^"\n"); *)
     if not success_inner then (print_string "assignment did not succeed!\n"; [LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty})] )
     else
   List.map ( fun evaluated ->
+    if x.vglob then (
+      let customMutex = customVinfoStore#getVarinfo ("__goblint__traces____mutex__"^x.vname)
+  in
+  let lockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_lock" 
+  in
+  let lockingLabel:CustomEdge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
+  in
+  let lockedNode = {programPoint=programPoint;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} lockingLabel ctx.node evaluated tid (LockSet.add customMutex ls));tid=tid;lockSet=LockSet.add customMutex ls}
+  in
+    let lockingEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},lockingLabel,lockedNode)
+  in
+  let lockedGraph = LocalTraces.extend_by_gEdge graph lockingEdge
+  in
+  let assignedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID lockedNode (EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid (LockSet.add customMutex ls));tid=tid;lockSet=LockSet.add customMutex ls}
+in
+let assigningEdge:(node * CustomEdge.t * node) = if Edge.equal ctx.edge Skip then (lockedNode, (Assign(lval,rval)), assignedNode)
+else (lockedNode, EdgeImpl.convert_edge ctx.edge, assignedNode)
+in
+let assignedGraph = LocalTraces.extend_by_gEdge lockedGraph assigningEdge
+in
+let unlockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_unlock"
+in
+let unlockingLabel:CustomEdge.t = Proc(None, Lval(Var(unlockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
+in
+let unlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID assignedNode (EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid ls);tid=tid;lockSet=ls}
+in
+let unlockingEdge = (assignedNode, unlockingLabel, unlockedNode)
+in
+let unlockingGraph = LocalTraces.extend_by_gEdge assignedGraph unlockingEdge
+in
+unlockingGraph
+    ) else
     let (myEdge:(node * CustomEdge.t * node)) =
     if Edge.equal ctx.edge Skip then ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, (Assign(lval,rval)),{programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid ls);tid=tid;lockSet=ls})
     else ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=evaluated; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid ls);tid=tid;lockSet=ls})
-
-    
   in
-  print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");LocalTraces.extend_by_gEdge graph myEdge
+  print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");
+  LocalTraces.extend_by_gEdge graph myEdge
   ) sigmaList
   | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
      

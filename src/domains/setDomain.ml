@@ -166,9 +166,7 @@ struct
   let empty _ = empty
   let leq = subset
   let join = union
-  let widen t1 t2 = print_string "\nSetDomain.widen BEGIN\n";
-    let tmp = join t1 t2
-  in print_string "\nSetDomain.widen END\n"; tmp
+  let widen t1 t2 = join t1 t2
   let meet = inter
   let narrow = meet
   let bot = empty
