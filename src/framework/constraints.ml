@@ -749,7 +749,7 @@ struct
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
-    M.current_context := Some (Obj.repr c);
+    M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
         M.current_context := old_context;
