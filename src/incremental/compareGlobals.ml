@@ -86,64 +86,36 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
       ForceReanalyze current, None, empty_rename_mapping
     else
 
-      (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal,
-       * and as a second a rename_mapping, holding the rename assumptions *)
-      let rec rename_mapping_aware_compare (alocals: varinfo list) (blocals: varinfo list) (rename_mapping: string StringMap.t) = match alocals, blocals with
-        | [], [] -> true, rename_mapping
-        | origLocal :: als, nowLocal :: bls ->
-          let new_mapping = StringMap.add origLocal.vname nowLocal.vname rename_mapping in
+      let add_locals_to_rename_mapping la lb map =
+        try
+          List.fold_left (fun map (a, b) -> StringMap.add a.vname b.vname map) map (List.combine la lb)
+        with Invalid_argument _ -> map in
 
-          (*TODO: maybe optimize this with eq_varinfo*)
-          rename_mapping_aware_compare als bls new_mapping
-        | _, _ -> false, rename_mapping
-      in
+      let parameterMapping = add_locals_to_rename_mapping old.sformals current.sformals StringMap.empty in
+      let renameMapping = (parameterMapping, global_function_rename_mapping, global_var_rename_mapping, ([], [])) in
 
-      let unchangedHeader, headerRenameMapping, renamesOnSuccessHeader = match cfgs with
-        | None -> (
-            let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare old.sformals current.sformals (StringMap.empty) in
-            let actHeaderRenameMapping = (headerRenameMapping, global_function_rename_mapping, global_var_rename_mapping, ([], [])) in
-
-            let (unchangedHeader, (_, _, _, renamesOnSuccessHeader)) =
-              eq_varinfo old.svar current.svar ~rename_mapping:actHeaderRenameMapping
-              &&>> forward_list_equal eq_varinfo old.sformals current.sformals in
-            unchangedHeader, headerRenameMapping, renamesOnSuccessHeader
-          )
-        | Some _ -> (
-            let unchangedHeader, headerRenameMapping = eq_varinfo old.svar current.svar ~rename_mapping:empty_rename_mapping &&>>
-                                                       forward_list_equal eq_varinfo old.sformals current.sformals in
-            let (_, _, _, renamesOnSuccessHeader) = headerRenameMapping in
-
-            (unchangedHeader && is_rename_mapping_empty headerRenameMapping), StringMap.empty, renamesOnSuccessHeader
-          )
-      in
+      (* compare the function header based on the collected rename assumptions for parameters *)
+      let unchangedHeader, renameMapping = eq_varinfo old.svar current.svar ~rename_mapping:renameMapping
+                                           &&>> forward_list_equal eq_varinfo old.sformals current.sformals in
 
       if not unchangedHeader then ChangedFunHeader current, None, empty_rename_mapping
       else
-        (* Here the local variables are checked to be equal *)
-        (* sameLocals: when running on cfg, true iff the locals are identical; on ast: if the size of the locals stayed the same*)
-        let sameLocals, rename_mapping =
-          match cfgs with
-          | None -> (
-              let sizeEqual, local_rename = rename_mapping_aware_compare old.slocals current.slocals headerRenameMapping in
-              sizeEqual, (local_rename, global_function_rename_mapping, global_var_rename_mapping, renamesOnSuccessHeader)
-            )
-          | Some _ -> (
-              let isEqual, rename_mapping = forward_list_equal eq_varinfo old.slocals current.slocals ~rename_mapping:(StringMap.empty, VarinfoMap.empty, VarinfoMap.empty, renamesOnSuccessHeader) in
-              isEqual && is_rename_mapping_empty rename_mapping, rename_mapping
-            )
-        in
+        (* include matching of local variables into rename mapping *)
+        let renameMapping = match renameMapping with
+          | (pm, gf, gv, re) -> (add_locals_to_rename_mapping old.slocals current.slocals pm, gf, gv, re) in
+        let sameLocals, renameMapping = forward_list_equal eq_varinfo old.slocals current.slocals ~rename_mapping:renameMapping in
 
         if not sameLocals then
           (Changed, None, empty_rename_mapping)
         else
           match cfgs with
           | None ->
-            let (identical, new_rename_mapping) = eq_block (old.sbody, old) (current.sbody, current) ~rename_mapping in
+            let (identical, new_rename_mapping) = eq_block (old.sbody, old) (current.sbody, current) ~rename_mapping:renameMapping in
             unchanged_to_change_status identical, None, new_rename_mapping
           | Some (cfgOld, (cfgNew, cfgNewBack)) ->
             let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
             let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
-            let matches, diffNodes1, updated_rename_mapping = compareFun (module CfgOld) (module CfgNew) old current rename_mapping in
+            let matches, diffNodes1, updated_rename_mapping = compareFun (module CfgOld) (module CfgNew) old current renameMapping in
             if diffNodes1 = [] then (Unchanged, None, updated_rename_mapping)
             else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, updated_rename_mapping)
   in
