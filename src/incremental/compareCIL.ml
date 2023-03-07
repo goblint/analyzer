@@ -12,9 +12,8 @@ let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) 
       (*Perform renames no matter what.*)
       let _ = performRenames renamesOnSuccess in
       match identical with
-      | Unchanged when VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep -> Unchanged, diffOpt
-      | _ -> Changed, None)
-
+      | Unchanged when not (VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep) -> Changed, diffOpt
+      | s -> s, diffOpt)
   | None, None -> (match old.decls, current.decls with
       | Some x, Some y -> unchanged_to_change_status (eq_varinfo x y ~rename_mapping:empty_rename_mapping |> fst), None
       | _, _ -> failwith "should never collect any empty entries in GlobalMap")

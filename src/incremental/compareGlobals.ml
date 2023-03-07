@@ -133,7 +133,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
             )
         in
 
-        if sameLocals then
+        if not sameLocals then
           (Changed, None, empty_rename_mapping)
         else
           match cfgs with
