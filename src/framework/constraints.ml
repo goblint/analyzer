@@ -776,6 +776,10 @@ struct
     in
     match (LibraryFunctions.find f).special args with
     | Setjmp { env; savesigs} ->
+      (* Checking if this within the scope of an identifier of variably modified type *)
+      if ctx.ask Queries.MayBeInVLAScope then (
+        M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
+      );
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
       if M.tracing then Messages.tracel "longjmp" "reading from %s\n" (Node.show (jmptarget ctx.prev_node));
