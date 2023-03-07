@@ -56,42 +56,41 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
   let changes = empty_change_info () in
   global_typ_acc := [];
-  let findChanges map name current_global =
-    try
-      let old_global = GlobalMap.find name map in
-      let change_status, diff = eq old_global current_global cfgs in
-      let append_to_changed ~unchangedHeader =
-        changes.changed <- {current = current_global; old = old_global; unchangedHeader; diff} :: changes.changed
-      in
-      match change_status with
-      | Changed ->
-        append_to_changed ~unchangedHeader:true
-      | Unchanged -> changes.unchanged <- {current = current_global; old = old_global} :: changes.unchanged
-      | ChangedFunHeader f
-      | ForceReanalyze f ->
-        changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
-        append_to_changed ~unchangedHeader:false
-    with Not_found -> changes.added <- current_global::changes.added (* Global could not be found in old map -> added *)
-  in
 
   if GobConfig.get_bool "incremental.detect-renames" then (
     let renameDetectionResults = detectRenamedFunctions oldMap newMap in
 
-    let unchanged, changed, added, removed = GlobalColMap.fold (fun global status (u, c, a, r) ->
-        match status with
-        | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
-        | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
-        | Added -> (u, c, a @ [global], r)
-        | Removed -> (u, c, a, r @ [global])
-        | Changed (now,unchangedHeader) -> (u, c @ [{old=global; current=now; unchangedHeader=unchangedHeader; diff=None}], a, r)
-      ) renameDetectionResults (changes.unchanged, changes.changed, changes.added, changes.removed)
+    let addToChanges firstPass global status =
+      match status with
+      | SameName now when firstPass-> changes.unchanged <- {old=global; current=now} :: changes.unchanged
+      | Renamed now when firstPass -> changes.unchanged <- {old=global; current=now} :: changes.unchanged
+      | Modified (now, unchangedHeader) when firstPass -> changes.changed <- {old=global; current=now; unchangedHeader=unchangedHeader; diff=None} :: changes.changed
+      | Created -> changes.added <- global :: changes.added
+      | Deleted -> changes.removed <- global :: changes.removed
+      | _ -> () in
+
+    GlobalColMap.iter (addToChanges true) renameDetectionResults.statusForOldElem;
+    GlobalColMap.iter (addToChanges false) renameDetectionResults.statusForOldElem;
+
+  ) else (
+    let findChanges map name current_global =
+      try
+        let old_global = GlobalMap.find name map in
+        let change_status, diff = eq old_global current_global cfgs in
+        let append_to_changed ~unchangedHeader =
+          changes.changed <- {current = current_global; old = old_global; unchangedHeader; diff} :: changes.changed
+        in
+        match change_status with
+        | Changed ->
+          append_to_changed ~unchangedHeader:true
+        | Unchanged -> changes.unchanged <- {current = current_global; old = old_global} :: changes.unchanged
+        | ChangedFunHeader f
+        | ForceReanalyze f ->
+          changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
+          append_to_changed ~unchangedHeader:false
+      with Not_found -> changes.added <- current_global::changes.added (* Global could not be found in old map -> added *)
     in
 
-    changes.added <- added;
-    changes.removed <- removed;
-    changes.changed <- changed;
-    changes.unchanged <- unchanged;
-  ) else (
     (* For each function in the new file, check whether a function with the same name
        already existed in the old version, and whether it is the same function. *)
     GlobalMap.iter (fun name glob_col -> findChanges oldMap name glob_col) newMap;

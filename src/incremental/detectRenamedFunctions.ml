@@ -10,12 +10,8 @@ type v = varinfo * initinfo * location
 (*A dependency maps the function it depends on to the name the function has to be changed to*)
 type functionDependencies = string VarinfoMap.t
 
-
 (*Renamed: newName * dependencies; Modified=now*unchangedHeader*)
 type status = SameName of global_col | Renamed of global_col | Created | Deleted | Modified of global_col * bool
-type outputFunctionStatus = Unchanged of global_col | UnchangedButRenamed of global_col | Added | Removed | Changed of global_col * bool
-
-type output = outputFunctionStatus
 
 let pretty (f: status) =
   match f with
@@ -267,33 +263,11 @@ let fillStatusForUnassignedElems oldMap newMap (data: carryType) =
       assignStatusToUnassignedElem data nowF registerStatusForNowF data.statusForNowElem data.reverseMapping Created
     ) newMap
 
-let mapAnalysisResultToOutput (oldMap : global_col StringMap.t) (newMap : global_col StringMap.t) (data: carryType) : output GlobalColMap.t =
-  (*Map back to GFun and exposed function status*)
-  let extractOutput _ (s: status) =
-    let outputS = match s with
-      | SameName x -> Unchanged x
-      | Renamed x -> UnchangedButRenamed x
-      | Created -> Added
-      | Deleted -> Removed
-      | Modified (x, unchangedHeader) -> Changed (x, unchangedHeader)
-    in
-    outputS
-  in
-
-  (*Merge together old and now functions*)
-  GlobalColMap.merge (fun _ a b ->
-      if Option.is_some a then a
-      else if Option.is_some b then b
-      else None
-    )
-    (GlobalColMap.mapi extractOutput data.statusForOldElem)
-    (GlobalColMap.mapi extractOutput data.statusForNowElem)
-
-let detectRenamedFunctions (oldMap : global_col StringMap.t) (newMap : global_col StringMap.t) : output GlobalColMap.t =
+let detectRenamedFunctions (oldMap : global_col StringMap.t) (newMap : global_col StringMap.t) : carryType =
   let initialData: carryType = findSameNameMatchingGVars oldMap newMap emptyCarryType in
 
   (*Go through all functions, for all that have not been renamed *)
-  let finalData = findSameNameMatchingFunctions oldMap newMap initialData (fun oldF nowF change_status functionDependencies global_var_dependencies renamesOnSuccess data ->
+  findSameNameMatchingFunctions oldMap newMap initialData (fun oldF nowF change_status functionDependencies global_var_dependencies renamesOnSuccess data ->
       let oldG = GlobalMap.find oldF.svar.vname oldMap in
       let nowG = GlobalMap.find nowF.svar.vname newMap in
 
@@ -316,7 +290,3 @@ let detectRenamedFunctions (oldMap : global_col StringMap.t) (newMap : global_co
                   (*At this point we already know of the functions that have changed and stayed the same. We now assign the correct status to all the functions that
                     have been mapped. The functions that have not been mapped are added/removed.*)
                   fillStatusForUnassignedElems oldMap newMap
-  in
-
-  (*Done with the analyis, the following just adjusts the output types.*)
-  mapAnalysisResultToOutput oldMap newMap finalData
