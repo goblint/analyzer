@@ -326,13 +326,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     warn_on_special "Second operand" "comparison" op2
 
   (** evaluation of the unary and binary operations *)
-  let eval_unop onTop eval_operation op =
-    warn_on_specials_unop op;
+  let eval_unop ?(warn=false) eval_operation op =
+    if warn then warn_on_specials_unop op;
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
     | Interval v -> eval_operation v
-    | Top -> onTop
-    | _ -> onTop (* TODO: Do better *)
+    | Top -> top ()
+    | _ -> top () (* TODO: Do better *)
 
   let eval_binop eval_operation v1 v2 =
     let is_exact_before = is_exact (Interval v1) && is_exact (Interval v2) in
@@ -675,15 +675,15 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
-  let eval_inv_ceil = function
-    | (l, h) -> Interval (Float_t.floor (Float_t.pred l), h)
+  let eval_inv_ceil = function (*TODO*)
+    | (l, h) -> Interval (Float_t.succ( Float_t.floor (Float_t.pred l)), h)
 
-  let eval_inv_floor = function
-    | (l, h) -> Interval (l, Float_t.ceil (Float_t.succ h))
+  let eval_inv_floor = function (*TODO*)
+    | (l, h) -> Interval (l, Float_t.pred (Float_t.ceil (Float_t.succ h)))
 
   let eval_inv_fabs = function
-    | (_, h) when h > Float_t.zero -> Interval (Float_t.neg h, h)
-    | _ -> top ()
+    | (_, h) when h < Float_t.zero -> Bot  (* Result of fabs cannot be negative *)
+    | (_, h) -> Interval (Float_t.neg h, h)
 
   let isfinite op =
     match op with
@@ -751,16 +751,23 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | PlusInfinity -> PlusInfinity
     | MinusInfinity -> MinusInfinity
 
-  let acos = eval_unop (top ()) eval_acos
-  let asin = eval_unop (top ()) eval_asin
-  let atan = eval_unop (top ()) eval_atan
-  let cos = eval_unop (top ()) eval_cos
-  let sin = eval_unop (top ()) eval_sin
-  let tan = eval_unop (top ()) eval_tan
+  let acos = eval_unop eval_acos
+  let asin = eval_unop eval_asin
+  let atan = eval_unop eval_atan
+  let cos = eval_unop eval_cos
+  let sin = eval_unop eval_sin
+  let tan = eval_unop eval_tan
 
-  let inv_ceil = eval_unop (top ()) eval_inv_ceil
-  let inv_floor = eval_unop (top ()) eval_inv_floor
-  let inv_fabs = eval_unop (top ()) eval_inv_fabs
+  let inv_ceil = eval_unop ~warn:false eval_inv_ceil
+  let inv_floor = eval_unop ~warn:false eval_inv_floor
+  let inv_fabs op =
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Top -> Top
+    | Interval v -> eval_inv_fabs v
+    | NaN -> NaN (* so we assume, fabs(NaN) = NaN?)*)
+    | PlusInfinity -> Top (* +/-inf *)
+    | MinusInfinity -> Bot
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)
