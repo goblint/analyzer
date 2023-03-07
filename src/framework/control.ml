@@ -34,7 +34,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
           ) in
   GobConfig.building_spec := false;
-  Analyses.control_spec_c := (module S1.C);
+  ControlSpecC.control_spec_c := (module S1.C);
   (module S1)
 )
 
