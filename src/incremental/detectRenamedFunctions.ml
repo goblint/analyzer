@@ -15,7 +15,7 @@ type functionDependencies = string VarinfoMap.t
 type status = SameName of global_col | Renamed of global_col | Created | Deleted | Modified of global_col * bool
 type outputFunctionStatus = Unchanged of global_col | UnchangedButRenamed of global_col | Added | Removed | Changed of global_col * bool
 
-type output = global_col * outputFunctionStatus
+type output = outputFunctionStatus
 
 let pretty (f: status) =
   match f with
@@ -269,7 +269,7 @@ let fillStatusForUnassignedElems oldMap newMap (data: carryType) =
 
 let mapAnalysisResultToOutput (oldMap : global_col StringMap.t) (newMap : global_col StringMap.t) (data: carryType) : output GlobalColMap.t =
   (*Map back to GFun and exposed function status*)
-  let extractOutput f (s: status) =
+  let extractOutput _ (s: status) =
     let outputS = match s with
       | SameName x -> Unchanged x
       | Renamed x -> UnchangedButRenamed x
@@ -277,7 +277,7 @@ let mapAnalysisResultToOutput (oldMap : global_col StringMap.t) (newMap : global
       | Deleted -> Removed
       | Modified (x, unchangedHeader) -> Changed (x, unchangedHeader)
     in
-    f, outputS
+    outputS
   in
 
   (*Merge together old and now functions*)

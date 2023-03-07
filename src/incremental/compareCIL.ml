@@ -72,7 +72,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   if GobConfig.get_bool "incremental.detect-renames" then (
     let renameDetectionResults = detectRenamedFunctions oldMap newMap in
 
-    let unchanged, changed, added, removed = GlobalColMap.fold (fun _ (global, status) (u, c, a, r) ->
+    let unchanged, changed, added, removed = GlobalColMap.fold (fun global status (u, c, a, r) ->
         match status with
         | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
         | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
