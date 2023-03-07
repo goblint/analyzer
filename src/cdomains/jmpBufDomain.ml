@@ -28,6 +28,16 @@ struct
   let meet = inter
 end
 
+module JmpBufSetTaint =
+struct
+  module Bufs = JmpBufSet
+  include Lattice.Prod(JmpBufSet)(BoolDomain.MayBool)
+  let buffers (a,_) = a
+  let copied (_,b) = b
+  let name () = "JumpbufferCopyTaint"
+end
+
+
 (* module JmpBufSet =
    struct
    include SetDomain.ToppedSet (BufferEntry) (struct let topname = "All jumpbufs" end)

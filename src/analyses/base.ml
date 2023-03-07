@@ -1253,7 +1253,7 @@ struct
        | `Address jmp_buf ->
          if AD.mem Addr.UnknownPtr jmp_buf then M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
          begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
-           | `JmpBuf x -> x
+           | `JmpBuf (x, t) -> if t then M.warn "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;x
            | y -> failwith (Printf.sprintf "problem?! is %s %s:\n state is %s" (CilType.Exp.show e) (VD.show y) (Pretty.sprint ~width:5000 (D.pretty () ctx.local)))
          end
        | _ -> failwith "problem?!");
@@ -1673,6 +1673,7 @@ struct
     in
     char_array_hack ();
     let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
+    let rval_val = VD.mark_jmpbufs_as_copied rval_val in
     let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
     (* M.debug ~category:Analyzer @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
@@ -2236,7 +2237,7 @@ struct
       (let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
            | `Address jmp_buf ->
              let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-             let value = `JmpBuf (ValueDomain.JmpBufs.singleton (Target (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx)))) in
+             let value = `JmpBuf ((ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx)))),false) in
              let r = set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value in
              M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env  D.pretty st  D.pretty r;
              r

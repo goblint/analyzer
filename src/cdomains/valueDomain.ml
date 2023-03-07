@@ -35,6 +35,7 @@ sig
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
   val project: Q.ask -> int_precision option-> ( attributes * attributes ) option -> t -> t
+  val mark_jmpbufs_as_copied: t -> t
 end
 
 module type Blob =
@@ -66,7 +67,7 @@ struct
 end
 
 module Threads = ConcDomain.ThreadSet
-module JmpBufs = JmpBufDomain.JmpBufSet
+module JmpBufs = JmpBufDomain.JmpBufSetTaint
 
 module rec Compound: S with type t = [
     | `Top
@@ -131,7 +132,7 @@ struct
       let len = array_length_idx (IndexDomain.bot ()) length in
       `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
-    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.empty ())
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.Bufs.empty (), false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
 
@@ -942,7 +943,7 @@ struct
           | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
           | _ ->
             if !GU.global_initialization then
-              `JmpBuf (JmpBufs.empty ()) (* if assigning global init, use empty set instead *)
+              `JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
             else
               `Top
         end
@@ -1105,6 +1106,14 @@ struct
       end
     | _ -> v
 
+  let rec mark_jmpbufs_as_copied (v:t):t =
+    match v with
+    | `JmpBuf (v,t) -> `JmpBuf (v, true)
+    | `Array n -> `Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
+    | `Struct n -> `Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
+    | `Union (f, n) -> `Union (f, mark_jmpbufs_as_copied n)
+    | `Blob (a,b,c) -> `Blob (mark_jmpbufs_as_copied a, b,c)
+    | _ -> v
 
   let printXml f state =
     match state with
