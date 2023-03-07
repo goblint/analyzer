@@ -42,7 +42,7 @@ let getFunctionAndGVarMap (ast: file) : f StringMap.t * v StringMap.t =
 let performRenames (renamesOnSuccess: renamesOnSuccess) =
   begin
     let (compinfoRenames, enumRenames) = renamesOnSuccess in
-    List.iter (fun (compinfo2, compinfo1) -> compinfo2.cname <- compinfo1.cname) compinfoRenames;
+    List.iter (fun (compinfo2, compinfo1) -> compinfo2.cname <- compinfo1.cname; compinfo2.ckey <- compinfo1.ckey) compinfoRenames;
     List.iter (fun (enum2, enum1) -> enum2.ename <- enum1.ename) enumRenames;
   end
 

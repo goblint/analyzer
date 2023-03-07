@@ -5,20 +5,25 @@ include CompareAST
 include CompareCFG
 open CilMaps
 
-let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) option) = match old.def, current.def with
-  | Some (Var x), Some (Var y) -> unchanged_to_change_status (eq_varinfo x y ~rename_mapping:empty_rename_mapping |> fst), None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | Some (Fun f), Some (Fun g) -> (
+let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) option) =
+  let identical, diff, renamesOnSuccess = match old.def, current.def with
+    | Some (Var x), Some (Var y) ->
+      let identical, (_,_,_,renamesOnSuccess) = eq_varinfo x y ~rename_mapping:empty_rename_mapping in
+      unchanged_to_change_status identical, None, renamesOnSuccess (* ignore the init_info - a changed init of a global will lead to a different start state *)
+    | Some (Fun f), Some (Fun g) -> (
       let identical, diffOpt, funDep, globVarDep, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
       (*Perform renames no matter what.*)
-      let _ = performRenames renamesOnSuccess in
       match identical with
-      | Unchanged when not (VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep) -> Changed, diffOpt
-      | s -> s, diffOpt)
-  | None, None -> (match old.decls, current.decls with
-      | Some x, Some y -> unchanged_to_change_status (eq_varinfo x y ~rename_mapping:empty_rename_mapping |> fst), None
-      | _, _ -> failwith "should never collect any empty entries in GlobalMap")
-  | _, _ -> Changed, None (* it is considered to be changed (not added or removed) because a global collection only exists in the map
-                             if there is at least one declaration or definition for this global *)
+      | Unchanged when not (VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep) -> Changed, diffOpt, renamesOnSuccess
+      | s -> s, diffOpt, renamesOnSuccess)
+    | None, None -> (match old.decls, current.decls with
+        | Some x, Some y ->
+          let identical, (_,_,_,renamesOnSuccess) = eq_varinfo x y ~rename_mapping:empty_rename_mapping in
+          unchanged_to_change_status identical, None, renamesOnSuccess
+        | _, _ -> failwith "should never collect any empty entries in GlobalMap")
+    | _, _ -> Changed, None, ([], []) (* it is considered to be changed (not added or removed) because a global collection only exists in the map if there is at least one declaration or definition for this global *) in
+  performRenames renamesOnSuccess; (* updates enum names and compinfo names and keys that were collected during successful comparisons *)
+  identical, diff
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"

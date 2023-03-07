@@ -165,15 +165,11 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
       else (
         let acc = (a, b) :: acc in
         let (res, rm) = eq_compinfo compinfo1 compinfo2 acc rename_mapping &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2 in
-        let updated_rm: rename_mapping =
-          if res then
+        let updated_rm =
+          if res then (
             global_typ_acc := (a, b) :: !global_typ_acc;
-          (* Reset cnames and ckeys to the old value. Only affects anonymous structs/unions where names are not checked for equality. *)
-          (* TODO
-              compinfo2.cname <- compinfo1.cname;
-              compinfo2.ckey <- compinfo1.ckey;
-          *)
-          register_rename_on_success rm (Some((compinfo2, compinfo1))) None
+            register_rename_on_success rm (Some((compinfo2, compinfo1))) None
+          ) else rm
         in
         res, updated_rm
       )
