@@ -605,8 +605,6 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
-  let context_cpa fd (st: store) = (context fd st).cpa
-
   let convertToQueryLval x =
     let rec offsNormal o =
       let ik = Cilfacade.ptrdiff_ikind () in
@@ -2509,8 +2507,6 @@ module type MainSpec = sig
   include BaseDomain.ExpEvaluator
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
-  type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
 let main_module: (module MainSpec) Lazy.t =
