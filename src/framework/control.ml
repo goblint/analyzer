@@ -600,7 +600,6 @@ struct
       let active_transformations = get_string_list "trans.activated" in
       (if active_transformations <> [] then
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
-        (* TODO: would it not be better to work by CFG node here? all transformations just go stmt->location anyway *)
         let joined =
           let open Batteries in let open Enum in
           let e = LHT.enum lh |> map (Tuple2.map1 (Node.location % fst)) in (* drop context from key and get location from node *)
@@ -613,33 +612,26 @@ struct
           h
         in
 
-        (* Map locations of functions to their IDs, so queries can ask about functions. *)
-        let fid_by_loc = Hashtbl.create 37 in
-        LHT.enum lh
-          |> Enum.map (fst %> fst) (* grab node from key in key-value pair *)
-          |> Enum.iter (function
-              | (Function fd | FunctionEntry fd) as n -> Hashtbl.replace fid_by_loc (Node.location n) fd.svar.vid
-              | _ -> ()) ;
-
-        let ask ~node loc = (fun (type a) (q: a Queries.t) ->
-            let local = Hashtbl.find_option joined loc in
-            match q with
-            (* location is dead when its abstract value is bottom in all contexts;
-               it holds that: bottom in all contexts iff. bottom in the join of all contexts *)
-            | Queries.MustBeDead -> (Stdlib.Option.fold ~none:false ~some:Spec.D.is_bot local : a)
-            (* | Queries.MustBeDead -> (Stdlib.Option.fold ~none:false ~some:snd local : a) *)
-            | Queries.MustBeUncalled -> (
-              match Hashtbl.find_option fid_by_loc loc with
-              | Some fid -> not (BatSet.Int.mem fid calledFuns)
-              | None -> true : a) (* Stdlib.Option.(fid |> map (fun id -> BatSet.Int.mem id calledFuns) |> fold ~none:true ~some:not) *)
-            | _ ->
-              match local with
-              | None -> Queries.Result.bot q
-              | Some local -> Query.ask_local_node gh node local q
-          )
+        let ask ?(node = MyCFG.dummy_node) loc =
+          let f (type a) (q : a Queries.t) : a =
+            match Hashtbl.find_option joined loc with
+            | None -> Queries.Result.bot q
+            | Some local -> Query.ask_local_node gh node local q
+          in
+          ({ f } : Queries.ask)
         in
-        let ask ?(node=MyCFG.dummy_node) loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask ~node loc q } in
-        Transform.run_transforms file active_transformations ask
+
+        (* A statement (here: its location) is dead when its abstract value is bottom in all contexts;
+           it holds that: bottom in all contexts iff. bottom in the join of all contexts. Statements
+            that don't appear in the result are not marked dead; this includes compound statements. *)
+        let must_be_dead stmt =
+          Hashtbl.find_option joined (Cilfacade.get_stmtLoc stmt)
+          |> Stdlib.Option.fold ~none:false ~some:Spec.D.is_bot
+        in
+
+        let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
+
+        Transform.run_transformations file active_transformations { ask ; must_be_dead ; must_be_uncalled }
       );
 
       lh, gh

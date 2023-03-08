@@ -131,7 +131,7 @@ and complete args =
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
 let check_arguments () =
-  let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in(* unused now, but might be useful for future checks here *)
+  let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
@@ -143,6 +143,13 @@ let check_arguments () =
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
+  (* 'assert' transform happens before 'remove_dead_code' transform *)
+  ignore @@ List.fold_left
+    (fun deadcodeTransOccurred t ->
+      if deadcodeTransOccurred && t = "assert" then
+        fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
+        deadcodeTransOccurred || t = "remove_dead_code")
+    false (get_string_list "trans.activated");
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
 

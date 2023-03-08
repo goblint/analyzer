@@ -2,15 +2,23 @@ open Prelude
 open GoblintCil
 module M = Messages
 
+(* The GADT-based approach of Query.t is overkill here *)
+type queries = {
+  ask : ?node:Node.t -> Cil.location -> Queries.ask ;
+  must_be_dead : stmt -> bool ;
+  must_be_uncalled : fundec -> bool ;
+}
+
 module type S = sig
-  val transform : (?node:Node.t -> Cil.location -> Queries.ask) -> file -> unit (* modifications are done in-place by CIL :( *)
+  val transform : queries -> file -> unit (* modifications are done in-place by CIL :( *)
+  val name : string
   val requires_file_output : bool
 end
 
 let h = Hashtbl.create 13
-let register name (module T : S) = Hashtbl.replace h name (module T : S)
+let register (module T : S) = Hashtbl.replace h T.name (module T : S)
 
-let run_transforms ?(file_output = true) file names ask =
+let run_transformations ?(file_output = true) file names ask =
   let active_transformations =
     List.filter_map
     (fun name ->
@@ -28,7 +36,7 @@ let run_transforms ?(file_output = true) file names ask =
     dumpFile defaultCilPrinter oc assert_filename file;
     Stdlib.close_out oc
 
-let run file name = run_transforms ~file_output:false file [name]
+let run file name = run_transformations ~file_output:false file [name]
 
 module PartialEval = struct
   let loc = ref locUnknown (* when we visit an expression, we need the current location -> store at stmts *)
@@ -51,9 +59,11 @@ module PartialEval = struct
       | Const _ -> SkipChildren
       | _ -> ChangeDoChildrenPost (e, eval)
   end
-  let transform ask file =
-    visitCilFile (new visitor ask) file
+  let transform q file =
+    visitCilFile (new visitor q.ask) file
+
+  let name = "partial"
 
   let requires_file_output = false
 end
-let _ = register "partial" (module PartialEval)
+let _ = register (module PartialEval)

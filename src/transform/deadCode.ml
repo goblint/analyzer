@@ -32,16 +32,13 @@ let filter_map_block f (block : Cil.block) : bool =
 
 
 module RemoveDeadCode : Transform.S = struct
-  let transform (ask : ?node:Node.t -> Cil.location -> Queries.ask) (file : file) : unit =
-
-    (* TODO: is making this all location-based safe? does it play nicely with incremental analysis? what about pseudo-returns? *)
-    let loc_live loc = not @@ (ask loc).f Queries.MustBeDead in
+  let transform (q : Transform.queries) (file : file) : unit =
 
     (* whether a statement (might) still be live, and should therefore be kept *)
-    let stmt_live = Cilfacade0.get_stmtLoc %> loc_live in
+    let stmt_live : stmt -> bool = not % q.must_be_dead in
 
     (* whether a global function (might) still be live, and should therefore be kept *)
-    let fundec_live (fd : fundec) = not @@ (ask @@ fd.svar.vdecl).f Queries.MustBeUncalled in
+    let fundec_live : fundec -> bool = not % q.must_be_uncalled in
 
     (* step 1: remove statements found to be dead *)
     Cil.iterGlobals file
@@ -62,9 +59,11 @@ module RemoveDeadCode : Transform.S = struct
       removeUnusedTemps ~isRoot:(function GFun (fd, _) -> fundec_live fd | _ -> false) file
     )
 
+  let name = "remove_dead_code"
+
   let requires_file_output = true
 
 end
 
 (* TODO: change name from remove_dead_code -> dead_code (?) *)
-let _ = Transform.register "remove_dead_code" (module RemoveDeadCode)
+let _ = Transform.register (module RemoveDeadCode)
