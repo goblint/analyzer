@@ -113,14 +113,6 @@ struct
     else
       Spec.context fd @@ Dom.choose_key l
 
-  let conv ctx x =
-    (* TODO: R.bot () isn't right here *)
-    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
-                            ; local = x
-                            ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
-    in
-    ctx'
-
   let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
     match Sync.find i sync with
@@ -138,6 +130,18 @@ struct
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
   let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
+
+  let conv ctx x =
+    (* TODO: R.bot () isn't right here *)
+    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
+                            ; local = x
+                            ; split }
+    and split x' es =
+      let r = step ctx.prev_node (ctx.context ()) x (CFGEdge ctx.edge) (Sync.singleton x (SyncSet.singleton x)) in
+      let x'' = (Dom.singleton x' r, Sync.bot ()) in
+      ctx.split x'' es
+    in
+    ctx'
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
