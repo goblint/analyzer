@@ -2220,30 +2220,18 @@ struct
           st
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
-    | _, _ -> begin
-        let st =
-          special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
-          (*
-           *  TODO: invalidate vars reachable via args
-           *  publish globals
-           *  if single-threaded: *call f*, privatize globals
-           *  else: spawn f
-           *)
-        in
-        (* invalidate lhs in case of assign *)
-        let st = invalidate_ret_lv st in
-        (* apply all registered abstract effects from other analysis on the base value domain *)
-        LibraryFunctionEffects.effects_for f.vname args
-        |> List.to_seq
-        |> Seq.map (fun sets ->
-            BatList.fold_left (fun acc (lv, x) ->
-                set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
-              ) st sets
-          )
-        |> Seq.fold_left D.meet st
-
-        (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
-      end
+    | _, _ ->
+      let st =
+        special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+        (*
+          *  TODO: invalidate vars reachable via args
+          *  publish globals
+          *  if single-threaded: *call f*, privatize globals
+          *  else: spawn f
+          *)
+      in
+      (* invalidate lhs in case of assign *)
+      invalidate_ret_lv st
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
