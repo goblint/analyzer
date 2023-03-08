@@ -197,7 +197,8 @@ struct
     f n (assoc_dom n) d
 
   let pretty () = unop_map (fun n (module S: Printable.S) x ->
-      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
+      let analysis_name = find_spec_name n in
+      Pretty.dprintf "%s:%a" analysis_name S.pretty (obj x)
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->
@@ -257,6 +258,7 @@ struct
   open Obj
 
   include DomVariantPrintable (PrintableOfSysVarSpec (DLSpec))
+  let name () = "MCP.V"
 
   let unop_map f ((n, d):t) =
     f n (assoc_dom n) d

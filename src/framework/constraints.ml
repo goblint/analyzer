@@ -450,8 +450,8 @@ struct
     | `G x -> `G (GV.relift x)
 
   let pretty_trace () = function
-    | `L a -> LV.pretty_trace () a
-    | `G a -> GV.pretty_trace () a
+    | `L a -> Pretty.dprintf "L:%a" LV.pretty_trace a
+    | `G a -> Pretty.dprintf "G:%a" GV.pretty_trace a
 
   let printXml f = function
     | `L a -> LV.printXml f a
@@ -1211,6 +1211,7 @@ struct
   module V =
   struct
     include Printable.Either (S.V) (Node)
+    let name () = "DeadBranch"
     let s x = `Left x
     let node x = `Right x
     let is_write_only = function
