@@ -131,15 +131,18 @@ struct
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
   let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
 
+  let nosync x = Sync.singleton x (SyncSet.singleton x)
+
   let conv ctx x =
-    (* TODO: R.bot () isn't right here *)
-    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
-                            ; local = x
-                            ; split }
-    and split x' es =
-      let r = step ctx.prev_node (ctx.context ()) x (CFGEdge ctx.edge) (Sync.singleton x (SyncSet.singleton x)) in
-      let x'' = (Dom.singleton x' r, Sync.bot ()) in
-      ctx.split x'' es
+    let rec ctx' =
+      { ctx with
+        local = x;
+        ask = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q);
+        split;
+      }
+    and split y es =
+      let yr = step_ctx_edge ctx x in
+      ctx.split (Dom.singleton y yr, Sync.bot ()) es
     in
     ctx'
 
@@ -177,17 +180,11 @@ struct
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
-  (* TODO: do additional witness things here *)
   let threadenter ctx lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
-          (* R.bot () isn't right here? doesn't actually matter? *)
-          (* let yr = step_ctx ctx x' (InlineEntry (lval, dummyFunDec, args)) in *)
-          let yr = step ctx.prev_node (ctx.context ()) x' (InlineEntry (lval, dummyFunDec, args)) ((Sync.singleton x' (SyncSet.singleton x'))) in
-          ignore (Pretty.printf "yr = %a\n" R.pretty yr);
-          (* keep left syncs so combine gets them for no-inline case *)
-
-          (* let nosync = (Sync.singleton y (SyncSet.singleton x')) in *)
+          (* TODO: no dummyFunDec *)
+          let yr = step ctx.prev_node (ctx.context ()) x' (InlineEntry (lval, dummyFunDec, args)) (nosync x') in (* threadenter called on before-sync state *)
           (Dom.singleton y yr, Sync.bot ())
         ) ys
       in
@@ -264,9 +261,8 @@ struct
     let k x (y, sync) =
       let r =
         if should_inline f then
-          let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) nosync in (* fc should be Some outside of MCP *)
+          let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) (nosync x) in (* fc should be Some outside of MCP *)
           let procr = step_ctx_inlined_edge ctx cd in
           R.join procr returnr
         else
