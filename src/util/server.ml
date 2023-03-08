@@ -609,7 +609,11 @@ let () =
       node: string;
       exp: string;
     } [@@deriving of_yojson]
-    type response = Yojson.Safe.t [@@deriving to_yojson]
+    type response = {
+      raw: Yojson.Safe.t;
+      int: GobZ.t option;
+      bool: bool option;
+    } [@@deriving to_yojson]
     let process {node; exp} serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
       let open ArgWrapper in
@@ -624,7 +628,11 @@ let () =
             begin match InvariantParser.parse_cil (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
               | Ok exp ->
                 let x = Arg.query n (EvalInt exp) in
-                Queries.ID.to_yojson x
+                {
+                  raw = Queries.ID.to_yojson x;
+                  int = Queries.ID.to_int x;
+                  bool = Queries.ID.to_bool x;
+                }
               | Error e ->
                 Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
             end
