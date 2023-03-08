@@ -183,8 +183,7 @@ struct
   let threadenter ctx lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
-          (* TODO: no dummyFunDec *)
-          let yr = step ctx.prev_node (ctx.context ()) x' (InlineEntry (lval, dummyFunDec, args)) (nosync x') in (* threadenter called on before-sync state *)
+          let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
           (Dom.singleton y yr, Sync.bot ())
         ) ys
       in

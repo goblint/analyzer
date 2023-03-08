@@ -36,6 +36,7 @@ type inline_edge =
   | InlineEntry of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
   | InlineReturn of CilType.Lval.t option * CilType.Fundec.t * CilType.Exp.t list
   | InlinedEdge of Edge.t
+  | ThreadEntry of CilType.Lval.t option * CilType.Varinfo.t * CilType.Exp.t list
 [@@deriving eq, ord, hash]
 
 let pretty_inline_edge () = function
@@ -44,6 +45,7 @@ let pretty_inline_edge () = function
   | InlineReturn (None, _, _) -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret, _, _) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
   | InlinedEdge e -> Pretty.dprintf "Inlined %a" Edge.pretty_plain e
+  | ThreadEntry (_, _, args) -> Pretty.dprintf "ThreadEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
 
 let inline_edge_to_yojson = function
   | CFGEdge e ->
@@ -69,6 +71,14 @@ let inline_edge_to_yojson = function
   | InlinedEdge e ->
     `Assoc [
       ("inlined", Edge.to_yojson e)
+    ]
+  | ThreadEntry (lval, function_, args) ->
+    `Assoc [
+      ("thread", `Assoc [
+          ("lval", [%to_yojson: CilType.Lval.t option] lval);
+          ("function", CilType.Varinfo.to_yojson function_);
+          ("args", [%to_yojson: CilType.Exp.t list] args);
+        ]);
     ]
 
 module InlineEdgePrintable: Printable.S with type t = inline_edge =
