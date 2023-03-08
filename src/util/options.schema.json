@@ -983,6 +983,12 @@
               "type": "array",
               "items": { "type": "string" },
               "default": []
+            },
+            "unique_thread_id_count": {
+              "title": "ana.thread.unique_thread_id_count",
+              "description": "Number of unique thread IDs allocated for each pthread_create node.",
+              "type": "integer",
+              "default": 0
             }
           },
           "additionalProperties": false
