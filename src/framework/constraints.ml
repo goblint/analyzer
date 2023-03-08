@@ -839,7 +839,10 @@ struct
                  (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
                   sidel (LongjmpFromFunction current_fundec, ctx.context ()) res))
         in
-        JmpBufDomain.JmpBufSet.iter handle_longjmp targets
+        if JmpBufDomain.JmpBufSet.is_empty targets then
+          M.warn "Longjmp to potentially invalid target (%a is bot?!)"  d_exp env
+        else
+          JmpBufDomain.JmpBufSet.iter handle_longjmp targets
       )
       in
       List.iter one_path (S.paths_as_set ctx);
