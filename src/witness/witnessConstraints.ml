@@ -178,8 +178,12 @@ struct
     let g xs x' ys =
       let ys' = List.map (fun y ->
           (* R.bot () isn't right here? doesn't actually matter? *)
-          let yr = R.bot () in
+          (* let yr = step_ctx ctx x' (InlineEntry (lval, dummyFunDec, args)) in *)
+          let yr = step ctx.prev_node (ctx.context ()) x' (InlineEntry (lval, dummyFunDec, args)) ((Sync.singleton x' (SyncSet.singleton x'))) in
+          ignore (Pretty.printf "yr = %a\n" R.pretty yr);
           (* keep left syncs so combine gets them for no-inline case *)
+
+          (* let nosync = (Sync.singleton y (SyncSet.singleton x')) in *)
           (Dom.singleton y yr, Sync.bot ())
         ) ys
       in
