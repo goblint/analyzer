@@ -25,7 +25,7 @@ main() {
       if (*t->g) { g=1; }
       // This refinement somehow adds bottom for keyword as an explicit binding (???)
       set_key(t);
-      longjmp(env_buffer, 2);
+      longjmp(env_buffer, 2); //NOWARN
       break;
     case 2:
       return;

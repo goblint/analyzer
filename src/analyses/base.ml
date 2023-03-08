@@ -1532,9 +1532,12 @@ struct
           (* within invariant, a change to the way arrays are partitioned is not necessary *)
           List.fold_left (fun x y -> effect_on_array (not invariant) y x) st affected_arrays
         in
-        let x_updated = update_variable x t new_value st.cpa in
-        let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
-        effect_on_arrays a with_dep
+        if VD.is_bot new_value && invariant && not (CPA.mem x st.cpa) then
+          st
+        else
+          let x_updated = update_variable x t new_value st.cpa in
+          let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
+          effect_on_arrays a with_dep
       end
     in
     let update_one x store =
