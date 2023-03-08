@@ -14,7 +14,7 @@ let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) 
       let identical, diffOpt, funDep, globVarDep, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
       (*Perform renames no matter what.*)
       match identical with
-      | Unchanged when not (VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep) -> Changed, diffOpt, renamesOnSuccess
+      | Unchanged when not (VarinfoMap.is_empty funDep && VarinfoMap.for_all (fun ov nv -> ov.vname = nv.vname) globVarDep) -> Changed, diffOpt, renamesOnSuccess
       | s -> s, diffOpt, renamesOnSuccess)
     | None, None -> (match old.decls, current.decls with
         | Some x, Some y ->
@@ -58,19 +58,12 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   global_typ_acc := [];
 
   if GobConfig.get_bool "incremental.detect-renames" then (
-    let renameDetectionResults = detectRenamedFunctions oldMap newMap in
-
-    let addToChanges firstPass global status =
-      match status with
-      | SameName now when firstPass-> changes.unchanged <- {old=global; current=now} :: changes.unchanged
-      | Renamed now when firstPass -> changes.unchanged <- {old=global; current=now} :: changes.unchanged
-      | Modified (now, unchangedHeader) when firstPass -> changes.changed <- {old=global; current=now; unchangedHeader=unchangedHeader; diff=None} :: changes.changed
-      | Created -> changes.added <- global :: changes.added
-      | Deleted -> changes.removed <- global :: changes.removed
-      | _ -> () in
-
-    GlobalColMap.iter (addToChanges true) renameDetectionResults.statusForOldElem;
-    GlobalColMap.iter (addToChanges false) renameDetectionResults.statusForOldElem;
+    let (change_info, final_mapping) = detectRenamedFunctions oldMap newMap in
+    changes.added <- change_info.added;
+    changes.removed <- change_info.removed;
+    changes.changed <- change_info.changed;
+    changes.unchanged <- change_info.unchanged;
+    changes.exclude_from_rel_destab <- change_info.exclude_from_rel_destab
 
   ) else (
     let findChanges map name current_global =
