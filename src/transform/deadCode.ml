@@ -65,5 +65,4 @@ module RemoveDeadCode : Transform.S = struct
 
 end
 
-(* TODO: change name from remove_dead_code -> dead_code (?) *)
 let _ = Transform.register (module RemoveDeadCode)
