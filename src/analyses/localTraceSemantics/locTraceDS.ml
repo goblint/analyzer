@@ -396,6 +396,16 @@ in find_returning_node_helper node_start 1
         | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
     in loop allNodes
 
+    
+    let get_first_node graph =
+      let allNodes = get_all_nodes graph
+    in
+    let rec loop nodeList =
+      match nodeList with
+      | x::xs -> if (List.is_empty (get_predecessors_edges graph x)) then x else loop xs
+      | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
+    in loop allNodes
+
     let get_all_nodes_progPoint graph programPoint=
     let allNodes = get_all_nodes graph
   in 
@@ -471,6 +481,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
         in
         loop edgeList1
       )
+
   let merge_graphs graph1 graph2 =
     List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)  
 
@@ -523,16 +534,56 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
           loop nextNode
           )
         in loop lastNode1
-        (* let creatingNode1 = find_creating_node (get_last_node graph1) graph1
-      in
-      let creatingNode2 = find_creating_node (get_last_node graph2) graph2
+
+    let exists_lock_mutex graph mutexVinfo =
+      let allEdges = get_all_edges graph
     in
-    match (exists_node graph2 creatingNode1),(exists_node graph1 creatingNode2) with
-     true, true -> if precedes_other_node creatingNode1 creatingNode2 graph1 then creatingNode1
-     else creatingNode2
-    |false, true -> creatingNode2
-    | true, false -> creatingNode1
-    | false, false -> {programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty} *)
+    let rec loop (edgeList:LocTraceGraph.edge list) =
+      match edgeList with
+      | (_, Proc(None, Lval(Var(lvalVinfo), _),[AddrOf(Var(argVinfo), _)]), _) ::xs -> 
+        if (String.equal lvalVinfo.vname "pthread_mutex_lock") && (CilType.Varinfo.equal mutexVinfo argVinfo) then true else loop xs
+      | x::xs -> loop xs
+      | [] -> false
+      in loop allEdges
+
+    let remove_first_lock graph mutexVinfo =
+      let allEdges = get_all_edges graph
+    in
+    let firstNode = get_first_node graph
+    in
+    List.fold (fun (graphAcc:t) ((prev_node, edge, dest_node):node*CustomEdge.t*node) -> 
+      if (NodeImpl.equal prev_node firstNode)
+        &&(match edge with DepMutex(edgeVinfo) -> CilType.Varinfo.equal mutexVinfo edgeVinfo
+      | _ -> false) then graphAcc
+       else extend_by_gEdge graphAcc (prev_node, edge, dest_node) 
+      ) (LocTraceGraph.empty) allEdges
+
+      module DepMutexCount = Map.Make(CilType.Varinfo)
+    let is_valid_merged_graph graph =
+      let allNodes = get_all_nodes graph
+    in let rec loop nodeList =
+      match nodeList with node::xs ->
+      let edgeList:(node* CustomEdge.t* node) list = get_successors_edges graph node
+      in 
+      print_string ("edgeList=["^(List.fold (fun s_fold edge_fold -> (show_edge edge_fold)^", "^s_fold) "" edgeList)^"]\n");
+      let depCount = List.fold (fun count_fold (edge_fold:LocTraceGraph.edge) ->
+        match edge_fold with (prev_node,DepMutex(vinfo),dest_node) -> 
+          if DepMutexCount.mem vinfo count_fold 
+            then (
+              print_string ("vinfo already contained in count_fold\n");
+              DepMutexCount.add vinfo ((DepMutexCount.find vinfo count_fold)+1) count_fold 
+              )
+          else (
+            print_string ("vinfo not yet contained in count_fold\n");
+          DepMutexCount.add vinfo 1 count_fold
+          )
+          | _ -> count_fold
+        ) DepMutexCount.empty edgeList
+    in 
+    print_string ("depCount=["^(DepMutexCount.fold (fun vinfo_fold count_fold s_fold -> "("^(CilType.Varinfo.show vinfo_fold)^", "^(string_of_int count_fold)^"), "^s_fold) depCount "")^"]\n");
+    if DepMutexCount.exists (fun vinfo_exists count_exists -> if count_exists > 1 then true else false) depCount then false else loop xs
+      | [] -> true
+      in loop allNodes
 
   end
 
