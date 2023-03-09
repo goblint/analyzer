@@ -675,11 +675,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
-  let eval_inv_ceil = function (*TODO*)
-    | (l, h) -> Interval (Float_t.succ( Float_t.floor (Float_t.pred l)), h)
+  let eval_inv_ceil = function (*TODO: can probably be more precise*)
+    | (l, h) -> Interval (Float_t.lower_bound, h)
 
-  let eval_inv_floor = function (*TODO*)
-    | (l, h) -> Interval (l, Float_t.pred (Float_t.ceil (Float_t.succ h)))
+  let eval_inv_floor = function (*TODO: can probably be more precise*)
+    | (l, h) -> Interval (l, Float_t.upper_bound)
 
   let eval_inv_fabs = function
     | (_, h) when h < Float_t.zero -> Bot  (* Result of fabs cannot be negative *)

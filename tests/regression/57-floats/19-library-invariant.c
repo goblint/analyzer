@@ -54,12 +54,12 @@ void main() {
   // ceil, floor
   if(ceil(f) == 5.) {
     __goblint_check(f <= 5.);
-    __goblint_check(f > 4.);
+    __goblint_check(f > 4.);    // TODO
     __goblint_check(f >= 4.5);  // UNKNOWN!
   }
   if(floor(f) == 5.) {
     __goblint_check(f >= 5.);
-    __goblint_check(f < 6.);
+    __goblint_check(f < 6.);    // TODO
     __goblint_check(f >= 5.5);  // UNKNOWN!
   }
 }
