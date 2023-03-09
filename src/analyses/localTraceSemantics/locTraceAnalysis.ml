@@ -107,8 +107,9 @@ let lastCandidateNode = LocalTraces.get_last_node candidate
 print_string ("customGraph="^(LocalTraces.show customGraph)^"\n");
 print_string("candidate="^(LocalTraces.show candidate)^"\n");
  let tmp_graph =
-      if  (not (check_exists_unlock_lock candidate customGraph ))
-          &&(check_prefix candidate customGraph )
+      if  
+        (not (check_exists_unlock_lock candidate customGraph ))&&
+          (check_prefix candidate customGraph )
           &&(check_compatible_lockSets lastCandidateNode lastGraphNode) 
            then (
             print_string "mutexLock_join passed all checks\n";
@@ -389,11 +390,21 @@ let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=si
   in
     let allUnlockingTraces = ctx.global myTmp
 in
+let tmpGraph = if (LocalTraces.exists_lock_mutex graph customMutex) then graph 
+else (
+  let firstNode = LocalTraces.get_first_node graph
+in
+print_string ("In special, firstNode is "^(NodeImpl.show firstNode)^"\n");
+let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(customMutex),{programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls})
+in
+LocalTraces.extend_by_gEdge graph firstLockEdge
+) 
+in
 let lockedGraphList =  if D.is_empty allUnlockingTraces then (
-  let lockedGraph = LocalTraces.extend_by_gEdge graph lockingEdge
+  let lockedGraph = LocalTraces.extend_by_gEdge tmpGraph lockingEdge
   in [lockedGraph]
 ) else
-mutexLock_join allUnlockingTraces graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} lockingLabel lockedNode customMutex
+mutexLock_join allUnlockingTraces tmpGraph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} lockingLabel lockedNode customMutex
 in
 let graphList = List.fold (fun resultGraphList lockedGraph -> 
   let assignedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID lockedNode (EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid (LockSet.add customMutex ls));tid=tid;lockSet=LockSet.add customMutex ls}

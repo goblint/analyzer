@@ -558,8 +558,9 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
        else extend_by_gEdge graphAcc (prev_node, edge, dest_node) 
       ) (LocTraceGraph.empty) allEdges
 
+      (* Validity check of merged graphs *)
       module DepMutexCount = Map.Make(CilType.Varinfo)
-    let is_valid_merged_graph graph =
+    let maintains_depMutex_condition graph =
       let allNodes = get_all_nodes graph
     in let rec loop nodeList =
       match nodeList with node::xs ->
@@ -584,6 +585,27 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
     if DepMutexCount.exists (fun vinfo_exists count_exists -> if count_exists > 1 then true else false) depCount then false else loop xs
       | [] -> true
       in loop allNodes
+  
+      (* module NodeSet = Set.Make(NodeImpl)
+      let is_acyclic graph = 
+        let firstNode = get_first_node graph
+      in
+      let rec loop_nodes visited currentNode =
+        let currentVisited = NodeSet.add currentNode visited
+      in
+      let successorEdges = get_successors_edges graph currentNode
+    in if loop_edges successorEdges currentVisited then
+    List.fold (fun b_fold (_,_,dest_node_fold) -> if b_fold then loop_nodes currentVisited dest_node_fold else false) true successorEdges
+    else false
+    and loop_edges edgeList visited =
+      match edgeList with (_,_,dest_node)::xs -> if NodeSet.mem dest_node visited then false else loop_edges xs visited
+      | [] -> true
+      in loop_nodes NodeSet.empty firstNode *)
+
+
+    let is_valid_merged_graph graph =
+      (maintains_depMutex_condition graph) (*&& (is_acyclic graph) *)
+
 
   end
 
