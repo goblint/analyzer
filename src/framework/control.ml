@@ -706,7 +706,8 @@ struct
     );
     if get_bool "incremental.save" then (
       Serialize.Cache.(update_data AnalysisData marshal);
-      Serialize.Cache.store_data ()
+      if not (get_bool "server.enabled") then
+        Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
