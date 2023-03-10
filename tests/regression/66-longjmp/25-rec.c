@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.int.interval --enable exp.earlyglobs
+// PARAM: --enable ana.int.interval --enable exp.earlyglobs
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
