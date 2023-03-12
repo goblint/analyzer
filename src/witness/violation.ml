@@ -100,7 +100,8 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
               | InlineReturn _ ->
                 if not (NHT.mem itered_nodes prev_node) then
                   NHT.replace next_nodes prev_node (edge, node)
-              | InlinedEdge _ -> ()
+              | InlinedEdge _
+              | ThreadEntry _ -> ()
             ) (Arg.prev node);
           bfs curs' (List.map snd (Arg.prev node) @ nexts)
         end
