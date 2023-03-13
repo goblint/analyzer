@@ -238,7 +238,9 @@ struct
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
         | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
-        | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
+        | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
+        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
           true
         | _ -> false
       in
