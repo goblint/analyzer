@@ -604,7 +604,7 @@ let () =
   end);
 
   register (module struct
-    let name = "arg/eval"
+    let name = "arg/eval-int"
     type params = {
       node: string;
       exp: string;
@@ -631,7 +631,7 @@ let () =
                 {
                   raw = Queries.ID.to_yojson x;
                   int = Queries.ID.to_int x;
-                  bool = Queries.ID.to_bool x;
+                  bool = Queries.ID.to_bool x; (* Separate, because Not{0} has to_int = None, but to_bool = Some true. *)
                 }
               | Error e ->
                 Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
