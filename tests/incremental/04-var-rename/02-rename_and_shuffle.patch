@@ -1,15 +1,15 @@
 --- tests/incremental/04-var-rename/02-rename_and_shuffle.c
 +++ tests/incremental/04-var-rename/02-rename_and_shuffle.c
 @@ -2,10 +2,10 @@
- 
- //a is renamed to c, but the usage of a is replaced by b
+
+ // a is renamed to c, but the usage of a is replaced by b (semantic changes)
  int main() {
 -    int a = 0;
 +    int c = 0;
      int b = 1;
- 
+
 -    printf("Print %d", a);
 +    printf("Print %d", b);
- 
+
      return 0;
  }

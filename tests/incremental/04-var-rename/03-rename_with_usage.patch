@@ -1,15 +1,15 @@
 --- tests/incremental/04-var-rename/03-rename_with_usage.c
 +++ tests/incremental/04-var-rename/03-rename_with_usage.c
 @@ -2,10 +2,10 @@
- 
+
  //a is renamed to c, but its usages stay the same
  int main() {
 -    int a = 0;
 +    int c = 0;
      int b = 1;
- 
+
 -    printf("Print %d", a);
 +    printf("Print %d", c);
- 
+
      return 0;
  }

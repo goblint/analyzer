@@ -1,8 +1,6 @@
 --- tests/incremental/05-method-rename/04-cyclic_with_swap.c
 +++ tests/incremental/05-method-rename/04-cyclic_with_swap.c
-@@ -2,15 +2,19 @@
-
- //Changed.
+@@ -2,13 +2,17 @@
 
 -void foo1(int c) {
 -    if (c < 10) foo2(c + 1);
