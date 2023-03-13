@@ -716,9 +716,9 @@ struct
              in
              let modified_vars = Queries.VS.diff (res_ctx.ask (MayBeModifiedSinceSetjmp (targetnode, targetcontext))) setjmpvar in
              (if Queries.VS.is_top modified_vars then
-                M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show targetnode)
+                M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show targetnode)
               else if not (Queries.VS.is_empty modified_vars) then
-                M.warn "Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show targetnode) (Queries.VS.show modified_vars)
+                M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show targetnode) (Queries.VS.show modified_vars)
               else
                 ()
              );
@@ -820,9 +820,9 @@ struct
                     in
                     let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (node, c))) setjmpvar in
                     (if Queries.VS.is_top modified_vars then
-                       M.warn "Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
+                       M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
                      else if not (Queries.VS.is_empty modified_vars) then
-                       M.warn "Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
+                       M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
                      else
                        ()
                     );
