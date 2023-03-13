@@ -1,6 +1,7 @@
 open Batteries
 open Jsonrpc
 open GoblintCil
+include CompareCIL
 
 type t = {
   mutable file: Cil.file option;
@@ -157,16 +158,18 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: CompareCIL.global_col) _ _ = match glob.def with
-    | Some (Fun fdec) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
-    | _ -> Unchanged, None
+  let eq ?(matchVars=true) ?(matchFuns=true) ?(renameDetection=false) _ _ _ gc_old (gc_new: global_col) (change_info, final_matches) = (match gc_new.def with
+      | Some (Fun fdec) when should_reanalyze fdec ->
+        change_info.exclude_from_rel_destab <- VarinfoSet.add fdec.svar change_info.exclude_from_rel_destab
+      | _ -> change_info.unchanged <- {old = gc_old; current= gc_new} :: change_info.unchanged);
+    change_info, final_matches
   in
-  CompareCIL.compareCilFiles ~eq file file
+  compareCilFiles ~eq file file
 
 let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data SolverData with
   | Some solver_data when reparsed ->
     let s_file = Option.get s.file in
-    let changes = CompareCIL.compareCilFiles s_file file in
+    let changes = compareCilFiles s_file file in
     s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
     (* TODO: get globals for restarting from config *)
     Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
