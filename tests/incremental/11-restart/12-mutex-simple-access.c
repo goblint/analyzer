@@ -1,3 +1,4 @@
+// SKIP!
 // Same as 13-restart-write/01-mutex-simple
 #include <pthread.h>
 #include <stdio.h>

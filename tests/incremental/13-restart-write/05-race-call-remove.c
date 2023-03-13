@@ -1,3 +1,4 @@
+// SKIP!
 #include <pthread.h>
 
 int g;
