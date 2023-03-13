@@ -1,0 +1,13 @@
+--- tests/incremental/13-restart-write/09-mutex-self-fix.c
++++ tests/incremental/13-restart-write/09-mutex-self-fix.c
+@@ -4,7 +4,9 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
+ int g;
+
+ void *t_fun(void *arg) {
+-  g++; // RACE!
++  pthread_mutex_lock(&A);
++  g++; // NORACE
++  pthread_mutex_unlock(&A);
+   return NULL;
+ }
+

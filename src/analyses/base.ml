@@ -605,8 +605,6 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
-  let context_cpa fd (st: store) = (context fd st).cpa
-
   let convertToQueryLval x =
     let rec offsNormal o =
       let ik = Cilfacade.ptrdiff_ikind () in
@@ -787,7 +785,7 @@ struct
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = Pretty.sprint ~width:max_int (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -1663,7 +1661,7 @@ struct
     let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
     let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
-    (* M.debug ~category:Analyzer @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+    (* M.debug ~category:Analyzer @@ sprint ~width:max_int @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
       let not_local x =
         match Addr.to_var_may x with
@@ -2220,30 +2218,18 @@ struct
           st
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
-    | _, _ -> begin
-        let st =
-          special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
-          (*
-           *  TODO: invalidate vars reachable via args
-           *  publish globals
-           *  if single-threaded: *call f*, privatize globals
-           *  else: spawn f
-           *)
-        in
-        (* invalidate lhs in case of assign *)
-        let st = invalidate_ret_lv st in
-        (* apply all registered abstract effects from other analysis on the base value domain *)
-        LibraryFunctionEffects.effects_for f.vname args
-        |> List.to_seq
-        |> Seq.map (fun sets ->
-            BatList.fold_left (fun acc (lv, x) ->
-                set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
-              ) st sets
-          )
-        |> Seq.fold_left D.meet st
-
-        (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
-      end
+    | _, _ ->
+      let st =
+        special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+        (*
+          *  TODO: invalidate vars reachable via args
+          *  publish globals
+          *  if single-threaded: *call f*, privatize globals
+          *  else: spawn f
+          *)
+      in
+      (* invalidate lhs in case of assign *)
+      invalidate_ret_lv st
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
@@ -2521,8 +2507,6 @@ module type MainSpec = sig
   include BaseDomain.ExpEvaluator
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
-  type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
 let main_module: (module MainSpec) Lazy.t =

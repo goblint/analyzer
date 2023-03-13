@@ -61,7 +61,7 @@ let main () =
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_html_output ();
-      do_gobview ();
+      do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
       if !verified = Some false then exit 3 (* verifier failed! *)

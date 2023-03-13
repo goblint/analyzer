@@ -261,7 +261,7 @@ struct
       (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category ~tags "%s" msg
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint ~width:80 (f () x)
+  let sprint f x = Pretty.sprint ~width:max_int (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
