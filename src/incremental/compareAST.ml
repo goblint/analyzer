@@ -39,22 +39,6 @@ let create_locals_rename_mapping (originalLocalNames: string list) (updatedLocal
     )
   else StringMap.empty
 
-let string_tuple_to_string (tuple: (string * string) list) = "[" ^ (tuple |>
-                                                                    List.map (fun x -> match x with (first, second) -> "(" ^ first ^ " -> " ^ second ^ ")") |>
-                                                                    String.concat ", ") ^ "]"
-
-let rename_mapping_to_string (rename_mapping: rename_mapping) =
-  let (local, methods, glob_vars, _) = rename_mapping in
-  let local_string = [%show: (string * string) list] (List.of_seq (StringMap.to_seq local)) in
-  let methods_string: string = List.of_seq (VarinfoMap.to_seq methods) |>
-                               List.map (fun (oldf, newf) -> "(methodName: " ^ oldf.vname ^ " -> " ^ newf.vname ^ ")") |>
-                               String.concat ", " in
-
-  let global_var_string: string = string_tuple_to_string (List.of_seq (VarinfoMap.to_seq glob_vars) |>
-                                                          List.map (fun (vold, vnew) -> vold.vname, vnew.vname)) in
-
-  "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "]; glob_vars=" ^ global_var_string ^ ")"
-
 let is_rename_mapping_empty (rename_mapping: rename_mapping) =
   let local, methods, glob_vars, _= rename_mapping in
   StringMap.is_empty local && VarinfoMap.is_empty methods && VarinfoMap.is_empty glob_vars
