@@ -1,5 +1,5 @@
---- tests/incremental/04-var-rename/03-rename_with_usage.c
-+++ tests/incremental/04-var-rename/03-rename_with_usage.c
+--- tests/incremental/04-var-rename/02-rename_with_usage.c
++++ tests/incremental/04-var-rename/02-rename_with_usage.c
 @@ -2,10 +2,10 @@
 
  //a is renamed to c, but its usages stay the same
