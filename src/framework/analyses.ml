@@ -480,7 +480,7 @@ type increment_data = {
   server: bool;
 
   solver_data: Obj.t;
-  changes: CompareGlobals.change_info;
+  changes: CompareCIL.change_info;
 
   (* Globals for which the constraint
      system unknowns should be restarted *)

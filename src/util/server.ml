@@ -158,7 +158,7 @@ let reparse (s: t) =
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
   let eq (glob: CompareCIL.global_col) _ _ = match glob.def with
-    | Some (Fun fdec) when CompareGlobals.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
+    | Some (Fun fdec) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
     | _ -> Unchanged, None
   in
   CompareCIL.compareCilFiles ~eq file file

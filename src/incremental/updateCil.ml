@@ -1,5 +1,5 @@
 open GoblintCil
-open CompareGlobals
+open CompareCIL
 open MaxIdUtil
 open MyCFG
 
