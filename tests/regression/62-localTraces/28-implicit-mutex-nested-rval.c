@@ -3,17 +3,23 @@
 #include <pthread.h>
 #include <stdio.h>
 
-int c = 2;
+int x = 2;
+int y = -10;
 int z = 7;
 
 void *f(void *arg) {
-  c = z + 3;
-  // int x = c;
+  y = x + 3;
+  int local = y;
 }
 
 void *g(void *arg) {
-  z = c - 2;
-  // int y = z;
+  z = y - 2;
+  int local = z;
+}
+
+void *h(void *arg) {
+  x = z + 26;
+  int local = x;
 }
 
 void main() {
@@ -22,4 +28,7 @@ void main() {
 
   pthread_t id_threadG;
   pthread_create(&id_threadG, NULL, &g, NULL);
+
+  pthread_t id_threadH;
+  pthread_create(&id_threadH, NULL, &h, NULL);
 }

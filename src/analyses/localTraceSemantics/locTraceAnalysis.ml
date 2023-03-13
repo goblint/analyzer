@@ -134,21 +134,30 @@ let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma
  print_string ("mutexLock_join was invoked with |candidates| = "^(string_of_int (D.cardinal candidates))^"\n");
  let rec loop candidateList graphList =
    match candidateList with candidate::xs -> 
+    if LocalTraces.have_same_first_lock graph candidate mutex_vinfo 
+      then (
+        print_string "In mutexLock_join graph and candidate have the same first lock\n";
+    let result_graph = mutexLock_join_helper graph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
+in 
+let result_list =
+result_graph::graphList
+in
+loop xs result_list
+      ) 
+    else
+      (print_string "In mutexLock_join graph and candidate dont have the same first lock\n";
  let noFirstGraph = LocalTraces.remove_first_lock graph mutex_vinfo
 in
   let noFirstCandidate = LocalTraces.remove_first_lock candidate mutex_vinfo
 in
-   let result_graph_both = mutexLock_join_helper graph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
-   in
-   let result_graph = mutexLock_join_helper graph graph noFirstCandidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
+   let result_graph1 = mutexLock_join_helper graph graph noFirstCandidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
   in
-  let result_graph_candidate = mutexLock_join_helper noFirstGraph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
+  let result_graph2 = mutexLock_join_helper noFirstGraph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
 in
 let result_list = 
-  (* result_graph_candidate::graphList *)
-   result_graph::result_graph_both::result_graph_candidate::graphList
+   result_graph1::result_graph2::graphList
 in
-       loop xs result_list
+       loop xs result_list)
    | [] -> graphList
  in
  loop (graphSet_to_list candidates) []

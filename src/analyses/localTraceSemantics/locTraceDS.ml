@@ -606,6 +606,23 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
     let is_valid_merged_graph graph =
       (maintains_depMutex_condition graph) (*&& (is_acyclic graph) *)
 
+      let get_first_lock graph mutex =
+        let allEdges = get_all_edges graph
+      in
+      let rec loop (edgeList: (node * CustomEdge.t * node) list) : (node * CustomEdge.t * node) =
+        match edgeList with 
+        | (prev_node,DepMutex(m),dest_node)::xs -> if (prev_node.id = 1) && (CilType.Varinfo.equal mutex m) then (prev_node,DepMutex(m),dest_node) else loop xs
+        | x::xs -> loop xs
+        | [] -> ({programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty}, Skip, {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty})
+        in loop allEdges
+
+    let have_same_first_lock graph1 graph2 mutex =
+      let (prevNode1, edge1, destNode1) = get_first_lock graph1 mutex
+    in
+    let (prevNode2, edge2, destNode2) = get_first_lock graph2 mutex
+  in 
+  (not (EdgeImpl.equal edge1 Skip)) && (EdgeImpl.equal edge1 edge2) && (NodeImpl.equal prevNode1 prevNode2) && (NodeImpl.equal destNode1 destNode2)
+
 
   end
 
