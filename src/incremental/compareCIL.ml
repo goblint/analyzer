@@ -133,7 +133,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
 
       let add_locals_to_rename_mapping la lb map =
         try
-          List.fold_left (fun map (a, b) -> StringMap.add a.vname b.vname map) map (List.combine la lb)
+          List.fold_left2 (fun map a b -> StringMap.add a.vname b.vname map) map la lb
         with Invalid_argument _ -> map in
 
       let parameterMapping = add_locals_to_rename_mapping old.sformals current.sformals StringMap.empty in
