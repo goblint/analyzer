@@ -1,3 +1,0 @@
-local variable a is renamed to b.
-a/b is not used.
-No semantic changes.

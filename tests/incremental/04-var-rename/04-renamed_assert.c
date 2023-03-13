@@ -1,5 +1,6 @@
 #include <goblint.h>
 
+// local var used in assert is renamed (no semantic changes)
 int main() {
     int myVar = 0;
 

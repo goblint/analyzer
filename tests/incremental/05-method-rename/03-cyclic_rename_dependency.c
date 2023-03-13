@@ -1,7 +1,5 @@
 #include<stdio.h>
 
-//Unchanged.
-
 void foo1(int c) {
     if (c < 10) foo2(c + 1);
 }
