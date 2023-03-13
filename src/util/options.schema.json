@@ -940,8 +940,8 @@
               "title": "ana.thread.context",
               "type": "object",
               "properties": {
-                "createEdges": {
-                  "title": "ana.thread.context.createEdges",
+                "create-edges": {
+                  "title": "ana.thread.context.create-edges",
                   "description": "threadID analysis: Encountered create edges in context.",
                   "type": "boolean",
                   "default": true

@@ -42,7 +42,7 @@ struct
     (`Lifted (tid), TD.bot ())
 
   let context fd d = 
-    if GobConfig.get_bool "ana.thread.context.createEdges" then
+    if GobConfig.get_bool "ana.thread.context.create-edges" then
       d
     else 
       (fst d, TD.bot ())

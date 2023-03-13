@@ -27,10 +27,7 @@ struct
     D.join ctx.local au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let desc = LibraryFunctions.find f in
-    match desc.special arglist with
-      | Unknown -> D.top () (*unknown function: Maybe a unknown thread was created*)
-      | _ -> ctx.local
+    ctx.local
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
@@ -39,7 +36,7 @@ struct
     | `Top -> `Top
     | `Lifted ces -> D.lift (Thread.threadspawn ces ctx.prev_node f)
 
-  let exitstate  v = D.top () (* is this correct? What exactly is exitstate?*)
+  let exitstate v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
