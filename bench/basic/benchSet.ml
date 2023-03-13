@@ -49,5 +49,46 @@ let () =
     ]
   )
 
+
+let map1 (f, x) = IS.map f x
+let map2 (f, x) =
+  let add_to_it e x = IS.add (f e) x in
+  IS.fold add_to_it x IS.empty
+
+let () =
+  register (
+    "map" @>>> [
+      "inc" @> lazy (
+        let args = ((fun x -> x + 1), set1) in
+        throughputN 1 [
+          ("map1", map1, args);
+          ("map2", map2, args);
+        ]
+      );
+      "flip" @> lazy (
+        let args = ((fun x -> 2048 - x), set1) in
+        throughputN 1 [
+          ("map1", map1, args);
+          ("map2", map2, args);
+        ]
+      );
+      "const" @> lazy (
+        let args = ((fun x -> 42), set1) in
+        throughputN 1 [
+          ("map1", map1, args);
+          ("map2", map2, args);
+        ]
+      );
+      "shuffle" @> lazy (
+        let args = ((fun x -> (31 * x + 42) mod 37), set1) in
+        throughputN 1 [
+          ("map1", map1, args);
+          ("map2", map2, args);
+        ]
+      );
+    ]
+  )
+
+
 let () =
   run_global ()
