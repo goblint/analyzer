@@ -390,6 +390,45 @@ let () =
   end);
 
   register (module struct
+    let name = "cil/varinfos"
+    type params = unit [@@deriving of_yojson]
+    type varinfo_data = {
+      vid: int;
+      name: string;
+      original_name: string option;
+      role: string;
+      function_: CilType.Fundec.t option [@key "function"] [@default None];
+    } [@@deriving to_yojson]
+    type response = varinfo_data list [@@deriving to_yojson]
+    let process () serv =
+      Cilfacade.VarinfoH.fold (fun vi role acc ->
+          let role_str = match role with
+            | Cilfacade.Formal _ -> "formal"
+            | Local _ -> "local"
+            | Function -> "function"
+            | Global -> "global"
+          in
+          let function_ = match role with
+            | Cilfacade.Formal fd
+            | Local fd ->
+              Some fd
+            | Function
+            | Global ->
+              None
+          in
+          let data = {
+            vid = vi.vid;
+            name = vi.vname;
+            original_name = Cilfacade.find_original_name vi;
+            role = role_str;
+            function_;
+          }
+          in
+          data :: acc
+        ) (ResettableLazy.force Cilfacade.varinfo_roles) []
+  end);
+
+  register (module struct
     let name = "cfg"
     type params = { fname: string }  [@@deriving of_yojson]
     type response = { cfg : string } [@@deriving to_yojson]
