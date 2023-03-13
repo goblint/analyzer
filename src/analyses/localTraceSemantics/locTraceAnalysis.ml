@@ -164,7 +164,8 @@ in
   | BinOp(MinusA, binopExp1, binopExp2,TInt(biopIk, _)) -> get_all_globals binopExp2 (get_all_globals binopExp1 acc)
   | BinOp(Lt, binopExp1, binopExp2,TInt(biopIk, _)) -> get_all_globals binopExp2 (get_all_globals binopExp1 acc)
   | BinOp(Div, binopExp1, binopExp2,TInt(biopIk, _)) -> get_all_globals binopExp2 (get_all_globals binopExp1 acc)
-  | _ -> Printf.printf "This format of expression is not supported\n"; exit 0
+  | _ -> acc
+    (* print_string ("This format of expression is not supported: "^(CilType.Exp.show expr)^"\n"); exit 0 *)
 
 let rec eval_global var graph node  = 
   let result_node, result_edge = LocalTraces.find_globvar_assign_node var graph node in 
@@ -407,8 +408,12 @@ allSigmas, true
 (* perform assign-effect on given node *)
 let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} = print_string "assign_on_node wurde aufgerufen\n";
 (match lval with (Var x, _) -> 
-    (* let rvalGlobals = get_all_globals rval LockSet.empty
-    in print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n"); *)
+  let lockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_lock" 
+  in
+  let unlockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_unlock"
+  in
+    let rvalGlobals = get_all_globals rval LockSet.empty
+    in print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
     (* if this is a global, we define a custom mutex and add lock/unlock edges 
        additionally, we have to join other traces that 'unlock' the global, similiarly to special *)
   let sigmaList,success_inner = eval_wrapper sigma x rval  graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} in 
@@ -419,11 +424,11 @@ let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=si
     if x.vglob then (
       let customMutex = customVinfoStore#getVarinfo ("__goblint__traces____mutex__"^x.vname)
   in
-  let lockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_lock" 
-  in
   let lockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
   in
-  let lockedNode = {programPoint=programPoint;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge lockingLabel) programPoint sigma tid (LockSet.add customMutex ls));tid=tid;lockSet=LockSet.add customMutex ls}
+  let lvalLockedLs = LockSet.add customMutex ls
+  in
+  let lockedNode = {programPoint=programPoint;sigma=sigma; id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge lockingLabel) programPoint sigma tid lvalLockedLs);tid=tid;lockSet=lvalLockedLs}
   in
     let lockingEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},EdgeImpl.convert_edge lockingLabel,lockedNode)
   in
@@ -448,46 +453,88 @@ let lockedGraphList =  if D.is_empty allUnlockingTraces then (
 mutexLock_join allUnlockingTraces tmpGraph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} lockingLabel lockedNode customMutex
 in
 let graphList = List.fold (fun resultGraphList lockedGraph -> 
-  (* if (LockSet.cardinal rvalGlobals = 0) then
-  ( *)
+  if (LockSet.cardinal rvalGlobals = 0) then
+  (
     let assignedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID lockedNode 
-    (if Edge.equal ctx.edge Skip then (Assign(lval,rval)) else EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid (LockSet.add customMutex ls));tid=tid;lockSet=LockSet.add customMutex ls}
+    (if Edge.equal ctx.edge Skip then (Assign(lval,rval)) else EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid lvalLockedLs);tid=tid;lockSet=lvalLockedLs}
 in
 let assigningEdge:(node * CustomEdge.t * node) = if Edge.equal ctx.edge Skip then (lockedNode, (Assign(lval,rval)), assignedNode)
 else (lockedNode, EdgeImpl.convert_edge ctx.edge, assignedNode)
 in
 let assignedGraph = LocalTraces.extend_by_gEdge lockedGraph assigningEdge
 in
-let unlockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_unlock"
-in
 let unlockingLabel:CustomEdge.t = Proc(None, Lval(Var(unlockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
 in
-let unlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID assignedNode (EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid ls);tid=tid;lockSet=ls}
+let unlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID assignedNode unlockingLabel ctx.node evaluated tid ls);tid=tid;lockSet=ls}
 in
 let unlockingEdge = (assignedNode, unlockingLabel, unlockedNode)
 in
 let unlockingGraph = LocalTraces.extend_by_gEdge assignedGraph unlockingEdge
 in
-let myTmp:V.t = Mutex(customMutex)
-    in
-      let ctxGlobalTid = ctx.global myTmp
-      in
-        ctx.sideg myTmp (D.add unlockingGraph ctxGlobalTid);
+  let ctxGlobalTid = ctx.global myTmp
+   in
+  ctx.sideg myTmp (D.add unlockingGraph ctxGlobalTid);
 unlockingGraph::resultGraphList
-(* ) *)
-    (* else 
+)
+    else 
       (match (LockSet.to_list rvalGlobals) with 
       | [rvalGlobal] -> (
         let rvalGlobalMutex = customVinfoStore#getVarinfo ("__goblint__traces____mutex__"^rvalGlobal.vname)
       in
-      let rvalLockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_lock" 
-    in
     let rvalLockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(rvalGlobalMutex), NoOffset)])
       in 
       (* create lock for rval-global and then I need to join again --> inner List.fold *)
-      let rvalLockedNode = {programPoint=programPoint;sigma=sigma; id=(idGenerator#getID lockedNode (EdgeImpl.convert_edge rvalLockingLabel) ctx.node evaluated tid (LockSet.add customMutex ls));tid=tid;lockSet=LockSet.add customMutex ls}
+      let rvalLockedLs = LockSet.add rvalGlobalMutex lvalLockedLs
+    in
+      let rvalLockedNode = {programPoint=programPoint;sigma=sigma; id=(idGenerator#getID lockedNode (EdgeImpl.convert_edge rvalLockingLabel) ctx.node evaluated tid rvalLockedLs);tid=tid;lockSet=rvalLockedLs}
+    in
+    let rvalLockingEdge = (lockedNode,EdgeImpl.convert_edge rvalLockingLabel,rvalLockedNode)
+  in
+  let myRvalTmp:V.t = Mutex(rvalGlobalMutex)
+in
+  let rvalAllUnlockingTraces = ctx.global myRvalTmp
+in let rvalLockedGraphList =  if D.is_empty rvalAllUnlockingTraces then (
+  let tempGraph = LocalTraces.extend_by_gEdge lockedGraph rvalLockingEdge
+  in [tempGraph]
+) else
+mutexLock_join rvalAllUnlockingTraces lockedGraph lockedNode rvalLockingLabel rvalLockedNode rvalGlobalMutex
+in 
+let rvalGraphList = List.fold (fun rvalResultGraphList rvalLockedGraph -> 
+  let assignedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID rvalLockedNode 
+    (if Edge.equal ctx.edge Skip then (Assign(lval,rval)) else EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid rvalLockedLs);tid=tid;lockSet=rvalLockedLs}
+in
+let assigningEdge:(node * CustomEdge.t * node) = if Edge.equal ctx.edge Skip then (rvalLockedNode, (Assign(lval,rval)), assignedNode)
+else (rvalLockedNode, EdgeImpl.convert_edge ctx.edge, assignedNode)
+in
+let assignedGraph = LocalTraces.extend_by_gEdge rvalLockedGraph assigningEdge
+in
+let rvalUnlockingLabel:CustomEdge.t = Proc(None, Lval(Var(unlockVarinfo), NoOffset),[AddrOf(Var(rvalGlobalMutex), NoOffset)])
+in
+let rvalUnlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID assignedNode rvalUnlockingLabel ctx.node evaluated tid lvalLockedLs);tid=tid;lockSet=lvalLockedLs}
+in
+let rvalUnlockingEdge = (assignedNode, rvalUnlockingLabel, rvalUnlockedNode)
+in
+let rvalUnlockingGraph = LocalTraces.extend_by_gEdge assignedGraph rvalUnlockingEdge
+in
+      let rvalCtxGlobalTid = ctx.global myRvalTmp
+      in
+        ctx.sideg myRvalTmp (D.add rvalUnlockingGraph rvalCtxGlobalTid);
+let unlockingLabel:CustomEdge.t = Proc(None, Lval(Var(unlockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
+  in
+  let unlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID rvalUnlockedNode unlockingLabel ctx.node evaluated tid ls);tid=tid;lockSet=ls}
+in
+let unlockingEdge = (rvalUnlockedNode, unlockingLabel, unlockedNode)
+in
+let unlockingGraph = LocalTraces.extend_by_gEdge rvalUnlockingGraph unlockingEdge
+in
+let ctxGlobalTid = ctx.global myTmp
+ in
+ctx.sideg myTmp (D.add unlockingGraph ctxGlobalTid);
+unlockingGraph::rvalResultGraphList
+  ) [] rvalLockedGraphList
+in rvalGraphList@resultGraphList
       )
-      | _ -> Printf.printf "Multiple globals in rval is not supported\n"; exit 0) *)
+      | _ -> Printf.printf "Multiple globals in rval is not supported\n"; exit 0)
 ) [] lockedGraphList
     in
     graphList@outerGraphList
