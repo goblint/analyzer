@@ -187,10 +187,6 @@ struct
     end
     )
 
-  let equal x y =
-    cardinal x = cardinal y
-    && for_all (fun e -> exists (Base.equal e) y) x
-
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
   let relift x = map Base.relift x
