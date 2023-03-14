@@ -14,6 +14,12 @@ struct
 
   let should_log l =
     compare l !current >= 0
+
+  let stag = function
+    | Error -> "red"
+    | Warning -> "yellow"
+    | Info -> "blue"
+    | Debug -> "white" (* non-bright white is actually some gray *)
 end
 
 
@@ -34,10 +40,15 @@ struct
     (* Pretty.eprintf returns doc instead of unit *)
     let finish doc =
       Pretty.fprint stderr ~width:max_int doc;
+      if !AnsiColors.stderr then
+        prerr_string (List.assoc "reset" AnsiColors.table);
       prerr_newline ()
     in
-    if Level.should_log level then
+    if Level.should_log level then (
+      if !AnsiColors.stderr then
+        prerr_string (List.assoc (Level.stag level) AnsiColors.table);
       Pretty.gprintf finish fmt
+    )
     else
       GobPretty.igprintf () fmt
 end
@@ -48,10 +59,12 @@ struct
   type c = unit
   let log level fmt =
     let finish ppf =
-      Format.fprintf ppf "\n%!"
+      Format.fprintf ppf "@}\n%!"
     in
-    if Level.should_log level then
+    if Level.should_log level then (
+      Format.eprintf "@{<%s>" (Level.stag level);
       Format.kfprintf finish Format.err_formatter fmt
+    )
     else
       Format.ifprintf Format.err_formatter fmt
 end
@@ -62,10 +75,15 @@ struct
   type c = unit
   let log level fmt =
     let finish out =
+      if !AnsiColors.stderr then
+        prerr_string (List.assoc "reset" AnsiColors.table);
       BatPrintf.fprintf out "\n%!"
     in
-    if Level.should_log level then
+    if Level.should_log level then (
+      if !AnsiColors.stderr then
+        prerr_string (List.assoc (Level.stag level) AnsiColors.table);
       BatPrintf.kfprintf finish BatIO.stderr fmt
+    )
     else
       BatPrintf.ifprintf BatIO.stderr fmt
 end
