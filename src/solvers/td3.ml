@@ -762,10 +762,10 @@ module Base =
         let unstable_vs = List.filter (neg (HM.mem stable)) vs in
         if unstable_vs <> [] then (
           if GobConfig.get_bool "dbg.verbose" then (
-            if !i = 1 then print_newline ();
+            if !i = 1 then Logs.newline ();
             Logs.debug "Unstable solver start vars in %d. phase:\n" !i;
             List.iter (fun v -> Logs.debug "\t%a\n" S.Var.pretty_trace v) unstable_vs;
-            print_newline ();
+            Logs.newline ();
             flush_all ();
           );
           List.iter (fun x -> solve x Widen) unstable_vs;
@@ -833,7 +833,7 @@ module Base =
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Logs.debug "\nWidening points:\n";
         HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
-        print_newline ();
+        Logs.newline ();
       );
 
       (* Prune other data structures than rho with reachable.

@@ -442,9 +442,9 @@ let preprocess_parse_merge () =
 
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
-    print_newline ();
+    Logs.newline ();
     Logs.info "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses;
-    print_newline ();
+    Logs.newline ();
     Logs.info "Timings:\n";
     Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
@@ -497,7 +497,7 @@ let do_analyze change_info merged_AST =
         (* trigger Generic.SolverStats...print_stats *)
         Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
         do_stats ();
-        print_newline ();
+        Logs.newline ();
         Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
         (* Cilfacade.current_file := ast'; *)
     in

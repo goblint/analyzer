@@ -1456,7 +1456,7 @@ struct
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
-    print_newline ();
+    Logs.newline ();
 end
 
 module CompareHashtbl (Var: VarType) (Dom: Lattice.S) (VH: Hashtbl.S with type key = Var.t) =
@@ -1487,7 +1487,7 @@ struct
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
     Logs.info "EqConstrSys comparison summary: %t\n" (fun () -> msg);
-    print_newline ();
+    Logs.newline ();
 end
 
 module CompareGlobal (GVar: VarType) (G: Lattice.S) (GH: Hashtbl.S with type key = GVar.t) =
@@ -1499,7 +1499,7 @@ struct
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
     Logs.info "Globals comparison summary: %t\n" (fun () -> msg);
-    print_newline ();
+    Logs.newline ();
 end
 
 module CompareNode (C: Printable.S) (D: Lattice.S) (LH: Hashtbl.S with type key = VarF (C).t) =
@@ -1530,7 +1530,7 @@ struct
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
     Logs.info "Nodes comparison summary: %t\n" (fun () -> msg);
-    print_newline ();
+    Logs.newline ();
 end
 
 (** [EqConstrSys] where [current_var] indicates the variable whose right-hand side is currently being evaluated. *)

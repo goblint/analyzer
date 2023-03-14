@@ -154,7 +154,7 @@ module SLR3 =
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Logs.debug "\nWidening points:\n";
         HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
-        print_newline ();
+        Logs.newline ();
       );
 
       HM.clear key   ;
@@ -448,7 +448,7 @@ module Make0 =
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Logs.debug "\nWidening points:\n";
         HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
-        print_newline ();
+        Logs.newline ();
       );
 
       X.to_list ()

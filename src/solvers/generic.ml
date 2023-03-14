@@ -113,19 +113,19 @@ struct
 
   (* print generic and specific stats *)
   let print_stats _ =
-    print_newline ();
+    Logs.newline ();
     (* print_endline "# Generic solver stats"; *)
     Logs.info "runtime: %s\n" (string_of_time ());
     Logs.info "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
     Option.may (fun v -> ignore @@ Logs.info "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
-    print_newline ();
+    Logs.newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();
-    print_newline ();
+    Logs.newline ();
     (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
-    print_newline ();
+    Logs.newline ();
     Option.may (write_csv [string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout

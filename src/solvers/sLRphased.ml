@@ -190,7 +190,7 @@ module Make =
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Logs.debug "\nWidening points:\n";
         HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
-        print_newline ();
+        Logs.newline ();
       );
 
       HM.clear key   ;

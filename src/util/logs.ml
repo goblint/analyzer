@@ -53,6 +53,8 @@ struct
   let info = log
   let warn = log
   let error = log
+
+  let newline () = ()
 end
 
 module Pretty = MakeKind (PrettyKind)
