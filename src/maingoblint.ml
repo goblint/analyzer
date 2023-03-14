@@ -128,7 +128,8 @@ and complete args =
   |> List.iter print_endline; (* nosemgrep: print-not-logging *)
   raise Exit
 
-let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
+(* TODO: remove *)
+let eprint_color m = Logs.info "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
 let check_arguments () =
   let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in(* unused now, but might be useful for future checks here *)
@@ -617,4 +618,4 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   catch_break true;
-  set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
+  set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr)) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
