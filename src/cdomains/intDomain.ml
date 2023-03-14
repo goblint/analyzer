@@ -566,34 +566,39 @@ struct
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
   let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t -> t * overflow_info) = function None -> (None, {underflow=false; overflow=false}) | Some (x,y) ->
-    if Ints_t.compare x y > 0 then (None,{underflow=false; overflow=false})
+    if Ints_t.compare x y > 0 then
+      (None,{underflow=false; overflow=false})
     else (
       let (min_ik, max_ik) = range ik in
       let underflow = Ints_t.compare min_ik x > 0 in
       let overflow = Ints_t.compare max_ik y < 0 in
-      if underflow || overflow then (
-        if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
-          (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
-          (* on Z will not safely contain the minimal and maximal elements after the cast *)
-          let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
-          let resdiff = Ints_t.abs (Ints_t.sub y x) in
-          if Ints_t.compare resdiff diff > 0 then
-            (top_of ik, {underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn})
-          else
-            let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
-            let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
-            if Ints_t.compare l u <= 0 then
-              (Some (l, u), {underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn})
+      let ov_info = { underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn } in
+      let v =
+        if underflow || overflow then
+          if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
+            (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
+            (* on Z will not safely contain the minimal and maximal elements after the cast *)
+            let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
+            let resdiff = Ints_t.abs (Ints_t.sub y x) in
+            if Ints_t.compare resdiff diff > 0 then
+              top_of ik
             else
-              (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
-              (top_of ik, {underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn})
-        else if not cast && should_ignore_overflow ik then
-          let tl, tu = BatOption.get @@ top_of ik in
-          (Some (Ints_t.max tl x, Ints_t.min tu y),{underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn})
+              let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
+              let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
+              if Ints_t.compare l u <= 0 then
+                Some (l, u)
+              else
+                (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
+                top_of ik
+          else if not cast && should_ignore_overflow ik then
+            let tl, tu = BatOption.get @@ top_of ik in
+            Some (Ints_t.max tl x, Ints_t.min tu y)
+          else
+            top_of ik
         else
-          (top_of ik,{underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn})
-      )
-      else (Some (x,y),{underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn})
+          Some (x,y)
+      in
+      (v, ov_info)
     )
 
   let leq (x:t) (y:t) =
