@@ -543,11 +543,49 @@ module Std (B: sig
   include StdTop (B)
 end
 
+(* Textbook interval arithmetic, without any overflow handling etc. *)
+module IntervalArith(Ints_t : IntOps.IntOps) = struct
+  let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
+  let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
+
+  let mul (x1, x2) (y1, y2) =
+    let x1y1 = (Ints_t.mul x1 y1) in
+    let x1y2 = (Ints_t.mul x1 y2) in
+    let x2y1 = (Ints_t.mul x2 y1) in
+    let x2y2 = (Ints_t.mul x2 y2) in
+    (min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)
+
+  let div (x1, x2) (y1, y2) =
+    let x1y1n = (Ints_t.div x1 y1) in
+    let x1y2n = (Ints_t.div x1 y2) in
+    let x2y1n = (Ints_t.div x2 y1) in
+    let x2y2n = (Ints_t.div x2 y2) in
+    let x1y1p = (Ints_t.div x1 y1) in
+    let x1y2p = (Ints_t.div x1 y2) in
+    let x2y1p = (Ints_t.div x2 y1) in
+    let x2y2p = (Ints_t.div x2 y2) in
+    (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
+
+  let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
+  let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
+
+  let neg (x1, x2) = (Ints_t.neg x2, Ints_t.neg x1)
+
+  let one = (Ints_t.one, Ints_t.one)
+  let zero = (Ints_t.zero, Ints_t.zero)
+  let top_bool = (Ints_t.zero, Ints_t.one)
+
+  let to_int (x1, x2) =
+    if Ints_t.equal x1 x2 then Some x1 else None
+end
+
+
 module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
+  module IArith = IntervalArith(Ints_t)
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
@@ -618,12 +656,12 @@ struct
     | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2) |> fst
 
   (* TODO: change to_int signature so it returns a big_int *)
-  let to_int = function Some (x,y) when Ints_t.compare x y = 0 -> Some x | _ -> None
+  let to_int x = Option.bind x (IArith.to_int)
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
   let of_int ik (x: int_t) = of_interval ik (x,x)
-  let zero = Some (Ints_t.zero, Ints_t.zero)
-  let one  = Some (Ints_t.one, Ints_t.one)
-  let top_bool = Some (Ints_t.zero, Ints_t.one)
+  let zero = Some IArith.zero
+  let one  = Some IArith.one
+  let top_bool = Some IArith.top_bool
 
   let of_bool _ik = function true -> one | false -> zero
   let to_bool (a: t) = match a with
@@ -748,17 +786,16 @@ struct
   let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
   let shift_left  = bitcomp (fun _ik x y -> Ints_t.shift_left  x (Ints_t.to_int y))
 
-  let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some (x,y) -> norm ik @@ Some (Ints_t.neg y, Ints_t.neg x)
+  let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some x -> norm ik @@ Some (IArith.neg x)
 
-  let add ?no_ov ik x y = match x, y with
+  let binary_op_with_norm ?no_ov op ik x y = match x, y with
     | None, None -> (None, {overflow=false; underflow= false})
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.add x1 y1, Ints_t.add x2 y2)
+    | Some x, Some y -> norm ik @@ Some (op x y)
 
-  let sub ?no_ov ik x y = match x, y with
-    | None, None -> (None,{underflow=false; overflow=false})
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.sub x1 y2, Ints_t.sub x2 y1) (* y1, y2 are in different order here than in add *)
+  let add ?no_ov = binary_op_with_norm IArith.add
+  let mul ?no_ov = binary_op_with_norm IArith.mul
+  let sub ?no_ov = binary_op_with_norm IArith.sub
 
   let rem ik x y = match x, y with
     | None, None -> None
@@ -782,23 +819,11 @@ struct
         let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, Ints_t.min xu b) else Some (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
 
-  let mul ?no_ov ik x y =
-    match x, y with
-    | None, None -> (bot (),{underflow=false; overflow=false})
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (x1,x2), Some (y1,y2) ->
-      let x1y1 = (Ints_t.mul x1 y1) in
-      let x1y2 = (Ints_t.mul x1 y2) in
-      let x2y1 = (Ints_t.mul x2 y1) in
-      let x2y2 = (Ints_t.mul x2 y2) in
-      norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)),
-                       (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))
-
   let rec div ?no_ov ik x y =
     match x, y with
     | None, None -> (bot (),{underflow=false; overflow=false})
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (x1,x2), Some (y1,y2) ->
+    | (Some (x1,x2) as x), (Some (y1,y2) as y) ->
       begin
         let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
         match y1, y2 with
@@ -806,17 +831,7 @@ struct
         | l, _ when is_zero l              -> div ik (Some (x1,x2)) (Some (Ints_t.one,y2))
         | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
         | _ when leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false})
-        | _ ->
-          let x1y1n = (Ints_t.div x1 y1) in
-          let x1y2n = (Ints_t.div x1 y2) in
-          let x2y1n = (Ints_t.div x2 y1) in
-          let x2y2n = (Ints_t.div x2 y2) in
-          let x1y1p = (Ints_t.div x1 y1) in
-          let x1y2p = (Ints_t.div x1 y2) in
-          let x2y1p = (Ints_t.div x2 y1) in
-          let x2y2p = (Ints_t.div x2 y2) in
-          norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
-                           (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
+        | _ -> binary_op_with_norm IArith.div ik x y
       end
 
   let ne ik x y =
@@ -972,6 +987,8 @@ module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = I
 struct
 
   module Interval = IntervalFunctor(Ints_t)
+  module IArith = IntervalArith(Ints_t)
+
 
   let name () = "interval_sets"
 
@@ -1140,10 +1157,10 @@ struct
     let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
     (canonize intvs,{underflow; overflow})
 
-  let binary_op_with_norm  (ik:ikind) (x: t) (y: t) op : t*overflow_info = match x, y with
+  let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map op (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> [op x y]) (BatList.cartesian_product x y)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
@@ -1155,9 +1172,9 @@ struct
       let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
       (canonize intvs,{underflow; overflow})
 
-  let unary_op_with_norm (ik:ikind) (x: t) op = match x with
+  let unary_op_with_norm op (ik:ikind) (x: t) = match x with
     | [] -> ([],{overflow=false; underflow=false})
-    | _ -> norm_intvs ik @@ List.concat_map op x
+    | _ -> norm_intvs ik @@ List.concat_map (fun x -> [op x]) x
 
   let rec leq (xs: t) (ys: t) =
     let leq_interval (al, au) (bl, bu) = al >=. bl && au <=. bu in
@@ -1184,13 +1201,12 @@ struct
     events_to_intervals
 
   let to_int = function
-    | [(x, y)] when x =. y -> Some x
+    | [x] -> IArith.to_int x
     | _ -> None
 
-  let zero = [(Ints_t.zero, Ints_t.zero)]
-  let one = [(Ints_t.one, Ints_t.one)]
-
-  let top_bool = [(Ints_t.zero, Ints_t.one)]
+  let zero = [IArith.zero]
+  let one = [IArith.one]
+  let top_bool = [IArith.top_bool]
 
   let not_bool (x:t) =
     let is_false x = equal x zero in
@@ -1314,48 +1330,23 @@ struct
     let interval_logor = log (||) ik in
     binop x y interval_logor
 
-  let add ?no_ov ik x y =
-    let interval_add ((x1, x2), (y1, y2)) = [(x1 +. y1, x2 +. y2)] in
-    binary_op_with_norm ik x y interval_add
-
-  let neg ?no_ov ik x =
-    let neg_interval ((x, y)) = [(Ints_t.neg y, Ints_t.neg x)] in
-    unary_op_with_norm ik x neg_interval
-
-  let sub ?no_ov ik x y =
-    let interval_sub ((x1, x2), (y1, y2)) = [(x1 -. y2, x2 -. y1)] in
-    binary_op_with_norm ik x y interval_sub
-
-  let mul ?no_ov (ik: ikind) (x: t) (y: t) =
-    let interval_mul ((x1, x2), (y1, y2)) =
-      let x1y1 = x1 *. y1 in
-      let x1y2 = x1 *. y2 in
-      let x2y1 = x2 *. y1 in
-      let x2y2 = x2 *. y2 in
-      [(min4 x1y1 x1y2 x2y1 x2y2, max4 x1y1 x1y2 x2y1 x2y2)]
-    in
-    binary_op_with_norm ik x y interval_mul
+  let add ?no_ov = binary_op_with_norm IArith.add
+  let sub ?no_ov = binary_op_with_norm IArith.sub
+  let mul ?no_ov = binary_op_with_norm IArith.mul
+  let neg ?no_ov = unary_op_with_norm IArith.neg
 
   let div ?no_ov ik x y =
-    let rec interval_div ((x1, x2), (y1, y2)) = begin
+    let rec interval_div x (y1, y2) = begin
+      let top_of ik = top_of ik |> List.hd in
       let is_zero v = v =. Ints_t.zero in
       match y1, y2 with
       | l, u when is_zero l && is_zero u -> top_of ik (* TODO warn about undefined behavior *)
-      | l, _ when is_zero l              -> interval_div ((x1,x2), (Ints_t.one,y2))
-      | _, u when is_zero u              -> interval_div ((x1,x2), (y1, Ints_t.(neg one)))
+      | l, _ when is_zero l              -> interval_div x (Ints_t.one,y2)
+      | _, u when is_zero u              -> interval_div x (y1, Ints_t.(neg one))
       | _ when leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) -> top_of ik
-      | _ ->
-        let x1y1n = x1 /. y1 in
-        let x1y2n = x1 /. y2 in
-        let x2y1n = x2 /. y1 in
-        let x2y2n = x2 /. y2 in
-        let x1y1p = x1 /. y1 in
-        let x1y2p = x1 /. y2 in
-        let x2y1p = x2 /. y1 in
-        let x2y2p = x2 /. y2 in
-        [(min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)]
+      | _ -> IArith.div x (y1, y2)
     end
-    in binary_op_with_norm ik x y interval_div
+    in binary_op_with_norm interval_div ik x y
 
   let rem ik x y =
     let interval_rem (x, y) =
