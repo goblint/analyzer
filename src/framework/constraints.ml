@@ -477,6 +477,8 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = GVarG (S.G) (S.C)
+
+    val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   end
 =
 struct

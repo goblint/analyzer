@@ -45,11 +45,13 @@ let get_spec (): (module Spec) =
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
 
+let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
+
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
 struct
 
-  module SpecSys: SpecSys with module Spec = Spec =
+  module SpecSys (*: SpecSys with module Spec = Spec *) =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
@@ -640,10 +642,36 @@ struct
       let gh = gh
     end
     in
-    let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (FileCfg) (SpecSysSol) in
+    let module R (*: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys *) = ResultQuery.Make (FileCfg) (SpecSysSol) in
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
+
+    current_varquery_global_state_json := (fun vq_opt ->
+        let iter_vars f = match vq_opt with
+          | None -> GHT.iter (fun v _ -> f v) gh
+          | Some vq ->
+            EQSys.iter_vars
+              (fun x -> try LHT.find lh x with Not_found -> EQSys.D.bot ())
+              (fun x -> try GHT.find gh x with Not_found -> EQSys.G.bot ())
+              vq
+              (fun _ -> ())
+              f
+        in
+        (* TODO: optimize this once server has a way to properly convert vid -> varinfo *)
+        let vars = GHT.create 113 in
+        iter_vars (fun x ->
+            GHT.replace vars x ()
+          );
+        let assoc = GHT.fold (fun x g acc ->
+            if GHT.mem vars x then
+              (EQSys.GVar.show x, EQSys.G.to_yojson g) :: acc
+            else
+              acc
+          ) gh []
+        in
+        `Assoc assoc
+      );
 
     let liveness =
       if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
