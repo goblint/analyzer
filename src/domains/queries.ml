@@ -101,7 +101,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
-  | TmpSpecial:  varinfo -> ML.t t
+  | TmpSpecial:  Lval.CilLval.t -> ML.t t
 
 type 'a result = 'a
 
@@ -322,7 +322,7 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
-      | Any (TmpSpecial vi1), Any (TmpSpecial vi2) -> CilType.Varinfo.compare vi1 vi2
+      | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Lval.CilLval.compare lv1 lv2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -358,7 +358,7 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
-    | Any (TmpSpecial vi) -> CilType.Varinfo.hash vi
+    | Any (TmpSpecial lv) -> Lval.CilLval.hash lv
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -412,7 +412,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
-    | Any (TmpSpecial vi) -> Pretty.dprintf "TmpSpecial %a" CilType.Varinfo.pretty vi
+    | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Lval.CilLval.pretty lv
 end
 
 let to_value_domain_ask (ask: ask) =

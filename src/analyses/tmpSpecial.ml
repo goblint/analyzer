@@ -12,7 +12,7 @@ struct
   module ML = LibraryDesc.MathLifted
   module LS = SetDomain.ToppedSet(Lval.CilLval) (struct let topname = "All" end)
   module MlLsProd = Lattice.Prod (ML) (LS)
-  module D = MapDomain.MapBot (Basetype.Variables) (MlLsProd)
+  module D = MapDomain.MapBot (Lval.CilLval) (MlLsProd)
   module C = Lattice.Unit
 
   let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
@@ -52,7 +52,8 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     (* get the set of all lvals written by the assign. Then remove all entrys from the map where the dependencies overlap with the set of written lvals *)
     let lvalsWritten = ls_of_lv ctx lval in
-    D.filter (fun v (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) ctx.local
+    if M.tracing then M.trace "tmpSpecial" "lvalsWritten %a\n" LS.pretty lvalsWritten;
+    D.filter (fun _ (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -74,19 +75,19 @@ struct
 
     (* Just dbg prints *)
     (match lval with
-    | Some (Var v, offs) -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with\n lval %a; vinfo %a; attr %a \n" f.vname d_lval (Var v, offs) d_varinfo v d_attrlist v.vattr
+    | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with\n lval %a\n" f.vname d_lval lv
     | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s\n" f.vname);
     let desc = LibraryFunctions.find f in
-    (* add new math fun dec*)
+    (* add new math fun desc*)
     let d =
     match lval, desc.special arglist with
-      | (Some (Var v, _)), (Math { fun_args; }) -> 
+      | Some (Var v, offs), (Math { fun_args; }) -> 
         let lvalDep = List.fold LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
         if LS.is_top lvalDep then
           d
         else
-          D.add v ((ML.lift fun_args, lvalDep)) d
-      | _ -> d 
+          D.add (v, resolve offs) ((ML.lift fun_args, lvalDep)) d
+      | _ -> d
     in
 
     (* remove entrys, dependent on lvals that were possibly written by the special function *)
@@ -107,20 +108,20 @@ struct
     in
     let d = List.fold_left (fun accD addr -> 
       let lvalsWritten = ctx.ask (Queries.MayPointTo addr) in
-      D.filter (fun v (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d shallow_addrs
+      D.filter (fun _ (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d shallow_addrs
     in
     let d = List.fold_left (fun accD addr -> 
       let lvalsWritten = ctx.ask (Queries.ReachableFrom addr) in
-      D.filter (fun v (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d deep_addrs
+      D.filter (fun _ (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d deep_addrs
     in
 
-    (* same for lval assignment of the call (though this should always be a "tmp___n")*)
+    (* same for lval assignment of the call*)
     let d =
     match lval with
     | Some lv -> (
       (* get the set of all lvals written by the assign. Then remove all entrys from the map where the dependencies overlap with the set of written lvals *)
       let lvalsWritten = ls_of_lv ctx lv in
-      D.filter (fun v (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) d
+      D.filter (fun _ (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) d
       )
     | None -> d 
     in
@@ -129,7 +130,7 @@ struct
 
     let query ctx (type a) (q: a Queries.t) : a Queries.result =
       match q with
-      | TmpSpecial v -> let ml = fst (D.find v ctx.local) in
+      | TmpSpecial lv -> let ml = fst (D.find lv ctx.local) in
         if ML.is_bot ml then Queries.Result.top q
         else ml
       | _ -> Queries.Result.top q

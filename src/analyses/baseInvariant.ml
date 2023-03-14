@@ -702,10 +702,10 @@ struct
             begin match t with
             | TInt (ik, _) ->
               begin match x with
-                | ((Var v), _) -> 
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial v)); 
+                | ((Var v), offs) -> 
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs))); 
                   let tv = not (ID.leq c (ID.of_bool ik false)) in
-                  begin match ctx.ask (Queries.TmpSpecial v) with
+                  begin match ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs)) with
                   | `Lifted (Isfinite xFloat) when tv -> inv_exp (`Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
                   | `Lifted (Isnan xFloat) when tv -> inv_exp (`Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
                   (* should be correct according to C99 standard*)
@@ -735,9 +735,9 @@ struct
             begin match t with
             | TFloat (fk, _) ->
               begin match x with
-                | ((Var v), _) -> 
-                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial v)); 
-                  begin match ctx.ask (Queries.TmpSpecial v) with
+                | ((Var v), offs) -> 
+                  if M.tracing then M.trace "invSpecial" "qry Result: %a\n" Queries.ML.pretty (ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs))); 
+                  begin match ctx.ask (Queries.TmpSpecial (v, TmpSpecial.Spec.resolve offs)) with
                   | `Lifted (Ceil (ret_fk, xFloat)) when FD.is_interval c -> inv_exp (`Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
                   | `Lifted (Floor (ret_fk, xFloat)) when FD.is_interval c -> inv_exp (`Float (FD.inv_floor (FD.cast_to ret_fk c))) xFloat st
                   | `Lifted (Fabs (ret_fk, xFloat)) -> 
