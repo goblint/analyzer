@@ -1,0 +1,22 @@
+rules:
+  - id: print-not-logging
+    pattern-either:
+      - pattern: printf
+      - pattern: Printf.printf
+      - pattern: BatPrintf.printf
+      - pattern: Format.printf
+      - pattern: Pretty.printf
+
+      - pattern: eprintf
+      - pattern: Printf.eprintf
+      - pattern: BatPrintf.eprintf
+      - pattern: Format.eprintf
+      - pattern: Pretty.eprintf
+
+      - pattern: print_endline
+      - pattern: prerr_endline
+      - pattern: print_newline
+      - pattern: print_string
+    message: printing should be replaced with logging
+    languages: [ocaml]
+    severity: WARNING
