@@ -1016,6 +1016,7 @@ struct
   let unbox_event = function Enter x -> x | Exit x -> x
 
   let cmp_events x y =
+    (* Deliberately comparing ints first => Cannot be derived *)
     let res = Ints_t.compare (unbox_event x) (unbox_event y) in
     if res <> 0 then res
     else
