@@ -142,7 +142,7 @@ module WP =
       let rec get x =
         if HM.mem visited x then (
           if not (HM.mem rho x) then (
-            ignore @@ Pretty.printf "Found an unknown that should be a widening point: %a\n" S.Var.pretty_trace x;
+            Logs.warn "Found an unknown that should be a widening point: %a\n" S.Var.pretty_trace x;
             S.Dom.top ()
           ) else
             HM.find rho x
@@ -150,7 +150,7 @@ module WP =
           HM.replace visited x ();
           let check_side y d =
             let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
-            if not (S.Dom.leq d d') then ignore @@ Pretty.printf "Fixpoint not reached in restore step at side-effected variable %a: %a not leq %a\n" S.Var.pretty_trace y S.Dom.pretty d S.Dom.pretty d'
+            if not (S.Dom.leq d d') then Logs.error "Fixpoint not reached in restore step at side-effected variable %a: %a not leq %a\n" S.Var.pretty_trace y S.Dom.pretty d S.Dom.pretty d'
           in
           let eq x =
             match S.system x with
@@ -161,7 +161,7 @@ module WP =
             let d1 = HM.find rho x in
             let d2 = eq x in
             if not (S.Dom.leq d2 d1) then
-              ignore @@ Pretty.printf "Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
+              Logs.error "Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
             d1
           ) else (
             let d = eq x in
@@ -173,7 +173,7 @@ module WP =
       (* restore values for non-widening-points *)
       if GobConfig.get_bool "solvers.wp.restore" then (
         if (GobConfig.get_bool "dbg.verbose") then
-          print_endline ("Restoring missing values.");
+          Logs.debug ("Restoring missing values.");
         let restore () =
           let get x =
             let d = get x in
@@ -182,7 +182,7 @@ module WP =
           List.iter get vs
         in
         Timing.wrap "restore" restore ();
-        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if (GobConfig.get_bool "dbg.verbose") then Logs.debug "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
       );
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);

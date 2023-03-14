@@ -1,5 +1,3 @@
-module Pretty = GoblintCil.Pretty
-
 module type Kind =
 sig
   type b
@@ -9,6 +7,8 @@ end
 
 module PrettyKind =
 struct
+  open GoblintCil
+
   type b = unit
   type c = Pretty.doc
   let log fmt =

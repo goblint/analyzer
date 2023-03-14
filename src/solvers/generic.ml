@@ -96,11 +96,11 @@ struct
     (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
     ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
     let topn = 5 in
-    Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" !ncontexts (Hashtbl.length histo) topn;
+    Logs.debug "Found %d contexts for %d functions. Top %d functions:\n" !ncontexts (Hashtbl.length histo) topn;
     Hashtbl.to_list histo
     |> List.sort (fun (_,n1) (_,n2) -> compare n2 n1)
     |> List.take topn
-    |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
+    |> List.iter @@ fun (k,n) -> Logs.debug "%d\tcontexts for %s\n" n k
 
   let stats_csv =
     let save_run_str = GobConfig.get_string "save_run" in
@@ -115,9 +115,9 @@ struct
   let print_stats _ =
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
-    Printf.printf "runtime: %s\n" (string_of_time ());
-    Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
-    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
+    Logs.info "runtime: %s\n" (string_of_time ());
+    Logs.info "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Option.may (fun v -> ignore @@ Logs.info "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();

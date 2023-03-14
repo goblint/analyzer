@@ -152,8 +152,8 @@ module SLR3 =
       stop_event ();
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        Logs.debug "\nWidening points:\n";
+        HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
 
@@ -446,8 +446,8 @@ module Make0 =
       let _ = loop () in
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        Logs.debug "\nWidening points:\n";
+        HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
 

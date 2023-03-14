@@ -152,7 +152,7 @@ let constBefore var loop f =
   let targetLocation = loopLocation loop
   in let rec lastAssignmentToVarBeforeLoop (current: (Z.t option)) (statements: stmt list) = match statements with
       | st::stmts -> (
-          let current' = if st.labels <> [] then (print_endline "has Label"; (None)) else current in
+          let current' = if st.labels <> [] then (Logs.debug "has Label"; (None)) else current in
           match st.skind with
           | Instr list -> (
               match lastAssignToVar var list with
@@ -272,25 +272,25 @@ let fixedLoopSize loopStatement func =
   else
     constBefore var loopStatement func >>= fun start ->
     assignmentDifference loopStatement var >>= fun diff ->
-    print_endline "comparison: ";
+    Logs.debug "comparison: ";
     Pretty.fprint stdout (dn_exp () comparison) ~width:max_int;
-    print_endline "";
-    print_endline "variable: ";
-    print_endline var.vname;
-    print_endline "start:";
-    print_endline @@ Z.to_string start;
-    print_endline "diff:";
-    print_endline @@ Z.to_string diff;
+    Logs.debug "";
+    Logs.debug "variable: ";
+    Logs.debug "%s" var.vname;
+    Logs.debug "start:";
+    Logs.debug "%s" @@ Z.to_string start;
+    Logs.debug "diff:";
+    Logs.debug "%s" @@ Z.to_string diff;
     let iterations = loopIterations start diff comparison in
     match iterations with
-    | None -> print_endline "iterations failed"; None
+    | None -> Logs.debug "iterations failed"; None
     | Some s ->
       try
         let s' = Z.to_int s in
-        print_endline "iterations:";
-        print_endline @@ string_of_int s';
+        Logs.debug "iterations:";
+        Logs.debug "%d" s';
         Some s'
-      with  _ -> print_endline "iterations too big for integer"; None
+      with  _ -> Logs.debug "iterations too big for integer"; None
 
 
 class arrayVisitor = object
@@ -350,7 +350,7 @@ let loop_unrolling_factor loopStatement func totalLoops =
       (* Unroll at least 10 times if there are only few (17?) loops *)
       let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
       match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
+      | Some i -> if i * loopStats.instructions < 100 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
       | _ -> max unroll_min (targetInstructions / loopStats.instructions)
     else
       (* Don't unroll empty (= while(1){}) loops*)

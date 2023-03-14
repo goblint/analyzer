@@ -135,10 +135,10 @@ module Make =
           HM.replace rho0 x d;
           HM.replace infl x VS.empty;
           if side then (
-            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
+            Logs.debug "%s" @@ "Variable by side-effect " ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
             HM.replace key  x !count_side; decr count_side
           ) else (
-            print_endline @@ "Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int !count;
+            Logs.debug "%s" @@ "Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int !count;
             HM.replace key  x !count; decr count
           );
           do_var false x;
@@ -188,8 +188,8 @@ module Make =
       stop_event ();
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        Logs.debug "\nWidening points:\n";
+        HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
 

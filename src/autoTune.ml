@@ -70,7 +70,7 @@ let findMallocWrappers () =
   |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10)
   |> FunctionCallMap.bindings
   |> List.map (fun (v,_) -> v.vname)
-  |> List.iter (fun n -> print_endline ("malloc wrapper: " ^ n); GobConfig.set_auto "ana.malloc.wrappers[+]" n)
+  |> List.iter (fun n -> Logs.info "malloc wrapper: %s" n; GobConfig.set_auto "ana.malloc.wrappers[+]" n)
 
 
 (*Functions for determining if the congruence analysis should be enabled *)
@@ -83,7 +83,7 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
     fd.svar.vattr <- addAttributes (fd.svar.vattr) [Attr ("goblint_precision",[AStr "congruence"])];
     FunctionSet.iter
       (fun vinfo ->
-         print_endline ("    " ^ vinfo.vname);
+         Logs.info "    %s" vinfo.vname;
          setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
@@ -129,7 +129,7 @@ let disableIntervalContextsInRecursiveFunctions () =
   ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
-        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval context");
+        Logs.info "function %s is recursive, disable interval context" f.vname;
         f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "relation.no-context"])];
       )
     )
@@ -152,8 +152,8 @@ let reduceThreadAnalyses () =
           | Some args ->
             match desc.special args with
             | ThreadCreate _ ->
-              print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
-              FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
+              Logs.debug "thread created by %s, called by:" var.vname;
+              FunctionSet.iter ( fun c -> Logs.debug "  %s" c.vname) callers;
               true
             | _ -> false
         )
@@ -162,7 +162,7 @@ let reduceThreadAnalyses () =
       )
   in
   if not @@ hasThreadCreate () then (
-    print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    Logs.info "no thread creation -> disabeling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     let disableAnalysis = GobConfig.set_auto "ana.activated[-]" in
     List.iter disableAnalysis notNeccessaryThreadAnalyses;
 
@@ -172,7 +172,7 @@ let focusOnSpecification () =
   match Svcomp.Specification.of_option () with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    Logs.info "Specification: NoDataRace -> enabeling thread analyses \"%s\n" (String.concat ", " notNeccessaryThreadAnalyses);
     let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
     List.iter enableAnalysis notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
@@ -322,9 +322,9 @@ let congruenceOption factors file =
   let cost = (locals + globals) * (factors.instructions / 12) + 5 * factors.functionCalls in
   let value = 5 * locals + globals in
   let activate () =
-    print_endline @@ "Congruence: " ^ string_of_int cost;
+    Logs.debug "Congruence: %d" cost;
     set_bool "ana.int.congruence" true;
-    print_endline "Enabled congruence domain.";
+    Logs.info "Enabled congruence domain.";
   in
   {
     value;
@@ -355,14 +355,14 @@ let apronOctagonOption factors file =
   let allVars = (selectedGlobals @ selectedLocals) in
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
-    print_endline @@ "Octagon: " ^ string_of_int cost;
+    Logs.debug "Octagon: %d" cost;
     set_bool "annotation.goblint_relation_track" true;
     set_string "ana.apron.domain" "octagon";
     set_auto "ana.activated[+]" "apron";
     set_bool "ana.apron.threshold_widening" true;
     set_string "ana.apron.threshold_widening_constants" "comparisons";
-    print_endline "Enabled octagon domain for:";
-    print_endline @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
+    Logs.info "Enabled octagon domain for:";
+    Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
   {
@@ -379,10 +379,10 @@ let wideningOption factors file =
     value = amountConsts * (factors.loops * 5 + factors.controlFlowStatements);
     cost = cost;
     activate = fun () ->
-      print_endline @@ "Widening: " ^ string_of_int cost;
+      Logs.debug "Widening: %d" cost;
       set_bool "ana.int.interval_threshold_widening" true;
       set_string "ana.int.interval_threshold_widening_constants" "comparisons";
-      print_endline "Enabled widening thresholds";
+      Logs.info "Enabled widening thresholds";
   }
 
 
@@ -402,13 +402,13 @@ let chooseFromOptions costTarget options =
   let ratio o = Float.of_int o.value /. Float.of_int o.cost in
   let compareRatio o1 o2 = Float.compare (ratio o1) (ratio o2) in
   let rec takeFitting remainingTarget options =
-    if remainingTarget < 0 then (print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); [] ) else match options with
+    if remainingTarget < 0 then (Logs.debug "Total: %d" (totalTarget - remainingTarget); [] ) else match options with
       | o::os ->
         if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow overshooting *)
           o::takeFitting (remainingTarget - o.cost) os
         else
           takeFitting (remainingTarget - o.cost) os
-      | [] -> print_endline @@ "Total: " ^ string_of_int (totalTarget - remainingTarget); []
+      | [] -> Logs.debug "Total: %d" (totalTarget - remainingTarget); []
   in
   takeFitting costTarget @@ List.sort compareRatio options
 
@@ -418,11 +418,11 @@ let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
 
-  print_endline "Collected factors:";
+  Logs.debug "Collected factors:";
   printFactors factors;
-  print_endline "";
-  print_endline "Complexity estimates:";
-  print_endline @@ "File: " ^ string_of_int fileCompplexity;
+  Logs.debug "";
+  Logs.debug "Complexity estimates:";
+  Logs.debug "File: %d" fileCompplexity;
 
   if fileCompplexity < totalTarget && isActivated "congruence" then
     addModAttributes file;

@@ -17,6 +17,9 @@ rules:
       - pattern: prerr_endline
       - pattern: print_newline
       - pattern: print_string
+    paths:
+      exclude:
+        - bench/
     message: printing should be replaced with logging
     languages: [ocaml]
     severity: WARNING

@@ -76,7 +76,7 @@ module Base =
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then (
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
+        Logs.info "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
           str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.var_messages) (HM.length data.rho_write) (HM.length data.dep);
         Hooks.print_data ()
       )
@@ -86,7 +86,7 @@ module Base =
         (* every variable in (pruned) rho should be stable *)
         HM.iter (fun x _ ->
             if not (HM.mem data.stable x) then (
-              ignore (Pretty.printf "unstable in rho: %a\n" S.Var.pretty_trace x);
+              Logs.warn "unstable in rho: %a\n" S.Var.pretty_trace x;
               assert false
             )
           ) data.rho
@@ -193,7 +193,7 @@ module Base =
         match marshal with
         | Some data ->
           if not reuse_stable then (
-            print_endline "Destabilizing everything!";
+            Logs.info "Destabilizing everything!";
             HM.clear data.stable;
             HM.clear data.infl
           );
@@ -241,7 +241,7 @@ module Base =
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
+          Logs.info "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
             (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length var_messages) (HM.length rho_write) (HM.length dep);
           Hooks.print_data ();
           print_context_stats rho
@@ -388,7 +388,7 @@ module Base =
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
-          ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (Hooks.system y = None);
         init y;
@@ -496,7 +496,7 @@ module Base =
 
         let restart_leaf x =
           if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
-          ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
+          Logs.debug "Restarting to bot %a\n" S.Var.pretty_trace x;
           HM.replace rho x (S.Dom.bot ());
           (* HM.remove rho x; *)
           HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
@@ -609,14 +609,14 @@ module Base =
         );
 
         if sys_change.obsolete <> [] then
-          print_endline "Destabilizing changed functions and primary old nodes ...";
+          Logs.debug "Destabilizing changed functions and primary old nodes ...";
         List.iter (fun k ->
             if HM.mem stable k then
               destabilize k
           ) sys_change.obsolete;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
-        print_endline "Removing data for changed and removed functions...";
+        Logs.debug "Removing data for changed and removed functions...";
         let delete_marked s = List.iter (fun k -> HM.remove s k) sys_change.delete in
         delete_marked rho;
         delete_marked infl; (* TODO: delete from inner sets? *)
@@ -627,10 +627,10 @@ module Base =
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
         if restart_sided then (
           (* restarts old copies of functions and their (removed) side effects *)
-          print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
+          Logs.debug "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
           List.iter (fun k ->
               if HM.mem stable k then (
-                ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
+                Logs.debug "marked %a\n" S.Var.pretty_trace k;
                 destabilize k
               )
             ) sys_change.delete
@@ -662,7 +662,7 @@ module Base =
 
         List.iter (fun v ->
             if Hooks.system v <> None then
-              ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
+              Logs.warn "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
             else if HM.mem stable v then
               destabilize_leaf v
           ) sys_change.restart;
@@ -681,7 +681,7 @@ module Base =
             if should_restart_start then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
-                ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
+                Logs.debug "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v;
                 restart_and_destabilize v (* restart side effect from start *)
               | _ ->
                 (* don't restart unchanged start global *)
@@ -698,7 +698,7 @@ module Base =
               | None ->
                 (* restart removed start global to allow it to be pruned from incremental solution *)
                 (* this gets rid of its warnings and makes comparing with from scratch sensible *)
-                ignore (Pretty.printf "Destabilizing and restarting removed start var %a\n" S.Var.pretty_trace v);
+                Logs.debug "Destabilizing and restarting removed start var %a\n" S.Var.pretty_trace v;
                 restart_and_destabilize v
               | _ ->
                 ()
@@ -718,7 +718,7 @@ module Base =
           (* before delete_marked because we also want to restart write-only side effects from deleted nodes *)
           HM.iter (fun x w ->
               HM.iter (fun y d ->
-                  ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
+                  Logs.debug "Restarting write-only to bot %a\n" S.Var.pretty_trace y;
                   HM.replace rho y (S.Dom.bot ());
                 ) w
             ) rho_write
@@ -732,21 +732,21 @@ module Base =
 
         if reluctant then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
-          print_endline "Separately solving changed functions...";
+          Logs.debug "Separately solving changed functions...";
           HM.iter (fun x (old_rho, old_infl) -> HM.replace rho x old_rho; HM.replace infl x old_infl) old_ret;
           HM.iter (fun x (old_rho, old_infl) ->
-              ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
+              Logs.debug "test for %a\n" Node.pretty_trace (S.Var.node x);
               solve x Widen;
               if not (S.Dom.equal (HM.find rho x) old_rho) then (
-                print_endline "Further destabilization happened ...";
+                Logs.debug "Further destabilization happened ...";
               )
               else (
-                print_endline "Destabilization not required...";
+                Logs.debug "Destabilization not required...";
                 reluctant_vs := x :: !reluctant_vs
               )
             ) old_ret;
 
-          print_endline "Final solve..."
+          Logs.debug "Final solve..."
         );
       ) else (
         List.iter set_start st;
@@ -763,8 +763,8 @@ module Base =
         if unstable_vs <> [] then (
           if GobConfig.get_bool "dbg.verbose" then (
             if !i = 1 then print_newline ();
-            Printf.printf "Unstable solver start vars in %d. phase:\n" !i;
-            List.iter (fun v -> ignore @@ Pretty.printf "\t%a\n" S.Var.pretty_trace v) unstable_vs;
+            Logs.debug "Unstable solver start vars in %d. phase:\n" !i;
+            List.iter (fun v -> Logs.debug "\t%a\n" S.Var.pretty_trace v) unstable_vs;
             print_newline ();
             flush_all ();
           );
@@ -784,12 +784,12 @@ module Base =
         HM.replace visited y ();
         let mem = HM.mem rho y in
         let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
-        if not (S.Dom.leq d d') then ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
+        if not (S.Dom.leq d d') then Logs.error "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a\n" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
       in
       let rec eq check x =
         HM.replace visited x ();
         match Hooks.system x with
-        | None -> if HM.mem rho x then HM.find rho x else (ignore @@ Pretty.printf "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pretty_trace x; S.Dom.bot ())
+        | None -> if HM.mem rho x then HM.find rho x else (Logs.warn "TDFP Found variable %a w/o rhs and w/o value in rho\n" S.Var.pretty_trace x; S.Dom.bot ())
         | Some f -> f (get ~check) (check_side x)
       and get ?(check=false) x =
         if HM.mem visited x then (
@@ -798,9 +798,9 @@ module Base =
           let d1 = HM.find rho x in
           let d2 = eq check x in (* just to reach unrestored variables *)
           if check then (
-            if not (HM.mem stable x) && Hooks.system x <> None then ignore @@ Pretty.printf "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
+            if not (HM.mem stable x) && Hooks.system x <> None then Logs.error "TDFP Found an unknown in rho that should be stable: %a\n" S.Var.pretty_trace x;
             if not (S.Dom.leq d2 d1) then
-              ignore @@ Pretty.printf "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
+              Logs.error "TDFP Fixpoint not reached in restore step at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" S.Var.pretty_trace x S.Dom.pretty d1 S.Dom.pretty d2 S.Dom.pretty_diff (d1,d2);
           );
           d1
         ) else (
@@ -812,7 +812,7 @@ module Base =
       (* restore values for non-widening-points *)
       if space && GobConfig.get_bool "solvers.td3.space_restore" then (
         if GobConfig.get_bool "dbg.verbose" then
-          print_endline ("Restoring missing values.");
+          Logs.debug "Restoring missing values.";
         let restore () =
           let get x =
             let d = get ~check:true x in
@@ -822,7 +822,7 @@ module Base =
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Timing.wrap "restore" restore ();
-        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if GobConfig.get_bool "dbg.verbose" then Logs.debug "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
@@ -831,8 +831,8 @@ module Base =
       print_data data "Data after solve completed";
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Printf.printf "\nWidening points:\n";
-        HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
+        Logs.debug "\nWidening points:\n";
+        HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
 
@@ -1075,7 +1075,7 @@ module DepVals: GenericEqIncrSolver =
       module HM = HM
 
       let print_data () =
-        Printf.printf "|dep_vals|=%d\n" (HM.length !current_dep_vals)
+        Logs.info "|dep_vals|=%d\n" (HM.length !current_dep_vals)
 
       let system x =
         match S.system x with
