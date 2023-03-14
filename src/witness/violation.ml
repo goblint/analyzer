@@ -123,7 +123,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
       print_path path;
       begin match Feasibility.check_path path with
       | Feasibility.Feasible ->
-        print_endline "feasible";
+        Logs.debug "feasible";
 
         let module PathArg =
         struct
@@ -144,12 +144,12 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
         in
         Feasible (module PathArg)
       | Feasibility.Infeasible subpath ->
-        print_endline "infeasible";
+        Logs.debug "infeasible";
         print_path subpath;
 
         Infeasible subpath
       | Feasibility.Unknown ->
-        print_endline "unknown";
+        Logs.debug "unknown";
         Unknown
       end
     | None ->

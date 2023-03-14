@@ -153,7 +153,7 @@ struct
         Error ("ExpEval: Unable to parse JSON query file: \"" ^ name ^ "\" (" ^ message ^ ")")
       | Ok query ->
         if is_debug () then
-          print_endline ("Successfully parsed JSON query file: \"" ^ name ^ "\"");
+          Logs.debug "Successfully parsed JSON query file: \"%s\"" name;
         Ok query
 
   let string_of_location (location : Cil.location) =
@@ -195,16 +195,16 @@ struct
         match res with
         | Some value ->
           if value then
-            print_endline (loc |> string_of_location)
+            Logs.info "%s" (loc |> string_of_location)
           else if is_debug () then
-            print_endline ((loc |> string_of_location) ^ " x")
+            Logs.debug "%s x" (loc |> string_of_location)
         | None ->
           if query.mode = `May || is_debug () then
-            print_endline ((loc |> string_of_location) ^ " ?")
+            Logs.info "%s ?" (loc |> string_of_location)
       in
       gv_results := results;
       List.iter print results
-    | Error e -> prerr_endline e
+    | Error e -> Logs.error "%s" e
 
 end
 

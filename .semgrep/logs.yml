@@ -19,6 +19,7 @@ rules:
       - pattern: print_string
     paths:
       exclude:
+        - logs.ml
         - bench/
     message: printing should be replaced with logging
     languages: [ocaml]

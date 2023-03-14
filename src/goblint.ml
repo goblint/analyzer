@@ -37,8 +37,8 @@ let main () =
     GoblintDir.init ();
 
     if get_bool "dbg.verbose" then (
-      print_endline (localtime ());
-      print_endline Goblintutil.command_line;
+      Logs.debug "%s" (localtime ());
+      Logs.debug "%s" Goblintutil.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
@@ -74,12 +74,12 @@ let main () =
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
     do_stats ();
     (* Printexc.print_backtrace BatInnerIO.stderr *)
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+    Logs.error "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
   | Timeout ->
     do_stats ();
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+    Logs.error "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();
     exit 124
 

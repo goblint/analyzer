@@ -152,16 +152,16 @@ struct
         end
 
     and do_assert revpath' i env' expr =
-      Printf.printf "%d: %s\n" i (Expr.to_string expr);
+      Logs.debug "%d: %s\n" i (Expr.to_string expr);
 
       let track_const = Boolean.mk_const ctx (Symbol.mk_int ctx i) in
       Solver.assert_and_track solver expr track_const;
 
       let status = Solver.check solver [] in
-      Printf.printf "%d: %s\n" i (Solver.string_of_status status);
+      Logs.debug "%d: %s\n" i (Solver.string_of_status status);
       match Solver.check solver [] with
       | Solver.SATISFIABLE ->
-        Printf.printf "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
+        Logs.info "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
         iter_wp revpath' (i - 1) env'
 
       | Solver.UNSATISFIABLE ->
@@ -181,7 +181,7 @@ struct
         unsat_core_is
         |> List.map string_of_int
         |> String.concat " "
-        |> print_endline;
+        |> Logs.debug "%s";
 
         let (mini, maxi) = BatList.min_max unsat_core_is in
         let unsat_path = BatList.filteri (fun i _ -> mini <= i && i <= maxi) path in (* TODO: optimize subpath *)

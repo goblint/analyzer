@@ -260,7 +260,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
 
 let print_svcomp_result (s: string): unit =
-  Printf.printf "SV-COMP result: %s\n" s
+  Logs.info "SV-COMP result: %s\n" s
 
 let print_task_result (module TaskResult:TaskResult): unit =
   print_svcomp_result (Result.to_string TaskResult.result)
@@ -272,7 +272,7 @@ let init (module FileCfg: MyCFG.FileCfg) =
     let specification = Svcomp.Specification.of_option ()
   end
   in
-  Printf.printf "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
+  Logs.info "SV-COMP specification: %s\n" (Svcomp.Specification.to_string Task.specification);
   Svcomp.task := Some (module Task)
 
 module Result (R: ResultQuery.SpecSysSol2) =

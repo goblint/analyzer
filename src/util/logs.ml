@@ -31,6 +31,17 @@ struct
     Format.kfprintf finish Format.err_formatter fmt
 end
 
+module BatteriesKind =
+struct
+  type b = unit BatIO.output
+  type c = unit
+  let log fmt =
+    let finish out =
+      BatPrintf.fprintf out "\n%!"
+    in
+    BatPrintf.kfprintf finish BatIO.stderr fmt
+end
+
 
 module MakeKind (Kind: Kind) =
 struct
@@ -46,5 +57,6 @@ end
 
 module Pretty = MakeKind (PrettyKind)
 module Format = MakeKind (FormatKind)
+module Batteries = MakeKind (BatteriesKind)
 
 include Pretty (* current default *)

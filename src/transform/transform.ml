@@ -9,7 +9,7 @@ let h = Hashtbl.create 13
 let register name (module T : S) = Hashtbl.add h name (module T : S)
 let run name =
   let module T = (val try Hashtbl.find h name with Not_found -> failwith @@ "Transformation "^name^" does not exist!") in
-  if GobConfig.get_bool "dbg.verbose" then print_endline @@ "Starting transformation " ^ name;
+  if GobConfig.get_bool "dbg.verbose" then Logs.debug "Starting transformation %s" name;
   T.transform
 
 module PartialEval = struct

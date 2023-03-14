@@ -575,7 +575,7 @@ module Codegen = struct
       let dir = Goblintutil.create_dir (Fpath.v "pml-result") in
       let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
-      print_endline @@ "saved " ^ desc ^ " as " ^ path
+      Logs.info "saved %s as %s" desc path
   end
 
   let tabulate = ( ^ ) "\t"
@@ -611,7 +611,7 @@ module Codegen = struct
     let called_funs_done = ref Set.empty in
 
     let rec process_def res =
-      print_endline @@ Resource.show res ;
+      print_endline @@ Resource.show res ; (* nosemgrep: print-not-logging *)
       let res_type = Resource.res_type res in
       let res_name = Resource.res_name res in
       let is_thread = res_type = Resource.Thread in
@@ -850,7 +850,7 @@ module Codegen = struct
 
     Writer.write "promela model" "pml" promela ;
     Writer.write "graph" "dot" dot_graph ;
-    print_endline
+    Logs.info
       "Copy spin/pthread_base.pml to same folder and then do: spin -a \
        pthread.pml && cc -o pan pan.c && ./pan -a"
 end

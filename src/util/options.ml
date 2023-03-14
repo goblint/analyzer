@@ -27,7 +27,7 @@ let rec element_paths (element: element): string list =
         List.map (fun path -> name ^ "." ^ path) (element_paths field_element)
       ) object_specs.properties
   | _ ->
-    Format.printf "%a\n" Json_schema.pp (create element);
+    Logs.Format.error "%a\n" Json_schema.pp (create element);
     failwith "element_paths"
 
 let schema_paths (schema: schema): string list =
@@ -69,7 +69,7 @@ let rec element_completions (element: element): (string * string list) list =
         List.map (fun (path, cs) -> (name ^ "." ^ path, cs)) (element_completions field_element)
       ) object_specs.properties
   | _ ->
-    Format.printf "%a\n" Json_schema.pp (create element);
+    Logs.Format.error "%a\n" Json_schema.pp (create element);
     failwith "element_completions"
 
 let schema_completions (schema: schema): (string * string list) list =
@@ -110,7 +110,7 @@ let rec pp_options ~levels ppf (element: element) =
     failwith "pp_options"
 
 let print_options () =
-  Format.printf "%a\n" (pp_options ~levels:1) (root schema)
+  Format.printf "%a\n" (pp_options ~levels:1) (root schema) (* nosemgrep: print-not-logging *)
 
 let print_all_options () =
-  Format.printf "%a\n" (pp_options ~levels:max_int) (root schema)
+  Format.printf "%a\n" (pp_options ~levels:max_int) (root schema) (* nosemgrep: print-not-logging *)

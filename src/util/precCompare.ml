@@ -79,7 +79,7 @@ struct
         match c with
         | {Comparison.more_precise = 0; less_precise = 0; incomparable = 0; _} -> ()
         | _ ->
-          if verbose then ignore (Pretty.printf "%a: %t\n" K.pretty k (fun () -> msg))
+          if verbose then Logs.debug "%a: %t\n" K.pretty k (fun () -> msg)
       ) compared;
     let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.empty in
     let msg = Pretty.dprintf "%s %s %s    (%s)" name1 (Comparison.to_string_infix c) name2 (Comparison.to_string_counts c) in
@@ -127,6 +127,6 @@ struct
     |> List.filter (fun ((i1, _), (i2, _)) -> i1 <> i2)
     |> List.map (Tuple2.map snd snd)
     |> List.map (uncurry compare_dumps)
-    |> List.iter (fun (_, msg) -> ignore (Pretty.printf "%t\n" (fun () -> msg)));
-    ignore (Pretty.printf "\nTotal locations: %d\nTotal %s: %d\n" locations_count (Key.name ()) location_vars_count)
+    |> List.iter (fun (_, msg) -> Logs.info "%t\n" (fun () -> msg));
+    Logs.info "\nTotal locations: %d\nTotal %s: %d\n" locations_count (Key.name ()) location_vars_count
 end

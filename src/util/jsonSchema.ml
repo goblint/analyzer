@@ -104,7 +104,7 @@ let rec element_defaults ?additional_field (element: element): Yojson.Safe.t =
             (name, element_defaults ?additional_field field_element)
           ) object_specs.properties)
       | _ ->
-        Format.printf "%a\n" Json_schema.pp (create element);
+        Logs.Format.error "%a\n" Json_schema.pp (create element);
         failwith "element_defaults"
     end
 
@@ -135,7 +135,7 @@ let rec element_require_all (element: element): element =
       in
       Object { object_specs with properties = properties' }
     | _ ->
-      Format.printf "%a\n" Json_schema.pp (create element);
+      Logs.Format.error "%a\n" Json_schema.pp (create element);
       failwith "element_require_all"
   in
   { element with kind = kind' }

@@ -34,12 +34,12 @@ let () =
     let right_only_messages = MS.diff right_messages left_messages in
 
     if not (MS.is_empty left_only_messages) then (
-      Printf.printf "Left-only messages (%d):\n" (MS.cardinal left_only_messages);
+      Logs.info "Left-only messages (%d):\n" (MS.cardinal left_only_messages);
       MS.iter (Messages.print) left_only_messages;
     );
     print_newline ();
     if not (MS.is_empty right_only_messages) then (
-      Printf.printf "Right-only messages (%d):\n" (MS.cardinal right_only_messages);
+      Logs.info "Right-only messages (%d):\n" (MS.cardinal right_only_messages);
       MS.iter (Messages.print) right_only_messages;
     )
   | _ ->

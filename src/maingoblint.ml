@@ -10,16 +10,16 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %s\n" Version.goblint;
-  printf "Cil version:     %s\n" Cil.cilVersion;
-  printf "Dune profile:    %s\n" ConfigProfile.profile;
-  printf "OCaml version:   %s\n" Sys.ocaml_version;
-  printf "OCaml flambda:   %s\n" ConfigOcaml.flambda;
+  Logs.info "Goblint version: %s\n" Version.goblint;
+  Logs.info "Cil version:     %s\n" Cil.cilVersion;
+  Logs.info "Dune profile:    %s\n" ConfigProfile.profile;
+  Logs.info "OCaml version:   %s\n" Sys.ocaml_version;
+  Logs.info "OCaml flambda:   %s\n" ConfigOcaml.flambda;
   if get_bool "dbg.verbose" then (
-    printf "Library versions:\n";
+    Logs.debug "Library versions:\n";
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
-        printf "  %s: %s\n" name version
+        Logs.debug "  %s: %s\n" name version
       ) Goblint_build_info.statically_linked_libraries
   );
   exit 0
@@ -55,7 +55,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
     if Messages.tracing then Tracing.addsystem sys
-    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
+    else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
   in
   let configure_html () =
     if (get_string "outfile" = "") then
@@ -104,7 +104,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
   ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
   ; "--set"                , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> set_auto !tmp_arg x), complete_last_option_value)], ""
-  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
+  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> Logs.warn "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
   ; "--enable"             , Arg_complete.String ((fun x -> set_bool x true), complete_bool_option), ""
   ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_bool_option), ""
   ; "--conf"               , Arg_complete.String ((fun fn -> merge_file (Fpath.v fn)), Arg_complete.empty), ""
@@ -125,7 +125,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
 and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_complete.empty_all)
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
-  |> List.iter print_endline;
+  |> List.iter print_endline; (* nosemgrep: print-not-logging *)
   raise Exit
 
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
@@ -185,8 +185,8 @@ let parse_arguments () =
   end;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
-    prerr_endline "No files for Goblint?";
-    prerr_endline "Try `goblint --help' for more information.";
+    Logs.error "No files for Goblint?";
+    Logs.warn "Try `goblint --help' for more information.";
     raise Exit
   )
 
@@ -212,7 +212,7 @@ let basic_preprocess ~all_cppflags fname =
   (* Preprocess using cpp. *)
   let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
   let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
-  if get_bool "dbg.verbose" then print_endline command;
+  if get_bool "dbg.verbose" then Logs.debug "%s" command;
   (nname, Some {ProcessPool.command; cwd = None})
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
@@ -247,14 +247,14 @@ let preprocess_files () =
     Goblint_sites.lib_stub_src
   in
   if get_bool "dbg.verbose" then (
-    print_endline "Custom include dirs:";
+    Logs.debug "Custom include dirs:";
     List.iteri (fun i custom_include_dir ->
-        Format.printf "  %d. %a (exists=%B)\n" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
+        Logs.Format.debug "  %d. %a (exists=%B)\n" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
       ) custom_include_dirs
   );
   let custom_include_dirs = List.filter (Sys.file_exists % Fpath.to_string) custom_include_dirs in
   if custom_include_dirs = [] then
-    print_endline "Warning, cannot find goblint's custom include files.";
+    Logs.warn "Warning, cannot find goblint's custom include files.";
 
   let find_custom_include subpath =
     let custom_include_opt = List.find_map_opt (fun custom_include_dir ->
@@ -325,7 +325,7 @@ let preprocess_files () =
   let all_cppflags = !cppflags @ include_args in
 
   (* preprocess all the files *)
-  if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
+  if get_bool "dbg.verbose" then Logs.info "Preprocessing files.";
 
   let rec preprocess_arg_file = function
     | filename when not (Sys.file_exists (Fpath.to_string filename)) ->
@@ -376,7 +376,7 @@ let preprocess_files () =
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
-  if get_bool "dbg.verbose" then print_endline "Parsing files.";
+  if get_bool "dbg.verbose" then Logs.info "Parsing files.";
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
@@ -443,9 +443,9 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
+    Logs.info "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses;
     print_newline ();
-    print_string "Timings:\n";
+    Logs.info "Timings:\n";
     Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
@@ -471,19 +471,19 @@ let do_analyze change_info merged_AST =
     Cilfacade.print merged_AST
   else (
     (* we first find the functions to analyze: *)
-    if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
+    if get_bool "dbg.verbose" then Logs.info "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
-    if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
-                                             L.pretty stf L.pretty exf L.pretty otf);
+    if get_bool "dbg.verbose" then Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
+                                             L.pretty stf L.pretty exf L.pretty otf;
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =
       if get_bool "dbg.verbose" then (
         let aa = String.concat ", " @@ get_string_list "ana.activated" in
         let at = String.concat ", " @@ get_string_list "trans.activated" in
-        print_endline @@ "Activated analyses: " ^ aa;
-        print_endline @@ "Activated transformations: " ^ at
+        Logs.info "Activated analyses: %s" aa;
+        Logs.info "Activated transformations: %s" at
       );
       try Control.analyze change_info ast funs
       with e ->
@@ -513,11 +513,11 @@ let do_html_output () =
       let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
       try match Timing.wrap "g2html" Unix.system command with
         | Unix.WEXITED 0 -> ()
-        | _ -> eprintf "HTML generation failed! Command: %s\n" command
+        | _ -> Logs.error "HTML generation failed! Command: %s\n" command
       with Unix.Unix_error (e, f, a) ->
-        eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
+        Logs.error "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
     ) else
-      eprintf "Warning: jar file %s not found.\n" jar
+      Logs.error "Warning: jar file %s not found.\n" jar
   )
 
 let do_gobview cilfile =
@@ -562,7 +562,7 @@ let do_gobview cilfile =
         ) dist_files
     )
     else
-      eprintf "Warning: Cannot locate GobView.\n"
+      Logs.error "Warning: Cannot locate GobView.\n"
   )
 
 let handle_extraspecials () =
