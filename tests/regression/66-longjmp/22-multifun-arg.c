@@ -29,8 +29,8 @@ int main () {
       fun(&val);
    } else {
       __goblint_check(x == 2);
-      __goblint_check(val == 1); //TODO
-      __goblint_check(global == 42); //TODO
+      __goblint_check(val == 1);
+      __goblint_check(global == 42);
    }
 
    return(0);
