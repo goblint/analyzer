@@ -14,7 +14,8 @@ struct
   let log fmt =
     (* Pretty.eprintf returns doc instead of unit *)
     let finish doc =
-      Pretty.fprint stderr ~width:max_int doc
+      Pretty.fprint stderr ~width:max_int doc;
+      prerr_newline ()
     in
     Pretty.gprintf finish fmt
 end
@@ -24,7 +25,10 @@ struct
   type b = Format.formatter
   type c = unit
   let log fmt =
-    Format.eprintf fmt
+    let finish ppf =
+      Format.fprintf ppf "\n%!"
+    in
+    Format.kfprintf finish Format.err_formatter fmt
 end
 
 
