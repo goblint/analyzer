@@ -656,7 +656,7 @@ struct
       CfgTools.dead_code_cfg (module FileCfg) liveness;
 
     let warn_global g v =
-      (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
+      (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
       match g with
       | `Left g -> (* Spec global *)
         R.ask_global (WarnGlobal (Obj.repr g))

@@ -79,7 +79,7 @@ class addConstructors cons = object
   val mutable cons1 = cons
   method! vfunc fd =
     if List.mem fd.svar.vname (get_string_list "mainfun") then begin
-      if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
+      if get_bool "dbg.verbose" then Logs.debug "Adding constructors to: %s" fd.svar.vname;
       let loc = match fd.sbody.bstmts with
         | s :: _ -> get_stmtLoc s
         | [] -> locUnknown

@@ -139,7 +139,7 @@ class loopInstrVisitor (fd : fundec) = object(self)
          | _ -> ());
         s
       | Loop (b, loc, eloc, Some continue, Some break) ->
-        print_endline @@ "WARN: Could not determine loop variable for loop at " ^ CilType.Location.show loc;
+        Logs.warn "WARN: Could not determine loop variable for loop at %a" CilType.Location.pretty loc;
         s
       | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
         let loc = Hashtbl.find loopBreaks s.sid in

@@ -76,7 +76,7 @@ struct
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* accesses *)
-          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          (* Logs.debug "WarnGlobal %a" CilType.Varinfo.pretty g; *)
           let accs = G.access (ctx.global g) in
           let (lv, ty) = g' in
           let mem_loc_str = Pretty.sprint ~width:max_int (Access.d_memo () (ty, lv)) in

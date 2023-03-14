@@ -18,7 +18,7 @@ let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
         let result = SpecParser.file SpecLexer.token lexbuf in
         defs := !defs@[result];
         incr line;
-        if print then (Logs.debug "%s" (SpecCore.def_to_string result); flush stdout)
+        if print then Logs.debug "%s" (SpecCore.def_to_string result)
       with
       (* just an empty line -> don't print *)
       | SpecCore.Endl  -> incr line

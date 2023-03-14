@@ -969,7 +969,7 @@ module Base =
             HM.iter (fun x w ->
                 HM.iter (fun y d ->
                     let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
-                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
+                    (* Logs.debug "rho_write retrigger %a %a %a %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d; *)
                     HM.replace rho y (S.Dom.join old_d d);
                     HM.replace init_reachable y ();
                     HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
@@ -979,7 +979,7 @@ module Base =
 
         let one_side ~vh ~x ~y ~d =
           if S.Var.is_write_only y then (
-            (* ignore (Pretty.printf "rho_write collect %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d); *)
+            (* Logs.debug "rho_write collect %a %a %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d; *)
             HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
             let w =
               try

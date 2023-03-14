@@ -81,7 +81,7 @@ struct
         match ~? (fun () -> Formatcil.cExp expression_string (local_variables @ global_variables)) with
         (* Expression unparseable at this location *)
         | None ->
-          if is_debug () then print_endline "| (Unparseable)";
+          if is_debug () then Logs.debug "| (Unparseable)";
           Some false
         (* Successfully parsed expression *)
         | Some expression ->
@@ -89,7 +89,7 @@ struct
           match self#try_ask location expression with
           (* Dead code or not listed as part of the control flow *)
           | None ->
-            if is_debug () then print_endline "| (Unreachable)";
+            if is_debug () then Logs.debug "| (Unreachable)";
             Some false
           (* Valid location *)
           | Some value_before ->
@@ -115,14 +115,14 @@ struct
               | None ->
                 if is_debug () then
                   begin
-                    print_endline ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement))
+                    Logs.debug "%s" ("| /*" ^ (value_before |> string_of_evaluation_result) ^ "*/" ^ (statement |> string_of_statement))
                   end;
                 value_before
               | Some value_after ->
                 if is_debug () then
                   begin
-                    print_endline ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
-                    print_endline ("| " ^ (~! !succeeding_statement |> string_of_statement))
+                    Logs.debug "%s" ("| " ^ (statement |> string_of_statement) ^ "/*" ^ (value_after |> string_of_evaluation_result) ^ "*/");
+                    Logs.debug "%s" ("| " ^ (~! !succeeding_statement |> string_of_statement))
                   end;
                 value_after
 

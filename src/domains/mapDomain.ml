@@ -179,7 +179,7 @@ struct
     )
 
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
-  (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
+  (* let add k v m = let _ = Logs.debug "%a" pretty m in M.add k v m *)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end

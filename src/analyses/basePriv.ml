@@ -226,7 +226,7 @@ struct
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
     let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
+    Logs.debug "READ GLOBAL %a (%a, %B) = %a" d_varinfo x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v;
     r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
@@ -236,7 +236,7 @@ struct
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
-    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
+    Logs.debug "WRITE GLOBAL %a %a = %a" d_varinfo x VD.pretty v CPA.pretty cpa';
     cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -331,7 +331,7 @@ struct
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
     let cpa' = write_global ask getg sideg cpa x v in
-    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
+    Logs.debug "WRITE GLOBAL %a %a = %a" d_varinfo x VD.pretty v CPA.pretty cpa';
     cpa' *)
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
@@ -1638,7 +1638,7 @@ struct
   let dump () =
     let f = open_out_bin (get_string "exp.priv-prec-dump") in
     (* LVH.iter (fun (l, x) v ->
-        ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l d_varinfo x VD.pretty v)
+        Logs.debug "%a %a = %a" CilType.Location.pretty l d_varinfo x VD.pretty v
       ) lvh; *)
     Marshal.output f ({name = get_string "ana.base.privatization"; results = lvh}: result);
     close_out_noerr f

@@ -110,10 +110,10 @@ class modFunctionAnnotatorVisitor = object
     let thisVisitor = new modVisitor in
     try ignore (visitCilFunction thisVisitor fd) with
     | ModFound ->
-      print_endline ("function " ^ (CilType.Fundec.show fd) ^" uses mod, enable congruence domain recursively for:");
-      print_endline ("  \"down\":");
+      Logs.info "function %a uses mod, enable congruence domain recursively for:" CilType.Fundec.pretty fd;
+      Logs.info "  \"down\":";
       setCongruenceRecursive fd 6 calledFunctions;
-      print_endline ("  \"up\":");
+      Logs.info "  \"up\":";
       setCongruenceRecursive fd 3 callingFunctions;
       ;
       SkipChildren
