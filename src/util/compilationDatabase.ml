@@ -69,7 +69,7 @@ let load_and_preprocess ~all_cppflags filename =
       let old_root = GobFpath.rem_find_prefix database_dir original_database_dir in
       let new_root = GobFpath.rem_find_prefix original_database_dir database_dir in
       if GobConfig.get_bool "dbg.verbose" then
-        Logs.Format.debug "Rerooting compilation database\n  from %a\n  to %a\n" Fpath.pp old_root Fpath.pp new_root;
+        Logs.Format.debug "Rerooting compilation database\n  from %a\n  to %a" Fpath.pp old_root Fpath.pp new_root;
       let reroot_path p =
         Fpath.append new_root (Option.get (Fpath.relativize ~root:old_root p))
       in
@@ -127,7 +127,7 @@ let load_and_preprocess ~all_cppflags filename =
       in
       let cwd = reroot_path obj.directory in
       if GobConfig.get_bool "dbg.verbose" then
-        Logs.Format.debug "Preprocessing %a\n  to %a\n  using %s\n  in %a\n" Fpath.pp file Fpath.pp preprocessed_file preprocess_command Fpath.pp cwd;
+        Logs.Format.debug "Preprocessing %a\n  to %a\n  using %s\n  in %a" Fpath.pp file Fpath.pp preprocessed_file preprocess_command Fpath.pp cwd;
       let preprocess_task = {ProcessPool.command = preprocess_command; cwd = Some cwd} in (* command/arguments might have paths relative to directory *)
       Some (preprocessed_file, Some preprocess_task)
   in

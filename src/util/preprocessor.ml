@@ -10,7 +10,7 @@ let is_bad name =
     | _ -> true
   in
   if GobConfig.get_bool "dbg.verbose" then
-    Logs.debug "Preprocessor %s: is_bad=%B\n" name r;
+    Logs.debug "Preprocessor %s: is_bad=%B" name r;
   r
 
 let compgen prefix =

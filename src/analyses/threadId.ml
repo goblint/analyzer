@@ -125,12 +125,13 @@ struct
     let non_uniques = List.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
     let uc = List.length uniques in
     let nc = List.length non_uniques in
-    Logs.debug "Encountered number of thread IDs (unique): %i (%i)\n" (uc+nc) uc;
+    Logs.debug "Encountered number of thread IDs (unique): %i (%i)" (uc+nc) uc;
     Logs.debug "unique: ";
     List.iter (fun tid -> Logs.debug " %s " (Thread.show tid)) uniques;
-    Logs.debug "\nnon-unique: ";
+    Logs.newline ();
+    Logs.debug "non-unique: ";
     List.iter (fun tid -> Logs.debug " %s " (Thread.show tid)) non_uniques;
-    Logs.debug "\n"
+    Logs.newline ()
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();

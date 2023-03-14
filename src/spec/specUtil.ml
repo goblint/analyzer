@@ -33,8 +33,11 @@ let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
   | SpecCore.Eof   ->
     let nodes = List.filter_map (function SpecCore.Node x -> Some x | _ -> None) !defs in
     let edges = List.filter_map (function SpecCore.Edge x -> Some x | _ -> None) !defs in
-    if print then Logs.debug "\n#Definitions: %i, #Nodes: %i, #Edges: %i\n"
-        (List.length !defs) (List.length nodes) (List.length edges);
+    if print then (
+      Logs.newline ();
+      Logs.debug "#Definitions: %i, #Nodes: %i, #Edges: %i"
+        (List.length !defs) (List.length nodes) (List.length edges)
+    );
     if save_dot && not dot then (
       let dotgraph = SpecCore.to_dot_graph !defs in
       output_file ~filename:"result/graph.dot" ~text:dotgraph;

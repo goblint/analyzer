@@ -48,11 +48,11 @@ module SLR3term =
       let count_side  = ref (max_int - 1) in
 
       let () = print_solver_stats := fun () ->
-        Logs.info "wpoint: %d, rho: %d, rho': %d, q: %d, count: %d, count_side: %d\n" (HM.length wpoint) (HM.length rho) (HPM.length rho') (H.size !q) (Int.neg !count) (max_int - !count_side);
+        Logs.info "wpoint: %d, rho: %d, rho': %d, q: %d, count: %d, count_side: %d" (HM.length wpoint) (HM.length rho) (HPM.length rho') (H.size !q) (Int.neg !count) (max_int - !count_side);
         let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
         HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k) ((+)1) histo) rho;
         let vid,n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
-        Logs.info "max #contexts: %d for var_id %s\n" n vid
+        Logs.info "max #contexts: %d for var_id %s" n vid
       in
 
       let init ?(side=false) x =
@@ -206,8 +206,9 @@ module SLR3term =
       stop_event ();
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
-        Logs.debug "\nWidening points:\n";
-        HM.iter (fun k () -> Logs.debug "%a\n" S.Var.pretty_trace k) wpoint;
+        Logs.newline ();
+        Logs.debug "Widening points:";
+        HM.iter (fun k () -> Logs.debug "%a" S.Var.pretty_trace k) wpoint;
         Logs.newline ();
       );
 

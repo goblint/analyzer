@@ -10,16 +10,16 @@ let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
-  Logs.info "Goblint version: %s\n" Version.goblint;
-  Logs.info "Cil version:     %s\n" Cil.cilVersion;
-  Logs.info "Dune profile:    %s\n" ConfigProfile.profile;
-  Logs.info "OCaml version:   %s\n" Sys.ocaml_version;
-  Logs.info "OCaml flambda:   %s\n" ConfigOcaml.flambda;
+  Logs.info "Goblint version: %s" Version.goblint;
+  Logs.info "Cil version:     %s" Cil.cilVersion;
+  Logs.info "Dune profile:    %s" ConfigProfile.profile;
+  Logs.info "OCaml version:   %s" Sys.ocaml_version;
+  Logs.info "OCaml flambda:   %s" ConfigOcaml.flambda;
   if get_bool "dbg.verbose" then (
-    Logs.debug "Library versions:\n";
+    Logs.debug "Library versions:";
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
-        Logs.debug "  %s: %s\n" name version
+        Logs.debug "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
   exit 0
@@ -129,7 +129,7 @@ and complete args =
   raise Exit
 
 (* TODO: remove *)
-let eprint_color m = Logs.info "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
+let eprint_color m = Logs.info "%s" (MessageUtil.colorize ~fd:Unix.stderr m)
 
 let check_arguments () =
   let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in(* unused now, but might be useful for future checks here *)
@@ -250,7 +250,7 @@ let preprocess_files () =
   if get_bool "dbg.verbose" then (
     Logs.debug "Custom include dirs:";
     List.iteri (fun i custom_include_dir ->
-        Logs.Format.debug "  %d. %a (exists=%B)\n" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
+        Logs.Format.debug "  %d. %a (exists=%B)" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
       ) custom_include_dirs
   );
   let custom_include_dirs = List.filter (Sys.file_exists % Fpath.to_string) custom_include_dirs in
@@ -444,9 +444,9 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     Logs.newline ();
-    Logs.info "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses;
+    Logs.info "vars = %d    evals = %d    narrow_reuses = %d" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses;
     Logs.newline ();
-    Logs.info "Timings:\n";
+    Logs.info "Timings:";
     Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
@@ -475,7 +475,7 @@ let do_analyze change_info merged_AST =
     if get_bool "dbg.verbose" then Logs.info "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
-    if get_bool "dbg.verbose" then Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
+    if get_bool "dbg.verbose" then Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a"
                                              L.pretty stf L.pretty exf L.pretty otf;
     (* and here we run the analysis! *)
 
@@ -514,11 +514,11 @@ let do_html_output () =
       let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
       try match Timing.wrap "g2html" Unix.system command with
         | Unix.WEXITED 0 -> ()
-        | _ -> Logs.error "HTML generation failed! Command: %s\n" command
+        | _ -> Logs.error "HTML generation failed! Command: %s" command
       with Unix.Unix_error (e, f, a) ->
-        Logs.error "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
+        Logs.error "%s at syscall %s with argument \"%s\"." (Unix.error_message e) f a
     ) else
-      Logs.error "Warning: jar file %s not found.\n" jar
+      Logs.error "Warning: jar file %s not found." jar
   )
 
 let do_gobview cilfile =
@@ -563,7 +563,7 @@ let do_gobview cilfile =
         ) dist_files
     )
     else
-      Logs.error "Warning: Cannot locate GobView.\n"
+      Logs.error "Warning: Cannot locate GobView."
   )
 
 let handle_extraspecials () =

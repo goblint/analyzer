@@ -152,16 +152,16 @@ struct
         end
 
     and do_assert revpath' i env' expr =
-      Logs.debug "%d: %s\n" i (Expr.to_string expr);
+      Logs.debug "%d: %s" i (Expr.to_string expr);
 
       let track_const = Boolean.mk_const ctx (Symbol.mk_int ctx i) in
       Solver.assert_and_track solver expr track_const;
 
       let status = Solver.check solver [] in
-      Logs.debug "%d: %s\n" i (Solver.string_of_status status);
+      Logs.debug "%d: %s" i (Solver.string_of_status status);
       match Solver.check solver [] with
       | Solver.SATISFIABLE ->
-        Logs.info "%d: %s\n" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
+        Logs.info "%d: %s" i (Model.to_string (BatOption.get @@ Solver.get_model solver));
         iter_wp revpath' (i - 1) env'
 
       | Solver.UNSATISFIABLE ->

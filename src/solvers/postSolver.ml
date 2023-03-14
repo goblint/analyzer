@@ -129,7 +129,7 @@ module SaveRun: F =
       let save_run = Fpath.v save_run_str in
       let solver = Fpath.(save_run / solver_file) in
       if get_bool "dbg.verbose" then
-        Logs.Format.info "Saving the solver result to %a\n" Fpath.pp solver;
+        Logs.Format.info "Saving the solver result to %a" Fpath.pp solver;
       GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end
@@ -179,7 +179,7 @@ struct
 
   let post xs vs vh =
     if get_bool "dbg.verbose" then
-      Logs.debug "Postsolving\n";
+      Logs.debug "Postsolving";
 
     let module StartS =
     struct

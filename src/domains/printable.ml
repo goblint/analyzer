@@ -150,12 +150,12 @@ struct
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
       if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
-        Logs.error "tags are equal but values are not for %a and %a\n" pretty x pretty y;
+        Logs.error "tags are equal but values are not for %a and %a" pretty x pretty y;
       assert (Base.equal x.BatHashcons.obj y.BatHashcons.obj);
       true
     ) else (
       if Base.equal x.BatHashcons.obj y.BatHashcons.obj then
-        Logs.error "tags are not equal but values are for %a and %a\n" pretty x pretty y;
+        Logs.error "tags are not equal but values are for %a and %a" pretty x pretty y;
       assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
       false
     )

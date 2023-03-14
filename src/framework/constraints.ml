@@ -827,7 +827,7 @@ struct
       | Some {changes; _} -> changes
       | None -> empty_change_info ()
     in
-    List.(Logs.info "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
+    List.(Logs.info "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
     let changed_funs = List.filter_map (function
         | {old = {def = Some (Fun f); _}; diff = None; _} ->
@@ -1352,22 +1352,22 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "dbg.compare_runs.diff" then
-          Logs.info "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1);
+          Logs.info "Global %a is more precise using left:\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1);
         f_le ()
       end else if b2 then begin
         if get_bool "dbg.compare_runs.diff" then
-          Logs.info "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2);
+          Logs.info "Global %a is more precise using right:\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2);
         f_gr ()
       end else begin
         if get_bool "dbg.compare_runs.diff" then (
-          Logs.info "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2);
-          Logs.info "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1);
+          Logs.info "Global %a is incomparable (diff):\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2);
+          Logs.info "Global %a is incomparable (reverse diff):\n%a" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1);
         );
         f_uk ()
       end
     in
     GH.iter f g1;
-    Logs.info "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
+    Logs.info "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
@@ -1380,16 +1380,16 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            Logs.info "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1);
+            Logs.info "%a @@ %a is more precise using left:\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1);
           incr le
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            Logs.info "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2);
+            Logs.info "%a @@ %a is more precise using right:\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2);
           incr gr
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            Logs.info "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2);
-          Logs.info "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1);
+            Logs.info "%a @@ %a is incomparable (diff):\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2);
+            Logs.info "%a @@ %a is incomparable (reverse diff):\n%a" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1);
           );
           incr uk
         end
@@ -1399,8 +1399,8 @@ struct
     let k2 = Set.of_enum @@ PP.keys h2 in
     let o1 = Set.cardinal @@ Set.diff k1 k2 in
     let o2 = Set.cardinal @@ Set.diff k2 k1 in
-    Logs.info "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d\n" !eq !le o1 !gr o2 !uk *)
-    Logs.info "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
+    Logs.info "locals: \tequal = %d\tleft = %d[%d]\tright = %d[%d]\tincomparable = %d" !eq !le o1 !gr o2 !uk *)
+    Logs.info "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =
     let eq, le, gr, uk, no2, no1 = ref 0, ref 0, ref 0, ref 0, ref 0, ref 0 in
@@ -1417,16 +1417,16 @@ struct
           f_eq ()
         else if b1 then begin
           if get_bool "dbg.compare_runs.diff" then
-            Logs.info "%a is more precise using left:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1);
+            Logs.info "%a is more precise using left:\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1);
           f_le ()
         end else if b2 then begin
           if get_bool "dbg.compare_runs.diff" then
-            Logs.info "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2);
+            Logs.info "%a is more precise using right:\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2);
           f_gr ()
         end else begin
           if get_bool "dbg.compare_runs.diff" then (
-            Logs.info "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2);
-            Logs.info "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1);
+            Logs.info "%a is incomparable (diff):\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2);
+            Logs.info "%a is incomparable (reverse diff):\n%a" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1);
           );
           f_uk ()
         end
@@ -1440,7 +1440,7 @@ struct
     (* let k2 = Set.of_enum @@ PP.keys h2 in *)
     (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
     (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
-    Logs.info "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d\n" !eq !le !gr !uk !no2 !no1
+    Logs.info "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d" !eq !le !gr !uk !no2 !no1
 
   let compare (name1,name2) (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =
@@ -1452,7 +1452,8 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Logs.info "\nComparing GlobConstrSys precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing GlobConstrSys precision of %s (left) with %s (right):" name1 name2;
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
@@ -1483,10 +1484,11 @@ struct
   module Compare = CompareHashtbl (Sys.Var) (Sys.Dom) (VH)
 
   let compare (name1, name2) vh1 vh2 =
-    Logs.info "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing EqConstrSys precision of %s (left) with %s (right):" name1 name2;
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    Logs.info "EqConstrSys comparison summary: %t\n" (fun () -> msg);
+    Logs.info "EqConstrSys comparison summary: %t" (fun () -> msg);
     Logs.newline ();
 end
 
@@ -1495,10 +1497,11 @@ struct
   module Compare = CompareHashtbl (GVar) (G) (GH)
 
   let compare (name1, name2) vh1 vh2 =
-    Logs.info "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing globals precision of %s (left) with %s (right):" name1 name2;
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    Logs.info "Globals comparison summary: %t\n" (fun () -> msg);
+    Logs.info "Globals comparison summary: %t" (fun () -> msg);
     Logs.newline ();
 end
 
@@ -1524,12 +1527,13 @@ struct
     nh
 
   let compare (name1, name2) vh1 vh2 =
-    Logs.info "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
+    Logs.newline ();
+    Logs.info "Comparing nodes precision of %s (left) with %s (right):" name1 name2;
     let vh1' = join_contexts vh1 in
     let vh2' = join_contexts vh2 in
     let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
-    Logs.info "Nodes comparison summary: %t\n" (fun () -> msg);
+    Logs.info "Nodes comparison summary: %t" (fun () -> msg);
     Logs.newline ();
 end
 

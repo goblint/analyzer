@@ -709,7 +709,7 @@ struct
   let finalize () =
     let file = GobConfig.get_string "exp.relation.prec-dump" in
     if file <> "" then begin
-      Logs.warn "exp.relation.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
+      Logs.warn "exp.relation.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!";
       Timing.wrap "relation.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()

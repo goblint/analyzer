@@ -119,7 +119,7 @@ let callConstructors ast =
     !cons
   in
   let d_fundec () fd = Pretty.text fd.svar.vname in
-  if get_bool "dbg.verbose" then ignore (Logs.debug "Constructors: %a\n" (Pretty.d_list ", " d_fundec) constructors);
+  if get_bool "dbg.verbose" then ignore (Logs.debug "Constructors: %a" (Pretty.d_list ", " d_fundec) constructors);
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
 
@@ -144,9 +144,9 @@ let getFuns fileAST : startfuns =
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
-      Logs.debug "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
+      Logs.debug "Start function: %s" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
-      Logs.debug "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
+      Logs.debug "Cleanup function: %s" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | _ -> acc
