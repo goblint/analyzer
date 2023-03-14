@@ -98,6 +98,7 @@ struct
         let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
       end
       )
+    let name () = "contexts"
   end
 
   include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)

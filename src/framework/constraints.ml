@@ -1220,11 +1220,16 @@ struct
       | `Right _ -> true
   end
 
-  module EM = MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+  module EM =
+  struct
+    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    let name () = "branches"
+  end
 
   module G =
   struct
     include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    let name () = "deadbranch"
 
     let s = function
       | `Bot -> S.G.bot ()
