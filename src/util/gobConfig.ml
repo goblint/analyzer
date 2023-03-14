@@ -178,7 +178,7 @@ struct
         else Select (fld, parse_path' pth)
       end
     with PathParseError ->
-      Logs.error "Error: Couldn't parse the json path '%s'\n%!" s;
+      Logs.error "Error: Couldn't parse the json path '%s'\n" s;
       failwith "parsing"
 
   (** Here we store the actual configuration. *)

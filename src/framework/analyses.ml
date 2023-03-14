@@ -248,7 +248,7 @@ struct
       in
       let write_file f fn =
         Messages.xml_file_name := fn;
-        Logs.info "Writing xml to temp. file: %s\n%!" fn;
+        Logs.info "Writing xml to temp. file: %s\n" fn;
         BatPrintf.fprintf f "<run>";
         BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
         BatPrintf.fprintf f "<statistics>";
@@ -288,7 +288,7 @@ struct
       (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
-        Logs.info "Writing json to temp. file: %s\n%!" fn;
+        Logs.info "Writing json to temp. file: %s\n" fn;
         fprintf f "{\n  \"parameters\": \"%s\",\n  " Goblintutil.command_line;
         fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
@@ -303,7 +303,7 @@ struct
         write_file f (get_string "outfile")
     | "sarif" ->
       let open BatPrintf in
-      Logs.info "Writing Sarif to file: %s\n%!" (get_string "outfile");
+      Logs.info "Writing Sarif to file: %s\n" (get_string "outfile");
       Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       let json = `Assoc [
