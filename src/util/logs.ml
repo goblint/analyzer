@@ -54,7 +54,8 @@ struct
   let warn = log
   let error = log
 
-  let newline () = ()
+  let newline () =
+    prerr_newline ()
 end
 
 module Pretty = MakeKind (PrettyKind)
