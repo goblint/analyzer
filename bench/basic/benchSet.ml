@@ -5,7 +5,7 @@ open Benchmark.Tree
 
 module IS = Set.Make (Int)
 
-let set1 = IS.of_seq (Seq.init 1024 (fun i -> i))
+let set1 = IS.of_seq (Seq.init 1024 Fun.id)
 let set2 = IS.of_seq (Seq.init 1024 (fun i -> i + 1))
 let set3 = IS.of_seq (Seq.init 1024 (fun i -> i - 1))
 
