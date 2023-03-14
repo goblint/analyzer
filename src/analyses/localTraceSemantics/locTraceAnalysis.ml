@@ -101,7 +101,6 @@ let lastGraphNode = LocalTraces.get_last_node customGraph
 in
 print_string ("customGraph="^(LocalTraces.show customGraph)^"\n");
 print_string("candidate="^(LocalTraces.show candidate)^"\n");
-let tmp_graph =
    if  
      (not (check_exists_unlock_lock candidate customGraph ))&&
        (check_prefix candidate customGraph )
@@ -115,49 +114,31 @@ let tmp_graph =
     in
       let result_graph = LocalTraces.extend_by_gEdge merged_graph depEdge
    in
-   if LocalTraces.is_valid_merged_graph result_graph then result_graph 
-   else (print_string ("result_graph is not valid\nresult_graph:"^(LocalTraces.show result_graph)^"\n"); graph)
+   let myEdge = (prevNode,(EdgeImpl.convert_edge ctxEdge),lockingNode)
+  in
+   if LocalTraces.is_valid_merged_graph result_graph then [LocalTraces.extend_by_gEdge result_graph myEdge]  
+   else (print_string ("result_graph is not valid\nresult_graph:"^(LocalTraces.show result_graph)^"\n"); [])
         )
       else ( 
        (* Debug-info *)
        if not (check_prefix candidate customGraph ) then print_string "mutexLock_join failed the prefix-check\n";
        if (check_exists_unlock_lock candidate customGraph ) then print_string "mutexLock_join failed the exist unlock/lock node check\n";
        if not (check_compatible_lockSets lastCandidateNode lastGraphNode) then print_string "mutexLock_join failed the lockSet-compatibility check\n";
-        graph
-      )    
-    in
-    let myEdge = (prevNode,(EdgeImpl.convert_edge ctxEdge),lockingNode)
-in
-LocalTraces.extend_by_gEdge tmp_graph myEdge
+        []
+      ) 
+    
+
 
 let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctxEdge lockingNode mutex_vinfo =
  print_string ("mutexLock_join was invoked with |candidates| = "^(string_of_int (D.cardinal candidates))^"\n");
  let rec loop candidateList graphList =
    match candidateList with candidate::xs -> 
-    if LocalTraces.have_same_first_lock graph candidate mutex_vinfo 
-      then (
-        print_string "In mutexLock_join graph and candidate have the same first lock\n";
-    let result_graph = mutexLock_join_helper graph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
-in 
-let result_list =
-result_graph::graphList
-in
-loop xs result_list
-      ) 
-    else
-      (print_string "In mutexLock_join graph and candidate dont have the same first lock\n";
- let noFirstGraph = LocalTraces.remove_first_lock graph mutex_vinfo
-in
-  let noFirstCandidate = LocalTraces.remove_first_lock candidate mutex_vinfo
-in
-   let result_graph1 = mutexLock_join_helper graph graph noFirstCandidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
+   let result_graph = mutexLock_join_helper graph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
   in
-  let result_graph2 = mutexLock_join_helper noFirstGraph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
-in
 let result_list = 
-   result_graph1::result_graph2::graphList
+   result_graph@graphList
 in
-       loop xs result_list)
+       loop xs result_list
    | [] -> graphList
  in
  loop (graphSet_to_list candidates) []
@@ -401,18 +382,6 @@ in
 print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n<"^(NodeImpl.show_sigma sigma_fold)^">") "" allSigmas)^"\n|allSigmas| = "^(string_of_int (List.length allSigmas))^"\n");
 allSigmas, true
 
-(* let create_locks rvalGlobals graph prevNode =
-  let rec loop currentGraph globalList currentNode =
-    match globalList with global::xs ->
-      let globalMutex = customVinfoStore#getVarinfo ("__goblint__traces____mutex__"^global.vname)
-    in
-    let lockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_lock" 
-  in
-  let lockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(globalMutex), NoOffset)])
-    in 
-      | [] -> currentGraph, currentNode
-  in loop graph (LockSet.to_list rvalGlobals) prevNode *)
-
 (* ASSIGN helper functions *)
 (* perform assign-effect on given node *)
 let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} = print_string "assign_on_node wurde aufgerufen\n";
@@ -421,8 +390,8 @@ let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=si
   in
   let unlockVarinfo = customVinfoStore#getVarinfo "pthread_mutex_unlock"
   in
-    let rvalGlobals = get_all_globals rval LockSet.empty
-    in print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
+    (* let rvalGlobals = get_all_globals rval LockSet.empty
+    in print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n"); *)
     (* if this is a global, we define a custom mutex and add lock/unlock edges 
        additionally, we have to join other traces that 'unlock' the global, similiarly to special *)
   let sigmaList,success_inner = eval_wrapper sigma x rval  graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} in 
@@ -444,26 +413,20 @@ let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=si
     let myTmp:V.t = Mutex(customMutex)
   in
     let allUnlockingTraces = ctx.global myTmp
-in
-let tmpGraph = if (LocalTraces.exists_lock_mutex graph customMutex)||(LocTraceGraph.is_empty graph) then graph 
-else (
+in 
   let firstNode = LocalTraces.get_first_node graph
 in
 print_string ("In special, firstNode is "^(NodeImpl.show firstNode)^" for graph "^(LocalTraces.show graph)^"\n");
 let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(customMutex),{programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls})
 in
-LocalTraces.extend_by_gEdge graph firstLockEdge
-) 
+let fistLockedGraph = if (LocalTraces.exists_lock_mutex graph customMutex) || (NodeImpl.equal firstNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}) then graph else  LocalTraces.extend_by_gEdge graph firstLockEdge
 in
-let lockedGraphList =  if D.is_empty allUnlockingTraces then (
-  let lockedGraph = LocalTraces.extend_by_gEdge tmpGraph lockingEdge
-  in [lockedGraph]
-) else
-mutexLock_join allUnlockingTraces tmpGraph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} lockingLabel lockedNode customMutex
+  let lockedGraph = LocalTraces.extend_by_gEdge fistLockedGraph lockingEdge
+  in 
+  let lockedGraphList = 
+    lockedGraph::(mutexLock_join allUnlockingTraces graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} lockingLabel lockedNode customMutex)
 in
 let graphList = List.fold (fun resultGraphList lockedGraph -> 
-  if (LockSet.cardinal rvalGlobals = 0) then
-  (
     let assignedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID lockedNode 
     (if Edge.equal ctx.edge Skip then (Assign(lval,rval)) else EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid lvalLockedLs);tid=tid;lockSet=lvalLockedLs}
 in
@@ -484,66 +447,7 @@ in
    in
   ctx.sideg myTmp (D.add unlockingGraph ctxGlobalTid);
 unlockingGraph::resultGraphList
-)
-    else 
-      (match (LockSet.to_list rvalGlobals) with 
-      | [rvalGlobal] -> (
-        let rvalGlobalMutex = customVinfoStore#getVarinfo ("__goblint__traces____mutex__"^rvalGlobal.vname)
-      in
-    let rvalLockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(rvalGlobalMutex), NoOffset)])
-      in 
-      (* create lock for rval-global and then I need to join again --> inner List.fold *)
-      let rvalLockedLs = LockSet.add rvalGlobalMutex lvalLockedLs
-    in
-      let rvalLockedNode = {programPoint=programPoint;sigma=sigma; id=(idGenerator#getID lockedNode (EdgeImpl.convert_edge rvalLockingLabel) ctx.node evaluated tid rvalLockedLs);tid=tid;lockSet=rvalLockedLs}
-    in
-    let rvalLockingEdge = (lockedNode,EdgeImpl.convert_edge rvalLockingLabel,rvalLockedNode)
-  in
-  let myRvalTmp:V.t = Mutex(rvalGlobalMutex)
-in
-  let rvalAllUnlockingTraces = ctx.global myRvalTmp
-in let rvalLockedGraphList =  if D.is_empty rvalAllUnlockingTraces then (
-  let tempGraph = LocalTraces.extend_by_gEdge lockedGraph rvalLockingEdge
-  in [tempGraph]
-) else
-mutexLock_join rvalAllUnlockingTraces lockedGraph lockedNode rvalLockingLabel rvalLockedNode rvalGlobalMutex
-in 
-let rvalGraphList = List.fold (fun rvalResultGraphList rvalLockedGraph -> 
-  let assignedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID rvalLockedNode 
-    (if Edge.equal ctx.edge Skip then (Assign(lval,rval)) else EdgeImpl.convert_edge ctx.edge) ctx.node evaluated tid rvalLockedLs);tid=tid;lockSet=rvalLockedLs}
-in
-let assigningEdge:(node * CustomEdge.t * node) = if Edge.equal ctx.edge Skip then (rvalLockedNode, (Assign(lval,rval)), assignedNode)
-else (rvalLockedNode, EdgeImpl.convert_edge ctx.edge, assignedNode)
-in
-let assignedGraph = LocalTraces.extend_by_gEdge rvalLockedGraph assigningEdge
-in
-let rvalUnlockingLabel:CustomEdge.t = Proc(None, Lval(Var(unlockVarinfo), NoOffset),[AddrOf(Var(rvalGlobalMutex), NoOffset)])
-in
-let rvalUnlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID assignedNode rvalUnlockingLabel ctx.node evaluated tid lvalLockedLs);tid=tid;lockSet=lvalLockedLs}
-in
-let rvalUnlockingEdge = (assignedNode, rvalUnlockingLabel, rvalUnlockedNode)
-in
-let rvalUnlockingGraph = LocalTraces.extend_by_gEdge assignedGraph rvalUnlockingEdge
-in
-      let rvalCtxGlobalTid = ctx.global myRvalTmp
-      in
-        ctx.sideg myRvalTmp (D.add rvalUnlockingGraph rvalCtxGlobalTid);
-let unlockingLabel:CustomEdge.t = Proc(None, Lval(Var(unlockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
-  in
-  let unlockedNode = {programPoint=ctx.node;sigma=evaluated;id=(idGenerator#getID rvalUnlockedNode unlockingLabel ctx.node evaluated tid ls);tid=tid;lockSet=ls}
-in
-let unlockingEdge = (rvalUnlockedNode, unlockingLabel, unlockedNode)
-in
-let unlockingGraph = LocalTraces.extend_by_gEdge rvalUnlockingGraph unlockingEdge
-in
-let ctxGlobalTid = ctx.global myTmp
- in
-ctx.sideg myTmp (D.add unlockingGraph ctxGlobalTid);
-unlockingGraph::rvalResultGraphList
-  ) [] rvalLockedGraphList
-in rvalGraphList@resultGraphList
-      )
-      | _ -> Printf.printf "Multiple globals in rval is not supported\n"; exit 0)
+
 ) [] lockedGraphList
     in
     graphList@outerGraphList
@@ -570,7 +474,7 @@ let assign_fold_graphSet graph (lval, rval, ctx,set_acc) = print_string "assign_
     (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In assign, we have a trace that does not end in previous node:
     "^(LocalTraces.show graph)^"\n"); set_acc) else 
  let result_graphList = 
-  assign_on_node graph ctx lval rval lastNode
+  assign_on_node (if LocTraceGraph.is_empty graph then (LocTraceGraph.add_vertex graph lastNode) else graph) ctx lval rval lastNode
   in
   List.fold (fun set_fold result_graph -> if (LocalTraces.equal graph result_graph)  then set_acc else D.add result_graph set_fold) set_acc result_graphList
   )
@@ -773,26 +677,22 @@ result
       let allUnlockingTraces = ctx.global myTmp
   in
   print_string("in special, Lock, allUnlockingTraces= ["^(D.fold (fun graph_fold s_fold -> s_fold^(LocalTraces.show graph_fold)^"\n") allUnlockingTraces "")^"]\n");
-  let tmpGraph = if (LocalTraces.exists_lock_mutex graph mutex_vinfo) then graph 
-  else (
     let firstNode = LocalTraces.get_first_node graph
   in
   print_string ("In special, firstNode is "^(NodeImpl.show firstNode)^"\n");
   let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(mutex_vinfo),{programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls})
   in
-  LocalTraces.extend_by_gEdge graph firstLockEdge
-  ) 
+  (* First lock is only added, if this is the first lock *)
+  let firstLockedGraph = if LocalTraces.exists_lock_mutex graph mutex_vinfo then graph else  (LocalTraces.extend_by_gEdge graph firstLockEdge)
   in
-  if D.is_empty allUnlockingTraces then (
-    let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid (LockSet.add mutex_vinfo ls));tid=tid;lockSet=(LockSet.add mutex_vinfo ls)})
+  let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid (LockSet.add mutex_vinfo ls));tid=tid;lockSet=(LockSet.add mutex_vinfo ls)})
       in
-      let result_graph = LocalTraces.extend_by_gEdge tmpGraph myEdge
-    in [result_graph]
-  ) else(
+  let result_graph = LocalTraces.extend_by_gEdge firstLockedGraph myEdge
+    in
     let lockedNode = {programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid (LockSet.add mutex_vinfo ls));tid=tid;lockSet=(LockSet.add mutex_vinfo ls)}
   in
-  mutexLock_join allUnlockingTraces tmpGraph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctx.edge lockedNode mutex_vinfo
-  )
+  (* we create both: merged trace and trace that assumes first lock *)
+  result_graph::(mutexLock_join allUnlockingTraces graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctx.edge lockedNode mutex_vinfo)
           )
 
     | Unlock(unlockExp), _ ->
