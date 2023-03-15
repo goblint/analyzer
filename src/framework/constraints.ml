@@ -741,7 +741,7 @@ struct
                                }
              in
              let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd') in
-             sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
+             sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local value))
       in
       JmpBufDomain.JmpBufSet.iter handle_longjmp targets
     in
@@ -757,7 +757,7 @@ struct
     let result = List.fold_left D.join (D.bot ()) paths in
     if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty result;
     (* Handle "longjumpy" ;p returns from this function by producing appropriate side-effects *)
-    let longjmpv fc v = if S.D.is_bot v then v else (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i\n" (S.C.hash fc); getl (LongjmpFromFunction f, fc)) in
+    let longjmpv fc v = if S.D.is_bot v then v else (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i\n" (S.C.hash fc); G.local (getg (GVar.longjmpret (f, fc)))) in
     let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, longjmpv fc v)) ld_fc_fd_list in
     let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
     let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
@@ -828,7 +828,7 @@ struct
                  )
                else
                  (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
-                  sidel (LongjmpFromFunction current_fundec, ctx.context ()) res))
+                  sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local res)))
         in
         if JmpBufDomain.JmpBufSet.is_empty targets then
           M.warn "Longjmp to potentially invalid target (%a is bot?!)"  d_exp env
