@@ -87,7 +87,7 @@ struct
     | Queries.MustJoinedThreads -> (ctx.local:ConcDomain.MustThreadSet.t) (* type annotation needed to avoid "would escape the scope of its equation" *)
     | _ ->  Queries.Result.top q
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine ctx ~longjmpthrough (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     D.union ctx.local au
 
   let startstate v = D.top ()

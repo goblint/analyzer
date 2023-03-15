@@ -98,7 +98,7 @@ struct
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
-  let combine ctx ?(longjmpthrough = false) lv fexp f args fc al f_ask =
+  let combine ctx ~longjmpthrough lv fexp f args fc al f_ask =
     access_one_top ctx Read false fexp;
     begin match lv with
       | None      -> ()

@@ -46,7 +46,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) =
     emit_splits_ctx ctx
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine ctx ~longjmpthrough (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     let d = D.join ctx.local au in
     emit_splits ctx d
 

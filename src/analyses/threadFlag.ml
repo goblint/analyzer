@@ -49,7 +49,7 @@ struct
   let enter ctx lval f args =
     [ctx.local,ctx.local]
 
-  let combine ctx ?(longjmpthrough = false) lval fexp f args fc st2 f_ask = st2
+  let combine ctx ~longjmpthrough lval fexp f args fc st2 f_ask = st2
 
   let special ctx lval f args =
     ctx.local

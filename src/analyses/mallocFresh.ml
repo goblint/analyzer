@@ -27,7 +27,7 @@ struct
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
-  let combine ctx ?(longjmpthrough = false) lval f fd args context f_local (f_ask: Queries.ask) =
+  let combine ctx ~longjmpthrough lval f fd args context f_local (f_ask: Queries.ask) =
     match lval with
     | None -> f_local
     | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval f_local

@@ -46,7 +46,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
+  let combine ctx ~longjmpthrough (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
     let fromlv = if not longjmpthrough then relevants_from_lval_opt ctx lval else VS.empty () in
     let taintedcallee = relevants_from_ls (f_ask.f Queries.MayBeTainted) in
     add_to_all_defined (VS.union taintedcallee fromlv) ctx.local

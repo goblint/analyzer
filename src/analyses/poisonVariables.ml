@@ -91,7 +91,7 @@ struct
          let reachable_vars = Queries.LS.elements reachable_from_args |> List.map fst |> VS.of_list in
          [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local])
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine ctx ~longjmpthrough (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* Actually, this ask would have to be on the post state?! *)
     Option.map_default (rem_lval ctx.ask au) (VS.join au ctx.local) lval
 

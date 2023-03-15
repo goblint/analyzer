@@ -517,7 +517,7 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) ?(longjmpthrough= false) r fe f a fc fd f_ask =
+  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) ~longjmpthrough r fe f a fc fd f_ask =
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
