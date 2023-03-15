@@ -645,10 +645,6 @@ struct
     common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
-    let jmptarget = function
-      | Statement s -> LongjmpTo s
-      | _ -> failwith "should not happen"
-    in
     let current_fundec = Node.find_fundec ctx.node in
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
@@ -723,7 +719,7 @@ struct
                 ()
              );
              let value' = S.event res_ctx (Events.Poison modified_vars) res_ctx in
-             sidel (jmptarget targetnode, ctx.context ()) value'
+             sideg (GVar.longjmpto (targetnode, ctx.context ())) (G.create_local value')
            (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
            | _ -> failwith "target of longjmp is node that is not a call to setjmp!")
         else
@@ -769,11 +765,7 @@ struct
     (* Return result of normal call, longjmp om;y happens via side-effect *)
     result
 
-  let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) lv f args =
-    let jmptarget = function
-      | Statement s -> LongjmpTo s
-      | _ -> failwith "should not happen"
-    in
+  let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) getg sideg lv f args =
     match (LibraryFunctions.find f).special args with
     | Setjmp { env; savesigs} ->
       (* Checking if this within the scope of an identifier of variably modified type *)
@@ -782,8 +774,7 @@ struct
       );
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
-      if M.tracing then Messages.tracel "longjmp" "reading from %s\n" (Node.show (jmptarget ctx.prev_node));
-      let later_return = getl (jmptarget ctx.prev_node, ctx.context ()) in
+      let later_return = G.local (getg (GVar.longjmpto (ctx.prev_node, ctx.context ()))) in
       if not @@ S.D.is_bot later_return then
         S.D.join first_return later_return
       else
@@ -832,7 +823,7 @@ struct
                                       }
                     in
                     let r = S.event res_ctx (Events.Poison modified_vars) res_ctx in
-                    sidel (jmptarget node, ctx.context ()) r
+                    sideg (GVar.longjmpto (node, ctx.context ())) (G.create_local r)
                   | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
                  )
                else
@@ -873,11 +864,11 @@ struct
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call ctx getl sidel lv f args
+                tf_special_call ctx getl sidel getg sideg lv f args
               | fd ->
                 tf_normal_call ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
-                tf_special_call ctx getl sidel lv f args)
+                tf_special_call ctx getl sidel getg sideg lv f args)
           end
         else begin
           let geq = if var_arg then ">=" else "" in
