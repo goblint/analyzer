@@ -35,8 +35,7 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Setjmp _ ->
-      let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-      let entry = (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx)) in
+      let entry = (ctx.prev_node, ctx.control_context ()) in
       D.add (Target entry) ctx.local
     | Longjmp {env; value; sigrestore} -> ctx.local
     | _ -> ctx.local

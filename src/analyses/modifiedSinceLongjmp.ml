@@ -55,8 +55,7 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Setjmp _ ->
-      let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-      let entry = (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx)) in
+      let entry = (ctx.prev_node, ctx.control_context ()) in
       let v = D.find entry ctx.local in (* Will make bot binding explicit here *)
       (* LHS of setjmp not marked as tainted on purpose *)
       D.add entry v ctx.local

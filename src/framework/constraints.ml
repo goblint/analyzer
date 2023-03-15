@@ -684,8 +684,7 @@ struct
         | Target (targetnode, targetcontext) ->
         let target_in_caller () = CilType.Fundec.equal (Node.find_fundec targetnode) current_fundec in
         let targetcontext_matches () =
-          let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-          targetcontext = IntDomain.Flattened.of_int (Int64.of_int controlctx)
+          ControlSpecC.equal targetcontext (ctx.control_context ())
         in
         (* Check if corresponding setjmp call was in current function & in current context *)
         if targetcontext_matches () && target_in_caller () then
@@ -799,8 +798,7 @@ struct
             if not (JmpBufDomain.JmpBufSet.mem (Target (node,c)) validBuffers) then
               M.warn "Longjmp to potentially invalid target! (Target %s in Function %s which may have already returned or is in a different thread)" (Node.show node) (Node.find_fundec node).svar.vname
             else
-              (let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-               if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
+              (if ControlSpecC.equal c (ctx.control_context ()) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
                  (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
                   match node with
                   | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
