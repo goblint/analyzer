@@ -263,7 +263,7 @@ struct
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
         GHT.fold (fun g v acc ->
             match g with
-            | `Left g -> (* Spec global *)
+            | `Left (`Left g) -> (* Spec global *)
               begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
                 | `Lifted inv ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
@@ -275,7 +275,7 @@ struct
                 | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
-            | `Right _ -> (* contexts global *)
+            | _ ->
               acc
           ) gh entries
       )

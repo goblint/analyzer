@@ -651,9 +651,9 @@ struct
     let warn_global g v =
       (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
       match g with
-      | `Left g -> (* Spec global *)
+      | `Left (`Left g) -> (* Spec global *)
         R.ask_global (WarnGlobal (Obj.repr g))
-      | `Right _ -> (* contexts global *)
+      | _ ->
         ()
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;

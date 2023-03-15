@@ -75,17 +75,23 @@ end
 
 module GVarF (V: SpecSysVar) (C: Printable.S) =
 struct
-  include Printable.Either (V) (CilType.Fundec)
-  let spec x = `Left x
-  let contexts x = `Right x
+  include Printable.Either (Printable.Either (V) (CilType.Fundec)) (Printable.Either (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C)))
+  let spec x = `Left (`Left x)
+  let contexts x = `Left (`Right x)
+  let longjmpto x = `Right (`Left x)
+  let longjmpret x = `Right (`Right x)
 
   (* from Basetype.Variables *)
   let var_id = show
-  let node _ = MyCFG.Function Cil.dummyFunDec
+  let node = function (* does this matter? *)
+    | `Right (`Left (n, _)) -> n
+    | `Right (`Right (fd, _)) -> Node.Function fd
+    | `Left _ -> MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
   let is_write_only = function
-    | `Left x -> V.is_write_only x
-    | `Right _ -> true
+    | `Left (`Left x) -> V.is_write_only x
+    | `Left (`Right _) -> true
+    | `Right _ -> false
 end
 
 module GVarG (G: Lattice.S) (C: Printable.S) =
