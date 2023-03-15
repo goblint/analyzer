@@ -94,7 +94,7 @@ struct
     | `Right _ -> false
 end
 
-module GVarG (G: Lattice.S) (C: Printable.S) =
+module GVarG (G: Lattice.S) (C: Printable.S) (D: Lattice.S) =
 struct
   module CSet =
   struct
@@ -715,7 +715,7 @@ sig
   module EQSys: GlobConstrSys with module LVar = VarF (Spec.C)
                                and module GVar = GVarF (Spec.V) (Spec.C)
                                and module D = Spec.D
-                               and module G = GVarG (Spec.G) (Spec.C)
+                               and module G = GVarG (Spec.G) (Spec.C) (Spec.D)
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
   module GHT: BatHashtbl.S with type key = EQSys.GVar.t
 end

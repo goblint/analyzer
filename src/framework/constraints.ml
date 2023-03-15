@@ -505,7 +505,7 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = GVarF (S.V) (S.C)
                            and module D = S.D
-                           and module G = GVarG (S.G) (S.C)
+                           and module G = GVarG (S.G) (S.C) (S.D)
   end
 =
 struct
@@ -516,7 +516,7 @@ struct
   module LVar = VarF (S.C)
   module GVar = GVarF (S.V) (S.C)
   module D = S.D
-  module G = GVarG (S.G) (S.C)
+  module G = GVarG (S.G) (S.C) (S.D)
 
   (* Two global invariants:
      1. S.V -> S.G  --  used for Spec
