@@ -1,7 +1,6 @@
 // PARAM: --set ana.activated[+] "localTraces"
 #include <goblint.h>
 #include <pthread.h>
-#include <stdio.h>
 
 int counter;
 pthread_mutex_t lock;

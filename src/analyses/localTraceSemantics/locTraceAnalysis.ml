@@ -181,17 +181,17 @@ eval sigOld vinfo (rval: exp) graph node =
 
   (* returns a function which calculates [l1, u1] OP [l2, u2]*)
 in let get_binop_int op ik = 
-  if not (CilType.Ikind.equal ik IInt) then (Printf.printf "This type of assignment is not supported\n"; exit 0) else 
+  if not (CilType.Ikind.equal ik IInt) then (Printf.printf "This type of assignment is not supported in get_binop_int\n"; exit 0) else 
 (match op with 
 | PlusA -> 
 fun x1 x2 -> (match (x1,x2) with 
-(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0); 
+(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0); 
 (if (Big_int_Z.add_big_int u1 u2 > Big_int_Z.big_int_of_int intMax) then raise Overflow_addition_Int else Int(Big_int_Z.add_big_int l1 l2, Big_int_Z.add_big_int u1 u2, ik))
 | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
 
 | MinusA -> 
 fun x1 x2 -> (match (x1,x2) with (* Minus sollte negieren dann addieren sein, sonst inkorrekt!! *)
-(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+(Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
   (let neg_second_lower = Big_int_Z.minus_big_int u2
 in let neg_second_upper = Big_int_Z.minus_big_int l2
 in print_string("get_binop_int with MinusA: l1="^(Big_int_Z.string_of_big_int l1)^", u1="^(Big_int_Z.string_of_big_int u1)^", neg_second_lower="^(Big_int_Z.string_of_big_int neg_second_lower)^", neg_second_upper="^(Big_int_Z.string_of_big_int neg_second_upper)^"\n"); 
@@ -200,63 +200,82 @@ if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin)
 
 | Lt -> 
   fun x1 x2 -> (match (x1,x2) with 
-  | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+  | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
   (if Big_int_Z.lt_big_int u1 l2 then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) )
   else if Big_int_Z.le_big_int u2 l1 then (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik))
   else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
 
-  | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0 )
+  | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0 )
 | Div -> fun x1 x2 -> (match (x1,x2) with 
 (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if l2 <= Big_int_Z.zero_big_int && u2 >= Big_int_Z.zero_big_int then raise Division_by_zero_Int else (Printf.printf "This type of assignment is not supported - as I do not allow Division yet\n"; exit 0)
-  | _,_ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
-| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+  | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0)
+| _ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0)
 
 in
-  let rec eval_helper subexp =
+  let rec eval_helper subexp currentSigEnhanced =
   (match subexp with
 
 | Const(CInt(c, ik, _)) -> (match ik with
-| IInt -> if c < Big_int_Z.big_int_of_int intMin then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true,SigmaMap.empty, []) 
-else if c > Big_int_Z.big_int_of_int intMax then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true,SigmaMap.empty, []) else (Int (c,c, ik), true,SigmaMap.empty, [])
-| _ ->  Printf.printf "This type of assignment is not supported\n"; exit 0 )
+| IInt -> if c < Big_int_Z.big_int_of_int intMin 
+  then (Int (Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int intMin, ik), true,currentSigEnhanced, []) 
+else if c > Big_int_Z.big_int_of_int intMax 
+  then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true, currentSigEnhanced, []) 
+else (Int (c,c, ik), true, currentSigEnhanced, [])
+| IUInt -> if c < Big_int_Z.zero_big_int 
+  then (Int (Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik), true,currentSigEnhanced, []) 
+else if c > Big_int_Z.big_int_of_int intMax 
+  then (Int (Big_int_Z.big_int_of_int intMax,Big_int_Z.big_int_of_int intMax, ik), true, currentSigEnhanced, []) 
+else (Int (c,c, ik), true, currentSigEnhanced, [])
+| IShort -> print_string "in eval_helper Const, type IShort is not supported. But we continue with evaluation because this could be some pthread.h initializations\n";
+(Int (c,c, ik), true, currentSigEnhanced, [])
+| _ ->  print_string ("This type of assignment is not supported in eval_helper Const, ik="^(CilType.Ikind.show ik)^"\n"); exit 0 )
 
 | Lval(Var(var), NoOffset) -> if var.vglob = true 
   then eval_global var graph node
 else
   (if SigmaMap.mem var sigOld then (
     match SigmaMap.find var sigOld with
-    | Int(l,u,k) -> if l = u then (Int(l,u,k), true,SigmaMap.empty, []) else 
-      (Int(l,l,k), true, SigmaMap.add var (Int(l,l,k)) (SigmaMap.empty),[])
-    | rest -> (rest, true,SigmaMap.empty,[]) 
+    | Int(l,u,k) -> if l = u then (Int(l,u,k), true, currentSigEnhanced, []) else 
+      (Int(l,l,k), true, SigmaMap.add var (Int(l,l,k)) (currentSigEnhanced),[])
+    | rest -> (rest, true,currentSigEnhanced,[]) 
+    )
+    else if SigmaMap.mem var currentSigEnhanced then (
+      match SigmaMap.find var currentSigEnhanced with
+    | Int(l,u,k) -> if l = u then (Int(l,u,k), true,currentSigEnhanced, []) else 
+      (Int(l,l,k), true, SigmaMap.add var (Int(l,l,k)) (currentSigEnhanced),[])
+    | rest -> (rest, true,currentSigEnhanced,[]) 
     )
 else (print_string ("var="^(CilType.Varinfo.show var)^" not found in sigOld="^(NodeImpl.show_sigma sigOld)^"\nThis means we choose a value for this trace\n");
 let randomNr = randomIntGenerator#getRandomValue (LocalTraces.hash graph) var 
 in
 let randomVd = Int((Big_int_Z.big_int_of_int (randomNr)), (Big_int_Z.big_int_of_int (randomNr)),IInt)
 in
-(randomVd, true, SigmaMap.add var randomVd (SigmaMap.empty), [(var, (Int((Big_int_Z.big_int_of_int (randomNr+1)), (Big_int_Z.big_int_of_int (randomNr+1)),IInt)));
+(randomVd, true, SigmaMap.add var randomVd (currentSigEnhanced), [(var, (Int((Big_int_Z.big_int_of_int (randomNr+1)), (Big_int_Z.big_int_of_int (randomNr+1)),IInt)));
 (var, (Int((Big_int_Z.big_int_of_int (randomNr+2)), (Big_int_Z.big_int_of_int (randomNr+2)),IInt)));
 (var, (Int((Big_int_Z.big_int_of_int (randomNr+3)), (Big_int_Z.big_int_of_int (randomNr+3)),IInt)))
 ]
 )))
 
-| AddrOf (Var(v), NoOffset) -> (Address(v), true,SigmaMap.empty, [])
+| AddrOf (Var(v), NoOffset) -> (Address(v), true, currentSigEnhanced, [])
 
 (* unop expressions *)
 (* for type Integer *)
 | UnOp(Neg, unopExp, TInt(unopIk, _)) -> 
-  (match eval_helper unopExp with (Int(l,u,ik), true, sigEnhanced, otherValues) ->
+  (match eval_helper unopExp currentSigEnhanced with (Int(l,u,ik), true, sigEnhanced, otherValues) ->
     (match ik with 
-    |IInt -> if CilType.Ikind.equal unopIk IInt then( let negLowerBound = (if Big_int_Z.minus_big_int u < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
+    |IInt -> 
+      if CilType.Ikind.equal unopIk IInt then( 
+        let negLowerBound = (if Big_int_Z.minus_big_int u < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
     else if Big_int_Z.minus_big_int u > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int u )
   in
   let negUpperBound = (if Big_int_Z.minus_big_int l < Big_int_Z.big_int_of_int intMin then Big_int_Z.big_int_of_int intMin
   else if Big_int_Z.minus_big_int l > Big_int_Z.big_int_of_int intMax then Big_int_Z.big_int_of_int intMax else Big_int_Z.minus_big_int l )
 in
-       (Int (negLowerBound, negUpperBound, unopIk), true, sigEnhanced, otherValues)) else (Printf.printf "This type of assignment is not supported\n"; exit 0)
-    | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
-    |(_, false, _,_) -> print_string "nopVal created at unop Neg for Int\n";nopVal SigmaMap.empty
-    |(_, _,_,_) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
+       (Int (negLowerBound, negUpperBound, unopIk), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues)) 
+      else (Printf.printf "This type of assignment is not supported in eval_helper UnOp\n"; exit 0)
+    | _ -> Printf.printf "This type of assignment is not supported in eval_helper UnOp\n"; exit 0)
+    |(_, false, sigEnhanced,_) -> print_string "nopVal created at unop Neg for Int\n";nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced)
+    |(_, _,_,_) -> Printf.printf "This type of assignment is not supported in eval_helper in UnOp\n"; exit 0) 
 
 (* binop expressions *)
 (* Lt could be a special case since it has enhancements on sigma *)
@@ -269,89 +288,106 @@ in
       let vd2 = if var2.vglob = true then (match eval_global var2 graph node with (vd,_, _,_) -> vd) else (SigmaMap.find var2 sigOld)
       in
       match vd1,vd2 with
-      | (Int(l1,u1,k1)), (Int(l2,u2,k2)) -> if not (CilType.Ikind.equal k1 k2) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-      if (u1 < l2) || (u2 <= l1) then ((get_binop_int Lt biopIk) (Int(l1, u1, k1)) (Int(l2, u2, k2)), true , SigmaMap.empty,[]) 
+      | (Int(l1,u1,k1)), (Int(l2,u2,k2)) -> 
+        if not (CilType.Ikind.equal k1 k2) then (Printf.printf "This type of assignment is not supported in eval_helper in BinOp(var, var)\n"; exit 0);
+      if (u1 < l2) || (u2 <= l1) then ((get_binop_int Lt biopIk) (Int(l1, u1, k1)) (Int(l2, u2, k2)), true , currentSigEnhanced,[]) 
       else
         (* overlap split *)
       (if (l1 < u1)&&(l2 < u2) then (let m = middle_intersect_intervals l1 u1 l2 u2
-      in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true,SigmaMap.add var2 (Int(Big_int_Z.add_big_int m (Big_int_Z.big_int_of_int 1), u2, k2)) (SigmaMap.add var1 (Int(l1,m, k1)) sigOld), []))
-      else if (l1 = u1)&&(l2 < u2) then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true,SigmaMap.add var2 (Int(Big_int_Z.add_big_int l1 (Big_int_Z.big_int_of_int 1), u2, k2)) (SigmaMap.add var1 (Int(l1,l1, k1)) sigOld), [])
-      else if (l1 < u1) &&(l2 = u2) then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true,SigmaMap.add var2 (Int(l2, l2, k2)) (SigmaMap.add var1 (Int(l1,Big_int_Z.sub_big_int l2 (Big_int_Z.big_int_of_int 1), k1)) sigOld), [])
-      else (print_string "in overlap split there are two points, this should never happen actually\n";Printf.printf "This type of assignment is not supported\n"; exit 0))
-      | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+      in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true,SigmaMap.add var2 (Int(Big_int_Z.add_big_int m (Big_int_Z.big_int_of_int 1), u2, k2)) (SigmaMap.add var1 (Int(l1,m, k1)) currentSigEnhanced), []))
+      else if (l1 = u1)&&(l2 < u2) 
+        then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true,SigmaMap.add var2 (Int(Big_int_Z.add_big_int l1 (Big_int_Z.big_int_of_int 1), u2, k2)) (SigmaMap.add var1 (Int(l1,l1, k1)) currentSigEnhanced), [])
+      else if (l1 < u1) &&(l2 = u2) then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true,SigmaMap.add var2 (Int(l2, l2, k2)) (SigmaMap.add var1 (Int(l1,Big_int_Z.sub_big_int l2 (Big_int_Z.big_int_of_int 1), k1)) currentSigEnhanced), [])
+      else (print_string "in overlap split there are two points, this should never happen actually\n";Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, var)\n"; exit 0))
+      | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, var)\n"; exit 0
     )
-    else (print_string "nopVal created at binop Lt of two variables. One of them or both are unknown\n";nopVal SigmaMap.empty)
+    else (print_string "nopVal created at binop Lt of two variables. One of them or both are unknown\n";nopVal (currentSigEnhanced))
     )
 
 | BinOp(Lt, binopExp1,Lval(Var(var), NoOffset),TInt(biopIk, _)) ->(
-match eval_helper binopExp1 with 
+match eval_helper binopExp1 currentSigEnhanced with 
 | (Int(l, u, k), true, sigEnhanced, otherValues) -> (
   if SigmaMap.mem var sigEnhanced then
-    (match SigmaMap.find var sigEnhanced with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigEnhanced, otherValues) 
-        else (* TODO design meaningful logic here *) (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
-        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+    (match SigmaMap.find var sigEnhanced with Int(lVar, uVar, kVar) -> 
+      if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
+        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues) 
+        else (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
+        | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
   else if SigmaMap.mem var sigOld then
-    (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigEnhanced, otherValues) 
-        else (* TODO design meaningful logic here *) (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
-        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+    (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> 
+      if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
+        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues) 
+        else (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
+        | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
       else if var.vglob = true then 
-        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
+        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
         
-        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , sigEnhanced, otherValues) 
+        if uVar <= l || u < lVar then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues) 
         else (* TODO design meaningful logic here *) (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
-        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+        | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
   else ( 
     let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add var (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), Big_int_Z.big_int_of_int intMax, k)) (SigmaMap.empty))
-in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp, otherValues)
+in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues)
     )
 )
-| (_,false, sigEnhanced,_) -> nopVal sigEnhanced
-| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+| (_,false, sigEnhanced,_) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced)
+| _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0
 )
 
 | BinOp(Lt, Lval(Var(var), NoOffset), binopExp2,TInt(biopIk, _)) -> (
-  match eval_helper binopExp2 with 
+  match eval_helper binopExp2 currentSigEnhanced with 
   | (Int(l, u, k), true, sigEnhanced, otherValues) -> (
     if SigmaMap.mem var sigEnhanced then 
-      (match SigmaMap.find var sigEnhanced with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-        if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigEnhanced, otherValues) 
-        else (* TODO design meaningful logic here *) (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
-        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+      (match SigmaMap.find var sigEnhanced with Int(lVar, uVar, kVar) -> 
+        if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0);
+        if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues) 
+        else (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
+        | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0)
 
     else if SigmaMap.mem var sigOld then
-      (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-        if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigEnhanced, otherValues) 
-        else (* TODO design meaningful logic here *) (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
-        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+      (match SigmaMap.find var sigOld with Int(lVar, uVar, kVar) -> 
+        if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0);
+        if uVar < l || u <= lVar then ((get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues) 
+        else (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
+        | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0)
       else if var.vglob = true then 
-        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported\n"; exit 0);
-        if uVar <= l || u < lVar then (print_string "We calculate get_binop_int\n"; (get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , sigEnhanced, otherValues) 
+        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_,_) -> 
+          if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0);
+        if uVar <= l || u < lVar then (print_string "We calculate get_binop_int\n"; (get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues) 
         else (* TODO design meaningful logic here *) (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
-        | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+        | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0)
     else ( 
       let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add var (Int(Big_int_Z.big_int_of_int intMin, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty))
-  in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, sigTmp, otherValues)
+  in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues)
       ))
-  | (_,false, sigEnhanced, _) -> nopVal sigEnhanced
-  | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+  | (_,false, sigEnhanced, _) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced)
+  | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0)
 
 (* for type Integer *)
 | BinOp(op, binopExp1, binopExp2,TInt(biopIk, _)) ->
-  (match (eval_helper binopExp1, eval_helper binopExp2) with 
-  | ((Int(l1,u1, ik1), true,sigEnhanced1,otherValues1),(Int(l2,u2, ik2), true,sigEnhanced2,otherValues2)) -> if CilType.Ikind.equal ik1 ik2 then ((get_binop_int op biopIk) (Int(l1,u1, ik1)) (Int(l2,u2, ik2)), true, NodeImpl.intersect_sigma sigEnhanced1 sigEnhanced2, (*not sure if correct as is*) otherValues1@otherValues2) else (Printf.printf "This type of assignment is not supported\n"; exit 0)
-  | ((_,_,sigEnhanced1,_), (_,false, sigEnhanced2,_)) -> print_string "nopVal created at binop for Integer 1\n";nopVal (NodeImpl.intersect_sigma sigEnhanced1 sigEnhanced2)
-  | ((_,false, sigEnhanced1,_), (_,_,sigEnhanced2,_)) -> print_string "nopVal created at binop for Integer 2\n";nopVal (NodeImpl.intersect_sigma sigEnhanced1 sigEnhanced2)
-  |(_, _) -> Printf.printf "This type of assignment is not supported\n"; exit 0) 
+  let (value1, success1, sigEnhanced1, otherValues1) = eval_helper binopExp1 currentSigEnhanced
+in
+let mergedEnhancedSigma = (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced1)
+in
+print_string ("in BinOp(exp, exp) we have sigEnhanced1=["^(NodeImpl.show_sigma sigEnhanced1)^"]\n
+and mergedEnhancedSigma=["^(NodeImpl.show_sigma mergedEnhancedSigma)^"]\n");
+  (match ((value1, success1, sigEnhanced1, otherValues1), eval_helper binopExp2 mergedEnhancedSigma) with 
+  | ((Int(l1,u1, ik1), true,sigEnhanced1,otherValues1),(Int(l2,u2, ik2), true,sigEnhanced2,otherValues2)) -> 
+    if CilType.Ikind.equal ik1 ik2 then 
+      ((get_binop_int op biopIk) (Int(l1,u1, ik1)) (Int(l2,u2, ik2)), true, NodeImpl.destruct_add_sigma mergedEnhancedSigma sigEnhanced2, otherValues1@otherValues2) 
+  else (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, exp)\n"; exit 0)
+  | ((_,_,sigEnhanced1,_), (_,false, sigEnhanced2,_)) -> print_string "nopVal created at binop for Integer 1\n";nopVal (NodeImpl.destruct_add_sigma mergedEnhancedSigma sigEnhanced2)
+  | ((_,false, sigEnhanced1,_), (_,_,sigEnhanced2,_)) -> print_string "nopVal created at binop for Integer 2\n";nopVal (NodeImpl.destruct_add_sigma mergedEnhancedSigma sigEnhanced2)
+  |(_, _) -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, exp)\n"; exit 0) 
 
-| _ -> Printf.printf "This type of assignment is not supported\n"; exit 0)
+| _ -> print_string ("This type of assignment is not supported in eval_helper, subexp="^(CilType.Exp.show subexp)^". 
+Evaluation continues because this could be some pthread.h initializations\n"); nopVal currentSigEnhanced)
 (* sigNew will collect all enhancements and then we need to apply sigOld (+) sigEnhancedEffects *)
-in let (result,success,sigEnhancedEffects, otherValues) = if vinfo.vglob = true then (print_string "There is a global on the left side, so no evaluation\n"; nopVal SigmaMap.empty) else eval_helper rval 
+in let (result,success,sigEnhancedEffects, otherValues) = eval_helper rval SigmaMap.empty
 in
 (* otherValues needs to be propagated still, e.g. global = x < 3 still poses new information on x *)
 let sigNew = NodeImpl.destruct_add_sigma sigOld sigEnhancedEffects
-in if vinfo.vglob = true then (sigOld, otherValues) else
+in if vinfo.vglob = true then (SigmaMap.remove vinfo sigNew, otherValues) else
 if success then (SigmaMap.add vinfo result sigNew, otherValues)  else (print_string "Eval could not evaluate expression\n"; exit 0)
 
 let eval_catch_exceptions sigOld vinfo rval graph node =
@@ -376,7 +412,8 @@ in iter_otherValues ((var,vd)::doneValues) newWorkList (if (List.exists (fun sig
   let (sigNew,otherValues), success = eval_catch_exceptions sigOld vinfo rval graph node 
 in 
 print_string ("in eval_wrapper we get otherValues={"
-^(List.fold (fun s (vinfo_fold, varDom_fold) -> s^";("^(CilType.Varinfo.show vinfo_fold)^","^(show_varDomain varDom_fold)^")") "" otherValues)^"}\n");
+^(List.fold (fun s (vinfo_fold, varDom_fold) -> s^";("^(CilType.Varinfo.show vinfo_fold)^","^(show_varDomain varDom_fold)^")") "" otherValues)^"}\n
+and sigNew=["^(NodeImpl.show_sigma sigNew)^"]\n");
 let allSigmas = iter_otherValues [] otherValues [sigNew]
 in
 print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n<"^(NodeImpl.show_sigma sigma_fold)^">") "" allSigmas)^"\n|allSigmas| = "^(string_of_int (List.length allSigmas))^"\n");
@@ -459,7 +496,7 @@ unlockingGraph::resultGraphList
   print_string ("assignment succeeded so we add the edge "^(LocalTraces.show_edge myEdge)^"\n");
   (LocalTraces.extend_by_gEdge graph myEdge)::outerGraphList )
   ) [] sigmaList)
-  | _ -> Printf.printf "This type of assignment is not supported\n"; exit 0
+  | _ -> Printf.printf "This type of assignment is not supported in assign_on_node\n"; exit 0
      
 )
 
