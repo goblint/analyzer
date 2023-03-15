@@ -5,10 +5,8 @@ open GoblintCil
 (** Re-exported [Node.t] with constructors. See [Node.t] for documentation. *)
 type node = Node.t =
   | Statement of CilType.Stmt.t
-  | LongjmpTo of CilType.Stmt.t
   | FunctionEntry of CilType.Fundec.t
   | Function of CilType.Fundec.t
-  | LongjmpFromFunction of CilType.Fundec.t
 
 (** Re-exported [Edge.t] with constructors. See [Edge.t] for documentation. *)
 type edge = Edge.t =

@@ -955,10 +955,6 @@ struct
     match v with
     | FunctionEntry _ ->
       None
-    | LongjmpTo _ ->
-      None
-    | LongjmpFromFunction _ ->
-      None
     | _ ->
       let tf getl sidel getg sideg =
         let tf' eu = tf (v,c) eu getl sidel getg sideg in
