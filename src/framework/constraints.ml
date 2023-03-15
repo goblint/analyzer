@@ -691,7 +691,7 @@ struct
           (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show targetnode);
            match targetnode with
            | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
-             let fd' = S.return ctx_fd None f in
+             let fd' = ctx_fd.local in
              let rec ctx_fd' = { ctx_fd with
                                  ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
                                  local = fd';
@@ -732,7 +732,7 @@ struct
             (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else\n";
              (* Globals are non-problematic here, as they are always carried around without any issues! *)
              (* A combine call is mostly needed to ensure locals have appropriate values. *)
-             let fd' = S.return ctx_fd None f in
+             let fd' = ctx_fd.local in
              let rec ctx_fd' = { ctx with
                                  ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
                                  local = fd';
@@ -740,7 +740,13 @@ struct
                                }
              in
              let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd') in
-             sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local value))
+             let rec ctx_fd'' = { ctx with
+                                  ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
+                                  local = value;
+                                }
+              in
+              let res'' = S.return ctx_fd'' None current_fundec in
+             sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local res''))
       in
       JmpBufDomain.JmpBufSet.iter handle_longjmp targets
     in
@@ -826,7 +832,13 @@ struct
                  )
                else
                  (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
-                  sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local res)))
+                 let rec ctx_fd' = { ctx with
+                                      ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
+                                      local = res;
+                                    }
+                  in
+                  let res' = S.return ctx_fd' None current_fundec in
+                  sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local res')))
         in
         if JmpBufDomain.JmpBufSet.is_empty targets then
           M.warn "Longjmp to potentially invalid target (%a is bot?!)"  d_exp env
