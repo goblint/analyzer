@@ -429,7 +429,7 @@ struct
     | true -> raise Analyses.Deadcode
     | false -> [ctx.local,nst]
 
-  let combine ctx ~longjmpthrough lval fexp f args fc st2 (f_ask : Queries.ask) =
+  let combine ctx lval fexp f args fc st2 (f_ask : Queries.ask) =
     let tainted = f_ask.f Queries.MayBeTainted in
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top

@@ -414,7 +414,7 @@ struct
         D.edit_callstack (BatList.cons (Option.get !Node.current_node)) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx ~longjmpthrough (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* M.debug ~category:Analyzer @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in

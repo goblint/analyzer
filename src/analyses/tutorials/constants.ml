@@ -83,7 +83,7 @@ struct
         )
       |_ -> state
 
-  let combine ctx ~longjmpthrough (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask): D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask): D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
       with a local int variable x on the left, we set it to top *)

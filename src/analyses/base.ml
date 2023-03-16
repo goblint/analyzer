@@ -2316,7 +2316,7 @@ struct
             end
         else st) tainted_lvs local_st
 
-  let combine ctx ~longjmpthrough (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2326,14 +2326,7 @@ struct
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_noreturn =
-          if not longjmpthrough then
-            (* Remove the return value as this is dealt with separately. *)
-            CPA.remove (return_varinfo ()) fun_st.cpa
-          else
-            (* Keep the return value as this is not actually the return value but the thing supplied in longjmp *)
-            fun_st.cpa
-        in
+        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
         let ask = (Analyses.ask_of_ctx ctx) in
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
@@ -2354,7 +2347,7 @@ struct
             if M.tracing then M.trace "taintPC" "cpa_caller': %a\n" CPA.pretty cpa_caller';
             (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
             let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
-            let tainted = Q.LS.add (Goblintutil.longjmp_return, `NoOffset) tainted in
+            let tainted = Q.LS.add (Goblintutil.longjmp_return, `NoOffset) tainted in (* Keep the lonjmp return value *)
             let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
             if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
             { fun_st with cpa = st_combined.cpa }
