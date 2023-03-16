@@ -661,73 +661,62 @@ struct
       (* TODO: more accurate ctx? *)
       let fd = sync sync_ctx in
       if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
+      (* TODO: proper cd_ctx with ask? *)
       let r = S.combine {ctx with local = cd} lv e f args fc fd (Analyses.ask_of_ctx sync_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
-    let handlelongjmp (cd,fc,fd) =
-      let rec ctx_fd = { ctx with
-                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd q);
-                       local = fd;
-                       prev_node = Function f
-                     }
+    let handle_longjmp (cd, fc, longfd) =
+      let rec cd_ctx =
+        { ctx with
+          ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
+          local = cd;
+        }
       in
-      let rec ctx_cd = { ctx with
-                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx_cd q);
-                        local = cd}
+      let rec longfd_ctx =
+        { ctx with
+          ask = (fun (type a) (q: a Queries.t) -> S.query longfd_ctx q);
+          local = longfd;
+          prev_node = Function f;
+        }
       in
-      (* Set of jumptargets with which the callee may return here *)
-      let targets = fst @@ ctx_fd.ask ActiveJumpBuf in
-      (* Handle a longjmp to targetnode in targetcontext *)
-      let handle_longjmp = function
+      let combined = lazy ( (* does not depend on target, do at most once *)
+          (* Globals are non-problematic here, as they are always carried around without any issues! *)
+          (* A combine call is mostly needed to ensure locals have appropriate values. *)
+          (* Using f from called function on purpose here! Needed? *)
+          S.combine cd_ctx None (Cil.one) f [] None longfd (Analyses.ask_of_ctx longfd_ctx)
+        )
+      in
+      let returned = lazy ( (* does not depend on target, do at most once *)
+          let rec combined_ctx =
+            { ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query longfd_ctx q);
+              local = Lazy.force combined;
+            }
+          in
+          S.return combined_ctx None current_fundec
+        )
+      in
+      let (active_targets, _) = longfd_ctx.ask ActiveJumpBuf in
+      let valid_targets = cd_ctx.ask ValidLongJmp in
+      let handle_target target = match target with
         | JmpBufDomain.BufferEntryOrTop.AllTargets -> () (* The warning is already emitted at the point where the longjmp happens *)
-        | Target (targetnode, targetcontext) ->
-        let target_in_caller () = CilType.Fundec.equal (Node.find_fundec targetnode) current_fundec in
-        let targetcontext_matches () =
-          ControlSpecC.equal targetcontext (ctx.control_context ())
-        in
-        (* Check if corresponding setjmp call was in current function & in current context *)
-        if targetcontext_matches () && target_in_caller () then
-          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show targetnode);
-            let fd' = ctx_fd.local in
-            let rec ctx_fd' = { ctx_fd with
-                                ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                local = fd';
-                                prev_node = Function f
-                              }
-            in
-            (* Using f from called function on purpose here! Needed? *)
-            let value = S.combine ctx_cd None (Cil.one) f [] fc fd' (Analyses.ask_of_ctx ctx_fd') in
-            sideg (GVar.longjmpto (targetnode, ctx.context ())) (G.create_local value)
-           (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *))
-        else
+        | Target (target_node, target_context) ->
+          let target_fundec = Node.find_fundec target_node in
+          if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
+            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show target_node);
+            sideg (GVar.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force combined))
+            (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
+          )
           (* Appropriate setjmp is not in current function & current context *)
-          let validBuffers = ctx_cd.ask ValidLongJmp in
-          if not (JmpBufDomain.JmpBufSet.mem (Target (targetnode,targetcontext)) validBuffers) then
-            (* It actually is not handled here but was propagated her spuriously, we already warned at the location where this issue is caused *)
-            (* As the validlongjumps inside the callee is a a superset of the ones inside the caller*)
-            ()
+          else if JmpBufDomain.JmpBufSet.mem target valid_targets then
+            sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
           else
-            (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else\n";
-             (* Globals are non-problematic here, as they are always carried around without any issues! *)
-             (* A combine call is mostly needed to ensure locals have appropriate values. *)
-             let fd' = ctx_fd.local in
-             let rec ctx_fd' = { ctx with
-                                 ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                 local = fd';
-                                 prev_node = Function f
-                               }
-             in
-             let value = S.combine ctx_cd None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd') in
-             let rec ctx_fd'' = { ctx with
-                                  ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                  local = value;
-                                }
-              in
-              let res'' = S.return ctx_fd'' None current_fundec in
-             sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local res''))
+            (* It actually is not handled here but was propagated here spuriously, we already warned at the location where this issue is caused *)
+            (* As the validlongjumps inside the callee is a a superset of the ones inside the caller *)
+            ()
       in
-      JmpBufDomain.JmpBufSet.iter handle_longjmp targets
+      JmpBufDomain.JmpBufSet.iter handle_target active_targets
     in
     (* Handle normal calls to function *)
     let paths = S.enter ctx lv f args in
@@ -745,7 +734,7 @@ struct
     let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, longjmpv fc v)) ld_fc_fd_list in
     let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
     let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
-    let _ = List.iter handlelongjmp longjmppaths in
+    let _ = List.iter handle_longjmp longjmppaths in
     (* Return result of normal call, longjmp om;y happens via side-effect *)
     result
 
