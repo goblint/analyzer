@@ -705,18 +705,18 @@ struct
                                  local = value
                                }
              in
-             let setjmpvar = match setjmplval with
+             let setjmpvar = match None with
                | Some (Var v, NoOffset) -> Queries.VS.singleton v
                | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
              in
              let modified_vars = Queries.VS.diff (res_ctx.ask (MayBeModifiedSinceSetjmp (targetnode, targetcontext))) setjmpvar in
-             (if Queries.VS.is_top modified_vars then
+             (* (if Queries.VS.is_top modified_vars then
                 M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show targetnode)
               else if not (Queries.VS.is_empty modified_vars) then
                 M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show targetnode) (Queries.VS.show modified_vars)
               else
                 ()
-             );
+             ); *)
              let value' = S.event res_ctx (Events.Poison modified_vars) res_ctx in
              sideg (GVar.longjmpto (targetnode, ctx.context ())) (G.create_local value')
            (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
@@ -784,7 +784,21 @@ struct
                              ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
                              local = later_return;
                            }
-        in
+      in
+      let setjmpvar = match lv with
+        | Some (Var v, NoOffset) -> Queries.VS.singleton v
+        | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
+      in
+      let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (ctx.prev_node, ctx.control_context ()))) setjmpvar in
+      let active = path_ctx.ask ActiveJumpBuf in
+      JmpBufDomain.NodeSet.iter (fun longjmpnode ->
+          if Queries.VS.is_top modified_vars then
+            M.warn ~loc:(Node longjmpnode) "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show ctx.prev_node)
+          else if not (Queries.VS.is_empty modified_vars) then
+            M.warn ~loc:(Node longjmpnode) "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show ctx.prev_node) (Queries.VS.show modified_vars)
+          else
+            ()
+        ) (snd active);
       let later_return = match lv with
         | Some lv -> S.assign path_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
         | None -> later_return
@@ -822,18 +836,18 @@ struct
                     (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
                     (* let res' = path_ctx.local in *)
                     let res' = S.special path_ctx lv f args in
-                    let setjmpvar = match lval with
+                    let setjmpvar = match None with
                       | Some (Var v, NoOffset) -> Queries.VS.singleton v
                       | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
                     in
                     let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (node, c))) setjmpvar in
-                    (if Queries.VS.is_top modified_vars then
+                    (* (if Queries.VS.is_top modified_vars then
                        M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
                      else if not (Queries.VS.is_empty modified_vars) then
                        M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
                      else
                        ()
-                    );
+                    ); *)
                     let rec res_ctx = { path_ctx with
                                         ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
                                         local = res';
