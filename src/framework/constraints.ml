@@ -741,48 +741,51 @@ struct
 
   let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) getg sideg lv f args =
     match (LibraryFunctions.find f).special args with
-    | Setjmp { env; savesigs} ->
+    | Setjmp {env; savesigs} ->
       (* Checking if this within the scope of an identifier of variably modified type *)
-      if ctx.ask Queries.MayBeInVLAScope then (
+      if ctx.ask Queries.MayBeInVLAScope then
         M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
-      );
       (* Handling of returning for the first time *)
-      let first_return = S.special ctx lv f args in
-      let later_return = G.local (getg (GVar.longjmpto (ctx.prev_node, ctx.context ()))) in
-      let rec path_ctx = { ctx with
-                             ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
-                             local = later_return;
-                           }
-      in
-      let setjmpvar = match lv with
-        | Some (Var v, NoOffset) -> Queries.VS.singleton v
-        | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
-      in
-      let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (ctx.prev_node, ctx.control_context ()))) setjmpvar in
-      let active = path_ctx.ask ActiveJumpBuf in
-      JmpBufDomain.NodeSet.iter (fun longjmpnode ->
-          if Queries.VS.is_top modified_vars then
-            M.warn ~loc:(Node longjmpnode) "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show ctx.prev_node)
-          else if not (Queries.VS.is_empty modified_vars) then
-            M.warn ~loc:(Node longjmpnode) "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show ctx.prev_node) (Queries.VS.show modified_vars)
-          else
-            ()
-        ) (snd active);
-      if not @@ S.D.is_bot later_return then (
-        let later_return = S.event path_ctx (Events.Poison modified_vars) path_ctx in
-        let rec res_ctx = { path_ctx with
-                            ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
-                            local = later_return;
-                          }
+      let normal_return = S.special ctx lv f args in
+      let jmp_return = G.local (getg (GVar.longjmpto (ctx.prev_node, ctx.context ()))) in
+      if S.D.is_bot jmp_return then
+        normal_return
+      else (
+        let rec jmp_ctx =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query jmp_ctx q);
+            local = jmp_return;
+          }
         in
-        let later_return = match lv with
-          | Some lv -> S.assign res_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
-          | None -> later_return
+        let modified_locals = jmp_ctx.ask (MayBeModifiedSinceSetjmp (ctx.prev_node, ctx.control_context ())) in
+        let modified_locals = match lv with
+          | Some (Var v, NoOffset) -> Queries.VS.remove v modified_locals
+          | _ -> modified_locals (* Does usually not really occur, if it does, this is sound *)
         in
-        S.D.join first_return later_return
+        let (_, longjmp_nodes) = jmp_ctx.ask ActiveJumpBuf in
+        JmpBufDomain.NodeSet.iter (fun longjmp_node ->
+            if Queries.VS.is_top modified_locals then
+              M.warn ~loc:(Node longjmp_node) "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior." (Node.show ctx.prev_node)
+            else if not (Queries.VS.is_empty modified_locals) then
+              M.warn ~loc:(Node longjmp_node) "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show ctx.prev_node) (Queries.VS.show modified_locals)
+            else
+              ()
+          ) longjmp_nodes;
+        let poisoned = S.event jmp_ctx (Events.Poison modified_locals) jmp_ctx in
+        let jmp_return' = match lv with
+          | Some lv ->
+            let rec poisoned_ctx =
+              { jmp_ctx with
+                ask = (fun (type a) (q: a Queries.t) -> S.query poisoned_ctx q);
+                local = poisoned;
+              }
+            in
+            S.assign poisoned_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
+          | None ->
+            poisoned
+        in
+        S.D.join normal_return jmp_return'
       )
-      else
-        first_return
     | Longjmp {env; value; sigrestore} ->
       let current_fundec = Node.find_fundec ctx.node in
       let handle_path path = (
