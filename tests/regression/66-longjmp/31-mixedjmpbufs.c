@@ -9,7 +9,7 @@ jmp_buf error1;
 
 int blorg(int x) {
   if(x > 8) {
-    longjmp(error1, 1); //NOWARN
+    longjmp(error1, 1); // WARN (modified since setjmp)
   }
 
   return x;
@@ -17,7 +17,7 @@ int blorg(int x) {
 
 int blub(int x,int y) {
   if(x == 0) {
-    longjmp(error0, 1); //NOWARN
+    longjmp(error0, 1); // WARN (modified since setjmp)
   }
 
   return blorg(x-27+3);
@@ -40,7 +40,7 @@ int main(void) {
   int x, y;
   scanf("%d", &x);
   scanf("%d", &y);
-  int x = blub(x, y);
+  int x = blub(x, y); // NOWARN
   printf("%d", x);
 
   return 0;
