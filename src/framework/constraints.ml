@@ -648,21 +648,37 @@ struct
     let current_fundec = Node.find_fundec ctx.node in
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
-      (* Extra sync in case function has multiple returns.
-         Each `Return sync is done before joining, so joined value may be unsound.
-         Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
-      (* TODO: don't do this extra sync here *)
-      let rec sync_ctx = { ctx with
-                           ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
-                           local = fd;
-                           prev_node = Function f
-                         }
+      let rec cd_ctx =
+        { ctx with
+          ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
+          local = cd;
+        }
       in
-      (* TODO: more accurate ctx? *)
-      let fd = sync sync_ctx in
+      let fd_ctx =
+        (* Inner scope to prevent unsynced fd_ctx from being used. *)
+        (* Extra sync in case function has multiple returns.
+           Each `Return sync is done before joining, so joined value may be unsound.
+           Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
+        (* TODO: don't do this extra sync here *)
+        let rec sync_ctx =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+            local = fd;
+            prev_node = Function f;
+          }
+        in
+        (* TODO: more accurate ctx? *)
+        let synced = sync sync_ctx in
+        let rec fd_ctx =
+          { sync_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query fd_ctx q);
+            local = synced;
+          }
+        in
+        fd_ctx
+      in
       if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      (* TODO: proper cd_ctx with ask? *)
-      let r = S.combine {ctx with local = cd} lv e f args fc fd (Analyses.ask_of_ctx sync_ctx) in
+      let r = S.combine cd_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
@@ -674,24 +690,35 @@ struct
           local = cd;
         }
       in
-      let rec longfd_ctx =
-        { ctx with
-          ask = (fun (type a) (q: a Queries.t) -> S.query longfd_ctx q);
-          local = longfd;
-          prev_node = Function f;
-        }
+      let longfd_ctx =
+        (* Inner scope to prevent unsynced longfd_ctx from being used. *)
+        (* Extra sync like with normal combine. *)
+        let rec sync_ctx =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+            local = longfd;
+            prev_node = Function f;
+          }
+        in
+        let synced = sync sync_ctx in
+        let rec longfd_ctx =
+          { sync_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query longfd_ctx q);
+            local = synced;
+          }
+        in
+        longfd_ctx
       in
-      (* TODO: sync longfd_ctx like in normal combine *)
       let combined = lazy ( (* does not depend on target, do at most once *)
           (* Globals are non-problematic here, as they are always carried around without any issues! *)
           (* A combine call is mostly needed to ensure locals have appropriate values. *)
           (* Using f from called function on purpose here! Needed? *)
-          S.combine cd_ctx lv e f args fc longfd (Analyses.ask_of_ctx longfd_ctx)
+          S.combine cd_ctx lv e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx)
         )
       in
       let returned = lazy ( (* does not depend on target, do at most once *)
           let rec combined_ctx =
-            { ctx with
+            { cd_ctx with
               ask = (fun (type a) (q: a Queries.t) -> S.query combined_ctx q);
               local = Lazy.force combined;
             }
@@ -802,7 +829,7 @@ struct
         in
         let returned = lazy ( (* does not depend on target, do at most once *)
             let rec specialed_ctx =
-              { ctx with
+              { path_ctx with
                 ask = (fun (type a) (q: a Queries.t) -> S.query specialed_ctx q);
                 local = Lazy.force specialed;
               }
