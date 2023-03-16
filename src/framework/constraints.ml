@@ -681,17 +681,18 @@ struct
           prev_node = Function f;
         }
       in
+      (* TODO: sync longfd_ctx like in normal combine *)
       let combined = lazy ( (* does not depend on target, do at most once *)
           (* Globals are non-problematic here, as they are always carried around without any issues! *)
           (* A combine call is mostly needed to ensure locals have appropriate values. *)
           (* Using f from called function on purpose here! Needed? *)
-          S.combine cd_ctx None (Cil.one) f [] None longfd (Analyses.ask_of_ctx longfd_ctx)
+          S.combine cd_ctx lv e f args fc longfd (Analyses.ask_of_ctx longfd_ctx)
         )
       in
       let returned = lazy ( (* does not depend on target, do at most once *)
           let rec combined_ctx =
             { ctx with
-              ask = (fun (type a) (q: a Queries.t) -> S.query longfd_ctx q);
+              ask = (fun (type a) (q: a Queries.t) -> S.query combined_ctx q);
               local = Lazy.force combined;
             }
           in
@@ -736,7 +737,7 @@ struct
     let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
     let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
     let _ = List.iter handle_longjmp longjmppaths in
-    (* Return result of normal call, longjmp om;y happens via side-effect *)
+    (* Return result of normal call, longjmp only happens via side-effect *)
     result
 
   let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) getg sideg lv f args =
