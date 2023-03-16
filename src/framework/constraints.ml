@@ -689,21 +689,17 @@ struct
         (* Check if corresponding setjmp call was in current function & in current context *)
         if targetcontext_matches () && target_in_caller () then
           (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show targetnode);
-           match targetnode with
-           | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
-             let fd' = ctx_fd.local in
-             let rec ctx_fd' = { ctx_fd with
-                                 ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                 local = fd';
-                                 prev_node = Function f
-                               }
-             in
-             (* Using f from called function on purpose here! Needed? *)
-             let value = S.combine ctx_cd None (Cil.one) f setjmpargs fc fd' (Analyses.ask_of_ctx ctx_fd') in
-             let value' = value in
-             sideg (GVar.longjmpto (targetnode, ctx.context ())) (G.create_local value')
-           (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
-           | _ -> failwith "target of longjmp is node that is not a call to setjmp!")
+            let fd' = ctx_fd.local in
+            let rec ctx_fd' = { ctx_fd with
+                                ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
+                                local = fd';
+                                prev_node = Function f
+                              }
+            in
+            (* Using f from called function on purpose here! Needed? *)
+            let value = S.combine ctx_cd None (Cil.one) f [] fc fd' (Analyses.ask_of_ctx ctx_fd') in
+            sideg (GVar.longjmpto (targetnode, ctx.context ())) (G.create_local value)
+           (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *))
         else
           (* Appropriate setjmp is not in current function & current context *)
           let validBuffers = ctx_cd.ask ValidLongJmp in
@@ -819,16 +815,12 @@ struct
             else
               (if ControlSpecC.equal c (ctx.control_context ()) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
                  (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
-                  match node with
-                  | Statement { skind = Instr [Call (lval, exp, _args,_, _)] ;_ } ->
-                    (* TODO: this assign is wrong: if value is definitely 0, then it is changed and should assign 1 instead *)
-                    (* non-local longjmp does this in base special, but base assign does not *)
-                    (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
-                    (* let res' = path_ctx.local in *)
-                    let res' = S.special path_ctx lv f args in
-                    let r = res' in
-                    sideg (GVar.longjmpto (node, ctx.context ())) (G.create_local r)
-                  | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
+                  (* TODO: this assign is wrong: if value is definitely 0, then it is changed and should assign 1 instead *)
+                  (* non-local longjmp does this in base special, but base assign does not *)
+                  (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
+                  (* let res' = path_ctx.local in *)
+                  let res' = S.special path_ctx lv f args in
+                  sideg (GVar.longjmpto (node, ctx.context ())) (G.create_local res')
                  )
                else
                  (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
