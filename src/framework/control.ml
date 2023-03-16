@@ -716,14 +716,25 @@ struct
       ) lh;
 
     WarnPostProc.ask := (fun node ->
-        let local = try (NH.find nh node) with Not_found -> Spec.D.bot () in
-        { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node local q)}
+        let local = try NH.find nh node with Not_found -> Spec.D.bot () in
+        {Queries.f = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node local q)}
       );
 
     WarnPostProc.ask' := (fun node (loc, edge) node' ->
-        let local =  try (NH.find nh node) with Not_found -> Spec.D.bot () in
-        let local' = EQSys.tf0 (node', Obj.repr ()) (LHT.find lh) (fun _ _ -> ()) (GHT.find gh) (fun _ _ -> ()) node (loc,edge) local (loc, loc) in
-        { Queries.f    = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node' local' q)}
+        let local = try NH.find nh node with Not_found -> Spec.D.bot () in
+        let old_node = !current_node in
+        let old_should_warn = !Goblintutil.should_warn in
+        Goblintutil.should_warn := false;
+        current_node := Some node;
+        Fun.protect ~finally:(fun () ->
+            current_node := old_node;
+            Goblintutil.should_warn := old_should_warn;
+          ) (fun () ->
+            let getl x = try LHT.find lh x with Not_found -> EQSys.D.bot () in
+            let getg x = try GHT.find gh x with Not_found -> EQSys.G.bot () in
+            let local' = EQSys.tf0 (node', Obj.repr ()) getl (fun _ _ -> ()) getg (fun _ _ -> ()) node (loc, edge) local (loc, loc) in
+            {Queries.f = (fun (type a) (q: a Queries.t) -> Query.ask_local_node gh node' local' q)}
+          )
       );
 
     if get_bool "ana.warn-postprocess.enabled" then (
