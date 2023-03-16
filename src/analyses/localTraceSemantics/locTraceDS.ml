@@ -297,7 +297,9 @@ let rec check_helper1 (prev_node, edge, dest_node) innerList =
 let extend_by_gEdge gr gEdge = print_string "LocalTraces.extend_by_gEdge was invoked\n";
   if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) 
     then (print_string ("but gEdge="^(show_edge gEdge)^" is already contained in:\n"^(show gr)^"\n");gr) 
-else (let tmp = LocTraceGraph.add_edge_e gr gEdge in print_string ("extend_by_gEdge succeeded with new graph:\n"^(show tmp)^"\n"); tmp) 
+else (let tmp = LocTraceGraph.add_edge_e gr gEdge in 
+(* print_string ("extend_by_gEdge succeeded with new graph:\n"^(show tmp)^"\n");  *)
+tmp) 
 
   let error_node : MyCFG.node = 
     FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[])); 
@@ -330,10 +332,14 @@ else (let tmp = LocTraceGraph.add_edge_e gr gEdge in print_string ("extend_by_gE
     let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
-  let rec loop visited = (print_string ("\nloop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^" und visited: "^(List.fold (fun s n -> ((NodeImpl.show n)^", "^s)) "" visited)^" and |visited| = "^(string_of_int (List.length visited))^"\n");
+  let rec loop visited = (
+    (* print_string ("\nloop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^" und visited: "^(List.fold (fun s n -> ((NodeImpl.show n)^", "^s)) "" visited)^" and |visited| = "^(string_of_int (List.length visited))^"\n"); *)
     let q = Queue.pop workQueue
-in let predecessors = print_string ("\nin loop we get the predessecors in graph:"^(show graph)^"\n");get_predecessors_edges graph q
-in let tmp_result = print_string ("the predecessors are: "^(List.fold (fun s ed -> s^", "^(show_edge ed)) "" predecessors)^"\n");
+in let predecessors = 
+  (* print_string ("\nin loop we get the predessecors in graph:"^(show graph)^"\n"); *)
+  get_predecessors_edges graph q
+in let tmp_result = 
+  (* print_string ("the predecessors are: "^(List.fold (fun s ed -> s^", "^(show_edge ed)) "" predecessors)^"\n"); *)
 List.fold (fun optionAcc (prev_node, (edge:CustomEdge.t), _) -> 
 match edge with 
     | (Assign((Var(edgevinfo),_), edgeExp)) -> if CilType.Varinfo.equal global edgevinfo then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");Some(prev_node,edge)) else optionAcc
@@ -344,7 +350,10 @@ let skip_edge:(CustomEdge.t) = Skip (* This is needed otherwise it errors with u
 in
 match tmp_result with
 | None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (get_predecessors_nodes graph q);
-  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}, skip_edge) else (print_string ("we recursively call loop again while working on node "^(NodeImpl.show q)^"\n");loop (q::visited))
+  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}, skip_edge) 
+  else (
+    (* print_string ("we recursively call loop again while working on node "^(NodeImpl.show q)^"\n"); *)
+    loop (q::visited))
 | Some(nodeGlobalAssignment) -> nodeGlobalAssignment
   )
 in loop []
@@ -649,9 +658,10 @@ object(self)
     let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find;lockSet=ls_find}) -> 
      if (NodeImpl.equal prev_node prev_node_find)&&(CustomEdge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid)&&(LockSet.equal ls_find dest_ls) then id_find else acc) (-1) edges 
   in 
-  if id = (-1) then ( print_string ("No existing edge for this combination was found, so we create a new ID\n
+  if id = (-1) then ( 
+    (* print_string ("No existing edge for this combination was found, so we create a new ID\n
     for prev_node="^(NodeImpl.show prev_node)^", edge="^(EdgeImpl.show edge)^", dest_progPoint="^(Node.show dest_programPoint)^", dest_sigma="^(NodeImpl.show_sigma dest_sigma)^"\n
-in edges={"^(List.fold (fun acc_fold edge_fold -> acc_fold^(LocalTraces.show_edge edge_fold)^"\n") "" edges)^"}\n");
+in edges={"^(List.fold (fun acc_fold edge_fold -> acc_fold^(LocalTraces.show_edge edge_fold)^"\n") "" edges)^"}\n"); *)
   edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=dest_tid;lockSet=dest_ls})::edges; 
   self#increment ()) else (print_string ("id was found: "^(string_of_int id)^"\n"); id)
 end
@@ -687,7 +697,7 @@ class custom_vinfo_store =
 object(self)
 val mutable vinfoMap: varinfo VinfoMap.t = VinfoMap.empty
 
-  method getVarinfo (name:string) =
+  method getGlobalVarinfo (name:string) =
     if VinfoMap.mem name vinfoMap 
       then (VinfoMap.find name vinfoMap)
       else (
@@ -696,6 +706,16 @@ val mutable vinfoMap: varinfo VinfoMap.t = VinfoMap.empty
     vinfoMap <- VinfoMap.add name newVinfo vinfoMap;
     newVinfo
       )
+
+      method getLocalVarinfo (name:string) (typ:typ) =
+        if VinfoMap.mem name vinfoMap 
+          then (VinfoMap.find name vinfoMap)
+          else (
+            let newVinfo = makeVarinfo false name typ
+        in
+        vinfoMap <- VinfoMap.add name newVinfo vinfoMap;
+        newVinfo
+          )
 end
 
 let customVinfoStore = new custom_vinfo_store
