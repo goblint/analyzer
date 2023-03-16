@@ -817,6 +817,8 @@ struct
                  (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
                   match node with
                   | Statement { skind = Instr [Call (lval, exp, _args,_, _)] ;_ } ->
+                    (* TODO: this assign is wrong: if value is definitely 0, then it is changed and should assign 1 instead *)
+                    (* non-local longjmp does this in base special, but base assign does not *)
                     (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
                     (* let res' = path_ctx.local in *)
                     let res' = S.special path_ctx lv f args in
