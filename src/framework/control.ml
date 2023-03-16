@@ -35,7 +35,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
           ) in
   GobConfig.building_spec := false;
-  Analyses.control_spec_c := (module S1.C);
+  ControlSpecC.control_spec_c := (module S1.C);
   (module S1)
 )
 
@@ -238,7 +238,9 @@ struct
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
         | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
-        | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
+        | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
+        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
           true
         | _ -> false
       in
@@ -516,7 +518,7 @@ struct
             let warnings = Fpath.(save_run / "warnings.marshalled") in
             let stats = Fpath.(save_run / "stats.marshalled") in
             if get_bool "dbg.verbose" then (
-              Format.printf "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
+              Format.printf "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a\n" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
             );
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
@@ -529,12 +531,11 @@ struct
             Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
             if gobview then (
               if get_bool "dbg.verbose" then (
-                Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
+                Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a\n" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               );
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
-              Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
@@ -707,7 +708,8 @@ struct
     );
     if get_bool "incremental.save" then (
       Serialize.Cache.(update_data AnalysisData marshal);
-      Serialize.Cache.store_data ()
+      if not (get_bool "server.enabled") then
+        Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
