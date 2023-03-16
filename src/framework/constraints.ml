@@ -667,6 +667,7 @@ struct
       r
     in
     let handle_longjmp (cd, fc, longfd) =
+      (* This is called per-path. *)
       let rec cd_ctx =
         { ctx with
           ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
@@ -783,51 +784,55 @@ struct
       else
         first_return
     | Longjmp {env; value; sigrestore} ->
-      let res = S.special ctx lv f args in
       let current_fundec = Node.find_fundec ctx.node in
-      let one_path s = (
-        let rec path_ctx = { ctx with
-                             ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
-                             local = s;
-                           }
+      let handle_path path = (
+        let rec path_ctx =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
+            local = path;
+          }
+        in
+        let specialed = lazy ( (* does not depend on target, do at most once *)
+            S.special path_ctx lv f args
+          )
+        in
+        let returned = lazy ( (* does not depend on target, do at most once *)
+            let rec specialed_ctx =
+              { ctx with
+                ask = (fun (type a) (q: a Queries.t) -> S.query specialed_ctx q);
+                local = Lazy.force specialed;
+              }
+            in
+            S.return specialed_ctx None current_fundec
+          )
         in
         (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
         let targets = path_ctx.ask (EvalJumpBuf env) in
+        let valid_targets = path_ctx.ask ValidLongJmp in
         if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
-        let handle_longjmp = function
+        let handle_target target = match target with
           | JmpBufDomain.BufferEntryOrTop.AllTargets ->
-            M.warn "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)"  d_exp env
-          | JmpBufDomain.BufferEntryOrTop.Target (node, c) ->
-            let validBuffers = path_ctx.ask ValidLongJmp in
-            if not (JmpBufDomain.JmpBufSet.mem (Target (node,c)) validBuffers) then
-              M.warn "Longjmp to potentially invalid target! (Target %s in Function %s which may have already returned or is in a different thread)" (Node.show node) (Node.find_fundec node).svar.vname
+            M.warn "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env
+          | Target (target_node, target_context) ->
+            let target_fundec = Node.find_fundec target_node in
+            if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
+              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show target_node);
+              sideg (GVar.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force specialed))
+            )
+            else if JmpBufDomain.JmpBufSet.mem target valid_targets then (
+              if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
+              sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
+            )
             else
-              (if ControlSpecC.equal c (ctx.control_context ()) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
-                 (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
-                  (* TODO: this assign is wrong: if value is definitely 0, then it is changed and should assign 1 instead *)
-                  (* non-local longjmp does this in base special, but base assign does not *)
-                  (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
-                  (* let res' = path_ctx.local in *)
-                  let res' = S.special path_ctx lv f args in
-                  sideg (GVar.longjmpto (node, ctx.context ())) (G.create_local res')
-                 )
-               else
-                 (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
-                 let rec ctx_fd' = { ctx with
-                                      ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                      local = res;
-                                    }
-                  in
-                  let res' = S.return ctx_fd' None current_fundec in
-                  sideg (GVar.longjmpret (current_fundec, ctx.context ())) (G.create_local res')))
+              M.warn "Longjmp to potentially invalid target! (Target %s in Function %a which may have already returned or is in a different thread)" (Node.show target_node) CilType.Fundec.pretty target_fundec
         in
         if JmpBufDomain.JmpBufSet.is_empty targets then
-          M.warn "Longjmp to potentially invalid target (%a is bot?!)"  d_exp env
+          M.warn "Longjmp to potentially invalid target (%a is bot?!)" d_exp env
         else
-          JmpBufDomain.JmpBufSet.iter handle_longjmp targets
+          JmpBufDomain.JmpBufSet.iter handle_target targets
       )
       in
-      List.iter one_path (S.paths_as_set ctx);
+      List.iter handle_path (S.paths_as_set ctx);
       S.D.bot ()
     | _ -> S.special ctx lv f args
 
