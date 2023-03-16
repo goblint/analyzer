@@ -700,24 +700,7 @@ struct
              in
              (* Using f from called function on purpose here! Needed? *)
              let value = S.combine ctx_cd None (Cil.one) f setjmpargs fc fd' (Analyses.ask_of_ctx ctx_fd') in
-             let rec res_ctx = { ctx with
-                                 ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
-                                 local = value
-                               }
-             in
-             let setjmpvar = match None with
-               | Some (Var v, NoOffset) -> Queries.VS.singleton v
-               | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
-             in
-             let modified_vars = Queries.VS.diff (res_ctx.ask (MayBeModifiedSinceSetjmp (targetnode, targetcontext))) setjmpvar in
-             (* (if Queries.VS.is_top modified_vars then
-                M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show targetnode)
-              else if not (Queries.VS.is_empty modified_vars) then
-                M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show targetnode) (Queries.VS.show modified_vars)
-              else
-                ()
-             ); *)
-             let value' = S.event res_ctx (Events.Poison modified_vars) res_ctx in
+             let value' = value in
              sideg (GVar.longjmpto (targetnode, ctx.context ())) (G.create_local value')
            (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
            | _ -> failwith "target of longjmp is node that is not a call to setjmp!")
@@ -799,12 +782,19 @@ struct
           else
             ()
         ) (snd active);
-      let later_return = match lv with
-        | Some lv -> S.assign path_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
-        | None -> later_return
-      in
-      if not @@ S.D.is_bot later_return then
+      if not @@ S.D.is_bot later_return then (
+        let later_return = S.event path_ctx (Events.Poison modified_vars) path_ctx in
+        let rec res_ctx = { path_ctx with
+                            ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
+                            local = later_return;
+                          }
+        in
+        let later_return = match lv with
+          | Some lv -> S.assign res_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
+          | None -> later_return
+        in
         S.D.join first_return later_return
+      )
       else
         first_return
     | Longjmp {env; value; sigrestore} ->
@@ -836,24 +826,7 @@ struct
                     (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
                     (* let res' = path_ctx.local in *)
                     let res' = S.special path_ctx lv f args in
-                    let setjmpvar = match None with
-                      | Some (Var v, NoOffset) -> Queries.VS.singleton v
-                      | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
-                    in
-                    let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (node, c))) setjmpvar in
-                    (* (if Queries.VS.is_top modified_vars then
-                       M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
-                     else if not (Queries.VS.is_empty modified_vars) then
-                       M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
-                     else
-                       ()
-                    ); *)
-                    let rec res_ctx = { path_ctx with
-                                        ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
-                                        local = res';
-                                      }
-                    in
-                    let r = S.event res_ctx (Events.Poison modified_vars) res_ctx in
+                    let r = res' in
                     sideg (GVar.longjmpto (node, ctx.context ())) (G.create_local r)
                   | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
                  )
