@@ -699,7 +699,7 @@ struct
                                }
              in
              (* Using f from called function on purpose here! Needed? *)
-             let value = S.combine ~longjmpthrough:false ctx_cd setjmplval (Cil.one) f setjmpargs fc fd' (Analyses.ask_of_ctx ctx_fd') in
+             let value = S.combine ~longjmpthrough:false ctx_cd None (Cil.one) f setjmpargs fc fd' (Analyses.ask_of_ctx ctx_fd') in
              let rec res_ctx = { ctx with
                                  ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
                                  local = value
@@ -780,6 +780,15 @@ struct
       (* Handling of returning for the first time *)
       let first_return = S.special ctx lv f args in
       let later_return = G.local (getg (GVar.longjmpto (ctx.prev_node, ctx.context ()))) in
+      let rec path_ctx = { ctx with
+                             ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
+                             local = later_return;
+                           }
+        in
+      let later_return = match lv with
+        | Some lv -> S.assign path_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
+        | None -> later_return
+      in
       if not @@ S.D.is_bot later_return then
         S.D.join first_return later_return
       else
@@ -807,8 +816,10 @@ struct
               (if ControlSpecC.equal c (ctx.control_context ()) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
                  (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
                   match node with
-                  | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-                    let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in
+                  | Statement { skind = Instr [Call (lval, exp, _args,_, _)] ;_ } ->
+                    (* let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in *)
+                    (* let res' = path_ctx.local in *)
+                    let res' = S.special path_ctx lv f args in
                     let setjmpvar = match lval with
                       | Some (Var v, NoOffset) -> Queries.VS.singleton v
                       | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)

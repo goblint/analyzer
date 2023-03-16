@@ -155,3 +155,5 @@ let jobs () =
   match get_int "jobs" with
   | 0 -> Cpu.numcores ()
   | n -> n
+
+let longjmp_return = create_var (Cil.makeVarinfo false "LONGJMP_RETURN" Cil.intType)

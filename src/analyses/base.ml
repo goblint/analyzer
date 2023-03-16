@@ -2258,7 +2258,7 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv
+      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var Goblintutil.longjmp_return) t rv
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
     | _, _ -> begin
         let st =
@@ -2346,11 +2346,15 @@ struct
           else
             (* remove variables from caller cpa, that are global and not in the callee cpa *)
             let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
+            if M.tracing then M.trace "taintPC" "cpa_caller: %a\n" CPA.pretty cpa_caller;
             (* add variables from callee that are not in caller yet *)
             let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
+            if M.tracing then M.trace "taintPC" "cpa_new: %a\n" CPA.pretty cpa_new;
             let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
+            if M.tracing then M.trace "taintPC" "cpa_caller': %a\n" CPA.pretty cpa_caller';
             (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
             let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
+            let tainted = Q.LS.add (Goblintutil.longjmp_return, `NoOffset) tainted in
             let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
             if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
             { fun_st with cpa = st_combined.cpa }
@@ -2360,6 +2364,8 @@ struct
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st.cpa
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
+        (* else if CPA.mem Goblintutil.longjmp_return fun_st.cpa then
+          get (Analyses.ask_of_ctx ctx) ctx.global fun_st (AD.from_var Goblintutil.longjmp_return) None *)
         else VD.top ()
       in
       let nst = add_globals st fun_st in
