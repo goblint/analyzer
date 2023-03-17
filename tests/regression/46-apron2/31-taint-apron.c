@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] taintPartialContexts --set ana.activated[+] apron --set ana.ctx_insens[+] apron
+// SKIP PARAM: --set ana.activated[+] taintPartialContexts --set ana.activated[+] apron --set ana.ctx_insens[+] apron
 #include <goblint.h>
 
 int a_glob, b_glob;

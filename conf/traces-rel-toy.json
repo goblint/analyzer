@@ -10,6 +10,7 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "mallocWrapper",
       "mhp",
       "apron",
