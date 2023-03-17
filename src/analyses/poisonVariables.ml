@@ -10,6 +10,10 @@ struct
   module D = VS
   module C = Lattice.Unit
 
+  let context _ _ = ()
+
+  (* TODO: use Access events instead of reimplementing logic? *)
+
   let rec check_exp ask tainted e = match e with
     (* Recurse over the structure in the expression, returning true if any varinfo appearing in the expression is tainted *)
     | AddrOf v
@@ -104,8 +108,6 @@ struct
   let threadenter ctx lval f args = [D.bot ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
-
-  let context _ _ = ()
 
   let event ctx e octx =
     match e with

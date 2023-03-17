@@ -5,15 +5,19 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "modifiedSinceLongjmp"
   module D = JmpBufDomain.LocallyModifiedMap
   module VS = D.VarSet
   module C = Lattice.Unit
 
+  let context _ _ = ()
+
   let add_to_all_defined vs d =
     D.map (fun vs' -> VS.union vs vs') d
+
+  (* TODO: use Access events instead of reimplementing logic? *)
 
   let is_relevant v =
     (* Only checks for v.vglob on purpose, acessing espaced locals after longjmp is UB like for any local *)
@@ -34,22 +38,12 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     add_to_all_defined (relevants_from_lval_opt ctx (Some lval)) ctx.local
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.bot ()]
+    [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
-    let fromlv = (* if not longjmpthrough then relevants_from_lval_opt ctx lval else *) VS.empty () in
     let taintedcallee = relevants_from_ls (f_ask.f Queries.MayBeTainted) in
-    add_to_all_defined (VS.union taintedcallee fromlv) ctx.local
+    add_to_all_defined taintedcallee ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
@@ -75,8 +69,6 @@ struct
     add_to_all_defined (relevants_from_lval_opt ctx lval) ctx.local
 
   let exitstate  v = D.top ()
-
-  let context _ _ = ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
