@@ -73,6 +73,12 @@ jobs:
       - name: Test incremental regression with cfg comparison
         run: ruby scripts/update_suite.rb -c
 
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: suite_result
+          path: tests/suite_result/
+
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
 
