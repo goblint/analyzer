@@ -373,13 +373,27 @@ List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
     let find_returning_node prev_node edge_label graph =
   let node_start = get_succeeding_node prev_node edge_label graph
 in
+print_string ("find_returning_node was invoked with node_start="^(NodeImpl.show node_start)^"\n");
 let rec find_returning_node_helper current_node current_saldo =(
-  print_string("find_returning_node_helper has been invoked with current_node="^(NodeImpl.show current_node)^", current_saldo="^(string_of_int current_saldo)^"\n");
+  (* print_string("find_returning_node_helper has been invoked with current_node="^(NodeImpl.show current_node)^", current_saldo="^(string_of_int current_saldo)^"\n"); *)
   let succeeding_edges = get_successors_edges graph current_node
 in
+(* print_string ("succeeding_edges="^(List.fold (fun acc_fold edge_fold -> (show_edge edge_fold)^"; "^acc_fold) "" succeeding_edges)^"\n"); *)
 List.fold (fun acc_node ((prev_fold:node), (edge_fold:CustomEdge.t), (dest_fold:node)) -> 
-  match edge_fold with Proc(_) -> find_returning_node_helper dest_fold (current_saldo +1)
+  if prev_fold.tid != dest_fold.tid then acc_node else
+  match edge_fold with 
+    | Proc(_, Lval(Var(fvinfo), NoOffset), _) -> 
+      (* check whether function is one of my special functions*)
+      if (String.equal fvinfo.vname "pthread_mutex_lock") 
+        || (String.equal fvinfo.vname "pthread_mutex_unlock")
+      || (String.equal fvinfo.vname "pthread_create")
+      || (String.equal fvinfo.vname "pthread_join")
+      || (String.equal fvinfo.vname "pthread_mutex_destroy")
+      || (String.equal fvinfo.vname "pthread_exit") then find_returning_node_helper dest_fold current_saldo
+      else find_returning_node_helper dest_fold (current_saldo +1)
+    | Proc(_) -> find_returning_node_helper dest_fold (current_saldo +1)
     | Ret(_) -> if current_saldo = 1 then dest_fold else find_returning_node_helper dest_fold (current_saldo - 1)
+    (* ein paar Kanten dürfen nicht weiter verfolgt werden wie z.B. depMutex*)
     | _ -> find_returning_node_helper dest_fold current_saldo
   ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=LockSet.empty} succeeding_edges
   )
@@ -428,11 +442,18 @@ in find_returning_node_helper node_start 1
 let find_calling_node return_node graph progPoint =
   let allNodes = get_all_nodes_progPoint graph progPoint
 in
+(* print_string ("find_calling_node was invoked with return_node="^(NodeImpl.show return_node)^",\n
+allNodes=["^(List.fold (fun s_fold node_fold -> (NodeImpl.show node_fold)^"; "^s_fold) "" allNodes)^"]\n
+graph="^(show graph)^"\n"); *)
 let rec inner_loop node_candidate edgeList =
   match edgeList with (_,e,_)::es -> 
-  if NodeImpl.equal return_node (find_returning_node node_candidate e graph) then node_candidate
+    let tmp = find_returning_node node_candidate e graph
+  in
+  (* print_string ("in find_calling_node, we have tmp="^(NodeImpl.show tmp)^"\n"); *)
+  if NodeImpl.equal return_node tmp then node_candidate
   else inner_loop node_candidate es
-  | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
+  | [] -> 
+    {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
 in
 let rec loop nodeList =
   match nodeList with
@@ -443,7 +464,8 @@ in
 in 
 if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
   )
-    | [] -> {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
+    | [] -> print_string ("find_calling_node did not succeed, ended in loop\n");
+      {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
     in loop allNodes
 
     (* In this function I assume, that traces do not contain circles *)
