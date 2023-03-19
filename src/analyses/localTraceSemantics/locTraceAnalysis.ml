@@ -652,24 +652,38 @@ let branch_on_node graph ctx exp tv {programPoint=programPoint;id=id;sigma=sigma
   let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error sigma 
 in
 print_string ("sigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
-let resultList,success, newExp = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
+let rvalGlobals = get_all_globals exp LockSet.empty
+in print_string ("in branch, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
+let someTmp = create_local_assignments [graph] (LockSet.to_list rvalGlobals) ctx
+in
+print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTraces.show graph_fold)^"; "^s_acc) "" someTmp)^"\n");
+List.fold (fun resultList_outter graph_outter -> 
+  (
+    let lastNode = LocalTraces.get_last_node graph_outter
+    in
+    let sigmaList,success, newExp = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph_outter lastNode
 in
 List.map (fun sigma_map ->
   let result_as_int = match (SigmaMap.find_default Error LocalTraces.branch_vinfo sigma_map) with
-Int(i1,i2,_) -> print_string ("in branch, the result is ["^(Big_int_Z.string_of_big_int i1)^";"^(Big_int_Z.string_of_big_int i2)^"]");if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
+Int(i1,i2,_) -> print_string ("in branch, the result is ["^(Big_int_Z.string_of_big_int i1)^";"^(Big_int_Z.string_of_big_int i2)^"]");
+if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
 else 1
   |_ -> -1
 in
-let sigmaNew = SigmaMap.remove LocalTraces.branch_vinfo (NodeImpl.destruct_add_sigma sigma sigma_map)
+let sigmaNew = remove_global_locals_sigma (SigmaMap.remove LocalTraces.branch_vinfo (NodeImpl.destruct_add_sigma lastNode.sigma sigma_map)) (LockSet.to_list rvalGlobals)
 in
 print_string ("result_as_int: "^(string_of_int result_as_int)^"\n");
-let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigmaNew tid ls);tid=tid;lockSet=ls})
+let myEdge:node*CustomEdge.t*node = (lastNode, Test(newExp, tv),
+{programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID lastNode (Test(newExp, tv)) ctx.node sigmaNew tid ls);tid=tid;lockSet=ls})
 in
 print_string ("success="^(string_of_bool success)^", tv="^(string_of_bool tv)^", result_as_int="^(string_of_int result_as_int)^"\nand possible edge="^(LocalTraces.show_edge myEdge)^"\n");
-let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) then LocalTraces.extend_by_gEdge graph myEdge else (print_string "no edge added for current sigma in branch\n";graph)
+let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) 
+  then LocalTraces.extend_by_gEdge graph_outter myEdge else (print_string "no edge added for current sigma in branch\n";graph_outter)
 in
     result_graph
-  ) resultList
+  ) sigmaList
+  )@resultList_outter
+  ) [] someTmp
 
 (* iterate over the graphs in previous state *)
 let branch_fold_graphSet graph (exp, tv, ctx,set_acc) =
