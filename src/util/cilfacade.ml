@@ -18,6 +18,13 @@ let isFloatType t =
   | TFloat _ -> true
   | _ -> false
 
+let rec isVLAType t =
+  match Cil.unrollType t with
+  | TArray (et, len, _) ->
+    let variable_len = GobOption.exists (Fun.negate Cil.isConstant) len in
+    variable_len || isVLAType et
+  | _ -> false
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");

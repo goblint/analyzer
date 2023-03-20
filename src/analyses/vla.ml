@@ -29,7 +29,8 @@ struct
     | _ ->
       ctx.local
 
-  let vdecl ctx (v:varinfo) : D.t = true
+  let vdecl ctx (v:varinfo) : D.t =
+    ctx.local || Cilfacade.isVLAType v.vtype
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
