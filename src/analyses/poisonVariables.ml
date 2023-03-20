@@ -61,19 +61,15 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    check_lval ctx.ask ~ignore_var:true ctx.local lval;
-    check_exp ctx.ask ctx.local rval;
     rem_lval ctx.ask ctx.local lval
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    check_exp ctx.ask ctx.local exp;
     ctx.local
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    Option.may (check_exp ctx.ask ctx.local) exp;
     (* remove locals, except ones which need to be weakly updated*)
     if D.is_top ctx.local then
       ctx.local
@@ -85,9 +81,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     if VS.is_empty ctx.local then
       [ctx.local,ctx.local]
-    else
-      (Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
-       List.iter (check_exp ctx.ask ctx.local) args;
+    else (
        let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
        if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
          [ctx.local, ctx.local]
@@ -100,8 +94,6 @@ struct
     Option.map_default (rem_lval ctx.ask au) (VS.join au ctx.local) lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
-    List.iter (check_exp ctx.ask ctx.local) arglist;
     Option.map_default (rem_lval ctx.ask ctx.local) ctx.local lval
 
   let startstate v = D.bot ()
@@ -127,6 +119,12 @@ struct
             ()
         ) longjmp_nodes;
       D.join modified_locals ctx.local
+    | Access {lvals; kind = Read; _} ->
+      Queries.LS.iter (fun lv ->
+          let lval = Lval.CilLval.to_lval lv in
+          check_lval octx.ask octx.local lval
+        ) lvals;
+      ctx.local
     | _ -> ctx.local
 
 end

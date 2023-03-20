@@ -28,7 +28,8 @@ struct
 
   let init _ =
     collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
-    emit_single_threaded := List.mem "modifiedSinceLongjmp" (get_string_list "ana.activated")
+    let activated = get_string_list "ana.activated" in
+    emit_single_threaded := List.mem "modifiedSinceLongjmp" activated || List.mem "poisonVariables" activated
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
