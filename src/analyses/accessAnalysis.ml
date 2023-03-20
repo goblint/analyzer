@@ -24,9 +24,11 @@ struct
   module G = AccessDomain.EventSet
 
   let collect_local = ref false
+  let emit_single_threaded = ref false
 
   let init _ =
-    collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed"
+    collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
+    emit_single_threaded := List.mem "modifiedSinceLongjmp" (get_string_list "ana.activated")
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
@@ -40,7 +42,7 @@ struct
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if force || !collect_local || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
+    if force || !collect_local || !emit_single_threaded || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       if deref then
         do_access ctx kind reach exp;
       Access.distribute_access_exp (do_access ctx Read false) exp
