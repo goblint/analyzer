@@ -26,21 +26,30 @@ struct
     (* remove locals, except ones which need to be weakly updated*)
     if D.is_top ctx.local then
       ctx.local
-    else
-      let locals = (f.sformals @ f.slocals) in
-      let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
-      D.filter (fun v -> not (List.mem v locals_noweak)) ctx.local
+    else (
+      let locals = f.sformals @ f.slocals in
+      D.filter (fun v ->
+          not (List.exists (fun local ->
+              CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))
+            ) locals)
+        ) ctx.local
+    )
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     if VS.is_empty ctx.local then
       [ctx.local,ctx.local]
     else (
-       let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
-       if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
-         [ctx.local, ctx.local]
-       else
-         let reachable_vars = Queries.LS.elements reachable_from_args |> List.map fst |> VS.of_list in
-         [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local])
+      let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+      if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
+        [ctx.local, ctx.local]
+      else
+        let reachable_vars =
+          Queries.LS.elements reachable_from_args
+          |> List.map fst
+          |> VS.of_list
+        in
+        [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local]
+    )
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     VS.join au ctx.local
