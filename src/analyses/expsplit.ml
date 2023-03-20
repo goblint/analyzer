@@ -89,6 +89,8 @@ struct
     | UpdateExpSplit exp ->
       let value = ctx.ask (EvalInt exp) in
       D.add exp value ctx.local
+    | Longjmped _ ->
+      emit_splits_ctx ctx
     | _ ->
       ctx.local
 end

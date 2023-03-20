@@ -2544,6 +2544,11 @@ struct
       assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
       Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Longjmped {lval} ->
+      begin match lval with
+        | Some lval -> assign ctx lval (Lval (Cil.var Goblintutil.longjmp_return))
+        | None -> ctx.local
+      end
     | _ ->
       ctx.local
 end

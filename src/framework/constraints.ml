@@ -1557,20 +1557,8 @@ struct
             local = jmp_return;
           }
         in
-        let poisoned = S.event jmp_ctx (Events.Longjmped {lval=lv}) jmp_ctx in
-        let jmp_return' = match lv with
-          | Some lv ->
-            let rec poisoned_ctx =
-              { jmp_ctx with
-                ask = (fun (type a) (q: a Queries.t) -> S.query poisoned_ctx q);
-                local = poisoned;
-              }
-            in
-            S.assign poisoned_ctx lv (Lval (Cil.var Goblintutil.longjmp_return))
-          | None ->
-            poisoned
-        in
-        S.D.join normal_return jmp_return'
+        let longjmped = S.event jmp_ctx (Events.Longjmped {lval=lv}) jmp_ctx in
+        S.D.join normal_return longjmped
       )
     | Longjmp {env; value} ->
       let current_fundec = Node.find_fundec ctx.node in
