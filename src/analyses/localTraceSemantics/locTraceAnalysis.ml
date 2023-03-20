@@ -162,6 +162,9 @@ in print_string ("eval_global evaluated to "^(show_varDomain tmp)^"\n");
 and 
 (* Evaluates the effects of an assignment to sigma *)
 eval sigOld vinfo (rval: exp) graph node = 
+print_string ("Eval wurde aufgerufen mit rval="^(CilType.Exp.show rval)^",
+\nsigOld=["^(NodeImpl.show_sigma sigOld)^"],
+\nfor node="^(NodeImpl.show node)^"\n");
   (* dummy value 
      This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
       In this case vinfo is considered to have an unknown value *)
@@ -220,8 +223,20 @@ else (Int (c,c, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
 
 | Lval(Var(var), NoOffset) -> if var.vglob = true 
   then (
-    let a, b, c, d = eval_global var graph node
-in (a, b, c, d, Lval(Var(customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype), NoOffset))
+    let localGlobalVinfo = (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype)
+in
+    if SigmaMap.mem localGlobalVinfo sigOld then
+    (
+      
+      match SigmaMap.find localGlobalVinfo sigOld with
+    | Int(l,u,k) -> if l = u then (Int(l,u,k), true, currentSigEnhanced, [], Lval(Var(localGlobalVinfo), NoOffset)) else 
+      (Int(l,l,k), true, SigmaMap.add var (Int(l,l,k)) (currentSigEnhanced),[], Lval(Var(localGlobalVinfo), NoOffset))
+    | rest -> (rest, true,currentSigEnhanced,[], Lval(Var(localGlobalVinfo), NoOffset)) 
+    )
+else
+  (
+  let a, b, c, d = eval_global var graph node
+in (a, b, c, d, Lval(Var(localGlobalVinfo), NoOffset)))
     )
 else
   (if SigmaMap.mem var sigOld then (
@@ -284,9 +299,29 @@ let newExpr = BinOp(Lt, Lval(Var(newVar1), NoOffset),Lval(Var(newVar2), NoOffset
 in
   if ((SigmaMap.mem var1 sigOld) || (var1.vglob = true))&&((SigmaMap.mem var2 sigOld)|| (var2.vglob = true))
     then (
-      let vd1 = if var1.vglob = true then (match eval_global var1 graph node with (vd,_, _,_) -> vd) else (SigmaMap.find var1 sigOld)
+      let vd1 = if var1.vglob = true 
+        then (
+          let localGlobalVinfo1 = customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var1.vname) var1.vtype  
+        in
+          if SigmaMap.mem localGlobalVinfo1 sigOld 
+            then(
+              SigmaMap.find localGlobalVinfo1 sigOld
+            ) 
+          else
+          match eval_global var1 graph node with (vd,_, _,_) -> vd) 
+    else (SigmaMap.find var1 sigOld)
       in 
-      let vd2 = if var2.vglob = true then (match eval_global var2 graph node with (vd,_, _,_) -> vd) else (SigmaMap.find var2 sigOld)
+      let vd2 = if var2.vglob = true 
+        then (
+      let localGlobalVinfo2 = customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var2.vname) var2.vtype
+    in
+    if SigmaMap.mem localGlobalVinfo2 sigOld 
+      then(
+        SigmaMap.find localGlobalVinfo2 sigOld
+      )
+      else
+      match eval_global var2 graph node with (vd,_, _,_) -> vd) 
+    else (SigmaMap.find var2 sigOld)
       in
       match vd1,vd2 with
       | (Int(l1,u1,k1)), (Int(l2,u2,k2)) -> 
@@ -328,7 +363,10 @@ in
         else (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
       else if var.vglob = true then 
-        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_,_) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
+        let vd = if SigmaMap.mem (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld then SigmaMap.find (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld
+        else (let tmp, _, _, _ = eval_global var graph node in tmp)
+        in
+        (match vd with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
         
         if uVar <= l || u < lVar 
           then ((get_binop_int Lt biopIk) (Int(l, u, k)) (Int(lVar, uVar, kVar)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, newExpr) 
@@ -364,7 +402,11 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImp
         else (print_string "var < expr with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0)
       else if var.vglob = true then 
-        (match eval_global var graph node with (Int(lVar, uVar, kVar),_,_,_) -> 
+        (
+          let vd = if SigmaMap.mem (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld then SigmaMap.find (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld
+          else (let tmp, _, _, _ = eval_global var graph node in tmp)
+          in
+          match vd with Int(lVar, uVar, kVar)-> 
           if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0);
         if uVar <= l || u < lVar 
           then ( (get_binop_int Lt biopIk) (Int(lVar, uVar, kVar)) (Int(l, u, k)), true , NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced, otherValues, newExpr) 
@@ -420,6 +462,7 @@ let eval_catch_exceptions sigOld vinfo rval graph node =
 
 (* Here, I would like to manage other generated values and return a set of sigmas *)
 let eval_wrapper sigOld vinfo rval graph node =
+  print_string ("in eval_wrapper, sigOld=["^(NodeImpl.show_sigma sigOld)^"]\n");
   let rec iter_otherValues doneValues workList sigmaList =
 match workList with 
 (var,vd)::xs -> if List.mem (var,vd) doneValues then iter_otherValues doneValues xs sigmaList
@@ -550,7 +593,7 @@ fun resultList_outter graph_outter ->
   (
     let lastNode = LocalTraces.get_last_node graph_outter
     in
-    let sigmaList,success_inner, newExp = eval_wrapper sigma x rval  graph_outter lastNode in 
+    let sigmaList,success_inner, newExp = eval_wrapper lastNode.sigma x rval  graph_outter lastNode in 
     if not success_inner then (print_string "assignment did not succeed!\n"; 
     [LocalTraces.extend_by_gEdge graph_outter (lastNode,Assign(lval, newExp),{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty})] )
     else
@@ -642,16 +685,12 @@ let assign_fold_graphSet graph (lval, rval, ctx,set_acc) = print_string "assign_
 let assign ctx (lval:lval) (rval:exp) : D.t = 
   print_string ("assign wurde aufgerufen with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
 let _, _, _, result =
-print_string ("jetzt folden wir über ctx.local: ["^(D.fold (fun graph_fold s_fold -> (LocalTraces.show graph_fold)^", "^s_fold) ctx.local "")^"]\n");
-   D.fold assign_fold_graphSet ctx.local (lval, rval, ctx, D.empty ())
+D.fold assign_fold_graphSet ctx.local (lval, rval, ctx, D.empty ())
 in result
 
 (* BRANCH helper functions *)
 (* perform branch-effect on given node *)
 let branch_on_node graph ctx exp tv {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} =
-  let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error sigma 
-in
-print_string ("sigma = "^(NodeImpl.show_sigma sigma)^"; branch_sigma = "^(NodeImpl.show_sigma branch_sigma)^"\n");
 let rvalGlobals = get_all_globals exp LockSet.empty
 in print_string ("in branch, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
 let someTmp = create_local_assignments [graph] (LockSet.to_list rvalGlobals) ctx
@@ -661,6 +700,8 @@ List.fold (fun resultList_outter graph_outter ->
   (
     let lastNode = LocalTraces.get_last_node graph_outter
     in
+    let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error lastNode.sigma 
+in
     let sigmaList,success, newExp = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph_outter lastNode
 in
 List.map (fun sigma_map ->
