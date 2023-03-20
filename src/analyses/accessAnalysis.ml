@@ -56,6 +56,16 @@ struct
 
   (** Transfer functions: *)
 
+  let vdecl ctx v =
+    let rec distribute_access_typ = function
+      | TArray (et, len, _) ->
+        Option.may (access_one_top ctx Read false) len;
+        distribute_access_typ et
+      | _ -> ()
+    in
+    distribute_access_typ v.vtype;
+    ctx.local
+
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
