@@ -24,7 +24,7 @@ struct
     | Setjmp _ ->
       (* Checking if this within the scope of an identifier of variably modified type *)
       if ctx.local then
-        M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
+        M.warn ~category:(Behavior (Undefined Other)) "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
       ctx.local
     | _ ->
       ctx.local

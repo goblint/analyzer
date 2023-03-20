@@ -1586,7 +1586,7 @@ struct
         if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
         let handle_target target = match target with
           | JmpBufDomain.BufferEntryOrTop.AllTargets ->
-            M.warn "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env
+            M.warn ~category:Imprecise "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env
           | Target (target_node, target_context) ->
             let target_fundec = Node.find_fundec target_node in
             if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
@@ -1598,10 +1598,10 @@ struct
               ctx.sideg (V.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
             )
             else
-              M.warn "Longjmp to potentially invalid target! (Target %s in Function %a which may have already returned or is in a different thread)" (Node.show target_node) CilType.Fundec.pretty target_fundec
+              M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target! (Target %s in Function %a which may have already returned or is in a different thread)" (Node.show target_node) CilType.Fundec.pretty target_fundec
         in
         if JmpBufDomain.JmpBufSet.is_empty targets then
-          M.warn "Longjmp to potentially invalid target (%a is bot?!)" d_exp env
+          M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target (%a is bot?!)" d_exp env
         else
           JmpBufDomain.JmpBufSet.iter handle_target targets
       )

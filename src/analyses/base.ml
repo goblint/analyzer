@@ -1257,7 +1257,7 @@ struct
           begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
             | `JmpBuf (x, copied) ->
               if copied then
-                M.warn "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
+                M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
               x
             | y -> failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local))
           end
@@ -2264,19 +2264,21 @@ struct
           begin match ID.to_bool i with
             | Some true -> rv
             | Some false ->
-              M.warn "Must: Longjmp with a value of 0 is silently changed to 1";
+              M.error "Longjmp with a value of 0 is silently changed to 1";
               `Int (ID.of_int (ID.ikind i) Z.one)
             | None ->
-              M.warn "May: Longjmp with a value of 0 is silently changed to 1";
+              M.warn "Longjmp with a value of 0 is silently changed to 1";
               let ik = ID.ikind i in
               `Int (ID.join (ID.meet i (ID.of_excl_list ik [Z.zero])) (ID.of_int ik Z.one))
           end
-        | _ -> M.warn "Arguments to longjmp are strange!"; rv
+        | _ ->
+          M.warn ~category:Program "Arguments to longjmp are strange!";
+          rv
       in
       let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t ask ctx.global ctx.local (AD.from_var !longjmp_return) t rv
-      (* Not rasing Deadode here, deadcode is raised at a higher level! *)
+      (* Not rasing Deadcode here, deadcode is raised at a higher level! *)
     | _, _ ->
       let st =
         special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
