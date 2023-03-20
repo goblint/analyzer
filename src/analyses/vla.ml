@@ -17,6 +17,16 @@ struct
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    match (LibraryFunctions.find f).special arglist with
+    | Setjmp _ ->
+      (* Checking if this within the scope of an identifier of variably modified type *)
+      if ctx.local then
+        M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
+      ctx.local
+    | _ ->
+      ctx.local
+
   let vdecl ctx (v:varinfo) : D.t = true
 
   let startstate v = D.bot ()

@@ -1542,9 +1542,6 @@ struct
     let conv_ctx = conv ctx in
     match (LibraryFunctions.find f).special args with
     | Setjmp {env} ->
-      (* Checking if this within the scope of an identifier of variably modified type *)
-      if ctx.ask Queries.MayBeInVLAScope then
-        M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
       (* Handling of returning for the first time *)
       let normal_return = S.special conv_ctx lv f args in
       let jmp_return = G.local (ctx.global (V.longjmpto (ctx.prev_node, ctx.context ()))) in
