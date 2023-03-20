@@ -1408,18 +1408,18 @@ struct
     let s = function
       | `Bot -> S.G.bot ()
       | `Lifted1 x -> x
-      | _ -> failwith "DeadBranchLifter.s"
+      | _ -> failwith "LongjmpLifter.s"
     let local = function
       | `Bot -> S.D.bot ()
       | `Lifted2 x -> x
-      | _ -> failwith "DeadBranchLifter.node"
+      | _ -> failwith "LongjmpLifter.local"
     let create_s s = `Lifted1 s
     let create_local local = `Lifted2 local
 
     let printXml f = function
       | `Lifted1 x -> S.G.printXml f x
-      (* | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch\">%a</analysis>" S.D.printXml x *)
-      | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"longjmp\"><value>%a</value></analysis>" S.D.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"longjmp-lifter\">%a</analysis>" printXml x
   end
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
@@ -1462,7 +1462,7 @@ struct
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
-  (* let combine ctx = S.combine (conv ctx) *)
+
   let combine ctx lv e f args fc fd f_ask =
     let current_fundec = Node.find_fundec ctx.node in
     let handle_longjmp (cd, fc, longfd) =
@@ -1537,7 +1537,6 @@ struct
       handle_longjmp (ctx.local, fc, longfd);
     S.combine (conv ctx) lv e f args fc fd f_ask
 
-  (* let special ctx = S.special (conv ctx) *)
   let special ctx lv f args =
     match (LibraryFunctions.find f).special args with
     | Setjmp {env; savesigs} ->
