@@ -3,7 +3,7 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
   module VS = SetDomain.ToppedSet(CilType.Varinfo) (struct let topname = "All vars" end)
 
   let name () = "poisonVariables"
@@ -12,35 +12,16 @@ struct
 
   let context _ _ = ()
 
-  (* TODO: use Access events instead of reimplementing logic? *)
-
   let check_lval tainted ((v, offset): Queries.LS.elt) =
     if not v.vglob && VS.mem v tainted then
       M.warn "accessing poisonous variable %a" d_varinfo v
 
-  let rec rem_lval ask tainted lval = match lval with
-    | (Var v, NoOffset) -> VS.remove v tainted (* TODO: If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
-    | (Mem e, NoOffset) ->
-      (try
-         let r = Queries.LS.elements (ask (Queries.MayPointTo e)) in
-         match r with
-         | [x] -> rem_lval ask tainted @@ Lval.CilLval.to_lval x
-         | _ -> tainted
-       with
-         SetDomain.Unsupported _ -> tainted)
+  let rem_lval tainted ((v, offset): Queries.LS.elt) = match offset with
+    | `NoOffset -> VS.remove v tainted
     | _ -> tainted (* If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
 
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    rem_lval ctx.ask ctx.local lval
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* remove locals, except ones which need to be weakly updated*)
     if D.is_top ctx.local then
@@ -62,15 +43,10 @@ struct
          [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local])
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    (* Actually, this ask would have to be on the post state?! *)
-    Option.map_default (rem_lval ctx.ask au) (VS.join au ctx.local) lval
-
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    Option.map_default (rem_lval ctx.ask ctx.local) ctx.local lval
+    VS.join au ctx.local
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let event ctx e octx =
@@ -97,6 +73,10 @@ struct
           check_lval octx.local lv
         ) lvals;
       ctx.local
+    | Access {lvals; kind = Write; _} ->
+      Queries.LS.fold (fun lv acc ->
+          rem_lval acc lv
+        ) lvals ctx.local
     | _ -> ctx.local
 
 end
