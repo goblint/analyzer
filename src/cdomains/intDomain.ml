@@ -1140,8 +1140,7 @@ struct
                 (* Interval that wraps around (begins to the right of its end). We CAN represent such intervals *)
                 [(min_ik, u); (l, max_ik)]
           else if not cast && should_ignore_overflow ik then
-            let tl, tu = range ik in
-            [Ints_t.max tl x, Ints_t.min tu y]
+            [Ints_t.max min_ik x, Ints_t.min max_ik y]
           else
             [range ik]
         end
