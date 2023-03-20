@@ -77,15 +77,25 @@ struct
         ) longjmp_nodes;
       D.join modified_locals ctx.local
     | Access {lvals; kind = Read; _} ->
-      Queries.LS.iter (fun lv ->
-          (* Use original access state instead of current with removed written vars. *)
-          check_lval octx.local lv
-        ) lvals;
+      if Queries.LS.is_top lvals then (
+        if not (VS.is_empty octx.local) then
+          M.warn ~category:(Behavior (Undefined Other)) "reading unknown memory location, may be tainted!"
+      )
+      else (
+        Queries.LS.iter (fun lv ->
+            (* Use original access state instead of current with removed written vars. *)
+            check_lval octx.local lv
+          ) lvals
+      );
       ctx.local
     | Access {lvals; kind = Write; _} ->
-      Queries.LS.fold (fun lv acc ->
-          rem_lval acc lv
-        ) lvals ctx.local
+      if Queries.LS.is_top lvals then
+        ctx.local
+      else (
+        Queries.LS.fold (fun lv acc ->
+            rem_lval acc lv
+          ) lvals ctx.local
+      )
     | _ -> ctx.local
 
 end
