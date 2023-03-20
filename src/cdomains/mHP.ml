@@ -64,7 +64,7 @@ let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
     true (* top means all threads are joined, so [other] must be as well *)
   else
-    List.mem other (ConcDomain.ThreadSet.elements joined)
+    ConcDomain.ThreadSet.mem other joined
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
