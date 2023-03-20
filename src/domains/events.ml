@@ -12,7 +12,6 @@ type t =
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | Assert of exp
   | Unassume of {exp: CilType.Exp.t; uuids: string list}
-  | Poison of Queries.VS.t (* TODO: remove *)
   | Longjmped of {lval: CilType.Lval.t option}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
@@ -29,7 +28,6 @@ let emit_on_deadcode = function
   | UpdateExpSplit _ (* Pointless to split on dead. *)
   | Unassume _ (* Avoid spurious writes. *)
   | Assert _ (* Pointless to refine dead. *)
-  | Poison _  (* TODO: correct? *)
   | Longjmped _ ->
     false
 
@@ -45,5 +43,4 @@ let pretty () = function
   | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp
   | Assert exp -> dprintf "Assert %a" d_exp exp
   | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids
-  | Poison vars -> dprintf "Poison %a" Queries.VS.pretty vars
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval

@@ -111,8 +111,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Poison poisoned -> D.join poisoned ctx.local
-    | Longjmped {lval} ->
+    | Events.Longjmped {lval} ->
       let modified_locals = ctx.ask (MayBeModifiedSinceSetjmp (ctx.prev_node, ctx.control_context ())) in
       let modified_locals = match lval with
         | Some (Var v, NoOffset) -> Queries.VS.remove v modified_locals
