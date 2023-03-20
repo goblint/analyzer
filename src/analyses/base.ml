@@ -1250,14 +1250,19 @@ struct
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalJumpBuf e ->
-      (match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-       | `Address jmp_buf ->
-         if AD.mem Addr.UnknownPtr jmp_buf then M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
-         begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
-           | `JmpBuf (x, t) -> if t then M.warn "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;x
-           | y -> failwith (Printf.sprintf "problem?! is %s %s:\n state is %s" (CilType.Exp.show e) (VD.show y) (Pretty.sprint ~width:5000 (D.pretty () ctx.local)))
-         end
-       | _ -> failwith "problem?!");
+      begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `Address jmp_buf ->
+          if AD.mem Addr.UnknownPtr jmp_buf then
+            M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
+          begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
+            | `JmpBuf (x, copied) ->
+              if copied then
+                M.warn "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
+              x
+            | y -> failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local))
+          end
+        | _ -> failwith "problem?!"
+      end
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalLength e -> begin
