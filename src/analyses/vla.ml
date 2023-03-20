@@ -11,6 +11,8 @@ struct
   module D = BoolDomain.MayBool
   module C = Lattice.Unit
 
+  let context _ _ = ()
+
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, false]
 
@@ -32,12 +34,6 @@ struct
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
-  let context _ _ = ()
-
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | MayBeInVLAScope -> (ctx.local:bool) (* Will not compile without annotation *)
-    | _ -> Queries.Result.top q
 end
 
 let _ =
