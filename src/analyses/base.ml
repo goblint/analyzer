@@ -2243,28 +2243,38 @@ struct
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | Setjmp { env }, _ ->
-      (let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
-           | `Address jmp_buf ->
-             let value = `JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())),false) in
-             let r = set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value in
-             M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env  D.pretty st  D.pretty r;
-             r
-           | _      -> failwith "problem?!")
-       in
-       match lv with
-       | Some lv ->
-         set ~ctx (Analyses.ask_of_ctx ctx) gs st' (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
-       | None -> st')
+      let ask = Analyses.ask_of_ctx ctx in
+      let st' = match eval_rv ask gs st env with
+        | `Address jmp_buf ->
+          let value = `JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
+          let r = set ~ctx ask gs st jmp_buf (Cilfacade.typeOf env) value in
+          if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
+          r
+        | _ -> failwith "problem?!"
+      in
+      begin match lv with
+        | Some lv ->
+          set ~ctx ask gs st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
+        | None -> st'
+      end
     | Longjmp {env; value}, _ ->
+      let ask = Analyses.ask_of_ctx ctx in
       let ensure_not_zero rv = match rv with
-        | `Int i when ID.to_bool i = Some true -> rv
-        | `Int i when ID.to_bool i = Some false -> M.warn "Must: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.of_int (ID.ikind i) Z.one)
-        | `Int i when ID.to_bool i = None -> M.warn "May: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.meet i (ID.of_excl_list (ID.ikind i) [Z.one]))
+        | `Int i ->
+          begin match ID.to_bool i with
+            | Some true -> rv
+            | Some false ->
+              M.warn "Must: Longjmp with a value of 0 is silently changed to 1";
+              `Int (ID.of_int (ID.ikind i) Z.one)
+            | None ->
+              M.warn "May: Longjmp with a value of 0 is silently changed to 1";
+              `Int (ID.meet i (ID.of_excl_list (ID.ikind i) [Z.one])) (* TODO: fix: exclude 0 join 1*)
+          end
         | _ -> M.warn "Arguments to longjmp are strange!"; rv
       in
-      let rv = ensure_not_zero @@ eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
+      let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var !longjmp_return) t rv
+      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.from_var !longjmp_return) t rv
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
     | _, _ ->
       let st =
