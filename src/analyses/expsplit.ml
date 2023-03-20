@@ -60,7 +60,7 @@ struct
       | _, "__goblint_split_end" ->
         let exp = List.hd arglist in
         D.remove exp ctx.local
-      | Setjmp { env; savesigs}, _ ->
+      | Setjmp { env }, _ ->
         Option.map_default (fun lval ->
             match GobConfig.get_string "ana.setjmp.split" with
             | "none" -> ctx.local

@@ -1541,7 +1541,7 @@ struct
   let special ctx lv f args =
     let conv_ctx = conv ctx in
     match (LibraryFunctions.find f).special args with
-    | Setjmp {env; savesigs} ->
+    | Setjmp {env} ->
       (* Checking if this within the scope of an identifier of variably modified type *)
       if ctx.ask Queries.MayBeInVLAScope then
         M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
@@ -1586,7 +1586,7 @@ struct
         in
         S.D.join normal_return jmp_return'
       )
-    | Longjmp {env; value; sigrestore} ->
+    | Longjmp {env; value} ->
       let current_fundec = Node.find_fundec ctx.node in
       let handle_path path = (
         let rec path_ctx =

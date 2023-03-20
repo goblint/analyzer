@@ -2234,7 +2234,7 @@ struct
           st
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
-    | Setjmp { env; savesigs}, _ ->
+    | Setjmp { env }, _ ->
       (let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
            | `Address jmp_buf ->
              let value = `JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())),false) in
@@ -2247,7 +2247,7 @@ struct
        | Some lv ->
          set ~ctx (Analyses.ask_of_ctx ctx) gs st' (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
        | None -> st')
-    | Longjmp {env; value; sigrestore}, _ ->
+    | Longjmp {env; value}, _ ->
       let ensure_not_zero rv = match rv with
         | `Int i when ID.to_bool i = Some true -> rv
         | `Int i when ID.to_bool i = Some false -> M.warn "Must: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.of_int (ID.ikind i) Z.one)

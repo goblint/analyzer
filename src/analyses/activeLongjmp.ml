@@ -18,7 +18,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
-    | Longjmp {env; value; sigrestore}, _ ->
+    | Longjmp {env; value}, _ ->
       (* Set target to current value of env *)
       let bufs = ctx.ask (EvalJumpBuf env) in
       bufs, JmpBufDomain.NodeSet.singleton(ctx.prev_node)
