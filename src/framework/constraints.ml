@@ -503,7 +503,7 @@ end
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = GVarF (S.V) (S.C)
+                           and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = GVarG (S.G) (S.C)
   end
@@ -514,7 +514,7 @@ struct
   type ld = S.D.t
   (* type gd = S.G.t *)
   module LVar = VarF (S.C)
-  module GVar = GVarF (S.V) (S.C)
+  module GVar = GVarF (S.V)
   module D = S.D
   module G = GVarG (S.G) (S.C)
 

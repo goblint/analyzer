@@ -73,7 +73,7 @@ sig
   include SysVar with type t := t
 end
 
-module GVarF (V: SpecSysVar) (C: Printable.S) =
+module GVarF (V: SpecSysVar) =
 struct
   include Printable.Either (V) (CilType.Fundec)
   let spec x = `Left x
@@ -650,7 +650,7 @@ module type SpecSys =
 sig
   module Spec: Spec
   module EQSys: GlobConstrSys with module LVar = VarF (Spec.C)
-                               and module GVar = GVarF (Spec.V) (Spec.C)
+                               and module GVar = GVarF (Spec.V)
                                and module D = Spec.D
                                and module G = GVarG (Spec.G) (Spec.C)
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
