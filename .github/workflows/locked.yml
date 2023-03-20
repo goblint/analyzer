@@ -25,6 +25,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    env:
+      OCAMLRUNPARAM: b
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
