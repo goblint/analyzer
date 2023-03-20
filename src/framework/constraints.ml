@@ -1494,21 +1494,21 @@ struct
         longfd_ctx
       in
       let combined = lazy ( (* does not depend on target, do at most once *)
-          (* Globals are non-problematic here, as they are always carried around without any issues! *)
-          (* A combine call is mostly needed to ensure locals have appropriate values. *)
-          (* Using f from called function on purpose here! Needed? *)
-          S.combine cd_ctx lv e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx)
-        )
+        (* Globals are non-problematic here, as they are always carried around without any issues! *)
+        (* A combine call is mostly needed to ensure locals have appropriate values. *)
+        (* Using f from called function on purpose here! Needed? *)
+        S.combine cd_ctx lv e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx)
+      )
       in
       let returned = lazy ( (* does not depend on target, do at most once *)
-          let rec combined_ctx =
-            { cd_ctx with
-              ask = (fun (type a) (q: a Queries.t) -> S.query combined_ctx q);
-              local = Lazy.force combined;
-            }
-          in
-          S.return combined_ctx None current_fundec
-        )
+        let rec combined_ctx =
+          { cd_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query combined_ctx q);
+            local = Lazy.force combined;
+          }
+        in
+        S.return combined_ctx None current_fundec
+      )
       in
       let (active_targets, _) = longfd_ctx.ask ActiveJumpBuf in
       let valid_targets = cd_ctx.ask ValidLongJmp in
@@ -1596,18 +1596,18 @@ struct
           }
         in
         let specialed = lazy ( (* does not depend on target, do at most once *)
-            S.special path_ctx lv f args
-          )
+          S.special path_ctx lv f args
+        )
         in
         let returned = lazy ( (* does not depend on target, do at most once *)
-            let rec specialed_ctx =
-              { path_ctx with
-                ask = (fun (type a) (q: a Queries.t) -> S.query specialed_ctx q);
-                local = Lazy.force specialed;
-              }
-            in
-            S.return specialed_ctx None current_fundec
-          )
+          let rec specialed_ctx =
+            { path_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query specialed_ctx q);
+              local = Lazy.force specialed;
+            }
+          in
+          S.return specialed_ctx None current_fundec
+        )
         in
         (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
         let targets = path_ctx.ask (EvalJumpBuf env) in
