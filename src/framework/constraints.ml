@@ -1464,11 +1464,12 @@ struct
   let return ctx = S.return (conv ctx)
 
   let combine ctx lv e f args fc fd f_ask =
+    let conv_ctx = conv ctx in
     let current_fundec = Node.find_fundec ctx.node in
     let handle_longjmp (cd, fc, longfd) =
       (* This is called per-path. *)
       let rec cd_ctx =
-        { (conv ctx) with
+        { conv_ctx with
           ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
           local = cd;
         }
@@ -1477,7 +1478,7 @@ struct
         (* Inner scope to prevent unsynced longfd_ctx from being used. *)
         (* Extra sync like with normal combine. *)
         let rec sync_ctx =
-          { (conv ctx) with
+          { conv_ctx with
             ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
             local = longfd;
             prev_node = Function f;
@@ -1535,22 +1536,23 @@ struct
     if M.tracing then M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
     if not (D.is_bot longfd) then
       handle_longjmp (ctx.local, fc, longfd);
-    S.combine (conv ctx) lv e f args fc fd f_ask
+    S.combine (conv_ctx) lv e f args fc fd f_ask
 
   let special ctx lv f args =
+    let conv_ctx = conv ctx in
     match (LibraryFunctions.find f).special args with
     | Setjmp {env; savesigs} ->
       (* Checking if this within the scope of an identifier of variably modified type *)
       if ctx.ask Queries.MayBeInVLAScope then
         M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
       (* Handling of returning for the first time *)
-      let normal_return = S.special (conv ctx) lv f args in
+      let normal_return = S.special conv_ctx lv f args in
       let jmp_return = G.local (ctx.global (V.longjmpto (ctx.prev_node, ctx.context ()))) in
       if S.D.is_bot jmp_return then
         normal_return
       else (
         let rec jmp_ctx =
-          { (conv ctx) with
+          { conv_ctx with
             ask = (fun (type a) (q: a Queries.t) -> S.query jmp_ctx q);
             local = jmp_return;
           }
@@ -1588,7 +1590,7 @@ struct
       let current_fundec = Node.find_fundec ctx.node in
       let handle_path path = (
         let rec path_ctx =
-          { (conv ctx) with
+          { conv_ctx with
             ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
             local = path;
           }
@@ -1633,9 +1635,9 @@ struct
           JmpBufDomain.JmpBufSet.iter handle_target targets
       )
       in
-      List.iter handle_path (S.paths_as_set (conv ctx));
+      List.iter handle_path (S.paths_as_set conv_ctx);
       S.D.bot ()
-    | _ -> S.special (conv ctx) lv f args
+    | _ -> S.special conv_ctx lv f args
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
