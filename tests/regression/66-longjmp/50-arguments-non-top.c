@@ -19,7 +19,7 @@ int main () {
   if (val = setjmp( env_buffer )) {
     __goblint_check(val == 1); // UNKNOWN!
     __goblint_check(val != 1); // UNKNOWN!
-    __goblint_check(1 <= val);
+    __goblint_check(1 <= val); // TODO (better interval exclude)
     __goblint_check(val <= 10);
     return 8;
   }

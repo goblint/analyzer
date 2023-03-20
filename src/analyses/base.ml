@@ -2268,7 +2268,8 @@ struct
               `Int (ID.of_int (ID.ikind i) Z.one)
             | None ->
               M.warn "May: Longjmp with a value of 0 is silently changed to 1";
-              `Int (ID.meet i (ID.of_excl_list (ID.ikind i) [Z.one])) (* TODO: fix: exclude 0 join 1*)
+              let ik = ID.ikind i in
+              `Int (ID.join (ID.meet i (ID.of_excl_list ik [Z.zero])) (ID.of_int ik Z.one))
           end
         | _ -> M.warn "Arguments to longjmp are strange!"; rv
       in
