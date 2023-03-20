@@ -1517,7 +1517,7 @@ struct
         | Target (target_node, target_context) ->
           let target_fundec = Node.find_fundec target_node in
           if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
-            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show target_node);
+            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %a\n" Node.pretty target_node;
             ctx.sideg (V.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force combined))
             (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
           )
@@ -1590,7 +1590,7 @@ struct
           | Target (target_node, target_context) ->
             let target_fundec = Node.find_fundec target_node in
             if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
-              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show target_node);
+              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %a\n" Node.pretty target_node;
               ctx.sideg (V.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force specialed))
             )
             else if JmpBufDomain.JmpBufSet.mem target valid_targets then (
@@ -1598,7 +1598,7 @@ struct
               ctx.sideg (V.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
             )
             else
-              M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target! (Target %s in Function %a which may have already returned or is in a different thread)" (Node.show target_node) CilType.Fundec.pretty target_fundec
+              M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target! (Target %a in Function %a which may have already returned or is in a different thread)" Node.pretty target_node CilType.Fundec.pretty target_fundec
         in
         if JmpBufDomain.JmpBufSet.is_empty targets then
           M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target (%a is bot?!)" d_exp env
