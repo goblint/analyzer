@@ -1530,9 +1530,9 @@ struct
       in
       JmpBufDomain.JmpBufSet.iter handle_target active_targets
     in
-    M.tracel "longjmp" "longfd getg %a\n" CilType.Fundec.pretty f;
+    if M.tracing then M.tracel "longjmp" "longfd getg %a\n" CilType.Fundec.pretty f;
     let longfd = G.local (ctx.global (V.longjmpret (f, Option.get fc))) in
-    M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
+    if M.tracing then M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
     if not (D.is_bot longfd) then
       handle_longjmp (ctx.local, fc, longfd);
     S.combine (conv ctx) lv e f args fc fd f_ask
