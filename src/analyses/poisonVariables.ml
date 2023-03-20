@@ -14,37 +14,9 @@ struct
 
   (* TODO: use Access events instead of reimplementing logic? *)
 
-  let rec check_exp ask tainted e = match e with
-    (* Recurse over the structure in the expression, returning true if any varinfo appearing in the expression is tainted *)
-    | AddrOf v
-    | StartOf v -> check_lval ~ignore_var:true ask tainted v
-    | Lval v -> check_lval ask tainted v
-    | BinOp (_,e1,e2,_) -> check_exp ask tainted e1; check_exp ask tainted e2
-    | Real e
-    | Imag e
-    | SizeOfE e
-    | AlignOfE e
-    | CastE (_,e)
-    | UnOp (_,e,_) -> check_exp ask tainted e
-    | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> ()
-    | Question (b, t, f, _) -> check_exp ask tainted b; check_exp ask tainted t; check_exp ask tainted f
-  and check_lval ask ?(ignore_var = false) tainted lval = match lval with
-    | (Var v, offset) ->
-      if not ignore_var && not v.vglob && VS.mem v tainted then M.warn "accessing poisonous variable %a" d_varinfo v;
-      check_offset ask tainted offset
-    | (Mem e, offset) ->
-      (try
-         Queries.LS.iter (fun lv -> check_lval ~ignore_var ask tainted @@ Lval.CilLval.to_lval lv) (ask (Queries.MayPointTo e))
-       with
-         SetDomain.Unsupported _ -> if not @@ VS.is_empty tainted then M.warn "accessing unknown memory location, may be tainted!");
-      check_exp ask tainted e;
-
-      check_offset ask tainted offset;
-      ()
-  and check_offset ask tainted offset = match offset with
-    | NoOffset -> ()
-    | Field (_, o) -> check_offset ask tainted o
-    | Index (e, o) -> check_exp ask tainted e; check_offset ask tainted o
+  let check_lval tainted ((v, offset): Queries.LS.elt) =
+    if not v.vglob && VS.mem v tainted then
+      M.warn "accessing poisonous variable %a" d_varinfo v
 
   let rec rem_lval ask tainted lval = match lval with
     | (Var v, NoOffset) -> VS.remove v tainted (* TODO: If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
@@ -121,8 +93,8 @@ struct
       D.join modified_locals ctx.local
     | Access {lvals; kind = Read; _} ->
       Queries.LS.iter (fun lv ->
-          let lval = Lval.CilLval.to_lval lv in
-          check_lval octx.ask octx.local lval
+          (* Use original access state instead of current with removed written vars. *)
+          check_lval octx.local lv
         ) lvals;
       ctx.local
     | _ -> ctx.local
