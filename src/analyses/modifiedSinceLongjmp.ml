@@ -27,11 +27,6 @@ struct
     else
       Queries.LS.fold (fun (v, _) acc -> if is_relevant v then VS.add v acc else acc) ls (VS.empty ())
 
-  let relevants_from_lval_opt ctx lval = match lval with
-    | Some (Var v, _) -> if is_relevant v then VS.singleton v else VS.empty ()
-    | Some (Mem e, _) -> relevants_from_ls (ctx.ask (Queries.MayPointTo e))
-    | None -> VS.empty ()
-
   (* transfer functions *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
