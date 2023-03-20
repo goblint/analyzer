@@ -106,27 +106,22 @@ struct
       )
   end
 
-  include Lattice.Lift2 (Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)) (D) (Printable.DefaultNames)
+  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
 
   let spec = function
     | `Bot -> G.bot ()
-    | `Lifted1 (`Lifted1 x) -> x
+    | `Lifted1 x -> x
     | _ -> failwith "GVarG.spec"
   let contexts = function
     | `Bot -> CSet.bot ()
-    | `Lifted1 (`Lifted2 x) -> x
-    | _ -> failwith "GVarG.contexts"
-  let local = function
-    | `Bot -> D.bot ()
     | `Lifted2 x -> x
-    | _ -> failwith "GVarG.local"
-  let create_spec spec = `Lifted1 (`Lifted1 spec)
-  let create_contexts contexts = `Lifted1 (`Lifted2 contexts)
-  let create_local local = `Lifted2 local
+    | _ -> failwith "GVarG.contexts"
+  let create_spec spec = `Lifted1 spec
+  let create_contexts contexts = `Lifted2 contexts
 
   let printXml f = function
-    | `Lifted1 (`Lifted1 x) -> G.printXml f x
-    | `Lifted1 (`Lifted2 x) -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
