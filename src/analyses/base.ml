@@ -2336,7 +2336,6 @@ struct
           if M.tracing then M.trace "taintPC" "cpa_caller': %a\n" CPA.pretty cpa_caller';
           (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
           let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
-          let tainted = Q.LS.add (!longjmp_return, `NoOffset) tainted in (* Keep the lonjmp return value *)
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
@@ -2345,8 +2344,6 @@ struct
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st.cpa
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
-        (* else if CPA.mem Goblintutil.longjmp_return fun_st.cpa then
-          get (Analyses.ask_of_ctx ctx) ctx.global fun_st (AD.from_var Goblintutil.longjmp_return) None *)
         else VD.top ()
       in
       let nst = add_globals st fun_st in
@@ -2549,7 +2546,9 @@ struct
       Timing.wrap "base unassume" (unassume ctx exp) uuids
     | Events.Longjmped {lval} ->
       begin match lval with
-        | Some lval -> assign ctx lval (Lval (Cil.var !longjmp_return))
+        | Some lval ->
+          let st' = assign ctx lval (Lval (Cil.var !longjmp_return)) in
+          {st' with cpa = CPA.remove !longjmp_return st'.cpa}
         | None -> ctx.local
       end
     | _ ->
