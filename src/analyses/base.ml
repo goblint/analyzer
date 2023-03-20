@@ -147,6 +147,8 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
+  let longjmp_return = ref dummyFunDec.svar
+
   let heap_var ctx =
     let info = match (ctx.ask Q.HeapVar) with
       | `Lifted vinfo -> vinfo
@@ -162,6 +164,7 @@ struct
       | None -> ()
     end;
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
+    longjmp_return := Goblintutil.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
     Priv.init ()
 
   let finalize () =
@@ -2256,7 +2259,7 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var Goblintutil.longjmp_return) t rv
+      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var !longjmp_return) t rv
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
     | _, _ ->
       let st =
@@ -2333,7 +2336,7 @@ struct
           if M.tracing then M.trace "taintPC" "cpa_caller': %a\n" CPA.pretty cpa_caller';
           (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
           let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
-          let tainted = Q.LS.add (Goblintutil.longjmp_return, `NoOffset) tainted in (* Keep the lonjmp return value *)
+          let tainted = Q.LS.add (!longjmp_return, `NoOffset) tainted in (* Keep the lonjmp return value *)
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
@@ -2546,7 +2549,7 @@ struct
       Timing.wrap "base unassume" (unassume ctx exp) uuids
     | Events.Longjmped {lval} ->
       begin match lval with
-        | Some lval -> assign ctx lval (Lval (Cil.var Goblintutil.longjmp_return))
+        | Some lval -> assign ctx lval (Lval (Cil.var !longjmp_return))
         | None -> ctx.local
       end
     | _ ->
