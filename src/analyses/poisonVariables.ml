@@ -112,6 +112,22 @@ struct
   let event ctx e octx =
     match e with
     | Events.Poison poisoned -> D.join poisoned ctx.local
+    | Longjmped {lval} ->
+      let modified_locals = ctx.ask (MayBeModifiedSinceSetjmp (ctx.prev_node, ctx.control_context ())) in
+      let modified_locals = match lval with
+        | Some (Var v, NoOffset) -> Queries.VS.remove v modified_locals
+        | _ -> modified_locals (* Does usually not really occur, if it does, this is sound *)
+      in
+      let (_, longjmp_nodes) = ctx.ask ActiveJumpBuf in
+      JmpBufDomain.NodeSet.iter (fun longjmp_node ->
+          if Queries.VS.is_top modified_locals then
+            M.warn ~loc:(Node longjmp_node) "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior." (Node.show ctx.prev_node)
+          else if not (Queries.VS.is_empty modified_locals) then
+            M.warn ~loc:(Node longjmp_node) "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show ctx.prev_node) (Queries.VS.show modified_locals)
+          else
+            ()
+        ) longjmp_nodes;
+      D.join modified_locals ctx.local
     | _ -> ctx.local
 
 end
