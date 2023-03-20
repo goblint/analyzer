@@ -579,7 +579,7 @@ module IntervalArith(Ints_t : IntOps.IntOps) = struct
     if Ints_t.equal x1 x2 then Some x1 else None
 end
 
-
+(** IntervalFunctor that is not just disjunctive completion, but attempts to be precise for wraparound arithmetic for unsigned types *)
 module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
   let name () = "intervals"
