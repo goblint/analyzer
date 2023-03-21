@@ -49,8 +49,6 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
-    ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
-    ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
   ]
 
@@ -233,6 +231,8 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getaddrinfo_a", unknown [drop "mode" []; drop "list" [w_deep]; drop "nitems" []; drop "sevp" [r; w; s]]);
     ("__uflow", unknown [drop "file" [r; w]]);
     ("getservbyname_r", unknown [drop "name" [r]; drop "proto" [r]; drop "result_buf" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]]);
+    ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
+    ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
