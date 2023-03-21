@@ -255,13 +255,13 @@ struct
 
   let pretty () (state:t) =
     match state with
-    | `Left n ->  Base1.pretty () n
-    | `Right n ->  Base2.pretty () n
+    | `Left n -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
+    | `Right n -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
 
   let show state =
     match state with
-    | `Left n ->  Base1.show n
-    | `Right n ->  Base2.show n
+    | `Left n -> (Base1.name ()) ^ ":" ^ Base1.show n
+    | `Right n -> (Base2.name ()) ^ ":" ^ Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
@@ -620,3 +620,25 @@ let get_short_list begin_str end_str list =
 
   let str = String.concat separator cut_str_list in
   begin_str ^ str ^ end_str
+
+
+module Yojson =
+struct
+  include Std
+  type t = Yojson.Safe.t [@@deriving eq]
+  let name () = "yojson"
+
+  let compare = Stdlib.compare
+  let hash = Hashtbl.hash
+
+  let pretty = GobYojson.pretty
+
+  include SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+
+  let to_yojson x = x (* override SimplePretty *)
+end

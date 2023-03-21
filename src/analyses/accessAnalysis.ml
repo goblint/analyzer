@@ -59,6 +59,10 @@ struct
 
   (** Transfer functions: *)
 
+  let vdecl ctx v =
+    access_one_top ctx Read false (SizeOf v.vtype);
+    ctx.local
+
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin

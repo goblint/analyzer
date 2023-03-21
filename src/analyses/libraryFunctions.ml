@@ -44,6 +44,12 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
+    ("difftime", unknown [drop "time1" []; drop "time2" []]);
+    ("system", unknown [drop "command" [r]]);
+    ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
+    ("abs", unknown [drop "j" []]);
+    ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
+    ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
@@ -94,6 +100,42 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
     ("gethostbyaddr", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
+    ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
+    ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
+    ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [r_deep]]);
+    ("access", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("ttyname", unknown [drop "fd" []]);
+    ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
+    ("sched_get_priority_max", unknown [drop "policy" []]);
+    ("mprotect", unknown [drop "addr" []; drop "len" []; drop "prot" []]);
+    ("ftime", unknown [drop "tp" [w]]);
+    ("timer_create", unknown [drop "clockid" []; drop "sevp" [r; w; s]; drop "timerid" [w]]);
+    ("timer_settime", unknown [drop "timerid" []; drop "flags" []; drop "new_value" [r_deep]; drop "old_value" [w_deep]]);
+    ("timer_gettime", unknown [drop "timerid" []; drop "curr_value" [w_deep]]);
+    ("timer_getoverrun", unknown [drop "timerid" []]);
+    ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("getpwnam", unknown [drop "name" [r]]);
+    ("strndup", unknown [drop "s" [r]; drop "n" []]);
+    ("freeaddrinfo", unknown [drop "res" [f_deep]]);
+    ("getgid", unknown []);
+    ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
+    ("strncasecmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
+    ("getnameinfo", unknown [drop "addr" [r_deep]; drop "addrlen" []; drop "host" [w]; drop "hostlen" []; drop "serv" [w]; drop "servlen" []; drop "flags" []]);
+    ("strtok_r", unknown [drop "str" [r; w]; drop "delim" [r]; drop "saveptr" [r_deep; w_deep]]); (* deep accesses through saveptr if str is NULL: https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/string/strtok_r.c#L31-L40 *)
+    ("kill", unknown [drop "pid" []; drop "sig" []]);
+    ("closelog", unknown []);
+    ("dirname", unknown [drop "path" [r]]);
+    ("setpgid", unknown [drop "pid" []; drop "pgid" []]);
+    ("dup2", unknown [drop "oldfd" []; drop "newfd" []]);
+    ("pclose", unknown [drop "stream" [w; f]]);
+    ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
+    ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("gethostent", unknown []);
+    ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
+    ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
+    ("semctl", unknown (drop "semid" [] :: drop "semnum" [] :: drop "cmd" [] :: VarArgs (drop "semun" [r_deep])));
+    ("semop", unknown [drop "semid" []; drop "sops" [r]; drop "nsops" []]);
   ]
 
 (** Pthread functions. *)
@@ -110,6 +152,13 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_key_delete", unknown [drop "key" [f]]);
     ("pthread_cancel", unknown [drop "thread" []]);
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
+    ("pthread_detach", unknown [drop "thread" []]);
+    ("pthread_attr_setschedpolicy", unknown [drop "attr" [r; w]; drop "policy" []]);
+    ("pthread_condattr_init", unknown [drop "attr" [w]]);
+    ("pthread_condattr_setclock", unknown [drop "attr" [w]; drop "clock_id" []]);
+    ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
+    ("pthread_attr_setschedparam", unknown [drop "attr" [r; w]; drop "param" [r]]);
+    ("sem_timedwait", unknown [drop "sem" [r]; drop "abs_timeout" [r]]); (* no write accesses to sem because sync primitive itself has no race *)
   ]
 
 (** GCC builtin functions.
@@ -119,7 +168,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
     ("__builtin_expect", special [__ "exp" []; drop' []] @@ fun exp -> Identity exp); (* Identity, because just compiler optimization annotation. *)
     ("__builtin_unreachable", special' [] @@ fun () -> if get_bool "sem.builtin_unreachable.dead_code" then Abort else Unknown); (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
-    ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* gcc's built-in assert *)
+    ("__assert_rtn", special [drop "func" [r]; drop "file" [r]; drop "line" []; drop "exp" [r]] @@ Abort); (* MacOS's built-in assert *)
+    ("__assert_fail", special [drop "assertion" [r]; drop "file" [r]; drop "line" []; drop "function" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__builtin_return_address", unknown [drop "level" []]);
     ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
     ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
@@ -151,6 +201,9 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_popcountll", unknown [drop "x" []]);
     ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
     ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
+    ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
   ]
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -179,6 +232,26 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svcerr_decode", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svcerr_systemerr", unknown [drop "xprt" [r_deep; w_deep]]);
     ("svc_sendreply", unknown [drop "xprt" [r_deep; w_deep]; drop "outproc" [s]; drop "out" [r]]);
+    ("shutdown", unknown [drop "socket" []; drop "how" []]);
+    ("getaddrinfo_a", unknown [drop "mode" []; drop "list" [w_deep]; drop "nitems" []; drop "sevp" [r; w; s]]);
+    ("__uflow", unknown [drop "file" [r; w]]);
+    ("getservbyname_r", unknown [drop "name" [r]; drop "proto" [r]; drop "result_buf" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]]);
+    ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
+    ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
+    ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
+  ]
+
+let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    (* ("prctl", unknown [drop "option" []; drop "arg2" []; drop "arg3" []; drop "arg4" []; drop "arg5" []]); *)
+    ("prctl", unknown (drop "option" [] :: VarArgs (drop' []))); (* man page has 5 arguments, but header has varargs and real-world programs may call with <5 *)
+    ("__ctype_tolower_loc", unknown []);
+    ("__ctype_toupper_loc", unknown []);
+    ("epoll_create", unknown [drop "size" []]);
+    ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
+    ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
+    ("sysinfo", unknown [drop "info" [w_deep]]);
+    ("__xpg_basename", unknown [drop "path" [r]]);
+    ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
   ]
 
 let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
@@ -330,6 +403,30 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
   ]
 
+let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("echo", unknown []);
+    ("noecho", unknown []);
+    ("wattrset", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []]);
+    ("endwin", unknown []);
+    ("wgetch", unknown [drop "win" [r_deep; w_deep]]);
+    ("wmove", unknown [drop "win" [r_deep; w_deep]; drop "y" []; drop "x" []]);
+    ("waddch", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+    ("waddnwstr", unknown [drop "win" [r_deep; w_deep]; drop "wstr" [r]; drop "n" []]);
+    ("wattr_on", unknown [drop "win" [r_deep; w_deep]; drop "attrs" []; drop "opts" []]); (* opts argument currently not used *)
+    ("wrefresh", unknown [drop "win" [r_deep; w_deep]]);
+    ("mvprintw", unknown (drop "win" [r_deep; w_deep] :: drop "y" [] :: drop "x" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("initscr", unknown []);
+    ("curs_set", unknown [drop "visibility" []]);
+    ("wtimeout", unknown [drop "win" [r_deep; w_deep]; drop "delay" []]);
+    ("start_color", unknown []);
+    ("use_default_colors", unknown []);
+    ("wclear", unknown [drop "win" [r_deep; w_deep]]);
+    ("can_change_color", unknown []);
+    ("init_color", unknown [drop "color" []; drop "red" []; drop "green" []; drop "blue" []]);
+    ("init_pair", unknown [drop "pair" []; drop "f" [r]; drop "b" [r]]);
+    ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
+  ]
+
 (* TODO: allow selecting which lists to use *)
 let library_descs = Hashtbl.of_list (List.concat [
     c_descs_list;
@@ -337,11 +434,13 @@ let library_descs = Hashtbl.of_list (List.concat [
     pthread_descs_list;
     gcc_descs_list;
     glibc_desc_list;
+    linux_userspace_descs_list;
     linux_descs_list;
     goblint_descs_list;
     zstd_descs_list;
     math_descs_list;
     svcomp_descs_list;
+    ncurses_descs_list;
   ])
 
 

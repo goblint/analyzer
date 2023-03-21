@@ -29,6 +29,12 @@ sig
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
+
+  (** Handle contradiction.
+
+      Normal branch refinement just raises {!Analyses.Deadcode}.
+      Unassume leaves unchanged. *)
+  val contra: D.t -> D.t
 end
 
 module Make (Eval: Eval) =
@@ -81,7 +87,7 @@ struct
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
       if is_some_bot new_val then (
         if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
-        raise Analyses.Deadcode
+        contra st
       )
       else if VD.is_bot new_val
       then set a gs st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
@@ -97,7 +103,7 @@ struct
       let offs = convert_offset a gs st o in
       let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
       let v = VD.meet oldv newv in
-      if is_some_bot v then raise Analyses.Deadcode
+      if is_some_bot v then contra st
       else (
         if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
         let r = set' (Var var,NoOffset) v st in
@@ -110,7 +116,7 @@ struct
       let oldv = eval_rv_lval_refine a gs st exp x in
       let oldv = map_oldval oldv (Cilfacade.typeOfLval x) in
       let v = VD.meet oldv c' in
-      if is_some_bot v then raise Analyses.Deadcode
+      if is_some_bot v then contra st
       else (
         if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v pretty c VD.pretty c';
         set' x v st
@@ -339,11 +345,10 @@ struct
         in
         a, b
       | Eq | Ne as op ->
-        let both x = x, x in
-        let m = ID.meet a b in
         begin match op, ID.to_bool c with
           | Eq, Some true
-          | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
+          | Ne, Some false -> (* def. equal: if they compare equal, both values must be from the meet *)
+            (id_meet_down ~old:a ~c:b, id_meet_down ~old:b ~c:a)
           | Eq, Some false
           | Ne, Some true -> (* def. unequal *)
             (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
@@ -544,7 +549,7 @@ struct
     let eval_bool e st = match eval e st with `Int i -> ID.to_bool i | _ -> None in
     let rec inv_exp c_typed exp (st:D.t): D.t =
       (* trying to improve variables in an expression so it is bottom means dead code *)
-      if VD.is_bot_value c_typed then raise Analyses.Deadcode;
+      if VD.is_bot_value c_typed then contra st else
       match exp, c_typed with
       | UnOp (LNot, e, _), `Int c ->
         let ikind = Cilfacade.get_ikind_exp e in
@@ -633,7 +638,17 @@ struct
         in
         begin match eqs_st with
           | Some st -> st
-          | None -> st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
+          | None when ID.to_bool c = Some true ->
+            begin match inv_exp (`Int c) arg1 st with
+              | st1 ->
+                begin match inv_exp (`Int c) arg2 st with
+                  | st2 -> D.join st1 st2
+                  | exception Analyses.Deadcode -> st1
+                end
+              | exception Analyses.Deadcode -> inv_exp (`Int c) arg2 st (* Deadcode falls through *)
+            end
+          | None ->
+            st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
         end
       | (BinOp (op, e1, e2, _) as e, `Float _)
       | (BinOp (op, e1, e2, _) as e, `Int _) ->
@@ -720,7 +735,7 @@ struct
          | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
       | e, _ -> fallback (sprint d_plainexp e ^ " not implemented") st
     in
-    if eval_bool exp st = Some (not tv) then raise Analyses.Deadcode (* we already know that the branch is dead *)
+    if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else
       (* C11 6.5.13, 6.5.14, 6.5.3.3: LAnd, LOr and LNot also return 0 or 1 *)
       let is_cmp = function

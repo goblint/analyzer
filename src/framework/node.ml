@@ -70,4 +70,3 @@ let of_id s =
     | "ret" -> Function fundec
     | "fun" -> FunctionEntry fundec
     | _     -> raise Not_found
-

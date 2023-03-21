@@ -239,6 +239,11 @@ struct
           f (I.to_int x)
         ) (fst ctx.local);
       ()
+    | Queries.PathQuery (i, q) ->
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
+      Spec.query (conv ctx d) q
     | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
