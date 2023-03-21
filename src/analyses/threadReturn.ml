@@ -29,7 +29,7 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    if ctx.edge = MyCFG.Skip && ctx.node = MyCFG.dummy_node then
+    if !Goblintutil.global_initialization then
       (* We are inside enter_with inside a startfun, and thus the current function retruning is the main function *)
       [ctx.local, true]
     else
