@@ -30,6 +30,10 @@ sig
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
 
+  (** Handle contradiction.
+
+      Normal branch refinement just raises {!Analyses.Deadcode}.
+      Unassume leaves unchanged. *)
   val contra: D.t -> D.t
 end
 
