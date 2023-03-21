@@ -272,7 +272,7 @@ module Base =
             let was_stable = HM.mem stable y in
             HM.remove stable y;
             HM.remove superstable y;
-            HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
+            HM.mem called y || destabilize_vs y || b || was_stable && List.mem_cmp S.Var.compare y vs
           ) w false
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
@@ -311,7 +311,7 @@ module Base =
             if not wp then tmp
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *) | Narrow -> S.Dom.narrow old tmp
               else
                 box old tmp
           in
@@ -415,6 +415,7 @@ module Base =
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x;
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in
@@ -480,7 +481,7 @@ module Base =
             if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             HM.remove superstable y;
-            Hooks.stable_remove x;
+            Hooks.stable_remove y;
             if not (HM.mem called y) then destabilize_normal y
           ) w
       in
@@ -547,7 +548,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                Hooks.stable_remove x;
+                Hooks.stable_remove y;
                 destabilize_with_side ~side_fuel y
               ) w_side_dep;
           );
@@ -558,7 +559,7 @@ module Base =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              Hooks.stable_remove x;
+              Hooks.stable_remove y;
               destabilize_with_side ~side_fuel y
             ) w_infl;
 
@@ -576,7 +577,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                Hooks.stable_remove x;
+                Hooks.stable_remove y;
                 destabilize_with_side ~side_fuel:side_fuel' y
               ) w_side_infl
           )
@@ -649,7 +650,7 @@ module Base =
                   if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
-                  Hooks.stable_remove x;
+                  Hooks.stable_remove y;
                   destabilize_normal y
                 ) w
             )
@@ -712,6 +713,17 @@ module Base =
         (* delete from incremental postsolving/warning structures to remove spurious warnings *)
         delete_marked superstable;
         delete_marked var_messages;
+
+        if restart_write_only then (
+          (* restart write-only *)
+          (* before delete_marked because we also want to restart write-only side effects from deleted nodes *)
+          HM.iter (fun x w ->
+              HM.iter (fun y d ->
+                  ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
+                  HM.replace rho y (S.Dom.bot ());
+                ) w
+            ) rho_write
+        );
         delete_marked rho_write;
         HM.iter (fun x w -> delete_marked w) rho_write;
 
@@ -904,16 +916,6 @@ module Base =
         else
           HM.create 0 (* doesn't matter, not used *)
       in
-
-      if restart_write_only then (
-        (* restart write-only *)
-        HM.iter (fun x w ->
-            HM.iter (fun y d ->
-                ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
-                HM.replace rho y (S.Dom.bot ());
-              ) w
-          ) rho_write
-      );
 
       if incr_verify then (
         HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) var_messages;

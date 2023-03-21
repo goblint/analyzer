@@ -385,9 +385,14 @@ let parse_preprocessed preprocessed =
         (path_str, system_header) (* ignore special "paths" *)
       | _ ->
         let path = Fpath.v path_str in
-        let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
-        let path' = Fpath.normalize @@ Fpath.append dir path in
-        let path' = Fpath.rem_prefix goblint_cwd path' |? path' in (* remove goblint cwd prefix (if has one) for readability *)
+        let path' = if get_bool "pre.transform-paths" then (
+            let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
+            let path' = Fpath.normalize @@ Fpath.append dir path in
+            Fpath.rem_prefix goblint_cwd path' |? path' (* remove goblint cwd prefix (if has one) for readability *)
+          )
+          else
+            path
+        in
         Preprocessor.FpathH.modify_def Fpath.Map.empty preprocessed_file (Fpath.Map.add path' system_header) Preprocessor.dependencies; (* record dependency *)
         (Fpath.to_string path', system_header)
     in
@@ -520,34 +525,49 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   )
 
-let do_gobview () =
-  (* TODO: Fpath *)
-  let create_symlink target link =
-    if not (Sys.file_exists link) then Unix.symlink target link
-  in
+let do_gobview cilfile =
   let gobview = GobConfig.get_bool "gobview" in
-  let goblint_root =
-    Filename.concat (Unix.getcwd ()) (Filename.dirname Sys.argv.(0))
-  in
-  let dist_dir = Filename.concat goblint_root "_build/default/gobview/dist" in
-  let js_file = Filename.concat dist_dir "main.js" in
+  let goblint_root = GobFpath.cwd_append (fst (Fpath.split_base (Fpath.v Sys.argv.(0)))) in
+  let dist_dir = Fpath.(goblint_root // (Fpath.v "_build/default/gobview/dist")) in
+  let js_file = Fpath.(dist_dir / "main.js") in
   if gobview then (
-    if Sys.file_exists js_file then (
+    if Sys.file_exists (Fpath.to_string js_file) then (
       let save_run = GobConfig.get_string "save_run" in
-      let run_dir = if save_run <> "" then save_run else "run" in
+      let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
+      (* copy relevant c files to gobview directory *)
+      let file_dir = Fpath.(run_dir / "files") in
+      GobSys.mkdir_or_exists file_dir;
+      let file_loc = Hashtbl.create 113 in
+      let counter = ref 0 in
+      let copy path =
+        let name, ext = Fpath.split_ext (Fpath.base path) in
+        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int !counter) name) in
+        counter := !counter + 1;
+        let dest = Fpath.(file_dir // unique_name) in
+        let gobview_path = match Fpath.relativize ~root:run_dir dest with
+          | Some p -> Fpath.to_string p
+          | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
+        Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
+        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest) in
+      let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
+      List.iter copy source_paths;
+      Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
+      (* marshal timing statistics *)
+      let stats = Fpath.(run_dir / "stats.marshalled") in
+      Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
       let dist_files =
-        Sys.files_of dist_dir
+        Sys.files_of (Fpath.to_string dist_dir)
         |> Enum.filter (fun n -> n <> "dune")
         |> List.of_enum
       in
       List.iter (fun n ->
-          create_symlink
-            (Filename.concat dist_dir n)
-            (Filename.concat run_dir n)
+          FileUtil.cp
+            [Fpath.to_string (Fpath.(dist_dir / n))]
+            (Fpath.to_string (Fpath.(run_dir / n)))
         ) dist_files
     )
     else
-      eprintf "Warning: Cannot locate Gobview.\n"
+      eprintf "Warning: Cannot locate GobView.\n"
   )
 
 let handle_extraspecials () =

@@ -450,8 +450,8 @@ struct
     | `G x -> `G (GV.relift x)
 
   let pretty_trace () = function
-    | `L a -> LV.pretty_trace () a
-    | `G a -> GV.pretty_trace () a
+    | `L a -> Pretty.dprintf "L:%a" LV.pretty_trace a
+    | `G a -> Pretty.dprintf "G:%a" GV.pretty_trace a
 
   let printXml f = function
     | `L a -> LV.printXml f a
@@ -749,7 +749,7 @@ struct
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
-    M.current_context := Some (Obj.repr c);
+    M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
         M.current_context := old_context;
@@ -1211,6 +1211,7 @@ struct
   module V =
   struct
     include Printable.Either (S.V) (Node)
+    let name () = "DeadBranch"
     let s x = `Left x
     let node x = `Right x
     let is_write_only = function
