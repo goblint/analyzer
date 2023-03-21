@@ -445,6 +445,8 @@ let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
             VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
             List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
             List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+          | GVarDecl (vi, _) when Cil.isFunctionType vi.vtype ->
+            VarinfoH.replace h vi Function
           | GVar (vi, _, _)
           | GVarDecl (vi, _) ->
             VarinfoH.replace h vi Global
