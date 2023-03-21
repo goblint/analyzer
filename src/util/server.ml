@@ -604,6 +604,46 @@ let () =
   end);
 
   register (module struct
+    let name = "arg/eval"
+    type params = {
+      node: string;
+      exp: string option [@default None];
+      vid: int option [@default None]; (* eval varinfo by vid to avoid exp parsing problems *)
+    } [@@deriving of_yojson]
+    type response = Queries.FlatYojson.t [@@deriving to_yojson]
+    let process (params: params) serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let open ArgWrapper in
+      match ArgWrapper.find_node params.node with
+      | n ->
+        let exp = match params.exp, params.vid with
+          | Some exp, None ->
+            begin match InvariantParser.parse_cabs exp with
+              | Ok exp_cabs ->
+                let cfg_node = Arg.Node.cfgnode n in
+                let fundec = Node.find_fundec cfg_node in
+                let loc = UpdateCil.getLoc cfg_node in
+
+                (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
+                begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+                  | Ok exp -> exp
+                  | Error e ->
+                    Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
+                end
+              | Error e ->
+                Response.Error.(raise (make ~code:RequestFailed ~message:"Frontc couldn't parse expression (invalid syntax)" ()))
+            end
+          | None, Some vid ->
+            let vi = {Cil.dummyFunDec.svar with vid} in (* Equal to actual varinfo by vid. *)
+            Lval (Cil.var vi)
+          | _, _ ->
+            Response.Error.(raise (make ~code:RequestFailed ~message:"requires exp xor vid" ()))
+        in
+        Arg.query n (EvalValueYojson exp)
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
+  end);
+
+  register (module struct
     let name = "arg/eval-int"
     type params = {
       node: string;
