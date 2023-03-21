@@ -11,7 +11,7 @@ module LoadRunSolver: GenericEqSolver =
       let load_run = Fpath.v (get_string "load_run") in
       let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
-        (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+        (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
         print_endline ("Loading the solver result of a saved run from " ^ (Fpath.to_string solver));
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
