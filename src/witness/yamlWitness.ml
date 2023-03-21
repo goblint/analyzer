@@ -447,7 +447,11 @@ struct
     let loop_locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        (* TODO: filter synthetic? *)
+        (* TODO: filter synthetic?
+
+           Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+           Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+           I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
         if WitnessInvariant.is_invariant_node n then
           Locator.add locator loc lvar;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then

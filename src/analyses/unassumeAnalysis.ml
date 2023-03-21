@@ -55,7 +55,8 @@ struct
     let rec iter_node node =
       if not (NH.mem reachable node) then begin
         NH.replace reachable node ();
-        (* TODO: filter synthetic? *)
+        (* TODO: filter synthetic?
+           See YamlWitness. *)
         if WitnessInvariant.is_invariant_node node then
           Locator.add locator (Node.location node) node;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads node then
