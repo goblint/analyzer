@@ -24,8 +24,9 @@ struct
       bufs, JmpBufDomain.NodeSet.singleton(ctx.prev_node)
     | _ -> ctx.local
 
+  (* Initial values don't really matter: overwritten at longjmp call. *)
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()] (* TODO: why other threads start with top? *)
+  let threadenter ctx lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
