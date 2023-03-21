@@ -405,6 +405,8 @@ let () =
     type varinfo_data = {
       vid: int;
       name: string;
+      type_: CilType.Typ.t [@key "type"];
+      location: CilType.Location.t;
       original_name: string option;
       role: string;
       function_: CilType.Fundec.t option [@key "function"] [@default None];
@@ -429,6 +431,8 @@ let () =
           let data = {
             vid = vi.vid;
             name = vi.vname;
+            type_ = vi.vtype;
+            location = vi.vdecl;
             original_name = Cilfacade.find_original_name vi;
             role = role_str;
             function_;
