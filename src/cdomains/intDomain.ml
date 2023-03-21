@@ -3539,19 +3539,19 @@ module IntDomTupleImpl = struct
   let refine ik ((a, b, c, d, e) : t ) : t =
     let dt = ref (a, b, c, d, e) in
     (match get_refinement () with
-      | "never" -> ()
-      | "once" ->
+     | "never" -> ()
+     | "once" ->
+       List.iter (fun f -> dt := f !dt) (refine_functions ik);
+     | "fixpoint" ->
+       let quit_loop = ref false in
+       while not !quit_loop do
+         let old_dt = !dt in
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
-      | "fixpoint" ->
-         let quit_loop = ref false in
-         while not !quit_loop do
-           let old_dt = !dt in
-           List.iter (fun f -> dt := f !dt) (refine_functions ik);
-           quit_loop := equal old_dt !dt;
-           if is_bot !dt then dt := bot_of ik; quit_loop := true;
-           if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
-         done;
-      | _ -> ()
+         quit_loop := equal old_dt !dt;
+         if is_bot !dt then dt := bot_of ik; quit_loop := true;
+         if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a\n" pretty old_dt pretty !dt;
+       done;
+     | _ -> ()
     ); !dt
 
 
