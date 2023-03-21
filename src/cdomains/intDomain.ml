@@ -1123,29 +1123,29 @@ struct
       let underflow = min_ik >. x in
       let overflow = max_ik <. y in
       let v = if underflow || overflow then
-        begin
-          if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
-            (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
-            (* on Z will not safely contain the minimal and maximal elements after the cast *)
-            let diff = Ints_t.abs (max_ik -. min_ik) in
-            let resdiff = Ints_t.abs (y -. x) in
-            if resdiff >. diff then
-              [range ik]
-            else
-              let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
-              let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
-              if l <=. u then
-                [(l, u)]
+          begin
+            if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
+              (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
+              (* on Z will not safely contain the minimal and maximal elements after the cast *)
+              let diff = Ints_t.abs (max_ik -. min_ik) in
+              let resdiff = Ints_t.abs (y -. x) in
+              if resdiff >. diff then
+                [range ik]
               else
-                (* Interval that wraps around (begins to the right of its end). We CAN represent such intervals *)
-                [(min_ik, u); (l, max_ik)]
-          else if not cast && should_ignore_overflow ik then
-            [Ints_t.max min_ik x, Ints_t.min max_ik y]
-          else
-            [range ik]
-        end
-      else
-        [(x,y)]
+                let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
+                let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
+                if l <=. u then
+                  [(l, u)]
+                else
+                  (* Interval that wraps around (begins to the right of its end). We CAN represent such intervals *)
+                  [(min_ik, u); (l, max_ik)]
+            else if not cast && should_ignore_overflow ik then
+              [Ints_t.max min_ik x, Ints_t.min max_ik y]
+            else
+              [range ik]
+          end
+        else
+          [(x,y)]
       in
       if suppress_ovwarn then (v, {underflow=false; overflow=false}) else (v, {underflow; overflow})
 
