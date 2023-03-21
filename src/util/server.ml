@@ -439,6 +439,29 @@ let () =
   end);
 
   register (module struct
+    let name = "richvarinfos"
+    type params = unit [@@deriving of_yojson]
+    type varinfo_data = {
+      vid: int;
+      name: string;
+      description: string;
+    } [@@deriving to_yojson]
+    type response = varinfo_data list [@@deriving to_yojson]
+    let process () serv =
+      !RichVarinfo.BiVarinfoMap.Collection.mappings
+      |> List.concat_map (fun (module VarinfoMap: RichVarinfo.BiVarinfoMap.S) ->
+          VarinfoMap.bindings ()
+          |> List.map (fun (x, (vi: Cil.varinfo)) ->
+              {
+                vid = vi.vid;
+                name = vi.vname;
+                description = VarinfoMap.describe_varinfo vi x;
+              }
+            )
+        )
+  end);
+
+  register (module struct
     let name = "cfg"
     type params = { fname: string }  [@@deriving of_yojson]
     type response = { cfg : string } [@@deriving to_yojson]

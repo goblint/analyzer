@@ -9,6 +9,7 @@ sig
   val to_varinfo : t -> varinfo
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
+  val bindings: unit -> (t * varinfo) list
 end
 
 module type G =
@@ -41,6 +42,7 @@ sig
   sig
     val mem_varinfo : varinfo -> bool
     val describe_varinfo : varinfo -> string
+    val mappings: (module S) list ref
   end
 
   module Make:
