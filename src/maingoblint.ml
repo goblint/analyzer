@@ -199,28 +199,27 @@ let basic_preprocess_counts = Preprocessor.FpathH.create 3
 let basic_preprocess ~all_cppflags fname =
   (* The extension of the file *)
   let ext = Fpath.get_ext fname in
-  (* The actual filename of the preprocessed sourcefile *)
-  let basename = Fpath.rem_ext (Fpath.base fname) in
-  (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
-  let count = Preprocessor.FpathH.find_default basic_preprocess_counts basename 0 in
-  let unique_name =
-    if count = 0 then
-      basename
-    else
-      Fpath.add_ext (string_of_int count) basename
-  in
-  Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
-  let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
   if ext <> ".i" && not (GobConfig.get_bool "pre.skipcpp") then
+    (* The actual filename of the preprocessed sourcefile *)
+    let basename = Fpath.rem_ext (Fpath.base fname) in
+    (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
+    let count = Preprocessor.FpathH.find_default basic_preprocess_counts basename 0 in
+    let unique_name =
+      if count = 0 then
+        basename
+      else
+        Fpath.add_ext (string_of_int count) basename
+    in
+    Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
     (* Preprocess using cpp. *)
+    let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
     let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
     let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
     if get_bool "dbg.verbose" then print_endline command;
     (nname, Some {ProcessPool.command; cwd = None})
   else
     (* No preprocessing needed. *)
-    (FileUtil.cp [(Fpath.to_string fname)] (Fpath.to_string nname);
-     (nname, None))
+    (fname, None)
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
