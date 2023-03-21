@@ -138,8 +138,8 @@ struct
         | hd::tl ->
           begin
             match Z.gt i max_i, Z.lt i min_i with
-            | false,true -> subjoin tl (Z.add i Z.one)
-            | false,false -> Val.join hd (subjoin tl (Z.add i Z.one))
+            | false,true -> subjoin tl (Z.succ i)
+            | false,false -> Val.join hd (subjoin tl (Z.succ i))
             | _,_ -> Val.bot ()
           end in
       subjoin xl Z.zero in
@@ -154,13 +154,13 @@ struct
       let rec weak_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if Z.lt i min_i then hd::(weak_update tl (Z.add i Z.one))
+          if Z.lt i min_i then hd::(weak_update tl (Z.succ i))
           else if Z.gt i max_i then (hd::tl)
-          else (Val.join hd v)::(weak_update tl (Z.add i Z.one)) in
+          else (Val.join hd v)::(weak_update tl (Z.succ i)) in
       let rec full_update l i = match l with
         | [] -> []
         | hd::tl ->
-          if Z.lt i min_i then hd::(full_update tl (Z.add i Z.one))
+          if Z.lt i min_i then hd::(full_update tl (Z.succ i))
           else v::tl in
       if Z.equal min_i max_i then full_update xl Z.zero
       else weak_update xl Z.zero in
@@ -486,9 +486,6 @@ struct
             else if Cil.isConstant e && Cil.isConstant i' then
               match Cil.getInteger e, Cil.getInteger i' with
               | Some (e'': Cilint.cilint), Some i'' ->
-                let (i'': BI.t) = Cilint.big_int_of_cilint  i'' in
-                let (e'': BI.t) = Cilint.big_int_of_cilint  e'' in
-
                 if BI.equal  i'' (BI.add e'' BI.one) then
                   (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
                   Partitioned (i', (Val.join xl xm, a, xr))

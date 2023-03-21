@@ -28,7 +28,7 @@ module Domain = struct
     |> filter_exprs_with_var p
   let remove_var v = filter_vars ((<>) v)
   let remove_fun_locals f d =
-    let p v = not @@ List.mem v (f.sformals @ f.slocals) in
+    let p v = not @@ List.mem_cmp CilType.Varinfo.compare v (f.sformals @ f.slocals) in
     filter_vars p d
   let only_globals d =
     let p v = v.vglob in

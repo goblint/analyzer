@@ -106,12 +106,12 @@ class findAssignmentConstDiff((diff: Z.t option ref), var) = object
     | Set ((Var v, NoOffset), BinOp (PlusA, Lval (Var v2, NoOffset), Const (CInt (cint,_,_)), _ ),_,_) when v.vid = var.vid && v2.vid = var.vid ->
       ( match !diff with
         | Some _ -> raise WrongOrMultiple
-        | _ -> diff := Some (Cilint.big_int_of_cilint cint); SkipChildren
+        | _ -> diff := Some cint; SkipChildren
       )
     | Set ((Var v, NoOffset), BinOp (MinusA, Lval (Var v2, NoOffset), Const (CInt (cint,_,_)), _ ),_,_) when v.vid = var.vid && v2.vid = var.vid ->
       ( match !diff with
         | Some _ -> raise WrongOrMultiple
-        | _ -> diff := Some (Z.neg (Cilint.big_int_of_cilint cint)); SkipChildren
+        | _ -> diff := Some (Z.neg cint); SkipChildren
       )
     | Set ((Var v, NoOffset), _,_,_) when v.vid = var.vid  -> raise WrongOrMultiple
     | _ -> SkipChildren
@@ -134,7 +134,7 @@ type assignment =
   | Other
 
 let classifyInstruction var = function
-  | Set (((Var info), NoOffset), Const(CInt (i,_,_)), _,_) when info.vid = var.vid -> Const (Cilint.big_int_of_cilint i)
+  | Set (((Var info), NoOffset), Const(CInt (i,_,_)), _,_) when info.vid = var.vid -> Const i
   | Set (((Var info), NoOffset), _                       , _,_) when info.vid = var.vid -> Other
   | _ -> NoAssign
 
@@ -227,16 +227,16 @@ let rec loopIterations start diff comp =
          else if shouldBeExact then
            None
          else
-           Some (Z.add roundedDown Z.one)
+           Some (Z.succ roundedDown)
        )
   in
   match comp with
   | BinOp (op, (Const _ as c), var, t) -> loopIterations start diff (BinOp (flip op, var, c, t))
-  | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Cilint.big_int_of_cilint cint) false
-  | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Cilint.big_int_of_cilint cint) false
-  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.add Z.one @@ Cilint.big_int_of_cilint cint) false
-  | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Z.pred @@ Cilint.big_int_of_cilint cint ) false
-  | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (Cilint.big_int_of_cilint cint) true
+  | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' cint false
+  | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' cint false
+  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.succ cint) false
+  | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Z.pred cint) false
+  | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' cint true
   | _ -> failwith "unexpected comparison in loopIterations"
 
 let ( >>= ) = Option.bind
@@ -273,7 +273,7 @@ let fixedLoopSize loopStatement func =
     constBefore var loopStatement func >>= fun start ->
     assignmentDifference loopStatement var >>= fun diff ->
     print_endline "comparison: ";
-    Pretty.fprint stdout (dn_exp () comparison) ~width:50;
+    Pretty.fprint stdout (dn_exp () comparison) ~width:max_int;
     print_endline "";
     print_endline "variable: ";
     print_endline var.vname;

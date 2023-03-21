@@ -84,7 +84,7 @@ struct
       | Lval lval, Const (CInt(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
         let k = D.key_from_lval lval in
-        if Cilint.compare_cilint i Cilint.zero_cilint = 0 && tv then (
+        if Z.compare i Z.zero = 0 && tv then (
           (* ignore(printf "error-branch\n"); *)
           D.error k m
         )else

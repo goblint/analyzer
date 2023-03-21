@@ -113,14 +113,6 @@ struct
     else
       Spec.context fd @@ Dom.choose_key l
 
-  let conv ctx x =
-    (* TODO: R.bot () isn't right here *)
-    let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
-                            ; local = x
-                            ; split = (ctx.split % (fun x -> (Dom.singleton x (R.bot ()), Sync.bot ()))) }
-    in
-    ctx'
-
   let step n c i e = R.singleton ((n, c, i), e)
   let step n c i e sync =
     match Sync.find i sync with
@@ -137,6 +129,22 @@ struct
     with Ctx_failure _ ->
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
+  let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
+
+  let nosync x = Sync.singleton x (SyncSet.singleton x)
+
+  let conv ctx x =
+    let rec ctx' =
+      { ctx with
+        local = x;
+        ask = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q);
+        split;
+      }
+    and split y es =
+      let yr = step_ctx_edge ctx x in
+      ctx.split (Dom.singleton y yr, Sync.bot ()) es
+    in
+    ctx'
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
@@ -191,13 +199,10 @@ struct
     let r = Dom.bindings a in
     List.map (fun (x,v) -> (Dom.singleton x v, b)) r
 
-  (* TODO: do additional witness things here *)
   let threadenter ctx lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
-          (* R.bot () isn't right here? doesn't actually matter? *)
-          let yr = R.bot () in
-          (* keep left syncs so combine gets them for no-inline case *)
+          let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
           (Dom.singleton y yr, Sync.bot ())
         ) ys
       in
@@ -234,6 +239,11 @@ struct
           f (I.to_int x)
         ) (fst ctx.local);
       ()
+    | Queries.PathQuery (i, q) ->
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
+      Spec.query (conv ctx d) q
     | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
@@ -256,7 +266,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
-              step_ctx ctx x' (InlineEntry a)
+              step_ctx ctx x' (InlineEntry (l, f, a))
             else
               R.bot ()
           in
@@ -274,9 +284,10 @@ struct
     let k x (y, sync) =
       let r =
         if should_inline f then
-          let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          step (Function f) (Option.get fc) x (InlineReturn l) nosync (* fc should be Some outside of MCP *)
+          let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) (nosync x) in (* fc should be Some outside of MCP *)
+          let procr = step_ctx_inlined_edge ctx cd in
+          R.join procr returnr
         else
           step_ctx_edge ctx cd
       in

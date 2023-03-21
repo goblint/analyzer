@@ -35,10 +35,16 @@ let init () =
 
 let current_file = ref dummyFile
 
+(** @raise GoblintCil.FrontC.ParseError
+    @raise GoblintCil.Errormsg.Error *)
 let parse fileName =
   let fileName_str = Fpath.to_string fileName in
+  Errormsg.hadErrors := false; (* reset because CIL doesn't *)
   let cabs2cil = Timing.wrap ~args:[("file", `String fileName_str)] "FrontC" Frontc.parse fileName_str in
-  Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil ()
+  let file = Timing.wrap ~args:[("file", `String fileName_str)] "Cabs2cil" cabs2cil () in
+  if !E.hadErrors then
+    E.s (E.error "There were parsing errors in %s" fileName_str);
+  file
 
 let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
@@ -60,6 +66,8 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 
+(** @raise GoblintCil.FrontC.ParseError
+    @raise GoblintCil.Errormsg.Error *)
 let getAST fileName =
   let fileAST = parse fileName in
   (*  rmTemps fileAST; *)
@@ -90,7 +98,9 @@ class addConstructors cons = object
   method! vtype _ = SkipChildren
 end
 
+(** @raise GoblintCil.Errormsg.Error *)
 let getMergedAST fileASTs =
+  Errormsg.hadErrors := false; (* reset because CIL doesn't *)
   let merged = Timing.wrap "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
@@ -435,6 +445,8 @@ let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
             VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
             List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
             List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+          | GVarDecl (vi, _) when Cil.isFunctionType vi.vtype ->
+            VarinfoH.replace h vi Function
           | GVar (vi, _, _)
           | GVarDecl (vi, _) ->
             VarinfoH.replace h vi Global
@@ -486,6 +498,31 @@ let original_names: string VarinfoH.t ResettableLazy.t =
     If it was inserted by CIL (or Goblint), then returns [None]. *)
 let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
+module IntH = Hashtbl.Make (struct type t = int [@@deriving eq, hash] end)
+
+class stmtSidVisitor h = object
+  inherit nopCilVisitor
+  method! vstmt s =
+    IntH.replace h s.sid s;
+    DoChildren
+end
+
+let stmt_sids: stmt IntH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let h = IntH.create 113 in
+      let visitor = new stmtSidVisitor h in
+      visitCilFileSameGlobals visitor !current_file;
+      h
+    )
+
+let pseudo_return_stmt_sids: stmt IntH.t = IntH.create 13
+
+(** Find [stmt] by its [sid].
+    @raise Not_found *)
+let find_stmt_sid sid =
+  try IntH.find pseudo_return_stmt_sids sid
+  with Not_found -> IntH.find (ResettableLazy.force stmt_sids) sid
+
 
 let reset_lazy () =
   StmtH.clear pseudo_return_to_fun;
@@ -493,7 +530,8 @@ let reset_lazy () =
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;
   ResettableLazy.reset varinfo_roles;
-  ResettableLazy.reset original_names
+  ResettableLazy.reset original_names;
+  ResettableLazy.reset stmt_sids
 
 
 let stmt_pretty_short () x =

@@ -45,7 +45,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (Priv.V) (ThreadIdDomain.Thread)
+    include Printable.Either (struct include Priv.V let name () = "priv" end) (struct include ThreadIdDomain.Thread let name () = "threadreturn" end)
     let priv x = `Left x
     let thread x = `Right x
     include StdV
@@ -596,6 +596,8 @@ struct
 
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
+  let drop_intervalSet = CPA.map (function `Int x -> `Int (ID.no_intervalSet x) | x -> x )
+
   let context (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
@@ -605,8 +607,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
-
-  let context_cpa fd (st: store) = (context fd st).cpa
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
 
   let convertToQueryLval x =
     let rec offsNormal o =
@@ -782,14 +783,14 @@ struct
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
+        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Z.to_string num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind num)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = Pretty.sprint ~width:max_int (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -946,7 +947,7 @@ struct
               true
             else
               match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-              | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+              | Some i1, Some i2 -> Z.compare i1 i2 <= 0
               | _ ->
                 if contains_vla t || contains_vla (get_type_addr (x, o)) then
                   begin
@@ -1274,6 +1275,9 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
+    | Q.EvalValueYojson e ->
+      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+      `Lifted (VD.to_yojson v)
     | Q.BlobSize e -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
@@ -1621,6 +1625,8 @@ struct
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
+
+    let contra _ = raise Deadcode
   end
 
   module Invariant = BaseInvariant.Make (InvariantEval)
@@ -1659,7 +1665,7 @@ struct
       in
       match last_index lval, stripCasts rval with
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
-        let i = Cilint.int_of_cilint i in
+        let i = Z.to_int i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
         let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
@@ -1679,7 +1685,7 @@ struct
     let rval_val = VD.mark_jmpbufs_as_copied rval_val in
     let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
-    (* M.debug ~category:Analyzer @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+    (* M.debug ~category:Analyzer @@ sprint ~width:max_int @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
       let not_local x =
         match Addr.to_var_may x with
@@ -2261,30 +2267,18 @@ struct
       let t = Cilfacade.typeOf value in
       set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv
       (* Not rasing Deadode here, deadcode is raised at a higher level! *)
-    | _, _ -> begin
-        let st =
-          special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
-          (*
-           *  TODO: invalidate vars reachable via args
-           *  publish globals
-           *  if single-threaded: *call f*, privatize globals
-           *  else: spawn f
-           *)
-        in
-        (* invalidate lhs in case of assign *)
-        let st = invalidate_ret_lv st in
-        (* apply all registered abstract effects from other analysis on the base value domain *)
-        LibraryFunctionEffects.effects_for f.vname args
-        |> List.to_seq
-        |> Seq.map (fun sets ->
-            BatList.fold_left (fun acc (lv, x) ->
-                set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
-              ) st sets
-          )
-        |> Seq.fold_left D.meet st
-
-        (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
-      end
+    | _, _ ->
+      let st =
+        special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+        (*
+          *  TODO: invalidate vars reachable via args
+          *  publish globals
+          *  if single-threaded: *call f*, privatize globals
+          *  else: spawn f
+          *)
+      in
+      (* invalidate lhs in case of assign *)
+      invalidate_ret_lv st
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
@@ -2339,23 +2333,22 @@ struct
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-        begin if (Q.LS.is_top tainted) then
-            let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
-            let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
-            if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
-            { fun_st with cpa = cpa' }
-          else
-            (* remove variables from caller cpa, that are global and not in the callee cpa *)
-            let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
-            (* add variables from callee that are not in caller yet *)
-            let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
-            let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
-            (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
-            let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
-            let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
-            if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
-            { fun_st with cpa = st_combined.cpa }
-        end
+        if (Q.LS.is_top tainted) then
+          let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
+          let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
+          { fun_st with cpa = cpa' }
+        else
+          (* remove variables from caller cpa, that are global and not in the callee cpa *)
+          let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
+          (* add variables from callee that are not in caller yet *)
+          let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
+          let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
+          (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
+          let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
+          let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
+          if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
+          { fun_st with cpa = st_combined.cpa }
       in
       let return_var = return_var () in
       let return_val =
@@ -2502,6 +2495,8 @@ struct
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
           let fd_meet_down ~old ~c = c
+
+          let contra st = st
         end
         in
         let module Unassume = BaseInvariant.Make (UnassumeEval) in
@@ -2570,8 +2565,6 @@ module type MainSpec = sig
   include BaseDomain.ExpEvaluator
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
-  type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
 let main_module: (module MainSpec) Lazy.t =

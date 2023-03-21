@@ -135,8 +135,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let of_int x =
     match IntDomain.IntDomTuple.minimal x, IntDomain.IntDomTuple.maximal x with
     | Some l, Some h when l >= Float_t.to_big_int Float_t.lower_bound && h <= Float_t.to_big_int Float_t.upper_bound ->
-      let l' = Float_t.of_float Down (Big_int_Z.float_of_big_int l) in
-      let h' = Float_t.of_float Up (Big_int_Z.float_of_big_int h) in
+      let l' = Float_t.of_float Down (Z.to_float l) in
+      let h' = Float_t.of_float Up (Z.to_float h) in
       if not (Float_t.is_finite l' && Float_t.is_finite h') then
         Top
       else
@@ -353,7 +353,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
-      (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+      (Z.of_int a, Z.of_int b)
 
 
   let eval_neg = function
@@ -555,7 +555,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _ -> (0, 0)
     in
     IntDomain.IntDomTuple.of_interval IBool
-      (Big_int_Z.big_int_of_int l, Big_int_Z.big_int_of_int u)
+      (Z.of_int l, Z.of_int u)
 
   let ne a b =
     Messages.warn
@@ -575,7 +575,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _ -> (1, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
-      (Big_int_Z.big_int_of_int l, Big_int_Z.big_int_of_int u)
+      (Z.of_int l, Z.of_int u)
 
   let unordered op1 op2 =
     let a, b =
@@ -585,10 +585,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
       | _ -> (0, 0)
     in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+    IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
 
-  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
-  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
+  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [Z.zero]
+  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt Z.zero
   let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
 
   let eval_isnormal = function
