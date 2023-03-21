@@ -275,6 +275,7 @@ let analyze ?(reset=false) (s: t) =
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
+  PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();
   AutoTune.reset_lazy ();
   Access.reset ();
