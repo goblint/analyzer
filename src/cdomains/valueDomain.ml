@@ -49,17 +49,19 @@ sig
 end
 
 (* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
-module ZeroInit = Lattice.Fake(Basetype.RawBools)
+module ZeroInit =
+struct
+  include Lattice.Fake(Basetype.RawBools)
+  let name () = "no zeroinit"
+end
 
 module Blob (Value: S) (Size: IntDomain.Z)=
 struct
-  include Lattice.Prod3 (Value) (Size) (ZeroInit)
+  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include Size let name () = "size" end) (ZeroInit)
   let name () = "blob"
   type value = Value.t
   type size = Size.t
   type origin = ZeroInit.t
-  let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let value (a, b, c) = a
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o

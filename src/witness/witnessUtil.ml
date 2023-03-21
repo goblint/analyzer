@@ -133,7 +133,7 @@ struct
       Errormsg.log "\n"; (* CIL prints garbage without \n before *)
       Error e
 
-  let parse_cil {global_vars} ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
+  let parse_cil {global_vars} ?(check=true) ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
     let genv = Cabs2cil.genvironment in
     let env = Hashtbl.copy genv in
     List.iter (fun (v: Cil.varinfo) ->
@@ -157,7 +157,7 @@ struct
 
     let vars = fundec.sformals @ fundec.slocals @ global_vars in
     match inv_exp_opt with
-    | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
+    | Some inv_exp when not check || Check.checkStandaloneExp ~vars inv_exp ->
       Ok inv_exp
     | _ ->
       Error "parse_cil"
