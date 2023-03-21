@@ -45,9 +45,9 @@ module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
-  let top_name = "Unknown line"
-  let bot_name = "Unreachable line"
-end)
+    let top_name = "Unknown line"
+    let bot_name = "Unreachable line"
+  end)
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
@@ -55,9 +55,9 @@ let compare_itervar _ _ = 0
 let compare_iterprevvar _ _ = 0
 
 module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
-  let top_name = "top yojson"
-  let bot_name = "bot yojson"
-end)
+    let top_name = "top yojson"
+    let bot_name = "bot yojson"
+  end)
 
 module SD = Basetype.Strings
 
@@ -190,7 +190,7 @@ struct
   (** Get top result for query. *)
   let rec top: type a. a t -> a result = fun q ->
     (* let module Result = (val lattice q) in
-    Result.top () *)
+       Result.top () *)
     (* [lattice] and [top] manually inlined to avoid first-class module
        for every unsupported [query] implementation.
        See benchmarks at: https://github.com/goblint/analyzer/pull/221#issuecomment-842351621. *)
