@@ -2272,10 +2272,10 @@ struct
           begin match ID.to_bool i with
             | Some true -> rv
             | Some false ->
-              M.error "Longjmp with a value of 0 is silently changed to 1";
+              M.error "Must: Longjmp with a value of 0 is silently changed to 1";
               `Int (ID.of_int (ID.ikind i) Z.one)
             | None ->
-              M.warn "Longjmp with a value of 0 is silently changed to 1";
+              M.warn "May: Longjmp with a value of 0 is silently changed to 1";
               let ik = ID.ikind i in
               `Int (ID.join (ID.meet i (ID.of_excl_list ik [Z.zero])) (ID.of_int ik Z.one))
           end
