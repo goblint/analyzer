@@ -56,6 +56,10 @@ struct
 
   (** Transfer functions: *)
 
+  let vdecl ctx v =
+    access_one_top ctx Read false (SizeOf v.vtype);
+    ctx.local
+
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
@@ -98,7 +102,7 @@ struct
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
-  let combine ctx lv fexp f args fc al =
+  let combine ctx lv fexp f args fc al f_ask =
     access_one_top ctx Read false fexp;
     begin match lv with
       | None      -> ()

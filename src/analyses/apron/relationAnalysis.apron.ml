@@ -190,8 +190,8 @@ struct
     | ik when not (IntDomain.should_ignore_overflow ik) -> (* don't add type bounds for signed when assume_none *)
       let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
-      let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType) in
-      let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType) in
+      let e1 = BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik type_max), intType) in
+      let e2 = BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik type_min), intType) in
       let rel = RD.assert_inv rel e1 false (no_overflow ask e1) in (* TODO: how can be overflow when asserting type bounds? *)
       let rel = RD.assert_inv rel e2 false (no_overflow ask e2) in
       rel
@@ -350,7 +350,7 @@ struct
         st'
     end
 
-  let combine ctx r fe f args fc fun_st =
+  let combine ctx r fe f args fc fun_st (f_ask : Queries.ask) =
     let st = ctx.local in
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let fundec = Node.find_fundec ctx.node in
@@ -378,10 +378,14 @@ struct
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
     if M.tracing then M.tracel "combine" "relation remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
+    let tainted = f_ask.f Queries.MayBeTainted in
+    let tainted_vars = TaintPartialContexts.conv_varset tainted in
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
         | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
+        | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
+        | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
         | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
     in

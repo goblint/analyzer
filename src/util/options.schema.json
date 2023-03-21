@@ -155,7 +155,7 @@
     "gobview": {
       "title": "gobview",
       "description":
-        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
+        "Include additional information for GobView (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
       "type": "boolean",
       "default": false
     },
@@ -357,7 +357,13 @@
             "interval": {
               "title": "ana.int.interval",
               "description":
-                "Use IntDomain.Interval32: (int64 * int64) option.",
+                "Use IntDomain.Interval32: (Z.t * Z.t) option.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_set": {
+              "title": "ana.int.interval_set",
+              "description": "Use IntDomain.IntervalSet: (Z.t * Z.t) list.",
               "type": "boolean",
               "default": false
             },
@@ -515,7 +521,7 @@
             },
             "activated": {
               "title": "ana.autotune.activated",
-              "description": "Lists of activated tuning options. By default all are activated",
+              "description": "Lists of activated tuning options.",
               "type": "array",
               "items": { "type": "string" },
               "default": [
@@ -587,6 +593,13 @@
                   "title": "ana.base.context.interval",
                   "description":
                     "Integer values of the Interval domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "interval_set": {
+                  "title": "ana.base.context.interval_set",
+                  "description":
+                    "Integer values of the IntervalSet domain in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -1008,6 +1021,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "unassume": {
+          "title": "ana.unassume",
+          "type": "object",
+          "properties": {
+            "precheck": {
+              "title": "ana.unassume.precheck",
+              "description": "Check if invariant contradicts reached state before unassuming.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1246,6 +1272,21 @@
           },
           "additionalProperties": false
         },
+        "noreturn": {
+          "title": "sem.noreturn",
+          "description": "Handling of C11 _Noreturn function specifier.",
+          "type": "object",
+          "properties": {
+            "dead_code": {
+              "title": "sem.noreturn.dead_code",
+              "description":
+                "For the purposes of detecting dead code, assume that functions marked noreturn don't return.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "int": {
           "title": "sem.int",
           "type": "object",
@@ -1402,7 +1443,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -1606,6 +1647,18 @@
           "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
           "type": "boolean",
           "default": true
+        },
+        "arg": {
+          "title": "exp.arg",
+          "description": "Construct abstract reachability graph (ARG).",
+          "type": "boolean",
+          "default": false
+        },
+        "argdot": {
+          "title": "exp.argdot",
+          "description": "Output ARG as dot file.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -2281,7 +2334,7 @@
               "title": "witness.yaml.certificate",
               "description": "YAML witness certificate output path",
               "type": "string",
-              "default": "witness.certificate.yml"
+              "default": ""
             }
           },
           "additionalProperties": false

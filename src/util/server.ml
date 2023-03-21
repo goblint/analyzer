@@ -2,9 +2,22 @@ open Batteries
 open Jsonrpc
 open GoblintCil
 
+module InvariantParser = WitnessUtil.InvariantParser
+
+module type ArgWrapper =
+sig
+  module Arg: ArgTools.BiArg
+  module Locator: module type of WitnessUtil.Locator (Arg.Node)
+  val locator: Locator.t
+  val find_node: string -> Arg.Node.t
+  val find_cfg_node: string -> Arg.Node.t list
+end
+
 type t = {
   mutable file: Cil.file option;
   mutable max_ids: MaxIdUtil.max_ids;
+  arg_wrapper: (module ArgWrapper) ResettableLazy.t;
+  invariant_parser: InvariantParser.t ResettableLazy.t;
   input: IO.input;
   output: unit IO.output;
 }
@@ -106,6 +119,41 @@ let serve serv =
   |> Seq.map Packet.t_of_yojson
   |> Seq.iter (handle_packet serv)
 
+let arg_wrapper: (module ArgWrapper) ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Arg = (val (Option.get_exn !ArgTools.current_arg Response.Error.(E (make ~code:RequestFailed ~message:"not analyzed or arg disabled" ())))) in
+      let module Locator = WitnessUtil.Locator (Arg.Node) in
+      let module StringH = Hashtbl.Make (Printable.Strings) in
+
+      let locator = Locator.create () in
+      let ids = StringH.create 113 in
+      let cfg_nodes = StringH.create 113 in
+      Arg.iter_nodes (fun n ->
+          let cfgnode = Arg.Node.cfgnode n in
+          let loc = UpdateCil.getLoc cfgnode in
+          if not loc.synthetic then
+            Locator.add locator loc n;
+          StringH.replace ids (Arg.Node.to_string n) n;
+          StringH.add cfg_nodes (Node.show_id cfgnode) n (* add for find_all *)
+        );
+
+      let module ArgWrapper =
+      struct
+        module Arg = Arg
+        module Locator = Locator
+        let locator = locator
+        let find_node = StringH.find ids
+        let find_cfg_node = StringH.find_all cfg_nodes
+      end
+      in
+      (module ArgWrapper: ArgWrapper)
+    )
+
+let invariant_parser: InvariantParser.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      InvariantParser.create !Cilfacade.current_file
+    )
+
 let make ?(input=stdin) ?(output=stdout) file : t =
   let max_ids =
     match file with
@@ -115,6 +163,8 @@ let make ?(input=stdin) ?(output=stdout) file : t =
   {
     file;
     max_ids;
+    arg_wrapper;
+    invariant_parser;
     input;
     output
   }
@@ -176,6 +226,38 @@ let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data Sol
     Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
   | _ -> None, true
 
+
+module Locator = WitnessUtil.Locator (Node)
+let node_locator: Locator.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let locator = Locator.create () in
+
+      (* DFS, copied from CfgTools.find_backwards_reachable *)
+      let module NH = MyCFG.NodeH in
+      let reachable = NH.create 100 in
+      let rec iter_node node =
+        if not (NH.mem reachable node) then begin
+          NH.replace reachable node ();
+          let loc = UpdateCil.getLoc node in
+          if not loc.synthetic then
+            Locator.add locator loc node;
+          List.iter (fun (_, prev_node) ->
+              iter_node prev_node
+            ) (Cfg.prev node)
+        end
+      in
+
+      Cil.iterGlobals !Cilfacade.current_file (function
+          | GFun (fd, _) ->
+            let return_node = Node.Function fd in
+            iter_node return_node
+          | _ -> ()
+        );
+
+      locator
+    )
+
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
   Messages.Table.messages_list := [];
@@ -186,6 +268,9 @@ let analyze ?(reset=false) (s: t) =
     Serialize.Cache.reset_data SolverData;
     Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
+  ResettableLazy.reset node_locator;
+  ResettableLazy.reset s.arg_wrapper;
+  ResettableLazy.reset s.invariant_parser;
   Cilfacade.reset_lazy ();
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
@@ -216,8 +301,11 @@ let () =
       try
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
-      with Sys.Break ->
+      with
+      | Sys.Break ->
         {status = Aborted}
+      | Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
@@ -289,20 +377,88 @@ let () =
     type params = unit [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () s =
-      if GobConfig.get_bool "server.reparse" then (
-        GoblintDir.init ();
-        Fun.protect ~finally:GoblintDir.finalize (fun () ->
-            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
-          )
-      );
-      Preprocessor.dependencies_to_yojson ()
+      try
+        if GobConfig.get_bool "server.reparse" then (
+          GoblintDir.init ();
+          Fun.protect ~finally:GoblintDir.finalize (fun () ->
+              ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+            )
+        );
+        Preprocessor.dependencies_to_yojson ()
+      with Maingoblint.FrontendError message ->
+        Response.Error.(raise (make ~code:RequestFailed ~message ()))
   end);
 
   register (module struct
     let name = "functions"
     type params = unit [@@deriving of_yojson]
     type response = Function.t list [@@deriving to_yojson]
-    let process () serv = Function.getFunctionsList (Option.get serv.file).globals
+    let process () serv =
+      match serv.file with
+      | Some file -> Function.getFunctionsList file.globals
+      | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed" ()))
+  end);
+
+  register (module struct
+    let name = "cil/varinfos"
+    type params = unit [@@deriving of_yojson]
+    type varinfo_data = {
+      vid: int;
+      name: string;
+      original_name: string option;
+      role: string;
+      function_: CilType.Fundec.t option [@key "function"] [@default None];
+    } [@@deriving to_yojson]
+    type response = varinfo_data list [@@deriving to_yojson]
+    let process () serv =
+      Cilfacade.VarinfoH.fold (fun vi role acc ->
+          let role_str = match role with
+            | Cilfacade.Formal _ -> "formal"
+            | Local _ -> "local"
+            | Function -> "function"
+            | Global -> "global"
+          in
+          let function_ = match role with
+            | Cilfacade.Formal fd
+            | Local fd ->
+              Some fd
+            | Function
+            | Global ->
+              None
+          in
+          let data = {
+            vid = vi.vid;
+            name = vi.vname;
+            original_name = Cilfacade.find_original_name vi;
+            role = role_str;
+            function_;
+          }
+          in
+          data :: acc
+        ) (ResettableLazy.force Cilfacade.varinfo_roles) []
+  end);
+
+  register (module struct
+    let name = "richvarinfos"
+    type params = unit [@@deriving of_yojson]
+    type varinfo_data = {
+      vid: int;
+      name: string;
+      description: string;
+    } [@@deriving to_yojson]
+    type response = varinfo_data list [@@deriving to_yojson]
+    let process () serv =
+      !RichVarinfo.BiVarinfoMap.Collection.mappings
+      |> List.concat_map (fun (module VarinfoMap: RichVarinfo.BiVarinfoMap.S) ->
+          VarinfoMap.bindings ()
+          |> List.map (fun (x, (vi: Cil.varinfo)) ->
+              {
+                vid = vi.vid;
+                name = vi.vname;
+                description = VarinfoMap.describe_varinfo vi x;
+              }
+            )
+        )
   end);
 
   register (module struct
@@ -317,14 +473,276 @@ let () =
   end);
 
   register (module struct
+    let name = "cfg/lookup"
+    type params = {
+      node: string option [@default None];
+      location: CilType.Location.t option [@default None];
+    } [@@deriving of_yojson]
+    type response = {
+      node: string;
+      location: CilType.Location.t;
+      function_: CilType.Fundec.t [@key "function"];
+      next: (Edge.t list * string) list;
+      prev: (Edge.t list * string) list;
+    } [@@deriving to_yojson]
+    let process (params: params) serv =
+      let node = match params.node, params.location with
+        | Some node_id, None ->
+          begin try
+              Node.of_id node_id
+            with Not_found ->
+              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          end
+        | None, Some location ->
+          let node_opt =
+            let open GobOption.Syntax in
+            let* nodes = Locator.find_opt (ResettableLazy.force node_locator) location in
+            Locator.ES.choose_opt nodes
+          in
+          Option.get_exn node_opt Response.Error.(E (make ~code:RequestFailed ~message:"cannot find node for location" ()))
+        | _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires node xor location" ()))
+      in
+      let node_id = Node.show_id node in
+      let location = UpdateCil.getLoc node in
+      let function_ = Node.find_fundec node in
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let next =
+        Cfg.next node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      let prev =
+        Cfg.prev node
+        |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          )
+      in
+      {node = node_id; location; function_; next; prev}
+  end);
+
+  register (module struct
+    let name = "arg/dot"
+    type params = unit [@@deriving of_yojson]
+    type response = {
+      arg: string
+    } [@@deriving to_yojson]
+    let process () serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) in
+      let arg = Format.asprintf "%t" ArgDot.dot in
+      {arg}
+  end);
+
+  register (module struct
+    let name = "arg/lookup"
+    type params = {
+      node: string option [@default None];
+      location: CilType.Location.t option [@default None];
+      cfg_node: string option [@default None];
+    } [@@deriving of_yojson]
+
+    type edge_node = {
+      edge: MyARG.inline_edge;
+      node: string;
+      cfg_node: string;
+      context: string;
+      path: string;
+      location: CilType.Location.t;
+      function_: CilType.Fundec.t [@key "function"];
+    } [@@deriving to_yojson]
+    type one_response = {
+      node: string;
+      cfg_node: string;
+      context: string;
+      path: string;
+      location: CilType.Location.t;
+      function_: CilType.Fundec.t [@key "function"];
+      next: edge_node list;
+      prev: edge_node list;
+    } [@@deriving to_yojson]
+    type response = one_response list [@@deriving to_yojson]
+
+    let process (params: params) serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let open ArgWrapper in
+      let open GobList.Syntax in
+      let+ n: Arg.Node.t = match params.node, params.location, params.cfg_node with
+        | None, None, None ->
+          [Arg.main_entry]
+        | Some node_id, None, None ->
+          begin try
+              [ArgWrapper.find_node node_id]
+            with Not_found ->
+              [] (* non-existent node *)
+          end
+        | None, Some location, None ->
+          let nodes_opt =
+            let open GobOption.Syntax in
+            let+ nodes = Locator.find_opt locator location in
+            Locator.ES.elements nodes
+          in
+          Option.default [] nodes_opt (* cannot find node for location *)
+        | None, None, Some cfg_node ->
+          ArgWrapper.find_cfg_node cfg_node
+        | _, _, _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires at most one of node, location and cfg_node" ()))
+      in
+      let cfg_node = Arg.Node.cfgnode n in
+      let cfg_node_id = Node.show_id cfg_node in
+      let location = UpdateCil.getLoc cfg_node in
+      let next =
+        Arg.next n
+        |> List.map (fun (edge, to_node) ->
+            let cfg_to_node = Arg.Node.cfgnode to_node in
+            {
+              edge;
+              node = Arg.Node.to_string to_node;
+              cfg_node = Node.show_id cfg_to_node;
+              context = string_of_int (Arg.Node.context_id to_node);
+              path = string_of_int (Arg.Node.path_id to_node);
+              location = UpdateCil.getLoc cfg_to_node;
+              function_ = Node.find_fundec cfg_to_node;
+            }
+          )
+      in
+      let prev =
+        Arg.prev n
+        |> List.map (fun (edge, to_node) ->
+            let cfg_to_node = Arg.Node.cfgnode to_node in
+            {
+              edge;
+              node = Arg.Node.to_string to_node;
+              cfg_node = Node.show_id cfg_to_node;
+              context = string_of_int (Arg.Node.context_id to_node);
+              path = string_of_int (Arg.Node.path_id to_node);
+              location = UpdateCil.getLoc cfg_to_node;
+              function_ = Node.find_fundec cfg_to_node;
+            }
+          )
+      in
+      {
+        node = Arg.Node.to_string n;
+        cfg_node = cfg_node_id;
+        context = string_of_int (Arg.Node.context_id n);
+        path = string_of_int (Arg.Node.path_id n);
+        location;
+        function_ = Node.find_fundec cfg_node;
+        next;
+        prev
+      }
+  end);
+
+  register (module struct
     let name = "node_state"
     type params = { nid: string }  [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process { nid } serv =
-      let f = !Control.current_node_state_json in
-      let n = Node.of_id nid in
-      let json = f n in
-      json
+      match Node.of_id nid with
+      | n ->
+        begin match !Control.current_node_state_json n with
+          | Some json -> json
+          | None -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed, non-existent or dead node" ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+  end);
+
+  register (module struct
+    let name = "arg/state"
+    type params = {
+      node: string
+    } [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process {node} serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      match ArgWrapper.find_node node with
+      | n ->
+        begin match ArgWrapper.Arg.query n DYojson with
+          | `Lifted json -> json
+          | (`Bot | `Top) as r -> Response.Error.(raise (make ~code:RequestFailed ~message:("query returned " ^ Queries.FlatYojson.show r) ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
+  end);
+
+  register (module struct
+    let name = "arg/eval"
+    type params = {
+      node: string;
+      exp: string option [@default None];
+      vid: int option [@default None]; (* eval varinfo by vid to avoid exp parsing problems *)
+    } [@@deriving of_yojson]
+    type response = Queries.FlatYojson.t [@@deriving to_yojson]
+    let process (params: params) serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let open ArgWrapper in
+      match ArgWrapper.find_node params.node with
+      | n ->
+        let exp = match params.exp, params.vid with
+          | Some exp, None ->
+            begin match InvariantParser.parse_cabs exp with
+              | Ok exp_cabs ->
+                let cfg_node = Arg.Node.cfgnode n in
+                let fundec = Node.find_fundec cfg_node in
+                let loc = UpdateCil.getLoc cfg_node in
+
+                (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
+                begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+                  | Ok exp -> exp
+                  | Error e ->
+                    Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
+                end
+              | Error e ->
+                Response.Error.(raise (make ~code:RequestFailed ~message:"Frontc couldn't parse expression (invalid syntax)" ()))
+            end
+          | None, Some vid ->
+            let vi = {Cil.dummyFunDec.svar with vid} in (* Equal to actual varinfo by vid. *)
+            Lval (Cil.var vi)
+          | _, _ ->
+            Response.Error.(raise (make ~code:RequestFailed ~message:"requires exp xor vid" ()))
+        in
+        Arg.query n (EvalValueYojson exp)
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
+  end);
+
+  register (module struct
+    let name = "arg/eval-int"
+    type params = {
+      node: string;
+      exp: string;
+    } [@@deriving of_yojson]
+    type response = {
+      raw: Yojson.Safe.t;
+      int: GobZ.t option;
+      bool: bool option;
+    } [@@deriving to_yojson]
+    let process {node; exp} serv =
+      let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
+      let open ArgWrapper in
+      match ArgWrapper.find_node node with
+      | n ->
+        begin match InvariantParser.parse_cabs exp with
+          | Ok exp_cabs ->
+            let cfg_node = Arg.Node.cfgnode n in
+            let fundec = Node.find_fundec cfg_node in
+            let loc = UpdateCil.getLoc cfg_node in
+
+            (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
+            begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+              | Ok exp ->
+                let x = Arg.query n (EvalInt exp) in
+                {
+                  raw = Queries.ID.to_yojson x;
+                  int = Queries.ID.to_int x;
+                  bool = Queries.ID.to_bool x; (* Separate, because Not{0} has to_int = None, but to_bool = Some true. *)
+                }
+              | Error e ->
+                Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
+            end
+          | Error e ->
+            Response.Error.(raise (make ~code:RequestFailed ~message:"Frontc couldn't parse expression (invalid syntax)" ()))
+        end
+      | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
   end);
 
   register (module struct

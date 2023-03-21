@@ -9,9 +9,9 @@ let ikind = IntDomain.PtrDiffIkind.ikind ()
 
 let a_var = Cil.makeGlobalVar "a" Cil.intPtrType
 let a_lv = LV.from_var a_var
-let i_0 = ID.of_int ikind (Z.of_int 0)
+let i_0 = ID.of_int ikind Z.zero
 let a_lv_0 = LV.from_var_offset (a_var, `Index (i_0, `NoOffset))
-let i_1 = ID.of_int ikind (Z.of_int 1)
+let i_1 = ID.of_int ikind Z.one
 let a_lv_1 = LV.from_var_offset (a_var, `Index (i_1, `NoOffset))
 let i_top = ID.join i_0 i_1
 let a_lv_top = LV.from_var_offset (a_var, `Index (i_top, `NoOffset))
@@ -48,7 +48,7 @@ let test_join_0 _ =
 
 let test_leq_not_0 _ =
   assert_leq a_lv_1 a_lv_not_0;
-  OUnit.assert_equal ~printer:[%show: [`Eq | `Neq | `Top]] `Neq (ID.equal_to (Z.of_int 0) i_not_0);
+  OUnit.assert_equal ~printer:[%show: [`Eq | `Neq | `Top]] `Neq (ID.equal_to Z.zero i_not_0);
   OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (LV.Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));
   assert_not_leq a_lv a_lv_not_0;
   assert_not_leq a_lv_0 a_lv_not_0

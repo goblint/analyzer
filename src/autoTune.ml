@@ -129,8 +129,8 @@ let disableIntervalContextsInRecursiveFunctions () =
   ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
-        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval context");
-        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "relation.no-context"])];
+        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval and interval_set contexts");
+        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "base.no-interval_set"; AStr "relation.no-context"])];
       )
     )
 
@@ -172,7 +172,7 @@ let focusOnSpecification () =
   match Svcomp.Specification.of_option () with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
     List.iter enableAnalysis notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
@@ -243,9 +243,11 @@ let isComparison = function
   | Lt | Gt |	Le | Ge | Ne | Eq -> true
   | _ -> false
 
+let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
+
 let rec extractVar = function
   | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) -> Some info
+  | Lval ((Var info),_) when not (isGoblintStub info) ->  Some info
   | _ -> None
 
 let extractOctagonVars = function
@@ -283,7 +285,7 @@ class octagonVariableVisitor(varMap, globals) = object
         handle varMap 5 globals (extractOctagonVars e2) ;
         DoChildren
       )
-    | Lval ((Var info),_) -> handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)

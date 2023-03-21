@@ -317,63 +317,6 @@ struct
 end
 
 
-(** Reference to top-level Control Spec context first-class module. *)
-let control_spec_c: (module Printable.S) ref =
-  let module Failwith = Printable.Failwith (
-    struct
-      let message = "uninitialized control_spec_c"
-    end
-    )
-  in
-  ref (module Failwith: Printable.S)
-
-(** Top-level Control Spec context as static module, which delegates to {!control_spec_c}.
-    This allows using top-level context values inside individual analyses. *)
-module ControlSpecC: Printable.S =
-struct
-  type t = Obj.t (** represents [(val !control_spec_c).t] *)
-
-  (* The extra level of indirection allows calls to this static module to go to a dynamic first-class module. *)
-
-  let name () =
-    let module C = (val !control_spec_c) in
-    C.name ()
-
-  let equal x y =
-    let module C = (val !control_spec_c) in
-    C.equal (Obj.obj x) (Obj.obj y)
-  let compare x y =
-    let module C = (val !control_spec_c) in
-    C.compare (Obj.obj x) (Obj.obj y)
-  let hash x =
-    let module C = (val !control_spec_c) in
-    C.hash (Obj.obj x)
-  let tag x =
-    let module C = (val !control_spec_c) in
-    C.tag (Obj.obj x)
-
-  let show x =
-    let module C = (val !control_spec_c) in
-    C.show (Obj.obj x)
-  let pretty () x =
-    let module C = (val !control_spec_c) in
-    C.pretty () (Obj.obj x)
-  let printXml f x =
-    let module C = (val !control_spec_c) in
-    C.printXml f (Obj.obj x)
-  let to_yojson x =
-    let module C = (val !control_spec_c) in
-    C.to_yojson (Obj.obj x)
-
-  let arbitrary () =
-    let module C = (val !control_spec_c) in
-    QCheck.map ~rev:Obj.obj Obj.repr (C.arbitrary ())
-  let relift x =
-    let module C = (val !control_spec_c) in
-    Obj.repr (C.relift (Obj.obj x))
-end
-
-
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
    the same order as written in the dependencies list (in MCP).
@@ -451,7 +394,7 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> D.t
+  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
@@ -509,9 +452,6 @@ sig
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
 
-  (** box --- needed here for transformations *)
-  val box : v -> d -> d -> d
-
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
@@ -536,7 +476,7 @@ end
 
 (** A solver is something that can translate a system into a solution (hash-table).
     Incremental solver has data to be marshaled. *)
-module type GenericEqBoxIncrSolverBase =
+module type GenericEqIncrSolverBase =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig
@@ -545,10 +485,10 @@ module type GenericEqBoxIncrSolverBase =
     val copy_marshal: marshal -> marshal
     val relift_marshal: marshal -> marshal
 
-    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
+    val solve : (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
   end
 
 (** (Incremental) solver argument, indicating which postsolving should be performed by the solver. *)
@@ -561,18 +501,18 @@ sig
 end
 
 (** An incremental solver takes the argument about postsolving. *)
-module type GenericEqBoxIncrSolver =
+module type GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
-    GenericEqBoxIncrSolverBase
+    GenericEqIncrSolverBase
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericEqBoxSolver =
+module type GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig
-    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs]. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+    val solve : (S.v*S.d) list -> S.v list -> S.d H.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -586,7 +526,7 @@ module type GenericGlobSolver =
     val copy_marshal: marshal -> marshal
     val relift_marshal: marshal -> marshal
 
-    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
     val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> marshal option -> (S.D.t LH.t * S.G.t GH.t) * marshal
@@ -689,7 +629,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =

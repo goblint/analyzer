@@ -19,6 +19,9 @@ sig
   type value
   (** The abstract domain of values stored in the array. *)
 
+  val domain_of_t: t -> domain
+  (* Returns the domain used for the array*)
+
   val get: ?checkBounds:bool -> Queries.ask -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 

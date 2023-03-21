@@ -307,6 +307,8 @@ struct
              (* TODO: only query others that actually respond to EvalInt *)
              (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
              f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+          | Queries.DYojson ->
+            `Lifted (D.to_yojson ctx.local)
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;
@@ -518,7 +520,7 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd =
+  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
@@ -539,7 +541,7 @@ struct
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine" ~post_all ctx'' n d in
-      n, repr @@ S.combine ctx' r fe f a (Option.map obj fc) (obj fd)
+      n, repr @@ S.combine ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;

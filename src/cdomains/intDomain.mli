@@ -7,6 +7,8 @@ val should_ignore_overflow: Cil.ikind -> bool
 
 val reset_lazy: unit -> unit
 
+type overflow_info = { overflow: bool; underflow: bool;}
+
 module type Arith =
 sig
   type t
@@ -273,6 +275,39 @@ sig
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
+module type SOverflow =
+sig
+
+  include S
+
+  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
+
+  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
+
+  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
+
+  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
+
+  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
+
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+
+  val of_int : Cil.ikind -> int_t -> t * overflow_info
+
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * overflow_info
+
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
+
+  val shift_left : Cil.ikind -> t -> t -> t * overflow_info
+
+  val shift_right: Cil.ikind -> t -> t -> t * overflow_info
+
+
+end
+
+module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t
+
 module OldDomainFacade (Old : IkindUnawareS with type int_t = int64) : S with type int_t = IntOps.BigIntOps.t and type t = Old.t
 (** Facade for IntDomain implementations that do not implement the interface where arithmetic functions take an ikind parameter. *)
 
@@ -320,10 +355,11 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 module IntDomTuple : sig
   include Z
   val no_interval: t -> t
+  val no_intervalSet: t -> t
   val ikind: t -> ikind
 end
 
-val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
+val of_const: Z.t * Cil.ikind * string option -> IntDomTuple.t
 
 
 module Size : sig
@@ -369,7 +405,9 @@ module FlattenedBI : IkindUnawareS with type t = [`Top | `Lifted of IntOps.BigIn
 module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
 (** Artificially bounded integers in their natural ordering. *)
 
-module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+
+module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
@@ -379,7 +417,9 @@ module BigInt:
     val cast_to: Cil.ikind -> Z.t -> Z.t
   end
 
-module Interval : S with type int_t = IntOps.BigIntOps.t
+module Interval : SOverflow with type int_t = IntOps.BigIntOps.t
+
+module IntervalSet : SOverflow with type int_t = IntOps.BigIntOps.t
 
 module Congruence : S with type int_t = IntOps.BigIntOps.t
 

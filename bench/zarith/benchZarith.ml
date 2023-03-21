@@ -8,8 +8,8 @@ open Benchmark.Tree
 
 
 let () =
-  let pow2_pow n = Big_int_Z.power_int_positive_int 2 n in
-  let pow2_lsl n = Big_int_Z.shift_left_big_int Big_int_Z.unit_big_int n in
+  let pow2_pow n = Z.pow (Z.of_int 2) n in
+  let pow2_lsl n = Z.shift_left Z.one n in
 
 
   register (

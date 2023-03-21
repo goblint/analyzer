@@ -4,7 +4,6 @@
 
 open Prelude.Ana
 open Analyses
-open Cilint
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -57,13 +56,13 @@ struct
       begin
         (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)
         match e1, e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (Z.compare i Z.zero > 0 && lvalsEq l1 l2) ->
           Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x+c < x) *)
-        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (Z.compare i Z.zero < 0 && lvalsEq l1 l2) ->
           Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x < x+c )*)
-        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (Z.compare i Z.zero < 0 && lvalsEq l1 l2) ->
           Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x-c < x) *)
-        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (Z.compare i Z.zero > 0 && lvalsEq l1 l2) ->
           Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x < x-c) *)
         | _ ->
           Queries.ID.top ()
@@ -74,7 +73,7 @@ struct
         | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
         | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _)
         | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) ->
+        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when Z.compare i Z.zero <> 0 && (lvalsEq l1 l2) ->
           Queries.ID.of_bool (Cilfacade.get_ikind t) false
         | _ ->
           Queries.ID.top ()
@@ -99,7 +98,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

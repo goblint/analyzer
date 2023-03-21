@@ -30,7 +30,7 @@ module Ana = struct
   include GoblintCil
   let d_varinfo () x = d_lval () (Var x, NoOffset)
   include Pretty
-  let sprint f x = Pretty.sprint ~width:80 (f () x)
+  let sprint f x = Pretty.sprint ~width:max_int (f () x)
   (* Analyses.Spec etc. *)
   (* include Analyses (* circular build :( *) *)
   (* module M = Messages (* same, but this is in Analyses anyway *) *)

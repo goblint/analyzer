@@ -291,7 +291,7 @@ struct
         let binop = BinOp (Eq, Lval lval, Const (CInt(i, kind, str)), Cil.intType) in
         let key = D.key_from_lval lval in
         let value = D.find key m in
-        if Cilint.is_zero_cilint i && tv then (
+        if Z.equal i Z.zero && tv then (
           M.debug ~category:Analyzer "error-branch";
           (* D.remove key m *)
         )else(
@@ -414,7 +414,7 @@ struct
         D.edit_callstack (BatList.cons (Option.get !Node.current_node)) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* M.debug ~category:Analyzer @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
