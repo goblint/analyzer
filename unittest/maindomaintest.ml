@@ -48,9 +48,10 @@ let domains: (module Lattice.S) list = [
 let nonAssocDomains: (module Lattice.S) list = []
 
 let intDomains: (module IntDomainProperties.S) list = [
-  (module IntDomain.Interval);
+  (module IntDomain.SOverflowUnlifter(IntDomain.Interval));
   (module IntDomain.Enums);
   (module IntDomain.Congruence);
+  (module IntDomain.SOverflowUnlifter(IntDomain.IntervalSet));
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)

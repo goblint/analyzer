@@ -307,6 +307,8 @@ struct
              (* TODO: only query others that actually respond to EvalInt *)
              (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
              f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+          | Queries.DYojson ->
+            `Lifted (D.to_yojson ctx.local)
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;

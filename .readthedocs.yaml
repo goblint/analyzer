@@ -8,6 +8,16 @@ mkdocs:
   configuration: mkdocs.yml
 
 python:
-  version: 3.8
   install:
     - requirements: docs/requirements.txt
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.8"
+  jobs:
+    post_install:
+      - pip install json-schema-for-humans
+    post_build:
+      - mkdir _readthedocs/html/jsfh/
+      - generate-schema-doc --config-file jsfh.yml src/util/options.schema.json _readthedocs/html/jsfh/

@@ -91,3 +91,6 @@ witness.certificate.yml
 
 # transformations
 transformed.c
+
+# docs
+site/

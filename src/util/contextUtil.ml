@@ -35,3 +35,18 @@ let should_keep ~isAttr ~keepOption ~removeAttr ~keepAttr fd =
   | false, _, false
   | _, true, false ->
     false
+
+(* Like should_keep above, but `keepOption` is directly the configuration value instead of its name *)
+let should_keep_int_domain ~isAttr ~keepOption ~removeAttr ~keepAttr fd =
+  let al = fd.svar.vattr in
+  let s = attribute_to_string isAttr in
+  let has_annot a = has_option s a fd || has_attribute s a al in
+  match keepOption, has_annot removeAttr, has_annot keepAttr with
+  | _, true, true ->
+    failwith (Printf.sprintf "ContextUtil.should_remove: conflicting context attributes %s and %s on %s" removeAttr keepAttr (CilType.Fundec.show fd))
+  | _, false, true
+  | true, false, false ->
+    true
+  | false, _, false
+  | _, true, false ->
+    false
