@@ -95,8 +95,8 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gethostbyaddr", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
     ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
-    ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [r_deep]]);
-    ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [w_deep]]);
+    ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
+    ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [r_deep]]);
     ("access", unknown [drop "pathname" [r]; drop "mode" []]);
     ("ttyname", unknown [drop "fd" []]);
     ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
