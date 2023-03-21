@@ -92,5 +92,8 @@
   "witness": {
     "id": "enumerate",
     "unknown": false
+  },
+  "pre" : {
+    "skipcpp" : true
   }
 }
