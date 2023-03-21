@@ -242,6 +242,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "transform-paths": {
+          "title": "pre.transform-paths",
+          "description": "Normalize and relativize paths in parsed CIL locations. Can cause issues locating YAML witness invariants due to differing paths.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false

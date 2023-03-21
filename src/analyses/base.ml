@@ -45,7 +45,7 @@ struct
 
   module V =
   struct
-    include Printable.Either (Priv.V) (ThreadIdDomain.Thread)
+    include Printable.Either (struct include Priv.V let name () = "priv" end) (struct include ThreadIdDomain.Thread let name () = "threadreturn" end)
     let priv x = `Left x
     let thread x = `Right x
     include StdV
@@ -1610,6 +1610,8 @@ struct
 
     let id_meet_down ~old ~c = ID.meet old c
     let fd_meet_down ~old ~c = FD.meet old c
+
+    let contra _ = raise Deadcode
   end
 
   module Invariant = BaseInvariant.Make (InvariantEval)
@@ -2445,6 +2447,8 @@ struct
           (* don't meet with current octx values when propagating inverse operands down *)
           let id_meet_down ~old ~c = c
           let fd_meet_down ~old ~c = c
+
+          let contra st = st
         end
         in
         let module Unassume = BaseInvariant.Make (UnassumeEval) in

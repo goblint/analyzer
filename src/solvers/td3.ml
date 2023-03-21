@@ -311,7 +311,7 @@ module Base =
             if not wp then tmp
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *) | Narrow -> S.Dom.narrow old tmp
               else
                 box old tmp
           in
@@ -415,6 +415,7 @@ module Base =
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x;
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in

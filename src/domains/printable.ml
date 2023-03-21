@@ -255,13 +255,13 @@ struct
 
   let pretty () (state:t) =
     match state with
-    | `Left n ->  Base1.pretty () n
-    | `Right n ->  Base2.pretty () n
+    | `Left n -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
+    | `Right n -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
 
   let show state =
     match state with
-    | `Left n ->  Base1.show n
-    | `Right n ->  Base2.show n
+    | `Left n -> (Base1.name ()) ^ ":" ^ Base1.show n
+    | `Right n -> (Base2.name ()) ^ ":" ^ Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
