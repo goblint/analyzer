@@ -125,7 +125,6 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
-    ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
     ("gethostent", unknown []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
@@ -233,6 +232,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getservbyname_r", unknown [drop "name" [r]; drop "proto" [r]; drop "result_buf" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]]);
     ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
     ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
+    ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
