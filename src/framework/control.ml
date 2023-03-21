@@ -51,7 +51,7 @@ let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
 struct
 
-  module SpecSys (*: SpecSys with module Spec = Spec *) =
+  module SpecSys: SpecSys with module Spec = Spec =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
@@ -642,7 +642,7 @@ struct
       let gh = gh
     end
     in
-    let module R (*: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys *) = ResultQuery.Make (FileCfg) (SpecSysSol) in
+    let module R: ResultQuery.SpecSysSol2 with module SpecSys = SpecSys = ResultQuery.Make (FileCfg) (SpecSysSol) in
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
