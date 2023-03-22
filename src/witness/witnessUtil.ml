@@ -118,11 +118,14 @@ struct
     global_vars: Cil.varinfo list;
   }
 
+  module VarinfoH = Cilfacade.VarinfoH
+
   let create (file: Cil.file): t =
     (* Reconstruct genv from CIL file instead of using genvironment,
        because genvironment contains data from all versions of the file
        and incremental update doesn't remove the excess. *)
     let genv = Hashtbl.create (Hashtbl.length Cabs2cil.genvironment) in
+    let global_vars = VarinfoH.create 113 in (* Deduplicates varinfos from declarations and definitions. *)
     Cil.iterGlobals file (function
         | Cil.GType ({tname; _} as t, loc) ->
           let name = "type " ^ tname in
@@ -142,16 +145,11 @@ struct
         | Cil.GVar (v, _, loc)
         | Cil.GVarDecl (v, loc)
         | Cil.GFun ({svar=v; _}, loc) ->
-          Hashtbl.replace genv v.vname (Cabs2cil.EnvVar v, loc)
+          Hashtbl.replace genv v.vname (Cabs2cil.EnvVar v, loc);
+          VarinfoH.replace global_vars v ()
         | _ -> ()
       );
-    let global_vars = List.filter_map (function
-        | Cil.GVar (v, _, _)
-        (* | Cil.GVarDecl (v, _) *) (* TODO: add declarations, but only when no definition present to avoid CIL check errors *)
-        | Cil.GFun ({svar=v; _}, _) -> Some v
-        | _ -> None
-      ) file.globals
-    in
+    let global_vars = List.of_seq (VarinfoH.to_seq_keys global_vars) in
     {genv; global_vars}
 
   let parse_cabs (inv: string): (Cabs.expression, string) result =
