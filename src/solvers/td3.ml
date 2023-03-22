@@ -322,7 +322,7 @@ module Base =
             (solve[@tailcall]) x phase
           ) else (
             (* TODO: why non-equal and non-stable checks in switched order compared to TD3 paper? *)
-            if not (HM.mem stable x) then ( (* value unchanged, but not stable, i.e. destabilized itself during rhs? *)
+            if not (HM.mem stable x) then ( (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
               if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
               (solve[@tailcall]) x Widen
             ) else (
