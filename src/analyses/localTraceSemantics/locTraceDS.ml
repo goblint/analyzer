@@ -693,6 +693,7 @@ let idGenerator = new id_generator
 class random_int_generator =
 object(self)
   val mutable traceVarList:((int * varinfo * int) list) = []
+  val mutable seed:int = 5
 
   method getRandomValue (hash:int) (var:varinfo) = 
     if List.is_empty traceVarList then Random.init 100;
@@ -704,7 +705,23 @@ object(self)
 in randomValue) 
   else
     ( print_string "new random value is generated\n";
-      let randomValue = (Random.int 10) - (Random.int 10)
+      let randomValue = if(Random.int 2) = 0 then (*negative*) (Random.int seed) * (-1)
+      else (*positive*) (Random.int seed) 
+  in
+  traceVarList <- (hash, var, randomValue)::traceVarList;
+  randomValue)
+
+  method getRandomValueFullCInt (hash:int) (var:varinfo) =
+    if List.is_empty traceVarList then Random.self_init ();
+    if List.exists ( fun (int_list, vinfo_list,_) -> (int_list = hash)&&(CilType.Varinfo.equal var vinfo_list) ) traceVarList 
+      then (
+        let _,_,randomValue =List.find (fun (int_list, vinfo_list,_) -> (int_list = hash)&&(CilType.Varinfo.equal var vinfo_list)) traceVarList
+in randomValue) 
+  else
+    ( print_string "new random value is generated\n";
+    (* I want randomValue to have the range [intMin; intMax]*)
+      let randomValue = if (Random.int 2) = 0 then (*negative*) ((Random.int 1073741823) + (Random.int 1073741823)) * -1
+      else (*positive*) (Random.int 1073741823) + (Random.int 1073741823)
   in
   traceVarList <- (hash, var, randomValue)::traceVarList;
   randomValue)
@@ -767,6 +784,21 @@ module ThreadIDLocTrace = struct
 
     let relift tid = failwith ("no relift")
 end
+
+module TIDSet = Set.Make(ThreadIDLocTrace)
+
+class tid_record =
+object(self)
+val mutable tidSet : TIDSet.t = TIDSet.empty
+
+method addTID (tid:int) =
+  tidSet <- TIDSet.add tid tidSet
+
+method existsTID (tid:int) =
+  TIDSet.mem tid tidSet
+end
+
+let tidRecord = new tid_record
 
 module SideEffectDomain = struct
   type t = ThreadID of int | Mutex of varinfo
