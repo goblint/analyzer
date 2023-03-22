@@ -52,10 +52,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
-    ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
-    ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
   ]
 
 (** C POSIX library functions.
@@ -136,6 +133,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
     ("semctl", unknown (drop "semid" [] :: drop "semnum" [] :: drop "cmd" [] :: VarArgs (drop "semun" [r_deep])));
     ("semop", unknown [drop "semid" []; drop "sops" [r]; drop "nsops" []]);
+    ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
+    ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
+    ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
   ]
 
 (** Pthread functions. *)
