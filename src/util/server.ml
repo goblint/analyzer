@@ -691,8 +691,7 @@ let () =
                 let fundec = Node.find_fundec cfg_node in
                 let loc = UpdateCil.getLoc cfg_node in
 
-                (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
-                begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+                begin match InvariantParser.parse_cil (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
                   | Ok exp -> exp
                   | Error e ->
                     Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
@@ -732,8 +731,7 @@ let () =
             let fundec = Node.find_fundec cfg_node in
             let loc = UpdateCil.getLoc cfg_node in
 
-            (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
-            begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+            begin match InvariantParser.parse_cil (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
               | Ok exp ->
                 let x = Arg.query n (EvalInt exp) in
                 {
