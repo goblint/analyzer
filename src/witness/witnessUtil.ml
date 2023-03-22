@@ -114,17 +114,45 @@ end
 module InvariantParser =
 struct
   type t = {
+    genv: (string, Cabs2cil.envdata * Cil.location) Hashtbl.t;
     global_vars: Cil.varinfo list;
   }
 
   let create (file: Cil.file): t =
+    (* Reconstruct genv from CIL file instead of using genvironment,
+       because genvironment contains data from all versions of the file
+       and incremental update doesn't remove the excess. *)
+    let genv = Hashtbl.create (Hashtbl.length Cabs2cil.genvironment) in
+    Cil.iterGlobals file (function
+        | Cil.GType ({tname; _} as t, loc) ->
+          let name = "type " ^ tname in
+          Hashtbl.replace genv name (Cabs2cil.EnvTyp (TNamed (t, [])), loc)
+        | Cil.GCompTag ({cstruct; cname; _} as c, loc)
+        | Cil.GCompTagDecl ({cstruct; cname; _} as c, loc) ->
+          let name = (if cstruct then "struct" else "union") ^ " " ^ cname in
+          Hashtbl.replace genv name (Cabs2cil.EnvTyp (TComp (c, [])), loc)
+        | Cil.GEnumTag ({ename; eitems; _} as e, loc)
+        | Cil.GEnumTagDecl ({ename; eitems; _} as e, loc) ->
+          let typ = TEnum (e, []) in
+          let name = "enum " ^ ename in
+          Hashtbl.replace genv name (Cabs2cil.EnvTyp typ, loc);
+          List.iter (fun (name, exp, loc) ->
+              Hashtbl.replace genv name (Cabs2cil.EnvEnum (exp, typ), loc)
+            ) eitems
+        | Cil.GVar (v, _, loc)
+        | Cil.GVarDecl (v, loc)
+        | Cil.GFun ({svar=v; _}, loc) ->
+          Hashtbl.replace genv v.vname (Cabs2cil.EnvVar v, loc)
+        | _ -> ()
+      );
     let global_vars = List.filter_map (function
         | Cil.GVar (v, _, _)
+        (* | Cil.GVarDecl (v, _) *) (* TODO: add declarations, but only when no definition present to avoid CIL check errors *)
         | Cil.GFun ({svar=v; _}, _) -> Some v
         | _ -> None
       ) file.globals
     in
-    {global_vars}
+    {genv; global_vars}
 
   let parse_cabs (inv: string): (Cabs.expression, string) result =
     match Timing.wrap "FrontC" Frontc.parse_standalone_exp inv with
@@ -133,8 +161,7 @@ struct
       Errormsg.log "\n"; (* CIL prints garbage without \n before *)
       Error e
 
-  let parse_cil {global_vars} ?(check=true) ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
-    let genv = Cabs2cil.genvironment in
+  let parse_cil {genv; global_vars} ?(check=true) ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
     let env = Hashtbl.copy genv in
     List.iter (fun (v: Cil.varinfo) ->
         Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
