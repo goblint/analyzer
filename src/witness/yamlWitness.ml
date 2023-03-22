@@ -16,7 +16,7 @@ struct
   let producer: Producer.t = {
     name = "Goblint";
     version = Version.goblint;
-    command_line = Goblintutil.command_line;
+    command_line = Some Goblintutil.command_line;
   }
 
   let metadata ?task (): Metadata.t =
@@ -123,7 +123,10 @@ let yaml_entries_to_file yaml_entries file =
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
   (* estimate how big it should be + extra in case empty *)
-  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 4096 + 2048) yaml in
+  let text = match Yaml.to_string ~len:(List.length yaml_entries * 4096 + 2048) yaml with
+    | Ok text -> text
+    | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
+  in
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
 let entry_type_enabled entry_type =
@@ -408,6 +411,15 @@ struct
   include Lattice.Chain (ChainParams)
 end
 
+(* TODO: record *)
+let cnt_confirmed = ref 0
+let cnt_unconfirmed = ref 0
+let cnt_refuted = ref 0
+let cnt_unchecked = ref 0
+let cnt_unsupported = ref 0
+let cnt_error = ref 0
+let cnt_disabled = ref 0
+
 module Validator (R: ResultQuery.SpecSysSol2) =
 struct
   open R
@@ -435,7 +447,12 @@ struct
     let loop_locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        if not loc.synthetic then
+        (* TODO: filter synthetic?
+
+           Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+           Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+           I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
+        if WitnessInvariant.is_invariant_node n then
           Locator.add locator loc lvar;
         if WitnessUtil.NH.mem WitnessInvariant.loop_heads n then
           Locator.add loop_locator loc lvar
@@ -443,16 +460,19 @@ struct
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
-    let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
+    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
+      | Ok yaml -> yaml
+      | Error (`Msg m) -> failwith ("Yaml_unix.of_file: " ^ m)
+    in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
-    let cnt_confirmed = ref 0 in
-    let cnt_unconfirmed = ref 0 in
-    let cnt_refuted = ref 0 in
-    let cnt_unchecked = ref 0 in
-    let cnt_unsupported = ref 0 in
-    let cnt_error = ref 0 in
-    let cnt_disabled = ref 0 in
+    cnt_confirmed := 0;
+    cnt_unconfirmed := 0;
+    cnt_refuted := 0;
+    cnt_unchecked := 0;
+    cnt_unsupported := 0;
+    cnt_error := 0;
+    cnt_disabled := 0;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
@@ -655,5 +675,7 @@ struct
       (Pretty.dprintf "total validation entries: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error + !cnt_disabled), None);
     ];
 
-    yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
+    let certificate_path = GobConfig.get_string "witness.yaml.certificate" in
+    if certificate_path <> "" then
+      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path)
 end

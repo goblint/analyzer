@@ -2,7 +2,6 @@
 
 open Prelude.Ana
 open Analyses
-open Cilint
 
 module Signs =
 struct
@@ -22,12 +21,12 @@ struct
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if compare_cilint i zero_cilint < 0 then Zero
-    else if compare_cilint i zero_cilint > 0 then Zero
+    if Z.compare i Z.zero < 0 then Zero
+    else if Z.compare i Z.zero > 0 then Zero
     else Zero
 
-  let gt x y = match x, y with
-    | Pos, Neg | Zero, Neg -> true (* TODO: Maybe something missing? *)
+  let lt x y = match x, y with
+    | Neg, Pos | Neg, Zero -> true (* TODO: Maybe something missing? *)
     | _ -> false
 
 end
@@ -39,8 +38,8 @@ struct
   include Lattice.Flat (Signs) (Printable.DefaultNames)
   let of_int i = `Lifted (Signs.of_int i)
 
-  let gt x y = match x, y with
-    | `Lifted x, `Lifted y -> Signs.gt x y
+  let lt x y = match x, y with
+    | `Lifted x, `Lifted y -> Signs.lt x y
     | _ -> false
 end
 
@@ -75,7 +74,7 @@ struct
 
   (* Here we return true if we are absolutely certain that an assertion holds! *)
   let assert_holds (d: D.t) (e:exp) = match e with
-    | BinOp (Gt, e1, e2, _) -> SL.gt (eval d e1) (eval d e2)
+    | BinOp (Lt, e1, e2, _) -> SL.lt (eval d e1) (eval d e2)
     | _ -> false
 
   (* We should now provide this information to Goblint. Assertions are integer expressions,

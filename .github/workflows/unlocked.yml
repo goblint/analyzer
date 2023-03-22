@@ -152,7 +152,7 @@ jobs:
 
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda)
 
       - name: Build
         run: ./make.sh nat
@@ -209,7 +209,7 @@ jobs:
 
       - name: Build dev Docker image
         id: build
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: .
           target: dev

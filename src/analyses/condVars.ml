@@ -28,13 +28,16 @@ module Domain = struct
     |> filter_exprs_with_var p
   let remove_var v = filter_vars ((<>) v)
   let remove_fun_locals f d =
-    let p v = not @@ List.mem v (f.sformals @ f.slocals) in
+    let p v = not @@ List.mem_cmp CilType.Varinfo.compare v (f.sformals @ f.slocals) in
     filter_vars p d
   let only_globals d =
     let p v = v.vglob in
     filter_vars p d
   let only_locals d =
     let p v = not v.vglob in
+    filter_vars p d
+  let only_untainted d tainted =
+    let p v = (not v.vglob) || not (TaintPartialContexts.VS.mem v tainted) in
     filter_vars p d
   let only_global_exprs s = V.for_all (var_in_expr (fun v -> v.vglob)) s
   let rec get k d =
@@ -104,7 +107,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a" Lval.CilLval.pretty clval d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Lval.CilLval.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
@@ -136,13 +139,15 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
-    D.only_locals ctx.local (* globals might have changed... *)
+    let tainted = TaintPartialContexts.conv_varset (f_ask.f Queries.MayBeTainted) in
+    D.only_untainted ctx.local tainted (* tainted globals might have changed... *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    (* TODO: shouldn't there be some kind of invalidadte, depending on the effect of the special function? *)
     ctx.local
 
   let startstate v = D.bot ()

@@ -1,23 +1,31 @@
 {
   "ana": {
+    "sv-comp": {
+      "functions": true
+    },
     "int": {
       "def_exc": true,
       "enums": false,
       "interval": true
     },
     "activated": [
-      "expRelation",
       "base",
       "threadid",
       "threadflag",
       "threadreturn",
-      "escape",
+      "mallocWrapper",
       "mutexEvents",
       "mutex",
       "access",
-      "mallocWrapper",
+      "race",
+      "escape",
+      "expRelation",
       "mhp",
-      "assert"
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "thread",
+      "threadJoins"
     ],
     "malloc": {
       "wrappers": [
@@ -66,6 +74,9 @@
     },
     "int": {
       "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
     }
   },
   "pre": {

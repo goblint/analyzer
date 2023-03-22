@@ -1,0 +1,38 @@
+// PARAM: --enable ana.int.interval_set --enable exp.priv-distr-init
+#include <pthread.h>
+#include <goblint.h>
+
+// protection priv succeeds
+// write fails due to [1,1] widen [0,1] -> [-inf,1]
+// sensitive to eval and widen order!
+
+int g = 0;
+
+pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
+
+void *worker(void *arg )
+{
+  pthread_mutex_lock(&A);
+  while (g <= 0) {
+
+  }
+  __goblint_check(g > 0); // precise privatization fails
+  g--;
+  pthread_mutex_unlock(&A);
+  return NULL;
+}
+
+int main(int argc , char **argv )
+{
+  pthread_t tid;
+  pthread_create(& tid, NULL, & worker, NULL);
+
+  pthread_mutex_lock(&A);
+  while (g >= 10) {
+
+  }
+  __goblint_check(g >= 0); // precise privatization fails
+  g++;
+  pthread_mutex_unlock(&A);
+  return 0;
+}

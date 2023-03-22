@@ -85,6 +85,7 @@ struct
   struct
     (* TODO: Either3? *)
     include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    let name () = "MutexGlobals"
     let mutex x: t = `Left (`Left x)
     let mutex_inits: t = `Left (`Right ())
     let global x: t = `Right x

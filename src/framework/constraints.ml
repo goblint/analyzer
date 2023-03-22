@@ -72,8 +72,8 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
-  let combine ctx r fe f args fc es =
-    D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es)
+  let combine ctx r fe f args fc es f_ask =
+    D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es) f_ask
 
   let threadenter ctx lval f args =
     List.map D.lift @@ S.threadenter (conv ctx) lval f args
@@ -148,8 +148,8 @@ struct
   let special ctx r f args =
     S.special (conv ctx) r f args
 
-  let combine ctx r fe f args fc es =
-    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es
+  let combine ctx r fe f args fc es f_ask =
+    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -224,7 +224,7 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
-  let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
+  let combine' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es) f_ask)
 
   let threadenter ctx lval f args = lift_fun ctx (List.map lift_start_level) S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
@@ -249,13 +249,13 @@ struct
     else
       enter' {ctx with local=(d, sub1 l)} r f args
 
-  let combine ctx r fe f args fc es =
+  let combine ctx r fe f args fc es f_ask =
     let (d,l) = ctx.local in
     let l = add1 l in
     if leq0 l then
       (d, l)
     else
-      let d',_ = combine' ctx r fe f args fc es in
+      let d',_ = combine' ctx r fe f args fc es f_ask in
       (d', l)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -368,7 +368,7 @@ struct
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
 
-  let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es))
+  let combine ctx r fe f args fc es f_ask = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es) f_ask)
 end
 
 
@@ -426,7 +426,7 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
-  let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
+  let combine ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
   let threadenter ctx lval f args = lift_fun ctx (List.map D.lift) S.threadenter ((|>) args % (|>) f % (|>) lval) []
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
@@ -450,8 +450,8 @@ struct
     | `G x -> `G (GV.relift x)
 
   let pretty_trace () = function
-    | `L a -> LV.pretty_trace () a
-    | `G a -> GV.pretty_trace () a
+    | `L a -> Pretty.dprintf "L:%a" LV.pretty_trace a
+    | `G a -> Pretty.dprintf "G:%a" GV.pretty_trace a
 
   let printXml f = function
     | `L a -> LV.printXml f a
@@ -615,25 +615,23 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.branch ctx e tv) !r !spawns
 
-  let tf_normal_call ctx lv e (f:fundec) args  getl sidel getg sideg =
+  let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       (* Extra sync in case function has multiple returns.
          Each `Return sync is done before joining, so joined value may be unsound.
          Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
       (* TODO: don't do this extra sync here *)
-      let fd =
-        (* TODO: more accurate ctx? *)
-        let rec sync_ctx = { ctx with
-            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
-            local = fd;
-            prev_node = Function f
-          }
-        in
-        sync sync_ctx
+      let rec sync_ctx = { ctx with
+                           ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+                           local = fd;
+                           prev_node = Function f
+                         }
       in
+      (* TODO: more accurate ctx? *)
+      let fd = sync sync_ctx in
       if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      let r = S.combine {ctx with local = cd} lv e f args fc fd in
+      let r = S.combine {ctx with local = cd} lv e f args fc fd (Analyses.ask_of_ctx sync_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
@@ -751,7 +749,7 @@ struct
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
     current_node := Some u;
-    M.current_context := Some (Obj.repr c);
+    M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
         M.current_context := old_context;
@@ -1183,13 +1181,13 @@ struct
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a fc d =
+  let combine ctx l fe f a fc d f_ask =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
       if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
       try
-        let r = Spec.combine (conv ctx cd) l fe f a fc x in
+        let r = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
         if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
         D.add r y
       with Deadcode ->
@@ -1213,6 +1211,7 @@ struct
   module V =
   struct
     include Printable.Either (S.V) (Node)
+    let name () = "DeadBranch"
     let s x = `Left x
     let node x = `Right x
     let is_write_only = function
