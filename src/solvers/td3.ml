@@ -304,7 +304,7 @@ module Base =
                 | Widen -> S.Dom.widen old (S.Dom.join old eqd)
                 | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
                 | Narrow ->
-                  assert S.Dom.(leq eqd old || not (leq old eqd)); (* eqd > old would be unsound, but can be incomparable *)
+                  (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
                   S.Dom.narrow old eqd
               else
                 box old eqd
