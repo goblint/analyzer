@@ -36,9 +36,18 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* remove locals, except ones which need to be weakly updated*)
     let d = ctx.local in
-    let locals = (f.sformals @ f.slocals) in
-    let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
-    let d_return = if D.is_top d then d else D.filter (fun (v, _) -> not (List.mem v locals_noweak)) d in
+    let d_return =
+      if D.is_top d then
+        d
+      else (
+        let locals = f.sformals @ f.slocals in
+        D.filter (fun (v, _) ->
+            not (List.exists (fun local ->
+                CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))
+              ) locals)
+          ) d
+      )
+    in
     if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a\n" f.svar.vname D.pretty d D.pretty d_return;
     d_return
 
@@ -47,7 +56,7 @@ struct
     (* Entering a function, all globals count as untainted *)
     [ctx.local, (D.bot ())]
 
-  let combine ctx ?(longjmpthrough = false) (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
     let d =
       match lvalOpt with

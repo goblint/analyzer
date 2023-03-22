@@ -1,4 +1,4 @@
-module BufferEntry = Printable.ProdSimple(Node)(IntDomain.Flattened)
+module BufferEntry = Printable.ProdSimple(Node)(ControlSpecC)
 
 module BufferEntryOrTop = struct
   include Printable.Std

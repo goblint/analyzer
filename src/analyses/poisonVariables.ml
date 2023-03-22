@@ -3,113 +3,99 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
   module VS = SetDomain.ToppedSet(CilType.Varinfo) (struct let topname = "All vars" end)
 
   let name () = "poisonVariables"
   module D = VS
   module C = Lattice.Unit
 
-  let rec check_exp ask tainted e = match e with
-    (* Recurse over the structure in the expression, returning true if any varinfo appearing in the expression is tainted *)
-    | AddrOf v
-    | StartOf v -> check_lval ~ignore_var:true ask tainted v
-    | Lval v -> check_lval ask tainted v
-    | BinOp (_,e1,e2,_) -> check_exp ask tainted e1; check_exp ask tainted e2
-    | Real e
-    | Imag e
-    | SizeOfE e
-    | AlignOfE e
-    | CastE (_,e)
-    | UnOp (_,e,_) -> check_exp ask tainted e
-    | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> ()
-    | Question (b, t, f, _) -> check_exp ask tainted b; check_exp ask tainted t; check_exp ask tainted f
-  and check_lval ask ?(ignore_var = false) tainted lval = match lval with
-    | (Var v, offset) ->
-      if not ignore_var && not v.vglob && VS.mem v tainted then M.warn "accessing poisonous variable %a" d_varinfo v;
-      check_offset ask tainted offset
-    | (Mem e, offset) ->
-      (try
-         Queries.LS.iter (fun lv -> check_lval ~ignore_var ask tainted @@ Lval.CilLval.to_lval lv) (ask (Queries.MayPointTo e))
-       with
-         SetDomain.Unsupported _ -> if not @@ VS.is_empty tainted then M.warn "accessing unknown memory location, may be tainted!");
-      check_exp ask tainted e;
+  let context _ _ = ()
 
-      check_offset ask tainted offset;
-      ()
-  and check_offset ask tainted offset = match offset with
-    | NoOffset -> ()
-    | Field (_, o) -> check_offset ask tainted o
-    | Index (e, o) -> check_exp ask tainted e; check_offset ask tainted o
+  let check_lval tainted ((v, offset): Queries.LS.elt) =
+    if not v.vglob && VS.mem v tainted then
+      M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" d_varinfo v
 
-  let rec rem_lval ask tainted lval = match lval with
-    | (Var v, NoOffset) -> VS.remove v tainted (* TODO: If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
-    | (Mem e, NoOffset) ->
-      (try
-         let r = Queries.LS.elements (ask (Queries.MayPointTo e)) in
-         match r with
-         | [x] -> rem_lval ask tainted @@ Lval.CilLval.to_lval x
-         | _ -> tainted
-       with
-         SetDomain.Unsupported _ -> tainted)
+  let rem_lval tainted ((v, offset): Queries.LS.elt) = match offset with
+    | `NoOffset -> VS.remove v tainted
     | _ -> tainted (* If there is an offset, it is a bit harder to remove, as we don't know where the indeterminate value is *)
 
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    check_lval ctx.ask ~ignore_var:true ctx.local lval;
-    check_exp ctx.ask ctx.local rval;
-    rem_lval ctx.ask ctx.local lval
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    check_exp ctx.ask ctx.local exp;
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    Option.may (check_exp ctx.ask ctx.local) exp;
     (* remove locals, except ones which need to be weakly updated*)
     if D.is_top ctx.local then
       ctx.local
-    else
-      let locals = (f.sformals @ f.slocals) in
-      let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
-      D.filter (fun v -> not (List.mem v locals_noweak)) ctx.local
+    else (
+      let locals = f.sformals @ f.slocals in
+      D.filter (fun v ->
+          not (List.exists (fun local ->
+              CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))
+            ) locals)
+        ) ctx.local
+    )
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     if VS.is_empty ctx.local then
       [ctx.local,ctx.local]
-    else
-      (Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
-       List.iter (check_exp ctx.ask ctx.local) args;
-       let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
-       if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
-         [ctx.local, ctx.local]
-       else
-         let reachable_vars = Queries.LS.elements reachable_from_args |> List.map fst |> VS.of_list in
-         [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local])
+    else (
+      let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+      if Queries.LS.is_top reachable_from_args || VS.is_top ctx.local then
+        [ctx.local, ctx.local]
+      else
+        let reachable_vars =
+          Queries.LS.elements reachable_from_args
+          |> List.map fst
+          |> VS.of_list
+        in
+        [VS.diff ctx.local reachable_vars, VS.inter reachable_vars ctx.local]
+    )
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    (* Actually, this ask would have to be on the post state?! *)
-    Option.map_default (rem_lval ctx.ask au) (VS.join au ctx.local) lval
-
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    Option.may (check_lval ctx.ask ~ignore_var:true ctx.local) lval;
-    List.iter (check_exp ctx.ask ctx.local) arglist;
-    Option.map_default (rem_lval ctx.ask ctx.local) ctx.local lval
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    VS.join au ctx.local
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
-
-  let context _ _ = ()
 
   let event ctx e octx =
     match e with
-    | Events.Poison poisoned -> D.join poisoned ctx.local
+    | Events.Longjmped {lval} ->
+      let modified_locals = ctx.ask (MayBeModifiedSinceSetjmp (ctx.prev_node, ctx.control_context ())) in
+      let modified_locals = match lval with
+        | Some (Var v, NoOffset) -> Queries.VS.remove v modified_locals
+        | _ -> modified_locals (* Does usually not really occur, if it does, this is sound *)
+      in
+      let (_, longjmp_nodes) = ctx.ask ActiveJumpBuf in
+      JmpBufDomain.NodeSet.iter (fun longjmp_node ->
+          if Queries.VS.is_top modified_locals then
+            M.info ~category:(Behavior (Undefined Other)) ~loc:(Node longjmp_node) "Since setjmp at %a, potentially all locals were modified! Reading them will yield Undefined Behavior." Node.pretty ctx.prev_node
+          else if not (Queries.VS.is_empty modified_locals) then
+            M.info ~category:(Behavior (Undefined Other)) ~loc:(Node longjmp_node) "Since setjmp at %a, locals %a were modified! Reading them will yield Undefined Behavior." Node.pretty ctx.prev_node Queries.VS.pretty modified_locals
+          else
+            ()
+        ) longjmp_nodes;
+      D.join modified_locals ctx.local
+    | Access {lvals; kind = Read; _} ->
+      if Queries.LS.is_top lvals then (
+        if not (VS.is_empty octx.local) then
+          M.warn ~category:(Behavior (Undefined Other)) "reading unknown memory location, may be tainted!"
+      )
+      else (
+        Queries.LS.iter (fun lv ->
+            (* Use original access state instead of current with removed written vars. *)
+            check_lval octx.local lv
+          ) lvals
+      );
+      ctx.local
+    | Access {lvals; kind = Write; _} ->
+      if Queries.LS.is_top lvals then
+        ctx.local
+      else (
+        Queries.LS.fold (fun lv acc ->
+            rem_lval acc lv
+          ) lvals ctx.local
+      )
     | _ -> ctx.local
 
 end

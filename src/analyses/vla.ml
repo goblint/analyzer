@@ -5,46 +5,36 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "vla"
   module D = BoolDomain.MayBool
   module C = Lattice.Unit
 
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+  let context _ _ = ()
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, false]
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    match (LibraryFunctions.find f).special arglist with
+    | Setjmp _ ->
+      (* Checking if this within the scope of an identifier of variably modified type *)
+      if ctx.local then
+        M.warn ~category:(Behavior (Undefined Other)) "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
+      ctx.local
+    | _ ->
+      ctx.local
 
-  let vdecl ctx (v:varinfo) : D.t = true
+  let vdecl ctx (v:varinfo) : D.t =
+    ctx.local || Cilfacade.isVLAType v.vtype
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
-  let context _ _ = ()
-
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | MayBeInVLAScope -> (ctx.local:bool) (* Will not compile without annotation *)
-    | _ -> Queries.Result.top q
 end
 
 let _ =

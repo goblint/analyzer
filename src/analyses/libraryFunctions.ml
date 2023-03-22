@@ -50,12 +50,12 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
-    ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env; savesigs = Cil.zero }); (* only has one underscore *)
-    ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env; savesigs = Cil.zero });
-    ("__sigsetjmp", special [__ "env" [w]; __ "savesigs" []] @@ fun env savesigs -> Setjmp { env; savesigs }); (* has two underscores *)
-    ("sigsetjmp", special [__ "env" [w]; __ "savesigs" []] @@ fun env savesigs -> Setjmp { env; savesigs });
-    ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value; sigrestore = false });
-    ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value; sigrestore = true });
+    ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
+    ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
+    ("__sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env }); (* has two underscores *)
+    ("sigsetjmp", special [__ "env" [w]; drop "savesigs" []] @@ fun env -> Setjmp { env });
+    ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
+    ("siglongjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
   ]
 
 (** C POSIX library functions.

@@ -21,10 +21,8 @@ struct
   let dot_node ppf node =
     let shape = match Arg.Node.cfgnode node with
       | Statement {skind=If (_,_,_,_,_); _}  -> "diamond"
-      | Statement _
-      | LongjmpTo _ -> "oval"
+      | Statement _     -> "oval"
       | Function _
-      | LongjmpFromFunction _
       | FunctionEntry _ -> "box"
     in
     Format.fprintf ppf "@,%a [shape=%s];" dot_node_name node shape;
@@ -84,9 +82,7 @@ struct
       let i_str = string_of_int i in
       match n with
       | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
-      | LongjmpTo stmt  -> "" (* TODO: Correct? *)
       | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
-      | LongjmpFromFunction f -> "" (* TODO: Correct? *)
       | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
 
     (* TODO: less hacky way (without ask_indices) to move node *)

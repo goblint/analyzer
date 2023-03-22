@@ -5,7 +5,7 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "activeLongjmp"
 
@@ -13,40 +13,21 @@ struct
   module D = JmpBufDomain.ActiveLongjmps
   module C = Lattice.Unit
 
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
-
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
-    au
+  let context _ _ = ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
-    | Longjmp {env; value; sigrestore}, _ ->
+    | Longjmp {env; value}, _ ->
       (* Set target to current value of env *)
       let bufs = ctx.ask (EvalJumpBuf env) in
       bufs, JmpBufDomain.NodeSet.singleton(ctx.prev_node)
     | _ -> ctx.local
 
+  (* Initial values don't really matter: overwritten at longjmp call. *)
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter ctx lval f args = [D.bot ()]
   let exitstate  v = D.top ()
-
-  let context _ _ = ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

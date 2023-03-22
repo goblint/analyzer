@@ -130,7 +130,6 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
-  | MayBeInVLAScope: MayBool.t t
 
 type 'a result = 'a
 
@@ -191,7 +190,6 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
-    | MayBeInVLAScope -> (module MayBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -251,7 +249,6 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
-    | MayBeInVLAScope -> MayBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -308,7 +305,6 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
-    | Any MayBeInVLAScope -> 49
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -439,7 +435,6 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
-    | Any MayBeInVLAScope -> Pretty.dprintf "MayBeInVLAScope"
 end
 
 

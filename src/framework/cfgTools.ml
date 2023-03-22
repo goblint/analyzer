@@ -525,10 +525,8 @@ struct
     in
     let shape = match n with
       | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
-      | Statement _
-      | LongjmpTo _ -> [] (* use default shape *)
+      | Statement _ -> [] (* use default shape *)
       | Function _
-      | LongjmpFromFunction _
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in

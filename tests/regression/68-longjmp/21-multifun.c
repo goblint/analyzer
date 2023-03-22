@@ -26,7 +26,7 @@ int main () {
    if(0 == setjmp( env_buffer )) {
       fun();
    } else {
-      __goblint_check(global == 42); //TODO
+      __goblint_check(global == 42);
    }
 
    return(0);

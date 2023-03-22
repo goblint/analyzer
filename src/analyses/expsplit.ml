@@ -46,7 +46,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) =
     emit_splits_ctx ctx
 
-  let combine ctx ?(longjmpthrough = false) (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     let d = D.join ctx.local au in
     emit_splits ctx d
 
@@ -60,18 +60,17 @@ struct
       | _, "__goblint_split_end" ->
         let exp = List.hd arglist in
         D.remove exp ctx.local
-      | Setjmp { env; savesigs}, _ ->
+      | Setjmp { env }, _ ->
         Option.map_default (fun lval ->
             match GobConfig.get_string "ana.setjmp.split" with
             | "none" -> ctx.local
             | "precise" ->
-            let e = Lval lval in
-            let ik = Cilfacade.get_ikind_exp e in
-            D.add e (ID.top_of ik) ctx.local
-            | "coarse" ->
               let e = Lval lval in
               let ik = Cilfacade.get_ikind_exp e in
-              let e = BinOp(Eq, e, integer 0, intType) in
+              D.add e (ID.top_of ik) ctx.local
+            | "coarse" ->
+              let e = Lval lval in
+              let e = BinOp (Eq, e, integer 0, intType) in
               D.add e (ID.top_of IInt) ctx.local
             | _ -> failwith "Invalid value for ana.setjmp.split"
           ) ctx.local lval
@@ -90,6 +89,8 @@ struct
     | UpdateExpSplit exp ->
       let value = ctx.ask (EvalInt exp) in
       D.add exp value ctx.local
+    | Longjmped _ ->
+      emit_splits_ctx ctx
     | _ ->
       ctx.local
 end

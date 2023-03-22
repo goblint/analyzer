@@ -73,8 +73,8 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
-  let combine ctx ?(longjmpthrough = false) r fe f args fc es f_ask =
-    D.lift @@ S.combine (conv ctx) ~longjmpthrough r fe f args fc (D.unlift es) f_ask
+  let combine ctx r fe f args fc es f_ask =
+    D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es) f_ask
 
   let threadenter ctx lval f args =
     List.map D.lift @@ S.threadenter (conv ctx) lval f args
@@ -155,8 +155,8 @@ struct
   let special ctx r f args =
     S.special (conv ctx) r f args
 
-  let combine ctx ?(longjmpthrough = false) r fe f args fc es f_ask =
-    S.combine (conv ctx) ~longjmpthrough r fe f args (Option.map C.unlift fc) es f_ask
+  let combine ctx r fe f args fc es f_ask =
+    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -234,7 +234,7 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
-  let combine' ctx ?(longjmpthrough = false) r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine (fun p -> p ~longjmpthrough r fe f args fc (fst es) f_ask)
+  let combine' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es) f_ask)
 
   let threadenter ctx lval f args = lift_fun ctx (List.map lift_start_level) S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
@@ -266,13 +266,13 @@ struct
     else
       enter' {ctx with local=(d, sub1 l)} r f args
 
-  let combine ctx ?(longjmpthrough = false) r fe f args fc es f_ask =
+  let combine ctx r fe f args fc es f_ask =
     let (d,l) = ctx.local in
     let l = add1 l in
     if leq0 l then
       (d, l)
     else
-      let d',_ = combine' ctx ~longjmpthrough r fe f args fc es f_ask in
+      let d',_ = combine' ctx r fe f args fc es f_ask in
       (d', l)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -391,7 +391,7 @@ struct
     let m = snd ctx.local in
     S.paths_as_set (conv ctx) |> List.map (fun v -> (v,m))
 
-  let combine ctx ?(longjmpthrough = false) r fe f args fc es f_ask = lift_fun ctx S.combine (fun p -> p ~longjmpthrough r fe f args fc (fst es) f_ask)
+  let combine ctx r fe f args fc es f_ask = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es) f_ask)
 end
 
 
@@ -453,7 +453,7 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
-  let combine ctx ?(longjmpthrough = false) r fe f args fc es f_ask = lift_fun ctx D.lift S.combine (fun p -> p ~longjmpthrough r fe f args fc (D.unlift es) f_ask) `Bot
+  let combine ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
   let threadenter ctx lval f args = lift_fun ctx (List.map D.lift) S.threadenter ((|>) args % (|>) f % (|>) lval) []
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
@@ -645,211 +645,56 @@ struct
     common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
-    let jmptarget = function
-      | Statement s -> LongjmpTo s
-      | _ -> failwith "should not happen"
-    in
-    let current_fundec = Node.find_fundec ctx.node in
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
-      (* Extra sync in case function has multiple returns.
-         Each `Return sync is done before joining, so joined value may be unsound.
-         Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
-      (* TODO: don't do this extra sync here *)
-      let rec sync_ctx = { ctx with
-                           ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
-                           local = fd;
-                           prev_node = Function f
-                         }
+      let rec cd_ctx =
+        { ctx with
+          ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
+          local = cd;
+        }
       in
-      (* TODO: more accurate ctx? *)
-      let fd = sync sync_ctx in
+      let fd_ctx =
+        (* Inner scope to prevent unsynced fd_ctx from being used. *)
+        (* Extra sync in case function has multiple returns.
+           Each `Return sync is done before joining, so joined value may be unsound.
+           Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
+        (* TODO: don't do this extra sync here *)
+        let rec sync_ctx =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+            local = fd;
+            prev_node = Function f;
+          }
+        in
+        (* TODO: more accurate ctx? *)
+        let synced = sync sync_ctx in
+        let rec fd_ctx =
+          { sync_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query fd_ctx q);
+            local = synced;
+          }
+        in
+        fd_ctx
+      in
       if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      let r = S.combine {ctx with local = cd} lv e f args fc fd (Analyses.ask_of_ctx sync_ctx) in
+      let r = S.combine cd_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
-    let handlelongjmp (cd,fc,fd) =
-      let rec ctx_fd = { ctx with
-                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd q);
-                       local = fd;
-                       prev_node = Function f
-                     }
-      in
-      let rec ctx_cd = { ctx with
-                         ask = (fun (type a) (q: a Queries.t) -> S.query ctx_cd q);
-                        local = cd}
-      in
-      (* Set of jumptargets with which the callee may return here *)
-      let targets = fst @@ ctx_fd.ask ActiveJumpBuf in
-      (* Handle a longjmp to targetnode in targetcontext *)
-      let handle_longjmp = function
-        | JmpBufDomain.BufferEntryOrTop.AllTargets -> () (* The warning is already emitted at the point where the longjmp happens *)
-        | Target (targetnode, targetcontext) ->
-        let target_in_caller () = CilType.Fundec.equal (Node.find_fundec targetnode) current_fundec in
-        let targetcontext_matches () =
-          let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-          targetcontext = IntDomain.Flattened.of_int (Int64.of_int controlctx)
-        in
-        (* Check if corresponding setjmp call was in current function & in current context *)
-        if targetcontext_matches () && target_in_caller () then
-          (if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %s\n" (Node.show targetnode);
-           match targetnode with
-           | Statement { skind = Instr [Call (setjmplval, _, setjmpargs,_, _)] ;_ } ->
-             let fd' = S.return ctx_fd None f in
-             let rec ctx_fd' = { ctx_fd with
-                                 ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                 local = fd';
-                                 prev_node = Function f
-                               }
-             in
-             (* Using f from called function on purpose here! Needed? *)
-             let value = S.combine ctx_cd setjmplval (Cil.one) f setjmpargs fc fd' (Analyses.ask_of_ctx ctx_fd') in
-             let rec res_ctx = { ctx with
-                                 ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
-                                 local = value
-                               }
-             in
-             let setjmpvar = match setjmplval with
-               | Some (Var v, NoOffset) -> Queries.VS.singleton v
-               | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
-             in
-             let modified_vars = Queries.VS.diff (res_ctx.ask (MayBeModifiedSinceSetjmp (targetnode, targetcontext))) setjmpvar in
-             (if Queries.VS.is_top modified_vars then
-                M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show targetnode)
-              else if not (Queries.VS.is_empty modified_vars) then
-                M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show targetnode) (Queries.VS.show modified_vars)
-              else
-                ()
-             );
-             let value' = S.event res_ctx (Events.Poison modified_vars) res_ctx in
-             sidel (jmptarget targetnode, ctx.context ()) value'
-           (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
-           | _ -> failwith "target of longjmp is node that is not a call to setjmp!")
-        else
-          (* Appropriate setjmp is not in current function & current context *)
-          let validBuffers = ctx_cd.ask ValidLongJmp in
-          if not (JmpBufDomain.JmpBufSet.mem (Target (targetnode,targetcontext)) validBuffers) then
-            (* It actually is not handled here but was propagated her spuriously, we already warned at the location where this issue is caused *)
-            (* As the validlongjumps inside the callee is a a superset of the ones inside the caller*)
-            ()
-          else
-            (if M.tracing then Messages.tracel "longjmp" "Fun: Longjmp to somewhere else\n";
-             (* Globals are non-problematic here, as they are always carried around without any issues! *)
-             (* A combine call is mostly needed to ensure locals have appropriate values. *)
-             let fd' = S.return ctx_fd None f in
-             let rec ctx_fd' = { ctx with
-                                 ask = (fun (type a) (q: a Queries.t) -> S.query ctx_fd' q);
-                                 local = fd';
-                                 prev_node = Function f
-                               }
-             in
-             let value = S.combine ctx_cd ~longjmpthrough:true None (Cil.one) f [] None fd' (Analyses.ask_of_ctx ctx_fd') in
-             sidel (LongjmpFromFunction current_fundec, ctx.context ()) value)
-      in
-      JmpBufDomain.JmpBufSet.iter handle_longjmp targets
-    in
-    (* Handle normal calls to function *)
     let paths = S.enter ctx lv f args in
-    let ld_fc_fd_list = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) ld_fc_fd_list;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) ld_fc_fd_list in
-    let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
+    (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
-    let result = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty result;
-    (* Handle "longjumpy" ;p returns from this function by producing appropriate side-effects *)
-    let longjmpv fc v = if S.D.is_bot v then v else (if Messages.tracing then Messages.tracel "longjmp" "asking for side-effect to %i\n" (S.C.hash fc); getl (LongjmpFromFunction f, fc)) in
-    let longjmppaths = List.map (fun (c,fc,v) -> (c, fc, longjmpv fc v)) ld_fc_fd_list in
-    let longjmppaths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) longjmppaths in
-    let longjmppaths = List.map (Tuple3.map2 Option.some) longjmppaths in
-    let _ = List.iter handlelongjmp longjmppaths in
-    (* Return result of normal call, longjmp om;y happens via side-effect *)
-    result
+    let r = List.fold_left D.join (D.bot ()) paths in
+    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    r
 
-  let tf_special_call ctx (getl: lv -> ld) (sidel: lv -> ld -> unit) lv f args =
-    let jmptarget = function
-      | Statement s -> LongjmpTo s
-      | _ -> failwith "should not happen"
-    in
-    match (LibraryFunctions.find f).special args with
-    | Setjmp { env; savesigs} ->
-      (* Checking if this within the scope of an identifier of variably modified type *)
-      if ctx.ask Queries.MayBeInVLAScope then (
-        M.warn "setjmp called within the scope of a variably modified type. If a call to longjmp is made after this scope is left, the behavior is undefined.";
-      );
-      (* Handling of returning for the first time *)
-      let first_return = S.special ctx lv f args in
-      if M.tracing then Messages.tracel "longjmp" "reading from %s\n" (Node.show (jmptarget ctx.prev_node));
-      let later_return = getl (jmptarget ctx.prev_node, ctx.context ()) in
-      if not @@ S.D.is_bot later_return then
-        S.D.join first_return later_return
-      else
-        first_return
-    | Longjmp {env; value; sigrestore} ->
-      let res = S.special ctx lv f args in
-      let current_fundec = Node.find_fundec ctx.node in
-      let one_path s = (
-        let rec path_ctx = { ctx with
-                             ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
-                             local = s;
-                           }
-        in
-        (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
-        let targets = path_ctx.ask (EvalJumpBuf env) in
-        if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
-        let handle_longjmp = function
-          | JmpBufDomain.BufferEntryOrTop.AllTargets ->
-            M.warn "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)"  d_exp env
-          | JmpBufDomain.BufferEntryOrTop.Target (node, c) ->
-            let validBuffers = path_ctx.ask ValidLongJmp in
-            if not (JmpBufDomain.JmpBufSet.mem (Target (node,c)) validBuffers) then
-              M.warn "Longjmp to potentially invalid target! (Target %s in Function %s which may have already returned or is in a different thread)" (Node.show node) (Node.find_fundec node).svar.vname
-            else
-              (let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-               if c = IntDomain.Flattened.of_int (Int64.of_int controlctx) && (Node.find_fundec node).svar.vname = current_fundec.svar.vname then
-                 (if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %s\n" (Node.show node);
-                  match node with
-                  | Statement { skind = Instr [Call (lval, exp, args,_, _)] ;_ } ->
-                    (* TODO: this assign is wrong: if value is definitely 0, then it is changed and should assign 1 instead *)
-                    (* non-local longjmp does this in base special, but base assign does not *)
-                    let res' = Option.map_default (fun lv -> S.assign path_ctx lv value) s lval in
-                    let setjmpvar = match lval with
-                      | Some (Var v, NoOffset) -> Queries.VS.singleton v
-                      | _ -> Queries.VS.empty () (* Does usually not really occur, if it does, this is sound *)
-                    in
-                    let modified_vars = Queries.VS.diff (path_ctx.ask (MayBeModifiedSinceSetjmp (node, c))) setjmpvar in
-                    (if Queries.VS.is_top modified_vars then
-                       M.warn "Information: Since setjmp at %s, potentially all locals were modified! Acessing them will yield Undefined Behavior."  (Node.show node)
-                     else if not (Queries.VS.is_empty modified_vars) then
-                       M.warn "Information: Since setjmp at %s, locals %s were modified! Acessing them will yield Undefined Behavior." (Node.show node) (Queries.VS.show modified_vars)
-                     else
-                       ()
-                    );
-                    let rec res_ctx = { path_ctx with
-                                        ask = (fun (type a) (q: a Queries.t) -> S.query res_ctx q);
-                                        local = res';
-                                      }
-                    in
-                    let r = S.event res_ctx (Events.Poison modified_vars) res_ctx in
-                    sidel (jmptarget node, ctx.context ()) r
-                  | _ -> failwith (Printf.sprintf "strange: %s" (Node.show node))
-                 )
-               else
-                 (if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
-                  sidel (LongjmpFromFunction current_fundec, ctx.context ()) res))
-        in
-        if JmpBufDomain.JmpBufSet.is_empty targets then
-          M.warn "Longjmp to potentially invalid target (%a is bot?!)"  d_exp env
-        else
-          JmpBufDomain.JmpBufSet.iter handle_longjmp targets
-      )
-      in
-      List.iter one_path (S.paths_as_set ctx);
-      S.D.bot ()
-    | _ -> S.special ctx lv f args
+  let tf_special_call ctx lv f args = S.special ctx lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
@@ -875,11 +720,11 @@ struct
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call ctx getl sidel lv f args
+                tf_special_call ctx lv f args
               | fd ->
                 tf_normal_call ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
-                tf_special_call ctx getl sidel lv f args)
+                tf_special_call ctx lv f args)
           end
         else begin
           let geq = if var_arg then ">=" else "" in
@@ -965,10 +810,6 @@ struct
   let system (v,c) =
     match v with
     | FunctionEntry _ ->
-      None
-    | LongjmpTo _ ->
-      None
-    | LongjmpFromFunction _ ->
       None
     | _ ->
       let tf getl sidel getg sideg =
@@ -1396,13 +1237,13 @@ struct
     let elems = D.elements ctx.local in
     List.map (D.singleton) elems
 
-  let combine ctx ?(longjmpthrough = false) l fe f a fc d f_ask =
+  let combine ctx l fe f a fc d f_ask =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
       if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
       try
-        let r = Spec.combine (conv ctx cd) ~longjmpthrough l fe f a fc x f_ask in
+        let r = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
         if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
         D.add r y
       with Deadcode ->
@@ -1534,8 +1375,241 @@ struct
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
-  let combine ctx ?(longjmpthrough = false) = S.combine (conv ctx) ~longjmpthrough
+  let combine ctx = S.combine (conv ctx)
   let special ctx = S.special (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+  let sync ctx = S.sync (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let event ctx e octx = S.event (conv ctx) e (conv octx)
+end
+
+module LongjmpLifter (S: Spec): Spec =
+struct
+  include S
+
+  let name () = "Longjmp (" ^ S.name () ^ ")"
+
+  module V =
+  struct
+    include Printable.Either (S.V) (Printable.Either (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C)))
+    let s x = `Left x
+    let longjmpto x = `Right (`Left x)
+    let longjmpret x = `Right (`Right x)
+    let is_write_only = function
+      | `Left x -> S.V.is_write_only x
+      | `Right _ -> false
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (S.G) (S.D) (Printable.DefaultNames)
+
+    let s = function
+      | `Bot -> S.G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "LongjmpLifter.s"
+    let local = function
+      | `Bot -> S.D.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "LongjmpLifter.local"
+    let create_s s = `Lifted1 s
+    let create_local local = `Lifted2 local
+
+    let printXml f = function
+      | `Lifted1 x -> S.G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"longjmp\"><value>%a</value></analysis>" S.D.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"longjmp-lifter\">%a</analysis>" printXml x
+  end
+
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
+    { ctx with
+      global = (fun v -> G.s (ctx.global (V.s v)));
+      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+    }
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | IterSysVars (vq, vf) ->
+      (* vars for S *)
+      let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
+      S.query (conv ctx) (IterSysVars (vq, vf'));
+      (* TODO: vars? *)
+    | _ ->
+      S.query (conv ctx) q
+
+
+  let branch ctx = S.branch (conv ctx)
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
+  let enter ctx = S.enter (conv ctx)
+  let paths_as_set ctx = S.paths_as_set (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+
+  let combine ctx lv e f args fc fd f_ask =
+    let conv_ctx = conv ctx in
+    let current_fundec = Node.find_fundec ctx.node in
+    let handle_longjmp (cd, fc, longfd) =
+      (* This is called per-path. *)
+      let rec cd_ctx =
+        { conv_ctx with
+          ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
+          local = cd;
+        }
+      in
+      let longfd_ctx =
+        (* Inner scope to prevent unsynced longfd_ctx from being used. *)
+        (* Extra sync like with normal combine. *)
+        let rec sync_ctx =
+          { conv_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+            local = longfd;
+            prev_node = Function f;
+          }
+        in
+        let synced = S.sync sync_ctx `Join in
+        let rec longfd_ctx =
+          { sync_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query longfd_ctx q);
+            local = synced;
+          }
+        in
+        longfd_ctx
+      in
+      let combined = lazy ( (* does not depend on target, do at most once *)
+        (* Globals are non-problematic here, as they are always carried around without any issues! *)
+        (* A combine call is mostly needed to ensure locals have appropriate values. *)
+        (* Using f from called function on purpose here! Needed? *)
+        S.combine cd_ctx None e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx) (* no lval because longjmp return skips return value assignment *)
+      )
+      in
+      let returned = lazy ( (* does not depend on target, do at most once *)
+        let rec combined_ctx =
+          { cd_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query combined_ctx q);
+            local = Lazy.force combined;
+          }
+        in
+        S.return combined_ctx None current_fundec
+      )
+      in
+      let (active_targets, _) = longfd_ctx.ask ActiveJumpBuf in
+      let valid_targets = cd_ctx.ask ValidLongJmp in
+      let handle_target target = match target with
+        | JmpBufDomain.BufferEntryOrTop.AllTargets -> () (* The warning is already emitted at the point where the longjmp happens *)
+        | Target (target_node, target_context) ->
+          let target_fundec = Node.find_fundec target_node in
+          if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
+            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %a\n" Node.pretty target_node;
+            ctx.sideg (V.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force combined))
+            (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
+          )
+          (* Appropriate setjmp is not in current function & current context *)
+          else if JmpBufDomain.JmpBufSet.mem target valid_targets then
+            ctx.sideg (V.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
+          else
+            (* It actually is not handled here but was propagated here spuriously, we already warned at the location where this issue is caused *)
+            (* As the validlongjumps inside the callee is a a superset of the ones inside the caller *)
+            ()
+      in
+      JmpBufDomain.JmpBufSet.iter handle_target active_targets
+    in
+    if M.tracing then M.tracel "longjmp" "longfd getg %a\n" CilType.Fundec.pretty f;
+    let longfd = G.local (ctx.global (V.longjmpret (f, Option.get fc))) in
+    if M.tracing then M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
+    if not (D.is_bot longfd) then
+      handle_longjmp (ctx.local, fc, longfd);
+    S.combine (conv_ctx) lv e f args fc fd f_ask
+
+  let special ctx lv f args =
+    let conv_ctx = conv ctx in
+    match (LibraryFunctions.find f).special args with
+    | Setjmp {env} ->
+      (* Handling of returning for the first time *)
+      let normal_return = S.special conv_ctx lv f args in
+      let jmp_return = G.local (ctx.global (V.longjmpto (ctx.prev_node, ctx.context ()))) in
+      if S.D.is_bot jmp_return then
+        normal_return
+      else (
+        let rec jmp_ctx =
+          { conv_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query jmp_ctx q);
+            local = jmp_return;
+          }
+        in
+        let longjmped = S.event jmp_ctx (Events.Longjmped {lval=lv}) jmp_ctx in
+        S.D.join normal_return longjmped
+      )
+    | Longjmp {env; value} ->
+      let current_fundec = Node.find_fundec ctx.node in
+      let handle_path path = (
+        let rec path_ctx =
+          { conv_ctx with
+            ask = (fun (type a) (q: a Queries.t) -> S.query path_ctx q);
+            local = path;
+          }
+        in
+        let specialed = lazy ( (* does not depend on target, do at most once *)
+          S.special path_ctx lv f args
+        )
+        in
+        let returned = lazy ( (* does not depend on target, do at most once *)
+          let rec specialed_ctx =
+            { path_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query specialed_ctx q);
+              local = Lazy.force specialed;
+            }
+          in
+          S.return specialed_ctx None current_fundec
+        )
+        in
+        (* Eval `env` again to avoid having to construct bespoke ctx to ask *)
+        let targets = path_ctx.ask (EvalJumpBuf env) in
+        let valid_targets = path_ctx.ask ValidLongJmp in
+        if M.tracing then Messages.tracel "longjmp" "Jumping to %a\n" JmpBufDomain.JmpBufSet.pretty targets;
+        let handle_target target = match target with
+          | JmpBufDomain.BufferEntryOrTop.AllTargets ->
+            M.warn ~category:Imprecise "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env
+          | Target (target_node, target_context) ->
+            let target_fundec = Node.find_fundec target_node in
+            if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (ctx.control_context ()) then (
+              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %a\n" Node.pretty target_node;
+              ctx.sideg (V.longjmpto (target_node, ctx.context ())) (G.create_local (Lazy.force specialed))
+            )
+            else if JmpBufDomain.JmpBufSet.mem target valid_targets then (
+              if M.tracing then Messages.tracel "longjmp" "Longjmp to somewhere else, side-effect to %i\n" (S.C.hash (ctx.context ()));
+              ctx.sideg (V.longjmpret (current_fundec, ctx.context ())) (G.create_local (Lazy.force returned))
+            )
+            else
+              M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target! (Target %a in Function %a which may have already returned or is in a different thread)" Node.pretty target_node CilType.Fundec.pretty target_fundec
+        in
+        if JmpBufDomain.JmpBufSet.is_empty targets then
+          M.warn ~category:(Behavior (Undefined Other)) "Longjmp to potentially invalid target (%a is bot?!)" d_exp env
+        else
+          JmpBufDomain.JmpBufSet.iter handle_target targets
+      )
+      in
+      List.iter handle_path (S.paths_as_set conv_ctx);
+      S.D.bot ()
+    | _ -> S.special conv_ctx lv f args
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)

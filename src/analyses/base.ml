@@ -147,6 +147,8 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
+  let longjmp_return = ref dummyFunDec.svar
+
   let heap_var ctx =
     let info = match (ctx.ask Q.HeapVar) with
       | `Lifted vinfo -> vinfo
@@ -162,6 +164,7 @@ struct
       | None -> ()
     end;
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
+    longjmp_return := Goblintutil.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
     Priv.init ()
 
   let finalize () =
@@ -1250,14 +1253,19 @@ struct
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalJumpBuf e ->
-      (match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
-       | `Address jmp_buf ->
-         if AD.mem Addr.UnknownPtr jmp_buf then M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
-         begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
-           | `JmpBuf (x, t) -> if t then M.warn "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;x
-           | y -> failwith (Printf.sprintf "problem?! is %s %s:\n state is %s" (CilType.Exp.show e) (VD.show y) (Pretty.sprint ~width:5000 (D.pretty () ctx.local)))
-         end
-       | _ -> failwith "problem?!");
+      begin match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `Address jmp_buf ->
+          if AD.mem Addr.UnknownPtr jmp_buf then
+            M.warn ~category:Imprecise "Jump buffer %a may contain unknown pointers." d_exp e;
+          begin match get ~top:(VD.bot ()) (Analyses.ask_of_ctx ctx) ctx.global ctx.local jmp_buf None with
+            | `JmpBuf (x, copied) ->
+              if copied then
+                M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
+              x
+            | y -> failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local))
+          end
+        | _ -> failwith "problem?!"
+      end
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalLength e -> begin
@@ -2242,31 +2250,43 @@ struct
           st
       end
     | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
-    | Setjmp { env; savesigs}, _ ->
-      (let st' = (match (eval_rv (Analyses.ask_of_ctx ctx) gs st env) with
-           | `Address jmp_buf ->
-             let controlctx = ControlSpecC.hash (ctx.control_context ()) in
-             let value = `JmpBuf ((ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, IntDomain.Flattened.of_int (Int64.of_int controlctx)))),false) in
-             let r = set ~ctx (Analyses.ask_of_ctx ctx) gs st jmp_buf (Cilfacade.typeOf env) value in
-             M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env  D.pretty st  D.pretty r;
-             r
-           | _      -> failwith "problem?!")
-       in
-       match lv with
-       | Some lv ->
-         set ~ctx (Analyses.ask_of_ctx ctx) gs st' (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
-       | None -> st')
-    | Longjmp {env; value; sigrestore}, _ ->
-      let ensure_not_zero rv = match rv with
-        | `Int i when ID.to_bool i = Some true -> rv
-        | `Int i when ID.to_bool i = Some false -> M.warn "Must: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.of_int (ID.ikind i) Z.one)
-        | `Int i when ID.to_bool i = None -> M.warn "May: Longjmp with a value of 0 is silently changed to 1"; `Int (ID.meet i (ID.of_excl_list (ID.ikind i) [Z.one]))
-        | _ -> M.warn "Arguments to longjmp are strange!"; rv
+    | Setjmp { env }, _ ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let st' = match eval_rv ask gs st env with
+        | `Address jmp_buf ->
+          let value = `JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (ctx.prev_node, ctx.control_context ())), false) in
+          let r = set ~ctx ask gs st jmp_buf (Cilfacade.typeOf env) value in
+          if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a\n" d_exp env D.pretty st D.pretty r;
+          r
+        | _ -> failwith "problem?!"
       in
-      let rv = ensure_not_zero @@ eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local value in
+      begin match lv with
+        | Some lv ->
+          set ~ctx ask gs st' (eval_lv ask ctx.global st lv) (Cilfacade.typeOfLval lv) (`Int (ID.of_int IInt BI.zero))
+        | None -> st'
+      end
+    | Longjmp {env; value}, _ ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let ensure_not_zero rv = match rv with
+        | `Int i ->
+          begin match ID.to_bool i with
+            | Some true -> rv
+            | Some false ->
+              M.error "Must: Longjmp with a value of 0 is silently changed to 1";
+              `Int (ID.of_int (ID.ikind i) Z.one)
+            | None ->
+              M.warn "May: Longjmp with a value of 0 is silently changed to 1";
+              let ik = ID.ikind i in
+              `Int (ID.join (ID.meet i (ID.of_excl_list ik [Z.zero])) (ID.of_int ik Z.one))
+          end
+        | _ ->
+          M.warn ~category:Program "Arguments to longjmp are strange!";
+          rv
+      in
+      let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t (Analyses.ask_of_ctx ctx) ctx.global ctx.local (return_var ()) t rv
-      (* Not rasing Deadode here, deadcode is raised at a higher level! *)
+      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.from_var !longjmp_return) t rv
+      (* Not rasing Deadcode here, deadcode is raised at a higher level! *)
     | _, _ ->
       let st =
         special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
@@ -2311,7 +2331,7 @@ struct
             end
         else st) tainted_lvs local_st
 
-  let combine ctx ?(longjmpthrough = false) (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2321,19 +2341,12 @@ struct
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_noreturn =
-          if not longjmpthrough then
-            (* Remove the return value as this is dealt with separately. *)
-            CPA.remove (return_varinfo ()) fun_st.cpa
-          else
-            (* Keep the return value as this is not actually the return value but the thing supplied in longjmp *)
-            fun_st.cpa
-        in
+        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
         let ask = (Analyses.ask_of_ctx ctx) in
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a\n" f.svar.vname Q.LS.pretty tainted;
         if M.tracing then M.trace "taintPC" "combine base:\ncaller: %a\ncallee: %a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-        if (Q.LS.is_top tainted) then
+        if Q.LS.is_top tainted then
           let cpa_local = CPA.filter (fun x _ -> not (is_global ask x)) st.cpa in
           let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty cpa';
@@ -2341,9 +2354,12 @@ struct
         else
           (* remove variables from caller cpa, that are global and not in the callee cpa *)
           let cpa_caller = CPA.filter (fun x _ -> (not (is_global ask x)) || CPA.mem x fun_st.cpa) st.cpa in
+          if M.tracing then M.trace "taintPC" "cpa_caller: %a\n" CPA.pretty cpa_caller;
           (* add variables from callee that are not in caller yet *)
           let cpa_new = CPA.filter (fun x _ -> not (CPA.mem x cpa_caller)) cpa_noreturn in
+          if M.tracing then M.trace "taintPC" "cpa_new: %a\n" CPA.pretty cpa_new;
           let cpa_caller' = CPA.fold CPA.add cpa_new cpa_caller in
+          if M.tracing then M.trace "taintPC" "cpa_caller': %a\n" CPA.pretty cpa_caller';
           (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
           let tainted = Q.LS.filter (fun (v, _) ->  not (CPA.mem v cpa_new)) tainted in
           let st_combined = combine_st ctx {st with cpa = cpa_caller'} fun_st tainted in
@@ -2556,6 +2572,13 @@ struct
       assert_fn ctx exp true
     | Events.Unassume {exp; uuids} ->
       Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Longjmped {lval} ->
+      begin match lval with
+        | Some lval ->
+          let st' = assign ctx lval (Lval (Cil.var !longjmp_return)) in
+          {st' with cpa = CPA.remove !longjmp_return st'.cpa}
+        | None -> ctx.local
+      end
     | _ ->
       ctx.local
 end
