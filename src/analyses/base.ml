@@ -2285,8 +2285,7 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv ask ctx.global ctx.local value in
       let t = Cilfacade.typeOf value in
-      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.from_var !longjmp_return) t rv
-      (* Not rasing Deadcode here, deadcode is raised at a higher level! *)
+      set ~ctx ~t_override:t ask ctx.global ctx.local (AD.from_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | _, _ ->
       let st =
         special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
