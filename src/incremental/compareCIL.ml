@@ -101,9 +101,22 @@ let addToFinalMatchesMapping oV nV final_matches =
 
 let empty_rename_assms m = VarinfoMap.for_all (fun vo vn -> vo.vname = vn.vname) m
 
+let already_matched oV nV final_matches =
+  match VarinfoMap.find_opt oV (fst final_matches) with
+  | None -> false
+  | Some v -> v.vid = oV.vid
+
+(* looks up the result of the already executed comparison and returns true if it is unchanged, false if it is changed.
+   Throws an exception if not found. *)
+let change_info_lookup old_glob new_glob change_info =
+  List.mem {old = old_glob; current = new_glob} change_info.unchanged
+
 (* Compares two varinfos of globals. finalizeOnlyExactMatch=true allows to check a rename assumption and discard the comparison result in case they do not match *)
 let eq_glob_var ?(finalizeOnlyExactMatch=false) oV gc_old oldMap nV gc_new newMap change_info final_matches =
-  if not (preservesSameNameMatches oV.vname oldMap nV.vname newMap) then
+  if already_matched oV nV final_matches then
+    (* check if this function was already matched and lookup the result *)
+    change_info_lookup gc_old gc_new change_info, change_info, final_matches
+  else if not (preservesSameNameMatches oV.vname oldMap nV.vname newMap) then
     (* do not allow for matches between differently named variables if one of the variables names exists in both, the new and old file *)
     false, change_info, final_matches
   else (
@@ -166,17 +179,20 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
   in
   identical, diffOpt, renamed_method_dependencies, renamed_global_vars_dependencies, renamesOnSuccess
 
-let eqF_only_consider_exact_match f1 f2 change_info final_matches oldMap newMap var_glob_old var_glob_new =
-  (* check that names of match are each only contained in new or old file *)
-  if not (preservesSameNameMatches f1.svar.vname oldMap f2.svar.vname newMap) then (
+let eqF_only_consider_exact_match f1 f2 change_info final_matches oldMap newMap gc_old gc_new =
+  if already_matched f1.svar f2.svar final_matches then
+    (* check if this function was already matched and lookup the result *)
+    change_info_lookup gc_old gc_new change_info, change_info, final_matches
+  else if not (preservesSameNameMatches f1.svar.vname oldMap f2.svar.vname newMap) then
+    (* check that names of match are each only contained in new or old file *)
     false, change_info, final_matches
-  ) else
+  else
     (* the exact comparison is always uses the AST comparison because only when unchanged this match is manifested *)
     let doMatch, diff, fun_deps, global_deps, renamesOnSuccess = eqF f1 f2 None VarinfoMap.empty VarinfoMap.empty in
     match doMatch with
     | Unchanged when empty_rename_assms (VarinfoMap.filter (fun vo vn -> not (vo.vname = f1.svar.vname && vn.vname = f2.svar.vname)) fun_deps) && empty_rename_assms global_deps ->
       performRenames renamesOnSuccess;
-      change_info.unchanged <- {old = VarinfoMap.find f1.svar var_glob_old; current = VarinfoMap.find f2.svar var_glob_new} :: change_info.unchanged;
+      change_info.unchanged <- {old = gc_old; current = gc_new} :: change_info.unchanged;
       let final_matches = addToFinalMatchesMapping f1.svar f2.svar final_matches in
       true, change_info, final_matches
     | Unchanged -> false, change_info, final_matches
@@ -198,26 +214,20 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
       let var_glob_old = GlobalMap.fold extract_globs oldMap VarinfoMap.empty in
       let var_glob_new = GlobalMap.fold extract_globs newMap VarinfoMap.empty in
       let funDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun f_old_var f_new_var (acc, ci, fm) ->
-          let glob_old = VarinfoMap.find f_old_var var_glob_old in
-          let glob_new = VarinfoMap.find f_new_var var_glob_new in
-          match VarinfoMap.find_opt f_old_var (fst fm) with
-          | None ->
-            let f_old = get_fundec glob_old in
-            let f_new = get_fundec glob_new in (* TODO: what happens if there exists no fundec for this varinfo? *)
-            if acc then
-              eqF_only_consider_exact_match f_old f_new ci fm oldMap newMap var_glob_old var_glob_new
-            else false, ci, fm
-          | Some v -> acc && v.vid = f_new_var.vid && List.mem {old=glob_old; current=glob_new} ci.unchanged, ci, fm
+          let gc_old = VarinfoMap.find f_old_var var_glob_old in
+          let gc_new = VarinfoMap.find f_old_var var_glob_new in
+          let f_old = get_fundec gc_old in
+          let f_new = get_fundec gc_new in (* TODO: what happens if there exists no fundec for this varinfo? *)
+          if acc then
+            eqF_only_consider_exact_match f_old f_new ci fm oldMap newMap gc_old gc_new
+          else false, ci, fm
         ) function_dependencies (true, change_info, final_matches) in
       let globalDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun old_var new_var (acc, ci, fm) ->
           let glob_old = VarinfoMap.find old_var var_glob_old in
           let glob_new = VarinfoMap.find new_var var_glob_new in
-          match VarinfoMap.find_opt old_var (fst fm) with
-          | None ->
-            if acc then
-              compare_varinfo_exact old_var gc_old oldMap new_var gc_new newMap ci fm
-            else false, ci, fm
-          | Some v -> acc && v.vid = new_var.vid && List.mem {old=glob_old; current=glob_new} ci.unchanged, ci, fm
+          if acc then
+            compare_varinfo_exact old_var glob_old oldMap new_var glob_new newMap ci fm
+          else false, ci, fm
         ) global_var_dependencies (true, change_info, final_matches) in
       funDependenciesMatch && globalDependenciesMatch, change_info, final_matches
     else
