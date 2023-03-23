@@ -206,14 +206,14 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
               if acc then
                 eqF_only_consider_exact_match f_old f_new ci fm oldMap newMap var_glob_old var_glob_new
               else false, ci, fm
-            | Some v -> v = f_new_var, ci, fm) function_dependencies (true, change_info, final_matches) in
+            | Some v -> v.vid = f_new_var.vid, ci, fm) function_dependencies (true, change_info, final_matches) in
       let globalDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun old_var new_var (acc, ci, fm) ->
           match VarinfoMap.find_opt old_var (fst fm) with
           | None ->
             if acc then
               compare_varinfo_exact old_var gc_old oldMap new_var gc_new newMap ci fm
             else false, ci, fm
-          | Some v -> v = new_var, ci, fm
+          | Some v -> v.vid = new_var.vid, ci, fm
         ) global_var_dependencies (true, change_info, final_matches) in
       funDependenciesMatch && globalDependenciesMatch, change_info, final_matches
     else
