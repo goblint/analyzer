@@ -64,6 +64,9 @@ jobs:
       - name: Test regression cram
         run: opam exec -- dune runtest tests/regression
 
+      - name: Test incremental cram
+        run: opam exec -- dune runtest tests/incremental
+
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
