@@ -63,7 +63,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
   let same = {node1to2=NH.create 113; node2to1=NH.create 113} in
   let waitingList : (node * node) t = Queue.create () in
 
-  let rec compareNext () rename_mapping : rename_mapping =
+  let rec compareNext rename_mapping : rename_mapping =
     if Queue.is_empty waitingList then rename_mapping
     else
       let fromNode1, fromNode2 = Queue.take waitingList in
@@ -104,14 +104,14 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
         if posAmbigEdge edgeList1 then (NH.replace diff toNode1 (); rename_mapping)
         else findMatch (edgeList1, toNode1) rename_mapping in
       let updatedRenameMapping = List.fold_left (fun rm e -> iterOuts e rm) rename_mapping outList1 in
-      compareNext () updatedRenameMapping
+      compareNext updatedRenameMapping
   in
 
   let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
   NH.replace same.node1to2 entryNode1 entryNode2;
   NH.replace same.node2to1 entryNode2 entryNode1;
   Queue.push (entryNode1,entryNode2) waitingList;
-  let updatedRenameMapping = compareNext () rename_mapping in
+  let updatedRenameMapping = compareNext rename_mapping in
   same, diff, updatedRenameMapping
 
 (* This is the second phase of the CFG comparison of functions. It removes the nodes from the matching node set 'same'

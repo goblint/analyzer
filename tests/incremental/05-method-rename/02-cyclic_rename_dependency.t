@@ -12,8 +12,3 @@ Run Goblint incrementally on new program version and check the change detection 
 
   $ goblint --conf 02-cyclic_rename_dependency.json --enable incremental.load 02-cyclic_rename_dependency.c | grep 'change_info' | sed -r 's/^change_info = \{ unchanged = [[:digit:]]+; (.*) \}$/\1/'
   changed = 1 (with unchangedHeader = 1); added = 2; removed = 2
-
-Revert patch
-
-  $ patch -b -R <02-cyclic_rename_dependency.patch
-  patching file 02-cyclic_rename_dependency.c

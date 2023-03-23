@@ -12,8 +12,3 @@ Run Goblint incrementally on new program version and check the change detection 
 
   $ goblint --conf 02-add_new_gvar.json --enable incremental.load 02-add_new_gvar.c | grep 'change_info' | sed -r 's/^change_info = \{ unchanged = [[:digit:]]+; (.*) \}$/\1/'
   changed = 1 (with unchangedHeader = 1); added = 1; removed = 0
-
-Revert patch
-
-  $ patch -b -R <02-add_new_gvar.patch
-  patching file 02-add_new_gvar.c

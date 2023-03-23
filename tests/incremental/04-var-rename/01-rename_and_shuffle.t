@@ -12,8 +12,3 @@ Run Goblint incrementally on new program version and check the change detection 
 
   $ goblint --conf 01-rename_and_shuffle.json --enable incremental.load 01-rename_and_shuffle.c | grep 'change_info' | sed -r 's/^change_info = \{ unchanged = [[:digit:]]+; (.*) \}$/\1/'
   changed = 1 (with unchangedHeader = 1); added = 0; removed = 0
-
-Revert patch
-
-  $ patch -b -R <01-rename_and_shuffle.patch
-  patching file 01-rename_and_shuffle.c

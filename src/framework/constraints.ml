@@ -827,7 +827,7 @@ struct
       | Some {changes; _} -> changes
       | None -> empty_change_info ()
     in
-    List.(Printf.printf "change_info = { unchanged = %d; changed = %d (with unchangedHeader = %d); added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length (List.filter (fun c -> c.unchangedHeader) c.changed)) (length c.added) (length c.removed));
+    List.(Printf.printf "change_info = { unchanged = %d; changed = %d (with unchangedHeader = %d); added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (BatList.count_matching (fun c -> c.unchangedHeader) c.changed) (length c.added) (length c.removed));
 
     let changed_funs = List.filter_map (function
         | {old = {def = Some (Fun f); _}; diff = None; _} ->
