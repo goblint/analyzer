@@ -74,11 +74,23 @@ module Base =
       dep = HM.create 10;
     }
 
-    let print_data data str =
+    let print_data data =
+      Printf.printf "|rho|=%d\n" (HM.length data.rho);
+      Printf.printf "|stable|=%d\n" (HM.length data.stable);
+      Printf.printf "|infl|=%d\n" (HM.length data.infl);
+      Printf.printf "|wpoint|=%d\n" (HM.length data.wpoint);
+      Printf.printf "|sides|=%d\n" (HM.length data.sides);
+      Printf.printf "|side_dep|=%d\n" (HM.length data.side_dep);
+      Printf.printf "|side_infl|=%d\n" (HM.length data.side_infl);
+      Printf.printf "|var_messages|=%d\n" (HM.length data.var_messages);
+      Printf.printf "|rho_write|=%d\n" (HM.length data.rho_write);
+      Printf.printf "|dep|=%d\n" (HM.length data.dep);
+      Hooks.print_data ()
+
+    let print_data_verbose data str =
       if GobConfig.get_bool "dbg.verbose" then (
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.var_messages) (HM.length data.rho_write) (HM.length data.dep);
-        Hooks.print_data ()
+        Printf.printf "%s:\n" str;
+        print_data data
       )
 
     let verify_data data =
@@ -197,8 +209,10 @@ module Base =
             HM.clear data.stable;
             HM.clear data.infl
           );
-          if not reuse_wpoint then
+          if not reuse_wpoint then (
             HM.clear data.wpoint;
+            HM.clear data.sides
+          );
           data
         | None ->
           create_empty_data ()
@@ -241,14 +255,13 @@ module Base =
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length var_messages) (HM.length rho_write) (HM.length dep);
-          Hooks.print_data ();
+          print_data data;
+          Printf.printf "|called|=%d\n" (HM.length called);
           print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then (
-        print_data data "Loaded data for incremental analysis";
+        print_data_verbose data "Loaded data for incremental analysis";
         verify_data data
       );
 
@@ -272,7 +285,7 @@ module Base =
             let was_stable = HM.mem stable y in
             HM.remove stable y;
             HM.remove superstable y;
-            HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
+            HM.mem called y || destabilize_vs y || b || was_stable && List.mem_cmp S.Var.compare y vs
           ) w false
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
@@ -311,7 +324,7 @@ module Base =
             if not wp then tmp
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *) | Narrow -> S.Dom.narrow old tmp
               else
                 box old tmp
           in
@@ -379,6 +392,7 @@ module Base =
                 HM.replace restarted_wpoint y ();
             )
           );
+          if tracing then trace "sol2" "eval adding wpoint %a from %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
           HM.replace wpoint y ();
         );
         let tmp = simple_solve l x y in
@@ -415,6 +429,7 @@ module Base =
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x;
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in
@@ -426,7 +441,12 @@ module Base =
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
           (* make y a widening point if ... This will only matter for the next side _ y.  *)
-          let wpoint_if e = if e then HM.replace wpoint y () in
+          let wpoint_if e =
+            if e then (
+              if tracing then trace "sol2" "side adding wpoint %a from %a\n" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x;
+              HM.replace wpoint y ()
+            )
+          in
           match side_widen with
           | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
             wpoint_if true
@@ -480,7 +500,7 @@ module Base =
             if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             HM.remove superstable y;
-            Hooks.stable_remove x;
+            Hooks.stable_remove y;
             if not (HM.mem called y) then destabilize_normal y
           ) w
       in
@@ -547,7 +567,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                Hooks.stable_remove x;
+                Hooks.stable_remove y;
                 destabilize_with_side ~side_fuel y
               ) w_side_dep;
           );
@@ -558,7 +578,7 @@ module Base =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              Hooks.stable_remove x;
+              Hooks.stable_remove y;
               destabilize_with_side ~side_fuel y
             ) w_infl;
 
@@ -576,7 +596,7 @@ module Base =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                Hooks.stable_remove x;
+                Hooks.stable_remove y;
                 destabilize_with_side ~side_fuel:side_fuel' y
               ) w_side_infl
           )
@@ -649,7 +669,7 @@ module Base =
                   if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
-                  Hooks.stable_remove x;
+                  Hooks.stable_remove y;
                   destabilize_normal y
                 ) w
             )
@@ -726,7 +746,7 @@ module Base =
         delete_marked rho_write;
         HM.iter (fun x w -> delete_marked w) rho_write;
 
-        print_data data "Data after clean-up";
+        print_data_verbose data "Data after clean-up";
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
@@ -828,7 +848,7 @@ module Base =
       );
 
       stop_event ();
-      print_data data "Data after solve completed";
+      print_data_verbose data "Data after solve completed";
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
@@ -1016,7 +1036,7 @@ module Base =
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
       Post.post st (stable_reluctant_vs @ vs) rho;
 
-      print_data data "Data after postsolve";
+      print_data_verbose data "Data after postsolve";
 
       verify_data data;
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})

@@ -174,10 +174,6 @@ struct
   let top () = unsupported "Make.top"
   let is_top _ = false
 
-  let map f s =
-    let add_to_it x s = add (f x) s in
-    fold add_to_it s (empty ())
-
   include Print (Base) (
     struct
       type nonrec t = t
@@ -186,10 +182,6 @@ struct
       let iter = iter
     end
     )
-
-  let equal x y =
-    cardinal x = cardinal y
-    && for_all (fun e -> exists (Base.equal e) y) x
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 

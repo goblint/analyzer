@@ -237,14 +237,16 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             | InlineReturn _ ->
               write_node to_node;
               write_edge node edge to_node
-            | InlinedEdge _ -> ()
+            | InlinedEdge _
+            | ThreadEntry _ -> ()
           ) edge_to_nodes;
         List.iter (fun (edge, to_node) ->
             match edge with
             | MyARG.CFGEdge _
             | InlineEntry _
             | InlineReturn _ -> iter_node to_node
-            | InlinedEdge _ -> ()
+            | InlinedEdge _
+            | ThreadEntry _ -> ()
           ) edge_to_nodes
       end
     end

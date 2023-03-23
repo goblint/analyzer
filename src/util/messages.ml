@@ -63,12 +63,12 @@ struct
   type t = {
     loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
+    context: (ControlSpecC.t [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
   } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
     match context with
-    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (Hashtbl.hash context) (* TODO: this is kind of useless *)
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.hash context) (* TODO: this is kind of useless *)
     | _ -> text
 end
 
@@ -240,7 +240,7 @@ let add m =
   )
 
 
-let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
+let current_context: ControlSpecC.t option ref = ref None
 
 let msg_context () =
   if GobConfig.get_bool "dbg.warn_with_context" then

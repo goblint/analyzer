@@ -280,11 +280,30 @@ and distribute_access_exp f = function
     distribute_access_exp f b;
     distribute_access_exp f t;
     distribute_access_exp f e
+
+  | SizeOf t ->
+    distribute_access_type f t
+
   | Const _
-  | SizeOf _
   | SizeOfStr _
   | AlignOf _
   | AddrOfLabel _ ->
+    ()
+
+and distribute_access_type f = function
+  | TArray (et, len, _) ->
+    Option.may (distribute_access_exp f) len;
+    distribute_access_type f et
+
+  | TVoid _
+  | TInt _
+  | TFloat _
+  | TPtr _
+  | TFun _
+  | TNamed _
+  | TComp _
+  | TEnum _
+  | TBuiltin_va_list _ ->
     ()
 
 let add side e kind conf vo oo a =

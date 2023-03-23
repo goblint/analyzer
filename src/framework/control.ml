@@ -35,7 +35,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
           ) in
   GobConfig.building_spec := false;
-  Analyses.control_spec_c := (module S1.C);
+  ControlSpecC.control_spec_c := (module S1.C);
   (module S1)
 )
 
@@ -238,7 +238,9 @@ struct
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
         | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
-        | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
+        | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
+        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
           true
         | _ -> false
       in
@@ -750,7 +752,8 @@ struct
     );
     if get_bool "incremental.save" then (
       Serialize.Cache.(update_data AnalysisData marshal);
-      Serialize.Cache.store_data ()
+      if not (get_bool "server.enabled") then
+        Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file

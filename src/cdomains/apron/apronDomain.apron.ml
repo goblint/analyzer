@@ -473,7 +473,6 @@ struct
   let is_top_env = A.is_top Man.mgr
   let is_bot_env = A.is_bottom Man.mgr
 
-  let to_yojson x = failwith "TODO implement to_yojson"
   let invariant _ = []
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
@@ -493,6 +492,20 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+
+  let to_yojson (x: t) =
+    let constraints =
+      A.to_lincons_array Man.mgr x
+      |> SharedFunctions.Lincons1Set.of_earray
+      |> SharedFunctions.Lincons1Set.elements
+      |> List.map (fun lincons1 -> `String (SharedFunctions.Lincons1.show lincons1))
+    in
+    let env = `String (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x))
+    in
+    `Assoc [
+      ("constraints", `List constraints);
+      ("env", env);
+    ]
 
   let unify x y =
     A.unify Man.mgr x y
