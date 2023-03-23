@@ -190,7 +190,7 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
 
   (* for rename detection, check whether the rename assumptions collected during the function comparison actually match exactly,
      otherwise check that the function comparison was successful without collecting any rename assumptions *)
-  let dependenciesMatch =
+  let dependenciesMatch, change_info, final_matches =
     if renameDetection then
       let funDependenciesMatch, change_info, final_matches =
         let extract_globs _ gc map =
@@ -199,7 +199,7 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
         let var_glob_old = GlobalMap.fold extract_globs oldMap VarinfoMap.empty in
         let var_glob_new = GlobalMap.fold extract_globs newMap VarinfoMap.empty in
         VarinfoMap.fold (fun f_old_var f_new_var (acc, ci, fm) ->
-            match VarinfoMap.find_opt f_old_var (fst final_matches) with
+            match VarinfoMap.find_opt f_old_var (fst fm) with
             | None ->
               let f_old = get_fundec (VarinfoMap.find f_old_var var_glob_old) in
               let f_new = get_fundec (VarinfoMap.find f_new_var var_glob_new) in (* TODO: what happens if there exists no fundec for this varinfo? *)
@@ -208,16 +208,16 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
               else false, ci, fm
             | Some v -> v = f_new_var, ci, fm) function_dependencies (true, change_info, final_matches) in
       let globalDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun old_var new_var (acc, ci, fm) ->
-          match VarinfoMap.find_opt old_var (fst final_matches) with
+          match VarinfoMap.find_opt old_var (fst fm) with
           | None ->
             if acc then
               compare_varinfo_exact old_var gc_old oldMap new_var gc_new newMap ci fm
             else false, ci, fm
           | Some v -> v = new_var, ci, fm
         ) global_var_dependencies (true, change_info, final_matches) in
-      funDependenciesMatch && globalDependenciesMatch
+      funDependenciesMatch && globalDependenciesMatch, change_info, final_matches
     else
-      empty_rename_assms function_dependencies && empty_rename_assms global_var_dependencies in
+      empty_rename_assms function_dependencies && empty_rename_assms global_var_dependencies, change_info, final_matches in
 
   let append_to_changed ~unchangedHeader ~diff =
     change_info.changed <- {current = gc_new; old = gc_old; unchangedHeader; diff} :: change_info.changed
