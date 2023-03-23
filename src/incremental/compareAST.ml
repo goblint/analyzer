@@ -257,7 +257,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) ~(acc: (typ * typ) list) ~(rename_mappi
   let (typeCheck, (_, _, _, updated_renames_on_success)) = eq_typ_acc ~fun_parameter_name_comparison_enabled a.vtype b.vtype ~rename_mapping:(StringMap.empty, VarinfoMap.empty, VarinfoMap.empty, renames_on_success) ~acc in
 
   (isNamingOk && typeCheck, (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping, updated_renames_on_success)) &&>>
-  forward_list_equal (eq_attribute ~acc ) a.vattr b.vattr &&>
+  forward_list_equal (eq_attribute ~acc) a.vattr b.vattr &&>
   (a.vstorage = b.vstorage) &&> (a.vglob = b.vglob) &&> (a.vaddrof = b.vaddrof)
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 
