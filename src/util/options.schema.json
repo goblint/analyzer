@@ -332,7 +332,7 @@
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
-            "assert","activeLongjmp","activeSetjmp","taintPartialContexts","modifiedSinceLongjmp","poisonVariables","expsplit","vla"
+            "assert"
           ]
         },
         "path_sens": {
