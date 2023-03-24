@@ -34,3 +34,4 @@ nav:
     - developer-guide/releasing.md
   - 'Artifact descriptions':
     - "SAS '21": artifact-descriptions/sas21.md
+    - "ESOP '23": artifact-descriptions/esop23.md
