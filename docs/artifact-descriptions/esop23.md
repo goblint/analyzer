@@ -48,6 +48,8 @@ The runtimes given here are based on runtimes we had in the VM on a host system 
 
 **Important note: We based our implementation on our previous work on Goblint, but also compare with Goblint in the non-relational setting from our previous SAS paper. This previous version is referred to as "Goblint w/ Interval"**
 
+**As a first step, navigate to the folder `~/analyzer`. All paths are given relative to it.**
+
 ## Claims in Paragraph "Internal comparison" (p.23)
 
 All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these tables is produced by running:
