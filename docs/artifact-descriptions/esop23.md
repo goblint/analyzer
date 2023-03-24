@@ -13,7 +13,7 @@ When using the artifact, follow the similar instructions it includes. -->
 # Getting Started Guide
 
 - Install VirtualBox (e.g. from [virtualbox.org](https://www.virtualbox.org/))
-- Import the VM via `File -> Import Appliance`
+- Import the VM via `File -> Import Appliance` (requires ~25GB of free memory)
 - Start the VM and (if prompted) login as `goblint` with password `goblint`
 - If you use a Non-English keyboard layout, you can change the keyboard layout in the top right corner to match yours.
 - Navigate to the folder `~/analyzer`. All paths are given relative to it.
