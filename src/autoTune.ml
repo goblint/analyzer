@@ -42,6 +42,13 @@ class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
     DoChildren
 end
 
+type functionCallMaps = {
+  calling: FunctionSet.t FunctionCallMap.t;
+  calledBy: (FunctionSet.t * int) FunctionCallMap.t;
+  argLists: Cil.exp list FunctionCallMap.t;
+  dynamicallyCalled: FunctionSet.t;
+}
+
 let functionCallMaps = ResettableLazy.from_fun (fun () ->
     let calling = ref FunctionCallMap.empty in
     let calledBy = ref FunctionCallMap.empty in
@@ -49,13 +56,13 @@ let functionCallMaps = ResettableLazy.from_fun (fun () ->
     let dynamicallyCalled = ref FunctionSet.empty in
     let thisVisitor = new functionVisitor(calling,calledBy, argLists, dynamicallyCalled) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    !calling, !calledBy, !argLists, !dynamicallyCalled)
+    {calling = !calling; calledBy = !calledBy; argLists = !argLists; dynamicallyCalled= !dynamicallyCalled})
 
 (* Only considers static calls!*)
-let calledFunctions fd = ResettableLazy.force functionCallMaps |> fun (x,_,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
-let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> fst
-let timesCalled fd = ResettableLazy.force functionCallMaps |> fun (_,x,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> snd
-let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x,_) -> x |> FunctionCallMap.find_opt fd
+let calledFunctions fd = (ResettableLazy.force functionCallMaps).calling |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
+let callingFunctions fd = (ResettableLazy.force functionCallMaps).calledBy |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> fst
+let timesCalled fd = (ResettableLazy.force functionCallMaps).calledBy |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> snd
+let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> FunctionCallMap.find_opt fd
 
 let findMallocWrappers () =
   let isMalloc f =
@@ -71,8 +78,7 @@ let findMallocWrappers () =
     else
       false
   in
-  ResettableLazy.force functionCallMaps
-  |> (fun (x,_,_,_) -> x)
+  (ResettableLazy.force functionCallMaps).calling
   |> FunctionCallMap.filter (fun _ allCalled -> FunctionSet.exists isMalloc allCalled)
   |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10)
   |> FunctionCallMap.bindings
@@ -133,7 +139,7 @@ let addModAttributes file =
 
 
 let disableIntervalContextsInRecursiveFunctions () =
-  ResettableLazy.force functionCallMaps |> fun (x,_,_,_) -> x |> FunctionCallMap.iter (fun f set ->
+  (ResettableLazy.force functionCallMaps).calling |> FunctionCallMap.iter (fun f set ->
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
         print_endline ("function " ^ (f.vname) ^" is recursive, disable interval and interval_set contexts");
@@ -161,9 +167,9 @@ let hasFunction pred =
     else
       false
   in
-  let (_,static,_,dynamic) = ResettableLazy.force functionCallMaps in
-  static |> FunctionCallMap.exists (fun var _ -> relevant_static var) ||
-  dynamic |> FunctionSet.exists relevant_dynamic
+  let calls = ResettableLazy.force functionCallMaps in
+  calls.calledBy |> FunctionCallMap.exists (fun var _ -> relevant_static var) ||
+  calls.dynamicallyCalled |> FunctionSet.exists relevant_dynamic
 
 let disableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[-]") anas
@@ -188,7 +194,7 @@ let reduceThreadAnalyses () =
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
-(* This is run independant of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
+(* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
 (* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
 let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceLongjmp"; "poisonVariables"; "expsplit"; "vla"]
 
