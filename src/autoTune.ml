@@ -6,7 +6,6 @@ open AutoTune0
 (*Create maps that map each function to the ones called in it and the ones calling it
    Only considers static calls!*)
 module FunctionSet = Set.Make(CilType.Varinfo)
-module FDSet = Set.Make(CilType.Fundec)
 module FunctionCallMap = Map.Make(CilType.Varinfo)
 
 let addOrCreateMap fd = function
@@ -29,20 +28,25 @@ end
 class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
   inherit nopCilVisitor
 
+  method! vglob = function
+    | GVarDecl (vinfo,_) ->
+      if vinfo.vaddrof && isFunctionType vinfo.vtype then dynamicallyCalled := FunctionSet.add vinfo !dynamicallyCalled;
+      DoChildren
+    | _ -> DoChildren
+
   method! vfunc fd =
-    if fd.svar.vaddrof then dynamicallyCalled := FDSet.add fd !dynamicallyCalled;
     let callSet = ref FunctionSet.empty in
     let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, argLists, fd.svar) in
     ignore @@ Cil.visitCilFunction callVisitor fd;
     calling := FunctionCallMap.add fd.svar !callSet !calling;
-    SkipChildren
+    DoChildren
 end
 
 let functionCallMaps = ResettableLazy.from_fun (fun () ->
     let calling = ref FunctionCallMap.empty in
     let calledBy = ref FunctionCallMap.empty in
     let argLists = ref FunctionCallMap.empty in
-    let dynamicallyCalled = ref FDSet.empty in
+    let dynamicallyCalled = ref FunctionSet.empty in
     let thisVisitor = new functionVisitor(calling,calledBy, argLists, dynamicallyCalled) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
     !calling, !calledBy, !argLists, !dynamicallyCalled)
@@ -138,25 +142,28 @@ let disableIntervalContextsInRecursiveFunctions () =
     )
 
 let hasFunction pred =
-  let relevant_static var = 
-    if LibraryFunctions.is_special var then 
+  let relevant_static var =
+    if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       GobOption.exists (fun args -> pred (desc.special args)) (functionArgs var)
     else
       false
   in
-  let relevant_dynamic fd = 
-    if LibraryFunctions.is_special fd.svar then 
-      let desc = LibraryFunctions.find fd.svar in
-      (* We don't really have arguments at hand, so we cheat and just feed it its own formals *)
-      let args = List.map (fun x -> Lval (Var x, NoOffset)) fd.sformals in
-      pred (desc.special args)
+  let relevant_dynamic var =
+    if LibraryFunctions.is_special var then
+      let desc = LibraryFunctions.find var in
+      (* We don't really have arguments at hand, so we cheat and just feed it a list of Cil.one of appropriate length *)
+      match unrollType var.vtype with
+      | TFun (_, args, _, _) ->
+        let args = BatOption.map_default (List.map (fun (x,_,_) -> Cil.one)) [] args in
+        pred (desc.special args)
+      | _ -> false
     else
       false
   in
   let (_,static,_,dynamic) = ResettableLazy.force functionCallMaps in
   static |> FunctionCallMap.exists (fun var _ -> relevant_static var) ||
-  dynamic |> FDSet.exists relevant_dynamic
+  dynamic |> FunctionSet.exists relevant_dynamic
 
 let disableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[-]") anas
