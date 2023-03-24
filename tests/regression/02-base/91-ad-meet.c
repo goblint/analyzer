@@ -32,15 +32,28 @@ void array_offsets(){
   __goblint_check(b + 1 + 2 == c + 1 );
 }
 
+typedef struct {
+  int x;
+  int y;
+} tuple;
+
+void array_with_tuple_offsets(){
+  tuple ts[10];
+
+  __goblint_check(&(ts[3].x) == &(ts[3].x));
+  __goblint_check(&(ts[3].x) != &(ts[3].y));
+  __goblint_check((void*) &(ts[3]) != (void*) &(ts[3].y));
+}
 
 int main() {
   struct s a;
   void *p = &a.fst;
   void *q = ((int(*)[1]) (&a))[0];
-  // as an assert, this passes when compiled
+  // as an __goblint_check, this passes when compiled
   __goblint_check(p == q); //UNKNOWN
 
   blob_offsets();
   array_offsets();
+  array_with_tuple_offsets();
   return 0;
 }
