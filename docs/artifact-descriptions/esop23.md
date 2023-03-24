@@ -109,7 +109,7 @@ We only give the instructions to reproduce the successful runs here. For a detai
 To generate the CSV file for all sets, invoke `./scripts/esop23-table2-duet.sh` (runs about 2mins).
 
 - The output is the complete output for Duet, which can be quite verbose.
-- Outputs `Error: NN` indicate that `NN` asserts could not be proven by Duet and are nor indicative of bigger issues.
+- Outputs `Error: NN` indicate that `NN` asserts could not be proven by Duet and are not indicative of bigger issues.
 Also, for some runs Duet will crash with an exception from solver.ml.
 
 
