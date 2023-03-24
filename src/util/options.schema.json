@@ -332,7 +332,7 @@
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
-            "assert"
+            "assert","activeLongjmp","activeSetjmp","taintPartialContexts","modifiedSinceLongjmp","poisonVariables","expsplit","vla"
           ]
         },
         "path_sens": {
@@ -340,7 +340,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -348,6 +348,21 @@
           "type": "array",
           "items": { "type": "string" },
           "default": [ "stack_loc", "stack_trace_set" ]
+        },
+        "setjmp" : {
+          "title": "ana.setjmp",
+          "description": "Setjmp/Longjmp analysis",
+          "type": "object",
+          "properties": {
+            "split": {
+              "title": "ana.setjmp.split",
+              "description": "Split returns of setjmp",
+              "type": "string",
+              "enum": ["none", "coarse", "precise"],
+              "default": "precise"
+            }
+          },
+          "additionalProperties": false
         },
         "int": {
           "title": "ana.int",

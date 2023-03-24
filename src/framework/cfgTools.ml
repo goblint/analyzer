@@ -525,7 +525,7 @@ struct
     in
     let shape = match n with
       | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
-      | Statement _     -> [] (* use default shape *)
+      | Statement _ -> [] (* use default shape *)
       | Function _
       | FunctionEntry _ -> ["shape=box"]
     in

@@ -130,7 +130,6 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
-
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
@@ -576,4 +575,9 @@ struct
     do_sideg ctx !sides;
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
+
+  let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
+
+  (* Just to satisfy signature *)
+  let paths_as_set ctx = [ctx.local]
 end
