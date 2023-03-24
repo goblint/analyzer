@@ -19,8 +19,25 @@ When using the artifact, follow the similar instructions it includes. -->
 - Navigate to the folder `~/analyzer`. All paths are given relative to it.
 - Run the following commands to verify the installation works as intended
     - `./scripts/esop23-kick-tires.sh` (will take ~1min)
-        - Internally, this will run a few internal regression tests (you can open the script to see which)
-        - After the command has run, there should be some messages `No errors :)` as well as some messages `Excellent: ignored check on ... now passing!`)
+        - Internally, this will run a few internal regression tests (you can open the script to see which). These exercise the major parts of the system.
+        - After the command has run, there should be some messages `No errors :)` as well as some messages `Excellent: ignored check on ... now passing!`
+        <details>
+            <summary>Detailed expected message</summary>
+            ```
+            Excellent: ignored check on tests/regression/01-cpa/33-asserts.c:35 is now passing!
+            Excellent: ignored check on tests/regression/28-race_reach/22-deref_read_racefree.c:20 is now passing!
+            No errors :)
+            No errors :)
+            Excellent: ignored check on 21-traces-cluster-based.c:48 is now passing!
+            Excellent: ignored check on 21-traces-cluster-based.c:66 is now passing!
+            Excellent: ignored check on 21-traces-cluster-based.c:69 is now passing!
+            Excellent: ignored check on 22-traces-write-centered-vs-meet-mutex.c:25 is now passing!
+            Excellent: ignored check on 42-threadenter-arg.c:6 is now passing!
+            No errors :)
+            No errors :)
+            No errors :)
+            ```
+        </details>
 
 # Step-by-Step Instructions
 
