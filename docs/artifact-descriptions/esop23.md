@@ -25,8 +25,8 @@ When using the artifact, follow the similar instructions it includes. -->
 # Step-by-Step Instructions
 
 The following are step-by-step instructions to reproduce the experimental results underlying the paper.
-Depending on the host machine, the run times will be slightly different from what is reported in the paper,
-but they should behave the same way relative to each other.
+Depending on the host machine, the run times will be slightly different from what is reported in the paper, but they should behave the same way relative to each other.
+The runtimes given here are based on runtimes we had in the VM on a host system with an 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz with 32GB of RAM with some generous upwards rounding.
 
 **Important note: We based our implementation on our previous work on Goblint, but also compare with Goblint in the non-relational setting from our previous SAS paper. This previous version is referred to as "Goblint w/ Interval"**
 
