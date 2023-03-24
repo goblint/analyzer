@@ -10,6 +10,6 @@ int main() {
   struct s a;
   void *p = &a.fst;
   void *q = ((int(*)[1]) (&a))[0];
-  assert(p == q);
+  assert(p == q); //UNKNOWN
   return 0;
 }

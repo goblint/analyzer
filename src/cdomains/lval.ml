@@ -161,16 +161,14 @@ struct
         let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
         Idx.add bits_offset remaining_offset
       | `Index (x, o) ->
-        let item_typ =
-          match Option.map unrollType typ with
-          | Some TArray(bt, _, _) -> Some bt
-          | _ -> None
-        in
-        let default_bits_in_type = 8 in
-        let item_size_in_bits = BatOption.map_default bitsSizeOf default_bits_in_type item_typ in
-        let item_size_in_bits = idx_of_int item_size_in_bits in
-        let x_bits_offset = Idx.mul item_size_in_bits x in
-        x_bits_offset
+        match Option.map unrollType typ with
+        | Some TArray(item_typ, _, _) ->
+          let item_size_in_bits = bitsSizeOf item_typ in
+          let item_size_in_bits = idx_of_int item_size_in_bits in
+          let bits_offset = Idx.mul item_size_in_bits x in
+          let remaining_offset = offset_to_index_offset ~typ:item_typ o in
+          Idx.add bits_offset remaining_offset
+        | _ -> Idx.top ()
     in
     offset_to_index_offset ~typ offs
 

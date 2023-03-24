@@ -23,5 +23,5 @@ int main(){
     // According to the C standard (section 6.2.8 in the C11 standard),
     // the alignment of fields in structs is implementation defined.
     // When compiling with GCC, the following check as an assert happens to hold.
-    __goblint_check(z==1);
+    __goblint_check(z==1); //UNKNOWN
 }
