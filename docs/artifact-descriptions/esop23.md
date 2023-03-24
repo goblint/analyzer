@@ -8,8 +8,8 @@ The artifact is a VirtualBox Image based on Ubuntu 22.04.1. The login is `goblin
 
 For convenience this file is also included in the VM (at `~/analyzer/docs/artifact-descriptions/esop23.md`) in order to be able to copy commands.
 
-<!-- If you are reading these instructions on goblint.readthedocs.io, they might have been updated to match the current version of Goblint.
-When using the artifact, follow the similar instructions it includes. -->
+**The current version of Goblint no longer ships with all the convenience scripts described here. We recommend using the frozen version in the artifact.**
+Alternatively, you may use the corresponding versions of Goblint (https://github.com/goblint/analyzer/releases/tag/esop23) and the benchmarks repository (https://github.com/goblint/bench/releases/tag/esop23).
 
 # Getting Started Guide
 
