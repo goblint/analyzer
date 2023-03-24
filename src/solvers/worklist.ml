@@ -1,6 +1,7 @@
 open Prelude
 open Analyses
 open Constraints
+open PriorityCalc
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -98,6 +99,7 @@ module Make =
         set x (eq x (eval x) set)
       done;
       stop_event ();
+      predominatorRegistration#printOut ();
       rho
   end
 

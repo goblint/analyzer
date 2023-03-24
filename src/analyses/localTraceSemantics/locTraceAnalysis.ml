@@ -1,6 +1,7 @@
 open Prelude.Ana
 open Analyses
 open LocTraceDS
+open PriorityCalc
   
 (* Custom exceptions for eval-function *)
 exception Division_by_zero_Int
@@ -688,6 +689,7 @@ let assign_fold_graphSet graph (lval, rval, ctx,set_acc) = print_string "assign_
   (lval, rval, ctx, new_set)
 
 let assign ctx (lval:lval) (rval:exp) : D.t = 
+  predominatorRegistration#update ctx.prev_node ctx.node;
   print_string ("assign wurde aufgerufen with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
 let _, _, _, result =
 D.fold assign_fold_graphSet ctx.local (lval, rval, ctx, D.empty ())
@@ -746,7 +748,9 @@ let branch_fold_graphSet graph (exp, tv, ctx,set_acc) =
   in
   (exp, tv, ctx, new_set)
 
-let branch ctx (exp:exp) (tv:bool) : D.t = print_string ("branch wurde aufgerufen mit exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+let branch ctx (exp:exp) (tv:bool) : D.t = 
+  predominatorRegistration#update ctx.prev_node ctx.node;
+  print_string ("branch wurde aufgerufen mit exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
 let _, _, _, result =
    D.fold branch_fold_graphSet ctx.local (exp, tv, ctx, D.empty ())
 in result
@@ -782,6 +786,7 @@ else set_acc) else
   (ctx, new_set)
 
 let body ctx (f:fundec) : D.t = 
+  predominatorRegistration#update ctx.prev_node ctx.node;
   print_string ("body wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
 let _, result =
    D.fold body_fold_graphSet ctx.local (ctx, D.empty ())
@@ -890,6 +895,7 @@ in
   (f, exp, ctx, new_set)
 
 let return ctx (exp:exp option) (f:fundec) : D.t = 
+  predominatorRegistration#update ctx.prev_node ctx.node;
   print_string ("return wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
    let _, _, _, result = D.fold return_fold_graphSet ctx.local (f, exp, ctx, D.empty ())
 in 
@@ -1081,6 +1087,7 @@ myTmp
     (lval, f, arglist, ctx, new_set)
 
 let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = 
+  predominatorRegistration#update ctx.prev_node ctx.node;
   print_string ("special wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^" und ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und f "^(CilType.Varinfo.show f)^"\n");
 let _, _, _, _, result =   D.fold special_fold_graphSet ctx.local (lval, f, arglist, ctx, D.empty ())
 in result
@@ -1153,6 +1160,7 @@ let enter_fold_graphSet graph (f, args, ctx,set_acc) =
   (f, args,ctx, new_set)
 
    let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
+    predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
   with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
   if D.is_empty ctx.local then (
@@ -1219,6 +1227,7 @@ else (
   (args, lval, callee_local, ctx, new_set))
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
+    predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("combine wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
     und lval "^(match lval with None -> "None" | Some(l) -> CilType.Lval.show l)^" und fexp "^(CilType.Exp.show fexp)^"\n");
 let _,_,_,_, result=
@@ -1268,6 +1277,7 @@ in result
     (args, f, ctx, new_set)
 
     let threadenter ctx lval f (args:exp list) = 
+      predominatorRegistration#update ctx.prev_node ctx.node;
       print_string ("threadenter wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und ctx.node "^(Node.show ctx.node)^"
     , lval "^(match lval with None -> "None" |Some(l) -> CilType.Lval.show l)^"
     \nund args={"^(List.fold (fun acc_fold exp_fold -> acc_fold^(CilType.Exp.show exp_fold)^"; ") "" args)^"}\n");
@@ -1322,6 +1332,7 @@ in result
       (lval, ctx, new_set)
 
     let threadspawn ctx lval f args fctx = (* Creator; lval speichert neue Thread-ID *)
+    predominatorRegistration#update ctx.prev_node ctx.node;
       print_string ("threadspawn wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und ctx.node "^(Node.show ctx.node)^"\n");
       let _, _, result = D.fold threadspawn_fold_graphSet (ctx.local) (lval, ctx, D.empty())
     in
