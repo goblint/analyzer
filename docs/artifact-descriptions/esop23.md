@@ -2,6 +2,7 @@
 
 This is the artifact description for our ESOP '23 paper "Clustered Relational Thread-Modular Abstract Interpretation with Local Traces".
 The artifact is available from Zenodo at [https://doi.org/10.5281/zenodo.7505428](https://doi.org/10.5281/zenodo.7505428). The `md5` of the `.ova` file is `3f6a5af9fe94cb377c397758b4941b15`.
+The associated source code can conveniently be browsed at: https://github.com/goblint/analyzer/tree/esop23.
 
 The artifact is a VirtualBox Image based on Ubuntu 22.04.1. The login is `goblint:goblint`.
 
