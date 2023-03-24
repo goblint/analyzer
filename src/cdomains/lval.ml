@@ -374,6 +374,7 @@ struct
   include Normal (Idx)
   module Offs = OffsetLatWithSemanticEqual (Idx)
 
+  (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
   let semantic_equal x y = match x, y with
     | Addr (x, xoffs), Addr (y, yoffs) ->
       if CilType.Varinfo.equal x y then
@@ -384,17 +385,14 @@ struct
         Some false
     | StrPtr None, StrPtr _
     | StrPtr _, StrPtr None -> Some true
-    | StrPtr (Some a), StrPtr (Some b) -> Some (a = b)
+    | StrPtr (Some a), StrPtr (Some b) -> if a = b then None else Some false
     | NullPtr, NullPtr -> Some true
-    | UnknownPtr, UnknownPtr -> None
+    | UnknownPtr, UnknownPtr
     | UnknownPtr, Addr _
     | Addr _, UnknownPtr
     | UnknownPtr, StrPtr _
-    | StrPtr _, UnknownPtr ->
-      (* TODO: Case needed? *)
-      None
-    | _, _ ->
-      Some false
+    | StrPtr _, UnknownPtr -> None
+    | _, _ -> Some false
 
   let is_definite = function
     | NullPtr -> true
