@@ -72,6 +72,7 @@ All these claims derive from Fig. 13 (a) and 13 (b). The data underlying these t
 ## All other claims in Section 9
 
 All these claims are based on the contents of Table 2.
+Table 3 in the supplementary material gives details on the results for the Goblint set.
 
 ### Reproducing the tables for our tool & Goblint w/ Interval
 
