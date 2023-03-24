@@ -1,9 +1,9 @@
-#include <assert.h>
+#include <goblint.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 void f(void) {
-  assert(0); // FAIL!
+  __goblint_check(0); // FAIL!
   printf("hello, this is \"f\"\n");
 }
 

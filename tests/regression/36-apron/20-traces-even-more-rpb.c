@@ -2,7 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 17;
 int h = 14;
@@ -54,7 +54,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
-  assert(g >= h); // UNKNOWN (for protection at least)
+  __goblint_check(g >= h); // UNKNOWN (for protection at least)
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
   return 0;

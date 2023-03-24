@@ -18,6 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda
           - 4.14.x
           - 4.13.x
           - 4.12.x
@@ -25,10 +26,20 @@ jobs:
         apron:
           - false
           - true
+        z3:
+          - false
+
+        include:
+          - os: ubuntu-latest
+            ocaml-compiler: 4.14.x
+            z3: true
+          - os: ubuntu-latest
+            ocaml-compiler: 5.0.0
+            apron: false
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
-    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }})
+    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }}${{ matrix.z3 && ', z3' || '' }})
 
     runs-on: ${{ matrix.os }}
 
@@ -50,6 +61,12 @@ jobs:
           opam depext apron
           opam install apron
 
+      - name: Install Z3 dependencies
+        if: ${{ matrix.z3 }}
+        run: |
+          opam depext z3
+          opam install z3
+
       - name: Build
         run: ./make.sh nat
 
@@ -64,11 +81,18 @@ jobs:
 
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
-        run:  ruby scripts/update_suite.rb group octagon -s
+        run: ruby scripts/update_suite.rb group octagon -s
+
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group affeq -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
+
+      - name: Test regression cram
+        run: opam exec -- dune runtest tests/regression
 
       - name: Test unit
         run: opam exec -- dune runtest unittest
@@ -78,6 +102,9 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
 
   lower-bounds-downgrade:
     # use external 0install solver to downgrade: https://github.com/ocaml-opam/opam-0install-solver
@@ -90,7 +117,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
@@ -125,7 +152,7 @@ jobs:
 
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda)
 
       - name: Build
         run: ./make.sh nat
@@ -135,14 +162,22 @@ jobs:
 
       - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group apron -s
+        run: |
+          ruby scripts/update_suite.rb group apron -s
+          ruby scripts/update_suite.rb group apron2 -s
 
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run:  ruby scripts/update_suite.rb group octagon -s
+        run: ruby scripts/update_suite.rb group octagon -s
+
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
+
+      - name: Test regression cram
+        run: opam exec -- dune runtest tests/regression
 
       - name: Test unit
         run: opam exec -- dune runtest unittest
@@ -152,6 +187,9 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
 
   lower-bounds-docker:
     # use builtin-0install solver to remove and downgrade, opam normally compiled without, Docker images have it compiled
@@ -171,7 +209,7 @@ jobs:
 
       - name: Build dev Docker image
         id: build
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: .
           target: dev
@@ -196,7 +234,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
 
     runs-on: ${{ matrix.os }}
 
@@ -228,10 +266,15 @@ jobs:
 
       - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group apron -s
+        run: |
+          ruby scripts/update_suite.rb group apron -s
+          ruby scripts/update_suite.rb group apron2 -s
 
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run:  ruby scripts/update_suite.rb group octagon -s
+        run: ruby scripts/update_suite.rb group octagon -s
+
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
 
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         # if: ${{ matrix.apron }}
@@ -242,3 +285,6 @@ jobs:
 
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
+
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c

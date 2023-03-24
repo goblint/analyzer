@@ -1,6 +1,7 @@
 // Extracted from zstd
 #include <stddef.h>
-#include <assert.h>
+#include <stdlib.h>
+#include <goblint.h>
 
 typedef void* (*ZSTD_allocFunction) (void* opaque, size_t size);
 typedef void  (*ZSTD_freeFunction) (void* opaque, void* address);
@@ -27,6 +28,6 @@ int* ZSTD_createCCtx_advanced(ZSTD_customMem customMem)
 
 int main() {
   int *p = ZSTD_createCCtx_advanced(ZSTD_defaultCMem);
-  assert(p != NULL);
+  __goblint_check(p != NULL);
   return 0;
 }

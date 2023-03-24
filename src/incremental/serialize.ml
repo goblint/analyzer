@@ -26,7 +26,7 @@ let marshal obj fileName  =
 
 let unmarshal fileName =
   if GobConfig.get_bool "dbg.verbose" then
-    (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+    (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
     print_endline ("Unmarshalling " ^ Fpath.to_string fileName ^ "... If type of content changed, this will result in a segmentation fault!");
   Marshal.input (open_in_bin (Fpath.to_string fileName))
 
@@ -42,7 +42,7 @@ module Cache = struct
     mutable solver_data: Obj.t option;
     mutable analysis_data: Obj.t option;
     mutable version_data: MaxIdUtil.max_ids option;
-    mutable cil_file: Cil.file option;
+    mutable cil_file: GoblintCil.file option;
   }
 
   let data = ref {
@@ -55,7 +55,7 @@ module Cache = struct
   (** GADT that may be used to query data from and pass data to the cache. *)
   type _ data_query =
     | SolverData : _ data_query
-    | CilFile : Cil.file data_query
+    | CilFile : GoblintCil.file data_query
     | VersionData : MaxIdUtil.max_ids data_query
     | AnalysisData : _ data_query
 

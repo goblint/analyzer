@@ -1,1 +1,6 @@
-let includes = []
+let lib = []
+let lib_stub_include = []
+let lib_stub_src = []
+let lib_runtime_include = []
+let lib_runtime_src = []
+let conf = []

@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 let create_var name = Goblintutil.create_var @@ makeGlobalVar name voidType
 
@@ -14,6 +14,7 @@ sig
   val to_varinfo : t -> varinfo
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
+  val bindings: unit -> (t * varinfo) list
 end
 
 module type G =
@@ -59,6 +60,8 @@ struct
     | Some xh_loaded ->
       xh := xh_loaded
     | None -> ()
+
+  let bindings () = List.of_seq (XH.to_seq !xh)
 end
 
 (* module to maintain bidirectional mappings between some type t and varinfo.
@@ -134,6 +137,8 @@ struct
         M.unmarshal (Some xh_loaded);
         vh := vh_loaded
       | None -> ()
+
+    let bindings = M.bindings
   end
 
   (** Create a BiVarinfoMap and register it in the collection *)

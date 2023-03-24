@@ -1,4 +1,5 @@
 (** Abstract domains representing sets. *)
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 (* Exception raised when the set domain can not support the requested operation.
@@ -18,25 +19,138 @@ sig
   val mem: elt -> t -> bool
   val add: elt -> t -> t
   val singleton: elt -> t
+
   val remove: elt -> t -> t
+  (** See {!Set.S.remove}.
+
+      {b NB!} On set abstractions this is a {e strong} removal,
+      i.e. all subsumed elements are also removed.
+      @see <https://github.com/goblint/analyzer/pull/809#discussion_r936336198> *)
+
   val union: t -> t -> t
   val inter: t -> t -> t
+
   val diff: t -> t -> t
+  (** See {!Set.S.diff}.
+
+      {b NB!} On set abstractions this is a {e strong} removal,
+      i.e. all subsumed elements are also removed.
+      @see <https://github.com/goblint/analyzer/pull/809#discussion_r936336198> *)
+
   val subset: t -> t -> bool
   val disjoint: t -> t -> bool
+
   val iter: (elt -> unit) -> t -> unit
+  (** See {!Set.S.iter}.
+
+      On set abstractions this iterates only over canonical elements,
+      not all subsumed elements. *)
+
   val map: (elt -> elt) -> t -> t
+  (** See {!Set.S.map}.
+
+      On set abstractions this maps only canonical elements,
+      not all subsumed elements. *)
+
   val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
+  (** See {!Set.S.fold}.
+
+      On set abstractions this folds only over canonical elements,
+      not all subsumed elements. *)
+
   val for_all: (elt -> bool) -> t -> bool
+  (** See {!Set.S.for_all}.
+
+      On set abstractions this checks only canonical elements,
+      not all subsumed elements. *)
+
   val exists: (elt -> bool) -> t -> bool
+  (** See {!Set.S.exists}.
+
+      On set abstractions this checks only canonical elements,
+      not all subsumed elements. *)
+
   val filter: (elt -> bool) -> t -> t
+  (** See {!Set.S.filter}.
+
+      On set abstractions this filters only canonical elements,
+      not all subsumed elements. *)
+
   val partition: (elt -> bool) -> t -> t * t
+  (** See {!Set.S.partition}.
+
+      On set abstractions this partitions only canonical elements,
+      not all subsumed elements. *)
+
   val cardinal: t -> int
+  (** See {!Set.S.cardinal}.
+
+      On set abstractions this counts only canonical elements,
+      not all subsumed elements. *)
+
   val elements: t -> elt list
+  (** See {!Set.S.elements}.
+
+      On set abstractions this lists only canonical elements,
+      not all subsumed elements. *)
+
   val of_list: elt list -> t
+
   val min_elt: t -> elt
+  (** See {!Set.S.min_elt}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+
   val max_elt: t -> elt
+  (** See {!Set.S.max_elt}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+
   val choose: t -> elt
+  (** See {!Set.S.choose}.
+
+      On set abstractions this chooses only a canonical element,
+      not any subsumed element. *)
+end
+
+(** Subsignature of {!S}, which is sufficient for {!Print}. *)
+module type Elements =
+sig
+  type t
+  type elt
+  val elements: t -> elt list
+  val iter: (elt -> unit) -> t -> unit
+end
+
+(** Reusable output definitions for sets. *)
+module Print (E: Printable.S) (S: Elements with type elt = E.t) =
+struct
+  let pretty () x =
+    let elts = S.elements x in
+    let content = List.map (E.pretty ()) elts in
+    let rec separate x =
+      match x with
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ (text "," ++ break) :: separate xs
+    in
+    let separated = separate content in
+    let content = List.fold_left (++) nil separated in
+    (text "{" ++ align) ++ content ++ (unalign ++ text "}")
+
+  (** Short summary for sets. *)
+  let show x : string =
+    let all_elems : string list = List.map E.show (S.elements x) in
+    Printable.get_short_list "{" "}" all_elems
+
+  let to_yojson x = [%to_yojson: E.t list] (S.elements x)
+
+  let printXml f xs =
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    S.iter (E.printXml f) xs;
+    BatPrintf.fprintf f "</set>\n</value>\n"
 end
 
 
@@ -60,35 +174,18 @@ struct
   let top () = unsupported "Make.top"
   let is_top _ = false
 
-  let map f s =
-    let add_to_it x s = add (f x) s in
-    fold add_to_it s (empty ())
-
-  let pretty () x =
-    let elts = elements x in
-    let content = List.map (Base.pretty ()) elts in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
-
-  (** Short summary for sets. *)
-  let show x : string =
-    let all_elems : string list = List.map Base.show (elements x) in
-    Printable.get_short_list "{" "}" all_elems
-
-  let to_yojson x = [%to_yojson: Base.t list] (elements x)
-
-  let equal x y =
-    cardinal x = cardinal y
-    && for_all (fun e -> exists (Base.equal e) y) x
+  include Print (Base) (
+    struct
+      type nonrec t = t
+      type nonrec elt = elt
+      let elements = elements
+      let iter = iter
+    end
+    )
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
+
+  let relift x = map Base.relift x
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     if leq x y then dprintf "%s: These are fine!" (name ()) else
@@ -96,10 +193,6 @@ struct
       let evil = choose (diff x y) in
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
-  let printXml f xs =
-    BatPrintf.fprintf f "<value>\n<set>\n";
-    iter (Base.printXml f) xs;
-    BatPrintf.fprintf f "</set>\n</value>\n"
 
   let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (Base.arbitrary ())
 end
@@ -155,12 +248,7 @@ struct
     in
     snd (fold f s2 (s1, empty ()))
 end
-
-(* TODO: unused *)
-module Sensitive = SensitiveConf (struct
-    let expand_fst = true
-    let expand_snd = true
-  end)
+[@@deprecated]
 
 (** Auxiliary signature for naming the top element *)
 module type ToppedSetNames =
@@ -353,6 +441,7 @@ sig
   val elems: t list
 end
 
+(* TODO: put elems into E *)
 module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
 struct
   module E =
@@ -364,4 +453,46 @@ struct
   include Make (E)
   let top () = of_list Elems.elems
   let is_top x = equal x (top ())
+end
+
+(** Set abstracted by a single (joined) element.
+
+    Element-wise {!S} operations only observe the single element. *)
+module Joined (E: Lattice.S): S with type elt = E.t =
+struct
+  type elt = E.t
+  include E
+
+  let singleton e = e
+  let of_list es = List.fold_left E.join (E.bot ()) es
+  let exists p e = p e
+  let for_all p e = p e
+  let mem e e' = E.leq e e'
+  let choose e = e
+  let elements e = [e]
+  let remove e e' =
+    if E.leq e' e then
+      E.bot () (* NB! strong removal *)
+    else
+      e'
+  let map f e = f e
+  let fold f e a = f e a
+  let empty () = E.bot ()
+  let add e e' = E.join e e'
+  let is_empty e = E.is_bot e
+  let union e e' = E.join e e'
+  let diff e e' = remove e' e (* NB! strong removal *)
+  let iter f e = f e
+  let cardinal e =
+    if is_empty e then
+      0
+    else
+      1
+  let inter e e' = E.meet e e'
+  let subset e e' = E.leq e e'
+  let filter p e = unsupported "Joined.filter"
+  let partition p e = unsupported "Joined.partition"
+  let min_elt e = unsupported "Joined.min_elt"
+  let max_elt e = unsupported "Joined.max_elt"
+  let disjoint e e' = is_empty (inter e e')
 end

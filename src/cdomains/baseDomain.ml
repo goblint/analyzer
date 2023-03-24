@@ -1,6 +1,6 @@
 (** domain of the base analysis *)
 
-open Cil
+open GoblintCil
 module VD = ValueDomain.Compound
 module BI = IntOps.BigIntOps
 
@@ -31,7 +31,7 @@ struct
   let name () = "array partitioning deps"
 end
 
-(** Maintains a set of local variables that need to be weakly updated, because multiple reachbale copies of them may *)
+(** Maintains a set of local variables that need to be weakly updated, because multiple reachable copies of them may *)
 (* exist on the call stack *)
 module WeakUpdates =
 struct

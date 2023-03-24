@@ -1,0 +1,20 @@
+--- tests/incremental/11-restart/04-global-add.c
++++ tests/incremental/11-restart/04-global-add.c
+@@ -4,7 +4,7 @@
+ int g = 1;
+
+ void* t_fun(void *arg) {
+-
++    g = 2;
+     return NULL;
+ }
+
+@@ -12,6 +12,6 @@ int main() {
+     pthread_t id;
+     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
+
+-    __goblint_check(g == 1); // SUCCESS before, unknown after
++    __goblint_check(g == 1); // success before, UNKNOWN after
+     return 0;
+ }
+\ No newline at end of file

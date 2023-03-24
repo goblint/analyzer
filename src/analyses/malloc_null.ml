@@ -6,7 +6,6 @@ module Offs = ValueDomain.Offs
 
 open Prelude.Ana
 open Analyses
-open GobConfig
 
 module Spec =
 struct
@@ -201,7 +200,7 @@ struct
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
     [ctx.local,nst]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     let new_u =
@@ -217,8 +216,9 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
-    match f.vname, lval with
-    | "malloc", Some lv ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, lval with
+    | Malloc _, Some lv ->
       begin
         match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some (Var v, offs) ->
@@ -237,7 +237,6 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    set_bool "sem.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 

@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 
 let var_replace_original_name vi =
@@ -18,7 +18,7 @@ let exp_replace_original_name e =
 
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
-  | None -> true
+  | None -> vi.vstorage <> Static (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
   | Some fd -> CilType.Fundec.equal fd scope
 
 class exp_is_in_scope_visitor (scope: fundec) (acc: bool ref) = object
@@ -33,12 +33,21 @@ let exp_is_in_scope scope e =
   ignore (visitCilExpr visitor e);
   !acc
 
+let exclude_vars_regexp = ResettableLazy.from_fun (fun () ->
+    GobConfig.get_string_list "witness.invariant.exclude-vars"
+    |> String.concat "\\|"
+    |> Printf.sprintf "^\\(%s\\)$"
+    |> Str.regexp
+  )
+
 (* TODO: detect temporaries created by Cil? *)
 (* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)
 (* TODO: instead check if vdescr is nonempty? (doesn't cover all cases, e.g. ternary temporary) *)
-let tmp_var_regexp = Str.regexp "^\\(tmp\\(___[0-9]+\\)?\\|cond\\|RETURN\\)$"
-(* let var_is_tmp {vname; _} = Str.string_match tmp_var_regexp vname 0 *)
-let var_is_tmp vi = Option.is_none (Cilfacade.find_original_name vi)
+let varname_is_tmp vname = Str.string_match (ResettableLazy.force exclude_vars_regexp) vname 0
+let var_is_tmp vi =
+  match Cilfacade.find_original_name vi with
+  | None -> true
+  | Some vname -> varname_is_tmp vname
 class exp_contains_tmp_visitor (acc: bool ref) = object
   inherit nopCilVisitor as super
   method! vvrbl (vi: varinfo) =
@@ -62,3 +71,6 @@ let exp_contains_tmp e =
 
 (* TODO: synchronize magic constant with BaseDomain *)
 let var_is_heap {vname; _} = BatString.starts_with vname "(alloc@"
+
+let reset_lazy () =
+  ResettableLazy.reset exclude_vars_regexp

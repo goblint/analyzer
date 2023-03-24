@@ -1,4 +1,5 @@
 open MyCFG
+open GoblintCil
 
 module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
@@ -18,7 +19,7 @@ let find_main_entry entrystates =
   | _, _ :: _ -> failwith "some other_entry_nodes"
   | [main_entry], [] -> main_entry
 
-let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
+let find_loop_heads (module FileCfg: FileCfg): unit NH.t =
   let loop_heads = NH.create 100 in
   let global_visited_nodes = NH.create 100 in
 
@@ -31,11 +32,11 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
       let new_path_visited_nodes = NS.add node path_visited_nodes in
       List.iter (fun (_, to_node) ->
           iter_node new_path_visited_nodes to_node
-        ) (Cfg.next node)
+        ) (FileCfg.Cfg.next node)
     end
   in
 
-  Cil.iterGlobals file (function
+  Cil.iterGlobals FileCfg.file (function
       | GFun (fd, _) ->
         let entry_node = FunctionEntry fd in
         iter_node NS.empty entry_node
@@ -45,24 +46,21 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
   loop_heads
 
 
-module type File =
-sig
-  val file: Cil.file
-end
-
-module Invariant (File: File) (Cfg: MyCFG.CfgBidir) =
+module Invariant (FileCfg: MyCFG.FileCfg) =
 struct
+  open FileCfg
+
   let emit_loop_head = GobConfig.get_bool "witness.invariant.loop-head"
   let emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
   let emit_other = GobConfig.get_bool "witness.invariant.other"
 
-  let loop_heads = find_loop_heads (module Cfg) File.file
+  let loop_heads = find_loop_heads (module FileCfg)
 
   let is_after_lock to_node =
     List.exists (fun (edges, from_node) ->
         List.exists (fun (_, edge) ->
             match edge with
-            | Proc (_, Lval (Var fv, NoOffset), args) ->
+            | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
               let desc = LibraryFunctions.find fv in
               begin match desc.special args with
                 | Lock _ -> true
@@ -111,4 +109,113 @@ struct
       ES.elements (pullOutCommonConjuncts inv')
     else
       [inv']
+end
+
+module InvariantParser =
+struct
+  type t = {
+    genv: (string, Cabs2cil.envdata * Cil.location) Hashtbl.t;
+    global_vars: Cil.varinfo list;
+  }
+
+  module VarinfoH = Cilfacade.VarinfoH
+
+  let create (file: Cil.file): t =
+    (* Reconstruct genv from CIL file instead of using genvironment,
+       because genvironment contains data from all versions of the file
+       and incremental update doesn't remove the excess. *)
+    let genv = Hashtbl.create (Hashtbl.length Cabs2cil.genvironment) in
+    let global_vars = VarinfoH.create 113 in (* Deduplicates varinfos from declarations and definitions. *)
+    Cil.iterGlobals file (function
+        | Cil.GType ({tname; _} as t, loc) ->
+          let name = "type " ^ tname in
+          Hashtbl.replace genv name (Cabs2cil.EnvTyp (TNamed (t, [])), loc)
+        | Cil.GCompTag ({cstruct; cname; _} as c, loc)
+        | Cil.GCompTagDecl ({cstruct; cname; _} as c, loc) ->
+          let name = (if cstruct then "struct" else "union") ^ " " ^ cname in
+          Hashtbl.replace genv name (Cabs2cil.EnvTyp (TComp (c, [])), loc)
+        | Cil.GEnumTag ({ename; eitems; _} as e, loc)
+        | Cil.GEnumTagDecl ({ename; eitems; _} as e, loc) ->
+          let typ = TEnum (e, []) in
+          let name = "enum " ^ ename in
+          Hashtbl.replace genv name (Cabs2cil.EnvTyp typ, loc);
+          List.iter (fun (name, exp, loc) ->
+              Hashtbl.replace genv name (Cabs2cil.EnvEnum (exp, typ), loc)
+            ) eitems
+        | Cil.GVar (v, _, loc)
+        | Cil.GVarDecl (v, loc)
+        | Cil.GFun ({svar=v; _}, loc) ->
+          Hashtbl.replace genv v.vname (Cabs2cil.EnvVar v, loc);
+          VarinfoH.replace global_vars v ()
+        | _ -> ()
+      );
+    let global_vars = List.of_seq (VarinfoH.to_seq_keys global_vars) in
+    {genv; global_vars}
+
+  let parse_cabs (inv: string): (Cabs.expression, string) result =
+    match Timing.wrap "FrontC" Frontc.parse_standalone_exp inv with
+    | inv_cabs -> Ok inv_cabs
+    | exception (Frontc.ParseError e) ->
+      Errormsg.log "\n"; (* CIL prints garbage without \n before *)
+      Error e
+
+  let parse_cil {genv; global_vars} ?(check=true) ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
+    let env = Hashtbl.copy genv in
+    List.iter (fun (v: Cil.varinfo) ->
+        Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
+      ) (fundec.sformals @ fundec.slocals);
+
+    let inv_exp_opt =
+      Cil.currentLoc := loc;
+      Cil.currentExpLoc := loc;
+      Cabs2cil.currentFunctionFDEC := fundec;
+      let old_locals = fundec.slocals in
+      let old_useLogicalOperators = !Cil.useLogicalOperators in
+      Fun.protect ~finally:(fun () ->
+          fundec.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+          Cil.useLogicalOperators := old_useLogicalOperators
+        ) (fun () ->
+          Cil.useLogicalOperators := true;
+          Timing.wrap "Cabs2cil" (Cabs2cil.convStandaloneExp ~genv ~env) inv_cabs
+        )
+    in
+
+    let vars = fundec.sformals @ fundec.slocals @ global_vars in
+    match inv_exp_opt with
+    | Some inv_exp when not check || Check.checkStandaloneExp ~vars inv_exp ->
+      Ok inv_exp
+    | _ ->
+      Error "parse_cil"
+end
+
+module Locator (E: Set.OrderedType) =
+struct
+  module FileH = BatHashtbl.Make (Basetype.RawStrings)
+  module LocM = BatMap.Make (CilType.Location)
+  module ES = BatSet.Make (E)
+
+  (* for each file, locations have total order, so LocM essentially does binary search *)
+  type t = ES.t LocM.t FileH.t
+
+  let create () = FileH.create 100
+
+  let add (file_loc_es: t) (loc: Cil.location) (e: E.t): unit =
+    FileH.modify_def LocM.empty loc.file (
+      LocM.modify_def ES.empty loc (ES.add e)
+    ) file_loc_es
+
+  let find_opt (file_loc_es: t) (loc: Cil.location): ES.t option =
+    let open GobOption.Syntax in
+    let* loc_es = FileH.find_option file_loc_es loc.file in
+    let* (_, es) = LocM.find_first_opt (fun loc' ->
+        CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
+      ) loc_es
+    in
+    if ES.is_empty es then
+      None
+    else
+      Some es
+
+  let clear (file_loc_es: t): unit =
+    FileH.clear file_loc_es
 end

@@ -41,20 +41,20 @@ struct
     in
     set_shrink shrink int64
 
-  let big_int: Big_int_Z.big_int arbitrary =
-    let open Big_int_Z in
+  let big_int: Z.t arbitrary =
     let shrink x yield =
       let y = ref x in
-      let two_big_int = big_int_of_int 2 in
-      while not (eq_big_int !y zero_big_int) do y := div_big_int !y two_big_int; yield !y; done;
+      let two_big_int = Z.of_int 2 in
+      while not (Z.equal !y Z.zero) do y := Z.ediv !y two_big_int; yield !y; done;
       ()
     in
-    set_print string_of_big_int @@ set_shrink shrink @@ QCheck.map big_int_of_int64 int64
+    set_print Z.to_string @@ set_shrink shrink @@ QCheck.map Z.of_int64 int64
 
   let sequence (arbs: 'a arbitrary list): 'a list arbitrary =
     let gens = List.map gen arbs in
     let shrinks = List.map shrink arbs in
     make ~shrink:(Shrink.sequence shrinks) (Gen.sequence gens)
 
+  open GoblintCil
   let varinfo: Cil.varinfo arbitrary = QCheck.always (Cil.makeGlobalVar "arbVar" Cil.voidPtrType) (* S TODO: how to generate this *)
 end

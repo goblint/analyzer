@@ -1,5 +1,5 @@
 open MyCFG
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 
@@ -113,7 +113,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   );
   r
 
-let computeSCCs x = Stats.time "computeSCCs" (computeSCCs x)
+let computeSCCs x = Timing.wrap "computeSCCs" (computeSCCs x)
 
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
@@ -232,11 +232,14 @@ let createCFG (file: file) =
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
-          let newst = mkStmt (Return (None, fd_loc)) in
+          if Messages.tracing then Messages.trace "cfg" "adding pseudo-return to the function %s.\n" fd.svar.vname;
+          let fd_end_loc = {fd_loc with line = fd_loc.endLine; byte = fd_loc.endByte; column = fd_loc.endColumn} in
+          let newst = mkStmt (Return (None, fd_end_loc)) in
           newst.sid <- get_pseudo_return_id fd;
           Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
+          Cilfacade.IntH.replace Cilfacade.pseudo_return_stmt_sids newst.sid newst;
           let newst_node = Statement newst in
-          addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
+          addEdge newst_node (fd_end_loc, Ret (None, fd)) (Function fd);
           newst_node
         )
         in
@@ -265,8 +268,8 @@ let createCFG (file: file) =
 
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
-              | Set (lval,exp,loc,eloc) -> eloc, Assign (lval, exp) (* TODO: eloc loc fallback if unknown here and If *)
-              | Call (lval,func,args,loc,eloc) -> eloc, Proc (lval,func,args)
+              | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
+              | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
@@ -290,8 +293,8 @@ let createCFG (file: file) =
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
-            addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
+            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, true )) (Statement true_stmt);
+            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, false)) (Statement false_stmt)
 
           | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
@@ -359,7 +362,7 @@ let createCFG (file: file) =
           | ComputedGoto _ ->
             failwith "MyCFG.createCFG: unsupported stmt"
         in
-        Stats.time "handle" (List.iter handle) fd.sallstmts;
+        Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 
         if Messages.tracing then Messages.trace "cfg" "Over\n";
 
@@ -436,7 +439,7 @@ let createCFG (file: file) =
           else
             NH.iter (NH.replace node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        Stats.time "iter_connect" iter_connect ();
+        Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
@@ -450,7 +453,7 @@ let createCFG (file: file) =
     ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
   cfgF, cfgB
 
-let createCFG = Stats.time "createCFG" createCFG
+let createCFG = Timing.wrap "createCFG" createCFG
 
 
 let minimizeCFG (fw,bw) =
@@ -488,8 +491,8 @@ let minimizeCFG (fw,bw) =
 module type CfgPrinters =
 sig
   val defaultNodeStyles: string list
-  val printNodeStyle: out_channel -> node -> unit
-  val printEdgeStyle: out_channel -> node -> (edges * node) -> unit
+  val printNodeStyle: Format.formatter -> node -> unit
+  val printEdgeStyle: Format.formatter -> node -> (edges * node) -> unit
 end
 
 module type NodeStyles =
@@ -502,18 +505,18 @@ module CfgPrinters (NodeStyles: NodeStyles) =
 struct
   include NodeStyles
 
-  let p_node () n = text (Node.show_id n)
+  let p_node out n = Format.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
+  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
 
-  let rec p_edges () = function
-    | [] -> Pretty.dprintf ""
-    | [(_, x)] -> p_edge () x
-    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  let rec p_edges out = function
+    | [] -> Format.fprintf out ""
+    | [(_, x)] -> Format.fprintf out "%a" p_edge x
+    | (_,x)::xs -> Format.fprintf out "%a\n%a" p_edge x p_edges xs
 
   let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
+    Format.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges
 
   let printNodeStyle out (n:node) =
     let label = match n with
@@ -522,18 +525,18 @@ struct
     in
     let shape = match n with
       | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
-      | Statement _     -> [] (* use default shape *)
+      | Statement _ -> [] (* use default shape *)
       | Function _
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
-    ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
+    Format.fprintf out ("\t%a [%s];\n") p_node n styles
 end
 
 let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   let node_table = NH.create 113 in
-  Printf.fprintf out "digraph cfg {\n";
-  Printf.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
+  Format.fprintf out "digraph cfg {\n";
+  Format.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.replace node_table toNode ();
@@ -548,20 +551,18 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
         if not (NH.mem node_scc_done node) then (
           match NH.find_option node_scc_global node with
           | Some scc when NH.length scc.nodes > 1 ->
-            Printf.fprintf out "\tsubgraph cluster {\n\t\t";
+            Format.fprintf out "\tsubgraph cluster {\n\t\t";
             NH.iter (fun node _ ->
                 NH.replace node_scc_done node ();
-                Printf.fprintf out ("%s; ") (Node.show_id node)
+                Format.fprintf out ("%s; ") (Node.show_id node)
               ) scc.nodes;
-            Printf.fprintf out "\n\t}\n";
+            Format.fprintf out "\n\t}\n";
           | _ -> ()
         )
       ) node_table
   );
 
-  Printf.fprintf out "}\n";
-  flush out;
-  close_out_noerr out
+  Format.fprintf out "}\n"
 
 let fprint_hash_dot cfg  =
   let module NoExtraNodeStyles =
@@ -572,14 +573,17 @@ let fprint_hash_dot cfg  =
   in
   let out = open_out "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
-  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
+  let ppf = Format.formatter_of_out_channel out in
+  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
+  Format.pp_print_flush ppf ();
+  close_out out
 
 
 let getCFG (file: file) : cfg * cfg =
   let cfgF, cfgB = createCFG file in
   let cfgF, cfgB =
     if get_bool "exp.mincfg" then
-      Stats.time "minimizing the cfg" minimizeCFG (cfgF, cfgB)
+      Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB)
     else
       (cfgF, cfgB)
   in
@@ -602,8 +606,7 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
 let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
-    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* \N is graphviz special for node ID *)
-
+    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* The \N is graphviz special for node ID. *)
     let extraNodeStyles n =
       if live n then
         []
@@ -614,8 +617,12 @@ let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let iter_edges = iter_fd_edges (module Cfg) fd in
   fprint_dot (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
 
-let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
-  iterGlobals file (fun glob ->
+let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
+  fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
+  Format.flush_str_formatter ()
+
+let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
+  iterGlobals FileCfg.file (fun glob ->
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
@@ -624,7 +631,11 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (open_out (Fpath.to_string fname))
+        let out = open_out (Fpath.to_string fname) in
+        let ppf = Format.formatter_of_out_channel out in
+        fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
+        Format.pp_print_flush ppf ();
+        close_out out
       | _ -> ()
     )
 

@@ -1,5 +1,6 @@
 //PARAM: --enable ana.int.interval
 #include <pthread.h>
+#include <goblint.h>
 
 extern int printf();
 
@@ -11,7 +12,7 @@ void *sumP (void *x) {
     i++;
     sum += i;
   }
-  assert(i == 10);
+  __goblint_check(i == 10);
   printf("%d\n", sum);
 }
 
@@ -23,7 +24,7 @@ void *prodP (void *x) {
     i++;
     prod *= i;
   }
-  assert(i == 10);
+  __goblint_check(i == 10);
   printf("%d\n", prod);
 }
 

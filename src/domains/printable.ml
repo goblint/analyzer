@@ -1,5 +1,6 @@
 (** Some things are not quite lattices ... *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 module type S =
@@ -254,13 +255,13 @@ struct
 
   let pretty () (state:t) =
     match state with
-    | `Left n ->  Base1.pretty () n
-    | `Right n ->  Base2.pretty () n
+    | `Left n -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
+    | `Right n -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
 
   let show state =
     match state with
-    | `Left n ->  Base1.show n
-    | `Right n ->  Base2.show n
+    | `Left n -> (Base1.name ()) ^ ":" ^ Base1.show n
+    | `Right n -> (Base2.name ()) ^ ":" ^ Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
@@ -463,7 +464,7 @@ struct
 end
 
 module type ChainParams = sig
-  val n: int
+  val n: unit -> int
   val names: int -> string
 end
 
@@ -477,7 +478,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
-  let arbitrary () = QCheck.int_range 0 (P.n - 1)
+  let arbitrary () = QCheck.int_range 0 (P.n () - 1)
   let relift x = x
 end
 
@@ -567,6 +568,31 @@ struct
 end
 
 
+module type FailwithMessage =
+sig
+  val message: string
+end
+
+module Failwith (Message: FailwithMessage): S =
+struct
+  type t = |
+
+  let name () = "failwith"
+  let equal _ _ = failwith Message.message
+  let compare _ _ = failwith Message.message
+  let hash _ = failwith Message.message
+  let tag _ = failwith Message.message
+
+  let show _ = failwith Message.message
+  let pretty _ _ = failwith Message.message
+  let printXml _ _ = failwith Message.message
+  let to_yojson _ = failwith Message.message
+
+  let arbitrary _ = failwith Message.message
+  let relift _ = failwith Message.message
+end
+
+
 (** Concatenates a list of strings that
     fit in the given character constraint *)
 let get_short_list begin_str end_str list =
@@ -594,3 +620,25 @@ let get_short_list begin_str end_str list =
 
   let str = String.concat separator cut_str_list in
   begin_str ^ str ^ end_str
+
+
+module Yojson =
+struct
+  include Std
+  type t = Yojson.Safe.t [@@deriving eq]
+  let name () = "yojson"
+
+  let compare = Stdlib.compare
+  let hash = Hashtbl.hash
+
+  let pretty = GobYojson.pretty
+
+  include SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+
+  let to_yojson x = x (* override SimplePretty *)
+end

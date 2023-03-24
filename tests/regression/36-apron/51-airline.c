@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.path_sens[+] threadflag
 // TODO: why does this need path-sensitive threadflag even with mutex-meet to succeed?
 // sensible version of sv-benchmarks airline with non-static capacity
-#include <assert.h>
+#include <goblint.h>
 #include <pthread.h>
 
 extern int __VERIFIER_nondet_int();
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
     //   pthread_join(threads[i], NULL);
 
     pthread_mutex_lock(&A);
-    assert(sold <= capacity); // not oversold
+    __goblint_check(sold <= capacity); // not oversold
     pthread_mutex_unlock(&A);
   }
 

@@ -1,0 +1,11 @@
+(include_subdirs no)
+
+; virtual library to allow js build (for gobview) without dune-build-info
+; dune-build-info seems to be incompatible with js_of_ocaml
+; File "gobview/src/.App.eobjs/build_info_data.ml-gen", line 1:
+; Error: Could not find the .cmi file for interface
+;        gobview/src/.App.eobjs/build_info_data.ml-gen.
+(library
+  (name goblint_build_info)
+  (public_name goblint.build-info)
+  (virtual_modules goblint_build_info))

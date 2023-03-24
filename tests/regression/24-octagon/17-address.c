@@ -1,5 +1,7 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval  --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --set ana.base.privatization none
+// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] apron
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
+#include <goblint.h>
+
 void main(void) {
   int X = 0;
   int N = rand();
@@ -13,8 +15,8 @@ void main(void) {
   *ptr = N;
 
 
-  assert(X-N == 0);
-  assert(X == N);
+  __goblint_check(X-N == 0);
+  __goblint_check(X == N);
 
   if(X == N) {
     N = 8;

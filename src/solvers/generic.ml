@@ -2,19 +2,16 @@ open Prelude
 open GobConfig
 open Analyses
 
-let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
-
-
-module LoadRunSolver: GenericEqBoxSolver =
+module LoadRunSolver: GenericEqSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
-    let solve box xs vs =
+    let solve xs vs =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
       let load_run = Fpath.v (get_string "load_run") in
       let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
-        (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+        (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
         print_endline ("Loading the solver result of a saved run from " ^ (Fpath.to_string solver));
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
@@ -30,7 +27,7 @@ module LoadRunSolver: GenericEqBoxSolver =
         vh
   end
 
-module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+module LoadRunIncrSolver: GenericEqIncrSolver =
   Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
@@ -94,7 +91,7 @@ struct
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
     let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
     let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
-    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
+    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 0 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
     (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
     ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
@@ -125,7 +122,7 @@ struct
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();
     print_newline ();
-    (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
+    (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
     print_newline ();
@@ -149,17 +146,18 @@ struct
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
-module DirtyBoxSolver : GenericEqBoxSolver =
+module DirtyBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
       with Not_found -> d
 
-    let solve box xs vs =
+    let solve xs vs =
       (* the stabile "set" *)
       let stbl = H.create 1024 in
       (* the influence map *)
@@ -195,7 +193,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
         if not (H.mem sol x) then solve_one x;
         (* do nothing if we have stabilized [x] *)
         let oldd = H.find sol x in
-        let newd = box x oldd d in
+        let newd = box oldd d in
         update_var_event x oldd newd;
         if not (S.Dom.equal oldd newd) then begin
           (* set the new value for [x] *)
@@ -227,13 +225,14 @@ module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
       try H.find h x
       with Not_found -> d
 
-    let solveWithStart box (ht,hts) xs vs =
+    let solveWithStart (ht,hts) xs vs =
       (* the stabile "set" *)
       let stbl = H.create 1024 in
       (* the influence map *)
@@ -287,7 +286,7 @@ module SoundBoxSolverImpl =
         (* do nothing if we have stabilized [x] *)
         let oldd = H.find sol x in
         (* compute the new value *)
-        let newd = box x oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
+        let newd = box oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
         if not (S.Dom.equal oldd newd) then begin
           update_var_event x oldd newd;
           (* set the new value for [x] *)
@@ -316,18 +315,19 @@ module SoundBoxSolverImpl =
       sol, sols
 
     (** the solve function *)
-    let solve box xs ys = solveWithStart box (H.create 1024, H.create 1024) xs ys |> fst
+    let solve xs ys = solveWithStart (H.create 1024, H.create 1024) xs ys |> fst
   end
 
-module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
+module SoundBoxSolver : GenericEqSolver = SoundBoxSolverImpl
 
 
 
 (* use this if you do widenings & narrowings for globals --- outdated *)
-module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
+module PreciseSideEffectBoxSolver : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key = S.v) ->
   struct
+    open SolverBox.Warrow (S.Dom)
     include SolverStats (S) (H)
 
     let h_find_default h x d =
@@ -337,7 +337,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
     module VM = Map.Make (S.Var)
     module VS = Set.Make (S.Var)
 
-    let solve box xs vs =
+    let solve xs vs =
       (* the stabile "set" *)
       let stbl  = H.create 1024 in
       (* the influence map *)
@@ -401,7 +401,7 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
           try S.Dom.join d (VM.find x (H.find sols z))
           with Not_found -> d
         in
-        let newd = box x oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
+        let newd = box oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
         update_var_event x oldd newd;
         if not (S.Dom.equal oldd newd) then begin
           (* set the new value for [x] *)

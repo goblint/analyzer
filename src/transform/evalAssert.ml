@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 open Formatcil
 
 (** Instruments a program by inserting asserts either:
@@ -26,12 +26,12 @@ module EvalAssert = struct
   let surroundByAtomic = true
 
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-  let ass = makeVarinfo true "assert" (TVoid [])
+  let ass = makeVarinfo true "__VERIFIER_assert" (TVoid [])
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
 
-  class visitor (ask:Cil.location -> Queries.ask) = object(self)
+  class visitor (ask: ?node:Node.t -> Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
     val full = GobConfig.get_bool "witness.invariant.full"
     (* TODO: handle witness.invariant.loop-head *)
@@ -41,7 +41,7 @@ module EvalAssert = struct
     method! vstmt s =
       let is_lock exp args =
         match exp with
-        | Lval(Var v,_) ->
+        | Lval(Var v,_) when LibraryFunctions.is_special v ->
           let desc = LibraryFunctions.find v in
           (match desc.special args with
            | Lock _ -> true
@@ -49,9 +49,13 @@ module EvalAssert = struct
         | _ -> false
       in
 
-      let make_assert loc lval =
-        let context = {Invariant.default_context with lval} in
-        match (ask loc).f (Queries.Invariant context) with
+      let make_assert ~node loc lval =
+        let lvals = match lval with
+          | None -> CilLval.Set.top ()
+          | Some lval -> CilLval.(Set.singleton lval)
+        in
+        let context = {Invariant.default_context with lvals} in
+        match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
           let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv ass); ("exp", Fe e)]) es in
@@ -65,12 +69,10 @@ module EvalAssert = struct
       in
 
       let instrument_instructions il s =
-        (* Does this statement have a successor that has only on predecessor? *)
-        let unique_succ = s.succs <> [] && (List.hd s.succs).preds |> List.length < 2 in
-        let instrument i loc =
+        let instrument ~node i loc =
           let instrument' lval =
             let lval_arg = if full then None else lval in
-            make_assert loc lval_arg
+            make_assert ~node loc lval_arg
           in
           match i with
           | Call (_, exp, args, _, _) when emit_after_lock && is_lock exp args -> instrument' None
@@ -78,21 +80,21 @@ module EvalAssert = struct
           | Call (lval, _, _, _, _) when emit_other -> instrument' lval
           | _ -> []
         in
-        let rec instrument_instructions = function
-          | i1 :: ((i2 :: _) as is) ->
-            (* List contains successor statement, use location of successor for values *)
-            let loc = get_instrLoc i2 in
-            i1 :: ((instrument i1 loc) @ instrument_instructions is)
-          | [i] when unique_succ ->
-            (* Last statement in list *)
-            (* Successor of it has only one predecessor, we can query for the value there *)
-            let loc = get_stmtLoc (List.hd s.succs).skind in
-            i :: (instrument i loc)
-          | [i] when s.succs <> [] ->
-            (* Successor has multiple predecessors, results may be imprecise but remain correct *)
-            let loc = get_stmtLoc (List.hd s.succs).skind in
-            i :: (instrument i loc)
-          | x -> x
+        let instrument_instructions il = match il, s.succs with
+          | [], _ -> []
+          | [i], [succ] -> (* Single successor *)
+            let stmt = List.hd s.succs in
+            let loc = Cilfacade.get_stmtLoc stmt in
+            let node = Node.Statement stmt in
+            i :: (instrument ~node i loc)
+          | [i], [] ->
+            (* No successor; do not add an assertion *)
+            [i]
+          | [_], _ :: (_ :: _) ->
+            (* More than one successor means that there is some branching is happening, that is not expected for an instruction. *)
+            failwith "Instruction has more than one successor; at most one is expected."
+          | _ :: (_ :: _), _ ->
+            failwith "There were multiple instructions in one statement, but only one is expected."
         in
         instrument_instructions il
       in
@@ -101,9 +103,9 @@ module EvalAssert = struct
         match s.preds with
         | [p1; p2] when emit_other ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
-          let join_loc = get_stmtLoc s.skind in
+          let join_loc = Cilfacade.get_stmtLoc s in
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if witness.invariant.full is false *)
-          let asserts = make_assert join_loc None in
+          let asserts = make_assert ~node:(Node.Statement s) join_loc None in
           self#queueInstr asserts; ()
         | _ -> ()
       in
@@ -116,12 +118,14 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l,l2) ->
           let vars = Basetype.CilExp.get_vars e in
-          let asserts loc vs = if full then make_assert loc None else List.map (fun x -> make_assert loc (Some (Var x,NoOffset))) vs |> List.concat in
+          let asserts ~node loc vs = if full then make_assert ~node loc None else List.map (fun x -> make_assert ~node loc (Some (Var x,NoOffset))) vs |> List.concat in
           let add_asserts block =
             if block.bstmts <> [] then
               let with_asserts =
-                let b_loc = get_stmtLoc (List.hd block.bstmts).skind in
-                let b_assert_instr = asserts b_loc vars in
+                let stmt = List.hd block.bstmts in
+                let node = Node.Statement stmt in
+                let b_loc = Cilfacade.get_stmtLoc stmt in
+                let b_assert_instr = asserts ~node b_loc vars in
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
               block.bstmts <- with_asserts
@@ -134,8 +138,14 @@ module EvalAssert = struct
       in
       ChangeDoChildrenPost (s, instrument_statement)
   end
-  let transform (ask:Cil.location -> Queries.ask) file = begin
+
+  let transform (ask: ?node:Node.t -> Cil.location -> Queries.ask) file = begin
     visitCilFile (new visitor ask) file;
+
+    (* Add function declarations before function definitions.
+       This way, asserts may reference functions defined later. *)
+    Cilfacade.add_function_declarations file;
+
     let assert_filename = GobConfig.get_string "trans.output" in
     let oc = Stdlib.open_out assert_filename in
     dumpFile defaultCilPrinter oc assert_filename file; end

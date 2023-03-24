@@ -1,28 +1,39 @@
 open MyCFG
 open Queue
-open Cil
+open GoblintCil
+open CilMaps
 include CompareAST
 
 let eq_node (x, fun1) (y, fun2) =
+  let empty_rename_mapping: rename_mapping = (StringMap.empty, VarinfoMap.empty) in
+  (* don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
+  let isPseudoReturn f sid =
+    let pid = CfgTools.get_pseudo_return_id f in
+    sid == pid in
   match x,y with
-  | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2)
-  | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar
-  | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar
+  | Statement s1, Statement s2 ->
+    let p1 = isPseudoReturn fun1 s1.sid in
+    let p2 = isPseudoReturn fun2 s2.sid in
+    ((p1 && p2) || not (p1 || p2)) && eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) ~rename_mapping:empty_rename_mapping
+  | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar ~rename_mapping:empty_rename_mapping
+  | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar ~rename_mapping:empty_rename_mapping
   | _ -> false
 
 (* TODO: compare ASMs properly instead of simply always assuming that they are not the same *)
-let eq_edge x y = match x, y with
-  | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 && eq_exp rv1 rv2
-  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 && GobList.equal eq_exp ars1 ars2
+let eq_edge x y =
+  let empty_rename_mapping: rename_mapping = (StringMap.empty, VarinfoMap.empty) in
+  match x, y with
+  | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 ~rename_mapping:empty_rename_mapping && eq_exp rv1 rv2 ~rename_mapping:empty_rename_mapping
+  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 ~rename_mapping:empty_rename_mapping && GobList.equal (eq_exp ~rename_mapping:empty_rename_mapping) ars1 ars2
   | Proc (Some r1,f1,ars1), Proc (Some r2,f2,ars2) ->
-    eq_lval r1 r2 && eq_exp f1 f2 && GobList.equal eq_exp ars1 ars2
-  | Entry f1, Entry f2 -> eq_varinfo f1.svar f2.svar
-  | Ret (None,fd1), Ret (None,fd2) -> eq_varinfo fd1.svar fd2.svar
-  | Ret (Some r1,fd1), Ret (Some r2,fd2) -> eq_exp r1 r2 && eq_varinfo fd1.svar fd2.svar
-  | Test (p1,b1), Test (p2,b2) -> eq_exp p1 p2 && b1 = b2
+    eq_lval r1 r2 ~rename_mapping:empty_rename_mapping && eq_exp f1 f2 ~rename_mapping:empty_rename_mapping && GobList.equal (eq_exp ~rename_mapping:empty_rename_mapping) ars1 ars2
+  | Entry f1, Entry f2 -> eq_varinfo f1.svar f2.svar ~rename_mapping:empty_rename_mapping
+  | Ret (None,fd1), Ret (None,fd2) -> eq_varinfo fd1.svar fd2.svar ~rename_mapping:empty_rename_mapping
+  | Ret (Some r1,fd1), Ret (Some r2,fd2) -> eq_exp r1 r2 ~rename_mapping:empty_rename_mapping && eq_varinfo fd1.svar fd2.svar ~rename_mapping:empty_rename_mapping
+  | Test (p1,b1), Test (p2,b2) -> eq_exp p1 p2 ~rename_mapping:empty_rename_mapping && b1 = b2
   | ASM _, ASM _ -> false
   | Skip, Skip -> true
-  | VDecl v1, VDecl v2 -> eq_varinfo v1 v2
+  | VDecl v1, VDecl v2 -> eq_varinfo v1 v2 ~rename_mapping:empty_rename_mapping
   | _ -> false
 
 (* The order of the edges in the list is relevant. Therefore compare them one to one without sorting first *)
@@ -58,7 +69,6 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
           | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
             let edgeList2 = to_edge_list locEdgeList2 in
-            (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
             if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
               begin
                 match NH.find_opt same.node1to2 toNode1 with
@@ -111,6 +121,6 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
 
 let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun1 fun2 =
-  let same, diff = Stats.time "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
-  let unchanged, diffNodes1 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
+  let same, diff = Timing.wrap "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
+  let unchanged, diffNodes1 = Timing.wrap "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
   List.of_seq unchanged, List.of_seq diffNodes1

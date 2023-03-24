@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set sem.int.signed_overflow assume_none
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 unsigned int x, y, z;
 
@@ -14,7 +14,7 @@ void* T1_SL(void* arg){
         for(j = i + 1; j < y; j++) {
             for(k = j; k < z; k++) {
                 pthread_mutex_lock(&lock);
-                assert(k > i);
+                __goblint_check(k > i);
                 pthread_mutex_unlock(&lock);
             }
         }
@@ -29,7 +29,7 @@ void* T2_SL(void* arg){
         for(j = i + 1; j < y; j++) {
             for(k = j; k < z; k++) {
                 pthread_mutex_lock(&lock);
-                assert(k > i);
+                __goblint_check(k > i);
                 pthread_mutex_unlock(&lock);
             }
         }

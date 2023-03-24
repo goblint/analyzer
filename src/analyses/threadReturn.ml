@@ -29,9 +29,13 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, false]
+    if !Goblintutil.global_initialization then
+      (* We are inside enter_with inside a startfun, and thus the current function retruning is the main function *)
+      [ctx.local, true]
+    else
+      [ctx.local, false]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

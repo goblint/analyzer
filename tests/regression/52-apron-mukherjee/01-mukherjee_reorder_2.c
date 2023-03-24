@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 static int a = 0;
 static int b = 0;
@@ -55,7 +55,7 @@ void *iSet_2(void *param) {
 
 void *iCheck_1(void *param) {
     pthread_mutex_lock(&mut_lock);
-    assert(a + b == 0);
+    __goblint_check(a + b == 0);
     pthread_mutex_unlock(&mut_lock);
 
     return NULL;
@@ -63,7 +63,7 @@ void *iCheck_1(void *param) {
 
 void *iCheck_2(void *param) {
     pthread_mutex_lock(&mut_lock);
-    assert(a + b == 0);
+    __goblint_check(a + b == 0);
     pthread_mutex_unlock(&mut_lock);
 
     return NULL;

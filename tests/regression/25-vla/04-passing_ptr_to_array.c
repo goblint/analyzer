@@ -1,53 +1,54 @@
-//PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+//PARAM: --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned
+#include <goblint.h>
 
 void foo(int (*a)[40]){
     int x = (*(a + 29))[7];
-    assert(x == 23); //FAIL
+    __goblint_check(x == 23); //FAIL
 
     int y = (*(a + 7))[13];
-    assert(y == 23);
+    __goblint_check(y == 23);
 
-    assert(a[7][13] == 23);
+    __goblint_check(a[7][13] == 23);
 }
 
 void foo2(int n,int (*a)[n]){
     int x = (*(a + 29))[7];
-    assert(x == 23); //FAIL
+    __goblint_check(x == 23); //FAIL
 
     int y = (*(a + 7))[13];
-    assert(y == 23);
+    __goblint_check(y == 23);
 
-    assert(a[7][13] == 23);
+    __goblint_check(a[7][13] == 23);
 }
 
 void foo3(int n,int a[][n]){
     int x = (*(a + 29))[7];
-    assert(x == 23); //FAIL
+    __goblint_check(x == 23); //FAIL
 
     int y = (*(a + 7))[13];
-    assert(y == 23);
+    __goblint_check(y == 23);
 
-    assert(a[7][13] == 23);
+    __goblint_check(a[7][13] == 23);
 }
 
 void foo4(int n,int a[n][n]){
     int x = (*(a + 29))[7];
-    assert(x == 23); //FAIL
+    __goblint_check(x == 23); //FAIL
 
     int y = (*(a + 7))[13];
-    assert(y == 23);
+    __goblint_check(y == 23);
 
-    assert(a[7][13] == 23);
+    __goblint_check(a[7][13] == 23);
 }
 
 void foo5(int n, int m, int a[n][m]){
     int x = (*(a + 29))[7];
-    assert(x == 23); //FAIL
+    __goblint_check(x == 23); //FAIL
 
     int y = (*(a + 7))[13];
-    assert(y == 23);
+    __goblint_check(y == 23);
 
-    assert(a[7][13] == 23);
+    __goblint_check(a[7][13] == 23);
 }
 
 int main(void)

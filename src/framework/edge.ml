@@ -1,8 +1,8 @@
-open Cil
+open GoblintCil
 open Pretty
 
-type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, to_yojson]
-type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, to_yojson]
+type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, ord, hash, to_yojson]
+type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, ord, hash, to_yojson]
 
 type t =
   | Assign of CilType.Lval.t * CilType.Exp.t
@@ -29,7 +29,7 @@ type t =
     * appeared *)
   | Skip
   (** This is here for historical reasons. I never use Skip edges! *)
-[@@deriving eq, to_yojson]
+[@@deriving eq, ord, hash]
 
 
 let pretty () = function
@@ -55,3 +55,56 @@ let pretty_plain () = function
   | ASM _ -> text "ASM ..."
   | Skip -> text "Skip"
   | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
+
+let to_yojson e =
+  let fields = match e with
+    | Assign (lval, exp) ->
+      [
+        ("type", `String "assign");
+        ("lval", CilType.Lval.to_yojson lval);
+        ("exp", CilType.Exp.to_yojson exp);
+      ]
+    | Test (exp, branch) ->
+      [
+        ("type", `String "branch");
+        ("exp", CilType.Exp.to_yojson exp);
+        ("branch", `Bool branch);
+      ]
+    | Proc (lval, function_, args) ->
+      [
+        ("type", `String "call");
+        ("lval", [%to_yojson: CilType.Lval.t option] lval);
+        ("function", CilType.Exp.to_yojson function_);
+        ("args", [%to_yojson: CilType.Exp.t list] args);
+      ]
+    | Entry function_ ->
+      [
+        ("type", `String "entry");
+        ("function", CilType.Fundec.to_yojson function_);
+      ]
+    | Ret (exp, function_) ->
+      [
+        ("type", `String "return");
+        ("function", CilType.Fundec.to_yojson function_);
+        ("exp", [%to_yojson: CilType.Exp.t option] exp);
+      ]
+    | ASM (instructions, output, input) ->
+      [
+        ("type", `String "asm");
+        ("instructions", [%to_yojson: string list] instructions);
+        ("output", asm_out_to_yojson output);
+        ("input", asm_in_to_yojson input);
+      ]
+    | VDecl variable ->
+      [
+        ("type", `String "declare");
+        ("variable", CilType.Varinfo.to_yojson variable);
+      ]
+    | Skip ->
+      [
+        ("type", `String "nop");
+      ]
+  in
+  `Assoc ([
+      ("string", `String (Pretty.sprint ~width:max_int (pretty () e)))
+    ] @ fields)

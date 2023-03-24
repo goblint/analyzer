@@ -7,7 +7,7 @@ type spec_modules = { name : string
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
-                    ; var  : (module Printable.S)
+                    ; var  : (module SpecSysVar)
                     ; acc  : (module MCPA) }
 
 let activated  : (int * spec_modules) list ref = ref []
@@ -25,7 +25,7 @@ let register_analysis =
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
-            ; var  = (module S.V : Printable.S)
+            ; var  = (module S.V : SpecSysVar)
             ; acc  = (module S.A : MCPA)
             }
     in
@@ -43,6 +43,12 @@ module type DomainListPrintableSpec =
 sig
   val assoc_dom : int -> (module Printable.S)
   val domain_list : unit -> (int * (module Printable.S)) list
+end
+
+module type DomainListSysVarSpec =
+sig
+  val assoc_dom : int -> (module SpecSysVar)
+  val domain_list : unit -> (int * (module SpecSysVar)) list
 end
 
 module type DomainListMCPASpec =
@@ -78,6 +84,18 @@ struct
 
   let domain_list () =
     let f (module L:MCPA) = (module L : Printable.S) in
+    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+end
+
+module PrintableOfSysVarSpec (D:DomainListSysVarSpec) : DomainListPrintableSpec =
+struct
+  let assoc_dom n =
+    let f (module L:SpecSysVar) = (module L : Printable.S)
+    in
+    f (D.assoc_dom n)
+
+  let domain_list () =
+    let f (module L:SpecSysVar) = (module L : Printable.S) in
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
@@ -179,7 +197,8 @@ struct
     f n (assoc_dom n) d
 
   let pretty () = unop_map (fun n (module S: Printable.S) x ->
-      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
+      let analysis_name = find_spec_name n in
+      Pretty.dprintf "%s:%a" analysis_name S.pretty (obj x)
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->
@@ -229,6 +248,24 @@ struct
   let arbitrary () =
     let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
     QCheck.oneof arbs
+end
+
+module DomVariantSysVar (DLSpec : DomainListSysVarSpec)
+  : SpecSysVar with type t = int * unknown
+=
+struct
+  open DLSpec
+  open Obj
+
+  include DomVariantPrintable (PrintableOfSysVarSpec (DLSpec))
+  let name () = "MCP.V"
+
+  let unop_map f ((n, d):t) =
+    f n (assoc_dom n) d
+
+  let is_write_only = unop_map (fun n (module S: SpecSysVar) x ->
+      S.is_write_only (obj x)
+    )
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
@@ -331,7 +368,7 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
 end
 
-module VarListSpec : DomainListPrintableSpec =
+module VarListSpec : DomainListSysVarSpec =
 struct
   let assoc_dom n = (find_spec n).var
   let domain_list () = List.map (fun (n,p) -> n, p.var) !activated

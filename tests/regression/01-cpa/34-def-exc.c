@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
+#include <goblint.h>
 #define LONGS(x) (((x) + sizeof(unsigned long) - 1)/sizeof(unsigned long))
 #include<stdbool.h>
 
@@ -187,11 +188,11 @@ Hash_table *hash_initialize()
 
 int test(void const   *ptr) {
   if(!ptr) {
-    assert(ptr == 0);
+    __goblint_check(ptr == 0);
     int f = 7;
   } else {
-    assert(ptr == 1); //UNKNOWN!
-    assert(ptr != 0);
+    __goblint_check(ptr == 1); //UNKNOWN!
+    __goblint_check(ptr != 0);
     int f= 38;
   }
 }

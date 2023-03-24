@@ -1,5 +1,5 @@
 open Batteries
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 
@@ -10,7 +10,7 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
@@ -142,7 +142,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
 
 let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
-    let loc = !Tracing.current_loc in
+    let loc = Option.get !Node.current_node in
     side ty lv (conf, kind, loc, e, a)
   end
 
@@ -232,61 +232,80 @@ let add_propagate side e kind conf ty ls a =
     let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f c lv =
+let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
-  (* f c (mkAddrOf lv); *)
-  f c (AddrOf lv);
-  distribute_access_lval_addr f c lv
+  (* f (mkAddrOf lv); *)
+  f (AddrOf lv);
+  distribute_access_lval_addr f lv
 
-and distribute_access_lval_addr f c lv =
+and distribute_access_lval_addr f lv =
   match lv with
   | (Var v, os) ->
-    distribute_access_offset f c os
+    distribute_access_offset f os
   | (Mem e, os) ->
-    distribute_access_offset f c os;
-    distribute_access_exp f c e
+    distribute_access_offset f os;
+    distribute_access_exp f e
 
-and distribute_access_offset f c = function
+and distribute_access_offset f = function
   | NoOffset -> ()
   | Field (_,os) ->
-    distribute_access_offset f c os
+    distribute_access_offset f os
   | Index (e,os) ->
-    distribute_access_exp f c e;
-    distribute_access_offset f c os
+    distribute_access_exp f e;
+    distribute_access_offset f os
 
-and distribute_access_exp f c = function
+and distribute_access_exp f = function
   (* Variables and address expressions *)
   | Lval lval ->
-    distribute_access_lval f c lval;
+    distribute_access_lval f lval;
 
     (* Binary operators *)
   | BinOp (op,arg1,arg2,typ) ->
-    distribute_access_exp f c arg1;
-    distribute_access_exp f c arg2
+    distribute_access_exp f arg1;
+    distribute_access_exp f arg2
 
   | UnOp (_,e,_)
   | Real e
   | Imag e
   | SizeOfE e
   | AlignOfE e ->
-    distribute_access_exp f c e
+    distribute_access_exp f e
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
-    distribute_access_lval_addr f c lval
+    distribute_access_lval_addr f lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
-    distribute_access_exp f c exp
+    distribute_access_exp f exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f c b;
-    distribute_access_exp f c t;
-    distribute_access_exp f c e
+    distribute_access_exp f b;
+    distribute_access_exp f t;
+    distribute_access_exp f e
+
+  | SizeOf t ->
+    distribute_access_type f t
+
   | Const _
-  | SizeOf _
   | SizeOfStr _
   | AlignOf _
   | AddrOfLabel _ ->
+    ()
+
+and distribute_access_type f = function
+  | TArray (et, len, _) ->
+    Option.may (distribute_access_exp f) len;
+    distribute_access_type f et
+
+  | TVoid _
+  | TInt _
+  | TFloat _
+  | TPtr _
+  | TFun _
+  | TNamed _
+  | TComp _
+  | TEnum _
+  | TBuiltin_va_list _ ->
     ()
 
 let add side e kind conf vo oo a =
@@ -307,10 +326,10 @@ let add side e kind conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * AccessKind.t * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
+  type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
-  let pretty () (conf, kind, loc, e, lp) =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty () (conf, kind, node, e, lp) =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
   include Printable.SimplePretty (
     struct
@@ -437,7 +456,7 @@ let print_accesses (lv, ty) grouped_accs =
   let debug = get_bool "dbg.debug" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h (conf,kind,loc,e,a) =
+    let h (conf,kind,node,e,a) =
       let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
       let doc =
         if debug then
@@ -445,7 +464,7 @@ let print_accesses (lv, ty) grouped_accs =
         else
           d_msg ()
       in
-      (doc, Some loc)
+      (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs
     |> List.map h

@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.14.0 --locked
+  opam switch -y create . --deps-only ocaml-variants.4.14.0+options ocaml-option-flambda --locked
 }
 
 rule() {
@@ -25,7 +25,7 @@ rule() {
       cp _build/default/$TARGET.exe goblint
     ;; release)
       eval $(opam config env)
-      dune build --profile release $TARGET.exe &&
+      dune build --profile=release $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable

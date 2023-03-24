@@ -79,7 +79,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
   let print_path path =
     List.iter (fun (n1, e, n2) ->
-        ignore (Pretty.printf "  %s =[%s]=> %s\n" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2))
+        ignore (GoblintCil.Pretty.printf "  %s =[%s]=> %s\n" (Arg.Node.to_string n1) (Arg.Edge.to_string e) (Arg.Node.to_string n2))
       ) path
   in
 
@@ -94,8 +94,14 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
         else if not (NHT.mem itered_nodes node) then begin
           NHT.replace itered_nodes node ();
           List.iter (fun (edge, prev_node) ->
-              if not (NHT.mem itered_nodes prev_node) then
-                NHT.replace next_nodes prev_node (edge, node)
+              match edge with
+              | MyARG.CFGEdge _
+              | InlineEntry _
+              | InlineReturn _ ->
+                if not (NHT.mem itered_nodes prev_node) then
+                  NHT.replace next_nodes prev_node (edge, node)
+              | InlinedEdge _
+              | ThreadEntry _ -> ()
             ) (Arg.prev node);
           bfs curs' (List.map snd (Arg.prev node) @ nexts)
         end

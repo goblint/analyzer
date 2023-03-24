@@ -1,6 +1,6 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
+// SKIP PARAM: --set ana.activated[+] apron --set ana.relation.privatization top
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g;
 
@@ -21,7 +21,7 @@ int main() {
   pthread_create(&id, NULL, t_fun, &x);
 
   // shouldn't have g, x, y in local apron state
-  assert(g == 42); // UNKNOWN!
-  assert(x == 10); // UNKNOWN!
+  __goblint_check(g == 42); // UNKNOWN!
+  __goblint_check(x == 10); // UNKNOWN!
   return 0;
 }

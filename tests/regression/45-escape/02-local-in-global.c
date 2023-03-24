@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int* gptr;
 
@@ -11,11 +11,11 @@ void *foo(void* p){
 int main(){
     int x = 0;
     gptr = &x;
-    assert(x==0);
+    __goblint_check(x==0);
     pthread_t thread;
     pthread_create(&thread, NULL, foo, NULL);
     sleep(3);
-    assert(x == 0); // UNKNOWN!
+    __goblint_check(x == 0); // UNKNOWN!
     pthread_join(thread, NULL);
     return 0;
 }
