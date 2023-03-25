@@ -22,10 +22,11 @@ let filter_map_block f (block : Cil.block) : bool =
            resulting if statement should if either block should be kept. Be careful to not
            short-circuit, since call to impl_block b2 is always needed for side-effects *)
         let keep_b1, keep_b2 = impl_block b1, impl_block b2 in keep_b1 || keep_b2
-      | Switch _ -> failwith "switch statements must be removed"
+      | Switch _ ->
         (* Handling switch statements correctly would be very difficult; consider that
            the switch labels may be located within arbitrarily nested statements within
            the switch statement's block. *)
+        failwith "switch statements must be removed"
       | Loop (b, _, _, _, _) ->
         (* Filter statements from the body of a loop. Always keep the resulting loop, even if it
            is empty; an empty infinite loop is different from having nothing at all. *)
@@ -53,13 +54,13 @@ module RemoveDeadCode : Transform.S = struct
     (* Step 1: Remove statements found to be dead. *)
     Cil.iterGlobals file
       (function
-      | GFun (fd, _) ->
-        (* Invariants of filter_map_block satisfied: switch statements removed by CFG transform,
-           and a live label implies its target is live. Ignore the result of filter_map_block:
-           even if the function body is now empty, the function may still be referenced
-           (e.g. by taking its address) and should thus be retained. *)
-        filter_map_block stmt_live fd.sbody |> ignore
-      | _ -> ());
+        | GFun (fd, _) ->
+          (* Invariants of filter_map_block satisfied: switch statements removed by CFG transform,
+             and a live label implies its target is live. Ignore the result of filter_map_block:
+             even if the function body is now empty, the function may still be referenced
+             (e.g. by taking its address) and should thus be retained. *)
+          filter_map_block stmt_live fd.sbody |> ignore
+        | _ -> ());
 
     (* Step 2: Remove globals that are (transitively) unreferenced by live functions. Dead functions
        and globals are removed, since there is no syntactic reference to them in [main], or any of
@@ -67,9 +68,9 @@ module RemoveDeadCode : Transform.S = struct
     let open GoblintCil.Rmtmps in
     let keepUnused0 = !keepUnused in
     Fun.protect ~finally:(fun () -> keepUnused := keepUnused0) (fun () ->
-      keepUnused := false;
-      removeUnusedTemps ~isRoot:(function GFun (fd, _) -> fundec_live fd | _ -> false) file
-    )
+        keepUnused := false;
+        removeUnusedTemps ~isRoot:(function GFun (fd, _) -> fundec_live fd | _ -> false) file
+      )
 
   let name = "remove_dead_code"
 
