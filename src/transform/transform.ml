@@ -24,7 +24,7 @@ let run_transformations ?(file_output = true) file names ask =
     (fun name ->
       match Hashtbl.find_option h name with
       | Some t -> Some (name, t)
-      | None -> M.warn_noloc "Transformation %s does not exist!" name; None)
+      | None -> failwith "Transformation %s does not exist!")
     names
   in
 
