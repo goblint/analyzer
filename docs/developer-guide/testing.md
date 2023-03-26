@@ -58,6 +58,14 @@ Anything not indented by two spaces is a comment.
   <This is the expected output of running the command.>
 ```
 
+A `dune` file in the subdirectory must declare dependencies on other files, e.g. C files for goblint.
+For example, to declare a dependency on all C and JSON files in the directory, use the `deps` stanza with `glob_files`:
+
+```dune
+(cram
+ (deps (glob_files *.c) (glob_files *.json)))
+```
+
 The [Dune documentation on file tests](https://dune.readthedocs.io/en/stable/tests.html#file-tests) contains more details.
 
 ### Promoting Changes
