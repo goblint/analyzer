@@ -69,11 +69,14 @@ For example, to declare a dependency on all C and JSON files in the directory, u
 The [Dune documentation on file tests](https://dune.readthedocs.io/en/stable/tests.html#file-tests) contains more details.
 
 ### Promoting Changes
-When changes cause intentional changes to Goblint's output, cram tests will fail.
-After checking that the changes to Goblint's output shown in failing cram tests are as expected, you need to update those tests.
+When Goblint's output is intentionally changed by code changes, cram tests will fail.
+After checking that the changes to Goblint's output shown in failing cram tests are as expected, you must update those tests.
 Dune can automatically update cram test files, i.e. promote the changes.
 
-First, run the offending test as above. If the new output is correct, accept the changes with `dune promote`.
+First, run the offending test as above. Once the new output is correct:
+
+* `dune promote` promotes the changes for all files.
+* `dune promote <path...>` promotes the changes for the specified files and directories.
 
 ## Incremental tests
 The incremental tests are regression tests that are first run with the option `incremental.save` and then again
