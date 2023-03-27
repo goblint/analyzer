@@ -158,10 +158,10 @@ let hasFunction pred =
   let relevant_dynamic var =
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
-      (* We don't really have arguments at hand, so we cheat and just feed it a list of Cil.one of appropriate length *)
+      (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
       match unrollType var.vtype with
       | TFun (_, args, _, _) ->
-        let args = BatOption.map_default (List.map (fun (x,_,_) -> Cil.one)) [] args in
+        let args = BatOption.map_default (List.map (fun (x,_,_) -> MyCFG.unknown_exp)) [] args in
         pred (desc.special args)
       | _ -> false
     else
