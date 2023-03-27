@@ -45,6 +45,16 @@ module Make =
 
     open S.Dom
 
+    module SVarMap = Map.Make(Node)
+(* Vorausgesetzt S.Var.node is bijektiv *)
+  (* class node_2_svar_map =
+  object(self)
+    val mutable svarMapping : Node.t SVarMap.t = SVarMap.empty
+
+    method addMap (svar:S.Var) (node:Node.t) =
+      ()
+  end *)
+
     (* Erklärungen für mich
        - HM mappt variables aus S.v nach type d aus S.Dom. *)
 
@@ -68,9 +78,9 @@ module Make =
         HM.replace infl x VS.empty;
       in
       let eval x y =
-        print_string ("eval wurde aufgerufen 
+        (* print_string ("eval wurde aufgerufen 
         x="^(Node.show (S.Var.node x))^"
-        \ny="^(Node.show (S.Var.node y))^"\n");
+        \ny="^(Node.show (S.Var.node y))^"\n"); *)
         get_var_event y;
         HM.replace infl y (VS.push (try HM.find infl y with Not_found -> VS.empty) x);
         try HM.find rho y
@@ -87,7 +97,19 @@ module Make =
           HM.replace rho x (join old d);
           let q = try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
-          vs := (VS.fold VS.push q !vs)
+          let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem -> 
+            let svarNode = S.Var.node svElem
+          in
+            (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q)
+          in
+          let xNode = S.Var.node x
+          in
+          let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList 
+      in
+      (* vs := (VS.fold VS.push q !vs) *)
+          (* vs := (VS.fold VS.push (VS.from_list (List.fold (fun acc node -> (SVarMap.find node qMap)::acc) [] nonPrio)) !vs); *)
+          vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs nonPrio;
+          vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs prio;
         end
       in
       start_event ();

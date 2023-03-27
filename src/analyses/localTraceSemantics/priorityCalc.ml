@@ -37,6 +37,29 @@ method isLoopHead (node:Node.t) = NodeSet.mem node loopHeads
 
 method printOut () =
   print_string ("predominatorMap = ["^(print_predomMap predominatorMap)^"]\n")
+
+method getBackEdgeNode (loopHead:Node.t) (depNodes: Node.t list) =
+  let rec loop nodeList = match nodeList with x::xs -> if self#isBackedge x loopHead then Some(x) else loop xs
+    | [] -> None
+in
+loop depNodes
+
+(* Returns a partition of the dependency nodes: (non-priority nodes, priority nodes) *)
+method getPriorityNodePartition (loopHead:Node.t) (depNodes: Node.t list) : Node.t list * Node.t list =
+let backEdgeNodeOp = self#getBackEdgeNode loopHead depNodes
+in
+match backEdgeNodeOp with None -> depNodes, []
+| Some backEdgeNode ->(
+let rec loop nodeList nonPrio prio =
+  match nodeList with x::xs -> 
+    if (NodeSet.mem x (PredominatorMap.find backEdgeNode predominatorMap) )
+      then loop xs (x::nonPrio) prio
+      else loop xs nonPrio (x::prio)
+    | [] -> nonPrio, prio
+in
+if (PredominatorMap.mem backEdgeNode predominatorMap)
+  then loop depNodes [] [] else depNodes, [])
+
 end
 
 

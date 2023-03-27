@@ -294,9 +294,12 @@ let rec check_helper1 (prev_node, edge, dest_node) innerList =
 
 (* Applies an gEdge to graph 
    Explicit function for future improvements *)
-let extend_by_gEdge gr gEdge = print_string "LocalTraces.extend_by_gEdge was invoked\n";
+let extend_by_gEdge gr gEdge = 
+  (* print_string "LocalTraces.extend_by_gEdge was invoked\n"; *)
   if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) 
-    then (print_string ("but gEdge="^(show_edge gEdge)^" is already contained in:\n"^(show gr)^"\n");gr) 
+    then (
+      (* print_string ("but gEdge="^(show_edge gEdge)^" is already contained in:\n"^(show gr)^"\n"); *)
+      gr) 
 else (let tmp = LocTraceGraph.add_edge_e gr gEdge in 
 (* print_string ("extend_by_gEdge succeeded with new graph:\n"^(show tmp)^"\n");  *)
 tmp) 
