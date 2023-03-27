@@ -190,7 +190,7 @@ let reduceThreadAnalyses () =
   in
   let hasThreadCreate = hasFunction isThreadCreate in
   if not @@ hasThreadCreate then (
-    print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    print_endline @@ "no thread creation -> disabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
