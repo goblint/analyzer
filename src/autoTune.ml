@@ -204,7 +204,7 @@ let activateLongjmpAnalysesWhenRequired () =
     | _ -> false
 in
   if hasFunction isLongjmp  then (
-    print_endline @@ "longjmp -> enabeling longjmp analyses \"" ^ (String.concat ", " longjmpAnalyses) ^ "\"";
+    print_endline @@ "longjmp -> enabling longjmp analyses \"" ^ (String.concat ", " longjmpAnalyses) ^ "\"";
     enableAnalyses longjmpAnalyses;
   )
 
