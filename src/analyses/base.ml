@@ -2105,7 +2105,9 @@ struct
         | `Int x ->
           begin
             match ID.to_int x with
-            | Some z -> M.tracel "attr" "setting\n"; set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.of_int z))
+            | Some z ->
+              if M.tracing then M.tracel "attr" "setting\n";
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.of_int z))
             | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.top ()))
           end
         | _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.top ()))
