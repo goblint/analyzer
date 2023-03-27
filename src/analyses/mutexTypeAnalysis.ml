@@ -19,7 +19,7 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match lval with
-    | Var v, Field (f1, Field (f2, NoOffset)) when ValueDomain.Compound.is_mutex_type v.vtype && f1.fname = "__data" && f2.fname = "__kind"  ->
+    | Var v, Field ({fname = "__data"; _}, Field ({fname = "__kind"; _}, NoOffset)) when ValueDomain.Compound.is_mutex_type v.vtype ->
       let kind =
         (match Cil.constFold true rval with
          | Const (CInt (c, _, _)) -> MAttr.of_int c
