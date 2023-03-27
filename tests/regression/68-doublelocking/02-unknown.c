@@ -13,13 +13,6 @@ void* f1(void* ptr) {
         x = 3;
     }
 
-    void* ptr2;
-    if(top) {
-        ptr2 = &mut[x];
-    } else {
-        ptr2 = &mut[3];
-    }
-
 
     pthread_mutex_lock(&mut[x]);
     pthread_mutex_lock(&mut[3]); //WARN
