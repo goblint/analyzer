@@ -30,7 +30,7 @@ struct
   let exitstate  v = D.top () (* TODO: why? *)
 
   let return ctx exp fundec =
-    if not @@ D.is_bot ctx.local && ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then M.warn "Exiting thread while still holding a mutex!";
+    if not (D.is_bot ctx.local) && ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then M.warn "Exiting thread while still holding a mutex!";
     ctx.local
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
