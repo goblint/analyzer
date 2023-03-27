@@ -654,6 +654,33 @@ let () =
   end);
 
   register (module struct
+    let name = "global-state"
+    type params = {
+      vid: int option [@default None];
+      node: string option [@default None];
+    } [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process (params: params) serv =
+      let vq_opt = match params.vid, params.node with
+        | None, None ->
+          None
+        | Some vid, None ->
+          let vi = {Cil.dummyFunDec.svar with vid} in (* Equal to actual varinfo by vid. *)
+          Some (VarQuery.Global vi)
+        | None, Some node_id ->
+          let node = try
+              Node.of_id node_id
+            with Not_found ->
+              Response.Error.(raise (make ~code:RequestFailed ~message:"not analyzed or non-existent node" ()))
+          in
+          Some (VarQuery.Node {node; fundec = None})
+        | Some _, Some _ ->
+          Response.Error.(raise (make ~code:RequestFailed ~message:"requires at most one of vid and node" ()))
+      in
+      !Control.current_varquery_global_state_json vq_opt
+  end);
+
+  register (module struct
     let name = "arg/state"
     type params = {
       node: string
