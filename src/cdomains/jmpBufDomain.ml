@@ -3,6 +3,10 @@ module BufferEntry = Printable.ProdSimple(Node)(ControlSpecC)
 module BufferEntryOrTop = struct
   include Printable.Std
   type t = AllTargets | Target of BufferEntry.t [@@deriving eq, ord, hash, to_yojson]
+  let relift = function
+    | AllTargets -> AllTargets
+    | Target x -> Target (BufferEntry.relift x)
+
   let show = function AllTargets -> "All" | Target x -> BufferEntry.show x
 
   include Printable.SimpleShow (struct
