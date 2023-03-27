@@ -162,11 +162,11 @@ struct
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
 
   (* let name () =
-    let domain_name (n, (module D: Printable.S)) =
-      let analysis_name = find_spec_name n in
-      analysis_name ^ ":(" ^ D.name () ^ ")"
-    in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ()) *)
+       let domain_name (n, (module D: Printable.S)) =
+         let analysis_name = find_spec_name n in
+         analysis_name ^ ":(" ^ D.name () ^ ")"
+       in
+       IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ()) *)
   let name () = "MCP.C"
 
   let printXml f xs =
