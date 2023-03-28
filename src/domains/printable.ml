@@ -58,7 +58,7 @@ struct
 
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
-  let relift x = failwith "Std: no relift"
+  (* let relift x = failwith "Std: no relift" *)
 end
 
 module Blank =
@@ -582,6 +582,7 @@ struct
   let show n = n
   let name () = "String"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
+  let relift x = x
 end
 
 
@@ -658,4 +659,5 @@ struct
     )
 
   let to_yojson x = x (* override SimplePretty *)
+  let relift x = x
 end

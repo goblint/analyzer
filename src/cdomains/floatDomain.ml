@@ -734,6 +734,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let sin = eval_unop (top ()) eval_sin
   let tan = eval_unop (top ()) eval_tan
 
+  let relift x = x
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)

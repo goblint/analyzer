@@ -277,6 +277,8 @@ struct
       | _ -> None
     with Invalid_argument _ -> None
   let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
+
+  let relift (x, y, z) = (Exp.relift x, Exp.relift y, Exp.relift z) (* TODO: Prod3? *)
 end
 
 (** Index-based symbolic lock *)
@@ -306,6 +308,7 @@ struct
 
     let equal_to _ _ = `Top
     let to_int _ = None
+    let relift x = x
   end
 
   include Lval.Normal (Idx)

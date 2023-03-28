@@ -29,6 +29,7 @@ struct
     | Neg, Pos | Neg, Zero -> true (* TODO: Maybe something missing? *)
     | _ -> false
 
+  let relift x = x
 end
 
 (* Now we turn this into a lattice by adding Top and Bottom elements.
