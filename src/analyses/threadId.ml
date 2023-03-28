@@ -63,7 +63,10 @@ struct
   let enter ctx lval f args =
     [ctx.local,ctx.local]
 
-  let combine ctx lval fexp f args fc st2 f_ask = st2
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx lval fexp f args fc st2 f_ask = st2
 
   let special ctx lval f args =
     ctx.local

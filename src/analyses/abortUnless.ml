@@ -46,7 +46,10 @@ struct
     in
     [false, candidate]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     if au && lval = None then (
       (* Assert happens after evaluation of call, so if variables in `arg` are assigned to, asserting might unsoundly yield bot *)
       (* See test 62/03 *)

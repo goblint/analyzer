@@ -34,7 +34,9 @@ struct
     end;
     ctx.local
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t = au
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t = au
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in

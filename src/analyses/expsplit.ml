@@ -46,7 +46,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) =
     emit_splits_ctx ctx
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     let d = D.join ctx.local au in
     emit_splits ctx d
 

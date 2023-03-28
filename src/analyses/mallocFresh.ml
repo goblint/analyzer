@@ -27,7 +27,10 @@ struct
   let assign ctx lval rval =
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
-  let combine ctx lval f fd args context f_local (f_ask: Queries.ask) =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx lval f fd args context f_local (f_ask: Queries.ask) =
     match lval with
     | None -> f_local
     | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval f_local

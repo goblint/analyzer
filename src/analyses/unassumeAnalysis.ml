@@ -274,7 +274,10 @@ struct
   let enter ctx lv f args =
     [(ctx.local, D.empty ())]
 
-  let combine ctx lv fe f args fc fd f_ask =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx lv fe f args fc fd f_ask =
     emit_unassume ctx
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)

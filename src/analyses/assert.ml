@@ -27,7 +27,10 @@ struct
   let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     au
 
   let assert_fn ctx e check refine =

@@ -278,7 +278,8 @@ struct
     in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a fc d  f_ask =
+  let combine_env ctx l fe f a fc d  f_ask =
+    (* TODO: should do nothing? *)
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
     let k x (y, sync) =
@@ -292,7 +293,28 @@ struct
           step_ctx_edge ctx cd
       in
       try
-        let x' = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
+        let x' = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
+        (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
+      with Deadcode -> (y, sync)
+    in
+    let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
+
+  let combine_assign ctx l fe f a fc d  f_ask =
+    assert (Dom.cardinal (fst ctx.local) = 1);
+    let cd = Dom.choose_key (fst ctx.local) in
+    let k x (y, sync) =
+      let r =
+        if should_inline f then
+          (* returns already post-sync in FromSpec *)
+          let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) (nosync x) in (* fc should be Some outside of MCP *)
+          let procr = step_ctx_inlined_edge ctx cd in
+          R.join procr returnr
+        else
+          step_ctx_edge ctx cd
+      in
+      try
+        let x' = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
         (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in

@@ -101,10 +101,13 @@ struct
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
 
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
   (** For a function call "lval = f(args)" or "f(args)",
       computes the state of the caller after the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     let caller_state = ctx.local in
     (* TODO: Record whether lval was tainted. *)
     caller_state

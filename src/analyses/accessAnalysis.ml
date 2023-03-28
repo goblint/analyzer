@@ -105,7 +105,10 @@ struct
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
-  let combine ctx lv fexp f args fc al f_ask =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx lv fexp f args fc al f_ask =
     access_one_top ctx Read false fexp;
     begin match lv with
       | None      -> ()

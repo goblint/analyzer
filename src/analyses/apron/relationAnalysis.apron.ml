@@ -350,7 +350,10 @@ struct
         st'
     end
 
-  let combine ctx r fe f args fc fun_st (f_ask : Queries.ask) =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local (* TODO *)
+
+  let combine_assign ctx r fe f args fc fun_st (f_ask : Queries.ask) =
     let st = ctx.local in
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let fundec = Node.find_fundec ctx.node in
