@@ -666,6 +666,7 @@ struct
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
+      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
       let rec cd_ctx =
         { ctx with
           ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
@@ -695,8 +696,14 @@ struct
         in
         fd_ctx
       in
-      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      let r = S.combine_assign cd_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
+      let combine_enved = S.combine_env cd_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
+      let rec combine_assign_ctx =
+        { cd_ctx with
+          ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
+          local = combine_enved;
+        }
+      in
+      let r = S.combine_assign combine_assign_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
@@ -1506,10 +1513,6 @@ struct
   let return ctx = S.return (conv ctx)
 
   let combine_env ctx lv e f args fc fd f_ask =
-    (* TODO *)
-    S.combine_env (conv ctx) lv e f args fc fd f_ask
-
-  let combine_assign ctx lv e f args fc fd f_ask =
     let conv_ctx = conv ctx in
     let current_fundec = Node.find_fundec ctx.node in
     let handle_longjmp (cd, fc, longfd) =
@@ -1582,7 +1585,11 @@ struct
     if M.tracing then M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
     if not (D.is_bot longfd) then
       handle_longjmp (ctx.local, fc, longfd);
-    S.combine_assign (conv_ctx) lv e f args fc fd f_ask
+    S.combine_env (conv_ctx) lv e f args fc fd f_ask
+
+  let combine_assign ctx lv e f args fc fd f_ask =
+    (* TODO *)
+    S.combine_assign (conv ctx) lv e f args fc fd f_ask
 
   let special ctx lv f args =
     let conv_ctx = conv ctx in
