@@ -696,14 +696,23 @@ struct
         in
         fd_ctx
       in
-      let combine_enved = S.combine_env cd_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
-      let rec combine_assign_ctx =
-        { cd_ctx with
-          ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
-          local = combine_enved;
-        }
+      let r = List.fold_left (fun acc fd1 ->
+          let rec fd1_ctx =
+            { fd_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query fd1_ctx q);
+              local = fd1;
+            }
+          in
+          let combine_enved = S.combine_env cd_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
+          let rec combine_assign_ctx =
+            { cd_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
+              local = combine_enved;
+            }
+          in
+          S.D.join acc (S.combine_assign combine_assign_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx))
+        ) (S.D.bot ()) (S.paths_as_set fd_ctx)
       in
-      let r = S.combine_assign combine_assign_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
