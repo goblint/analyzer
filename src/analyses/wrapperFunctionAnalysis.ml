@@ -1,4 +1,6 @@
-(** An analysis that handles the case when malloc is called from a wrapper function all over the code. *)
+(** An analysis that handles the case when an interesting function is called
+    from a wrapper function all over the code. Currently handles the [malloc]-
+    family of memory allocation functions, as well as [pthread_create] *)
 
 open Prelude.Ana
 open Analyses
