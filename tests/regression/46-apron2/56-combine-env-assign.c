@@ -15,7 +15,7 @@ int main() {
     *ptr = change_ptr_and_return_5();
 
     int x = g + 1; // Currently this fails because of operation on bot
-    assert(g == h); //FAIL
-    assert(h == 5);
-    assert(g == 0);
+    __goblint_check(g == h); //FAIL
+    __goblint_check(h == 5);
+    __goblint_check(g == 0);
 }
