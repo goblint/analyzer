@@ -57,16 +57,13 @@ struct
     [ctx.local, (D.bot ())]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
+    D.union ctx.local au
 
   let combine_assign ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
-    let d =
-      match lvalOpt with
-      | Some lv -> taint_lval ctx lv
-      | None -> ctx.local
-    in
-    D.union d au
+    match lvalOpt with
+    | Some lv -> taint_lval ctx lv
+    | None -> ctx.local
 
   let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* perform shallow and deep invalidate according to Library descriptors *)
