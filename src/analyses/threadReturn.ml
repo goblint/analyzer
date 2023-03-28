@@ -9,7 +9,7 @@ let is_current (ask: Queries.ask): bool =
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec (* TODO: IdentitySpec *)
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
@@ -36,7 +36,7 @@ struct
       [ctx.local, false]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    ctx.local (* keep local as opposed to IdentitySpec *)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local

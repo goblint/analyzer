@@ -14,7 +14,7 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec (* TODO: IdentitySpec *)
 
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
@@ -88,10 +88,10 @@ struct
     [ctx.local,ctx.local]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    au
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in

@@ -84,7 +84,7 @@ struct
       |_ -> state
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    ctx.local (* keep local as opposed to IdentitySpec *)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask): D.t =
     (* If we have a function call with assignment

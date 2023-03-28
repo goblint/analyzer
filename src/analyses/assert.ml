@@ -4,7 +4,7 @@ open GobConfig
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec (* TODO: IdentitySpec/UnitAnalysis *)
 
   let name () = "assert"
   module D = Lattice.Unit
@@ -28,10 +28,10 @@ struct
     [ctx.local, ctx.local]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    au
 
   let combine_assign ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
+    ctx.local
 
   let assert_fn ctx e check refine =
 

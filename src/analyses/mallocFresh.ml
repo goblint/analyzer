@@ -28,7 +28,7 @@ struct
     assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    ctx.local (* keep local as opposed to IdentitySpec *)
 
   let combine_assign ctx lval f fd args context f_local (f_ask: Queries.ask) =
     match lval with

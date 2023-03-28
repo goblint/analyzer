@@ -54,9 +54,6 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     VS.join au ctx.local
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    ctx.local
-
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
   let exitstate  v = D.top ()

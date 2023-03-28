@@ -6,7 +6,7 @@ module LF = LibraryFunctions
 
 module Spec (D: StackDomain.S) (P: sig val name : string end)=
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec (* TODO: IdentitySpec *)
 
   let name () = P.name
   module D = D
@@ -45,7 +45,7 @@ end
 
 module SpecLoc =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec (* TODO: IdentitySpec *)
 
   let name () = "stack_loc"
   module D = StackDomain.Dom3

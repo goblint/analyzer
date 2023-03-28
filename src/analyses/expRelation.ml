@@ -7,7 +7,7 @@ open Analyses
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec (* TODO: IdentitySpec/UnitAnalysis *)
   module D = Lattice.Unit
   module C = Lattice.Unit
 
@@ -99,10 +99,10 @@ struct
     [ctx.local, ctx.local]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    au
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
