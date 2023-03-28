@@ -275,7 +275,7 @@ struct
     [(ctx.local, D.empty ())]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    ctx.local (* not here because isn't final transfer function on edge *)
 
   let combine_assign ctx lv fe f args fc fd f_ask =
     emit_unassume ctx
