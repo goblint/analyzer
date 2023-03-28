@@ -21,6 +21,7 @@ int basic1(int n) {
 }
 
 // only called with negative n
+// TODO: everything after if statement should be removed
 int basic2(int n) {
   int a;
 
