@@ -21,6 +21,7 @@ struct
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
     match x with
+    | `CorruptedOffset -> `CorruptedOffset
     | `NoOffset    -> `NoOffset
     | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)

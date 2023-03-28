@@ -7,6 +7,7 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
+  | `CorruptedOffset
 ] [@@deriving eq, ord, hash]
 
 
@@ -36,6 +37,7 @@ struct
       | _, _ -> `MayZero)
     | `Field (x, o) ->
       if is_first_field x then cmp_zero_offset o else `MustNonzero
+    | `CorruptedOffset -> `MayZero
 
   let rec equal x y =
     match x, y with
@@ -50,6 +52,7 @@ struct
     | `NoOffset -> ""
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
+    | `CorruptedOffset -> "[Corrupted offset]"
 
   include Printable.SimpleShow (
     struct
@@ -66,6 +69,7 @@ struct
     | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
     | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
     | `Index (_,o) -> hash o (* index might become top during fp -> might be zero offset *)
+    | `CorruptedOffset -> 53
   let name () = "Offset"
 
   let from_offset x = x
@@ -74,6 +78,7 @@ struct
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
     | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
+    | `CorruptedOffset -> false
 
   (* append offset o2 to o1 *)
   (* TODO: unused *)
@@ -82,6 +87,7 @@ struct
     | `NoOffset -> o2
     | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
+    | `CorruptedOffset -> `CorruptedOffset
 
   let rec compare o1 o2 = match o1, o2 with
     | `NoOffset, `NoOffset -> 0
@@ -93,16 +99,21 @@ struct
     | `Index (i1,o1), `Index (i2,o2) ->
       let c = Idx.compare i1 i2 in
       if c=0 then compare o1 o2 else c
+    | `CorruptedOffset, `CorruptedOffset -> 0
+    | `CorruptedOffset, _ -> -1
+    | _, `CorruptedOffset -> 1
     | `NoOffset, _ -> -1
     | _, `NoOffset -> 1
     | `Field _, `Index _ -> -1
     | `Index _, `Field _ ->  1
+
 
   let rec to_cil_offset (x:t) =
     match x with
     | `NoOffset -> NoOffset
     | `Field(f,o) -> Field(f, to_cil_offset o)
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+    | `CorruptedOffset -> NoOffset (* Is this right? *)
 end
 
 module OffsetLat (Idx: IntDomain.Z) =
@@ -116,6 +127,7 @@ struct
     | x, `NoOffset -> cmp_zero_offset x = `MustZero (* special case not used for AddressDomain any more due to splitting *)
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
+    | _, `CorruptedOffset -> true
     | _ -> false
 
   let rec merge cop x y =
@@ -129,6 +141,7 @@ struct
       | _ -> raise Lattice.Uncomparable)
     | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
+    | `CorruptedOffset, `CorruptedOffset -> `CorruptedOffset
     | _ -> raise Lattice.Uncomparable (* special case not used for AddressDomain any more due to splitting *)
 
   let join x y = merge `Join x y
@@ -140,6 +153,7 @@ struct
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
+    | `CorruptedOffset -> `CorruptedOffset
 end
 
 module OffsetLatWithSemanticEqual (Idx: IntDomain.Z) =
@@ -154,6 +168,7 @@ struct
     in
     let rec offset_to_index_offset ?typ offs = match offs with
       | `NoOffset -> idx_of_int 0
+      | `CorruptedOffset -> Idx.top ()
       | `Field (field, o) ->
         let field_as_offset = Field (field, NoOffset) in
         let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
@@ -278,12 +293,20 @@ struct
     | `NoOffset -> ""
     | `Field (fld, o) -> "." ^ fld.fname ^ short_offs o
     | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
+    | `CorruptedOffset -> "[Corrupted Offset]"
 
   let short_addr (x, o) =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")" ^ short_offs o
     else x.vname ^ short_offs o
+
+  let corrupt_offset = function
+    | Addr (x, o) ->
+      Addr (x, `CorruptedOffset)
+    | StrPtr _
+    | UnknownPtr
+    | NullPtr -> UnknownPtr
 
   let show = function
     | Addr (x, o)-> short_addr (x, o)
@@ -326,23 +349,9 @@ struct
     | UnknownPtr -> voidPtrType
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
-
-  (* TODO: seems to be unused *)
-  let to_exp (f:idx -> exp) x =
-    let rec to_cil c =
-      match c with
-      | `NoOffset -> NoOffset
-      | `Field (fld, ofs) -> Field (fld  , to_cil ofs)
-      | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
-    in
-    match x with
-    | Addr (v,o) -> AddrOf (Var v, to_cil o)
-    | StrPtr (Some x) -> mkString x
-    | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
-    | NullPtr -> integer 0
-    | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
-    | `NoOffset    -> y
+    | `NoOffset -> y
+    | `CorruptedOffset -> `CorruptedOffset
     | `Index (i,x) -> `Index (i, add_offsets x y)
     | `Field (f,x) -> `Field (f, add_offsets x y)
   (* TODO: unused *)
@@ -354,6 +363,7 @@ struct
     | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
+    | `CorruptedOffset -> `CorruptedOffset
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
@@ -515,6 +525,7 @@ struct
       | `NoOffset -> `NoOffset
       | `Field (f,o) -> `Field (f, of_elt_offset o)
       | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+      | `CorruptedOffset -> `CorruptedOffset
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
@@ -643,6 +654,7 @@ struct
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
     | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
+    | `CorruptedOffset -> "[Corrupted Offset]"
 
   let rec of_ciloffs x =
     match x with
@@ -655,6 +667,7 @@ struct
     | `NoOffset    -> NoOffset
     | `Index (i,o) -> Index (i, to_ciloffs o)
     | `Field (f,o) -> Field (f, to_ciloffs o)
+    | `CorruptedOffset -> NoOffset (* TODO: Is this the right thing to do?*)
 
   let to_lval (v,o) = Var v, to_ciloffs o
   let to_exp (v,o) = Lval (Var v, to_ciloffs o)

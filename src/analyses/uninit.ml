@@ -38,6 +38,7 @@ struct
     | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
+    | `CorruptedOffset -> `CorruptedOffset
 
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
@@ -136,12 +137,14 @@ struct
       | `NoOffset -> i
       | `Field (f, o) -> `Field (f, cat o i)
       | `Index (v, o) -> `Index (v, cat o i)
+      | `CorruptedOffset -> `CorruptedOffset
     in
     let rec rev lo =
       match lo with
       | `NoOffset -> `NoOffset
       | `Field (f, o) -> cat (rev o) (`Field (f, `NoOffset))
       | `Index (v, o) -> cat (rev o) (`Index (v, `NoOffset))
+      | `CorruptedOffset -> `CorruptedOffset
     in
     let rec bothstruct (t:fieldinfo list) (tf:fieldinfo) (o:fieldinfo list) (no:lval_offs)  : var_offs list =
       match t, o with

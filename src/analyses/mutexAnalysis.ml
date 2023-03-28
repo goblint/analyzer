@@ -112,6 +112,7 @@ struct
         | None -> MyCFG.unknown_exp
       in
       `Index (i_exp, conv_offset_inv o)
+    | `CorruptedOffset -> `CorruptedOffset
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let check_fun ~write ls =

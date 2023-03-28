@@ -289,6 +289,7 @@ struct
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
           `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+        | `CorruptedOffset -> `CorruptedOffset
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
@@ -302,7 +303,23 @@ struct
       match op with
       (* For array indexing e[i] and pointer addition e + i we have: *)
       | IndexPI | PlusPI ->
-        `Address (AD.map (addToAddr n) p)
+        let actual_item_type = Cil.typeSig (AD.get_type p) in
+        let item_type a = match a with
+          | TArray (item_type, _, _)
+          | TPtr (item_type, _) -> Some item_type
+          | _ -> None
+        in
+        let static_item_type = Option.map Cil.typeSig (item_type t1) in
+        if BatOption.map_default (CilType.Typsig.equal actual_item_type) false static_item_type  then
+          `Address (AD.map (addToAddr n) p)
+        else begin
+          let pretty_type_option () = function
+            | Some t -> CilType.Typsig.pretty () t
+            | None -> Pretty.text "None"
+          in
+          M.tracel "eval_type" "evalbinop: array itemtype mismatch (static vs actual): %a vs %a\n With static array type vs actual: %a vs %a\n" pretty_type_option static_item_type CilType.Typsig.pretty actual_item_type CilType.Typ.pretty t1 CilType.Typsig.pretty actual_item_type;
+          `Address (AD.map Addr.corrupt_offset p)
+        end
       (* Pointer subtracted by a value (e-i) is very similar *)
       (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
       | MinusPI ->
@@ -404,6 +421,7 @@ struct
   (* Auxiliary function to append an additional offset to a given offset. *)
   let rec add_offset ofs add =
     match ofs with
+    | `CorruptedOffset -> `CorruptedOffset
     | `NoOffset -> add
     | `Field (fld, `NoOffset) -> `Field (fld, add)
     | `Field (fld, ofs) -> `Field (fld, add_offset ofs add)
@@ -628,6 +646,7 @@ struct
       | `NoOffset -> `NoOffset
       | `Field (f,o) -> `Field (f,offsNormal o)
       | `Index (i,o) -> `Index (toInt i,offsNormal o)
+      | `CorruptedOffset -> `CorruptedOffset
     in
     match x with
     | ValueDomain.AD.Addr.Addr (v,o) ->[v,offsNormal o]

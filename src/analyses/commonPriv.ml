@@ -126,6 +126,7 @@ struct
     | `Field (f, o) -> `Field (f, conv_offset o)
     (* TODO: better indices handling *)
     | `Index (_, o) -> `Index (IdxDom.top (), conv_offset o)
+    | `CorruptedOffset -> `CorruptedOffset
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)

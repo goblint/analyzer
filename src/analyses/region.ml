@@ -83,6 +83,7 @@ struct
         | `NoOffset -> `NoOffset
         | `Field (f, os) -> `Field (f, unknown_index os)
         | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
+        | `CorruptedOffset -> `CorruptedOffset
       in
       Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 

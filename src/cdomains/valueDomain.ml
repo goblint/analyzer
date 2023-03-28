@@ -831,6 +831,7 @@ struct
       | _ ->
         match offs with
         | `NoOffset -> x
+        | `CorruptedOffset -> top_value t
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
             | `Struct str ->
@@ -960,6 +961,8 @@ struct
       | _ ->
       let result =
         match offs with
+        | `CorruptedOffset ->
+          top_value t
         | `NoOffset -> begin
             match value with
             | `Blob (y, s, orig) -> mu (`Blob (join x y, s, orig))
@@ -1182,6 +1185,7 @@ struct
     | `NoOffset -> `NoOffset
     | `Field (field, offs') -> `Field (field, project_offs p offs')
     | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
+    | `CorruptedOffset -> `CorruptedOffset
   and project_arr ask p array_attr n =
     let n = match array_attr with
       | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n
@@ -1228,6 +1232,7 @@ struct
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
           let rec offs_to_offset = function
+            | `CorruptedOffset -> failwith "Corrupted offset considered as definite!"
             | `NoOffset -> NoOffset
             | `Field (f, offs) -> Field (f, offs_to_offset offs)
             | `Index (i, offs) ->
