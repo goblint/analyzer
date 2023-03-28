@@ -1597,7 +1597,6 @@ struct
     S.combine_env (conv_ctx) lv e f args fc fd f_ask
 
   let combine_assign ctx lv e f args fc fd f_ask =
-    (* TODO *)
     S.combine_assign (conv ctx) lv e f args fc fd f_ask
 
   let special ctx lv f args =
