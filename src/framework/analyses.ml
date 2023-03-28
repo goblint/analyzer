@@ -396,11 +396,16 @@ sig
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
+  (* Paths as sets: I know this is ugly! *)
+  val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
+
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
 module type MCPA =
@@ -413,7 +418,6 @@ end
 module type MCPSpec =
 sig
   include Spec
-  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
@@ -605,6 +609,8 @@ struct
 
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  let paths_as_set ctx = [ctx.local]
 
   module A = UnitA
   let access _ _ = ()

@@ -43,6 +43,7 @@ module Base =
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
+    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
@@ -74,11 +75,23 @@ module Base =
       dep = HM.create 10;
     }
 
-    let print_data data str =
+    let print_data data =
+      Printf.printf "|rho|=%d\n" (HM.length data.rho);
+      Printf.printf "|stable|=%d\n" (HM.length data.stable);
+      Printf.printf "|infl|=%d\n" (HM.length data.infl);
+      Printf.printf "|wpoint|=%d\n" (HM.length data.wpoint);
+      Printf.printf "|sides|=%d\n" (HM.length data.sides);
+      Printf.printf "|side_dep|=%d\n" (HM.length data.side_dep);
+      Printf.printf "|side_infl|=%d\n" (HM.length data.side_infl);
+      Printf.printf "|var_messages|=%d\n" (HM.length data.var_messages);
+      Printf.printf "|rho_write|=%d\n" (HM.length data.rho_write);
+      Printf.printf "|dep|=%d\n" (HM.length data.dep);
+      Hooks.print_data ()
+
+    let print_data_verbose data str =
       if GobConfig.get_bool "dbg.verbose" then (
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.var_messages) (HM.length data.rho_write) (HM.length data.dep);
-        Hooks.print_data ()
+        Printf.printf "%s:\n" str;
+        print_data data
       )
 
     let verify_data data =
@@ -108,7 +121,7 @@ module Base =
         dep = HM.copy data.dep;
       }
 
-    (* This hack is for fixing hashconsing.
+    (* The following hack is for fixing hashconsing.
        If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
        HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
        The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
@@ -172,16 +185,7 @@ module Base =
         ) data.dep;
       {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
-    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
-
-    module P =
-    struct
-      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
-    end
-
-    module HPM = Hashtbl.Make (P)
-
-    type phase = Widen | Narrow [@@deriving show]
+    type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
     module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
@@ -197,8 +201,10 @@ module Base =
             HM.clear data.stable;
             HM.clear data.infl
           );
-          if not reuse_wpoint then
+          if not reuse_wpoint then (
             HM.clear data.wpoint;
+            HM.clear data.sides
+          );
           data
         | None ->
           create_empty_data ()
@@ -241,14 +247,13 @@ module Base =
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|var_messages|=%d\n|rho_write|=%d\n|dep|=%d\n"
-            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length var_messages) (HM.length rho_write) (HM.length dep);
-          Hooks.print_data ();
+          print_data data;
+          Printf.printf "|called|=%d\n" (HM.length called);
           print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then (
-        print_data data "Loaded data for incremental analysis";
+        print_data_verbose data "Loaded data for incremental analysis";
         verify_data data
       );
 
@@ -264,6 +269,7 @@ module Base =
       let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
+      (* Same as destabilize, but returns true if it destabilized a called var, or a var in vs which was stable. *)
       let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
@@ -275,7 +281,7 @@ module Base =
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem_cmp S.Var.compare y vs
           ) w false
       and solve ?reuse_eq x phase =
-        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
         init x;
         assert (Hooks.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -287,9 +293,9 @@ module Base =
              This doesn't matter during normal solving (?), because old would be bot.
              This matters during incremental loading, when wpoints have been removed (or not marshaled) and are redetected.
              Then the previous local wpoint value is discarded automagically and not joined/widened, providing limited restarting of local wpoints. (See eval for more complete restarting.) *)
-          let wp = HM.mem wpoint x in
-          let l = HM.create 10 in
-          let tmp =
+          let wp = HM.mem wpoint x in (* if x becomes a wpoint during eq, checking this will delay widening until next solve *)
+          let l = HM.create 10 in (* local cache *)
+          let eqd = (* d from equation/rhs *)
             match reuse_eq with
             | Some d when narrow_reuse ->
               (* Do not reset deps for reuse of eq *)
@@ -301,33 +307,35 @@ module Base =
               HM.replace dep x VS.empty;
               eq x (eval l x) (side ~x)
           in
-          let new_eq = tmp in
-          (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
-          let old = HM.find rho x in (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
-          let tmp =
-            if not wp then tmp
+          let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
+          let wpd = (* d after widen/narrow (if wp) *)
+            if not wp then eqd
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+                match phase with
+                | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+                | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
+                | Narrow ->
+                  (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
+                  S.Dom.narrow old eqd
               else
-                box old tmp
+                box old eqd
           in
-          if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
-          if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
-          if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
-          cache_sizes := HM.length l :: !cache_sizes;
-          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
+          if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty wpd;
+          if cache then (
+            if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
+            cache_sizes := HM.length l :: !cache_sizes;
+          );
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( (* value changed *)
             if tracing then trace "sol" "Changed\n";
-            update_var_event x old tmp;
-            HM.replace rho x tmp;
+            update_var_event x old wpd;
+            HM.replace rho x wpd;
             destabilize x;
             (solve[@tailcall]) x phase
           ) else (
             (* TODO: why non-equal and non-stable checks in switched order compared to TD3 paper? *)
-            if not (HM.mem stable x) then (
+            if not (HM.mem stable x) then ( (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
               if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
               (solve[@tailcall]) x Widen
             ) else (
@@ -337,7 +345,7 @@ module Base =
                 HM.remove stable x;
                 HM.remove superstable x;
                 Hooks.stable_remove x;
-                (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
+                (solve[@tailcall]) ~reuse_eq:eqd x Narrow
               ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x
@@ -359,10 +367,10 @@ module Base =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side ~x) in
+          let eqd = eq y (eval l x) (side ~x) in
           HM.remove called y;
           if HM.mem wpoint y then (HM.remove l y; solve y Widen; HM.find rho y)
-          else (if cache then HM.replace l y tmp; tmp)
+          else (if cache then HM.replace l y eqd; eqd)
         )
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
@@ -379,6 +387,7 @@ module Base =
                 HM.replace restarted_wpoint y ();
             )
           );
+          if tracing then trace "sol2" "eval adding wpoint %a from %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
           HM.replace wpoint y ();
         );
         let tmp = simple_solve l x y in
@@ -415,6 +424,7 @@ module Base =
         if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x;
           let sided = match x with
             | Some x ->
               let sided = VS.mem x old_sides in
@@ -426,7 +436,12 @@ module Base =
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
           (* make y a widening point if ... This will only matter for the next side _ y.  *)
-          let wpoint_if e = if e then HM.replace wpoint y () in
+          let wpoint_if e =
+            if e then (
+              if tracing then trace "sol2" "side adding wpoint %a from %a\n" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x;
+              HM.replace wpoint y ()
+            )
+          in
           match side_widen with
           | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
             wpoint_if true
@@ -726,7 +741,7 @@ module Base =
         delete_marked rho_write;
         HM.iter (fun x w -> delete_marked w) rho_write;
 
-        print_data data "Data after clean-up";
+        print_data_verbose data "Data after clean-up";
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
@@ -824,11 +839,11 @@ module Base =
         Timing.wrap "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
-        if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
+        if tracing && cache then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
 
       stop_event ();
-      print_data data "Data after solve completed";
+      print_data_verbose data "Data after solve completed";
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
@@ -1016,7 +1031,7 @@ module Base =
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
       Post.post st (stable_reluctant_vs @ vs) rho;
 
-      print_data data "Data after postsolve";
+      print_data_verbose data "Data after postsolve";
 
       verify_data data;
       (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})

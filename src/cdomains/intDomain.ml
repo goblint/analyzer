@@ -15,6 +15,54 @@ exception Unknown
 exception Error
 exception ArithmeticOnIntegerBot of string
 
+
+
+
+(** Define records that hold mutable variables representing different Configuration values.
+  * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
+type ana_int_config_values = {
+  mutable interval_threshold_widening : bool option;
+  mutable interval_narrow_by_meet : bool option;
+  mutable def_exc_widen_by_join : bool option;
+  mutable interval_threshold_widening_constants : string option;
+  mutable refinement : string option;
+}
+
+let ana_int_config: ana_int_config_values = {
+  interval_threshold_widening = None;
+  interval_narrow_by_meet = None;
+  def_exc_widen_by_join = None;
+  interval_threshold_widening_constants = None;
+  refinement = None;
+}
+
+let get_interval_threshold_widening () =
+  if ana_int_config.interval_threshold_widening = None then
+    ana_int_config.interval_threshold_widening <- Some (get_bool "ana.int.interval_threshold_widening");
+  Option.get ana_int_config.interval_threshold_widening
+
+let get_interval_narrow_by_meet () =
+  if ana_int_config.interval_narrow_by_meet = None then
+    ana_int_config.interval_narrow_by_meet <- Some (get_bool "ana.int.interval_narrow_by_meet");
+  Option.get ana_int_config.interval_narrow_by_meet
+
+let get_def_exc_widen_by_join () =
+  if ana_int_config.def_exc_widen_by_join = None then
+    ana_int_config.def_exc_widen_by_join <- Some (get_bool "ana.int.def_exc_widen_by_join");
+  Option.get ana_int_config.def_exc_widen_by_join
+
+let get_interval_threshold_widening_constants () =
+  if ana_int_config.interval_threshold_widening_constants = None then
+    ana_int_config.interval_threshold_widening_constants <- Some (get_string "ana.int.interval_threshold_widening_constants");
+  Option.get ana_int_config.interval_threshold_widening_constants
+
+let get_refinement () =
+  if ana_int_config.refinement = None then
+    ana_int_config.refinement <- Some (get_string "ana.int.refinement");
+  Option.get ana_int_config.refinement
+
+
+
 (** Whether for a given ikind, we should compute with wrap-around arithmetic.
   *  Always for unsigned types, for signed types if 'sem.int.signed_overflow' is 'assume_wraparound'  *)
 let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflow" = "assume_wraparound"
@@ -44,7 +92,12 @@ let set_overflow_flag ~cast ~underflow ~overflow ik =
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
-  ResettableLazy.reset widening_thresholds_desc
+  ResettableLazy.reset widening_thresholds_desc;
+  ana_int_config.interval_threshold_widening <- None;
+  ana_int_config.interval_narrow_by_meet <- None;
+  ana_int_config.def_exc_widen_by_join <- None;
+  ana_int_config.interval_threshold_widening_constants <- None;
+  ana_int_config.refinement <- None
 
 module type Arith =
 sig
@@ -685,15 +738,15 @@ struct
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
       let (min_ik, max_ik) = range ik in
-      let threshold = get_bool "ana.int.interval_threshold_widening" in
+      let threshold = get_interval_threshold_widening () in
       let upper_threshold u =
-        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
+        let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
         let u = Ints_t.to_bigint u in
         let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
         BatOption.map_default Ints_t.of_bigint max_ik t
       in
       let lower_threshold l =
-        let ts = if GobConfig.get_string "ana.int.interval_threshold_widening_constants" = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
+        let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
         let l = Ints_t.to_bigint l in
         let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
         BatOption.map_default Ints_t.of_bigint min_ik t
@@ -718,8 +771,9 @@ struct
       let ur = if Ints_t.compare max_ik x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur) |> fst
 
+
   let narrow ik x y =
-    if get_bool "ana.int.interval_narrow_by_meet" then
+    if get_interval_narrow_by_meet () then
       meet ik x y
     else
       narrow ik x y
@@ -2044,8 +2098,9 @@ struct
 
   let join ik = join' ik
 
+
   let widen ik x y =
-    if get_bool "ana.int.def_exc_widen_by_join" then
+    if get_def_exc_widen_by_join () then
       join' ik x y
     else if equal x y then
       x
@@ -3483,7 +3538,7 @@ module IntDomTupleImpl = struct
 
   let refine ik ((a, b, c, d, e) : t ) : t =
     let dt = ref (a, b, c, d, e) in
-    (match GobConfig.get_string "ana.int.refinement" with
+    (match get_refinement () with
      | "never" -> ()
      | "once" ->
        List.iter (fun f -> dt := f !dt) (refine_functions ik);

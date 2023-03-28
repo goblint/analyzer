@@ -275,6 +275,7 @@ let analyze ?(reset=false) (s: t) =
   InvariantCil.reset_lazy ();
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
+  PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();
   AutoTune.reset_lazy ();
   Access.reset ();
@@ -405,6 +406,8 @@ let () =
     type varinfo_data = {
       vid: int;
       name: string;
+      type_: CilType.Typ.t [@key "type"];
+      location: CilType.Location.t;
       original_name: string option;
       role: string;
       function_: CilType.Fundec.t option [@key "function"] [@default None];
@@ -429,6 +432,8 @@ let () =
           let data = {
             vid = vi.vid;
             name = vi.vname;
+            type_ = vi.vtype;
+            location = vi.vdecl;
             original_name = Cilfacade.find_original_name vi;
             role = role_str;
             function_;
@@ -686,8 +691,7 @@ let () =
                 let fundec = Node.find_fundec cfg_node in
                 let loc = UpdateCil.getLoc cfg_node in
 
-                (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
-                begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+                begin match InvariantParser.parse_cil (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
                   | Ok exp -> exp
                   | Error e ->
                     Response.Error.(raise (make ~code:RequestFailed ~message:"CIL couldn't parse expression (undefined variables or side effects)" ()))
@@ -727,8 +731,7 @@ let () =
             let fundec = Node.find_fundec cfg_node in
             let loc = UpdateCil.getLoc cfg_node in
 
-            (* Disable CIL check because incremental reparsing causes physically non-equal varinfos in this exp. *)
-            begin match InvariantParser.parse_cil ~check:false (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
+            begin match InvariantParser.parse_cil (ResettableLazy.force serv.invariant_parser) ~fundec ~loc exp_cabs with
               | Ok exp ->
                 let x = Arg.query n (EvalInt exp) in
                 {

@@ -54,7 +54,7 @@ let show_cfg = function
 let find_fundec (node: t) =
   match node with
   | Statement stmt -> Cilfacade.find_stmt_fundec stmt
-  | Function fd -> fd
+  | Function fd
   | FunctionEntry fd -> fd
 
 (** @raise Not_found *)
@@ -70,4 +70,3 @@ let of_id s =
     | "ret" -> Function fundec
     | "fun" -> FunctionEntry fundec
     | _     -> raise Not_found
-

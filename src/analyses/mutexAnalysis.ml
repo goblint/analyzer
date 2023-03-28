@@ -25,7 +25,7 @@ struct
 
     module V =
     struct
-      include Printable.Either (CilType.Varinfo) (ValueDomain.Addr)
+      include Printable.Either (struct include CilType.Varinfo let name () = "protecting" end) (struct include ValueDomain.Addr let name () = "protected" end)
       let name () = "mutex"
       let protecting x = `Left x
       let protected x = `Right x

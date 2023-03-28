@@ -587,25 +587,25 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     in
     IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
 
-  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [Z.zero]
-  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt Z.zero
-  let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
+  let true_nonZero_IInt () = IntDomain.IntDomTuple.of_excl_list IInt [Z.zero]
+  let false_zero_IInt () = IntDomain.IntDomTuple.of_int IInt Z.zero
+  let unknown_IInt () = IntDomain.IntDomTuple.top_of IInt
 
   let eval_isnormal = function
     | (l, h) ->
       if l >= Float_t.smallest || h <= (Float_t.neg (Float_t.smallest)) then
-        true_nonZero_IInt
+        true_nonZero_IInt ()
       else if l > (Float_t.neg (Float_t.smallest)) && h < Float_t.smallest then
-        false_zero_IInt
+        false_zero_IInt ()
       else
-        unknown_IInt
+        unknown_IInt ()
 
   (**it seems strange not to return an explicit 1 for negative numbers, but in c99 signbit is defined as: *)
   (**<<The signbit macro returns a nonzero value if and only if the sign of its argument value is negative.>> *)
   let eval_signbit = function
-    | (_, h) when h < Float_t.zero -> true_nonZero_IInt
-    | (l, _) when l > Float_t.zero -> false_zero_IInt
-    | _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
+    | (_, h) when h < Float_t.zero -> true_nonZero_IInt ()
+    | (l, _) when l > Float_t.zero -> false_zero_IInt ()
+    | _ -> unknown_IInt () (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
 
   (**This Constant overapproximates pi to use as bounds for the return values of trigonometric functions *)
   let overapprox_pi = 3.1416
@@ -664,38 +664,38 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let isfinite op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt
-    | Interval _  -> true_nonZero_IInt
-    | NaN | PlusInfinity | MinusInfinity -> false_zero_IInt
+    | Top -> unknown_IInt ()
+    | Interval _  -> true_nonZero_IInt ()
+    | NaN | PlusInfinity | MinusInfinity -> false_zero_IInt ()
 
   let isinf op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt
-    | PlusInfinity | MinusInfinity -> true_nonZero_IInt
-    | Interval _ | NaN -> false_zero_IInt
+    | Top -> unknown_IInt ()
+    | PlusInfinity | MinusInfinity -> true_nonZero_IInt ()
+    | Interval _ | NaN -> false_zero_IInt ()
 
   let isnan op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt
-    | Interval _ | PlusInfinity | MinusInfinity -> false_zero_IInt
-    | NaN -> true_nonZero_IInt
+    | Top -> unknown_IInt ()
+    | Interval _ | PlusInfinity | MinusInfinity -> false_zero_IInt ()
+    | NaN -> true_nonZero_IInt ()
 
   let isnormal op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt
+    | Top -> unknown_IInt ()
     | Interval i -> eval_isnormal i
-    | PlusInfinity | MinusInfinity | NaN -> false_zero_IInt
+    | PlusInfinity | MinusInfinity | NaN -> false_zero_IInt ()
 
   let signbit op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top | NaN -> unknown_IInt
+    | Top | NaN -> unknown_IInt ()
     | Interval i -> eval_signbit i
-    | PlusInfinity -> false_zero_IInt
-    | MinusInfinity  -> true_nonZero_IInt
+    | PlusInfinity -> false_zero_IInt ()
+    | MinusInfinity  -> true_nonZero_IInt ()
 
   let fabs op =
     warn_on_specials_unop op;
