@@ -18,12 +18,12 @@ include Lattice.Flat(MutexKind) (struct let bot_name = "Uninitialized" let top_n
 
 (* Needed because OS X is weird and assigns different constants than normal systems... :( *)
 let recursive_int = lazy (
-  let res = ref None in
+  let res = ref (Z.of_int 2) in (* Use OS X as the default, it doesn't have the enum *)
   GoblintCil.iterGlobals !Cilfacade.current_file (function
       | GEnumTag (einfo, _) ->
         List.iter (fun (name, exp, _) ->
             if name = "PTHREAD_MUTEX_RECURSIVE" then
-              res := GoblintCil.getInteger exp
+              res := Option.get @@ GoblintCil.getInteger exp
           ) einfo.eitems
       | _ -> ()
     );
@@ -37,5 +37,5 @@ let of_int z =
   else
     let recursive_int = Lazy.force recursive_int in
     match recursive_int with
-    | Some r when Z.equal z r -> `Lifted MutexKind.Recursive
+    | r when Z.equal z r -> `Lifted MutexKind.Recursive
     | _ -> `Top
