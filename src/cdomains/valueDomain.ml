@@ -65,6 +65,7 @@ struct
   type origin = ZeroInit.t
 
   let value (a, b, c) = a
+  let relift (a, b, c) = Value.relift a, b, c
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 end
 
@@ -100,6 +101,13 @@ struct
     | `Mutex
     | `Bot
   ] [@@deriving eq, ord, hash]
+
+  let relift = function
+    | `JmpBuf x -> `JmpBuf (JmpBufs.relift x)
+    | `Blob x -> `Blob (Blobs.relift x)
+    | `CArray x -> `CArray (CArrays.relift x)
+    | x -> x
+
 
   let is_mutex_type (t: typ): bool = match t with
     | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
