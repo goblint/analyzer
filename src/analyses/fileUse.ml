@@ -164,14 +164,14 @@ struct
     ) else m
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
-
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let m = ctx.local in
     (* pop the last location off the stack *)
     let m = D.edit_callstack List.tl m in (* TODO could it be problematic to keep this in the caller instead of callee domain? if we only add the stack for the callee in enter, then there would be no need to pop a location anymore... *)
     (* TODO add all globals from au to m (since we remove formals and locals on return, we can just add everything except special vars?) *)
-    let m = D.without_special_vars au |> D.add_all m in
+    D.without_special_vars au |> D.add_all m
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    let m = ctx.local in
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
