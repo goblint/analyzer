@@ -4,34 +4,11 @@ open GobConfig
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec (* TODO: IdentitySpec/UnitAnalysis *)
+  include UnitAnalysis.Spec
 
   let name () = "assert"
-  module D = Lattice.Unit
-  module G = Lattice.Unit
-  module C = Lattice.Unit
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
-
-  let combine_env ctx lval fexp f args fc au f_ask =
-    au
-
-  let combine_assign ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    ctx.local
 
   let assert_fn ctx e check refine =
 
@@ -80,11 +57,6 @@ struct
     match desc.special args, f.vname with
     | Assert { exp; check; refine }, _ -> assert_fn ctx exp check refine
     | _, _ -> ctx.local
-
-  let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
 end
 
 let _ =

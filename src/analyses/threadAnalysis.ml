@@ -8,7 +8,7 @@ module TS = ConcDomain.ThreadSet
 
 module Spec =
 struct
-  include Analyses.DefaultSpec (* TODO: IdentitySpec *)
+  include Analyses.IdentitySpec
 
   let name () = "thread"
   module D = ConcDomain.CreatedThreadSet
@@ -23,9 +23,7 @@ struct
   let should_join = D.equal
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
-  let body ctx (f:fundec) : D.t =  ctx.local
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
@@ -33,9 +31,6 @@ struct
       | _ -> ()
     end;
     ctx.local
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine_env ctx lval fexp f args fc au f_ask = au
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t = ctx.local
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
