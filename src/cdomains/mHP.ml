@@ -9,6 +9,9 @@ type t = {
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
 
+let relift {tid; created; must_joined} =
+  {tid = ThreadIdDomain.ThreadLifted.relift tid; created = ConcDomain.ThreadSet.relift created; must_joined = ConcDomain.ThreadSet.relift must_joined}
+
 let current (ask:Queries.ask) =
   {
     tid = ask.f Queries.CurrentThreadId;

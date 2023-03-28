@@ -73,6 +73,7 @@ struct
     type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
     let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
+    let relift x = x
   end
   type r = R.t
   open R

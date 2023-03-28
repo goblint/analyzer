@@ -50,6 +50,7 @@ struct
   let pretty () x = text (show x)
   let name () = "raw strings"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let relift x = x
 end
 
 module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =

@@ -933,6 +933,8 @@ module FloatIntervalImplLifted = struct
       let i2 = Invariant.of_exp Cil.(BinOp (Le, e, Const (CReal (x2, fk, None)), intType)) in
       Invariant.(&&) i1 i2
     | _ -> Invariant.none
+
+  let relift x = x
 end
 
 module FloatDomTupleImpl = struct
@@ -1139,4 +1141,6 @@ module FloatDomTupleImpl = struct
       let show = show
     end
     )
+
+  let relift a = Option.map F1.relift a
 end

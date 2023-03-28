@@ -20,6 +20,8 @@ struct
       let pretty = pretty
     end
     )
+
+  let relift x = x
 end
 
 module EventSet = SetDomain.ToppedSet (Event) (struct let topname = "All accesses" end)
