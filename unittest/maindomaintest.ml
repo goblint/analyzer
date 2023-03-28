@@ -15,6 +15,7 @@ struct
     let show = show
   end
   include Printable.SimpleShow (P)
+  let relift x = x
 end
 
 module ArbitraryLattice = SetDomain.FiniteSet (PrintableChar) (
