@@ -13,6 +13,14 @@ module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
 
+
+(* TODO: where to put this *)
+module NodeFlatLattice = Lattice.Flat (Node) (struct
+  let top_name = "Unknown node"
+  let bot_name = "Unreachable node"
+end)
+
+
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
@@ -69,6 +77,7 @@ type _ t =
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
+  | ThreadId: NodeFlatLattice.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -137,6 +146,7 @@ struct
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
+    | ThreadId -> (module NodeFlatLattice)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
@@ -196,6 +206,7 @@ struct
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
+    | ThreadId -> NodeFlatLattice.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
@@ -244,6 +255,7 @@ struct
     | Any MustBeSingleThreaded -> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
+    | Any ThreadId -> 9999999
     | Any MayBeThreadReturn -> 15
     | Any (EvalFunvar _) -> 16
     | Any (EvalInt _) -> 17
@@ -374,6 +386,7 @@ struct
     | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
+    | Any ThreadId -> Pretty.dprintf "ThreadId"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e

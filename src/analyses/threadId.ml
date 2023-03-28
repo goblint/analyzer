@@ -87,13 +87,19 @@ struct
     else
       None
 
+  let node_for_ctx ctx = match (ctx.ask Queries.ThreadId) with
+    | `Lifted node -> node
+    | _ -> ctx.prev_node
+
   let threadenter ctx lval f args =
-    let+ tid = create_tid ctx.local ctx.prev_node f in
+    (* x *)
+    let+ tid = create_tid ctx.local (node_for_ctx ctx) f in
     (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
-    (current, Thread.threadspawn td ctx.prev_node f)
+    (* x *)
+    (current, Thread.threadspawn td (node_for_ctx ctx) f)
 
   type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =

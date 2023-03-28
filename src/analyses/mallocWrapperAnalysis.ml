@@ -5,37 +5,38 @@ open Analyses
 open GobConfig
 open ThreadIdDomain
 module Q = Queries
-    
-(* 
-  let n () =
-    let p = get_int "ana.malloc.unique_address_count" in
-    if p < 0 then
-      failwith "Option ana.malloc.unique_address_count has to be non-negative"
-    else p + 1 (* Unique addresses + top address *)
- *)
 
+(* Functor argument for creating the chain lattice of unique calls *)
+module type UniqueCountArgs = sig
+  val unique_count : unit -> int
+  val label : string
+end
 
-module MakeModules (N : sig val n : unit -> int end) = struct
+(* Functor argument for determining wrapper and wrapped functions *)
+module type WrapperArgs = sig
+  val wrappers : unit -> string list
+  val is_wrapped : LibraryDesc.special -> bool
+end
 
-  module PL = Lattice.Flat (Node) (struct
-    let top_name = "Unknown node"
-    let bot_name = "Unreachable node"
-  end)
+(* The main analysis, generic to which functions are being wrapped. *)
+module SpecBase (UniqueCountArgs : UniqueCountArgs) (WrapperArgs : WrapperArgs) =
+struct
+  include Analyses.DefaultSpec
 
   module Chain = Lattice.Chain (struct
-    let n () =
-      let p = N.n () in
+      let n () =
+        let p = UniqueCountArgs.unique_count () in
         if p < 0 then
-          failwith "Option <unique_count> has to be non-negative"
+          failwith @@ UniqueCountArgs.label ^ " has to be non-negative"
         else p + 1 (* Unique addresses + top address *)
 
-    let names x = if x = (n () - 1) then "top" else Format.asprintf "%d" x
+      let names x = if x = (n () - 1) then "top" else Format.asprintf "%d" x
 
-  end)
+    end)
 
-(* Map for counting malloc node visits up to n (of the current thread). *)
+  (* Map for counting function call node visits up to n (of the current thread). *)
   module UniqueCallCounter = struct
-    include MapDomain.MapBot_LiftTop(PL)(Chain)
+    include MapDomain.MapBot_LiftTop(Q.NodeFlatLattice)(Chain)
 
     (* Increase counter for given node. If it does not exists yet, create it. *)
     let add_unique_call counter node =
@@ -52,44 +53,18 @@ module MakeModules (N : sig val n : unit -> int end) = struct
 
     (* Description that gets appended to the varinfo-name in user output. *)
     let describe_varinfo (v: varinfo) (t, node, c) =
-    let loc = UpdateCil.getLoc node in
-    CilType.Location.show loc
+      let loc = UpdateCil.getLoc node in
+      CilType.Location.show loc
 
     let name_varinfo (t, node, c) =
-    Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (Chain.show c)
+      Format.asprintf (* TODO *) "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (Chain.show c)
 
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
 
-  module D = Lattice.Prod (UniqueCallCounter) (PL)
+  module D = Lattice.Prod (UniqueCallCounter) (Q.NodeFlatLattice)
   module C = D
-
-end
-
-module type Modules = module type of MakeModules(struct let n () = 0 end)
-
-module type ModulesArgs = sig
-  module Modules : Modules
-  open Modules
-  open Analyses.DefaultSpec
-  val name : unit -> string
-  val get_wrappers : unit -> string list
-  val query : 'a. ((D.t, G.t, C.t, V.t) ctx) -> ('a Q.t) -> 'a Q.result
-end
-
-
-
-
-module Spec (ModulesArgs : ModulesArgs) : Analyses.MCPSpec =
-struct
-  include Analyses.DefaultSpec
-  include ModulesArgs.Modules
-
-  let name = ModulesArgs.name
-
-  module D = D
-  module C = C
 
   let wrappers = Hashtbl.create 13
 
@@ -111,10 +86,10 @@ struct
     let new_wrapper_node =
       if Hashtbl.mem wrappers f.svar.vname then
         match wrapper_node with
-        | `Lifted _ ->  wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
-        | _ ->  (`Lifted ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        | `Lifted _ -> wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
+        | _         -> `Lifted ctx.node (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
       else
-        PL.top () (* if an uninteresting callee is called, then we forget what was called before *)
+        Q.NodeFlatLattice.top () (* if an uninteresting callee is called, then we forget what was called before *)
     in
     let callee = (counter, new_wrapper_node) in
     [(ctx.local, callee)]
@@ -127,14 +102,12 @@ struct
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
-    (* TODO *)
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
-    match desc.special arglist with
-    | Malloc _ | Calloc _ | Realloc _ ->
+    if WrapperArgs.is_wrapped @@ desc.special arglist then
       let counter, wrapper_node = ctx.local in
       (UniqueCallCounter.add_unique_call counter ctx.node, wrapper_node)
-    | _ -> ctx.local
+    else ctx.local
 
   let startstate v = D.bot ()
 
@@ -147,16 +120,8 @@ struct
 
   type marshal = NodeVarinfoMap.marshal
 
-  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
-    let _ = ModulesArgs.query ctx in
-    Q.Result.top q
-  (* let query = ModulesArgs.query *)
-
-  (* let get_heap_var = NodeVarinfoMap.to_varinfo *)
-
-
   let init marshal =
-    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (ModulesArgs.get_wrappers ());
+    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (WrapperArgs.wrappers ());
     NodeVarinfoMap.unmarshal marshal
 
   let finalize () =
@@ -164,18 +129,32 @@ struct
 end
 
 
-(* implementations for malloc and pthread_create *)
+(* module UniqueCountArgsFromConfig (Option : sig val key : string end) : UniqueCountArgs = struct
+  let unique_count () = get_int Option.key
+  let label = "Option " ^ Option.key
+end *)
 
-module MallocModules = MakeModules(struct let n () = get_int "ana.malloc.unique_address_count" end)
-module ThreadModules = MakeModules(struct let n () = get_int "ana.thread.unique_thread_id_count" end)
+(* Create the chain argument-module, given the config key to loop up *)
+let unique_count_args_from_config key = (module struct
+  let unique_count () = get_int key
+  let label = "Option " ^ key
+end : UniqueCountArgs)
 
-module MallocModulesArgs : ModulesArgs = struct
-  open Analyses.DefaultSpec
-  module Modules = MallocModules
-  open Modules
+
+module MallocWrapper : MCPSpec = struct
+
+  include SpecBase
+    (* (UniqueCountArgsFromConfig (struct let key = "ana.malloc.unique_address_count" end)) *)
+    (val unique_count_args_from_config "ana.malloc.unique_address_count")
+    (struct
+      let wrappers () = get_string_list "ana.malloc.wrappers"
+
+      let is_wrapped = function
+      | LibraryDesc.Malloc _ | Calloc _ | Realloc _ -> true
+      | _ -> false
+    end)
 
   let name () = "mallocWrapper"
-  let get_wrappers () = get_string_list "ana.malloc.wrappers"
 
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     let counter, wrapper_node = ctx.local in
@@ -196,22 +175,35 @@ module MallocModulesArgs : ModulesArgs = struct
         | Some (_, _, c) -> Chain.is_top c || not (ctx.ask Q.MustBeUniqueThread)
         | None -> false
       end
-    | _ -> Q.Result.top q
+    | _ -> Queries.Result.top q
 
 end
 
-module ThreadModulesArgs : ModulesArgs = struct
-  open Analyses.DefaultSpec
-  module Modules = ThreadModules
-  open Modules
 
-  let name () = "threadWrapper"
-  let get_wrappers () = get_string_list "ana.malloc.wrappers"
+module ThreadCreateWrapper : MCPSpec = struct
 
-  let query _ (type a) (q : a Q.t) = Q.Result.top q
+  include SpecBase
+    (* (UniqueCountArgsFromConfig (struct let key = "ana.thread.unique_thread_id_count" end)) *)
+    (val unique_count_args_from_config "ana.thread.unique_thread_id_count")
+    (struct
+      let wrappers () = get_string_list "ana.thread.wrappers"
+
+      let is_wrapped = function
+      | LibraryDesc.ThreadCreate _ -> true
+      | _ -> false
+
+    end)
+
+  let name () = "threadCreateWrapper"
+
+  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
+    let counter, wrapper_node = ctx.local in
+    match q with
+    | Q.ThreadId -> `Lifted (match wrapper_node with
+      | `Lifted wrapper_node -> wrapper_node
+      | _ -> ctx.node)
+    | _ -> Queries.Result.top q
 
 end
 
-let _ =
-  MCP.register_analysis (module Spec (MallocModulesArgs))(* ;
-  MCP.register_analysis (module Spec (ThreadModulesArgs)) *)
+let _ = List.iter MCP.register_analysis [(module MallocWrapper); (module ThreadCreateWrapper)];
