@@ -395,7 +395,19 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
+
+  (* Combine is split into two steps: *)
+
+  (** Combine environment (global variables, mutexes, etc)
+      between local state (first component from enter) and function return.
+
+      This shouldn't yet assign to the lval. *)
   val combine_env : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+
+  (** Combine return value assignment
+      to local state (result from combine_env) and function return.
+
+      This should only assign to the lval. *)
   val combine_assign : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (* Paths as sets: I know this is ugly! *)
