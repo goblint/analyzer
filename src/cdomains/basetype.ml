@@ -67,6 +67,7 @@ struct
   let pretty () x = text (show x)
   let name () = "raw bools"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+  let relift x = x
 end
 
 module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =

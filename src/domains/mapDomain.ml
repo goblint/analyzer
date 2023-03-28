@@ -182,6 +182,15 @@ struct
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
+
+  let relift m =
+    M.fold (fun k v acc ->
+        ignore (Pretty.eprintf "map relift key: %s\n" (Domain.name ()));
+        let k' = Domain.relift k in
+        ignore (Pretty.eprintf "map relift value: %s\n" (Range.name ()));
+        let v' = Range.relift v in
+        M.add k' v' acc
+      ) m M.empty
 end
 
 (* TODO: why is HashCached.hash significantly slower as a functor compared to being inlined into PMap? *)
@@ -230,7 +239,7 @@ struct
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
 
-  let relift x = x
+  let relift = lift_f' M.relift
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)

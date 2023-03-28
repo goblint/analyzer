@@ -96,6 +96,8 @@ struct
     end
     )
     (* TODO: deriving to_yojson gets overridden by SimplePretty *)
+
+  let relift x = x
 end
 
 module InlineEdge: Edge with type t = inline_edge =

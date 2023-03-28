@@ -98,6 +98,8 @@ struct
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none
+
+  let relift = M.relift
 end
 
 module SetsCommon (Val:Arg) =
@@ -230,6 +232,8 @@ struct
 
   (* let invariant = HS.invariant *)
   let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
+
+  let relift = HS.relift
 end
 
 module KeyedSets (Val: Arg) =
@@ -438,6 +442,8 @@ struct
 
   (* let invariant c (x,_) = HS.invariant c x *)
   let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
+
+  let relift x = x
 end
 
 

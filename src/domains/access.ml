@@ -339,6 +339,8 @@ struct
     )
 
   let conf (conf, _, _, _, _) = conf
+
+  let relift x = x (* TODO: relift MCPAccess *)
 end
 module AS =
 struct
@@ -359,6 +361,8 @@ struct
       let pretty = pretty
     end
     )
+
+  let relift x = x
 end
 module O =
 struct
@@ -372,6 +376,8 @@ struct
       let pretty = pretty
     end
     )
+
+  let relift x = x
 end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)

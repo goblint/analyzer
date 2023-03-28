@@ -313,6 +313,8 @@ struct
     | `Field (f,o) -> `Field (f, remove_offset o)
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
+
+  let relift x = x
 end
 
 (** Lvalue lattice.
@@ -571,4 +573,6 @@ struct
       let show = show
     end
     )
+
+  let relift x = x
 end
