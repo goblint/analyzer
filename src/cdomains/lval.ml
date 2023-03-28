@@ -46,6 +46,7 @@ struct
     | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case, special cases not used for AddressDomain any more due to splitting *)
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
+    | `CorruptedOffset, `CorruptedOffset -> true
     | _ -> false
 
   let rec show = function
