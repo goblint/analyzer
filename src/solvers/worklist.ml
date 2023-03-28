@@ -30,12 +30,16 @@ module Make =
       exception Empty
       let empty = []
       let is_empty = function [] -> true | _ -> false
-      let push st elem = List.cons elem st
+      let to_list = Fun.id
+      let from_list = Fun.id
+      let push st elem =
+        let stList = to_list st
+      in 
+      if List.mem elem stList then st else
+        List.cons elem st
       let peek = function [] -> raise Empty | x :: _ -> x
       let pop = function [] -> raise Empty | x :: s -> x, s
       let size = List.length
-      let to_list = Fun.id
-      let from_list = Fun.id
 
       let fold f a b = List.fold_left f b (to_list a)
     end
@@ -46,17 +50,6 @@ module Make =
     open S.Dom
 
     module SVarMap = Map.Make(Node)
-(* Vorausgesetzt S.Var.node is bijektiv *)
-  (* class node_2_svar_map =
-  object(self)
-    val mutable svarMapping : Node.t SVarMap.t = SVarMap.empty
-
-    method addMap (svar:S.Var) (node:Node.t) =
-      ()
-  end *)
-
-    (* Erklärungen für mich
-       - HM mappt variables aus S.v nach type d aus S.Dom. *)
 
     let eq x get set =
       match S.system x with
@@ -78,9 +71,6 @@ module Make =
         HM.replace infl x VS.empty;
       in
       let eval x y =
-        (* print_string ("eval wurde aufgerufen 
-        x="^(Node.show (S.Var.node x))^"
-        \ny="^(Node.show (S.Var.node y))^"\n"); *)
         get_var_event y;
         HM.replace infl y (VS.push (try HM.find infl y with Not_found -> VS.empty) x);
         try HM.find rho y
@@ -97,19 +87,26 @@ module Make =
           HM.replace rho x (join old d);
           let q = try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
+        let xNode = S.Var.node x
+      in
+      if predominatorRegistration#isLoopHead xNode  then
           let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem -> 
             let svarNode = S.Var.node svElem
           in
             (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q)
-          in
-          let xNode = S.Var.node x
+          
           in
           let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList 
       in
-      (* vs := (VS.fold VS.push q !vs) *)
-          (* vs := (VS.fold VS.push (VS.from_list (List.fold (fun acc node -> (SVarMap.find node qMap)::acc) [] nonPrio)) !vs); *)
+      predominatorRegistration#printOut ();
+      (* prio und NonPrio mal ausgeben und gucken, ob das das ist, was ich erwarte *)
+      print_string ("qList:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" qList)^"
+      \nnonPrio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" nonPrio)^"
+      \nprio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" prio)^"\n");
           vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs nonPrio;
           vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs prio;
+    else 
+          vs := (VS.fold VS.push q !vs)
         end
       in
       start_event ();
