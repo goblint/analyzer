@@ -137,6 +137,7 @@ struct
     with Ctx_failure _ ->
       R.bot ()
   let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
+  let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
 
   let map ctx f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
@@ -237,7 +238,7 @@ struct
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
-              step_ctx ctx x' (InlineEntry a)
+              step_ctx ctx x' (InlineEntry (l, f, a))
             else
               R.bot ()
           in
@@ -257,7 +258,9 @@ struct
         if should_inline f then
           let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          step (Function f) (Option.get fc) x (InlineReturn l) nosync (* fc should be Some outside of MCP *)
+          let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) nosync in (* fc should be Some outside of MCP *)
+          let procr = step_ctx_inlined_edge ctx cd in
+          R.join procr returnr
         else
           step_ctx_edge ctx cd
       in

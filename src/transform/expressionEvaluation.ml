@@ -19,7 +19,7 @@ type query =
 
   } [@@deriving yojson]
 
-(* These are meant to be used by Gobview *)
+(* These are meant to be used by GobView *)
 let gv_query = ref None
 let gv_results = ref []
 

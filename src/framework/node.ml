@@ -63,7 +63,7 @@ let of_id s =
   let id = int_of_string (Str.string_after s ix) in
   let prefix = Str.string_before s ix in
   match ix with
-  | 0 -> Statement { dummyStmt with sid = id }
+  | 0 -> Statement (Cilfacade.find_stmt_sid id)
   | _ ->
     let fundec = Cilfacade.find_varinfo_fundec {dummyFunDec.svar with vid = id} in
     match prefix with
