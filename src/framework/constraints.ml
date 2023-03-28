@@ -1555,7 +1555,7 @@ struct
         (* Globals are non-problematic here, as they are always carried around without any issues! *)
         (* A combine call is mostly needed to ensure locals have appropriate values. *)
         (* Using f from called function on purpose here! Needed? *)
-        S.combine_assign cd_ctx None e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx) (* no lval because longjmp return skips return value assignment *)
+        S.combine_env cd_ctx None e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx) (* no lval because longjmp return skips return value assignment *)
       )
       in
       let returned = lazy ( (* does not depend on target, do at most once *)
