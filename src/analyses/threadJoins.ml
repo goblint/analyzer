@@ -88,10 +88,10 @@ struct
     | _ ->  Queries.Result.top q
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+    D.union ctx.local au
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
-    D.union ctx.local au
+    ctx.local
 
   let startstate v = D.top ()
   let exitstate  v = D.top ()
