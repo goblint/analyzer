@@ -130,7 +130,6 @@ struct
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
-
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
@@ -307,6 +306,8 @@ struct
              (* TODO: only query others that actually respond to EvalInt *)
              (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
              f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+          | Queries.DYojson ->
+            `Lifted (D.to_yojson ctx.local)
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;
@@ -574,4 +575,9 @@ struct
     do_sideg ctx !sides;
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
+
+  let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
+
+  (* Just to satisfy signature *)
+  let paths_as_set ctx = [ctx.local]
 end

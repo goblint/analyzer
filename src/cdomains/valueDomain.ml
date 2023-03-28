@@ -35,6 +35,7 @@ sig
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
   val project: Q.ask -> int_precision option-> ( attributes * attributes ) option -> t -> t
+  val mark_jmpbufs_as_copied: t -> t
 end
 
 module type Blob =
@@ -49,23 +50,27 @@ sig
 end
 
 (* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
-module ZeroInit = Lattice.Fake(Basetype.RawBools)
+module ZeroInit =
+struct
+  include Lattice.Fake(Basetype.RawBools)
+  let name () = "no zeroinit"
+end
 
 module Blob (Value: S) (Size: IntDomain.Z)=
 struct
-  include Lattice.Prod3 (Value) (Size) (ZeroInit)
+  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include Size let name () = "size" end) (ZeroInit)
   let name () = "blob"
   type value = Value.t
   type size = Size.t
   type origin = ZeroInit.t
-  let printXml f (x, y, z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
   let value (a, b, c) = a
+  let relift (a, b, c) = Value.relift a, b, c
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 end
 
 module Threads = ConcDomain.ThreadSet
+module JmpBufs = JmpBufDomain.JmpBufSetTaint
 
 module rec Compound: S with type t = [
     | `Top
@@ -77,6 +82,7 @@ module rec Compound: S with type t = [
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `Thread of Threads.t
+    | `JmpBuf of JmpBufs.t
     | `Mutex
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
@@ -91,9 +97,17 @@ struct
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `Thread of Threads.t
+    | `JmpBuf of JmpBufs.t
     | `Mutex
     | `Bot
   ] [@@deriving eq, ord, hash]
+
+  let relift = function
+    | `JmpBuf x -> `JmpBuf (JmpBufs.relift x)
+    | `Blob x -> `Blob (Blobs.relift x)
+    | `CArray x -> `CArray (CArrays.relift x)
+    | x -> x
+
 
   let is_mutex_type (t: typ): bool = match t with
     | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
@@ -106,6 +120,10 @@ struct
     | TNamed ({tname = "pthread_t"; _}, _) -> true
     | _ -> false
 
+  let is_jmp_buf_type = function
+    | TNamed ({tname = "jmp_buf"; _}, _) -> true
+    | _ -> false
+
   let array_length_idx default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
     BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) default l
@@ -113,6 +131,7 @@ struct
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.bot ())
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TFloat _ -> `Bot
     | TPtr _ -> `Address (AD.bot ())
@@ -123,6 +142,7 @@ struct
       let len = array_length_idx (IndexDomain.bot ()) length in
       `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.Bufs.empty (), false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
 
@@ -136,6 +156,7 @@ struct
     | `Array x -> CArrays.is_bot x
     | `Blob x -> Blobs.is_bot x
     | `Thread x -> Threads.is_bot x
+    | `JmpBuf x -> JmpBufs.is_bot x
     | `Mutex -> true
     | `Bot -> true
     | `Top -> false
@@ -143,6 +164,7 @@ struct
   let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
     | t when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -160,6 +182,7 @@ struct
   let rec top_value ?(varAttr=[]) (t: typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -183,6 +206,7 @@ struct
     | `Array x -> CArrays.is_top x
     | `Blob x -> Blobs.is_top x
     | `Thread x -> Threads.is_top x
+    | `JmpBuf x -> JmpBufs.is_top x
     | `Mutex -> true
     | `Top -> true
     | `Bot -> false
@@ -190,6 +214,7 @@ struct
   let rec zero_init_value ?(varAttr=[]) (t:typ): t =
     match t with
     | _ when is_mutex_type t -> `Mutex
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
@@ -213,7 +238,7 @@ struct
     | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `JmpBuf _ -> "JmpBuf" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -238,6 +263,7 @@ struct
     | `Array n ->  CArrays.pretty () n
     | `Blob n ->  Blobs.pretty () n
     | `Thread n -> Threads.pretty () n
+    | `JmpBuf n -> JmpBufs.pretty () n
     | `Mutex -> text "mutex"
     | `Bot -> text bot_name
     | `Top -> text top_name
@@ -252,6 +278,7 @@ struct
     | `Array n ->  CArrays.show n
     | `Blob n ->  Blobs.show n
     | `Thread n -> Threads.show n
+    | `JmpBuf n -> JmpBufs.show n
     | `Mutex -> "mutex"
     | `Bot -> bot_name
     | `Top -> top_name
@@ -266,6 +293,7 @@ struct
     | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
     | (`Thread x, `Thread y) -> Threads.pretty_diff () (x, y)
+    | (`JmpBuf x, `JmpBuf y) -> JmpBufs.pretty_diff () (x, y)
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   (************************************************************
@@ -374,7 +402,8 @@ struct
     match v with
     | `Bot
     | `Thread _
-    | `Mutex ->
+    | `Mutex
+    | `JmpBuf _ ->
       v
     | _ ->
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
@@ -460,7 +489,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name (x:t)) (tag_name (y:t)) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
   let rec leq x y =
     match (x,y) with
@@ -483,6 +512,7 @@ struct
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
+    | (`JmpBuf x, `JmpBuf y) -> JmpBufs.leq x y
     | (`Mutex, `Mutex) -> true
     | _ -> warn_type "leq" x y; false
 
@@ -515,6 +545,7 @@ struct
     | (`Address x, `Thread y)
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.join x y)
     | (`Mutex, `Mutex) -> `Mutex
     | _ ->
       warn_type "join" x y;
@@ -549,6 +580,7 @@ struct
     | (`Thread y, `Address x) ->
       `Thread y (* TODO: ignores address! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.widen x y)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -607,6 +639,7 @@ struct
     | (`Thread y, `Address x) ->
       `Address x (* TODO: ignores thread! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.meet x y)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -623,6 +656,7 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.narrow x y)
+    | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.narrow x y)
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Int x (* TODO: ignores thread! *)
@@ -659,6 +693,7 @@ struct
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
+    |                 _ , `JmpBuf _     -> state (* TODO: no top jmpbuf *)
     | _, `Bot -> `Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
@@ -863,7 +898,22 @@ struct
           (* consider them in VD *)
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x (TComp (f.fcomp, [])) in
-          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+          (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+          let do_strong_update =
+            match v with
+            | (Var var, Field (fld,_)) ->
+              let toptype = fld.fcomp in
+              let blob_size_opt = ID.to_int s in
+              not @@ ask.f (Q.IsMultiple var)
+              && not @@ Cil.isVoidType t      (* Size of value is known *)
+              && Option.is_some blob_size_opt (* Size of blob is known *)
+              && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+            | _ -> false
+          in
+          if do_strong_update then
+            `Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+          else
+            mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
       | `Blob (x,s,orig), _ ->
         begin
@@ -893,6 +943,17 @@ struct
           | _ ->
             if !GU.global_initialization then
               `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+            else
+              `Top
+        end
+      | `JmpBuf _, _ ->
+        (* hack for jmp_buf variables *)
+        begin match value with
+          | `JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
+          | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
+          | _ ->
+            if !GU.global_initialization then
+              `JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
             else
               `Top
         end
@@ -1055,6 +1116,14 @@ struct
       end
     | _ -> v
 
+  let rec mark_jmpbufs_as_copied (v:t):t =
+    match v with
+    | `JmpBuf (v,t) -> `JmpBuf (v, true)
+    | `Array n -> `Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
+    | `Struct n -> `Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
+    | `Union (f, n) -> `Union (f, mark_jmpbufs_as_copied n)
+    | `Blob (a,b,c) -> `Blob (mark_jmpbufs_as_copied a, b,c)
+    | _ -> v
 
   let printXml f state =
     match state with
@@ -1066,6 +1135,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `Thread n -> Threads.printXml f n
+    | `JmpBuf n -> JmpBufs.printXml f n
     | `Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
@@ -1079,6 +1149,7 @@ struct
     | `Array n -> CArrays.to_yojson n
     | `Blob n -> Blobs.to_yojson n
     | `Thread n -> Threads.to_yojson n
+    | `JmpBuf n -> JmpBufs.to_yojson n
     | `Mutex -> `String "mutex"
     | `Bot -> `String "⊥"
     | `Top -> `String "⊤"

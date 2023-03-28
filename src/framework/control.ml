@@ -33,6 +33,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
                Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
+            |> lift true (module LongjmpLifter)
           ) in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
@@ -44,6 +45,8 @@ let get_spec (): (module Spec) =
   Lazy.force spec_module
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
+
+let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
@@ -238,7 +241,9 @@ struct
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
         | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
-        | {vname = ("stdin" | "stdout" | "stderr"); _} -> (* standard stdio.h *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
+        | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
+        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
           true
         | _ -> false
       in
@@ -643,6 +648,32 @@ struct
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
 
+    current_varquery_global_state_json := (fun vq_opt ->
+        let iter_vars f = match vq_opt with
+          | None -> GHT.iter (fun v _ -> f v) gh
+          | Some vq ->
+            EQSys.iter_vars
+              (fun x -> try LHT.find lh x with Not_found -> EQSys.D.bot ())
+              (fun x -> try GHT.find gh x with Not_found -> EQSys.G.bot ())
+              vq
+              (fun _ -> ())
+              f
+        in
+        (* TODO: optimize this once server has a way to properly convert vid -> varinfo *)
+        let vars = GHT.create 113 in
+        iter_vars (fun x ->
+            GHT.replace vars x ()
+          );
+        let assoc = GHT.fold (fun x g acc ->
+            if GHT.mem vars x then
+              (EQSys.GVar.show x, EQSys.G.to_yojson g) :: acc
+            else
+              acc
+          ) gh []
+        in
+        `Assoc assoc
+      );
+
     let liveness =
       if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
         print_dead_code local_xml !uncalled_dead
@@ -706,7 +737,8 @@ struct
     );
     if get_bool "incremental.save" then (
       Serialize.Cache.(update_data AnalysisData marshal);
-      Serialize.Cache.store_data ()
+      if not (get_bool "server.enabled") then
+        Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file

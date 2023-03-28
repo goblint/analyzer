@@ -25,30 +25,44 @@ class collectFunctionCallsVisitor(callSet, calledBy, argLists, fd) = object
     | _ -> DoChildren
 end
 
-class functionVisitor(calling, calledBy, argLists) = object
+class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
   inherit nopCilVisitor
+
+  method! vglob = function
+    | GVarDecl (vinfo,_) ->
+      if vinfo.vaddrof && isFunctionType vinfo.vtype then dynamicallyCalled := FunctionSet.add vinfo !dynamicallyCalled;
+      DoChildren
+    | _ -> DoChildren
 
   method! vfunc fd =
     let callSet = ref FunctionSet.empty in
     let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, argLists, fd.svar) in
     ignore @@ Cil.visitCilFunction callVisitor fd;
     calling := FunctionCallMap.add fd.svar !callSet !calling;
-    SkipChildren
+    DoChildren
 end
+
+type functionCallMaps = {
+  calling: FunctionSet.t FunctionCallMap.t;
+  calledBy: (FunctionSet.t * int) FunctionCallMap.t;
+  argLists: Cil.exp list FunctionCallMap.t;
+  dynamicallyCalled: FunctionSet.t;
+}
 
 let functionCallMaps = ResettableLazy.from_fun (fun () ->
     let calling = ref FunctionCallMap.empty in
     let calledBy = ref FunctionCallMap.empty in
     let argLists = ref FunctionCallMap.empty in
-    let thisVisitor = new functionVisitor(calling,calledBy, argLists) in
+    let dynamicallyCalled = ref FunctionSet.empty in
+    let thisVisitor = new functionVisitor(calling,calledBy, argLists, dynamicallyCalled) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    !calling, !calledBy, !argLists)
+    {calling = !calling; calledBy = !calledBy; argLists = !argLists; dynamicallyCalled= !dynamicallyCalled})
 
 (* Only considers static calls!*)
-let calledFunctions fd = ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
-let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> fst
-let timesCalled fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> snd
-let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x) -> x |> FunctionCallMap.find_opt fd
+let calledFunctions fd = (ResettableLazy.force functionCallMaps).calling |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
+let callingFunctions fd = (ResettableLazy.force functionCallMaps).calledBy |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> fst
+let timesCalled fd = (ResettableLazy.force functionCallMaps).calledBy |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> snd
+let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> FunctionCallMap.find_opt fd
 
 let findMallocWrappers () =
   let isMalloc f =
@@ -64,8 +78,7 @@ let findMallocWrappers () =
     else
       false
   in
-  ResettableLazy.force functionCallMaps
-  |> (fun (x,_,_) -> x)
+  (ResettableLazy.force functionCallMaps).calling
   |> FunctionCallMap.filter (fun _ allCalled -> FunctionSet.exists isMalloc allCalled)
   |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10)
   |> FunctionCallMap.bindings
@@ -126,13 +139,43 @@ let addModAttributes file =
 
 
 let disableIntervalContextsInRecursiveFunctions () =
-  ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
+  (ResettableLazy.force functionCallMaps).calling |> FunctionCallMap.iter (fun f set ->
       (*detect direct recursion and recursion with one indirection*)
       if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
-        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval context");
-        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "relation.no-context"])];
+        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval and interval_set contexts");
+        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"; AStr "base.no-interval_set"; AStr "relation.no-context"])];
       )
     )
+
+let hasFunction pred =
+  let relevant_static var =
+    if LibraryFunctions.is_special var then
+      let desc = LibraryFunctions.find var in
+      GobOption.exists (fun args -> pred (desc.special args)) (functionArgs var)
+    else
+      false
+  in
+  let relevant_dynamic var =
+    if LibraryFunctions.is_special var then
+      let desc = LibraryFunctions.find var in
+      (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
+      match unrollType var.vtype with
+      | TFun (_, args, _, _) ->
+        let args = BatOption.map_default (List.map (fun (x,_,_) -> MyCFG.unknown_exp)) [] args in
+        pred (desc.special args)
+      | _ -> false
+    else
+      false
+  in
+  let calls = ResettableLazy.force functionCallMaps in
+  calls.calledBy |> FunctionCallMap.exists (fun var _ -> relevant_static var) ||
+  calls.dynamicallyCalled |> FunctionSet.exists relevant_dynamic
+
+let disableAnalyses anas =
+  List.iter (GobConfig.set_auto "ana.activated[-]") anas
+
+let enableAnalyses anas =
+  List.iter (GobConfig.set_auto "ana.activated[+]") anas
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
@@ -141,40 +184,36 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"]
 let reduceThreadAnalyses () =
-  let hasThreadCreate () =
-    ResettableLazy.force functionCallMaps
-    |> (fun (_,x,_) -> x)  (*every function that is called*)
-    |> FunctionCallMap.exists (fun var (callers,_) ->
-        if LibraryFunctions.is_special var then (
-          let desc = LibraryFunctions.find var in
-          match functionArgs var with
-          | None -> false;
-          | Some args ->
-            match desc.special args with
-            | ThreadCreate _ ->
-              print_endline @@ "thread created by " ^ var.vname ^ ", called by:";
-              FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
-              true
-            | _ -> false
-        )
-        else
-          false
-      )
+  let isThreadCreate = function
+    | LibraryDesc.ThreadCreate _ -> true
+    | _ -> false
   in
-  if not @@ hasThreadCreate () then (
-    print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
-    let disableAnalysis = GobConfig.set_auto "ana.activated[-]" in
-    List.iter disableAnalysis notNeccessaryThreadAnalyses;
+  let hasThreadCreate = hasFunction isThreadCreate in
+  if not @@ hasThreadCreate then (
+    print_endline @@ "no thread creation -> disabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    disableAnalyses notNeccessaryThreadAnalyses;
+  )
 
+(* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
+(* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
+let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceLongjmp"; "poisonVariables"; "expsplit"; "vla"]
+
+let activateLongjmpAnalysesWhenRequired () =
+  let isLongjmp = function
+    | LibraryDesc.Longjmp _ -> true
+    | _ -> false
+in
+  if hasFunction isLongjmp  then (
+    print_endline @@ "longjmp -> enabling longjmp analyses \"" ^ (String.concat ", " longjmpAnalyses) ^ "\"";
+    enableAnalyses longjmpAnalyses;
   )
 
 let focusOnSpecification () =
   match Svcomp.Specification.of_option () with
   | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
-    print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
-    let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
-    List.iter enableAnalysis notNeccessaryThreadAnalyses;
+    print_endline @@ "Specification: NoDataRace -> enabling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     set_bool "ana.int.interval" true

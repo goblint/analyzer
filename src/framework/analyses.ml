@@ -98,6 +98,7 @@ struct
         let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
       end
       )
+    let name () = "contexts"
   end
 
   include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
@@ -396,11 +397,16 @@ sig
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
   val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
+  (* Paths as sets: I know this is ugly! *)
+  val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
+
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
 module type MCPA =
@@ -413,7 +419,6 @@ end
 module type MCPSpec =
 sig
   include Spec
-  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
@@ -471,6 +476,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
 end
 
@@ -605,6 +611,8 @@ struct
 
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  let paths_as_set ctx = [ctx.local]
 
   module A = UnitA
   let access _ _ = ()

@@ -6,6 +6,8 @@ sig
 
   val prev: Node.t -> (Edge.t * Node.t) list
   val iter_nodes: (Node.t -> unit) -> unit
+
+  val query: Node.t -> 'a Queries.t -> 'a Queries.result
 end
 
 module Dot (Arg: BiArg) =
@@ -147,6 +149,9 @@ struct
         NHT.iter (fun n _ ->
             f n
           ) witness_prev_map
+
+      let query ((n, c, i): Node.t) q =
+        R.ask_local (n, c) (PathQuery (i, q))
     end
     in
     (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int)
