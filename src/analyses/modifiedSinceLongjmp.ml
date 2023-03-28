@@ -31,12 +31,12 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
-
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let taintedcallee = relevants_from_ls (f_ask.f Queries.MayBeTainted) in
     add_to_all_defined taintedcallee ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
