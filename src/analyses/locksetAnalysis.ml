@@ -17,6 +17,12 @@ struct
   module D = D
   module C = D
 
+  let combine_env ctx lval fexp f args fc au f_ask =
+    au
+
+  let combine_assign ctx lval fexp f args fc au f_ask =
+    ctx.local
+
   let startstate v = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]
   let exitstate  v = D.empty ()
