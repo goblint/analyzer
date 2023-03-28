@@ -274,7 +274,6 @@ struct
       enter' {ctx with local=(d, sub1 l)} r f args
 
   let combine_env ctx r fe f args fc es f_ask =
-    (* TODO: should do nothing? *)
     let (d,l) = ctx.local in
     let l = add1 l in
     if leq0 l then
@@ -285,7 +284,7 @@ struct
 
   let combine_assign ctx r fe f args fc es f_ask =
     let (d,l) = ctx.local in
-    let l = add1 l in
+    (* No need to add1 here, already done in combine_env. *)
     if leq0 l then
       (d, l)
     else
