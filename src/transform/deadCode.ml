@@ -8,36 +8,37 @@ open GobConfig
     - f (goto label) ==> f (labelled stmt), i.e. if a goto statement is not
       filtered out, the target may not be filtered out either.
     - block may not contain switch statements. *)
-let filter_map_block f (block : Cil.block) : bool =
+let filter_map_block ?(keep_empty_loops = true) f (block : Cil.block) : bool =
   (* blocks and statements: modify in place, then return true if should be kept *)
   let rec impl_block block =
     block.bstmts <- List.filter impl_stmt block.bstmts;
     block.bstmts <> []
   and impl_stmt stmt =
-    if not (f stmt) then false
-    else
-      match stmt.skind with
-      | If (_, b1, b2, _, _) ->
-        (* Filter statements (recursively) from the true and false blocks. Keep the
-           resulting if statement should if either block should be kept. Be careful to not
-           short-circuit, since call to impl_block b2 is always needed for side-effects *)
-        let keep_b1, keep_b2 = impl_block b1, impl_block b2 in keep_b1 || keep_b2
-      | Switch _ ->
-        (* Handling switch statements correctly would be very difficult; consider that
-           the switch labels may be located within arbitrarily nested statements within
-           the switch statement's block. *)
-        failwith "switch statements must be removed"
-      | Loop (b, _, _, _, _) ->
-        (* Filter statements from the body of a loop. Always keep the resulting loop, even if it
-           is empty; an empty infinite loop is different from having nothing at all. *)
-        impl_block b |> ignore; true
-      | Block b ->
-        (* Filter the statements inside the block,
-           keep the block if it still contains any statements. *)
-        impl_block b
-      | Instr _ | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ ->
-        (* No further statements are contained recursively here, so nothing left to do. *)
-        true
+    let keep = f stmt in
+    let keep_rec = match stmt.skind with
+    | If (_, b1, b2, _, _) ->
+      (* Filter statements (recursively) from the true and false blocks. Keep the
+          resulting if statement if either block should be kept. Be careful to not
+          short-circuit, since call to impl_block b2 is always needed for side-effects *)
+      let keep_b1, keep_b2 = impl_block b1, impl_block b2 in keep_b1 || keep_b2
+    | Switch _ ->
+      (* Handling switch statements correctly would be very difficult; consider that
+          the switch labels may be located within arbitrarily nested statements within
+          the switch statement's block. *)
+      failwith "switch statements must be removed"
+    | Loop (b, _, _, _, _) ->
+      (* Filter statements from the body of a loop. Always keep the resulting loop, even if it
+          is empty; an empty infinite loop is different from having nothing at all. *)
+      let keep_b = impl_block b in keep_empty_loops || keep_b
+    | Block b ->
+      (* Filter the statements inside the block,
+          keep the block if it still contains any statements. *)
+      impl_block b
+    | Instr _ | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ ->
+      (* No further statements are contained recursively here, so nothing left to do. *)
+      false
+    in
+    keep || keep_rec
   in
   impl_block block
 
@@ -59,7 +60,7 @@ module RemoveDeadCode : Transform.S = struct
              and a live label implies its target is live. Ignore the result of filter_map_block:
              even if the function body is now empty, the function may still be referenced
              (e.g. by taking its address) and should thus be retained. *)
-          filter_map_block stmt_live fd.sbody |> ignore
+          filter_map_block ~keep_empty_loops:false stmt_live fd.sbody |> ignore
         | _ -> ());
 
     (* Step 2: Remove globals that are (transitively) unreferenced by live functions. Dead functions
