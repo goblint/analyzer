@@ -114,6 +114,9 @@ struct
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
+  let unop_map f x =
+    List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
+
   let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
@@ -180,6 +183,8 @@ struct
   let arbitrary () =
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
     MyCheck.Arbitrary.sequence arbs
+
+  let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
 end
 
 module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
@@ -249,6 +254,8 @@ struct
   let arbitrary () =
     let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
     QCheck.oneof arbs
+
+  let relift = unop_map (fun n (module S: Printable.S) x -> (n, Obj.repr (S.relift (Obj.obj x))))
 end
 
 module DomVariantSysVar (DLSpec : DomainListSysVarSpec)

@@ -1762,6 +1762,7 @@ struct
   struct
     include Printable.Std
     include Var
+    let name () = "var"
 
     let pretty = pretty_trace
     include Printable.SimplePretty (

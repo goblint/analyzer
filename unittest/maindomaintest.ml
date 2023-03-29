@@ -4,7 +4,7 @@ open GoblintCil
 
 module PrintableChar =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = char [@@deriving eq, ord, hash, to_yojson]
   let name () = "char"
   let show x = String.make 1 x

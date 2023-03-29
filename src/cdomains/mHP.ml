@@ -1,5 +1,7 @@
 include Printable.Std
 
+let name () = "mhp"
+
 module TID = ThreadIdDomain.FlagConfiguredTID
 module Pretty = GoblintCil.Pretty
 
@@ -8,6 +10,9 @@ type t = {
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash]
+
+let relift {tid; created; must_joined} =
+  {tid = ThreadIdDomain.ThreadLifted.relift tid; created = ConcDomain.ThreadSet.relift created; must_joined = ConcDomain.ThreadSet.relift must_joined}
 
 let current (ask:Queries.ask) =
   {

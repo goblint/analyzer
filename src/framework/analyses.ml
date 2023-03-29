@@ -34,7 +34,7 @@ end
 module Var =
 struct
   type t = Node.t [@@deriving eq, ord, hash]
-  let relift x = x
+  let relift = Node.relift
 
   let printXml f n =
     let l = Node.location n in

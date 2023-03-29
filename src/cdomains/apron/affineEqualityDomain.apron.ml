@@ -209,6 +209,7 @@ end
 
 module D(Vc: AbstractVector) (Mx: AbstractMatrix) =
 struct
+  include Printable.Std
   include ConvenienceOps (Mpqf)
   include VarManagement (Vc) (Mx)
 
@@ -217,8 +218,6 @@ struct
   module Convert = SharedFunctions.Convert (V) (Bounds) (struct let allow_global = true end) (SharedFunctions.Tracked)
 
   type var = V.t
-
-  let tag t = failwith "No tag"
 
   let show t =
     let conv_to_ints row =
@@ -267,8 +266,6 @@ struct
   let name () = "affeq"
 
   let to_yojson _ = failwith "ToDo Implement in future"
-
-  let arbitrary () = failwith "no arbitrary"
 
 
   let is_bot t = equal t (bot ())

@@ -576,7 +576,7 @@ module Std (B: sig
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.Std
+  include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
@@ -973,7 +973,6 @@ struct
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
-  let relift x = x
 
   let modulo n k =
     let result = Ints_t.rem n k in
@@ -1583,7 +1582,6 @@ struct
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
     let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
-
 end
 
 module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
@@ -1612,7 +1610,6 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
   let shift_right ik x y = fst @@ D.shift_right ik x y
-
 end
 
 module IntIkind = struct let ikind () = Cil.IInt end
@@ -3246,8 +3243,6 @@ struct
     let to_pair = Option.get in
     set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
 
-  let relift x = x
-
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
@@ -3759,6 +3754,9 @@ module IntDomTupleImpl = struct
         ) (Invariant.top ()) is
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
+
+  let relift (a, b, c, d, e) =
+    (Option.map I1.relift a, Option.map I2.relift b, Option.map I3.relift c, Option.map I4.relift d, Option.map I5.relift e)
 end
 
 module IntDomTuple =
