@@ -127,7 +127,7 @@ let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) 
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
-    then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
+    then Some (CfgTools.getCFG oldAST |> (fun (a, _, _) -> a), CfgTools.getCFG newAST |> fun (a, b, _) -> (a, b)) (*xxx*)
     else None in
 
   let addGlobal map global  =

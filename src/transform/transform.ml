@@ -6,7 +6,12 @@ module M = Messages
 type queries = {
   ask : ?node:Node.t -> Cil.location -> Queries.ask ;
   must_be_dead : stmt -> bool ;
+  must_be_dead_node : Node.t -> bool ;
   must_be_uncalled : fundec -> bool ;
+
+  cfg_forward : MyCFG.cfg ;
+  cfg_backward : MyCFG.cfg ;
+  skipped_statements : Node.t -> MyCFG.edges -> Node.t -> stmt list ;
 }
 
 module type S = sig

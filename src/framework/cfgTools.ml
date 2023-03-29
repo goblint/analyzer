@@ -135,14 +135,28 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
+module CfgEdge = struct
+  open Batteries
+
+  type t = node * MyCFG.edges * node
+
+  let equal = Tuple3.eq Node.equal (List.equal (Tuple2.eq CilType.Location.equal Edge.equal)) Node.equal
+  let hash = Tuple3.map Node.hash (List.map (Tuple2.map CilType.Location.hash Edge.hash)) Node.hash %> Hashtbl.hash
+end
+
+module CfgEdgeH = BatHashtbl.Make (CfgEdge)
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
+
+  let skippedByEdge = CfgEdgeH.create 113 in
+
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
   let fd_nodes = NH.create 113 in
 
-  let addEdges fromNode edges toNode =
+  let addEdges ?(skippedStatements = []) fromNode edges toNode =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
         pretty_edges edges
@@ -152,10 +166,11 @@ let createCFG (file: file) =
     NH.replace fd_nodes toNode ();
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
     H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
+    CfgEdgeH.add skippedByEdge (fromNode, edges, toNode) skippedStatements;
     if Messages.tracing then Messages.trace "cfg" "done\n\n"
   in
-  let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
-  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
+  let addEdge ?skippedStatements fromNode edge toNode = addEdges ?skippedStatements fromNode [edge] toNode in
+  let addEdge_fromLoc ?skippedStatements fromNode edge toNode = addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode in
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.
@@ -165,10 +180,10 @@ let createCFG (file: file) =
      instead of returning that stmt. *)
   let find_real_stmt ?parent ?(not_found=false) stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
-    let rec find visited_sids stmt =
-      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
-      if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
-        stmt (* cycle *)
+    let rec find visited_stmts stmt : stmt * stmt list =
+      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
+      if List.exists (CilType.Stmt.equal stmt) visited_stmts then
+        (stmt, visited_stmts) (* cycle *)
       else
         match stmt.skind with
         | Goto _ (* 1 succ *)
@@ -180,9 +195,9 @@ let createCFG (file: file) =
               if not_found then
                 raise Not_found
               else
-                stmt
+                (stmt, visited_stmts)
             | [next] ->
-              find (stmt.sid :: visited_sids) next
+              find (stmt :: visited_stmts) next
             | _ -> (* >1 succ *)
               failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
           end
@@ -190,7 +205,7 @@ let createCFG (file: file) =
         | Instr _
         | If _
         | Return _ ->
-          stmt
+          (stmt, visited_stmts)
 
         | Continue _
         | Break _
@@ -202,13 +217,10 @@ let createCFG (file: file) =
           failwith "MyCFG.createCFG: unsupported stmt"
     in
     try
-      let initial_visited_sids = match parent with
-        | Some parent -> [parent.sid]
-        | None -> []
-      in
-      let r = find initial_visited_sids stmt in
-      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
-      r
+      let final_stmt, rev_path = find (Option.to_list parent) stmt in
+      let path = List.rev rev_path |> BatList.drop (if Option.is_some parent then 1 else 0) in
+      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" final_stmt.sid;
+      final_stmt, path
     with Not_found ->
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
@@ -226,9 +238,9 @@ let createCFG (file: file) =
         NH.clear fd_nodes;
 
         (* Find the first statement in the function *)
-        let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
+        let entrynode, skippedStatements = find_real_stmt (Cilfacade.getFirstStmt fd) in
         (* Add the entry edge to that node *)
-        addEdge (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
+        addEdge ~skippedStatements (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
         (* Return node to be used for infinite loop connection to end of function
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
@@ -259,10 +271,10 @@ let createCFG (file: file) =
             (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
             begin match real_succs () with
               | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-              | [succ] ->
+              | [succ, skippedStatements] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
                   let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Instr [] itself doesn't have one *)
-                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
@@ -274,10 +286,10 @@ let createCFG (file: file) =
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
-            let add_succ_node succ_node = addEdges (Statement stmt) edges succ_node in
+            let add_succ_node ?skippedStatements succ_node = addEdges ?skippedStatements (Statement stmt) edges succ_node in
             begin match real_succs () with
               | [] -> add_succ_node (Lazy.force pseudo_return) (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-              | [succ] -> add_succ_node (Statement succ)
+              | [succ, skippedStatements] -> add_succ_node ~skippedStatements (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
             end
 
@@ -288,13 +300,13 @@ let createCFG (file: file) =
                First, true branch's succ is consed (to empty succs list).
                Second, false branch's succ is consed (to previous succs list).
                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
-            let (true_stmt, false_stmt) = match real_succs () with
+            let ((true_stmt, true_skippedStatements), (false_stmt, false_skippedStatements)) = match real_succs () with
               | [false_stmt; true_stmt] -> (true_stmt, false_stmt)
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, true )) (Statement true_stmt);
-            addEdge (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, false)) (Statement false_stmt)
+            addEdge ~skippedStatements:true_skippedStatements (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, true )) (Statement true_stmt);
+            addEdge ~skippedStatements:false_skippedStatements (Statement stmt) (Cilfacade.eloc_fallback ~eloc ~loc, Test (exp, false)) (Statement false_stmt)
 
           | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
@@ -303,11 +315,11 @@ let createCFG (file: file) =
                An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
             begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
-              | break_stmt ->
+              | break_stmt, _ ->
                 (* break statement is what follows the (constant true) Loop *)
                 (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
                    so break statement is just remembered here *)
-                let loop_stmt = find_real_stmt stmt in
+                let loop_stmt, _ = find_real_stmt stmt in
                 NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
               | exception Not_found ->
                 (* if the (constant true) Loop and its break statement are at the end of the function,
@@ -330,9 +342,9 @@ let createCFG (file: file) =
             (* stmt.succs for Goto just contains the target ref. *)
             begin match real_succs () with
               | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
-              | [succ] ->
+              | [succ, skippedStatements] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
-                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
             end
 
@@ -342,10 +354,10 @@ let createCFG (file: file) =
             (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
             begin match real_succs () with
               | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-              | [succ] ->
+              | [succ, skippedStatements] ->
                 if CilType.Stmt.equal succ stmt then (* self-loop *)
                   let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
-                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ)
               | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
             end
 
@@ -451,7 +463,7 @@ let createCFG (file: file) =
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   if get_bool "dbg.verbose" then
     ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
-  cfgF, cfgB
+  cfgF, cfgB, skippedByEdge
 
 let createCFG = Timing.wrap "createCFG" createCFG
 
@@ -579,16 +591,17 @@ let fprint_hash_dot cfg  =
   close_out out
 
 
-let getCFG (file: file) : cfg * cfg =
-  let cfgF, cfgB = createCFG file in
+let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t = (*xxx*)
+  let cfgF, cfgB, skippedByEdge = createCFG file in
   let cfgF, cfgB =
+    (* TODO: might be broken *)
     if get_bool "exp.mincfg" then
       Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB)
     else
       (cfgF, cfgB)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
+  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge (*xxx*)
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
