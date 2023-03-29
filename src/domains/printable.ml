@@ -47,7 +47,7 @@ module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-  let name () = "std"
+  (* let name () = "std" *)
 
   (* start MapDomain.Groupable *)
   type group = |
@@ -489,6 +489,7 @@ module Chain (P: ChainParams): S with type t = int =
 struct
   type t = int [@@deriving eq, ord, hash]
   include Std
+  let name () = "chain"
 
   let show x = P.names x
   let pretty () x = text (show x)

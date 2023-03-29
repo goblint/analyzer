@@ -328,6 +328,8 @@ struct
   include Printable.Std
   type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
+  let name () = "access"
+
   let pretty () (conf, kind, node, e, lp) =
     Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
@@ -354,6 +356,8 @@ struct
   include Printable.Std
   type t = acc_typ [@@deriving eq, ord, hash]
 
+  let name () = "acc_typ"
+
   let pretty = d_acct
   include Printable.SimplePretty (
     struct
@@ -368,6 +372,8 @@ module O =
 struct
   include Printable.Std
   type t = offs [@@deriving eq, ord, hash]
+
+  let name () = "offs"
 
   let pretty = d_offs
   include Printable.SimplePretty (

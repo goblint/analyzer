@@ -1,5 +1,7 @@
 include Printable.Std
 
+let name () = "mhp"
+
 module TID = ThreadIdDomain.FlagConfiguredTID
 module Pretty = GoblintCil.Pretty
 

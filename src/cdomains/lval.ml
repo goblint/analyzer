@@ -29,6 +29,8 @@ struct
   type t = (fieldinfo, Idx.t) offs
   include Printable.Std
 
+  let name () = "offset"
+
   let is_first_field x = match x.fcomp.cfields with
     | [] -> false
     | f :: _ -> CilType.Fieldinfo.equal f x
