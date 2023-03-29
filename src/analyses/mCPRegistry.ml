@@ -184,9 +184,7 @@ struct
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
     MyCheck.Arbitrary.sequence arbs
 
-  let relift = unop_map (fun (module S: Printable.S) x ->
-    ignore (Pretty.eprintf "MCP relifting: %s\n" (S.name ()));
-    repr (S.relift (obj x)))
+  let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
 end
 
 module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
@@ -257,9 +255,7 @@ struct
     let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
     QCheck.oneof arbs
 
-  let relift = unop_map (fun n (module S: Printable.S) x ->
-      ignore (Pretty.eprintf "MCP relifting: %s\n" (S.name ()));
-      (n, repr (S.relift (obj x))))
+  let relift = unop_map (fun n (module S: Printable.S) x -> (n, Obj.repr (S.relift (Obj.obj x))))
 end
 
 module DomVariantSysVar (DLSpec : DomainListSysVarSpec)

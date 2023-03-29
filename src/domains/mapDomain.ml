@@ -187,11 +187,7 @@ struct
 
   let relift m =
     M.fold (fun k v acc ->
-        ignore (Pretty.eprintf "map relift key: %s\n" (Domain.name ()));
-        let k' = Domain.relift k in
-        ignore (Pretty.eprintf "map relift value: %s\n" (Range.name ()));
-        let v' = Range.relift v in
-        M.add k' v' acc
+        M.add (Domain.relift k) (Range.relift v) acc
       ) m M.empty
 end
 

@@ -138,26 +138,20 @@ struct
   let unlift x = x.BatHashcons.obj
   let lift = HC.hashcons htable
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
-  let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
-  let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]"
-  let indent = ref 0
-  let relift x =
-    ignore (Pretty.eprintf "%srelifting %a\n" (String.make !indent '.') pretty x);
-    incr indent;
-    let y = Base.relift x.BatHashcons.obj in
-    decr indent;
-    let x' = HC.hashcons htable y in
-    (* ignore (Pretty.eprintf "relift %a\nas %a\n" pretty x pretty x'); *)
-    ignore (Pretty.eprintf "%srelifted %a\n" (String.make !indent '.') pretty x');
-    x'
-  (* let relift x = relift (relift x) *)
+
+  let show = lift_f Base.show
+  let pretty () = lift_f (Base.pretty ())
+
+  (* Debug printing with tags *)
+  (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
+     let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]" *)
+
+  let relift x = let y = Base.relift x.BatHashcons.obj in HC.hashcons htable y
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
-  (* let show = lift_f Base.show *)
   let to_yojson = lift_f (Base.to_yojson)
-  (* let pretty () = lift_f (Base.pretty ()) *)
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
@@ -398,12 +392,7 @@ struct
 
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 
-  let relift (x,y) =
-    ignore (Pretty.eprintf "prod relift fst: %s\n" (Base1.name ()));
-    let x' = Base1.relift x in
-    ignore (Pretty.eprintf "prod relift snd: %s\n" (Base2.name ()));
-    let y' = Base2.relift y in
-    (x', y')
+  let relift (x,y) = (Base1.relift x, Base2.relift y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
