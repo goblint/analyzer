@@ -443,7 +443,7 @@ struct
   (* let invariant c (x,_) = HS.invariant c x *)
   let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
 
-  let relift x = x
+  let relift (hs, f) = (HS.relift hs, f)
 end
 
 

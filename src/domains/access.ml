@@ -342,7 +342,8 @@ struct
 
   let conf (conf, _, _, _, _) = conf
 
-  let relift x = x (* TODO: relift MCPAccess *)
+  let relift (conf, kind, node, e, a) =
+    (conf, kind, node, e, MCPAccess.A.relift a)
 end
 module AS =
 struct
