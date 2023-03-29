@@ -523,9 +523,11 @@ struct
      2. fundec -> set of S.C  --  used for IterSysVars Node *)
 
   let sync ctx =
-    match Cfg.prev ctx.prev_node with
-    | _ :: _ :: _ -> S.sync ctx `Join
-    | _ -> S.sync ctx `Normal
+    match ctx.prev_node, Cfg.prev ctx.prev_node with
+    | _, _ :: _ :: _ (* Join in CFG. *)
+    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+      S.sync ctx `Join
+    | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
     if !GU.postsolving then
