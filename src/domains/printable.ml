@@ -42,7 +42,9 @@ struct
   let relift (x: t) = match x with _ -> .
 end
 
+(** Default dummy definitions.
 
+    Include as the first thing to avoid these overriding actual definitions. *)
 module Std =
 struct
   (* start MapDomain.Groupable *)
@@ -56,6 +58,8 @@ struct
   let arbitrary () = failwith "no arbitrary"
 end
 
+(** Default dummy definitions for leaf types: primitive and CIL types,
+    which don't contain inner types that require relifting. *)
 module StdLeaf =
 struct
   include Std
