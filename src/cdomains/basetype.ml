@@ -2,22 +2,6 @@ module GU = Goblintutil
 open GoblintCil
 
 
-(** Location with special alphanumeric output for extraction. *)
-module ExtractLocation : Printable.S with type t = location =
-struct
-  include CilType.Location
-
-  let show loc =
-    let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
-    f loc.line ^ "b" ^ f loc.byte
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
-end
-
 module Variables =
 struct
   include CilType.Varinfo
