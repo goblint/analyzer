@@ -103,6 +103,12 @@
       "type": "boolean",
       "default": false
     },
+    "modular": {
+      "title": "modular",
+      "description": "Completlly modular analysis of all functions.",
+      "type": "boolean",
+      "default": false
+    },
     "nonstatic": {
       "title": "nonstatic",
       "description": "Analyzes all non-static functions.",
