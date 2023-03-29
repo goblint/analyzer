@@ -4,7 +4,7 @@ open GoblintCil
 
 module PrintableChar =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = char [@@deriving eq, ord, hash, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
@@ -15,7 +15,6 @@ struct
     let show = show
   end
   include Printable.SimpleShow (P)
-  let relift x = x
 end
 
 module ArbitraryLattice = SetDomain.FiniteSet (PrintableChar) (
