@@ -67,15 +67,6 @@ struct
   let relift x = x
 end
 
-module Blank =
-struct
-  include Std
-  let pretty () _ = text "Output not supported"
-  let show _ = "Output not supported"
-  let name () = "blank"
-  let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
-end
-
 
 module type Showable =
 sig

@@ -160,7 +160,7 @@ module Make (Base: Printable.S): S with
   type elt = Base.t and
   type t = BatSet.Make (Base).t = (* TODO: remove, only needed in VarEq for some reason... *)
 struct
-  include Printable.Blank
+  include Printable.Std
   include BatSet.Make(Base)
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
