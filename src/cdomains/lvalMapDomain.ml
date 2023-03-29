@@ -69,11 +69,11 @@ struct
   type k = Lval.CilLval.t [@@deriving eq, ord, hash]
   type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
+    include Printable.StdLeaf
     include Printable.Blank
     type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
     let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
-    let relift x = x
   end
   type r = R.t
   open R

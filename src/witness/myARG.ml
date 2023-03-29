@@ -83,7 +83,7 @@ let inline_edge_to_yojson = function
 
 module InlineEdgePrintable: Printable.S with type t = inline_edge =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = inline_edge [@@deriving eq, ord, hash, to_yojson]
 
   let name () = "inline edge"
@@ -96,8 +96,6 @@ struct
     end
     )
     (* TODO: deriving to_yojson gets overridden by SimplePretty *)
-
-  let relift x = x
 end
 
 module InlineEdge: Edge with type t = inline_edge =

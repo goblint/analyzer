@@ -9,8 +9,7 @@ end
 
 module Std =
 struct
-  include Printable.Std
-  let relift x = x
+  include Printable.StdLeaf
 end
 
 let hash_float = Hashtbl.hash (* TODO: float hash in ppx_deriving_hash *)

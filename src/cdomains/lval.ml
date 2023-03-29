@@ -202,7 +202,7 @@ struct
         hash x
     | _ -> hash x
 
-  include Printable.Std
+  include Printable.StdLeaf
   let name () = "Normal Lvals"
 
   type group = Basetype.Variables.group
@@ -315,8 +315,6 @@ struct
     | `Field (f,o) -> `Field (f, remove_offset o)
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
-
-  let relift x = x
 end
 
 (** Lvalue lattice.
@@ -527,7 +525,7 @@ end
 
 module CilLval =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
 
   let name () = "simplified lval"
@@ -575,6 +573,4 @@ struct
       let show = show
     end
     )
-
-  let relift x = x
 end

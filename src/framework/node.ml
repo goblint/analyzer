@@ -1,7 +1,7 @@
 open GoblintCil
 open Pretty
 
-include Printable.Std
+include Printable.StdLeaf
 
 include Node0
 
@@ -70,5 +70,3 @@ let of_id s =
     | "ret" -> Function fundec
     | "fun" -> FunctionEntry fundec
     | _     -> raise Not_found
-
-let relift x = x

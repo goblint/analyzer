@@ -353,7 +353,7 @@ struct
 end
 module T =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = acc_typ [@@deriving eq, ord, hash]
 
   let name () = "acc_typ"
@@ -365,12 +365,10 @@ struct
       let pretty = pretty
     end
     )
-
-  let relift x = x
 end
 module O =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = offs [@@deriving eq, ord, hash]
 
   let name () = "offs"
@@ -382,8 +380,6 @@ struct
       let pretty = pretty
     end
     )
-
-  let relift x = x
 end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)

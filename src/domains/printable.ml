@@ -45,10 +45,6 @@ end
 
 module Std =
 struct
-  (*  let equal = Util.equals
-      let hash = Hashtbl.hash*)
-  (* let name () = "std" *)
-
   (* start MapDomain.Groupable *)
   type group = |
   let show_group (x: group) = match x with _ -> .
@@ -58,7 +54,13 @@ struct
 
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
-  (* let relift x = failwith "Std: no relift" *)
+end
+
+module StdLeaf =
+struct
+  include Std
+
+  let relift x = x
 end
 
 module Blank =
@@ -102,14 +104,13 @@ module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
   type t = unit [@@deriving eq, ord, hash]
-  include Std
+  include StdLeaf
   let pretty () _ = text N.name
   let show _ = N.name
   let name () = "Unit"
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
   let to_yojson () = `String N.name
   let arbitrary () = QCheck.unit
-  let relift x = x
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -488,7 +489,7 @@ end
 module Chain (P: ChainParams): S with type t = int =
 struct
   type t = int [@@deriving eq, ord, hash]
-  include Std
+  include StdLeaf
   let name () = "chain"
 
   let show x = P.names x
@@ -497,7 +498,6 @@ struct
   let to_yojson x = `String (P.names x)
 
   let arbitrary () = QCheck.int_range 0 (P.n () - 1)
-  let relift x = x
 end
 
 module LiftBot (Base : S) =
@@ -578,12 +578,11 @@ end
 module Strings =
 struct
   type t = string [@@deriving eq, ord, hash, to_yojson]
-  include Std
+  include StdLeaf
   let pretty () n = text n
   let show n = n
   let name () = "String"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
-  let relift x = x
 end
 
 
@@ -643,7 +642,7 @@ let get_short_list begin_str end_str list =
 
 module Yojson =
 struct
-  include Std
+  include StdLeaf
   type t = Yojson.Safe.t [@@deriving eq]
   let name () = "yojson"
 
@@ -660,5 +659,4 @@ struct
     )
 
   let to_yojson x = x (* override SimplePretty *)
-  let relift x = x
 end

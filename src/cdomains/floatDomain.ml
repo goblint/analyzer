@@ -96,7 +96,7 @@ module type FloatDomainBase = sig
 end
 
 module FloatIntervalImpl(Float_t : CFloatType) = struct
-  include Printable.Std (* for default invariant, tag and relift *)
+  include Printable.StdLeaf (* for default invariant, tag and relift *)
   type t = Top | Bot | NaN | PlusInfinity | MinusInfinity | Interval of (Float_t.t * Float_t.t) [@@deriving eq, ord, to_yojson, hash]
 
   let show = function
@@ -733,8 +733,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let cos = eval_unop (top ()) eval_cos
   let sin = eval_unop (top ()) eval_sin
   let tan = eval_unop (top ()) eval_tan
-
-  let relift x = x
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)
@@ -773,7 +771,7 @@ module type FloatDomain = sig
 end
 
 module FloatIntervalImplLifted = struct
-  include Printable.Std (* for default invariant, tag and relift *)
+  include Printable.StdLeaf (* for default invariant, tag and relift *)
 
   module F1 = F32Interval
   module F2 = F64Interval
@@ -934,8 +932,6 @@ module FloatIntervalImplLifted = struct
       let i2 = Invariant.of_exp Cil.(BinOp (Le, e, Const (CReal (x2, fk, None)), intType)) in
       Invariant.(&&) i1 i2
     | _ -> Invariant.none
-
-  let relift x = x
 end
 
 module FloatDomTupleImpl = struct

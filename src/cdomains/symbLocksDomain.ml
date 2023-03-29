@@ -288,7 +288,7 @@ struct
   (** Index in index-based symbolic lock *)
   module Idx =
   struct
-    include Printable.Std
+    include Printable.StdLeaf
     type t =
       | Unknown (** Unknown index. Mutex index not synchronized with access index. *)
       | Star (** Star index. Mutex index synchronized with access index. Corresponds to star_0 in ASE16 paper, multiple star indices not supported in this implementation. *)
@@ -308,7 +308,6 @@ struct
 
     let equal_to _ _ = `Top
     let to_int _ = None
-    let relift x = x
   end
 
   include Lval.Normal (Idx)

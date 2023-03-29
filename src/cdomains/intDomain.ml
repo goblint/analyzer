@@ -576,7 +576,7 @@ module Std (B: sig
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.Std
+  include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
@@ -973,7 +973,6 @@ struct
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
-  let relift x = x
 
   let modulo n k =
     let result = Ints_t.rem n k in
@@ -1583,8 +1582,6 @@ struct
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
     let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
-
-  let relift x = x
 end
 
 module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
@@ -1613,8 +1610,6 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
   let shift_right ik x y = fst @@ D.shift_right ik x y
-
-  let relift x = x
 end
 
 module IntIkind = struct let ikind () = Cil.IInt end
@@ -1675,7 +1670,6 @@ struct
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
-  let relift x = x
 end
 
 module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1858,7 +1852,6 @@ module BigInt = struct
   let show x = BI.to_string x
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
-  let relift x = x
 end
 
 module BISet = struct
@@ -2377,8 +2370,6 @@ struct
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
-
-  let relift x = x
 end
 
 (* BOOLEAN DOMAINS *)
@@ -2439,7 +2430,6 @@ struct
   let logor  = (||)
   let arbitrary () = QCheck.bool
   let invariant _ _ = Invariant.none (* TODO *)
-  let relift x = x
 end
 
 module Booleans = MakeBooleans (
@@ -2797,8 +2787,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | _ -> a
 
   let project ik p t = t
-
-  let relift x = x
 end
 
 module Congruence : S with type int_t = BI.t and type t = (BI.t * BI.t) option =
@@ -3254,8 +3242,6 @@ struct
     let of_pair ik p = normalize ik (Some p) in
     let to_pair = Option.get in
     set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
-
-  let relift x = x
 
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
