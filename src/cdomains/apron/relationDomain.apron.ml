@@ -163,6 +163,8 @@ struct
   include Printable.Std
   open Pretty
 
+  let relift {rel; priv} = {rel = RD.relift rel; priv = PrivD.relift priv}
+
   let show r =
     let first  = RD.show r.rel in
     let third  = PrivD.show r.priv in

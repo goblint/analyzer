@@ -204,6 +204,8 @@ end
 
 module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): SPartitioned with type value = Val.t and type idx = Idx.t =
 struct
+  include Printable.Std
+
   type t = Joint of Val.t | Partitioned of (CilType.Exp.t * (Val.t * Val.t * Val.t)) [@@deriving eq, ord, hash]
 
   type idx = Idx.t
@@ -212,8 +214,6 @@ struct
   let domain_of_t _ = PartitionedDomain
 
   let name () = "partitioned array"
-
-  let tag _ = failwith "Std: no tag"
 
   let relift = function
     | Joint v -> Joint (Val.relift v)
@@ -261,8 +261,6 @@ struct
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
       if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
       else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
-
-  let arbitrary () = failwith "no arbitray"
 
   let show = function
     | Joint x ->  "Array (no part.): " ^ Val.show x

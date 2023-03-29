@@ -42,13 +42,11 @@ struct
   let relift (x: t) = match x with _ -> .
 end
 
+(** Default dummy definitions.
 
+    Include as the first thing to avoid these overriding actual definitions. *)
 module Std =
 struct
-  (*  let equal = Util.equals
-      let hash = Hashtbl.hash*)
-  let name () = "std"
-
   (* start MapDomain.Groupable *)
   type group = |
   let show_group (x: group) = match x with _ -> .
@@ -58,16 +56,15 @@ struct
 
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
-  let relift x = x
 end
 
-module Blank =
+(** Default dummy definitions for leaf types: primitive and CIL types,
+    which don't contain inner types that require relifting. *)
+module StdLeaf =
 struct
   include Std
-  let pretty () _ = text "Output not supported"
-  let show _ = "Output not supported"
-  let name () = "blank"
-  let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
+
+  let relift x = x
 end
 
 
@@ -102,14 +99,13 @@ module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
   type t = unit [@@deriving eq, ord, hash]
-  include Std
+  include StdLeaf
   let pretty () _ = text N.name
   let show _ = N.name
   let name () = "Unit"
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
   let to_yojson () = `String N.name
   let arbitrary () = QCheck.unit
-  let relift x = x
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -137,14 +133,20 @@ struct
   let unlift x = x.BatHashcons.obj
   let lift = HC.hashcons htable
   let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
+
+  let show = lift_f Base.show
+  let pretty () = lift_f (Base.pretty ())
+
+  (* Debug printing with tags *)
+  (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
+     let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]" *)
+
   let relift x = let y = Base.relift x.BatHashcons.obj in HC.hashcons htable y
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
-  let show = lift_f Base.show
   let to_yojson = lift_f (Base.to_yojson)
-  let pretty () = lift_f (Base.pretty ())
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
@@ -471,7 +473,8 @@ end
 module Chain (P: ChainParams): S with type t = int =
 struct
   type t = int [@@deriving eq, ord, hash]
-  include Std
+  include StdLeaf
+  let name () = "chain"
 
   let show x = P.names x
   let pretty () x = text (show x)
@@ -479,7 +482,6 @@ struct
   let to_yojson x = `String (P.names x)
 
   let arbitrary () = QCheck.int_range 0 (P.n () - 1)
-  let relift x = x
 end
 
 module LiftBot (Base : S) =
@@ -560,7 +562,7 @@ end
 module Strings =
 struct
   type t = string [@@deriving eq, ord, hash, to_yojson]
-  include Std
+  include StdLeaf
   let pretty () n = text n
   let show n = n
   let name () = "String"
@@ -624,7 +626,7 @@ let get_short_list begin_str end_str list =
 
 module Yojson =
 struct
-  include Std
+  include StdLeaf
   type t = Yojson.Safe.t [@@deriving eq]
   let name () = "yojson"
 

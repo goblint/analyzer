@@ -69,10 +69,19 @@ struct
   type k = Lval.CilLval.t [@@deriving eq, ord, hash]
   type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
-    include Printable.Blank
+    include Printable.StdLeaf
     type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
-    let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
+
+    let pretty () {key; loc; state} =
+      Pretty.dprintf "{key=%a; loc=%a; state=%s}" Lval.CilLval.pretty key (Pretty.d_list ", " Node.pretty) loc (Impl.string_of_state state)
+
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
   type r = R.t
   open R

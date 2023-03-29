@@ -21,7 +21,9 @@ end
 module Offset (Idx: IdxPrintable) =
 struct
   type t = (fieldinfo, Idx.t) offs
-  include Printable.Std
+  include Printable.StdLeaf
+
+  let name () = "offset"
 
   let is_first_field x = match x.fcomp.cfields with
     | [] -> false
@@ -227,6 +229,8 @@ struct
         hash x
     | _ -> hash x
 
+  let relift x = x
+
   let show_str_ptr = function
     | Some s -> "\"" ^ s ^ "\""
     | None -> "(unknown string)"
@@ -243,7 +247,7 @@ struct
   module Offs = Offset (Idx)
   include PreNormal (Offs)
 
-  include Printable.Std
+  include Printable.StdLeaf
   let name () = "Normal Lvals"
 
   type group = Basetype.Variables.group
@@ -625,7 +629,7 @@ end
 
 module CilLval =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
 
   let name () = "simplified lval"

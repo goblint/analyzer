@@ -1191,6 +1191,21 @@ struct
     | None, _
     | _, None -> n'
     | Some l, Some p -> CArrays.update_length (ID.project p l) n'
+
+  let relift state =
+    match state with
+    | `Int n -> `Int (ID.relift n)
+    | `Float n -> `Float (FD.relift n)
+    | `Address n -> `Address (AD.relift n)
+    | `Struct n -> `Struct (Structs.relift n)
+    | `Union n -> `Union (Unions.relift n)
+    | `Array n -> `Array (CArrays.relift n)
+    | `Blob n -> `Blob (Blobs.relift n)
+    | `Thread n -> `Thread (Threads.relift n)
+    | `JmpBuf n -> `JmpBuf (JmpBufs.relift n)
+    | `Mutex -> `Mutex
+    | `Bot -> `Bot
+    | `Top -> `Top
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
