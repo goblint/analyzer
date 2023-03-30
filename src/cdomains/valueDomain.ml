@@ -207,7 +207,10 @@ struct
     | TPtr (t, _) ->
       let target = TypeVarinfoMap.to_varinfo t in
       (* Assume type-based target. *)
-      `Address (AD.from_var target), [target]
+      let target_address = AD.from_var target in
+      let null_ptr = AD.null_ptr in
+      let address = AD.join target_address null_ptr in
+      `Address address, [target]
     | TComp ({cstruct=true; _} as ci,_) ->
       let init_field s fd =
         let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
