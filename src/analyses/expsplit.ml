@@ -46,9 +46,12 @@ struct
   let return ctx (exp:exp option) (f:fundec) =
     emit_splits_ctx ctx
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine_env ctx lval fexp f args fc au f_ask =
     let d = D.join ctx.local au in
-    emit_splits ctx d
+    emit_splits ctx d (* Update/preserve splits for globals in combined environment. *)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+    emit_splits_ctx ctx (* Update/preserve splits over assigned variable. *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     let d = match (LibraryFunctions.find f).special arglist, f.vname with

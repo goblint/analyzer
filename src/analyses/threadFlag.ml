@@ -13,7 +13,7 @@ let is_multi (ask: Queries.ask): bool =
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   module Flag = ThreadFlagDomain.Simple
   module D = Flag
@@ -31,10 +31,6 @@ struct
 
   let should_join = D.equal
 
-  let body ctx f = ctx.local
-
-  let branch ctx exp tv = ctx.local
-
   let return ctx exp fundec  =
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
@@ -42,17 +38,6 @@ struct
       Flag.join ctx.local (Flag.get_main ())
     | _ ->
       ctx.local
-
-  let assign ctx (lval:lval) (rval:exp) : D.t  =
-    ctx.local
-
-  let enter ctx lval f args =
-    [ctx.local,ctx.local]
-
-  let combine ctx lval fexp f args fc st2 f_ask = st2
-
-  let special ctx lval f args =
-    ctx.local
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
