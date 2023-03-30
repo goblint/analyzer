@@ -125,6 +125,10 @@ type node = {
   lockSet: LockSet.t;
 }
 
+let make_mutex_varinfo x = "__goblint__traces__mutex__"^x.vname
+
+let make_local_global_varinfo x = "__goblint__traces__"^x.vname
+
 (* Module wrap for node implementing necessary functions for ocamlgraph *)
 module NodeImpl =
 struct 
@@ -332,7 +336,12 @@ tmp)
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node prev_node then edge::list else list)
        [] (get_all_edges graph)
 
-    let find_globvar_assign_node global graph node = print_string ("find_globvar_assign_node global wurde aufgerufen\n");
+       (* TODO: Print-Ausgaben um zu verstehen, wie die Suche durch den Graphen iteriert *)
+    let rec find_globvar_assign_node global graph node = 
+      print_string ("find_globvar_assign_node global wurde aufgerufen mit 
+      \nglobal = "^(CilType.Varinfo.show global)^"
+      \nnode = "^(NodeImpl.show node)^"
+      \ngraph = "^(show graph)^"\n");
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
   let rec loop visited = (
@@ -345,7 +354,13 @@ in let tmp_result =
   (* print_string ("the predecessors are: "^(List.fold (fun s ed -> s^", "^(show_edge ed)) "" predecessors)^"\n"); *)
 List.fold (fun optionAcc (prev_node, (edge:CustomEdge.t), _) -> 
 match edge with 
-    | (Assign((Var(edgevinfo),_), edgeExp)) -> if CilType.Varinfo.equal global edgevinfo then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");Some(prev_node,edge)) else optionAcc
+    (* | DepMutex(mutex) -> print_string("In global search we found a DepMutex\n"); if String.equal mutex.vname (make_mutex_varinfo global) 
+      then (print_string ("Mutexname stimmt mit dem zu suchenden Global überein\n"); Some(find_globvar_assign_node global graph prev_node))
+    else (print_string ("Mutexname stimmt nicht mit dem zu suchenden Global überein: mutex.vname="^(mutex.vname)^", make_mutex_varinfo global="^(make_mutex_varinfo global)^"\n"); optionAcc) *)
+    | (Assign((Var(edgevinfo),_), edgeExp)) -> 
+      if CilType.Varinfo.equal global edgevinfo 
+      then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");
+    Some(prev_node,edge)) else optionAcc
     | _ -> optionAcc
   ) None predecessors
 in
@@ -445,14 +460,10 @@ in find_returning_node_helper node_start 1
 let find_calling_node return_node graph progPoint =
   let allNodes = get_all_nodes_progPoint graph progPoint
 in
-(* print_string ("find_calling_node was invoked with return_node="^(NodeImpl.show return_node)^",\n
-allNodes=["^(List.fold (fun s_fold node_fold -> (NodeImpl.show node_fold)^"; "^s_fold) "" allNodes)^"]\n
-graph="^(show graph)^"\n"); *)
 let rec inner_loop node_candidate edgeList =
   match edgeList with (_,e,_)::es -> 
     let tmp = find_returning_node node_candidate e graph
   in
-  (* print_string ("in find_calling_node, we have tmp="^(NodeImpl.show tmp)^"\n"); *)
   if NodeImpl.equal return_node tmp then node_candidate
   else inner_loop node_candidate es
   | [] -> 
@@ -619,26 +630,61 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
     if DepMutexCount.exists (fun vinfo_exists count_exists -> if count_exists > 1 then true else false) depCount then false else loop xs
       | [] -> true
       in loop allNodes
-  
-      (* module NodeSet = Set.Make(NodeImpl)
+
+      module NodeImplSet = Set.Make(NodeImpl)
       let is_acyclic graph = 
         let firstNode = get_first_node graph
       in
       let rec loop_nodes visited currentNode =
-        let currentVisited = NodeSet.add currentNode visited
+        let currentVisited = NodeImplSet.add currentNode visited
       in
       let successorEdges = get_successors_edges graph currentNode
     in if loop_edges successorEdges currentVisited then
     List.fold (fun b_fold (_,_,dest_node_fold) -> if b_fold then loop_nodes currentVisited dest_node_fold else false) true successorEdges
     else false
     and loop_edges edgeList visited =
-      match edgeList with (_,_,dest_node)::xs -> if NodeSet.mem dest_node visited then false else loop_edges xs visited
+      match edgeList with (_,_,dest_node)::xs -> if NodeImplSet.mem dest_node visited then false else loop_edges xs visited
       | [] -> true
-      in loop_nodes NodeSet.empty firstNode *)
+      in loop_nodes NodeImplSet.empty firstNode
 
+      (* checks that every node has exactly one edge except some exceptions
+         this is not the optimal way, it would be better to ensure not to produce such kind of merged traces 
+         this needs to be improved in some point in the future *)
+         (* Here I assum that if one egde in the list is a pthread_create edge, then others are aswell*)
+      let are_pthread_create_edges (edgeList : (node * CustomEdge.t * node) list) =
+        match edgeList with (_, Proc(_, Lval(Var(fvinfo), NoOffset), _), _)::xs ->
+          String.equal fvinfo.vname "pthread_create"
+          | _ -> false
+
+        let are_mostly_depMutexes allEdges =
+          let rec loop (edgeList : (node * CustomEdge.t * node) list) counter =
+            match edgeList with (_, DepMutex(_), _)::xs -> loop xs counter
+              | _::xs -> loop xs (counter + 1)
+              | [] -> counter = 1 (* counter counts edges that are not depMutexes *)
+          in
+          loop allEdges 0
+
+
+      let has_valid_edge_branching graph = 
+        let allNodes = get_all_nodes graph 
+      in
+      let rec loop nodeList =
+        match nodeList with 
+        | node::xs -> let edgeList = get_successors_edges graph node
+      in
+      if List.length edgeList < 2 then loop xs
+      else
+        (
+          print_string ("node="^(NodeImpl.show node)^" has more than one successor:
+          \n{"^(List.fold (fun acc edge -> (show_edge edge)^"; "^acc) "" edgeList)^"}\n");
+        if (are_pthread_create_edges edgeList) || (are_mostly_depMutexes edgeList) then loop xs else false
+        )
+        | [] -> true
+        in
+        loop allNodes
 
     let is_valid_merged_graph graph =
-      (maintains_depMutex_condition graph) (*&& (is_acyclic graph) *)
+      (maintains_depMutex_condition graph) && (is_acyclic graph) && (has_valid_edge_branching graph)
 
       let get_first_lock graph mutex =
         let allEdges = get_all_edges graph

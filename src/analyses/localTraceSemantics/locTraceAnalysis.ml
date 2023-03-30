@@ -44,6 +44,7 @@ let exitstate = startstate
 (* functions for join-check *)
  (* symmetric prefix *)
  let is_trace_joinable_symmetric candidate graph prefixNode = 
+  (* TODO vlt muss ich hier mit Ausnahme von prefixNode auch die Gleichheit der Successors überprüfen *)
   let rec inner_loop edgeList =
      match edgeList with (pred_node,_,_)::xs -> if loop pred_node then inner_loop xs else (print_string("loop in inner_loop resulted in false\n"); false)
        | [] -> true
@@ -59,8 +60,15 @@ let exitstate = startstate
  candidate_pred_edges=["^(List.fold (fun s_fold edge_fold -> (LocalTraces.show_edge edge_fold)^", "^s_fold) "" candidate_pred_edges)^"]\n");  *)
  false)
  else (
+  (* if it's the prefixNode, then we do not check the successors, since this would definitely fail *)
+  if NodeImpl.equal current_prefix prefixNode then
 inner_loop candidate_pred_edges
- )
+  else
+    (let candidate_succ_edges = LocalTraces.get_successors_edges candidate current_prefix
+  in let graph_succ_edges = LocalTraces.get_successors_edges graph current_prefix
+in
+if not (LocalTraces.equal_edge_lists candidate_succ_edges graph_succ_edges) then false else inner_loop candidate_pred_edges
+ ))
 in
 loop prefixNode
  
@@ -129,7 +137,6 @@ print_string("candidate="^(LocalTraces.show candidate)^"\n"); *)
        if not (check_compatible_lockSets lastCandidateNode lastGraphNode) then print_string "mutexLock_join failed the lockSet-compatibility check\n";
         []
       ) 
-    
 
 
 let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctxEdge lockingNode mutex_vinfo =
@@ -224,7 +231,7 @@ else (Int (c,c, ik), true, currentSigEnhanced, [], Const(CInt(c, ik, s)))
 
 | Lval(Var(var), NoOffset) -> if var.vglob = true 
   then (
-    let localGlobalVinfo = (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype)
+    let localGlobalVinfo = (customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype)
 in
     if SigmaMap.mem localGlobalVinfo sigOld then
     (
@@ -265,7 +272,7 @@ Lval(Var(var), NoOffset)
 )))
 
 | AddrOf (Var(v), NoOffset) ->  if v.vglob 
-  then (Address(v), true, currentSigEnhanced, [], AddrOf (Var(customVinfoStore#getLocalVarinfo ("__goblint__traces__"^v.vname) v.vtype), NoOffset)) 
+  then (Address(v), true, currentSigEnhanced, [], AddrOf (Var(customVinfoStore#getLocalVarinfo (make_local_global_varinfo v) v.vtype), NoOffset)) 
 else (Address(v), true, currentSigEnhanced, [], AddrOf (Var(v), NoOffset))
 
 (* unop expressions *)
@@ -292,9 +299,9 @@ in
 (* Lt could be a special case since it has enhancements on sigma *)
 (* in var1 < var2 case, I have not yet managed boundary cases, so here are definitely some bugs *)
 | BinOp(Lt, Lval(Var(var1), NoOffset),Lval(Var(var2), NoOffset),TInt(biopIk, attr)) ->(
-  let newVar1 = if var1.vglob then customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var1.vname) var1.vtype else var1
+  let newVar1 = if var1.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var1) var1.vtype else var1
   in
-  let newVar2 = if var2.vglob then customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var2.vname) var2.vtype else var2
+  let newVar2 = if var2.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var2) var2.vtype else var2
 in
 let newExpr = BinOp(Lt, Lval(Var(newVar1), NoOffset),Lval(Var(newVar2), NoOffset),TInt(biopIk, attr)) 
 in
@@ -302,7 +309,7 @@ in
     then (
       let vd1 = if var1.vglob = true 
         then (
-          let localGlobalVinfo1 = customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var1.vname) var1.vtype  
+          let localGlobalVinfo1 = customVinfoStore#getLocalVarinfo (make_local_global_varinfo var1) var1.vtype  
         in
           if SigmaMap.mem localGlobalVinfo1 sigOld 
             then(
@@ -314,7 +321,7 @@ in
       in 
       let vd2 = if var2.vglob = true 
         then (
-      let localGlobalVinfo2 = customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var2.vname) var2.vtype
+      let localGlobalVinfo2 = customVinfoStore#getLocalVarinfo (make_local_global_varinfo var2) var2.vtype
     in
     if SigmaMap.mem localGlobalVinfo2 sigOld 
       then(
@@ -343,7 +350,7 @@ in
     )
 
 | BinOp(Lt, binopExp1,Lval(Var(var), NoOffset),TInt(biopIk, attr)) ->(
-  let newVar = if var.vglob then customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype else var
+  let newVar = if var.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype else var
   in
 match eval_helper binopExp1 currentSigEnhanced with 
 | (Int(l, u, k), true, sigEnhanced, otherValues, newBinOpExp1) -> (
@@ -364,7 +371,7 @@ in
         else (print_string "expr < var with overlapping intervals is not yet supported\n"; exit 0)
         | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
       else if var.vglob = true then 
-        let vd = if SigmaMap.mem (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld then SigmaMap.find (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld
+        let vd = if SigmaMap.mem (customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype) sigOld then SigmaMap.find (customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype) sigOld
         else (let tmp, _, _, _ = eval_global var graph node in tmp)
         in
         (match vd with Int(lVar, uVar, kVar) -> if not (CilType.Ikind.equal k kVar) then (Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0);
@@ -383,7 +390,7 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImp
 )
 
 | BinOp(Lt, Lval(Var(var), NoOffset), binopExp2,TInt(biopIk, attr)) -> (
-  let newVar = if var.vglob then customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype else var
+  let newVar = if var.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype else var
   in
   match eval_helper binopExp2 currentSigEnhanced with 
   | (Int(l, u, k), true, sigEnhanced, otherValues, newBinOpExp2) -> (
@@ -404,7 +411,7 @@ in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImp
         | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp)\n"; exit 0)
       else if var.vglob = true then 
         (
-          let vd = if SigmaMap.mem (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld then SigmaMap.find (customVinfoStore#getLocalVarinfo ("__goblint__traces__"^var.vname) var.vtype) sigOld
+          let vd = if SigmaMap.mem (customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype) sigOld then SigmaMap.find (customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype) sigOld
           else (let tmp, _, _, _ = eval_global var graph node in tmp)
           in
           match vd with Int(lVar, uVar, kVar)-> 
@@ -499,7 +506,7 @@ let rec get_all_globals (expr:exp) (acc:LockSet.t) =
   | _ -> acc
 
   let rec remove_global_locals_sigma sigma globalList =
-    match globalList with x::xs -> remove_global_locals_sigma (SigmaMap.remove (customVinfoStore#getGlobalVarinfo ("__goblint__traces__"^x.vname)) sigma) xs
+    match globalList with x::xs -> remove_global_locals_sigma (SigmaMap.remove (customVinfoStore#getGlobalVarinfo (make_local_global_varinfo x)) sigma) xs
       | [] -> sigma
 
   let rec create_local_assignments graphList globals ctx =
@@ -508,15 +515,14 @@ let rec get_all_globals (expr:exp) (acc:LockSet.t) =
     |  graph::gs ->
       let lastNode = LocalTraces.get_last_node graph
       in
-      let localGlobalVar = customVinfoStore#getLocalVarinfo ("__goblint__traces__"^global.vname) global.vtype
-      in
-      let sigmaList,success_inner, _ = eval_wrapper lastNode.sigma localGlobalVar (Lval(Var(global),NoOffset)) graph lastNode
+      let localGlobalVar = customVinfoStore#getLocalVarinfo (make_local_global_varinfo global) global.vtype
+      
     in 
       let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock" 
   in
   let unlockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_unlock"
   in
-  let customMutex = customVinfoStore#getGlobalVarinfo ("__goblint__traces__mutex__"^global.vname)
+  let customMutex = customVinfoStore#getGlobalVarinfo (make_mutex_varinfo global)
   in
   let lockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
   in
@@ -543,6 +549,8 @@ let lockedGraph = LocalTraces.extend_by_gEdge fistLockedGraph lockingEdge
     lockedGraph::(mutexLock_join allUnlockingTraces graph lastNode lockingLabel lockedNode customMutex)
 in
 let graphList = List.fold (fun resultGraphList lockedGraph -> 
+let sigmaList,success_inner, _ = eval_wrapper lockedNode.sigma localGlobalVar (Lval(Var(global),NoOffset)) lockedGraph lockedNode
+in
   (List.fold (fun sigma_graphList evaluated -> 
     let assignedNode = {programPoint=ctx.prev_node;sigma=evaluated;id=(idGenerator#getID lockedNode 
     (Assign((Var(localGlobalVar),NoOffset),Lval(Var(global), NoOffset))) ctx.prev_node evaluated lastNode.tid lvalLockedLs);tid=lastNode.tid;lockSet=lvalLockedLs}
@@ -586,6 +594,8 @@ let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=si
     in print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
     let someTmp = create_local_assignments [graph] (LockSet.to_list rvalGlobals) ctx
   in
+  (* TODO: Anzahl in someTmp ausgeben. In der create_local_... funktion vlt ein gewisses Vorher/Nacher ausgeben 
+     ansonsten vlt ein kleineres Beispiel finden, zum Reproduzieren? *)
     print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTraces.show graph_fold)^"; "^s_acc) "" someTmp)^"\n");
     (* if this is a global, we define a custom mutex and add lock/unlock edges 
        additionally, we have to join other traces that 'unlock' the global, similiarly to special *)
@@ -602,7 +612,7 @@ fun resultList_outter graph_outter ->
       let newSigma = remove_global_locals_sigma evaluated (LockSet.to_list rvalGlobals)
 in
     if x.vglob then (
-      let customMutex = customVinfoStore#getGlobalVarinfo ("__goblint__traces__mutex__"^x.vname)
+      let customMutex = customVinfoStore#getGlobalVarinfo (make_mutex_varinfo x)
   in
   let lockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
   in
