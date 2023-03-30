@@ -48,8 +48,10 @@ struct
       let loc = UpdateCil.getLoc node in
       CilType.Location.show loc
 
-    let name_varinfo (t, node, c) =
-      Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (Chain.show c)
+    let name_and_type_varinfo (t, node, c) =
+      let name = Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (Chain.show c) in
+      let typ = Cil.voidType in
+      name, typ
 
   end
 

@@ -1,9 +1,9 @@
 open GoblintCil
 
-let create_var name = Goblintutil.create_var @@ makeGlobalVar name voidType
+let create_var ?(typ=Cil.voidType) name = Goblintutil.create_var @@ makeGlobalVar name typ
 
 let single ~name =
-  let vi = lazy (create_var name) in
+  let vi = lazy (create_var ?typ:None name) in
   fun () ->
     Lazy.force vi
 
@@ -20,7 +20,7 @@ end
 module type G =
 sig
   include Hashtbl.HashedType
-  val name_varinfo: t -> string
+  val name_and_type_varinfo: t -> string * Cil.typ
 end
 
 module type H =
@@ -47,7 +47,8 @@ struct
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var (X.name_varinfo x) in
+      let name, typ = X.name_and_type_varinfo x in
+      let vi = create_var name ~typ in
       store_f x vi;
       vi
 

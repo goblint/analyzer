@@ -15,7 +15,7 @@ end
 module type G =
 sig
   include Hashtbl.HashedType
-  val name_varinfo: t -> string
+  val name_and_type_varinfo: t -> string * Cil.typ
 end
 
 module type H =

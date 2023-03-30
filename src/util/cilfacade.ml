@@ -567,17 +567,4 @@ let add_function_declarations (file: Cil.file): unit =
   file.globals <- globals
 
 
-module VarinfoStore =
-struct
-  module TypeSigH = Hashtbl.Make (CilType.Typsig)
-  let store = ref (TypeSigH.create 113)
 
-  let create_or_get_varinfo_for_type (t: Cil.typ) =
-    let typesig = typeSig t in
-    try TypeSigH.find !store typesig
-    with Not_found ->
-      let typsig_name = CilType.Typsig.show typesig in
-      let vi = makeVarinfo false typsig_name t in
-      TypeSigH.replace !store typesig vi;
-      vi
-end

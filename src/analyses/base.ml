@@ -1896,6 +1896,7 @@ struct
     let add_target (x: varinfo) (store: CPA.t) =
       let t = x.vtype in
       let v, targets = VD.top_value_typed_address_targets t in
+      M.tracel "typed_pointer_closure" "Adding %a, type %a -> %a to store\n" CilType.Varinfo.pretty x CilType.Typ.pretty x.vtype VD.pretty v;
       CPA.add x v store, targets
     in
     let workset = ref to_create in
@@ -1922,26 +1923,27 @@ struct
 
   let global_varinfo x =
     let t = x.vtype in
-    Cilfacade.VarinfoStore.create_or_get_varinfo_for_type t
+    TypeVarinfoMap.to_varinfo t
 
   let make_canonical_entry (f: fundec) : D.t =
     let params = f.sformals in
-    (* Create start values for params, based on their types, using ValueDomain.top_value_address_default *)
+
     let params = List.map (fun x -> (x, VD.top_value_typed_address_targets x.vtype)) params in
     let params_targets = List.concat_map (fun (_, (_, ts)) -> ts) params |> VS.of_list in
     let params = List.map (fun (x, (v, _)) -> (x, v)) params in
+
     let globals = global_variables () in
     (* TODO: All accesses to global x have to go through global_varinfo x *)
     let globals = List.map (fun x -> (global_varinfo x, VD.top_value_typed_address_targets x.vtype)) (globals) in
     let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in
     let globals = List.map (fun (x, (v, _)) -> (x, v)) globals in
+
     let targets = VS.union params_targets globals_targets in
-    (* Create start values for globals, the same way, except each global is abstracted by a type object. *)
     let cpa = CPA.add_list params (CPA.bot ()) in
     let cpa = CPA.add_list globals cpa in
     let cpa = typed_pointer_closure cpa targets in
-    let startstate : D.t = startstate () in
-    let startstate : D.t = { startstate with  cpa = cpa } in
+    let startstate = startstate () in
+    let startstate = { startstate with cpa = cpa } in
     startstate
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
@@ -2664,7 +2666,11 @@ let get_main (): (module MainSpec) =
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
+  let dep =
+    (if get_bool "modular" then ["modular_queries"] else []) @
+      ["mallocWrapper"]
+  in
+  MCP.register_analysis ~dep (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config

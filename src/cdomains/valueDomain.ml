@@ -205,7 +205,7 @@ struct
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik))), []
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind), []
     | TPtr (t, _) ->
-      let target = Cilfacade.VarinfoStore.create_or_get_varinfo_for_type t in
+      let target = TypeVarinfoMap.to_varinfo t in
       (* Assume type-based target. *)
       `Address (AD.from_var target), [target]
     | TComp ({cstruct=true; _} as ci,_) ->
