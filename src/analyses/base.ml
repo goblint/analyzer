@@ -2668,7 +2668,7 @@ let after_config () =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   let dep =
     (if get_bool "modular" then ["modular_queries"] else []) @
-      ["mallocWrapper"]
+    ["mallocWrapper"]
   in
   MCP.register_analysis ~dep (module Main : MCPSpec)
 
