@@ -279,6 +279,7 @@ struct
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
   let combine_env ctx l fe f a fc d  f_ask =
+    (* Don't yet consider call edge done before assign. *)
     assert (Dom.cardinal (fst ctx.local) = 1);
     let (cd, cdr) = Dom.choose (fst ctx.local) in
     let k x y =
@@ -292,6 +293,7 @@ struct
     if Dom.is_bot (fst d) then raise Deadcode else d
 
   let combine_assign ctx l fe f a fc d  f_ask =
+    (* Consider call edge done after entire call-assign. *)
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
     let k x (y, sync) =

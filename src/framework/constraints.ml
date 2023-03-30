@@ -458,7 +458,7 @@ struct
 
   let paths_as_set ctx =
     let liftmap = List.map (fun x -> D.lift x) in
-    lift_fun ctx liftmap S.paths_as_set (Fun.id) [D.bot ()]
+    lift_fun ctx liftmap S.paths_as_set (Fun.id) [D.bot ()] (* One dead path instead of none, such that combine_env gets called for functions with dead normal return (and thus longjmpy returns can be correctly handled by lifter). *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
