@@ -230,13 +230,25 @@ struct
         hash x
     | _ -> hash x
 
-  let show_str_ptr = function
-    | Some s -> "\"" ^ s ^ "\""
-    | None -> "(unknown string)"
+  let show_addr (x, o) =
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ Offset.show o
+    else x.vname ^ Offset.show o
 
-  let show_unknown_ptr = "?"
+  let show = function
+    | Addr (x, o)-> show_addr (x, o)
+    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
+    | StrPtr None -> "(unknown string)"
+    | UnknownPtr -> "?"
+    | NullPtr    -> "NULL"
 
-  let show_null_ptr = "NULL"
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module Normal (Idx: IdxPrintable) =
@@ -276,31 +288,6 @@ struct
     | StrPtr (Some x) -> Some x
     | _        -> None
 
-  let rec short_offs = function
-    | `NoOffset -> ""
-    | `Field (fld, o) -> "." ^ fld.fname ^ short_offs o
-    | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
-
-  let short_addr (x, o) =
-    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
-      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ short_offs o
-    else x.vname ^ short_offs o
-
-  let show = function
-    | Addr (x, o)-> short_addr (x, o)
-    | StrPtr s -> show_str_ptr s
-    | UnknownPtr -> show_unknown_ptr
-    | NullPtr    -> show_null_ptr
-
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
-
-
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
   (* tries to follow o in t *)
@@ -316,7 +303,7 @@ struct
       in type_offset fi.ftype o
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
-      let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
+      let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t Offs.pretty o in
       raise (Type_offset (t, s))
 
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
@@ -461,26 +448,10 @@ struct
   struct
     type elt = t
 
-    module AnyOffset = Printable.Unit
-    module Address = PreNormal (AnyOffset)
-
-    include Printable.Std
-    include Address
+    module AnyOffset = Printable.UnitConf (struct let name = "" end)
+    include PreNormal (AnyOffset)
 
     let name () = "BaseAddrRepr.R"
-
-    let show = function
-      | Addr (v, ()) -> "&" ^ CilType.Varinfo.show v
-      | StrPtr s -> show_str_ptr s
-      | NullPtr -> show_null_ptr
-      | UnknownPtr -> show_unknown_ptr
-
-    include Printable.SimpleShow (
-      struct
-        type nonrec t = t
-        let show = show
-      end
-      )
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, ())
