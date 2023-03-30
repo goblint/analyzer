@@ -1,5 +1,3 @@
-//PARAM: --enable modular
-
 //PARAM: --enable modular --set ana.activated[+] "'modular_queries'"
 #include <goblint.h>
 
