@@ -1891,6 +1891,59 @@ struct
     set_many ~ctx ask gs st invalids'
 
 
+  module VS = Set.Make (CilType.Varinfo)
+  let typed_pointer_closure (state: CPA.t) (to_create: VS.t) : CPA.t =
+    let add_target (x: varinfo) (store: CPA.t) =
+      let t = x.vtype in
+      let v, targets = VD.top_value_typed_address_targets t in
+      CPA.add x v store, targets
+    in
+    let workset = ref to_create in
+    let st = ref state in
+    while not (VS.is_empty !workset) do
+      let x = VS.choose !workset in
+      workset := VS.remove x !workset;
+      if not (CPA.mem x !st) then (
+        let state, targets = add_target x !st in
+        st := state;
+        let targets = VS.of_list targets in
+        let not_contained_in_store (y: VS.t) st =
+          VS.filter (fun v -> not (CPA.mem v st)) y
+        in
+        let new_targets = not_contained_in_store targets !st in
+        workset := VS.union !workset new_targets;
+      )
+    done;
+    !st
+
+  let global_variables () =
+    let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
+    globals
+
+  let global_varinfo x =
+    let t = x.vtype in
+    Cilfacade.VarinfoStore.create_or_get_varinfo_for_type t
+
+  let make_canonical_entry (f: fundec) : D.t =
+    let params = f.sformals in
+    (* Create start values for params, based on their types, using ValueDomain.top_value_address_default *)
+    let params = List.map (fun x -> (x, VD.top_value_typed_address_targets x.vtype)) params in
+    let params_targets = List.concat_map (fun (_, (_, ts)) -> ts) params |> VS.of_list in
+    let params = List.map (fun (x, (v, _)) -> (x, v)) params in
+    let globals = global_variables () in
+    (* TODO: All accesses to global x have to go through global_varinfo x *)
+    let globals = List.map (fun x -> (global_varinfo x, VD.top_value_typed_address_targets x.vtype)) (globals) in
+    let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in
+    let globals = List.map (fun (x, (v, _)) -> (x, v)) globals in
+    let targets = VS.union params_targets globals_targets in
+    (* Create start values for globals, the same way, except each global is abstracted by a type object. *)
+    let cpa = CPA.add_list params (CPA.bot ()) in
+    let cpa = CPA.add_list globals cpa in
+    let cpa = typed_pointer_closure cpa targets in
+    let startstate : D.t = startstate () in
+    let startstate : D.t = { startstate with  cpa = cpa } in
+    startstate
+
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
@@ -1934,9 +1987,12 @@ struct
     {st' with cpa = new_cpa; weak = new_weak}
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    [ctx.local, make_entry ctx fn args]
-
-
+    let entry_state = if GobConfig.get_bool "modular" then
+      make_canonical_entry fn
+    else
+      make_entry ctx fn args
+    in
+    [ctx.local, entry_state]
 
   let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
     let create_thread lval arg v =

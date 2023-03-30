@@ -31,6 +31,7 @@ sig
   val is_bot_value: t -> bool
   val init_value: ?varAttr:attributes -> typ -> t
   val top_value: ?varAttr:attributes -> typ -> t
+  val top_value_typed_address_targets: ?varAttr:attributes -> typ -> t * varinfo list
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
@@ -195,6 +196,36 @@ struct
       `Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> `Top
+
+  (* top values, except type-based target for addresses *)
+  let rec top_value_typed_address_targets ?(varAttr=[]) (t: typ): t * varinfo list =
+    match t with
+    | _ when is_mutex_type t -> `Mutex, []
+    | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ()), []
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik))), []
+    | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind), []
+    | TPtr (t, _) ->
+      let target = Cilfacade.VarinfoStore.create_or_get_varinfo_for_type t in
+      (* Assume type-based target. *)
+      `Address (AD.from_var target), [target]
+    | TComp ({cstruct=true; _} as ci,_) ->
+      let init_field s fd =
+        let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
+        (Structs.replace s fd v), targets
+      in
+      let init_field (s, acc) fd =
+        let v, targets = init_field s fd in
+        (v, targets @ acc)
+      in
+      let s, vs = List.fold_left init_field (Structs.top (), []) ci.cfields in
+      M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
+      `Struct s, vs
+    | TComp ({cstruct=false; _},_) ->
+      failwith "top_value_except_address_default not implemented for unions"
+    | TArray (ai, length, _) ->
+      failwith "top_value_except_address_default not implemented for arrays"
+    | TNamed ({ttype=t; _}, _) -> top_value_typed_address_targets ~varAttr t
+    | _ -> `Top, []
 
   let is_top_value x (t: typ) =
     match x with
