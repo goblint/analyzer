@@ -195,12 +195,12 @@ module ProjectiveSetPairwiseMeet (E: Printable.S) (B: MayEqualSetDomain with typ
   let meet m1 m2 =
     let meet_buckets b1 b2 acc =
       B.fold (fun e1 acc ->
-        B.fold (fun e2 acc ->
-            if B.may_be_equal e1 e2 then
-              add e1 (add e2 acc)
-            else
-              acc
-          ) b2 acc
+          B.fold (fun e2 acc ->
+              if B.may_be_equal e1 e2 then
+                add e1 (add e2 acc)
+              else
+                acc
+            ) b2 acc
         ) b1 acc
     in
     fold_buckets (fun _ b1 acc ->
