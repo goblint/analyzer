@@ -214,6 +214,7 @@ end
 
 module PreNormal (Offset: Printable.S) =
 struct
+  include Printable.StdLeaf
   type t =
     | Addr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
@@ -228,8 +229,6 @@ struct
       else
         hash x
     | _ -> hash x
-
-  let relift x = x
 
   let show_str_ptr = function
     | Some s -> "\"" ^ s ^ "\""
@@ -247,7 +246,6 @@ struct
   module Offs = Offset (Idx)
   include PreNormal (Offs)
 
-  include Printable.StdLeaf
   let name () = "Normal Lvals"
 
   type group = Basetype.Variables.group
