@@ -441,11 +441,19 @@ struct
   let publish_all ctx reason =
     ignore (sync' reason ctx)
 
+  let canonical_varinfo x =
+    let t = x.vtype in
+    TypeVarinfoMap.to_varinfo t
+
+  let varinfo_or_canonical x =
+    if get_bool "modular" && x.vglob then canonical_varinfo x else x
+
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+      let x = varinfo_or_canonical x in
       CPA.find x st.cpa
     end
 
@@ -1419,6 +1427,7 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) (st: store): store =
+      let x = varinfo_or_canonical x in
       let cil_offset = Offs.to_cil_offset offs in
       let t = match t_override with
         | Some t -> t
@@ -1921,10 +1930,6 @@ struct
     let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
     globals
 
-  let global_varinfo x =
-    let t = x.vtype in
-    TypeVarinfoMap.to_varinfo t
-
   let make_canonical_entry (f: fundec) : D.t =
     let params = f.sformals in
 
@@ -1934,7 +1939,7 @@ struct
 
     let globals = global_variables () in
     (* TODO: All accesses to global x have to go through global_varinfo x *)
-    let globals = List.map (fun x -> (global_varinfo x, VD.top_value_typed_address_targets x.vtype)) (globals) in
+    let globals = List.map (fun x -> (canonical_varinfo x, VD.top_value_typed_address_targets x.vtype)) (globals) in
     let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in
     let globals = List.map (fun (x, (v, _)) -> (x, v)) globals in
 
@@ -1944,6 +1949,7 @@ struct
     let cpa = typed_pointer_closure cpa targets in
     let startstate = startstate () in
     let startstate = { startstate with cpa = cpa } in
+    M.tracel "make_canonical_entry" "Canonical entry state for function %a: %a\n" CilType.Fundec.pretty f D.pretty startstate;
     startstate
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
