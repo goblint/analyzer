@@ -3,6 +3,7 @@
 #include<stdio.h>
 #include<unistd.h>
 #include <assert.h>
+#include <stdlib.h>
 
 pthread_mutex_t mut[8];
 
@@ -16,7 +17,7 @@ void* f1(void* ptr) {
     pthread_mutex_lock(&mut[x]);
 
     if(top) {
-        pthread_exit(5); //WARN
+        pthread_exit(NULL); //WARN
     }
 
     return NULL; //WARN
@@ -31,8 +32,8 @@ int main(int argc, char const *argv[])
     pthread_create(&t1,NULL,f1,NULL);
     pthread_join(t1, NULL);
 
-    pthread_mutex_lock(&mut); //NOWARN
-    pthread_mutex_unlock(&mut);
+    pthread_mutex_lock(&mut[0]); //NOWARN
+    pthread_mutex_unlock(&mut[0]);
 
     return 0; //NOWARN
 }
