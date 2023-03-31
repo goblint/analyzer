@@ -344,15 +344,18 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            if AD.Addr.equal ax ay then
-              match AD.Addr.to_var ax with
+            let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
                 None
               | _ ->
                 Some true
-            else
-              (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
-              Some false
+              end
+            in
+            match AD.Addr.semantic_equal ax ay with
+            | Some true ->
+              handle_address_is_multiple ax
+            | Some false -> Some false
+            | None -> None
           else
             None
         in
