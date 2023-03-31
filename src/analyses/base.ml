@@ -349,7 +349,7 @@ struct
                 None
               | _ ->
                 Some true
-              end
+            end
             in
             match AD.Addr.semantic_equal ax ay with
             | Some true ->
