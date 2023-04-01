@@ -2469,10 +2469,10 @@ struct
       store
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    if not (get_bool "modular") then
-      combine_env_regular ctx lval fexp f args fc au f_ask
-    else
+    if get_bool "modular" then
       combine_env_modular ctx lval fexp f args fc au f_ask
+    else
+      combine_env_regular ctx lval fexp f args fc au f_ask
 
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
