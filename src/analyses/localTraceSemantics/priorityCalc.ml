@@ -74,17 +74,3 @@ end
 
 
 let predominatorRegistration = new predominator_registration
-
-class exists_error_trace =
-object(self)
-val mutable existsErrorTrace : bool = false
-
-method setFlag () =
-  print_string "Error trace flag was set\n";
-  existsErrorTrace <- true
-
-method getFlag () =
-  existsErrorTrace
-end
-
-let existsErrorTrace = new exists_error_trace

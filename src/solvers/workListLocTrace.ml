@@ -1,6 +1,7 @@
 open Prelude
 open Analyses
 open Constraints
+open PostSolvingFlag
 open PriorityCalc
 
 module Make =
@@ -112,14 +113,14 @@ module Make =
       start_event ();
       (* das scheinen initialen rho-Werte zu sein *)
       let _ = List.iter (fun (x,d) -> HM.add rho x d) st in
-      while (not (VS.is_empty !vs))&&(not (existsErrorTrace#getFlag () )) do
+      while (not (VS.is_empty !vs))&&(not (omitPostSolving#getFlag () )) do
         print_string "Another iteration in workListLocTrace\n";
         let x, vs' = VS.pop !vs in
         let _ = vs := vs' in
         set x (eq x (eval x) set);
-        if existsErrorTrace#getFlag ()  then print_string "We have an error trace, so solver should stop right here\n" 
+        if omitPostSolving#getFlag ()  then print_string "We have an error trace, so solver should stop right here\n" 
       done;
-      if (existsErrorTrace#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
+      if (omitPostSolving#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
       stop_event ();
     print_string "Solver is done and returns rho\n";
     rho

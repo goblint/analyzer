@@ -2,6 +2,7 @@ open Prelude.Ana
 open Analyses
 open LocTraceDS
 open PriorityCalc
+open PostSolvingFlag
   
 (* Custom exceptions for eval-function *)
 exception Division_by_zero_Int
@@ -460,13 +461,13 @@ if success then (SigmaMap.add vinfo result sigNew, otherValues, newExpr)  else (
 let eval_catch_exceptions sigOld vinfo rval graph node =
   try (eval sigOld vinfo rval graph node, true) with 
   Division_by_zero_Int -> Messages.warn "Contains a trace with division by zero"; 
-  existsErrorTrace#setFlag ();
+  omitPostSolving#setFlag ();
   ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
   | Overflow_addition_Int -> Messages.warn "Contains a trace with overflow of Integer addition";
-  existsErrorTrace#setFlag ();
+  omitPostSolving#setFlag ();
   ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
   | Underflow_subtraction_Int -> Messages.warn "Contains a trace with underflow of Integer subtraction";
-  existsErrorTrace#setFlag ();
+  omitPostSolving#setFlag ();
   ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
 
 (* Here, I would like to manage other generated values and return a set of sigmas *)
@@ -983,7 +984,7 @@ List.fold (fun graphList tidSigma ->
 in
 if LocalTraces.is_already_joined tidJoin graph then (
   Messages.warn "ThreadJoin on already joined Thread-ID";
-existsErrorTrace#setFlag ();
+omitPostSolving#setFlag ();
 print_string ("ThreadJoin did not succeed due to already joined TID for graph: \n"^(LocalTraces.show graph)^"\nand tidJoin: "^(string_of_int tidJoin)^"\n");
 let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) 
 in
@@ -999,7 +1000,7 @@ let joinableTraces = find_joinable_traces endingTraces graph tid
 in
 if not (tidRecord#existsTID tidJoin) then (
 Messages.warn "ThreadJoin on non-existent Thread-ID";
-existsErrorTrace#setFlag ();
+omitPostSolving#setFlag ();
 let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) 
 in
 print_string("In ThreadJoin, we add an error-trace with endingTraces:\n
@@ -1055,7 +1056,7 @@ myTmp
     with arglist: "^(List.fold (fun acc_fold arg_fold -> (CilType.Exp.show arg_fold)^"; "^acc_fold) "" arglist)^"\n");
     match arglist with [AddrOf(Var(argVinfo),_)] -> if VarinfoSet.mem argVinfo ls 
       then ( Messages.warn "mutex_destroy on locked mutex";
-        existsErrorTrace#setFlag ();
+    omitPostSolving#setFlag ();
         let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})
   in
     [graph_error_edge]) 

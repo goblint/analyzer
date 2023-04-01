@@ -1,7 +1,7 @@
 open Prelude
 open Analyses
 open Constraints
-open PriorityCalc
+open PostSolvingFlag
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -51,12 +51,12 @@ module Make =
       in
       start_event ();
       let _ = List.iter (fun (x,d) -> HM.add rho x d) st in
-      while not (VS.is_empty !vs)&&(not (existsErrorTrace#getFlag () ))  do
+      while not (VS.is_empty !vs)&&(not (omitPostSolving#getFlag () ))  do
         let x, vs' = VS.pop !vs in
         let _ = vs := vs' in
         set x (eq x (eval x) set)
       done;
-      if (existsErrorTrace#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
+      if (omitPostSolving#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
       stop_event ();
       rho
   end

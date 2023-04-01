@@ -8,19 +8,19 @@ pthread_mutex_t lock;
 
 void *f(void *arg) {
   pthread_mutex_lock(&lock);
-  //   counter = 7;
+  counter = 7;
   pthread_mutex_unlock(&lock);
   pthread_mutex_lock(&lock);
-  //   counter = 7;
+  counter = 7;
   pthread_mutex_unlock(&lock);
 }
 
 void *g(void *arg) {
   pthread_mutex_lock(&lock);
-  //   counter = -12;
+  counter = -12;
   pthread_mutex_unlock(&lock);
   pthread_mutex_lock(&lock);
-  //   counter = -12;
+  counter = -12;
   pthread_mutex_unlock(&lock);
 }
 
