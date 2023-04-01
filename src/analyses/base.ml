@@ -2390,7 +2390,7 @@ struct
             end
         else st) tainted_lvs local_st
 
-  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let combine_env_regular ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2440,6 +2440,39 @@ struct
       { nst with cpa = cpa'; weak = st.weak } (* keep weak from caller *)
     in
     combine_one ctx.local au
+
+  let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
+    (* Set of varinfos with offset *)
+    let glob_fun v = failwith "glob fun should not be called." in
+    let ask = Analyses.ask_of_ctx ctx in
+    let reachable_addresses = collect_funargs ask ~warn:false glob_fun ctx.local args in
+    let tainted_lvals = f_ask.f Q.MayBeTainted in
+    if Q.LS.is_top tainted_lvals then
+      failwith "Everything tainted -> should set everything reachable to top!"
+    else
+      let address_to_canonical a =
+        let t = AD.get_type a in
+        let canonical = ModularUtil.type_to_varinfo t in
+        canonical
+      in
+      let tainted_vars =
+        Q.LS.fold (fun (v, _) vs -> VS.add v vs) tainted_lvals VS.empty in
+      let is_tainted x =
+        let canonical = address_to_canonical x in
+        VS.mem canonical tainted_vars
+      in
+      let tainted_reachable_addresses = List.filter is_tainted reachable_addresses in
+      (* First version: if r in reachable_addresses and canonical_var(r) in tainted, set r to top! *)
+      (* TODO: if r.o has been changed in called function adapt value v of h(r.o) in called function with h^{-1}(v), and weakly add it to value of r.o *)
+      let tainted_with_values = List.map (fun a -> a, AD.get_type a, VD.top_value (AD.get_type a)) tainted_reachable_addresses in
+      let store = set_many ~ctx ask glob_fun ctx.local tainted_with_values in
+      store
+
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+    if not (get_bool "modular") then
+      combine_env_regular ctx lval fexp f args fc au f_ask
+    else
+      combine_env_modular ctx lval fexp f args fc au f_ask
 
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
@@ -2682,8 +2715,9 @@ let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   let dep =
-    (if get_bool "modular" then ["modular_queries"] else []) @
-    ["mallocWrapper"]
+    let base_dependencies = ["mallocWrapper"] in
+    let modular_dependencies = if get_bool "modular" then ["modular_queries"; "taintPartialContexts"] else [] in
+    modular_dependencies @ base_dependencies
   in
   MCP.register_analysis ~dep (module Main : MCPSpec)
 

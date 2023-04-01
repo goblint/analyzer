@@ -1,6 +1,9 @@
 open GoblintCil
 open GobConfig
 
+let type_to_varinfo t =
+  TypeVarinfoMap.to_varinfo t
+
 let canonical_varinfo x =
   let t = x.vtype in
   TypeVarinfoMap.to_varinfo t
