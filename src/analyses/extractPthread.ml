@@ -1056,8 +1056,10 @@ module Spec : Analyses.MCPSpec = struct
     (* set predecessor set to start node of function *)
     [ (d_caller, d_callee) ]
 
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
 
-  let combine ctx (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
+  let combine_assign ctx (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
     if D.any_is_bot ctx.local || D.any_is_bot au
     then ctx.local
     else

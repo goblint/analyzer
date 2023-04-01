@@ -3,7 +3,7 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Lval.Offset (IndexDomain)
+module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
 module GU = Goblintutil
 module Q = Queries

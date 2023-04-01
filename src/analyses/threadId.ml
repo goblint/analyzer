@@ -21,7 +21,7 @@ let get_current_unlift ask: Thread.t =
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   module TD = Thread.D
 
@@ -50,23 +50,6 @@ struct
       `Lifted tid
     | _ ->
       [`Lifted (Thread.threadinit v ~multiple:true)]
-
-  let body ctx f = ctx.local
-
-  let branch ctx exp tv = ctx.local
-
-  let return ctx exp fundec = ctx.local
-
-  let assign ctx (lval:lval) (rval:exp) : D.t  =
-    ctx.local
-
-  let enter ctx lval f args =
-    [ctx.local,ctx.local]
-
-  let combine ctx lval fexp f args fc st2 f_ask = st2
-
-  let special ctx lval f args =
-    ctx.local
 
   let is_unique ctx =
     ctx.ask Queries.MustBeUniqueThread

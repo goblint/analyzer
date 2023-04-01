@@ -344,15 +344,18 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            if AD.Addr.equal ax ay then
-              match AD.Addr.to_var ax with
+            let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
                 None
               | _ ->
                 Some true
-            else
-              (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
-              Some false
+            end
+            in
+            match AD.Addr.semantic_equal ax ay with
+            | Some true ->
+              handle_address_is_multiple ax
+            | Some false -> Some false
+            | None -> None
           else
             None
         in
@@ -2394,7 +2397,7 @@ struct
             end
         else st) tainted_lvs local_st
 
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2429,12 +2432,6 @@ struct
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
       in
-      let return_var = return_var () in
-      let return_val =
-        if CPA.mem (return_varinfo ()) fun_st.cpa
-        then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
-        else VD.top ()
-      in
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
@@ -2443,12 +2440,31 @@ struct
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
       in
-      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
       let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
 
       if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
 
-      let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
+      { nst with cpa = cpa'; weak = st.weak } (* keep weak from caller *)
+    in
+    combine_one ctx.local au
+
+  let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+    let combine_one (st: D.t) (fun_st: D.t) =
+      let return_var = return_var () in
+      let return_val =
+        if CPA.mem (return_varinfo ()) fun_st.cpa
+        then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
+        else VD.top ()
+      in
+
+      (* Projection to Precision of the Caller *)
+      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let callerFundec = match !MyCFG.current_node with
+        | Some n -> Node.find_fundec n
+        | None -> failwith "callerfundec not found"
+      in
+      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val

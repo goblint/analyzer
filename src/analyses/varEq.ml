@@ -429,7 +429,7 @@ struct
     | true -> raise Analyses.Deadcode
     | false -> [ctx.local,nst]
 
-  let combine ctx lval fexp f args fc st2 (f_ask : Queries.ask) =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let tainted = f_ask.f Queries.MayBeTainted in
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
@@ -440,13 +440,15 @@ struct
         let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in
         D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
     in
-    let d = D.meet st2 d_local in
+    let d = D.meet au d_local in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
-    | false ->
-      match lval with
-      | Some lval -> remove (Analyses.ask_of_ctx ctx) lval d
-      | None -> d
+    | false -> d
+
+  let combine_assign ctx lval fexp f args fc st2 (f_ask : Queries.ask) =
+    match lval with
+    | Some lval -> remove (Analyses.ask_of_ctx ctx) lval ctx.local
+    | None -> ctx.local
 
   let remove_reachable ~deep ask es st =
     match reachables ~deep ask es with

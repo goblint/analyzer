@@ -350,7 +350,7 @@ struct
         st'
     end
 
-  let combine ctx r fe f args fc fun_st (f_ask : Queries.ask) =
+  let combine_env ctx r fe f args fc fun_st (f_ask : Queries.ask) =
     let st = ctx.local in
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let fundec = Node.find_fundec ctx.node in
@@ -391,7 +391,10 @@ struct
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "relation unifying %a %a = %a\n" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
-    let unify_st = {fun_st with rel = unify_rel} in
+    {fun_st with rel = unify_rel}
+
+  let combine_assign ctx r fe f args fc fun_st (f_ask : Queries.ask) =
+    let unify_st = ctx.local in
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
