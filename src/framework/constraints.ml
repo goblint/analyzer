@@ -5,6 +5,7 @@ open GoblintCil
 open MyCFG
 open Analyses
 open GobConfig
+open PriorityCalc
 
 module M = Messages
 
@@ -779,8 +780,11 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
     type marshal = unit
 
     let solve box xs vs =
+      print_string "mysolver.solve was invoked\n";
       let vh = Sol.solve box xs vs in
-      Post.post xs vs vh;
+      print_string "mysolver.solve is done\n";
+      if not (existsErrorTrace#getFlag ()) then 
+        Post.post xs vs vh;
       (vh, ())
   end
 
@@ -926,7 +930,9 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
+        print_string "Outter solve was invoked\n";
         let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        print_string "Outter solve is done\n";
         Splitter.split_solution hm, solver_data
     end
 

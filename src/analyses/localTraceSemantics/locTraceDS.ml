@@ -1,37 +1,23 @@
 open Prelude.Ana
 open Graph
 
+(* Custom version of the Edge module in order to introduce one additional edge: DepMutex *)
 module CustomEdge =
-struct
-  
+struct 
+(* copy paste from Edge module *)
 type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, ord, hash, to_yojson]
 type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, ord, hash, to_yojson]
 
 type t =
   | Assign of CilType.Lval.t * CilType.Exp.t
-  (** Assignments lval = exp *)
   | Proc of CilType.Lval.t option * CilType.Exp.t * CilType.Exp.t list
-  (** Function calls of the form lva = fexp (e1, e2, ...) *)
   | Entry of CilType.Fundec.t
-  (** Entry edge that relates function declaration to function body. You can use
-    * this to initialize the local variables. *)
   | Ret of CilType.Exp.t option * CilType.Fundec.t
-  (** Return edge is between the return statement, which may optionally contain
-    * a return value, and the function. The result of the call is then
-    * transferred to the function node! *)
   | Test of CilType.Exp.t * bool
-  (** The true-branch or false-branch of a conditional exp *)
   | ASM of string list * asm_out * asm_in
-  (** Inline assembly statements, and the annotations for output and input
-    * variables. *)
   | VDecl of CilType.Varinfo.t
-  (** VDecl edge for the variable in varinfo. Whether such an edge is there for all
-    * local variables or only when it is not possible to pull the declaration up, is
-    * determined by alwaysGenerateVarDecl in cabs2cil.ml in CIL. One case in which a VDecl
-    * is always there is for VLA. If there is a VDecl edge, it is where the declaration originally
-    * appeared *)
   | Skip
-  (** This is here for historical reasons. I never use Skip edges! *)
+  (* DepMutex implements dependency edges as described in the paper *)
   | DepMutex of CilType.Varinfo.t
 [@@deriving eq, ord, hash, to_yojson]
 
@@ -64,6 +50,7 @@ let pretty_plain () = function
 
 end 
 
+(* Explicit varinfo definition for custom compare-implementation *)
 module VarinfoImpl =
 struct
 include CilType.Varinfo
@@ -76,7 +63,7 @@ let compare vinfo1 vinfo2 =
 end
 
 module SigmaMap = Map.Make(VarinfoImpl)
-module LockSet = Set.Make(CilType.Varinfo)
+module VarinfoSet = Set.Make(VarinfoImpl)
 
 (* Value domain for variables contained in sigma mapping.
    The supported types are: Integer and Address of a variable *)
@@ -85,15 +72,15 @@ type varDomain =
 | Address of varinfo  
 | ThreadID of int 
 | Error 
-(* [@@deriving hash] *) (* Erwartet hash-Funktionen von den Untertypen *)
 
+(* Calculates the middle of an interval s.t. it can be split into two intervals *)
 let middle_intersect_intervals l1 u1 l2 u2 = if u1 = l2 then u1 else if l1 = u2 then l1 else
 (  let l_intersect, u_intersect = if u1 > l2 then l2, u1 else l1, u2
 in 
 let delta = Big_int_Z.abs_big_int (Big_int_Z.sub_big_int u_intersect l_intersect) 
 in Big_int_Z.add_big_int l_intersect (Big_int_Z.div_big_int delta (Big_int_Z.big_int_of_int 2))  ) 
 
-
+(* Helper functions for varDomain *)
 let equal_varDomain vd1 vd2 =
   match vd1, vd2 with
   Int(iLower1, iUpper1, ik1), Int(iLower2, iUpper2, ik2) -> (Big_int_Z.eq_big_int iLower1 iLower2) && (Big_int_Z.eq_big_int iUpper1 iUpper2)
@@ -116,15 +103,16 @@ let hash_varDomain vd =
   | ThreadID(tid) -> tid
   | Error -> 13
 
-(* Pure node type *)
+(* Node type *)
 type node = {
   id: int;
   programPoint : MyCFG.node;
   sigma : varDomain SigmaMap.t;
   tid:int;
-  lockSet: LockSet.t;
+  lockSet: VarinfoSet.t;
 }
 
+(* Helper functions for constructing varinfo names *)
 let make_mutex_varinfo x = "__goblint__traces__mutex__"^x.vname
 
 let make_local_global_varinfo x = "__goblint__traces__"^x.vname
@@ -136,7 +124,7 @@ type t = node
 
 let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")
 
-let show_lockSet ls = LockSet.fold (fun mutex s_fold -> (CilType.Varinfo.show mutex)^"; "^s_fold) ls ""
+let show_lockSet ls = VarinfoSet.fold (fun mutex s_fold -> (CilType.Varinfo.show mutex)^"; "^s_fold) ls ""
 
 let equal_sigma s1 s2 = 
   if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true 
@@ -149,15 +137,13 @@ let equal_sigma s1 s2 =
     tid="^(string_of_int tid)^"; lockSet=["^(show_lockSet lockSet)^"]}"
 
 let compare n1 n2 = match (n1, n2) with 
-({programPoint=p1;sigma=s1;id=id1;tid=tid1;lockSet=ls1},{programPoint=p2;sigma=s2;id=id2;tid=tid2;lockSet=ls2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2)&&(LockSet.equal ls1 ls2) then Node.compare p1 p2 else -13 
+({programPoint=p1;sigma=s1;id=id1;tid=tid1;lockSet=ls1},{programPoint=p2;sigma=s2;id=id2;tid=tid2;lockSet=ls2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2)&&(VarinfoSet.equal ls1 ls2) then Node.compare p1 p2 else -13 
 
 let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_varDomain vd) + i) s 0)
 
-let hash_lockSet ls = LockSet.fold (fun mutex acc -> acc+(CilType.Varinfo.hash mutex)) ls 0
+let hash_lockSet ls = VarinfoSet.fold (fun mutex acc -> acc+(CilType.Varinfo.hash mutex)) ls 0
 
-let intersect_sigma sigma1 sigma2 =
-  SigmaMap.fold (fun vinfo varDom sigAcc -> if SigmaMap.mem vinfo sigma2 = false then sigAcc else if equal_varDomain varDom (SigmaMap.find vinfo sigma2) then SigmaMap.add vinfo varDom sigAcc else sigAcc) sigma1 SigmaMap.empty
-
+(* Unions two sigma where all updates of sigma2 overwrite sigma1 *)
 let destruct_add_sigma sigma1 sigma2 = if SigmaMap.is_empty sigma1 then sigma2 else
   SigmaMap.fold (fun vinfo varDom sigAcc -> SigmaMap.add vinfo varDom sigAcc) sigma2 sigma1
 
@@ -179,6 +165,7 @@ let compare e1 e2 = CustomEdge.compare e1 e2
 
 let equal e1 e2 = (compare e1 e2) = 0
 
+(* Helper function to convert Edge.t to CustomEdge.t *)
 let convert_edge (edge:Edge.t) :t =
   match edge with
   | Assign(l,e) -> Assign(l,e)
@@ -220,94 +207,47 @@ end)
 let show_edge e =
   match e with (v1, ed, v2) -> "[node_prev:"^(NodeImpl.show v1)^",label:"^(EdgeImpl.show ed)^",node_dest:"^(NodeImpl.show v2)^"]"
 
-  (* Im gonna implement this manually.  *)
+  (* Helper function for equal *)
   let rec equal_helper2 (node_prev1, edge1, node_dest1) edgeList =
     match edgeList with (node_prev2, edge2, node_dest2)::xs -> 
       ((NodeImpl.equal node_prev1 node_prev2)&&(EdgeImpl.equal edge1 edge2)&&(NodeImpl.equal node_dest1 node_dest2)) || (equal_helper2 (node_prev1, edge1, node_dest1) xs )
       | [] -> false
 
-let equal_edge (prev_node1, edge1, dest_node1) (prev_node2, edge2, dest_node2) = (NodeImpl.equal prev_node1 prev_node2)&&(EdgeImpl.equal edge1 edge2)&&(NodeImpl.equal dest_node1 dest_node2)
-
 let rec equal_helper1 edgeList1 edgeList2 =
   match edgeList1 with x::xs -> (equal_helper2 x edgeList2)&&(equal_helper1 xs edgeList2)
   | [] -> true
+
 let equal g1 g2 = 
 if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (false) else (
-(* print_string ("g1-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g1 "")^"\n");
-print_string ("g2-edges="^(LocTraceGraph.fold_edges_e (fun ed s -> (show_edge ed)^",\n"^s) g2 "")^"\n"); *)
 let edgeList1 = get_all_edges g1
 in let edgeList2 = get_all_edges g2
 in
-(* print_string ("equal_helper1 wird jetzt aufgerufen mit\nedgeList1="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList1)^"\nedgeList2="^(List.fold (fun s elem -> s^", "^(show_edge elem)) "" edgeList2)^"\n"); *)
-  let tmp = equal_helper1 (edgeList1) (edgeList2)
+let tmp = equal_helper1 (edgeList1) (edgeList2)
   in tmp)
 
-    (* eventuell liegt hier der Fehler?*)
+let equal_edge (prev_node1, edge1, dest_node1) (prev_node2, edge2, dest_node2) = 
+  (NodeImpl.equal prev_node1 prev_node2)&&(EdgeImpl.equal edge1 edge2)&&(NodeImpl.equal dest_node1 dest_node2)
+
 let hash g1 =
   let tmp = (List.fold (fun i node -> (NodeImpl.hash node)+i) 0 (get_all_nodes g1))
 in
   (LocTraceGraph.nb_edges g1) + (LocTraceGraph.nb_vertex g1) + tmp
 
-(* needs to be a total order! *)
   let compare g1 g2 =  
-  if equal g1 g2 then (
-    (* print_string ("The two graphs are equal in compare: g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^" \n\nGraph.compare END\n"); *)
-    0) else
-      (
-        (* print_string ("Graphs are not equal in compare with g1="^(show g1)^" with hash="^(string_of_int (hash g1))^"\n and g2="^(show g2)^" with hash="^(string_of_int (hash g2))^"\n\nGraph.compare END\n"); *)
-      (* relying on the polymorphic equal here is a bit of a stop-gap, one should do this properly by using the compares of the edges and nodes*)
-       compare g1 g2)
+  if equal g1 g2 then 0 else compare g1 g2
 
 (* Dummy to_yojson function *)
 let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
 
-(* Retrieves a list of sigma mappings in a graph of a given node *)
-let get_sigma g (progPoint:MyCFG.node) = 
-  if Node.equal progPoint MyCFG.dummy_node then [SigmaMap.empty] else(
-  if LocTraceGraph.is_empty g then
-  (match progPoint with 
-  | FunctionEntry({svar={vname=s;_}; _})-> if String.equal s "@dummy" then (print_string "Hey, I found a dummy node on a yet empty graph\n";[SigmaMap.empty]) else [] 
-    | _ -> [])
-  else  
-  (let tmp =
-LocTraceGraph.fold_vertex (fun {programPoint=p1;sigma=s1;_} l -> 
-  if Node.equal p1 progPoint then s1::l else l) g []
-  in 
-  if List.is_empty tmp then [] else tmp))
-
-  let get_nodes programPoint sigma graph =
-let all_nodes = get_all_nodes graph
-  in 
-  let tmp = List.fold (fun acc {programPoint=p1;sigma=s1;id=i1;tid=tid1;lockSet=ls1} -> if (Node.equal programPoint p1)&&(NodeImpl.equal_sigma sigma s1) then ({programPoint=p1;sigma=s1;id=i1;tid=tid1;lockSet=ls1})::acc else acc ) [] all_nodes 
-in
-if Node.equal programPoint MyCFG.dummy_node then (* then I want to have the 'latest' dummy node *)
-  [(List.fold (fun {id=id_acc;programPoint=progP_acc;sigma=s_acc;tid=tid_acc;lockSet=ls_acc} {id=id_fold;programPoint=progP_fold;sigma=s_fold;tid=tid_fold;lockSet=ls_fold} -> if id_acc > id_fold then {id=id_acc;programPoint=progP_acc;sigma=s_acc;tid=tid_acc;lockSet=ls_acc} else {id=id_fold;programPoint=progP_fold;sigma=s_fold;tid=tid_fold;lockSet=ls_fold} ) {programPoint=programPoint;sigma=sigma;id=(-1);tid=(-1);lockSet=LockSet.empty} tmp)] else tmp
-
-let check_for_duplicates g =
-  let edgeList = get_all_edges g
-in 
-let rec check_helper1 (prev_node, edge, dest_node) innerList =
-  match innerList with (prev_inner, edge_inner, dest_inner)::xs -> 
-    if (NodeImpl.equal prev_node prev_inner)&&(CustomEdge.equal edge edge_inner)&&(NodeImpl.equal dest_node dest_inner) then true else check_helper1 (prev_node, edge, dest_node) xs
-    | [] -> false
-  in let rec check_helper2 outerList =
-    match outerList with x::xs -> if check_helper1 x xs then true else check_helper2 xs
-      | [] -> false
-  in check_helper2 edgeList
-    
-
-(* Applies an gEdge to graph 
+(* Adds an edge to a graph
    Explicit function for future improvements *)
 let extend_by_gEdge gr gEdge = 
   (* print_string "LocalTraces.extend_by_gEdge was invoked\n"; *)
   if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) 
-    then (
-      (* print_string ("but gEdge="^(show_edge gEdge)^" is already contained in:\n"^(show gr)^"\n"); *)
-      gr) 
-else (let tmp = LocTraceGraph.add_edge_e gr gEdge in 
-(* print_string ("extend_by_gEdge succeeded with new graph:\n"^(show tmp)^"\n");  *)
-tmp) 
+    then gr 
+else let tmp = LocTraceGraph.add_edge_e gr gEdge in tmp 
 
+(* An error node. A trace ending here is a faulty one *)
   let error_node : MyCFG.node = 
     FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[])); 
                    sformals=[];
@@ -317,6 +257,7 @@ tmp)
                    smaxstmtid=None;
                    sallstmts=[]})
 
+  (* Varinfos used in the analysis *)
   let return_vinfo = makeVarinfo false "__goblint__traces__return" (TInt(IInt,[]))
 
   let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
@@ -336,46 +277,37 @@ tmp)
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node prev_node then edge::list else list)
        [] (get_all_edges graph)
 
-       (* TODO: Print-Ausgaben um zu verstehen, wie die Suche durch den Graphen iteriert *)
-    let rec find_globvar_assign_node global graph node = 
-      print_string ("find_globvar_assign_node global wurde aufgerufen mit 
-      \nglobal = "^(CilType.Varinfo.show global)^"
-      \nnode = "^(NodeImpl.show node)^"
-      \ngraph = "^(show graph)^"\n");
+       (* Crucial function implementing the global search *)
+    let find_globvar_assign_node global graph node = 
+      (* As a worklist we use a queue. Thus, search is performed in a BFS-style:
+         For a node, we check all preceeding edges for an assignment defining global.
+         If we find nothing, then we add all predecessors to the queue and continue. *)
     let workQueue = Queue.create ()
   in Queue.add node workQueue;
-  let rec loop visited = (
-    (* print_string ("\nloop wurde aufgerufen mit |workQueue| = "^(string_of_int (Queue.length workQueue))^" und peek: "^(NodeImpl.show (Queue.peek workQueue))^" und visited: "^(List.fold (fun s n -> ((NodeImpl.show n)^", "^s)) "" visited)^" and |visited| = "^(string_of_int (List.length visited))^"\n"); *)
-    let q = Queue.pop workQueue
+  let rec loop visited = (let q = Queue.pop workQueue
 in let predecessors = 
-  (* print_string ("\nin loop we get the predessecors in graph:"^(show graph)^"\n"); *)
   get_predecessors_edges graph q
 in let tmp_result = 
-  (* print_string ("the predecessors are: "^(List.fold (fun s ed -> s^", "^(show_edge ed)) "" predecessors)^"\n"); *)
 List.fold (fun optionAcc (prev_node, (edge:CustomEdge.t), _) -> 
 match edge with 
-    (* | DepMutex(mutex) -> print_string("In global search we found a DepMutex\n"); if String.equal mutex.vname (make_mutex_varinfo global) 
-      then (print_string ("Mutexname stimmt mit dem zu suchenden Global überein\n"); Some(find_globvar_assign_node global graph prev_node))
-    else (print_string ("Mutexname stimmt nicht mit dem zu suchenden Global überein: mutex.vname="^(mutex.vname)^", make_mutex_varinfo global="^(make_mutex_varinfo global)^"\n"); optionAcc) *)
     | (Assign((Var(edgevinfo),_), edgeExp)) -> 
       if CilType.Varinfo.equal global edgevinfo 
-      then (print_string ("Assignment mit global wurde gefunden! global="^(CilType.Varinfo.show global)^", edgevinfo="^(CilType.Varinfo.show edgevinfo)^"\n");
-    Some(prev_node,edge)) else optionAcc
+      then Some(prev_node,edge) else optionAcc
     | _ -> optionAcc
   ) None predecessors
 in
-let skip_edge:(CustomEdge.t) = Skip (* This is needed otherwise it errors with unbound constructor *)
+let skip_edge:(CustomEdge.t) = Skip (* This is needed otherwise compilation errors with unbound constructor *)
 in
 match tmp_result with
 | None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (get_predecessors_nodes graph q);
-  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty}, skip_edge) 
+  if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}, skip_edge) 
   else (
-    (* print_string ("we recursively call loop again while working on node "^(NodeImpl.show q)^"\n"); *)
     loop (q::visited))
 | Some(nodeGlobalAssignment) -> nodeGlobalAssignment
   )
 in loop []
 
+  (* Returns next node fo *)
     let get_succeeding_node prev_node edge_label graph =
   print_string ("LocalTraces.get_succeeding_node was invoked with prev_node="^(NodeImpl.show prev_node)^", edge_label="^(EdgeImpl.show edge_label)^" and\n"^(show graph)^"\n");
   let edgeList = get_all_edges graph
@@ -384,10 +316,10 @@ List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
   if (NodeImpl.equal prev_node prev_fold)&&(CustomEdge.equal edge_label edge_fold) 
     then dest_fold
     else acc_node
-      ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=LockSet.empty} edgeList
+      ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=VarinfoSet.empty} edgeList
   in print_string ("in LocalTraces.get_succeeding_node we found the node "^(NodeImpl.show tmp)^"\n"); tmp
 
-(* finds the return endpoints of a calling node *)
+(* finds the return endpoint of a calling node *)
     let find_returning_node prev_node edge_label graph =
   let node_start = get_succeeding_node prev_node edge_label graph
 in
@@ -413,7 +345,7 @@ List.fold (fun acc_node ((prev_fold:node), (edge_fold:CustomEdge.t), (dest_fold:
     | Ret(_) -> if current_saldo = 1 then dest_fold else find_returning_node_helper dest_fold (current_saldo - 1)
     (* ein paar Kanten dürfen nicht weiter verfolgt werden wie z.B. depMutex*)
     | _ -> find_returning_node_helper dest_fold current_saldo
-  ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=LockSet.empty} succeeding_edges
+  ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=VarinfoSet.empty} succeeding_edges
   )
 in find_returning_node_helper node_start 1
 
@@ -425,7 +357,7 @@ in find_returning_node_helper node_start 1
     let rec loop nodeList =
       match nodeList with 
         | x::xs -> if (List.is_empty (get_successors_edges graph x))&&(Node.equal x.programPoint programPoint) then x else loop xs
-        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
+        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
     let get_last_node graph =
@@ -434,7 +366,7 @@ in find_returning_node_helper node_start 1
     let rec loop nodeList =
       match nodeList with 
         | x::xs -> if (List.is_empty (get_successors_edges graph x)) then x else loop xs
-        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
+        | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
     
@@ -444,7 +376,7 @@ in find_returning_node_helper node_start 1
     let rec loop nodeList =
       match nodeList with
       | x::xs -> if (List.is_empty (get_predecessors_edges graph x)) then x else loop xs
-      | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=LockSet.empty}
+      | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
     let get_all_nodes_progPoint graph programPoint=
@@ -467,7 +399,7 @@ let rec inner_loop node_candidate edgeList =
   if NodeImpl.equal return_node tmp then node_candidate
   else inner_loop node_candidate es
   | [] -> 
-    {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
+    {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=VarinfoSet.empty}
 in
 let rec loop nodeList =
   match nodeList with
@@ -479,7 +411,7 @@ in
 if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
   )
     | [] -> print_string ("find_calling_node did not succeed, ended in loop\n");
-      {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=LockSet.empty}
+      {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=VarinfoSet.empty}
     in loop allNodes
 
     (* In this function I assume, that traces do not contain circles *)
@@ -491,7 +423,7 @@ let workQueue = Queue.create ()
   in Queue.add last_node workQueue;
   
   let rec loop () =
-    if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=LockSet.empty})
+    if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})
     else(
     let current_node = Queue.pop workQueue
   in
@@ -573,9 +505,9 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
             if Node.equal acc_fold.programPoint error_node then node_fold 
             else if currentNode.tid = node_fold.tid then node_fold 
             else acc_fold
-        ) {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty} predecessors
+        ) {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty} predecessors
           in
-          if Node.equal nextNode.programPoint error_node then {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty} else
+          if Node.equal nextNode.programPoint error_node then {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty} else
           loop nextNode
           )
         in loop lastNode1
@@ -684,7 +616,9 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
         loop allNodes
 
     let is_valid_merged_graph graph =
-      (maintains_depMutex_condition graph) && (is_acyclic graph) && (has_valid_edge_branching graph)
+      (maintains_depMutex_condition graph) 
+      && (is_acyclic graph)
+       && (has_valid_edge_branching graph)
 
       let get_first_lock graph mutex =
         let allEdges = get_all_edges graph
@@ -693,7 +627,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
         match edgeList with 
         | (prev_node,DepMutex(m),dest_node)::xs -> if (prev_node.id = 1) && (CilType.Varinfo.equal mutex m) then (prev_node,DepMutex(m),dest_node) else loop xs
         | x::xs -> loop xs
-        | [] -> ({programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty}, Skip, {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=LockSet.empty})
+        | [] -> ({programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty}, Skip, {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty})
         in loop allEdges
 
     let have_same_first_lock graph1 graph2 mutex =
@@ -724,10 +658,10 @@ object(self)
   currentID
 
   (* TODO: TID vom destination node muss auch geprüft werden mit tid_find*)
-  method getID (prev_node:node) (edge:CustomEdge.t) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) (dest_ls:LockSet.t) =
+  method getID (prev_node:node) (edge:CustomEdge.t) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) (dest_ls:VarinfoSet.t) =
     print_string "getID wurde aufgerufen\n";
     let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find;lockSet=ls_find}) -> 
-     if (NodeImpl.equal prev_node prev_node_find)&&(CustomEdge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid)&&(LockSet.equal ls_find dest_ls) then id_find else acc) (-1) edges 
+     if (NodeImpl.equal prev_node prev_node_find)&&(CustomEdge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid)&&(VarinfoSet.equal ls_find dest_ls) then id_find else acc) (-1) edges 
   in 
   if id = (-1) then ( 
     (* print_string ("No existing edge for this combination was found, so we create a new ID\n
