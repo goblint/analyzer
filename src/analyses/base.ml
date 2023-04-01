@@ -2455,13 +2455,33 @@ struct
         let canonical = ModularUtil.type_to_varinfo t in
         canonical
       in
-      let tainted_vars =
-        Q.LS.fold (fun (v, _) vs -> VS.add v vs) tainted_lvals VS.empty in
-      let is_tainted x =
-        let canonical = address_to_canonical x in
-        VS.mem canonical tainted_vars
+      let tainted_vars_to_lvals : Q.LS.t VarMap.t =
+        let insert_lval lv = function
+          | None -> Some (Q.LS.singleton lv)
+          | Some s -> Some (Q.LS.add lv s)
+        in
+        let update_entry ((v, _) as lv) =
+          VarMap.modify_opt v (insert_lval lv)
+        in
+        Q.LS.fold update_entry tainted_lvals VarMap.empty
       in
-      let tainted_reachable_addresses = List.filter is_tainted reachable_addresses in
+      let get_tainted_offsets (ad: AD.t) : AD.t =
+        let canonical = address_to_canonical ad in
+        let modified_on_canonical = VarMap.find canonical tainted_vars_to_lvals in
+        let add_with_offset (v, offset) acc =
+          let offset = Lval.CilLval.to_ciloffs offset in
+          let offset = convert_offset f_ask glob_fun au offset in
+          let ad_with_offset = AD.map (fun a -> Addr.add_offset a offset) ad in
+          M.tracel "combine_env_modular" "add_with_offset: %a, offset was %a.\n" AD.pretty ad_with_offset Offs.pretty offset;
+          AD.union acc ad_with_offset
+        in
+        let modified_offsets =
+          Q.LS.fold add_with_offset modified_on_canonical (AD.bot ()) in
+        modified_offsets
+      in
+      M.tracel "combine_env_modular" "tainted lval set: %a\n" Q.LS.pretty tainted_lvals;
+      let tainted_reachable_addresses = List.map get_tainted_offsets reachable_addresses in
+      M.tracel "combine_env_modular" "tainted_reachable_addresses %a \n" (d_list ", " AD.pretty) tainted_reachable_addresses;
       (* First version: if r in reachable_addresses and canonical_var(r) in tainted, set r to top! *)
       (* TODO: if r.o has been changed in called function adapt value v of h(r.o) in called function with h^{-1}(v), and weakly add it to value of r.o *)
       let tainted_with_values = List.map (fun a -> a, AD.get_type a, VD.top_value (AD.get_type a)) tainted_reachable_addresses in
