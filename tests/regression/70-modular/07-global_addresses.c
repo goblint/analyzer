@@ -14,4 +14,8 @@ int foo(node_t* n){
 	__goblint_check(h == n); //UNKNOWN!
 	__goblint_check(&g == n); //UNKNOWN!
 	__goblint_check(&g == h); //UNKNOWN!
+
+	node_t *x = &g;
+	node_t *y = h;
+	__goblint_check(x == y); //UNKNOWN!
 }
