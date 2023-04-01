@@ -103,14 +103,26 @@ struct
 
   let create entrystates: (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
     let (witness_prev_map, witness_prev, witness_next) =
+      (* Get all existing vars *)
+      let vars = NHT.create 100 in
+      LHT.iter (fun lvar local ->
+          ask_local lvar ~local (IterVars (fun i ->
+              let lvar' = (fst lvar, snd lvar, i) in
+              NHT.replace vars lvar' ()
+            ))
+        ) lh;
+
       let prev = NHT.create 100 in
       let next = NHT.create 100 in
       LHT.iter (fun lvar local ->
           ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
-              let lvar' = (fst lvar, snd lvar, i) in
               let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
-              NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
-              NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
+              (* Exclude accumulated prevs, which were pruned *)
+              if NHT.mem vars prev_lvar then (
+                let lvar' = (fst lvar, snd lvar, i) in
+                NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
+                NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
+              )
             )))
         ) lh;
 
