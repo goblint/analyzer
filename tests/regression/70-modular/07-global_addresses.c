@@ -9,7 +9,7 @@ typedef struct node {
 node_t g;
 node_t *h;
 
-// Check that modular analysis treats global variables soundly (via their type representation)
+// Check that modular analysis treats addresses of globals soundly
 int foo(node_t* n){
 	__goblint_check(h == n); //UNKNOWN!
 	__goblint_check(&g == n); //UNKNOWN!
