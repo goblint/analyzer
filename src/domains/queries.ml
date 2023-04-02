@@ -115,7 +115,7 @@ type _ t =
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | IsMultiple: varinfo -> MustBool.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
   | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
