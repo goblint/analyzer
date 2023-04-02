@@ -1445,7 +1445,7 @@ struct
         (* Projection globals to highest Precision *)
         let projected_value = project_val a None None value (is_global a x) in
         let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
-        if WeakUpdates.mem x st.weak then
+        if a.f (Q.IsMultiple x) then
           VD.join old_value new_value
         else if invariant then
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
