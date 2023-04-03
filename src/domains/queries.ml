@@ -98,6 +98,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
+  | Written: BaseDomain.CPA.t t
 
 type 'a result = 'a
 
@@ -158,6 +159,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | Written -> (module BaseDomain.CPA)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -217,6 +219,7 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
+    | Written -> BaseDomain.CPA.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -273,6 +276,7 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
+    | Any Written -> 49
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -403,6 +407,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any Written -> Pretty.dprintf "Written"
 end
 
 let to_value_domain_ask (ask: ask) =
