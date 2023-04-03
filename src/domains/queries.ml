@@ -403,16 +403,9 @@ struct
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
 end
 
-
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
-  let e = Cilfacade.makeBinOp binop e1 e2 in
-  let i = ask.f (EvalInt e) in
-  if ID.is_bot i || ID.is_bot_ikind i then
-    Bool.top () (* base returns bot for non-int results, consider unknown *)
-  else
-    match ID.to_bool i with
-    | Some b -> b
-    | None -> Bool.top ()
+  let eval_int e = ask.f (EvalInt e) in
+  ValueDomainQueries.eval_int_binop (module Bool) binop eval_int e1 e2
 
 (** Backwards-compatibility for former [MustBeEqual] query. *)
 let must_be_equal = eval_int_binop (module MustBool) Eq
