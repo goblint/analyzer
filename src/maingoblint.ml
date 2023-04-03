@@ -160,6 +160,9 @@ let handle_flags () =
   if get_bool "ana.sv-comp.functions" then
     set_auto "lib.activated[+]" "sv-comp";
 
+  if get_bool "kernel" then
+    set_auto "lib.activated[+]" "linux-kernel";
+
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->

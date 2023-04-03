@@ -258,8 +258,7 @@ let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[b
 let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
 
 (** Linux kernel functions. *)
-(* TODO: conditional on kernel option *)
-let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("spin_lock_irqsave", special [__ "lock" []; drop "flags" []] @@ fun lock -> Lock { lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
     ("_raw_spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
@@ -433,7 +432,7 @@ let libraries = Hashtbl.of_list [
   ("gcc", gcc_descs_list);
   ("glibc", glibc_desc_list);
   ("linux-userspace", linux_userspace_descs_list);
-  ("linux-kernel", linux_descs_list);
+  ("linux-kernel", linux_kernel_descs_list);
   ("goblint", goblint_descs_list);
   ("sv-comp", svcomp_descs_list);
   ("ncurses", ncurses_descs_list);

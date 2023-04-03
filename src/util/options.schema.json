@@ -1257,7 +1257,6 @@
             "gcc",
             "glibc",
             "linux-userspace",
-            "linux-kernel",
             "goblint",
             "ncurses"
           ]
