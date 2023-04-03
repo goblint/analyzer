@@ -4,9 +4,11 @@ open GoblintCil
 
 module GU = Goblintutil
 
-module ID = ValueDomainQueries.ID
+module VDQ = ValueDomainQueries
 
-module LS = ValueDomainQueries.LS
+module ID = VDQ.ID
+
+module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
@@ -407,11 +409,11 @@ let to_value_domain_ask (ask: ask) =
   let eval_int e = ask.f (EvalInt e) in
   let may_point_to e = ask.f (MayPointTo e) in
   let is_multiple v = ask.f (IsMultiple v) in
-  { ValueDomainQueries.eval_int; may_point_to; is_multiple }
+  { VDQ.eval_int; may_point_to; is_multiple }
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
   let eval_int e = ask.f (EvalInt e) in
-  ValueDomainQueries.eval_int_binop (module Bool) binop eval_int e1 e2
+  VDQ.eval_int_binop (module Bool) binop eval_int e1 e2
 
 (** Backwards-compatibility for former [MustBeEqual] query. *)
 let must_be_equal = eval_int_binop (module MustBool) Eq
