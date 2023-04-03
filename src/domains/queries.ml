@@ -9,6 +9,10 @@ module VDQ = ValueDomainQueries
 module ID = VDQ.ID
 
 module LS = VDQ.LS
+
+module VD = ValueDomain.Compound
+
+module AD = ValueDomain.AD
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
@@ -74,6 +78,8 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValueYojson: exp -> FlatYojson.t t (** Yojson because [ValueDomain] would have dependency cycle. *)
+  | EvalLval: lval -> AD.t t
+  | EvalExp: exp -> VD.t t
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
@@ -135,6 +141,8 @@ struct
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | EvalValueYojson _ -> (module FlatYojson)
+    | EvalLval _ -> (module AD)
+    | EvalExp _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
@@ -195,6 +203,8 @@ struct
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | EvalValueYojson _ -> FlatYojson.top ()
+    | EvalLval _ -> AD.top ()
+    | EvalExp _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
@@ -277,6 +287,8 @@ struct
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
     | Any Written -> 49
+    | Any (EvalLval _) -> 50
+    | Any (EvalExp _) -> 51
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -319,6 +331,8 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
+      | Any (EvalLval e1), Any (EvalLval e2) -> CilType.Lval.compare e1 e2
+      | Any (EvalExp e1), Any (EvalExp e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -339,6 +353,8 @@ struct
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalValueYojson e) -> CilType.Exp.hash e
+    | Any (EvalLval l) -> CilType.Lval.hash l
+    | Any (EvalExp e) -> CilType.Exp.hash e
     | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
@@ -383,6 +399,8 @@ struct
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValueYojson e) -> Pretty.dprintf "EvalValueYojson %a" CilType.Exp.pretty e
+    | Any (EvalLval e) -> Pretty.dprintf "EvalLval %a" CilType.Lval.pretty e
+    | Any (EvalExp e) -> Pretty.dprintf "EvalExp %a" CilType.Exp.pretty e
     | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
