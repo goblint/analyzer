@@ -427,22 +427,29 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
   ]
 
-(* TODO: allow selecting which lists to use *)
-let library_descs = Hashtbl.of_list (List.concat [
-    c_descs_list;
-    posix_descs_list;
-    pthread_descs_list;
-    gcc_descs_list;
-    glibc_desc_list;
-    linux_userspace_descs_list;
-    linux_descs_list;
-    goblint_descs_list;
-    zstd_descs_list;
-    math_descs_list;
-    svcomp_descs_list;
-    ncurses_descs_list;
-  ])
+let libraries = Hashtbl.of_list [
+  ("c", c_descs_list @ math_descs_list);
+  ("posix", posix_descs_list);
+  ("pthread", pthread_descs_list);
+  ("gcc", gcc_descs_list);
+  ("glibc", glibc_desc_list);
+  ("linux-userspace", linux_userspace_descs_list);
+  ("linux-kernel", linux_descs_list);
+  ("goblint", goblint_descs_list);
+  ("sv-comp", svcomp_descs_list);
+  ("ncurses", ncurses_descs_list);
+  ("zstd", zstd_descs_list);
+]
 
+let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let activated = List.unique (GobConfig.get_string_list "lib.activated") in
+      let desc_list = List.concat_map (Hashtbl.find libraries) activated in
+      Hashtbl.of_list desc_list
+    )
+
+let reset_lazy () =
+  ResettableLazy.reset activated_library_descs
 
 type categories = [
   | `Malloc       of exp
@@ -1149,7 +1156,7 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
 
 let find f =
   let name = f.vname in
-  match Hashtbl.find_option library_descs name with
+  match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
   | None ->
     match get_invalidate_action name with

@@ -1225,6 +1225,48 @@
       },
       "additionalProperties": false
     },
+    "lib": {
+      "title": "Library functions",
+      "description": "Options for library functions",
+      "type": "object",
+      "properties": {
+        "activated": {
+          "title": "lib.activated",
+          "description": "List of activated libraries.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "c",
+              "posix",
+              "pthread",
+              "gcc",
+              "glibc",
+              "linux-userspace",
+              "linux-kernel",
+              "goblint",
+              "sv-comp",
+              "ncurses",
+              "zstd"
+            ]
+          },
+          "default": [
+            "c",
+            "posix",
+            "pthread",
+            "gcc",
+            "glibc",
+            "linux-userspace",
+            "linux-kernel",
+            "goblint",
+            "sv-comp",
+            "ncurses",
+            "zstd"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "sem": {
       "title": "Semantics",
       "description": "Options for semantics",
