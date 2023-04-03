@@ -41,8 +41,22 @@ struct
     | `Top -> false
 end
 
+type eval_int = exp -> ID.t
+type may_point_to = exp -> LS.t
+type is_multiple = varinfo -> bool
+
 type t = {
-  eval_int: exp -> ID.t;
-  may_point_to: exp -> LS.t;
-  is_multiple: varinfo -> bool;
+  eval_int: eval_int;
+  may_point_to: may_point_to;
+  is_multiple: is_multiple;
 }
+
+let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (eval_int: eval_int) e1 e2: Bool.t =
+  let e = Cilfacade.makeBinOp binop e1 e2 in
+  let i = eval_int e in
+  if ID.is_bot i || ID.is_bot_ikind i then
+    Bool.top () (* base returns bot for non-int results, consider unknown *)
+  else
+    match ID.to_bool i with
+    | Some b -> b
+    | None -> Bool.top ()
