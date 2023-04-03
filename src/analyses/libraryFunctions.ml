@@ -396,7 +396,6 @@ let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_va
 
 (** SV-COMP functions.
     Just the ones that require special handling and cannot be stubbed. *)
-(* TODO: conditional on ana.sv-comp.functions option *)
 let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);

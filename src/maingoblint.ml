@@ -157,6 +157,9 @@ let handle_flags () =
   if get_bool "dbg.debug" then
     set_bool "warn.debug" true;
 
+  if get_bool "ana.sv-comp.functions" then
+    set_auto "lib.activated[+]" "sv-comp";
+
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
@@ -358,7 +361,7 @@ let preprocess_files () =
 
   extra_files := find_custom_include (Fpath.v "stdlib.c") :: find_custom_include (Fpath.v "pthread.c") :: !extra_files;
 
-  if get_bool "ana.sv-comp.functions" then
+  if List.mem "sv-comp" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
   let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map Fpath.v (get_string_list "files")) in

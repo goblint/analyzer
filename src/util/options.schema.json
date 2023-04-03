@@ -1259,7 +1259,6 @@
             "linux-userspace",
             "linux-kernel",
             "goblint",
-            "sv-comp",
             "ncurses"
           ]
         }
