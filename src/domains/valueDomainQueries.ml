@@ -1,5 +1,6 @@
 (** Subset of queries used by the valuedomain, using a simpler representation. *)
 open GoblintCil
+open BoolDomain
 
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 
@@ -60,3 +61,12 @@ let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (eval_int: 
     match ID.to_bool i with
     | Some b -> b
     | None -> Bool.top ()
+
+(** Backwards-compatibility for former [MustBeEqual] query. *)
+let must_be_equal = eval_int_binop (module MustBool) Eq
+
+(** Backwards-compatibility for former [MayBeEqual] query. *)
+let may_be_equal = eval_int_binop (module MayBool) Eq
+
+(** Backwards-compatibility for former [MayBeLess] query. *)
+let may_be_less = eval_int_binop (module MayBool) Lt
