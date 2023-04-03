@@ -1260,8 +1260,7 @@
             "linux-kernel",
             "goblint",
             "sv-comp",
-            "ncurses",
-            "zstd"
+            "ncurses"
           ]
         }
       },
