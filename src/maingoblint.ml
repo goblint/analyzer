@@ -362,7 +362,11 @@ let preprocess_files () =
 
   let extra_files = ref [] in
 
-  extra_files := find_custom_include (Fpath.v "stdlib.c") :: find_custom_include (Fpath.v "pthread.c") :: !extra_files;
+  if List.mem "c" (get_string_list "lib.activated") then
+    extra_files := find_custom_include (Fpath.v "stdlib.c") :: !extra_files;
+
+  if List.mem "pthread" (get_string_list "lib.activated") then
+    extra_files := find_custom_include (Fpath.v "pthread.c") :: !extra_files;
 
   if List.mem "sv-comp" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
