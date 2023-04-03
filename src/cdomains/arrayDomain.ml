@@ -5,7 +5,6 @@ open FlagHelper
 
 module M = Messages
 module A = Array
-module Q = Queries
 module BI = IntOps.BigIntOps
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
@@ -47,12 +46,12 @@ sig
 
   val domain_of_t: t -> domain
 
-  val get: ?checkBounds:bool -> Q.ask -> t -> Basetype.CilExp.t option * idx -> value
-  val set: Q.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
+  val get: ?checkBounds:bool -> ValueDomainQueries.t -> t -> Basetype.CilExp.t option * idx -> value
+  val set: ValueDomainQueries.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
 
-  val move_if_affected: ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?replace_with_const:bool -> ValueDomainQueries.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
@@ -60,7 +59,7 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
-  val project: ?varAttr:attributes -> ?typAttr:attributes -> Q.ask -> t -> t
+  val project: ?varAttr:attributes -> ?typAttr:attributes -> ValueDomainQueries.t -> t -> t
 end
 
 module type LatticeWithSmartOps =
@@ -84,8 +83,8 @@ struct
   let show x = "Array: " ^ Val.show x
   let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let get ?(checkBounds=true) (ask: Q.ask) a i = a
-  let set (ask: Q.ask) a i v = join a v
+  let get ?(checkBounds=true) (ask: ValueDomainQueries.t) a i = a
+  let set (ask: ValueDomainQueries.t) a i v = join a v
   let make ?(varAttr=[]) ?(typAttr=[])  i v = v
   let length _ = None
 
@@ -131,7 +130,7 @@ struct
   let extract x default = match x with
     | Some c -> c
     | None -> default
-  let get ?(checkBounds=true)  (ask: Q.ask) (xl, xr) (_,i) =
+  let get ?(checkBounds=true)  (ask: ValueDomainQueries.t) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
       let rec subjoin l i = match l with
         | [] -> Val.bot ()
@@ -149,7 +148,7 @@ struct
     if Z.geq min_i f then xr
     else if Z.lt max_i f then search_unrolled_values min_i max_i
     else Val.join xr (search_unrolled_values min_i (Z.of_int ((factor ())-1)))
-  let set (ask: Q.ask) (xl,xr) (_,i) v =
+  let set (ask: ValueDomainQueries.t) (xl,xr) (_,i) v =
     let update_unrolled_values min_i max_i =
       let rec weak_update l i = match l with
         | [] -> []
@@ -195,11 +194,11 @@ end
 module type SPartitioned =
 sig
   include S
-  val set_with_length: idx option -> Q.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
+  val set_with_length: idx option -> ValueDomainQueries.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   val smart_join_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
   val smart_widen_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option)  -> t -> t-> t
   val smart_leq_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
-  val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> ValueDomainQueries.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
 module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): SPartitioned with type value = Val.t and type idx = Idx.t =
@@ -291,21 +290,21 @@ struct
                ("m", Val.to_yojson xm);
                ("r", Val.to_yojson xr) ]
 
-  let get ?(checkBounds=true) (ask:Q.ask) (x:t) (i,_) =
+  let get ?(checkBounds=true) (ask:ValueDomainQueries.t) (x:t) (i,_) =
     match x, i with
     | Joint v, _ -> v
     | Partitioned (e, (xl, xm, xr)), Some i' ->
       begin
-        if Q.must_be_equal ask e i' then xm
+        if ValueDomainQueries.must_be_equal ask.eval_int e i' then xm
         else
           begin
-            let contributionLess = match Q.may_be_less ask i' e with        (* (may i < e) ? xl : bot *)
+            let contributionLess = match ValueDomainQueries.may_be_less ask.eval_int i' e with        (* (may i < e) ? xl : bot *)
               | false -> Val.bot ()
               | _ -> xl in
-            let contributionEqual = match Q.may_be_equal ask i' e with      (* (may i = e) ? xm : bot *)
+            let contributionEqual = match ValueDomainQueries.may_be_equal ask.eval_int i' e with      (* (may i = e) ? xm : bot *)
               | false -> Val.bot ()
               | _ -> xm in
-            let contributionGreater =  match Q.may_be_less ask e i' with    (* (may i > e) ? xr : bot *)
+            let contributionGreater =  match ValueDomainQueries.may_be_less ask.eval_int e i' with    (* (may i > e) ? xr : bot *)
               | false -> Val.bot ()
               | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
@@ -358,7 +357,7 @@ struct
     | Joint x -> f a x
     | Partitioned (_, (xl,xm,xr)) -> f (f (f a xl) xm) xr
 
-  let move_if_affected_with_length ?(replace_with_const=false) length (ask:Q.ask) x (v:varinfo) (movement_for_exp: exp -> int option) =
+  let move_if_affected_with_length ?(replace_with_const=false) length (ask:ValueDomainQueries.t) x (v:varinfo) (movement_for_exp: exp -> int option) =
     normalize @@
     let move (i:int option) (e, (xl,xm, xr)) =
       match i with
@@ -377,8 +376,8 @@ struct
           let nval = join_of_all_parts x in
           let default = Joint nval in
           if replace_with_const then
-            let n = ask.f (Q.EvalInt e) in
-            match Q.ID.to_int n with
+            let n = ask.eval_int e in
+            match ValueDomainQueries.ID.to_int n with
             | Some i ->
               Partitioned ((Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i), (xl, xm, xr))
             | _ -> default
@@ -400,14 +399,14 @@ struct
               begin
                 match Idx.to_int l with
                 | Some i ->
-                  let b = Q.may_be_less ask e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
+                  let b = ValueDomainQueries.may_be_less ask.eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
                   not b (* !(e <_{may} length) => e >=_{must} length *)
                 | None -> false
               end
             | _ -> false
           in
           let e_must_less_zero =
-            Q.eval_int_binop (module Q.MustBool) Lt ask e Cil.zero (* TODO: untested *)
+            ValueDomainQueries.eval_int_binop (module BoolDomain.MustBool) Lt ask.eval_int e Cil.zero (* TODO: untested *)
           in
           if e_must_bigger_max_index then
             (* Entire array is covered by left part, dropping partitioning. *)
@@ -423,7 +422,7 @@ struct
 
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
-  let set_with_length length (ask:Q.ask) x (i,_) a =
+  let set_with_length length (ask:ValueDomainQueries.t) x (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
     if i = Some MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
@@ -435,8 +434,8 @@ struct
       normalize @@
       let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
       let exp_value e =
-        let n = ask.f (Q.EvalInt e) in
-        Option.map BI.of_bigint (Q.ID.to_int n)
+        let n = ask.eval_int e in
+        Option.map BI.of_bigint (ValueDomainQueries.ID.to_int n)
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
       let equals_maxIndex e =
@@ -460,20 +459,20 @@ struct
          | _ -> Joint (Val.join v a)
         )
       | Partitioned (e, (xl, xm, xr)) ->
-        let isEqual = Q.must_be_equal ask in
+        let isEqual = ValueDomainQueries.must_be_equal ask.eval_int in
         match i with
         | Some i' when not use_last || not_allowed_for_part i' -> begin
             let default =
               let left =
-                match Q.may_be_less ask i' e with     (* (may i < e) ? xl : bot *) (* TODO: untested *)
+                match ValueDomainQueries.may_be_less ask.eval_int i' e with     (* (may i < e) ? xl : bot *) (* TODO: untested *)
                 | false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
-                match Q.may_be_equal ask i' e with    (* (may i = e) ? xm : bot *)
+                match ValueDomainQueries.may_be_equal ask.eval_int i' e with    (* (may i = e) ? xm : bot *)
                 | false -> xm
                 | _ -> Val.join xm a in
               let right =
-                match Q.may_be_less ask e i' with     (* (may i > e) ? xr : bot *) (* TODO: untested *)
+                match ValueDomainQueries.may_be_less ask.eval_int e i' with     (* (may i > e) ? xr : bot *) (* TODO: untested *)
                 | false -> xr
                 | _ -> lubIfNotBot xr in
               Partitioned (e, (left, middle, right))
@@ -501,35 +500,35 @@ struct
             Partitioned (e, (xl, a, xr))
           else
             let left = if equals_zero i' then Val.bot () else Val.join xl @@ Val.join
-                  (match Q.may_be_equal ask e i' with (* TODO: untested *)
+                  (match ValueDomainQueries.may_be_equal ask.eval_int e i' with (* TODO: untested *)
                    | false -> Val.bot()
                    | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
                   (
                     let t = Cilfacade.typeOf e in
                     let ik = Cilfacade.get_ikind t in
-                    match Q.must_be_equal ask (BinOp(PlusA, e, Cil.kinteger ik 1, t)) i' with
+                    match ValueDomainQueries.must_be_equal ask.eval_int (BinOp(PlusA, e, Cil.kinteger ik 1, t)) i' with
                     | true -> xm
                     | _ ->
                       begin
-                        match Q.may_be_less ask e i' with (* TODO: untested *)
+                        match ValueDomainQueries.may_be_less ask.eval_int e i' with (* TODO: untested *)
                         | false-> Val.bot()
                         | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
                       end
                   )
             in
             let right = if equals_maxIndex i' then Val.bot () else  Val.join xr @@  Val.join
-                  (match Q.may_be_equal ask e i' with (* TODO: untested *)
+                  (match ValueDomainQueries.may_be_equal ask.eval_int e i' with (* TODO: untested *)
                    | false -> Val.bot()
                    | _ -> xm)
 
                   (
                     let t = Cilfacade.typeOf e in
                     let ik = Cilfacade.get_ikind t in
-                    match Q.must_be_equal ask (BinOp(PlusA, e, Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
+                    match ValueDomainQueries.must_be_equal ask.eval_int (BinOp(PlusA, e, Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
                     | true -> xm
                     | _ ->
                       begin
-                        match Q.may_be_less ask i' e with (* TODO: untested *)
+                        match ValueDomainQueries.may_be_less ask.eval_int i' e with (* TODO: untested *)
                         | false -> Val.bot()
                         | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
                       end
@@ -734,10 +733,10 @@ struct
 
   let domain_of_t _ = TrivialDomain
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
+  let get ?(checkBounds=true) (ask : ValueDomainQueries.t) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
-  let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
+  let set (ask: ValueDomainQueries.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
@@ -775,7 +774,7 @@ struct
 
   let domain_of_t _ = PartitionedDomain
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
+  let get ?(checkBounds=true) (ask : ValueDomainQueries.t) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
@@ -826,10 +825,10 @@ struct
 
   let domain_of_t _ = UnrolledDomain
 
-  let get ?(checkBounds=true) (ask : Q.ask) (x, (l : idx)) (e, v) =
+  let get ?(checkBounds=true) (ask : ValueDomainQueries.t) (x, (l : idx)) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
-  let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
+  let set (ask: ValueDomainQueries.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
   let length (_,l) = Some l
 
@@ -900,12 +899,12 @@ struct
       else
         P.get ~checkBounds a x (e, i)
     ) (fun x -> T.get ~checkBounds a x (e,i)) (fun x -> U.get ~checkBounds a x (e,i)) x
-  let set (ask:Q.ask) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
+  let set (ask:ValueDomainQueries.t) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
   let length = unop' P.length T.length U.length
   let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
   let fold_left f s = unop' (P.fold_left f s) (T.fold_left f s) (U.fold_left f s)
 
-  let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
+  let move_if_affected ?(replace_with_const=false) (ask:ValueDomainQueries.t) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
   let get_vars_in_e = unop' P.get_vars_in_e T.get_vars_in_e U.get_vars_in_e
   let smart_join f g = binop_to_t' (P.smart_join f g) (T.smart_join f g) (U.smart_join f g)
   let smart_widen f g =  binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)

@@ -101,7 +101,7 @@ struct
       let oldv = get_var a gs st var in
       let oldv = map_oldval oldv var.vtype in
       let offs = convert_offset a gs st o in
-      let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+      let newv = VD.update_offset (Queries.to_value_domain_ask a) oldv offs c' (Some exp) x (var.vtype) in
       let v = VD.meet oldv newv in
       if is_some_bot v then contra st
       else (
