@@ -2451,8 +2451,9 @@ struct
     let glob_fun v = failwith "glob fun should not be called." in
     let ask = Analyses.ask_of_ctx ctx in
     let reachable_addresses = collect_funargs ask ~warn:false glob_fun ctx.local args in
-    let tainted_lvals = f_ask.f Q.MayBeTainted in
-    if Q.LS.is_top tainted_lvals then
+    let written_addresses = f_ask.f Q.Written in
+
+    if WrittenDomain.Written.is_top written_addresses then
       failwith "Everything tainted -> should set everything reachable to top!"
     else
       let address_to_canonical a =
@@ -2460,35 +2461,40 @@ struct
         let canonical = ModularUtil.type_to_varinfo t in
         canonical
       in
-      let tainted_vars_to_lvals : Q.LS.t VarMap.t =
-        let insert_lval lv = function
-          | None -> Some (Q.LS.singleton lv)
-          | Some s -> Some (Q.LS.add lv s)
+      let tainted_vars_to_lvals : AD.t VarMap.t =
+        let insert_entry (v, offs) = function
+          | None -> Some (AD.from_var_offset (v, offs))
+          | Some s -> Some (AD.join (AD.from_var_offset (v, offs)) s)
         in
-        let update_entry ((v, _) as lv) =
-          VarMap.modify_opt v (insert_lval lv)
+        let insert acc (v, offs) =
+          VarMap.modify_opt v (insert_entry (v, offs)) acc
         in
-        Q.LS.fold update_entry tainted_lvals VarMap.empty
+        let update_entry (ad: address) _ (acc: AD.t VarMap.t) =
+          let lvals = AD.to_var_offset ad in
+          List.fold insert acc lvals
+        in
+        WrittenDomain.Written.fold update_entry written_addresses VarMap.empty
       in
       let get_tainted_offsets (ad: AD.t) : AD.t =
         let canonical = address_to_canonical ad in
         let modified_on_canonical = VarMap.find canonical tainted_vars_to_lvals in
-        let add_with_offset (v, offset) acc =
-          let offset = Lval.CilLval.to_ciloffs offset in
-          let offset = convert_offset f_ask glob_fun au offset in
-          let ad_with_offset = AD.map (fun a -> Addr.add_offset a offset) ad in
-          M.tracel "combine_env_modular" "add_with_offset: %a, offset was %a.\n" AD.pretty ad_with_offset Offs.pretty offset;
-          AD.union acc ad_with_offset
+        let add_with_offset modified_address_callee acc =
+          match Addr.to_var_offset modified_address_callee with
+          | Some (v, offset) ->
+            let ad_with_offset = AD.map (fun a -> Addr.add_offset a offset) ad in
+            M.tracel "combine_env_modular" "add_with_offset: %a, offset was %a.\n" AD.pretty ad_with_offset Offs.pretty offset;
+            AD.union acc ad_with_offset
+          | None -> acc
         in
         let modified_offsets =
-          Q.LS.fold add_with_offset modified_on_canonical (AD.bot ()) in
+          AD.fold add_with_offset modified_on_canonical (AD.bot ()) in
         modified_offsets
       in
-      M.tracel "combine_env_modular" "tainted lval set: %a\n" Q.LS.pretty tainted_lvals;
+      M.tracel "combine_env_modular" "written addresses: %a\n" WrittenDomain.Written.pretty written_addresses;
       let tainted_reachable_addresses = List.map get_tainted_offsets reachable_addresses in
       M.tracel "combine_env_modular" "tainted_reachable_addresses %a \n" (d_list ", " AD.pretty) tainted_reachable_addresses;
-      (* First version: if r in reachable_addresses and canonical_var(r) in tainted, set r to top! *)
-      (* TODO: if r.o has been changed in called function adapt value v of h(r.o) in called function with h^{-1}(v), and weakly add it to value of r.o *)
+      (* Current version: if r.o in reachable_addresses and canonical_var(r.o.o') in tainted, set r.o.o' to top! *)
+      (* TODO: if r.o.o' has been changed in called function adapt value v of h(r.o.o') in called function with h^{-1}(v), and weakly add it to value of r.o.o' *)
       let tainted_with_values = List.map (fun a -> a, AD.get_type a, VD.top_value (AD.get_type a)) tainted_reachable_addresses in
       let store = set_many ~ctx ask glob_fun ctx.local tainted_with_values in
       store
