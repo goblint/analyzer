@@ -811,7 +811,8 @@ struct
         let extra_is_safe =
           match evalbinop_base a st op t1 a1 t2 a2 typ with
           | `Int i -> ID.to_bool i = Some true
-          | _ -> false
+          | _
+          | exception IntDomain.IncompatibleIKinds _ -> false
         in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
