@@ -1942,7 +1942,7 @@ struct
 
     let globals = global_variables () in
     (* TODO: All accesses to global x have to go through global_varinfo x *)
-    let globals = List.map (fun x -> (ModularUtil.canonical_varinfo x, VD.top_value_typed_address_targets x.vtype)) (globals) in
+    let globals = List.map (fun x -> (ModularUtil.varinfo_to_canonical x, VD.top_value_typed_address_targets x.vtype)) (globals) in
     let globals_targets = List.concat_map (fun (_, (_, ts)) -> ts) globals |> VS.of_list in
     let globals = List.map (fun (x, (v, _)) -> (x, v)) globals in
 

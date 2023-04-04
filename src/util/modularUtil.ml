@@ -1,13 +1,14 @@
 open GoblintCil
-open GobConfig
 
-let type_to_varinfo t =
-  TypeVarinfoMap.to_varinfo t
+include ModularUtil0
 
-let canonical_varinfo x =
-  let t = x.vtype in
-  TypeVarinfoMap.to_varinfo t
+module AD = ValueDomain.AD
+module Addr = ValueDomain.Addr
 
-(** If [x] is global and we are in ["modular"] mode, retrieves the canonical_varinfo for [x], else returns [x] itself *)
-let varinfo_or_canonical x =
-  if get_bool "modular" && x.vglob then canonical_varinfo x else x
+let address_to_canonical a =
+  let t = Addr.get_type a in
+  type_to_varinfo t
+(** From a set of [reachable_adresses], find all those represented by [canonical] varinfo.
+    This is the basic h^{-1}. *)
+let represented_by ~(canonical:varinfo) ~(reachable_addresses:AD.t) =
+  AD.filter (fun a -> CilType.Varinfo.equal canonical (address_to_canonical a)) reachable_addresses

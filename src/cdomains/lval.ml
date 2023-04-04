@@ -267,7 +267,7 @@ struct
     | _ -> Some Basetype.Variables.Local
 
   let from_var_offset (x, o) =
-    let x = ModularUtil.varinfo_or_canonical x in
+    let x = ModularUtil0.varinfo_or_canonical x in
     Addr (x, o)
 
   let from_var x =
