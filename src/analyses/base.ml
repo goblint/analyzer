@@ -808,7 +808,12 @@ struct
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
-        let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
+        let extra_is_safe =
+          match evalbinop_base a st op t1 a1 t2 a2 typ with
+          | `Int i -> ID.to_bool i = Some true
+          | _ -> false
+        in
+        let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
         evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
