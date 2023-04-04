@@ -1286,9 +1286,8 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
-    | Q.EvalValueYojson e ->
-      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-      `Lifted (VD.to_yojson v)
+    | Q.EvalValue e ->
+      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.BlobSize e -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
