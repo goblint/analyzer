@@ -3,20 +3,17 @@
 open Prelude.Ana
 open Analyses
 
+module Q = Queries
+
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module VD = ValueDomain.Compound
 
-  module AD = struct
-    include ValueDomain.AD
-    include Printable.Std
-  end
 
   let name () = "written"
   (* Value of entries not in mapping: bot, LiftTop such that there is a `Top map. *)
-  module D = MapDomain.MapBot_LiftTop (AD) (VD)
+  module D = WrittenDomain.Written
   module C = Lattice.Unit
 
   let context _ _ = C.bot ()
@@ -24,10 +21,14 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
-    let lv = ask.f (Queries.EvalLval lval) in
-    let rv = ask.f (Queries.EvalExp rval) in
-    let st = D.add lv rv ctx.local in
-    st
+    match ask.f (Queries.EvalLval lval) with
+      | `Top ->
+        M.warn "Written lvalue is top. Write is not recorded!";
+        ctx.local
+      | `Lifted lv ->
+        let rv = ask.f (Queries.EvalExp rval) in
+        let st = D.add lv rv ctx.local in
+        st
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -46,8 +47,9 @@ struct
     au
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    (* For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
+    (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
     (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
+    M.warn "combine_assign does not yet incorporate the impact of the called function.";
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -57,6 +59,13 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
+
+  let query ctx (type a) (q: a Q.t): a Q.result =
+    match q with
+    | Written ->
+      let written : D.t = ctx.local in
+      written
+    | _ -> Q.Result.top q
 end
 
 let _ =

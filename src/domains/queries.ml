@@ -12,7 +12,8 @@ module LS = VDQ.LS
 
 module VD = ValueDomain.Compound
 
-module AD = ValueDomain.AD
+module AD = Lattice.LiftTop (ValueDomain.AD)
+
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
@@ -104,7 +105,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
-  | Written: BaseDomain.CPA.t t
+  | Written: WrittenDomain.Written.t t
 
 type 'a result = 'a
 
@@ -167,7 +168,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
-    | Written -> (module BaseDomain.CPA)
+    | Written -> (module WrittenDomain.Written)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -229,7 +230,7 @@ struct
     | MayAccessed -> AccessDomain.EventSet.top ()
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
-    | Written -> BaseDomain.CPA.top ()
+    | Written -> WrittenDomain.Written.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,

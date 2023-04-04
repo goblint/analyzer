@@ -1372,6 +1372,11 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
+    | Q.EvalLval lval ->
+      let addrs = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      `Lifted addrs
+    | Q.EvalExp e ->
+      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
     | Q.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr (V.priv x)) in
