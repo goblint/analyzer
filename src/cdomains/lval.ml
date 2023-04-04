@@ -20,7 +20,7 @@ end
 
 module Offset (Idx: IdxPrintable) =
 struct
-  type t = (fieldinfo, Idx.t) offs
+  type t = (CilType.Fieldinfo.t, Idx.t) offs [@@deriving eq, ord, hash]
   include Printable.StdLeaf
 
   let name () = "offset"
@@ -39,13 +39,6 @@ struct
     | `Field (x, o) ->
       if is_first_field x then cmp_zero_offset o else `MustNonzero
 
-  let rec equal x y =
-    match x, y with
-    | `NoOffset , `NoOffset -> true
-    | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
-    | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
-    | _ -> false
-
   let rec show = function
     | `NoOffset -> ""
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
@@ -61,10 +54,6 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let rec hash = function
-    | `NoOffset -> 1
-    | `Field (f,o) -> Hashtbl.hash f.fname * hash o + 13
-    | `Index (_,o) -> hash o
   let name () = "Offset"
 
   let from_offset x = x
@@ -81,19 +70,6 @@ struct
     | `NoOffset -> o2
     | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
-
-  let rec compare o1 o2 = match o1, o2 with
-    | `NoOffset, `NoOffset -> 0
-    | `Field (f1,o1), `Field (f2,o2) ->
-      let c = CilType.Fieldinfo.compare f1 f2 in
-      if c=0 then compare o1 o2 else c
-    | `Index (i1,o1), `Index (i2,o2) ->
-      let c = Idx.compare i1 i2 in
-      if c=0 then compare o1 o2 else c
-    | `NoOffset, _ -> -1
-    | _, `NoOffset -> 1
-    | `Field _, `Index _ -> -1
-    | `Index _, `Field _ ->  1
 
   let rec to_cil_offset (x:t) =
     match x with
