@@ -2,6 +2,7 @@ open GoblintCil
 open Pretty
 
 module GU = Goblintutil
+module M = Messages
 
 type ('a, 'b) offs = [
   | `NoOffset
@@ -177,6 +178,7 @@ struct
   let semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs =
     let x_index = offset_to_index_offset xtyp xoffs in
     let y_index = offset_to_index_offset ytyp yoffs in
+    if M.tracing then M.tracel "addr" "xoffs=%a xtyp=%a xindex=%a yoffs=%a ytyp=%a yindex=%a\n" pretty xoffs d_plaintype xtyp Idx.pretty x_index pretty yoffs d_plaintype ytyp Idx.pretty y_index;
     Idx.to_bool (Idx.eq x_index y_index)
 
 end
