@@ -282,14 +282,13 @@ struct
     (* Don't yet consider call edge done before assign. *)
     assert (Dom.cardinal (fst ctx.local) = 1);
     let (cd, cdr) = Dom.choose (fst ctx.local) in
-    let k x y =
+    let k x (y, sync) =
       try
         let x' = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
-        Dom.add x' cdr y (* keep predecessors from ctx *)
-      with Deadcode -> y
+        (Dom.add x' cdr y, Sync.add x' (Sync.find cd (snd ctx.local)) sync) (* keep predecessors and sync from ctx, sync required for step_ctx_inlined_edge in combine_assign *)
+      with Deadcode -> (y, sync)
     in
-    let d = Dom.fold_keys k (fst d) (Dom.bot ()) in
-    let d = (d, snd ctx.local) in (* keep sync from ctx *)
+    let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
 
   let combine_assign ctx l fe f a fc d  f_ask =
