@@ -50,7 +50,7 @@ int main() {
   void *p = &a.fst;
   void *q = ((int(*)[1]) (&a))[0];
   // as an __goblint_check, this passes when compiled
-  __goblint_check(p == q); //UNKNOWN
+  __goblint_check(p == q);
 
   blob_offsets();
   array_offsets();

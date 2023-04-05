@@ -12,6 +12,6 @@ int main() {
   a *n = &y[0]; // {&z[def_exc:0]}
 
   int b = m == n;
-  assert(b); // UNKNOWN
+  assert(b);
   return 0;
 }
