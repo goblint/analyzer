@@ -705,7 +705,7 @@ let () =
       exp: string option [@default None];
       vid: int option [@default None]; (* eval varinfo by vid to avoid exp parsing problems *)
     } [@@deriving of_yojson]
-    type response = Queries.FlatYojson.t [@@deriving to_yojson]
+    type response = Queries.VD.t [@@deriving to_yojson]
     let process (params: params) serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
       let open ArgWrapper in
@@ -733,7 +733,7 @@ let () =
           | _, _ ->
             Response.Error.(raise (make ~code:RequestFailed ~message:"requires exp xor vid" ()))
         in
-        Arg.query n (EvalValueYojson exp)
+        Arg.query n (EvalValue exp)
       | exception Not_found -> Response.Error.(raise (make ~code:RequestFailed ~message:"non-existent node" ()))
   end);
 

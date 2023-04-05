@@ -29,6 +29,7 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
   end)
 
 module SD = Basetype.Strings
+module VD = ValueDomain.Compound
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
@@ -73,7 +74,7 @@ type _ t =
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
-  | EvalValueYojson: exp -> FlatYojson.t t (** Yojson because [ValueDomain] would have dependency cycle. *)
+  | EvalValue: exp -> VD.t t
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
@@ -133,7 +134,7 @@ struct
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
-    | EvalValueYojson _ -> (module FlatYojson)
+    | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
@@ -192,7 +193,7 @@ struct
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
-    | EvalValueYojson _ -> FlatYojson.top ()
+    | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
@@ -268,7 +269,7 @@ struct
     | Any MayBeTainted -> 41
     | Any (PathQuery _) -> 42
     | Any DYojson -> 43
-    | Any (EvalValueYojson _) -> 44
+    | Any (EvalValue _) -> 44
     | Any (EvalJumpBuf _) -> 45
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
@@ -293,7 +294,7 @@ struct
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
-      | Any (EvalValueYojson e1), Any (EvalValueYojson e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
       | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
@@ -334,7 +335,7 @@ struct
     | Any (EvalInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
-    | Any (EvalValueYojson e) -> CilType.Exp.hash e
+    | Any (EvalValue e) -> CilType.Exp.hash e
     | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
@@ -378,7 +379,7 @@ struct
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
-    | Any (EvalValueYojson e) -> Pretty.dprintf "EvalValueYojson %a" CilType.Exp.pretty e
+    | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
     | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
