@@ -26,7 +26,7 @@ struct
         M.warn "Written lvalue is top. Write is not recorded!";
         ctx.local
       | `Lifted lv ->
-        let rv = ask.f (Queries.EvalExp rval) in
+        let rv = ask.f (Queries.EvalValue rval) in
         let st = D.add lv rv ctx.local in
         st
 

@@ -346,6 +346,7 @@ struct
             let ay = AD.choose y in
             let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
+                if M.tracing then M.tracel "addr" "IsMultiple %a\n" d_varinfo v;
                 None
               | _ ->
                 Some true
@@ -353,6 +354,7 @@ struct
             in
             match AD.Addr.semantic_equal ax ay with
             | Some true ->
+              if M.tracing then M.tracel "addr" "semantic_equal %a %a\n" AD.pretty x AD.pretty y;
               handle_address_is_multiple ax
             | Some false -> Some false
             | None -> None
@@ -1287,9 +1289,8 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
-    | Q.EvalValueYojson e ->
-      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-      `Lifted (VD.to_yojson v)
+    | Q.EvalValue e ->
+      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.BlobSize e -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
@@ -1375,8 +1376,6 @@ struct
     | Q.EvalLval lval ->
       let addrs = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       `Lifted addrs
-    | Q.EvalExp e ->
-      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
     | Q.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr (V.priv x)) in

@@ -31,6 +31,17 @@
       "lines": true
     }
   },
+  "lib": {
+    "activated": [
+      "c",
+      "posix",
+      "pthread",
+      "gcc",
+      "glibc",
+      "linux-userspace",
+      "zstd"
+    ]
+  },
   "sem": {
     "unknown_function": {
       "spawn": false,

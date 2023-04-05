@@ -2,6 +2,7 @@ open GoblintCil
 open Pretty
 
 module GU = Goblintutil
+module M = Messages
 
 type ('a, 'b) offs = [
   | `NoOffset
@@ -163,20 +164,24 @@ struct
         let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
         Idx.add bits_offset remaining_offset
       | `Index (x, o) ->
-        match Option.map unrollType typ with
-        | Some TArray(item_typ, _, _) ->
-          let item_size_in_bits = bitsSizeOf item_typ in
-          let item_size_in_bits = idx_of_int item_size_in_bits in
-          let bits_offset = Idx.mul item_size_in_bits x in
-          let remaining_offset = offset_to_index_offset ~typ:item_typ o in
-          Idx.add bits_offset remaining_offset
-        | _ -> Idx.top ()
+        let (item_typ, item_size_in_bits) =
+          match Option.map unrollType typ with
+          | Some TArray(item_typ, _, _) ->
+            let item_size_in_bits = bitsSizeOf item_typ in
+            (Some item_typ, idx_of_int item_size_in_bits)
+          | _ ->
+            (None, Idx.top ())
+        in
+        let bits_offset = Idx.mul item_size_in_bits x in
+        let remaining_offset = offset_to_index_offset ?typ:item_typ o in
+        Idx.add bits_offset remaining_offset
     in
     offset_to_index_offset ~typ offs
 
   let semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs =
     let x_index = offset_to_index_offset xtyp xoffs in
     let y_index = offset_to_index_offset ytyp yoffs in
+    if M.tracing then M.tracel "addr" "xoffs=%a xtyp=%a xindex=%a yoffs=%a ytyp=%a yindex=%a\n" pretty xoffs d_plaintype xtyp Idx.pretty x_index pretty yoffs d_plaintype ytyp Idx.pretty y_index;
     Idx.to_bool (Idx.eq x_index y_index)
 
 end
