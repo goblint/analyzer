@@ -45,7 +45,6 @@ let exitstate = startstate
 (* functions for join-check *)
  (* symmetric prefix *)
  let is_trace_joinable_symmetric candidate graph prefixNode = 
-  (* TODO vlt muss ich hier mit Ausnahme von prefixNode auch die Gleichheit der Successors überprüfen *)
   let rec inner_loop edgeList =
      match edgeList with (pred_node,_,_)::xs -> if loop pred_node then inner_loop xs else (print_string("loop in inner_loop resulted in false\n"); false)
        | [] -> true
@@ -1065,7 +1064,8 @@ myTmp
   let result_graph = LocalTraces.extend_by_gEdge graph myEdge
   in
       [result_graph])
-      | _ -> Printf.printf "Error: wrong amount of arguments for pthread_mutex_destroy in special\n"; exit 0) 
+      | _ -> Printf.printf "Error: wrong amount of arguments for pthread_mutex_destroy in special\n"; exit 0)
+
     else if String.equal f.vname "rand" then (
       match lval with 
       | Some(Var(var), NoOffset) ->
@@ -1079,7 +1079,7 @@ myTmp
       let result_graph = LocalTraces.extend_by_gEdge graph myEdge
     in
         [result_graph]
-      | _ -> print_string "In special, lval for srand is not suitable\n"; exit 0
+      | _ -> print_string "In special, lval for rand is not suitable\n"; exit 0
     )
     else
     (print_string ("This edge is not one of my considered special functions\n"); 

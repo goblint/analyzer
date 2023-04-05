@@ -307,7 +307,7 @@ match tmp_result with
   )
 in loop []
 
-  (* Returns next node fo *)
+  (* Returns next node succeeding previous node with given label *)
     let get_succeeding_node prev_node edge_label graph =
   print_string ("LocalTraces.get_succeeding_node was invoked with prev_node="^(NodeImpl.show prev_node)^", edge_label="^(EdgeImpl.show edge_label)^" and\n"^(show graph)^"\n");
   let edgeList = get_all_edges graph
@@ -319,37 +319,39 @@ List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
       ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=VarinfoSet.empty} edgeList
   in print_string ("in LocalTraces.get_succeeding_node we found the node "^(NodeImpl.show tmp)^"\n"); tmp
 
-(* finds the return endpoint of a calling node *)
+(* Finds the return endpoint of a calling node. 
+   Since function calls can be needed, we use a saldo which indicates in what calling depth the computation is starting at prev_node. *)
     let find_returning_node prev_node edge_label graph =
   let node_start = get_succeeding_node prev_node edge_label graph
 in
 print_string ("find_returning_node was invoked with node_start="^(NodeImpl.show node_start)^"\n");
-let rec find_returning_node_helper current_node current_saldo =(
-  (* print_string("find_returning_node_helper has been invoked with current_node="^(NodeImpl.show current_node)^", current_saldo="^(string_of_int current_saldo)^"\n"); *)
-  let succeeding_edges = get_successors_edges graph current_node
+let rec find_returning_node_helper current_node current_saldo =(let succeeding_edges = get_successors_edges graph current_node
 in
-(* print_string ("succeeding_edges="^(List.fold (fun acc_fold edge_fold -> (show_edge edge_fold)^"; "^acc_fold) "" succeeding_edges)^"\n"); *)
 List.fold (fun acc_node ((prev_fold:node), (edge_fold:CustomEdge.t), (dest_fold:node)) -> 
   if prev_fold.tid != dest_fold.tid then acc_node else
   match edge_fold with 
     | Proc(_, Lval(Var(fvinfo), NoOffset), _) -> 
-      (* check whether function is one of my special functions*)
+      (* check whether function is one of my supported special functions*)
       if (String.equal fvinfo.vname "pthread_mutex_lock") 
         || (String.equal fvinfo.vname "pthread_mutex_unlock")
       || (String.equal fvinfo.vname "pthread_create")
       || (String.equal fvinfo.vname "pthread_join")
       || (String.equal fvinfo.vname "pthread_mutex_destroy")
-      || (String.equal fvinfo.vname "pthread_exit") then find_returning_node_helper dest_fold current_saldo
+      || (String.equal fvinfo.vname "pthread_exit")
+      || (String.equal fvinfo.vname "time")
+      || (String.equal fvinfo.vname "srand")
+      || (String.equal fvinfo.vname "pthread_mutex_init") then find_returning_node_helper dest_fold current_saldo
       else find_returning_node_helper dest_fold (current_saldo +1)
     | Proc(_) -> find_returning_node_helper dest_fold (current_saldo +1)
     | Ret(_) -> if current_saldo = 1 then dest_fold else find_returning_node_helper dest_fold (current_saldo - 1)
-    (* ein paar Kanten dürfen nicht weiter verfolgt werden wie z.B. depMutex*)
     | _ -> find_returning_node_helper dest_fold current_saldo
   ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=VarinfoSet.empty} succeeding_edges
   )
 in find_returning_node_helper node_start 1
 
-(* Interface for possible improvement: integrate last-component to LocalTraces-datastructure *)
+(* Interface for possible improvement: 
+Instead of conducting each time a search for the last node, store it as a component at the local trace datastructure *)
+
 (* Searches for last node in a trace. It has to contain the programPoint, otherwise an error-node is returned *)
     let get_last_node_progPoint graph programPoint =
       let allNodes = get_all_nodes graph
@@ -360,6 +362,7 @@ in find_returning_node_helper node_start 1
         | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
+    (* Searches for last node in a trace independently of the program point *)
     let get_last_node graph =
       let allNodes = get_all_nodes graph
     in 
@@ -369,7 +372,8 @@ in find_returning_node_helper node_start 1
         | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
-    
+  (* Searches for the first node in a trace. 
+     As the last node, this too could be stored as a component. *)
     let get_first_node graph =
       let allNodes = get_all_nodes graph
     in
@@ -379,6 +383,7 @@ in find_returning_node_helper node_start 1
       | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
+    (* Gets all nodes with corresponding program point. *)
     let get_all_nodes_progPoint graph programPoint=
     let allNodes = get_all_nodes graph
   in 
@@ -388,7 +393,9 @@ in find_returning_node_helper node_start 1
       | [] -> acc
   in loop allNodes []
   
-(* Interface for future efficient implementation *)
+(* Finds corresponding calling node to a given returning node. *)
+(* This function also has potential for efficiency improvements.
+   For example, each function call could be registered in an external datastructure where invocation and end point can be stored. *)
 let find_calling_node return_node graph progPoint =
   let allNodes = get_all_nodes_progPoint graph progPoint
 in
@@ -414,7 +421,7 @@ if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
       {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=VarinfoSet.empty}
     in loop allNodes
 
-    (* In this function I assume, that traces do not contain circles *)
+    (* Finds the creating node of a thread endpoint. *)
 let find_creating_node last_node graph  =
   print_string ("find_creating_node was invoked with last_node="^(NodeImpl.show last_node)^",\ngraph="^(show graph)^"\n");
   let lastNodeTid = last_node.tid
@@ -444,11 +451,13 @@ let workQueue = Queue.create ()
   | Some(found_node) -> found_node)
 in loop ()
 
+(* Checks whether a node exists in a trace. *)
 let exists_node graph node =
 let all_nodes = get_all_nodes graph
 in
 List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
 
+(* Checks whether two edge lists are equal. *)
   let equal_edge_lists edgeList1 edgeList2 =
     if List.length edgeList1 != List.length edgeList2 then false else
       (
@@ -459,9 +468,11 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
         loop edgeList1
       )
 
+      (* Merges two graphs into one. *)
   let merge_graphs graph1 graph2 =
     List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)  
 
+    (* Checks whether a thread-ID was already joined into a trace. *)
   let is_already_joined tid graph =
     let allEdges = get_all_edges graph
   in
@@ -472,7 +483,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       | [] -> false
     in loop allEdges  
 
-
+(* Checks whether node1 precedes node2 *)
     let precedes_other_node node1 node2 graph =
       let workQueue = Queue.create ()
     in
@@ -492,6 +503,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       Queue.add node2 workQueue;
       loop []
 
+      (* Gets last node before graph1 and graph2 diverge. This is also the prefix node *)
       let get_recent_divergent_node graph1 graph2 =
           let lastNode1 = get_last_node graph1
         in
@@ -512,6 +524,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
           )
         in loop lastNode1
 
+        (* Checks whether mutex was locked at least once in graph *)
     let exists_lock_mutex graph mutexVinfo =
       let allEdges = get_all_edges graph
     in
@@ -523,20 +536,14 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       | [] -> false
       in loop allEdges
 
-    let remove_first_lock graph mutexVinfo =
-      let allEdges = get_all_edges graph
-    in
-    let firstNode = get_first_node graph
-    in
-    List.fold (fun (graphAcc:t) ((prev_node, edge, dest_node):node*CustomEdge.t*node) -> 
-      if (NodeImpl.equal prev_node firstNode)
-        &&(match edge with DepMutex(edgeVinfo) -> CilType.Varinfo.equal mutexVinfo edgeVinfo
-      | _ -> false) then graphAcc
-       else extend_by_gEdge graphAcc (prev_node, edge, dest_node) 
-      ) (LocTraceGraph.empty) allEdges
-
-      (* Validity check of merged graphs *)
+      (* Helper functions for validity check of merged graphs *)
       module DepMutexCount = Map.Make(CilType.Varinfo)
+      (* Checks whether from each node at most on DepMutex-edge exists *)
+      (* This needs to be reimplemented to the condition given in the paper: 
+        for a mutex a every lock is preceded by
+        exactly one unlock (or it is the first lock, then by start) of a, and each unlock is directly
+        followed by at most one lock
+        Additionally, at a point a cycle check is needed  *)
     let maintains_depMutex_condition graph =
       let allNodes = get_all_nodes graph
     in let rec loop nodeList =
@@ -564,6 +571,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       in loop allNodes
 
       module NodeImplSet = Set.Make(NodeImpl)
+      (* Checks whether the graph contains a cycle *)
       let is_acyclic graph = 
         let firstNode = get_first_node graph
       in
@@ -579,15 +587,16 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       | [] -> true
       in loop_nodes NodeImplSet.empty firstNode
 
-      (* checks that every node has exactly one edge except some exceptions
+      (* Checks that every node has exactly one edge except some exceptions
          this is not the optimal way, it would be better to ensure not to produce such kind of merged traces 
          this needs to be improved in some point in the future *)
-         (* Here I assum that if one egde in the list is a pthread_create edge, then others are aswell*)
+         (* Here I assume that if one egde in the list is a pthread_create edge, then others are aswell*)
       let are_pthread_create_edges (edgeList : (node * CustomEdge.t * node) list) =
         match edgeList with (_, Proc(_, Lval(Var(fvinfo), NoOffset), _), _)::xs ->
           String.equal fvinfo.vname "pthread_create"
           | _ -> false
 
+          (* Checks whether the edgeList with cardinality > 1 contains exactly one actual edge beside DepMutexes *)
         let are_mostly_depMutexes allEdges =
           let rec loop (edgeList : (node * CustomEdge.t * node) list) counter =
             match edgeList with (_, DepMutex(_), _)::xs -> loop xs counter
@@ -596,7 +605,8 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
           in
           loop allEdges 0
 
-
+          (* Checks whether nodes have a reasonable amount of successor edges 
+             Either a node has at most one successor edges or the additional successor edges are create or dependency edges *)
       let has_valid_edge_branching graph = 
         let allNodes = get_all_nodes graph 
       in
@@ -615,28 +625,11 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
         in
         loop allNodes
 
+        (* Crucial function. Performs post-checks on merged graph *)
     let is_valid_merged_graph graph =
       (maintains_depMutex_condition graph) 
       && (is_acyclic graph)
        && (has_valid_edge_branching graph)
-
-      let get_first_lock graph mutex =
-        let allEdges = get_all_edges graph
-      in
-      let rec loop (edgeList: (node * CustomEdge.t * node) list) : (node * CustomEdge.t * node) =
-        match edgeList with 
-        | (prev_node,DepMutex(m),dest_node)::xs -> if (prev_node.id = 1) && (CilType.Varinfo.equal mutex m) then (prev_node,DepMutex(m),dest_node) else loop xs
-        | x::xs -> loop xs
-        | [] -> ({programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty}, Skip, {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty})
-        in loop allEdges
-
-    let have_same_first_lock graph1 graph2 mutex =
-      let (prevNode1, edge1, destNode1) = get_first_lock graph1 mutex
-    in
-    let (prevNode2, edge2, destNode2) = get_first_lock graph2 mutex
-  in 
-  (not (EdgeImpl.equal edge1 Skip)) && (EdgeImpl.equal edge1 edge2) && (NodeImpl.equal prevNode1 prevNode2) && (NodeImpl.equal destNode1 destNode2)
-
 
   end
 
@@ -645,10 +638,12 @@ module GraphSet = struct
 include SetDomain.Make(LocalTraces)
 end
 
+(* Converts a GraphSet.t to a list *)
 let graphSet_to_list graphSet =
   GraphSet.fold (fun g acc -> g::acc) graphSet []
 
-(* ID Generator *)
+(* ID Generator 
+   maintains info what node has which ID such that the ID's are consistent among local traces *)
 class id_generator = 
 object(self)
  val mutable currentID = 0
@@ -657,22 +652,22 @@ object(self)
   currentID <- currentID + 1; 
   currentID
 
-  (* TODO: TID vom destination node muss auch geprüft werden mit tid_find*)
+  (* Maybe prev_node and edge are enough to determine the ID of a dest_node? 
+     This needs to be tried out at some point in the future *)
   method getID (prev_node:node) (edge:CustomEdge.t) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) (dest_ls:VarinfoSet.t) =
     print_string "getID wurde aufgerufen\n";
     let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find;lockSet=ls_find}) -> 
      if (NodeImpl.equal prev_node prev_node_find)&&(CustomEdge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid)&&(VarinfoSet.equal ls_find dest_ls) then id_find else acc) (-1) edges 
   in 
   if id = (-1) then ( 
-    (* print_string ("No existing edge for this combination was found, so we create a new ID\n
-    for prev_node="^(NodeImpl.show prev_node)^", edge="^(EdgeImpl.show edge)^", dest_progPoint="^(Node.show dest_programPoint)^", dest_sigma="^(NodeImpl.show_sigma dest_sigma)^"\n
-in edges={"^(List.fold (fun acc_fold edge_fold -> acc_fold^(LocalTraces.show_edge edge_fold)^"\n") "" edges)^"}\n"); *)
   edges <- (prev_node, edge, {programPoint=dest_programPoint;sigma=dest_sigma;id=currentID+1;tid=dest_tid;lockSet=dest_ls})::edges; 
   self#increment ()) else (print_string ("id was found: "^(string_of_int id)^"\n"); id)
 end
 
 let idGenerator = new id_generator
 
+(* Random int Generator
+  Generates values in the interval of [-seed; seed] *)
 class random_int_generator =
 object(self)
   val mutable traceVarList:((int * varinfo * int) list) = []
@@ -715,6 +710,8 @@ let randomIntGenerator = new random_int_generator
 
 module VinfoMap = Map.Make(String)
 
+(* Stores mapping of variable name to varinfo 
+   This is needed because several created varinfos with same vname are not equal *)
 class custom_vinfo_store =
 object(self)
 val mutable vinfoMap: varinfo VinfoMap.t = VinfoMap.empty
@@ -742,6 +739,7 @@ end
 
 let customVinfoStore = new custom_vinfo_store
 
+(* Module for thread ID *)
 module ThreadIDLocTrace = struct
   type t = int
   let is_write_only _ = false
@@ -770,6 +768,8 @@ end
 
 module TIDSet = Set.Make(ThreadIDLocTrace)
 
+(* TID record 
+   Stores all existing thread IDs *)
 class tid_record =
 object(self)
 val mutable tidSet : TIDSet.t = TIDSet.empty
@@ -783,6 +783,7 @@ end
 
 let tidRecord = new tid_record
 
+(* Module that is used as a domain for side effect. *)
 module SideEffectDomain = struct
   type t = ThreadID of int | Mutex of varinfo
   let is_write_only _ = false
