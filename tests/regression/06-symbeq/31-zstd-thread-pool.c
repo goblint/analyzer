@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] symb_locks
+// PARAM: --set ana.activated[+] symb_locks --set lib.activated[+] zstd
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.

@@ -258,8 +258,7 @@ let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[b
 let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
 
 (** Linux kernel functions. *)
-(* TODO: conditional on kernel option *)
-let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("spin_lock_irqsave", special [__ "lock" []; drop "flags" []] @@ fun lock -> Lock { lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
     ("_raw_spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
@@ -396,7 +395,6 @@ let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_va
 
 (** SV-COMP functions.
     Just the ones that require special handling and cannot be stubbed. *)
-(* TODO: conditional on ana.sv-comp.functions option *)
 let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
@@ -427,22 +425,29 @@ let ncurses_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("wbkgd", unknown [drop "win" [r_deep; w_deep]; drop "ch" []]);
   ]
 
-(* TODO: allow selecting which lists to use *)
-let library_descs = Hashtbl.of_list (List.concat [
-    c_descs_list;
-    posix_descs_list;
-    pthread_descs_list;
-    gcc_descs_list;
-    glibc_desc_list;
-    linux_userspace_descs_list;
-    linux_descs_list;
-    goblint_descs_list;
-    zstd_descs_list;
-    math_descs_list;
-    svcomp_descs_list;
-    ncurses_descs_list;
-  ])
+let libraries = Hashtbl.of_list [
+  ("c", c_descs_list @ math_descs_list);
+  ("posix", posix_descs_list);
+  ("pthread", pthread_descs_list);
+  ("gcc", gcc_descs_list);
+  ("glibc", glibc_desc_list);
+  ("linux-userspace", linux_userspace_descs_list);
+  ("linux-kernel", linux_kernel_descs_list);
+  ("goblint", goblint_descs_list);
+  ("sv-comp", svcomp_descs_list);
+  ("ncurses", ncurses_descs_list);
+  ("zstd", zstd_descs_list);
+]
 
+let activated_library_descs: (string, LibraryDesc.t) Hashtbl.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let activated = List.unique (GobConfig.get_string_list "lib.activated") in
+      let desc_list = List.concat_map (Hashtbl.find libraries) activated in
+      Hashtbl.of_list desc_list
+    )
+
+let reset_lazy () =
+  ResettableLazy.reset activated_library_descs
 
 type categories = [
   | `Malloc       of exp
@@ -1149,7 +1154,7 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
 
 let find f =
   let name = f.vname in
-  match Hashtbl.find_option library_descs name with
+  match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
   | None ->
     match get_invalidate_action name with

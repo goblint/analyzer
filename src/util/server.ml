@@ -278,6 +278,7 @@ let analyze ?(reset=false) (s: t) =
   PrecisionUtil.reset_lazy ();
   ApronDomain.reset_lazy ();
   AutoTune.reset_lazy ();
+  LibraryFunctions.reset_lazy ();
   Access.reset ();
   s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
