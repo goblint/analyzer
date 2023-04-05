@@ -6,8 +6,9 @@ include PreValueDomain
 module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
 module GU = Goblintutil
-module Q = Queries
 module BI = IntOps.BigIntOps
+module VDQ = ValueDomainQueries
+module LS = VDQ.LS
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -15,12 +16,12 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
-  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> typ -> t
+  val eval_offset: VDQ.t -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
+  val update_offset: VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
-  val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
+  val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
-  val invalidate_value: Q.ask -> typ -> t -> t
+  val invalidate_value: VDQ.t -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
@@ -34,7 +35,7 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
-  val project: Q.ask -> int_precision option-> ( attributes * attributes ) option -> t -> t
+  val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
 end
 
@@ -46,7 +47,7 @@ sig
   include Lattice.S with type t = value * size * origin
 
   val value: t -> value
-  val invalidate_value: Q.ask -> typ -> t -> t
+  val invalidate_value: VDQ.t -> typ -> t -> t
 end
 
 (* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
@@ -670,7 +671,7 @@ struct
       warn_type "narrow" x y;
       x
 
-  let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
+  let rec invalidate_value (ask:VDQ.t) typ (state:t) : t =
     let typ = unrollType typ in
     let invalid_struct compinfo old =
       let nstruct = Structs.create (fun fd -> invalidate_value ask fd.ftype (Structs.get old fd)) compinfo in
@@ -714,7 +715,7 @@ struct
       end
     | _ -> None, None
 
-  let determine_offset (ask: Q.ask) left offset exp v =
+  let determine_offset (ask: VDQ.t) left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -739,9 +740,9 @@ struct
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
-        begin match ask.f (Q.MayPointTo (Lval lval)) with
-          | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
-            begin match Q.LS.choose v with
+        begin match ask.may_point_to (Lval lval) with
+          | v when LS.cardinal v = 1 && not (LS.is_top v) ->
+            begin match LS.choose v with
               | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
                 (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
                 add
@@ -806,8 +807,8 @@ struct
       x (* This already contains some value *)
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
-    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
+  let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
+    let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
       match x, offs with
       | `Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
@@ -877,8 +878,8 @@ struct
     in
     do_eval_offset ask f x offs exp l o v t
 
-  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
-    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
+  let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+    let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
@@ -904,7 +905,7 @@ struct
             | (Var var, Field (fld,_)) ->
               let toptype = fld.fcomp in
               let blob_size_opt = ID.to_int s in
-              not @@ ask.f (Q.IsMultiple var)
+              not @@ ask.is_multiple var
               && not @@ Cil.isVoidType t      (* Size of value is known *)
               && Option.is_some blob_size_opt (* Size of blob is known *)
               && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
@@ -924,7 +925,7 @@ struct
             begin match v with
               | (Var var, _) ->
                 let blob_size_opt = ID.to_int s in
-                not @@ ask.f (Q.IsMultiple var)
+                not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && Option.is_some blob_size_opt (* Size of blob is known *)
                 && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)

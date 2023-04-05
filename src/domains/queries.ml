@@ -3,44 +3,12 @@
 open GoblintCil
 
 module GU = Goblintutil
-module ID =
-struct
-  module I = IntDomain.IntDomTuple
-  include Lattice.Lift (I) (Printable.DefaultNames)
 
-  let lift op x = `Lifted (op x)
-  let unlift op x = match x with
-    | `Lifted x -> op x
-    | _ -> failwith "Queries.ID.unlift"
-  let unlift_opt op x = match x with
-    | `Lifted x -> op x
-    | _ -> None
-  let unlift_is op x = match x with
-    | `Lifted x -> op x
-    | _ -> false
+module VDQ = ValueDomainQueries
 
-  let bot_of = lift I.bot_of
-  let top_of = lift I.top_of
+module ID = VDQ.ID
 
-  let of_int ik = lift (I.of_int ik)
-  let of_bool ik = lift (I.of_bool ik)
-  let of_interval ?(suppress_ovwarn=false) ik = lift (I.of_interval ~suppress_ovwarn ik)
-  let of_excl_list ik = lift (I.of_excl_list ik)
-  let of_congruence ik = lift (I.of_congruence ik)
-  let starting ?(suppress_ovwarn=false) ik = lift (I.starting ~suppress_ovwarn ik)
-  let ending ?(suppress_ovwarn=false) ik = lift (I.ending ~suppress_ovwarn ik)
-
-  let to_int x = unlift_opt I.to_int x
-  let to_bool x = unlift_opt I.to_bool x
-
-  let is_top_of ik = unlift_is (I.is_top_of ik)
-
-  let is_bot_ikind = function
-    | `Bot -> false
-    | `Lifted x -> I.is_bot x
-    | `Top -> false
-end
-module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
@@ -437,16 +405,15 @@ struct
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
 end
 
+let to_value_domain_ask (ask: ask) =
+  let eval_int e = ask.f (EvalInt e) in
+  let may_point_to e = ask.f (MayPointTo e) in
+  let is_multiple v = ask.f (IsMultiple v) in
+  { VDQ.eval_int; may_point_to; is_multiple }
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
-  let e = Cilfacade.makeBinOp binop e1 e2 in
-  let i = ask.f (EvalInt e) in
-  if ID.is_bot i || ID.is_bot_ikind i then
-    Bool.top () (* base returns bot for non-int results, consider unknown *)
-  else
-    match ID.to_bool i with
-    | Some b -> b
-    | None -> Bool.top ()
+  let eval_int e = ask.f (EvalInt e) in
+  VDQ.eval_int_binop (module Bool) binop eval_int e1 e2
 
 (** Backwards-compatibility for former [MustBeEqual] query. *)
 let must_be_equal = eval_int_binop (module MustBool) Eq

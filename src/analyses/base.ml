@@ -465,7 +465,7 @@ struct
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
         let var = get_var a gs st x in
-        let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+        let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c,s,_) -> c
@@ -528,7 +528,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -665,7 +665,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -977,7 +977,7 @@ struct
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
         let v' = do_offs v' ofs in (* handle blessed fields? *)
         v'
       in
@@ -1441,8 +1441,8 @@ struct
       in
       let update_offset old_value =
         (* Projection globals to highest Precision *)
-        let projected_value = project_val a None None value (is_global a x) in
-        let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+        let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
+        let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then
@@ -1513,10 +1513,10 @@ struct
                 | Some (Lval(Var l',NoOffset)), Some r' ->
                   begin
                     let moved_by = movement_for_expr l' r' in
-                    VD.affect_move a v x moved_by
+                    VD.affect_move (Queries.to_value_domain_ask a) v x moved_by
                   end
                 | _  ->
-                  VD.affect_move a v x (fun x -> None)
+                  VD.affect_move (Queries.to_value_domain_ask a) v x (fun x -> None)
               else
                 let patched_ask =
                   (* The usual recursion trick for ctx. *)
@@ -1540,7 +1540,7 @@ struct
                 in
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 (* TODO: why does affect_move need general ask (of any query) instead of eval_exp? *)
-                VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
+                VD.affect_move (Queries.to_value_domain_ask patched_ask) v x moved_by     (* was a set call caused e.g. by a guard *)
             in
             { st with cpa = update_variable arr arr.vtype nval st.cpa }
           in
@@ -1735,7 +1735,7 @@ struct
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
-              let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | None ->
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
@@ -1812,7 +1812,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | _ ->
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
-      let nst_part = rem_many_partitioning (Analyses.ask_of_ctx ctx) ctx.local locals in
+      let nst_part = rem_many_partitioning (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) ctx.local locals in
       let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
       match exp with
       | None -> nst
@@ -1872,7 +1872,7 @@ struct
     let invalidate_address st a =
       let t = AD.get_type a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
-      let nv =  VD.invalidate_value ask t v in
+      let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v in
       (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
@@ -1928,7 +1928,7 @@ struct
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
-    let new_cpa = project (Analyses.ask_of_ctx ctx) (Some p) new_cpa fundec in
+    let new_cpa = project (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2376,7 +2376,7 @@ struct
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
       in
-      let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
+      let cpa' = project (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (Some p) nst.cpa callerFundec in
 
       if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
 
@@ -2399,7 +2399,7 @@ struct
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
       in
-      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+      let return_val = project_val (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
 
       match lval with
       | None      -> st
