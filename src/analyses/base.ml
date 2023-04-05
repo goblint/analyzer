@@ -346,6 +346,7 @@ struct
             let ay = AD.choose y in
             let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
+                if M.tracing then M.tracel "addr" "IsMultiple %a\n" d_varinfo v;
                 None
               | _ ->
                 Some true
@@ -353,6 +354,7 @@ struct
             in
             match AD.Addr.semantic_equal ax ay with
             | Some true ->
+              if M.tracing then M.tracel "addr" "semantic_equal %a %a\n" AD.pretty x AD.pretty y;
               handle_address_is_multiple ax
             | Some false -> Some false
             | None -> None
