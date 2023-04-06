@@ -44,12 +44,12 @@ struct
     [ctx.local, callee_state]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    au
-
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
     (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
-    M.warn "combine_assign does not yet incorporate the impact of the called function.";
+    M.warn "Written.combine_env does not yet incorporate the impact of the called function.";
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
