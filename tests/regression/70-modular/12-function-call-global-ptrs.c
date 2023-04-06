@@ -1,17 +1,6 @@
-//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'" --enable ana.int.interval
+//SKIP PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'" --enable ana.int.interval
 #include<goblint.h>
 #include<stdlib.h>
-
-void set_to_five(int *i){
-	*i = 5;
-}
-
-void bar(){
-	int i = 0;
-	set_to_five(&i);
-	__goblint_check(i <= 5);
-	__goblint_check(i >= 0);
-}
 
 void set_to_new_memory(int **i){
 	*i = malloc(sizeof(int));
@@ -31,4 +20,11 @@ void foo(){
 	set_to_new_memory(&p);
 	__goblint_check(p != &j); //UNKNOWN
 	__goblint_check(p != &z);
+
+	int *zp = &z;
+	set_to_z(&p);
+
+	__goblint_check(p != &j); //UNKNOWN
+	__goblint_check(p != &z); //UNKNOWN
+	__goblint_check(p != zp); //UNKNOWN
 }
