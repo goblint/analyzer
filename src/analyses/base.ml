@@ -2749,7 +2749,7 @@ let after_config () =
   let dep =
     let base_dependencies = ["mallocWrapper"] in
     let modular_dependencies = if get_bool "modular" then ["modular_queries"; "written"] else [] in
-    modular_dependencies @ base_dependencies
+    base_dependencies @ modular_dependencies
   in
   MCP.register_analysis ~dep (module Main : MCPSpec)
 
