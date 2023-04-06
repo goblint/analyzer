@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'taintPartialContexts'"
+//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'"
 
 typedef struct {
     int x;

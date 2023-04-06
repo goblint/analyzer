@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'taintPartialContexts'" --set ana.activated[+] "'written'"
+//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'"
 #include<goblint.h>
 
 #define X_VALUE 12

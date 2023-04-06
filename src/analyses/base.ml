@@ -2748,7 +2748,7 @@ let after_config () =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   let dep =
     let base_dependencies = ["mallocWrapper"] in
-    let modular_dependencies = if get_bool "modular" then ["modular_queries"; "taintPartialContexts"] else [] in
+    let modular_dependencies = if get_bool "modular" then ["modular_queries"; "written"] else [] in
     modular_dependencies @ base_dependencies
   in
   MCP.register_analysis ~dep (module Main : MCPSpec)
