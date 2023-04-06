@@ -1,4 +1,4 @@
-//PARAM: --enable witness.yaml.enabled --enable ana.int.interval
+//PARAM: --enable witness.yaml.enabled --enable ana.int.interval --set witness.yaml.entry-types[+] precondition_loop_invariant
 #include <stdlib.h>
 #include <goblint.h>
 
