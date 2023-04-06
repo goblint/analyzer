@@ -2447,58 +2447,58 @@ struct
     in
     combine_one ctx.local au
 
+  module AddrMap = Map.Make (Addr)
+  type value_map = VD.t AddrMap.t
+
   let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
     (* Set of varinfos with offset *)
     let glob_fun v = failwith "glob fun should not be called." in
     let ask = Analyses.ask_of_ctx ctx in
-    let reachable_addresses = collect_funargs ask ~warn:false glob_fun ctx.local args in
-    let written_addresses = f_ask.f Q.Written in
+    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local args in
+    let reachable = List.fold AD.join (AD.bot ()) reachable in
+    let writes = f_ask.f Q.Written in
 
-    if WrittenDomain.Written.is_top written_addresses then
+    if WrittenDomain.Written.is_top writes then
       failwith "Everything tainted -> should set everything reachable to top!"
     else
-      let address_to_canonical a =
-        let t = AD.get_type a in
-        let canonical = ModularUtil.type_to_varinfo t in
-        canonical
+      let vars_to_writes : value_map VarMap.t =
+        let update_entry (address: address) (value: value) (acc: value_map VarMap.t) =
+          let lvals = AD.to_var_offset address in
+          let update_var acc (c, offs) =
+            let addr = Addr.from_var_offset (c, offs) in
+            let bot = VD.bot_value (Addr.get_type addr) in
+            let default_map = AddrMap.singleton (Addr.from_var_offset (c, offs)) bot in
+            let map = VarMap.find_default default_map c acc in
+
+            let old_value = AddrMap.find_default bot addr map in
+            let value = VD.join old_value value in
+
+            let map = AddrMap.add addr value map in
+            VarMap.add c map acc
+          in
+          List.fold update_var acc lvals
+        in
+        WrittenDomain.Written.fold update_entry writes VarMap.empty
       in
-      let tainted_vars_to_lvals : AD.t VarMap.t =
-        let insert_entry (v, offs) = function
-          | None -> Some (AD.from_var_offset (v, offs))
-          | Some s -> Some (AD.join (AD.from_var_offset (v, offs)) s)
+      let update_written_addresses (canonical: varinfo) (write: value_map) (state: D.t) =
+        let represented = ModularUtil.represented_by ~canonical ~reachable  in
+        let update (c_o: Addr.t) (written_value: value) (state: D.t) =
+          match Addr.to_var_offset c_o with
+          | Some (c, o) ->
+            let typ = Addr.get_type c_o in
+            let update_one r state =
+              let n = AD.singleton (Addr.add_offset r o) in
+              let old_value = get (Analyses.ask_of_ctx ctx) glob_fun ctx.local n None in
+              let c_value = ModularUtil.ValueDomainExtension.map_back ~reachable written_value  in
+              let value = VD.join old_value c_value in
+              set (Analyses.ask_of_ctx ctx) ~ctx glob_fun state n typ value
+            in
+            AD.fold update_one represented state
+          | None -> state
         in
-        let insert acc (v, offs) =
-          VarMap.modify_opt v (insert_entry (v, offs)) acc
-        in
-        let update_entry (ad: address) _ (acc: AD.t VarMap.t) =
-          let lvals = AD.to_var_offset ad in
-          List.fold insert acc lvals
-        in
-        WrittenDomain.Written.fold update_entry written_addresses VarMap.empty
+        AddrMap.fold update write state
       in
-      let get_tainted_offsets (ad: AD.t) : AD.t =
-        let canonical = address_to_canonical ad in
-        let modified_on_canonical = VarMap.find canonical tainted_vars_to_lvals in
-        let add_with_offset modified_address_callee acc =
-          match Addr.to_var_offset modified_address_callee with
-          | Some (v, offset) ->
-            let ad_with_offset = AD.map (fun a -> Addr.add_offset a offset) ad in
-            M.tracel "combine_env_modular" "add_with_offset: %a, offset was %a.\n" AD.pretty ad_with_offset Offs.pretty offset;
-            AD.union acc ad_with_offset
-          | None -> acc
-        in
-        let modified_offsets =
-          AD.fold add_with_offset modified_on_canonical (AD.bot ()) in
-        modified_offsets
-      in
-      M.tracel "combine_env_modular" "written addresses: %a\n" WrittenDomain.Written.pretty written_addresses;
-      let tainted_reachable_addresses = List.map get_tainted_offsets reachable_addresses in
-      M.tracel "combine_env_modular" "tainted_reachable_addresses %a \n" (d_list ", " AD.pretty) tainted_reachable_addresses;
-      (* Current version: if r.o in reachable_addresses and canonical_var(r.o.o') in tainted, set r.o.o' to top! *)
-      (* TODO: if r.o.o' has been changed in called function adapt value v of h(r.o.o') in called function with h^{-1}(v), and weakly add it to value of r.o.o' *)
-      let tainted_with_values = List.map (fun a -> a, AD.get_type a, VD.top_value (AD.get_type a)) tainted_reachable_addresses in
-      let store = set_many ~ctx ask glob_fun ctx.local tainted_with_values in
-      store
+      VarMap.fold update_written_addresses vars_to_writes ctx.local
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     if get_bool "modular" then

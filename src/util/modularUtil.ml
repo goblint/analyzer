@@ -8,7 +8,51 @@ module Addr = ValueDomain.Addr
 let address_to_canonical a =
   let t = Addr.get_type a in
   type_to_varinfo t
+
+let is_canonical (v: varinfo) =
+  let canonical = type_to_varinfo v.vtype in
+  CilType.Varinfo.equal v canonical
+
 (** From a set of [reachable_adresses], find all those represented by [canonical] varinfo.
     This is the basic h^{-1}. *)
-let represented_by ~(canonical:varinfo) ~(reachable_addresses:AD.t) =
-  AD.filter (fun a -> CilType.Varinfo.equal canonical (address_to_canonical a)) reachable_addresses
+let represented_by ~(canonical:varinfo) ~(reachable: AD.t) =
+  let is_represented (a: Addr.t) =
+    let a_c = address_to_canonical a in
+    CilType.Varinfo.equal canonical a_c
+  in
+  let collect_represented (a: Addr.t) (acc: AD.t) =
+    if is_represented a then AD.add a acc else acc
+  in
+  AD.fold collect_represented reachable (AD.bot ())
+
+module ValueDomainExtension =
+struct
+  open ValueDomain
+  open ValueDomain.Compound
+
+  let rec map_back (can_v: t) ~(reachable: AD.t) : t =
+    match can_v with
+    | `Top
+    | `Int _
+    | `Float _
+    | `Mutex
+    | `Thread _
+    | `JmpBuf _
+    | `Bot -> can_v
+    | `Address ad ->
+      begin
+        let map_back (a: Addr.t) =
+          match Addr.to_var_offset a with
+          | Some (vi, off) when is_canonical vi ->
+            represented_by ~canonical:vi ~reachable
+          | _ ->
+            AD.singleton a
+        in
+        let addrs = AD.fold (fun a acc -> AD.join acc (map_back a)) ad (AD.bot ()) in
+        `Address addrs
+      end
+    | `Struct _
+    | `Union _
+    | `Array _
+    | `Blob _ -> failwith "not yet implemented"
+end
