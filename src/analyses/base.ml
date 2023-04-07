@@ -2506,6 +2506,14 @@ struct
     else
       combine_env_regular ctx lval fexp f args fc au f_ask
 
+  let translate_callee_value_back ctx (args: exp list) (value: VD.t): VD.t =
+    let glob_fun _ = failwith "Globfun should not be called in modular mode." in
+    let ask = Analyses.ask_of_ctx ctx in
+    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local args in
+    let reachable = List.fold AD.join (AD.bot ()) reachable in
+    let value = ModularUtil.ValueDomainExtension.map_back value ~reachable in
+    value
+
   let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
       let return_var = return_var () in
@@ -2514,7 +2522,11 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-
+      let return_val = if get_bool "modular" then
+          translate_callee_value_back ctx args return_val
+        else
+          return_val
+      in
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let callerFundec = match !MyCFG.current_node with
