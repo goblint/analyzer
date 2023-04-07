@@ -2450,11 +2450,21 @@ struct
   module AddrMap = Map.Make (Addr)
   type value_map = VD.t AddrMap.t
 
+  (** Get list of pointers to globals for all potentially used globals by function. *)
+  let get_callee_globals (callee_ask: Queries.ask) =
+    match callee_ask.f Q.AccessedGlobals with
+    | `Top ->
+      failwith @@ "Accessed globals returned `Top! Is " ^ (SyntacticGlobals.Spec.name ()) ^ " activated?"
+    | `Lifted globals ->
+      VS.fold (fun v acc -> mkAddrOf (Cil.var v) :: acc) globals []
+
   let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
     (* Set of varinfos with offset *)
     let glob_fun v = failwith "glob fun should not be called." in
     let ask = Analyses.ask_of_ctx ctx in
-    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local args in
+    let callee_globals = get_callee_globals f_ask in
+    let effective_args = args @ callee_globals in
+    let reachable = collect_funargs ask ~warn:false glob_fun ctx.local effective_args in
     let reachable = List.fold AD.join (AD.bot ()) reachable in
     let writes = f_ask.f Q.Written in
 
@@ -2523,7 +2533,9 @@ struct
         else VD.top ()
       in
       let return_val = if get_bool "modular" then
-          translate_callee_value_back ctx args return_val
+          let callee_globals = get_callee_globals f_ask in
+          let effective_args = args @ callee_globals in
+          translate_callee_value_back ctx effective_args return_val
         else
           return_val
       in

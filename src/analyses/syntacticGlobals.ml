@@ -7,7 +7,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "used_globals"
+  let name () = "accessed_globals"
   module D = SetDomain.Make(CilType.Varinfo)
   module C = Lattice.Unit
 
@@ -26,7 +26,21 @@ struct
       | Var v -> collect_varinfo v acc
       | Mem exp -> collect_in_expression exp acc
     and collect_in_typ (typ: typ) (acc: D.t) : D.t =
-      failwith "typ"
+      match typ with
+      | TPtr (typ, _) -> collect_in_typ typ acc
+      | TArray (typ, exp, _) ->
+        let acc = collect_in_typ typ acc in
+        Option.apply (Option.map collect_in_expression exp) acc
+      | TFun _ ->
+        (* TODO: Can globals appear in types of functions, and should they be considered?*)
+        acc
+      | TVoid _
+      | TInt _
+      | TFloat _
+      | TNamed _
+      | TComp _
+      | TEnum _
+      | TBuiltin_va_list _ -> acc
     and collect_in_expression (exp: exp) (acc: D.t) : D.t =
       match exp with
       | Const _  -> acc
@@ -106,7 +120,12 @@ struct
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
+  let exitstate v = D.top ()
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | AccessedGlobals -> `Lifted ctx.local
+    | _ -> Queries.Result.top q
 end
 
 let _ =

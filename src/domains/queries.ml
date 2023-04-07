@@ -102,6 +102,7 @@ type _ t =
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
+  | AccessedGlobals: VS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | Written: WrittenDomain.Written.t t
 
@@ -165,6 +166,7 @@ struct
     | MayAccessed -> (module AccessDomain.EventSet)
     | MayBeTainted -> (module LS)
     | MayBeModifiedSinceSetjmp _ -> (module VS)
+    | AccessedGlobals -> (module VS)
     | Written -> (module WrittenDomain.Written)
 
   (** Get bottom result for query. *)
@@ -227,6 +229,7 @@ struct
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | Written -> WrittenDomain.Written.top ()
+    | AccessedGlobals -> VS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -285,6 +288,7 @@ struct
     | Any (MayBeModifiedSinceSetjmp _) -> 48
     | Any Written -> 49
     | Any (EvalLval _) -> 50
+    | Any AccessedGlobals -> 51
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -418,6 +422,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
+    | Any AccessedGlobals -> Pretty.printf "AccessedGlobals"
     | Any Written -> Pretty.dprintf "Written"
 end
 
