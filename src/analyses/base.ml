@@ -2454,7 +2454,7 @@ struct
   let get_callee_globals (callee_ask: Queries.ask) =
     match callee_ask.f Q.AccessedGlobals with
     | `Top ->
-      failwith @@ "Accessed globals returned `Top! Is " ^ (SyntacticGlobals.Spec.name ()) ^ " activated?"
+      failwith @@ "Accessed globals returned `Top!"
     | `Lifted globals ->
       VS.fold (fun v acc -> mkAddrOf (Cil.var v) :: acc) globals []
 
@@ -2772,7 +2772,7 @@ let after_config () =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   let dep =
     let base_dependencies = ["mallocWrapper"] in
-    let modular_dependencies = if get_bool "modular" then ["modular_queries"; "written"] else [] in
+    let modular_dependencies = if get_bool "modular" then ["modular_queries"; "written"; "used_globals"] else [] in
     base_dependencies @ modular_dependencies
   in
   MCP.register_analysis ~dep (module Main : MCPSpec)

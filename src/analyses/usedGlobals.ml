@@ -7,7 +7,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "accessed_globals"
+  let name () = "used_globals"
   module D = SetDomain.Make(CilType.Varinfo)
   module C = Lattice.Unit
 
