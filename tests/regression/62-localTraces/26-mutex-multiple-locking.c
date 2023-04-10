@@ -10,6 +10,7 @@ void *f(void *arg) {
   pthread_mutex_lock(&lock);
   counter = 7;
   pthread_mutex_unlock(&lock);
+  int x = 3;
   pthread_mutex_lock(&lock);
   counter = 7;
   pthread_mutex_unlock(&lock);
@@ -19,6 +20,7 @@ void *g(void *arg) {
   pthread_mutex_lock(&lock);
   counter = -12;
   pthread_mutex_unlock(&lock);
+  int y = 4;
   pthread_mutex_lock(&lock);
   counter = -12;
   pthread_mutex_unlock(&lock);

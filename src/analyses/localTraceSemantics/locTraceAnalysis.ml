@@ -4,7 +4,7 @@ open LocTraceDS
 open PriorityCalc
 open PostSolvingFlag
   
-(* Custom exceptions for eval-function *)
+(* Custom exceptions for error messaging *)
 exception Division_by_zero_Int
 exception Overflow_addition_Int
 exception Overflow_multiplication_Int
@@ -36,14 +36,44 @@ let context fundec l =
 let name () = "localTraces"
 
 (* start state is a set of one empty graph *)
-let startstate v = let g = D.empty () in let tmp = Printf.printf "Leerer Graph wird erstellt\n";D.add LocTraceGraph.empty g
+let startstate v = let g = D.empty () in let tmp = D.add LocTraceGraph.empty g
 in if D.is_empty tmp then tmp else tmp
 
 
 let exitstate = startstate
 
+let add_dependency_from_last_unlock graph mutexVinfo = 
+  let lastNode = LocalTraces.get_last_node graph
+ in 
+ let lastUnlockingNode = LocalTraces.get_last_unlocking_node graph mutexVinfo
+in
+ if not (Node.equal lastUnlockingNode.programPoint LocalTraces.error_node)
+  then
+    (
+      let allPredecessorEdges = LocalTraces.get_predecessors_edges graph lastNode
+in if (List.exists ( fun (edge: node * CustomEdge.t * node) ->
+  match edge with (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]),_) -> 
+    (String.equal fvinfo.vname "pthread_mutex_unlock") && (String.equal mutexVinfo.vname fMutex.vname)
+    | _ ->  false
+) allPredecessorEdges) 
+then (
+  graph
+  (* print_string ("Unsupported: For now, lock("^(CilType.Varinfo.show mutexVinfo)^") directly succeeding unlock("^(CilType.Varinfo.show mutexVinfo)^") is not supported"); exit 0 *)
+  )
+else (
+  (* all checks passed *)
+  let depEdge:LocTraceGraph.edge = (lastUnlockingNode,DepMutex (mutexVinfo),lastNode)
+in
+LocalTraces.extend_by_gEdge graph depEdge
+)
+    )
+  else
+    (print_string "Error: graph has no last unlocking node"; exit 0)
+
+
 (* functions for join-check *)
- (* symmetric prefix *)
+ (* symmetric prefix
+    This checks whether two graphs are equivalent ending in prefixNode *)
  let is_trace_joinable_symmetric candidate graph prefixNode = 
   let rec inner_loop edgeList =
      match edgeList with (pred_node,_,_)::xs -> if loop pred_node then inner_loop xs else (print_string("loop in inner_loop resulted in false\n"); false)
@@ -55,34 +85,36 @@ let exitstate = startstate
  in
  if not (LocalTraces.equal_edge_lists candidate_pred_edges graph_pred_edges) 
    then (
-    (* print_string ("prefix-check failed: predecessor lists of creator-trace and thread-trace are different;\ncurrent_prefix="^(NodeImpl.show current_prefix)^"\n
- graph_pred_edges=["^(List.fold (fun s_fold edge_fold -> (LocalTraces.show_edge edge_fold)^", "^s_fold) "" graph_pred_edges)^"]\n
- candidate_pred_edges=["^(List.fold (fun s_fold edge_fold -> (LocalTraces.show_edge edge_fold)^", "^s_fold) "" candidate_pred_edges)^"]\n");  *)
  false)
  else (
 inner_loop candidate_pred_edges)
 in
 loop prefixNode
  
-(* prefix check where graph created candidate *)
+(* Checks prefix of two graphs assuming that graph is the creator of candidate *)
 let is_trace_joinable candidate graph creatorTID = 
  let create_node = LocalTraces.find_creating_node (LocalTraces.get_last_node candidate) candidate
 in
-if not (LocalTraces.exists_node graph create_node) then (print_string ("create_node does not exists in creator-trace with\ncreate_node="^(NodeImpl.show create_node)^"\ngraph="^(LocalTraces.show graph)^"\n"); false) else
+if not (LocalTraces.exists_node graph create_node) then (
+  print_string ("create_node does not exists in creator-trace with\ncreate_node="^(NodeImpl.show create_node)^"\ngraph="^(LocalTraces.show graph)^"\n");
+ false) else
  (
    is_trace_joinable_symmetric candidate graph create_node
  )
 
-
+(* Computes a set of traces that have the same prefix as graph *)
 let rec find_joinable_traces candidates graph creatorTID  = 
  match candidates with
  x::xs -> if is_trace_joinable x graph creatorTID  then x::(find_joinable_traces xs graph creatorTID) else find_joinable_traces xs graph creatorTID
    | [] -> []
 
    (* helper functions for mutexLock_join*)
+   (* Checks whether the locking node of graph is contained in candidate 
+      or the unlocking node of candidate is already contained in graph *)
    let check_exists_unlock_lock candidate graph = 
      (LocalTraces.exists_node graph (LocalTraces.get_last_node candidate)) || (LocalTraces.exists_node candidate (LocalTraces.get_last_node graph))
 
+     (* Checks symmetrically whether candidate and graph have the same prefix while determining the prefix node *)
    let check_prefix candidate graph = 
      let prefixNode = LocalTraces.get_recent_divergent_node candidate graph
    in 
@@ -93,17 +125,17 @@ let rec find_joinable_traces candidates graph creatorTID  =
    else
    is_trace_joinable_symmetric candidate graph prefixNode
 
-   (* checks whether the lockSets are disjoint *)
+   (* Checks whether the lock sets are disjoint *)
  let check_compatible_lockSets lastCandidateNode lastGraphNode =
  VarinfoSet.is_empty (VarinfoSet.inter lastCandidateNode.lockSet lastGraphNode.lockSet)
 
-let mutexLock_join_helper customGraph graph candidate mutex_vinfo ctxEdge lockingNode prevNode  =
+ (* Helper function for merging of graphs wrt the mutex *)
+let mutexLock_join_helper customGraph candidate mutex_vinfo ctxEdge lockingNode prevNode  =
   let lastCandidateNode = LocalTraces.get_last_node candidate
 in
 let lastGraphNode = LocalTraces.get_last_node customGraph
 in
-(* print_string ("customGraph="^(LocalTraces.show customGraph)^"\n");
-print_string("candidate="^(LocalTraces.show candidate)^"\n"); *)
+(* perform all pre-checks for merging *)
    if  
      (not (check_exists_unlock_lock candidate customGraph ))&&
        (check_prefix candidate customGraph )
@@ -119,16 +151,11 @@ print_string("candidate="^(LocalTraces.show candidate)^"\n"); *)
    in
    let myEdge = (prevNode,(EdgeImpl.convert_edge ctxEdge),lockingNode)
   in
+  (* perform post-check and reject if merged graph did not pass *)
    if LocalTraces.is_valid_merged_graph result_graph then [LocalTraces.extend_by_gEdge result_graph myEdge]  
    else (print_string ("result_graph is not valid\nresult_graph:"^(LocalTraces.show result_graph)^"\n"); [])
         )
-      else ( 
-       (* Debug-info *)
-       if not (check_prefix candidate customGraph ) then print_string "mutexLock_join failed the prefix-check\n";
-       if (check_exists_unlock_lock candidate customGraph ) then print_string "mutexLock_join failed the exist unlock/lock node check\n";
-       if not (check_compatible_lockSets lastCandidateNode lastGraphNode) then print_string "mutexLock_join failed the lockSet-compatibility check\n";
-        []
-      ) 
+      else  [] 
 
 
 let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctxEdge lockingNode mutex_vinfo =
@@ -137,7 +164,7 @@ let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma
  \n"^(D.fold (fun candidate acc -> (LocalTraces.show candidate)^"\n"^acc) candidates "")^"\n"); *)
  let rec loop candidateList graphList =
    match candidateList with candidate::xs -> 
-   let result_graph = mutexLock_join_helper graph graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
+   let result_graph = mutexLock_join_helper graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
   in
 let result_list = 
    result_graph@graphList
@@ -196,7 +223,9 @@ if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin)
   | (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if not ((CilType.Ikind.equal ik1 IInt) && (CilType.Ikind.equal ik2 IInt)) then (Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0);
   (if Big_int_Z.lt_big_int u1 l2 then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) )
   else if Big_int_Z.le_big_int u2 l1 then (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik))
-  else Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik))
+  else (print_string "Overlapping Lt is not supported\n"; exit 1)
+    (* Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik) *)
+    )
 
   | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0 )
 | Div -> fun x1 x2 -> (match (x1,x2) with 
@@ -541,10 +570,12 @@ in
 in
 let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(customMutex),lastNode)
 in
-let fistLockedGraph = if (LocalTraces.exists_lock_mutex graph customMutex) || (NodeImpl.equal firstNode lastNode) 
-  then graph else  LocalTraces.extend_by_gEdge graph firstLockEdge
+let firstLockedGraph = if (NodeImpl.equal firstNode lastNode) then graph
+else if (LocalTraces.exists_lock_mutex graph customMutex)
+  then add_dependency_from_last_unlock graph customMutex 
+else  LocalTraces.extend_by_gEdge graph firstLockEdge
 in
-let lockedGraph = LocalTraces.extend_by_gEdge fistLockedGraph lockingEdge
+let lockedGraph = LocalTraces.extend_by_gEdge firstLockedGraph lockingEdge
   in 
   let lockedGraphList = 
     lockedGraph::(mutexLock_join allUnlockingTraces graph lastNode lockingLabel lockedNode customMutex)
@@ -631,12 +662,15 @@ in
 in 
   let firstNode = LocalTraces.get_first_node graph_outter
 in
-print_string ("In special, firstNode is "^(NodeImpl.show firstNode)^" for graph_outter "^(LocalTraces.show graph_outter)^"\n");
+print_string ("In assign, firstNode is "^(NodeImpl.show firstNode)^" for graph_outter "^(LocalTraces.show graph_outter)^"\n");
 let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(customMutex),lastNode)
 in
-let fistLockedGraph = if (LocalTraces.exists_lock_mutex graph_outter customMutex) || (NodeImpl.equal firstNode lastNode) then graph_outter else  LocalTraces.extend_by_gEdge graph_outter firstLockEdge
+let firstLockedGraph = if (NodeImpl.equal firstNode lastNode) then graph_outter
+else if (LocalTraces.exists_lock_mutex graph_outter customMutex)
+  then add_dependency_from_last_unlock graph_outter customMutex 
+else  LocalTraces.extend_by_gEdge graph_outter firstLockEdge
 in
-  let lockedGraph = LocalTraces.extend_by_gEdge fistLockedGraph lockingEdge
+  let lockedGraph = LocalTraces.extend_by_gEdge firstLockedGraph lockingEdge
   in 
   let lockedGraphList = 
     lockedGraph::(mutexLock_join allUnlockingTraces graph_outter lastNode lockingLabel lockedNode customMutex)
@@ -938,8 +972,15 @@ result
   let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(mutex_vinfo),{programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls})
   in
   (* First lock is only added, if this is the first lock *)
-  let firstLockedGraph = if LocalTraces.exists_lock_mutex graph mutex_vinfo then graph else  (LocalTraces.extend_by_gEdge graph firstLockEdge)
+  let firstLockedGraph = if LocalTraces.exists_lock_mutex graph mutex_vinfo then
+    add_dependency_from_last_unlock graph mutex_vinfo 
+  else  
+    ( 
+    LocalTraces.extend_by_gEdge graph firstLockEdge)
   in
+  print_string ("In special, last unlocking node for mutex "^(VarinfoImpl.show mutex_vinfo)^" is "^(NodeImpl.show (LocalTraces.get_last_unlocking_node firstLockedGraph mutex_vinfo))^"
+with lastNode "^(NodeImpl.show {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls})^"
+and graph:\n"^(LocalTraces.show firstLockedGraph)^"\n");
   let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid (VarinfoSet.add mutex_vinfo ls));tid=tid;lockSet=(VarinfoSet.add mutex_vinfo ls)})
       in
   let result_graph = LocalTraces.extend_by_gEdge firstLockedGraph myEdge

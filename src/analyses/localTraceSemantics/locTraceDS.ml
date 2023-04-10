@@ -631,6 +631,33 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       && (is_acyclic graph)
        && (has_valid_edge_branching graph)
 
+      let has_succeeding_depMutex_or_lock graph node mutexVinfo =
+        let successorEdge = get_successors_edges graph node
+      in
+      List.exists (fun (edge: node * CustomEdge.t * node) ->
+        match edge with (_,DepMutex(edgeMutex),_) -> String.equal mutexVinfo.vname edgeMutex.vname
+        | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]), _) ->
+          (String.equal fvinfo.vname "pthread_mutex_lock") && (String.equal mutexVinfo.vname fMutex.vname)
+          | _ -> false
+        ) successorEdge
+
+    let get_last_unlocking_node graph mutexVinfo = 
+    let allEdges = get_all_edges graph
+  in
+  let rec loop (edgeList: (node * CustomEdge.t * node) list) =
+    match edgeList with 
+    | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]),dest_node)::xs ->
+      if (String.equal fvinfo.vname "pthread_mutex_unlock") && (String.equal mutexVinfo.vname fMutex.vname) then 
+        (
+          if has_succeeding_depMutex_or_lock graph dest_node mutexVinfo then loop xs 
+          else dest_node
+        )
+      else loop xs
+
+      | _::xs-> loop xs
+      | [] -> {programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}
+    in loop allEdges
+
   end
 
 (* Set domain for analysis framework *)
