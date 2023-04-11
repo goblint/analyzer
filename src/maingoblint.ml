@@ -196,10 +196,15 @@ exception FrontendError of string
 let basic_preprocess_counts = Preprocessor.FpathH.create 3
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let basic_preprocess ~all_cppflags fname =
-  (* The extension of the file *)
-  let ext = Fpath.get_ext fname in
-  if ext <> ".i" && not (GobConfig.get_bool "pre.skipcpp") then
+let basic_preprocess ?preprocess ~all_cppflags fname =
+  let preprocess = match preprocess with
+    | Some b -> b (* Explicitly forced *)
+    | None when GobConfig.get_bool "pre.skipcpp" -> false (* Globally disabled *)
+    | None ->
+      let ext = Fpath.get_ext fname in
+      ext <> ".i"
+  in
+  if preprocess then (
     (* The actual filename of the preprocessed sourcefile *)
     let basename = Fpath.rem_ext (Fpath.base fname) in
     (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
@@ -217,8 +222,8 @@ let basic_preprocess ~all_cppflags fname =
     let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
     if get_bool "dbg.verbose" then print_endline command;
     (nname, Some {ProcessPool.command; cwd = None})
+  )
   else
-    (* No preprocessing needed. *)
     (fname, None)
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
@@ -333,23 +338,23 @@ let preprocess_files () =
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
 
-  let rec preprocess_arg_file = function
+  let rec preprocess_arg_file ?preprocess = function
     | filename when not (Sys.file_exists (Fpath.to_string filename)) ->
       raise (FrontendError (Format.asprintf "file argument %a not found" Fpath.pp filename))
 
     | filename when Fpath.filename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
-      [basic_preprocess ~all_cppflags comb_file]
+      [basic_preprocess ?preprocess ~all_cppflags comb_file] (* TODO: isn't combined file already preprocessed? *)
 
     | filename when Fpath.filename filename = CompilationDatabase.basename ->
-      CompilationDatabase.load_and_preprocess ~all_cppflags filename
+      CompilationDatabase.load_and_preprocess ~all_cppflags filename (* TODO: pass ?preprocess? *)
 
     | filename when Sys.is_directory (Fpath.to_string filename) ->
       let dir_files = Sys.readdir (Fpath.to_string filename) in
       if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
-        preprocess_arg_file (Fpath.add_seg filename CompilationDatabase.basename)
+        preprocess_arg_file ?preprocess (Fpath.add_seg filename CompilationDatabase.basename)
       else if Array.mem "Makefile" dir_files then
-        preprocess_arg_file (Fpath.add_seg filename "Makefile")
+        preprocess_arg_file ?preprocess (Fpath.add_seg filename "Makefile")
       else
         [] (* don't recurse for anything else *)
 
@@ -357,7 +362,7 @@ let preprocess_files () =
       raise (FrontendError (Format.asprintf "unexpected JSON file argument %a (possibly missing --conf)" Fpath.pp filename))
 
     | filename ->
-      [basic_preprocess ~all_cppflags filename]
+      [basic_preprocess ?preprocess ~all_cppflags filename]
   in
 
   let extra_files = ref [] in
@@ -367,7 +372,11 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
-  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map Fpath.v (get_string_list "files")) in
+  let preprocessed =
+    List.concat_map preprocess_arg_file (List.map Fpath.v (get_string_list "files"))
+    @
+    List.concat_map (preprocess_arg_file ~preprocess:true) !extra_files
+  in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
     let terminated (task: ProcessPool.task) = function
