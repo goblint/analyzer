@@ -199,7 +199,7 @@ let basic_preprocess_counts = Preprocessor.FpathH.create 3
 let basic_preprocess ?preprocess ~all_cppflags fname =
   let preprocess = match preprocess with
     | Some b -> b (* Explicitly forced *)
-    | None when GobConfig.get_bool "pre.skipcpp" -> false (* Globally disabled *)
+    | None when not (GobConfig.get_bool "pre.enabled") -> false (* Globally disabled *)
     | None ->
       let ext = Fpath.get_ext fname in
       ext <> ".i"

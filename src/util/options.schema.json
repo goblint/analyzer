@@ -176,6 +176,12 @@
       "description": "Preprocessing options",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "pre.enabled",
+          "description": "Run the C preprocessor.",
+          "type": "boolean",
+          "default": true
+        },
         "keep": {
           "title": "pre.keep",
           "description":
@@ -222,12 +228,6 @@
           "type": "array",
           "items": { "type": "string" },
           "default": []
-        },
-        "skipcpp": {
-          "title": "pre.skipcpp",
-          "description": "Skip running the C preprocessor.",
-          "type": "boolean",
-          "default": false
         },
         "compdb": {
           "title": "pre.compdb",
