@@ -1335,6 +1335,18 @@ struct
             addrs
         | _ -> Q.LS.empty ()
       end
+    | Q.ReachableAddressesFrom e ->
+      begin
+        let ask = Analyses.ask_of_ctx ctx in
+        match eval_rv_address ask ctx.global ctx.local e with
+        | `Address a ->
+          let reachable = reachable_vars ask [a] ctx.global ctx.local in
+          let reachable = List.fold AD.join (AD.bot ()) reachable in
+          `Lifted reachable
+        | `Bot -> Queries.Result.bot q
+        | `Top
+        | _ -> Queries.Result.top q
+      end
     | Q.ReachableUkTypes e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
