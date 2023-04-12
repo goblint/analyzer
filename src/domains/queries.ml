@@ -61,6 +61,7 @@ type _ t =
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
   | ReachableFrom: exp -> LS.t t
+  | ReachableAddressesFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
@@ -125,6 +126,7 @@ struct
     | CondVars _ -> (module ES)
     | MayPointTo _ -> (module LS)
     | ReachableFrom _ -> (module LS)
+    | ReachableAddressesFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
@@ -187,6 +189,7 @@ struct
     | CondVars _ -> ES.top ()
     | MayPointTo _ -> LS.top ()
     | ReachableFrom _ -> LS.top ()
+    | ReachableAddressesFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
@@ -289,6 +292,8 @@ struct
     | Any Written -> 49
     | Any (EvalLval _) -> 50
     | Any AccessedGlobals -> 51
+    | Any (ReachableAddressesFrom _) -> 52
+
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -332,6 +337,7 @@ struct
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (EvalLval e1), Any (EvalLval e2) -> CilType.Lval.compare e1 e2
+      | Any (ReachableAddressesFrom e1), Any (ReachableAddressesFrom e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -380,6 +386,7 @@ struct
     | Any (EqualSet e) -> Pretty.dprintf "EqualSet %a" CilType.Exp.pretty e
     | Any (MayPointTo e) -> Pretty.dprintf "MayPointTo %a" CilType.Exp.pretty e
     | Any (ReachableFrom e) -> Pretty.dprintf "ReachableFrom %a" CilType.Exp.pretty e
+    | Any (ReachableAddressesFrom e) -> Pretty.dprintf "ReachableAddressesFrom %a" CilType.Exp.pretty e
     | Any (ReachableUkTypes e) -> Pretty.dprintf "ReachableUkTypes %a" CilType.Exp.pretty e
     | Any (Regions e) -> Pretty.dprintf "Regions %a" CilType.Exp.pretty e
     | Any (MayEscape vi) -> Pretty.dprintf "MayEscape %a" CilType.Varinfo.pretty vi
