@@ -4,6 +4,8 @@ open Prelude.Ana
 open Analyses
 
 module Q = Queries
+module AD = ValueDomain.AD
+module VD = ValueDomain.Compound
 
 module Spec =
 struct
@@ -46,10 +48,26 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
     (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
-    M.warn "Written.combine_env does not yet incorporate the impact of the called function.";
-    ctx.local
+    let ask = Analyses.ask_of_ctx ctx in
+    let get_reachable_exp (exp: exp) =
+      match ask.f (Q.ReachableAddressesFrom exp) with
+      | `Top -> failwith "Received `Top value for ReachableAddressesFrom query."
+      | `Lifted rs -> rs
+    in
+    let reachable = List.map get_reachable_exp args in
+    let reachable = List.fold AD.join (AD.bot ()) reachable in
+    let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
+      let k' = match ModularUtil.ValueDomainExtension.map_back (`Address k) ~reachable with
+        | `Address a -> a
+        | _ -> failwith "map_back yielded a non-address value for address input."
+      in
+      let v' = ModularUtil.ValueDomainExtension.map_back v ~reachable in
+      D.add k' v' map
+    in
+    D.fold translate_and_insert au (ctx.local)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    (* Record assignment of rval to lval*)
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
