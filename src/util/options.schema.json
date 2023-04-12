@@ -182,6 +182,12 @@
       "description": "Preprocessing options",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "pre.enabled",
+          "description": "Run the C preprocessor.",
+          "type": "boolean",
+          "default": true
+        },
         "keep": {
           "title": "pre.keep",
           "description":
