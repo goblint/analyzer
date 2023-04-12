@@ -688,7 +688,6 @@ object(self)
   (* Maybe prev_node and edge are enough to determine the ID of a dest_node? 
      This needs to be tried out at some point in the future *)
   method getID (prev_node:node) (edge:CustomEdge.t) (dest_programPoint:MyCFG.node) (dest_sigma:varDomain SigmaMap.t) (dest_tid:int) (dest_ls:VarinfoSet.t) =
-    print_string "getID wurde aufgerufen\n";
     let id = List.fold (fun acc (prev_node_find, edge_find, {programPoint=p_find;sigma=s_find;id=id_find;tid=tid_find;lockSet=ls_find}) -> 
      if (NodeImpl.equal prev_node prev_node_find)&&(CustomEdge.equal edge edge_find)&&(Node.equal dest_programPoint p_find)&&(NodeImpl.equal_sigma dest_sigma s_find)&&(tid_find = dest_tid)&&(VarinfoSet.equal ls_find dest_ls) then id_find else acc) (-1) edges 
   in 

@@ -160,11 +160,9 @@ in
         )
       else  [] 
 
-
+(* Merges all compatible candidates per mutex lock *)
 let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctxEdge lockingNode mutex_vinfo =
  print_string ("mutexLock_join was invoked with |candidates| = "^(string_of_int (D.cardinal candidates))^"\n");
- (* print_string ("candidates in mutexLock_join:
- \n"^(D.fold (fun candidate acc -> (LocalTraces.show candidate)^"\n"^acc) candidates "")^"\n"); *)
  let rec loop candidateList graphList =
    match candidateList with candidate::xs -> 
    let result_graph = mutexLock_join_helper graph candidate mutex_vinfo ctxEdge lockingNode {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}
@@ -177,9 +175,9 @@ in
  in
  loop (graphSet_to_list candidates) []
 
+ (* evaluates global variables *)
 let rec eval_global var graph node  = 
   let result_node, result_edge = LocalTraces.find_globvar_assign_node var graph node in 
-print_string ("find_globvar_assign_node wurde aufgerufen, es wurde folgender Knoten gefunden: "^(NodeImpl.show result_node)^"\nmit Label: "^(EdgeImpl.show result_edge)^"\n");
 (match result_edge with 
 (Assign(_, edgeExp)) -> (
   let custom_glob_vinfo = makeVarinfo false "__goblint__traces__custom_nonglobal" (TInt(IInt,[]))
@@ -194,12 +192,6 @@ in print_string ("eval_global evaluated to "^(show_varDomain tmp)^"\n");
 and 
 (* Evaluates the effects of an assignment to sigma *)
 eval sigOld vinfo (rval: exp) graph node = 
-(* print_string ("Eval wurde aufgerufen mit rval="^(CilType.Exp.show rval)^",
-\nsigOld=["^(NodeImpl.show_sigma sigOld)^"],
-\nfor node="^(NodeImpl.show node)^"\n"); *)
-  (* dummy value 
-     This is used whenever an expression contains a variable that is not in sigma (e.g. a global)
-      In this case vinfo is considered to have an unknown value *)
   let nopVal sigEnhanced newExp = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false, sigEnhanced, [], newExp)
 
   (* returns a function which calculates [l1, u1] OP [l2, u2]*)
@@ -489,6 +481,7 @@ let sigNew = NodeImpl.destruct_add_sigma sigOld sigEnhancedEffects
 in if vinfo.vglob = true then (SigmaMap.remove vinfo sigNew, otherValues, newExpr) else
 if success then (SigmaMap.add vinfo result sigNew, otherValues, newExpr)  else (print_string "Eval could not evaluate expression\n"; exit 0)
 
+(* Catches exception in eval function and produces warnings *)
 let eval_catch_exceptions sigOld vinfo rval graph node =
   try (eval sigOld vinfo rval graph node, true) with 
   Division_by_zero_Int -> Messages.warn "Contains a trace with division by zero"; 
@@ -501,9 +494,8 @@ let eval_catch_exceptions sigOld vinfo rval graph node =
   omitPostSolving#setFlag ();
   ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
 
-(* Here, I would like to manage other generated values and return a set of sigmas *)
+(* Manages other generated values and return a set of sigmas *)
 let eval_wrapper sigOld vinfo rval graph node =
-  (* print_string ("in eval_wrapper, sigOld=["^(NodeImpl.show_sigma sigOld)^"]\n"); *)
   let rec iter_otherValues doneValues workList sigmaList =
 match workList with 
 (var,vd)::xs -> if List.mem (var,vd) doneValues then iter_otherValues doneValues xs sigmaList
@@ -517,15 +509,11 @@ in iter_otherValues ((var,vd)::doneValues) newWorkList (if (List.exists (fun sig
   in
   let (sigNew,otherValues, newExpr), success = eval_catch_exceptions sigOld vinfo rval graph node 
 in 
-(* print_string ("in eval_wrapper we get otherValues={"
-^(List.fold (fun s (vinfo_fold, varDom_fold) -> s^";("^(CilType.Varinfo.show vinfo_fold)^","^(show_varDomain varDom_fold)^")") "" otherValues)^"}\n
-and sigNew=["^(NodeImpl.show_sigma sigNew)^"]\n"); *)
 let allSigmas = iter_otherValues [] otherValues [sigNew]
 in
-(* print_string ("allSigmas:"^(List.fold (fun acc sigma_fold -> acc^"\n<"^(NodeImpl.show_sigma sigma_fold)^">") "" allSigmas)^"\n|allSigmas| = "^(string_of_int (List.length allSigmas))^"\n"); *)
-allSigmas, true, newExpr
+allSigmas, success, newExpr
 
-(* collects all varinfos of globals. VarinfoSet is used here as acc *)
+(* Collects all varinfos of globals in an expression *)
 let rec get_all_globals (expr:exp) (acc:VarinfoSet.t) =
   match expr with 
   | Const(CInt(c, ik, _)) -> acc
@@ -538,10 +526,13 @@ let rec get_all_globals (expr:exp) (acc:VarinfoSet.t) =
   | BinOp(Div, binopExp1, binopExp2,TInt(biopIk, _)) -> get_all_globals binopExp2 (get_all_globals binopExp1 acc)
   | _ -> acc
 
+  (* Reoves all custom locals for globals from the sigma *)
   let rec remove_global_locals_sigma sigma globalList =
     match globalList with x::xs -> remove_global_locals_sigma (SigmaMap.remove (customVinfoStore#getGlobalVarinfo (make_local_global_varinfo x)) sigma) xs
       | [] -> sigma
 
+      (* Creates a sequence of assignments where custom local variables are generated.
+         These read the value of the corresponding global *)
   let rec create_local_assignments graphList globals ctx =
     let rec loop global graphList acc =
       match graphList with 
@@ -619,9 +610,7 @@ unlockingGraph::sigma_graphList
 
 (* ASSIGN helper functions *)
 (* perform assign-effect on given node *)
-let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} = print_string "assign_on_node wurde aufgerufen\n";
-(* if existsErrorTrace#getFlag () then ctx.local
-else *)
+let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} = 
 (match lval with (Var x, _) -> 
   let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock" 
   in
@@ -631,11 +620,6 @@ else *)
     in print_string ("in assign, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
     let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx
   in
-  (* TODO: Anzahl in someTmp ausgeben. In der create_local_... funktion vlt ein gewisses Vorher/Nacher ausgeben 
-     ansonsten vlt ein kleineres Beispiel finden, zum Reproduzieren? *)
-    (* print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTraces.show graph_fold)^"; "^s_acc) "" someTmp)^"\n"); *)
-    (* if this is a global, we define a custom mutex and add lock/unlock edges 
-       additionally, we have to join other traces that 'unlock' the global, similiarly to special *)
     let resultList = List.fold (
 fun resultList_outter graph_outter ->
   (
@@ -718,7 +702,7 @@ in
 )
 
 (* iterate over the graphs in previous state *)
-let assign_fold_graphSet graph (lval, rval, ctx,set_acc) = print_string "assign_fold_graphSet wurde aufgerufen\n";
+let assign_fold_graphSet graph (lval, rval, ctx,set_acc) =
   let lastNode = 
     if (LocTraceGraph.is_empty graph)&&(match lval with (Var x, _) -> x.vglob | _ -> false) then
       (
@@ -740,7 +724,7 @@ let assign_fold_graphSet graph (lval, rval, ctx,set_acc) = print_string "assign_
 
 let assign ctx (lval:lval) (rval:exp) : D.t = 
   predominatorRegistration#update ctx.prev_node ctx.node;
-  print_string ("Edge effect assign wurde aufgerufen with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+  print_string ("Edge effect assign was invoked with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" and ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
 let _, _, _, result =
 D.fold assign_fold_graphSet ctx.local (lval, rval, ctx, D.empty ())
 in result
@@ -752,7 +736,6 @@ let rvalGlobals = get_all_globals exp VarinfoSet.empty
 in print_string ("in branch, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
 let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx
 in
-(* print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTraces.show graph_fold)^"; "^s_acc) "" someTmp)^"\n"); *)
 List.fold (fun resultList_outter graph_outter -> 
   (
     let lastNode = LocalTraces.get_last_node graph_outter
@@ -800,7 +783,7 @@ let branch_fold_graphSet graph (exp, tv, ctx,set_acc) =
 
 let branch ctx (exp:exp) (tv:bool) : D.t = 
   predominatorRegistration#update ctx.prev_node ctx.node;
-  print_string ("Edge effect branch wurde aufgerufen mit exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+  print_string ("Edge effect branch was invoked with exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" and ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
 let _, _, _, result =
    D.fold branch_fold_graphSet ctx.local (exp, tv, ctx, D.empty ())
 in result
@@ -837,7 +820,7 @@ else set_acc) else
 
 let body ctx (f:fundec) : D.t = 
   predominatorRegistration#update ctx.prev_node ctx.node;
-  print_string ("Edge effect body wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+  print_string ("Edge effect body was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
 let _, result =
    D.fold body_fold_graphSet ctx.local (ctx, D.empty ())
 in
@@ -891,7 +874,6 @@ in
     in print_string ("in return, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
     let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx
   in
-    (* print_string ("someTmp: "^(List.fold (fun s_acc graph_fold -> (LocalTraces.show graph_fold)^"; "^s_acc) "" someTmp)^"\n"); *)
     let outterResultList = List.fold ( fun resultList_outter graph_outter ->
       (
       let lastNode = LocalTraces.get_last_node graph_outter
@@ -946,7 +928,7 @@ in
 
 let return ctx (exp:exp option) (f:fundec) : D.t = 
   predominatorRegistration#update ctx.prev_node ctx.node;
-  print_string ("Edge effect return wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^"\n");
+  print_string ("Edge effect return was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
    let _, _, _, result = D.fold return_fold_graphSet ctx.local (f, exp, ctx, D.empty ())
 in 
 result
@@ -990,7 +972,7 @@ and graph:\n"^(LocalTraces.show firstLockedGraph)^"\n");
     in
     let lockedNode = {programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid (VarinfoSet.add mutex_vinfo ls));tid=tid;lockSet=(VarinfoSet.add mutex_vinfo ls)}
   in
-  (* we create both: merged trace and trace that assumes first lock *)
+  (* we create both: merged traces and trace that assumes first lock *)
   result_graph::(mutexLock_join allUnlockingTraces graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} ctx.edge lockedNode mutex_vinfo)
           )
 
@@ -1148,11 +1130,12 @@ myTmp
 
 let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = 
   predominatorRegistration#update ctx.prev_node ctx.node;
-  print_string ("Edge effect special wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^" und ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und f "^(CilType.Varinfo.show f)^"\n");
+  print_string ("Edge effect special was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^" and ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und f "^(CilType.Varinfo.show f)^"\n");
 let _, _, _, _, result =   D.fold special_fold_graphSet ctx.local (lval, f, arglist, ctx, D.empty ())
 in result
     
 (* ENTER helper functions *)
+(* From a list of sigmas and a list of possible values for varinfo, generate each combination of sigma containing varinfo *)
 let construct_sigma_combinations varinfo varDomList sigmaList =
   let rec loop varDomList_loop sigAcc =
     match varDomList_loop with x::xs -> loop xs ((List.map (fun sigma -> (SigmaMap.add varinfo x sigma)) sigmaList)@sigAcc)
@@ -1221,7 +1204,7 @@ let enter_fold_graphSet graph (f, args, ctx,set_acc) =
 
    let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
     predominatorRegistration#update ctx.prev_node ctx.node;
-    print_string ("Edge effect enter wurde aufgerufen with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
+    print_string ("Edge effect enter was invoked with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
   with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
   if D.is_empty ctx.local then (
     let first_ID = idGenerator#increment()
@@ -1244,8 +1227,6 @@ let combine_on_node args ctx {programPoint=programPoint;id=id;sigma=sigma;tid=ti
 print_string ("in combine, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
 let newSigma = remove_global_locals_sigma sigma (VarinfoSet.to_list rvalGlobals)
 in
-  (* D.iter (fun g_iter -> 
-    print_string ("in combine, I test LocalTrace.find_returning_node with node="^(NodeImpl.show {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls})^"\nI get "^(NodeImpl.show (LocalTraces.find_returning_node ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}) (EdgeImpl.convert_edge ctx.edge) g_iter))^"\n")) callee_local; *)
   if tid != tid_returning then (Printf.printf "TIDs from current node and found returning node are different in combine\n"; exit 0);
     let (myEdge:(node * CustomEdge.t * node)) = 
     (match lval with None -> 
@@ -1288,10 +1269,10 @@ else (
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
     predominatorRegistration#update ctx.prev_node ctx.node;
-    print_string ("Edge effect combine wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
-    und lval "^(match lval with None -> "None" | Some(l) -> CilType.Lval.show l)^" und fexp "^(CilType.Exp.show fexp)^"\n");
+    print_string ("Edge effect combine was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
+    and lval "^(match lval with None -> "None" | Some(l) -> CilType.Lval.show l)^" and fexp "^(CilType.Exp.show fexp)^"\n");
 let _,_,_,_, result=
-   D.fold combine_fold_graphSet (*ctx.local*) callee_local (args, lval, callee_local, ctx, D.empty ())
+   D.fold combine_fold_graphSet callee_local (args, lval, callee_local, ctx, D.empty ())
 in result
 
    (* THREADENTER helper functions *)
@@ -1311,8 +1292,8 @@ in result
     in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
     let new_id = idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma_formals id VarinfoSet.empty
     in
+    (* create dependency is just the create edge itself *)
     let myEdge = {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=(FunctionEntry(fd));sigma=sigma_formals;id=new_id;tid=id;lockSet=VarinfoSet.empty}
-    (* einspeichern der create-Beziehung *)
   in
   let result_graph = print_string ("In threadenter, we add the edge "^(LocalTraces.show_edge myEdge)^"\n
   to the graph:"^(LocalTraces.show graph)^"\n"); LocalTraces.extend_by_gEdge graph myEdge
@@ -1338,12 +1319,12 @@ in result
 
     let threadenter ctx lval f (args:exp list) = 
       predominatorRegistration#update ctx.prev_node ctx.node;
-      print_string ("Edge effect threadenter wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und ctx.node "^(Node.show ctx.node)^"
+      print_string ("Edge effect threadenter was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" and ctx.node "^(Node.show ctx.node)^"
     , lval "^(match lval with None -> "None" |Some(l) -> CilType.Lval.show l)^"
-    \nund args={"^(List.fold (fun acc_fold exp_fold -> acc_fold^(CilType.Exp.show exp_fold)^"; ") "" args)^"}\n");
+    \nand args={"^(List.fold (fun acc_fold exp_fold -> acc_fold^(CilType.Exp.show exp_fold)^"; ") "" args)^"}\n");
       let _, _, _, result = D.fold threadenter_fold_graphSet (ctx.local) (args, f, ctx, D.empty())
     in
-      [result] (* Zustand von neuem Thread *)
+      [result]
 
     (* THREADSPAWN helper functions *)
    (* perform threadspawn-effect on given node *)
@@ -1352,12 +1333,6 @@ in result
     tidRecord#addTID id;
     let myEdge =  (match lval with None ->
     {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls}
-  (* |Some((Var x, _)) -> (
-    print_string ("in threadspawn, we have some Lval "^(CilType.Varinfo.show x)^"\n");
-    let result_sigma = SigmaMap.add x (Int(Big_int_Z.big_int_of_int id, Big_int_Z.big_int_of_int id, IInt)) sigma
-    in 
-    {programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node result_sigma tid);tid=tid}
-  ) *)
   | Some(Mem(CastE(TPtr(TNamed(tInfo, tAttr), ptrAttr), AddrOf(Var(lvalVinfo),_))), offset) -> (
     if String.equal tInfo.tname "pthread_t" 
       then (print_string ("input in threadspawn is pthread_t\n");
@@ -1366,8 +1341,6 @@ in result
     {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node result_sigma tid ls);tid=tid;lockSet=ls}  
     )
   else (Printf.printf "Unsupported argument in threadspawn\n"; exit 0))
-    (* | Some(Mem(CastE (_, CastE(_,Const(CInt(cilint,_,_))))), _) -> 
-      (if (cilint_to_int cilint) = 0 then ({programPoint=programPoint;sigma=sigma;id=id;tid=tid},ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid} ctx.edge ctx.node sigma tid);tid=tid}) else (print_string ("Unsupported argument in threadspawn\n"); exit 0)) *)
     | Some(lvalOption) -> (print_string ("Unsupported argument in threadspawn with "^(CilType.Lval.show lvalOption)^"\n"); exit 0)
           )
   in
@@ -1391,9 +1364,9 @@ in result
       in
       (lval, ctx, new_set)
 
-    let threadspawn ctx lval f args fctx = (* Creator; lval speichert neue Thread-ID *)
+    let threadspawn ctx lval f args fctx = 
     predominatorRegistration#update ctx.prev_node ctx.node;
-      print_string ("Edge effect threadspawn wurde aufgerufen mit ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und ctx.node "^(Node.show ctx.node)^"\n");
+      print_string ("Edge effect threadspawn was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" and ctx.node "^(Node.show ctx.node)^"\n");
       let _, _, result = D.fold threadspawn_fold_graphSet (ctx.local) (lval, ctx, D.empty())
     in
     result
