@@ -51,7 +51,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let get_reachable_exp (exp: exp) =
       match ask.f (Q.ReachableAddressesFrom exp) with
-      | `Top -> failwith "Received `Top value for ReachableAddressesFrom query."
+      | `Top -> failwith @@ "Received `Top value for ReachableAddressesFrom " ^ (CilType.Exp.show exp) ^" query."
       | `Lifted rs -> rs
     in
     let reachable = List.map get_reachable_exp args in
