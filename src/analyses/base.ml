@@ -1343,9 +1343,11 @@ struct
           let reachable = reachable_vars ask [a] ctx.global ctx.local in
           let reachable = List.fold AD.join (AD.bot ()) reachable in
           `Lifted reachable
-        | `Bot -> Queries.Result.bot q
-        | `Top
-        | _ -> Queries.Result.top q
+          | `Top ->
+            Queries.Result.top q
+          | `Bot
+          | _ -> (* Not an address *)
+            Queries.Result.bot q
       end
     | Q.ReachableUkTypes e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
