@@ -536,21 +536,20 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
       | [] -> false
       in loop allEdges
 
+      let merge_edge_lists edgeList1 edgeList2 =
+        List.fold (fun acc edge ->
+          if (List.exists (fun edge_exists-> equal_edge edge edge_exists) acc) then acc else edge::acc
+          ) edgeList1 edgeList2 
+
       (* Helper functions for validity check of merged graphs *)
       module DepMutexCount = Map.Make(CilType.Varinfo)
-      (* Checks whether from each node at most on DepMutex-edge exists *)
+      (* Checks whether from each node at most on DepMutex-edge per mutex exists *)
       (* This needs to be reimplemented to the condition given in the paper: 
         for a mutex a every lock is preceded by
         exactly one unlock (or it is the first lock, then by start) of a, and each unlock is directly
         followed by at most one lock
         Additionally, at a point a cycle check is needed  *)
-    let maintains_depMutex_condition graph =
-      let allNodes = get_all_nodes graph
-    in let rec loop nodeList =
-      match nodeList with node::xs ->
-      let edgeList:(node* CustomEdge.t* node) list = get_successors_edges graph node
-      in 
-      print_string ("edgeList=["^(List.fold (fun s_fold edge_fold -> (show_edge edge_fold)^", "^s_fold) "" edgeList)^"]\n");
+    let check_no_multiple_depMutexes edgeList =
       let depCount = List.fold (fun count_fold (edge_fold:LocTraceGraph.edge) ->
         match edge_fold with (prev_node,DepMutex(vinfo),dest_node) -> 
           if DepMutexCount.mem vinfo count_fold 
@@ -565,8 +564,15 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
           | _ -> count_fold
         ) DepMutexCount.empty edgeList
     in 
-    print_string ("depCount=["^(DepMutexCount.fold (fun vinfo_fold count_fold s_fold -> "("^(CilType.Varinfo.show vinfo_fold)^", "^(string_of_int count_fold)^"), "^s_fold) depCount "")^"]\n");
-    if DepMutexCount.exists (fun vinfo_exists count_exists -> if count_exists > 1 then true else false) depCount then false else loop xs
+    not (DepMutexCount.exists (fun vinfo_exists count_exists -> if count_exists > 1 then true else false) depCount)
+
+    let maintains_depMutex_condition graph =
+      let allNodes = get_all_nodes graph
+    in let rec loop nodeList =
+      match nodeList with node::xs ->
+      let edgeList:(node* CustomEdge.t* node) list = get_successors_edges graph node
+      in 
+      if not (check_no_multiple_depMutexes edgeList) then false else loop xs
       | [] -> true
       in loop allNodes
 

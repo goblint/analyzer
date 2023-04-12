@@ -68,7 +68,7 @@ LocalTraces.extend_by_gEdge graph depEdge
 )
     )
   else
-    (print_string "Error: graph has no last unlocking node"; exit 0)
+    (print_string ("Error: graph has no last unlocking node, graph:\n"^(LocalTraces.show graph)^"\n"); exit 0)
 
 
 (* functions for join-check *)
@@ -87,7 +87,10 @@ LocalTraces.extend_by_gEdge graph depEdge
    then (
  false)
  else (
-inner_loop candidate_pred_edges)
+(LocalTraces.check_no_multiple_depMutexes 
+(LocalTraces.merge_edge_lists (LocalTraces.get_successors_edges candidate current_prefix) (LocalTraces.get_successors_edges graph current_prefix)))
+&&
+(inner_loop candidate_pred_edges))
 in
 loop prefixNode
  
@@ -1056,7 +1059,6 @@ print_string ("in special, joinable traces for tidJoin "^(string_of_int tidJoin)
   List.fold (
     fun list_fold trace_fold -> let tmp_graph = LocalTraces.merge_graphs graph trace_fold
 in
-(* TODO: is union the right way? *)
 let newVarinfoSet = VarinfoSet.union ls (LocalTraces.get_last_node trace_fold).lockSet
 in
 let destination_node = {programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid newVarinfoSet);tid=tid;lockSet=newVarinfoSet}
