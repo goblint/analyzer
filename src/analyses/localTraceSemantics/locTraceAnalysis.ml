@@ -289,9 +289,9 @@ in
 Lval(Var(var), NoOffset)
 )))
 
-| AddrOf (Var(v), NoOffset) ->  if v.vglob 
+(* | AddrOf (Var(v), NoOffset) ->  if v.vglob 
   then (Address(v), true, currentSigEnhanced, [], AddrOf (Var(customVinfoStore#getLocalVarinfo (make_local_global_varinfo v) v.vtype), NoOffset)) 
-else (Address(v), true, currentSigEnhanced, [], AddrOf (Var(v), NoOffset))
+else (Address(v), true, currentSigEnhanced, [], AddrOf (Var(v), NoOffset)) *)
 
 (* unop expressions *)
 (* for type Integer *)

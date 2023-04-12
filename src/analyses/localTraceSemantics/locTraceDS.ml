@@ -69,7 +69,7 @@ module VarinfoSet = Set.Make(VarinfoImpl)
    The supported types are: Integer and Address of a variable *)
 type varDomain = 
   Int of Cilint.cilint * Cilint.cilint * ikind
-| Address of varinfo  
+(* | Address of varinfo   *)
 | ThreadID of int 
 | Error 
 
@@ -85,21 +85,21 @@ let equal_varDomain vd1 vd2 =
   match vd1, vd2 with
   Int(iLower1, iUpper1, ik1), Int(iLower2, iUpper2, ik2) -> (Big_int_Z.eq_big_int iLower1 iLower2) && (Big_int_Z.eq_big_int iUpper1 iUpper2)
   && (CilType.Ikind.equal ik1 ik2)
-  | Address(vinfo1), Address(vinfo2) -> CilType.Varinfo.equal vinfo1 vinfo2
+  (* | Address(vinfo1), Address(vinfo2) -> CilType.Varinfo.equal vinfo1 vinfo2 *)
   | Error, Error -> true
   | ThreadID(tid1), ThreadID(tid2) -> tid1 = tid2
   | _ -> false
 
   let show_varDomain vd =
     match vd with Int(iLower, iUpper, ik) -> "Integer of ["^(Big_int_Z.string_of_big_int iLower)^";"^(Big_int_Z.string_of_big_int iUpper)^"] with ikind: "^(CilType.Ikind.show ik)
-    | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo)
+    (* | Address(vinfo) -> "Address of "^(CilType.Varinfo.show vinfo) *)
     | ThreadID(tid) -> "ThreadID of "^(string_of_int tid)
     | Error -> "ERROR"
 
     (* I need a better hash function for intervals!! *)
 let hash_varDomain vd =
   match vd with Int(iLower, iUpper, ik) -> Big_int_Z.int_of_big_int (Big_int_Z.add_big_int iLower iUpper)
-  | Address(vinfo) -> CilType.Varinfo.hash vinfo
+  (* | Address(vinfo) -> CilType.Varinfo.hash vinfo *)
   | ThreadID(tid) -> tid
   | Error -> 13
 
