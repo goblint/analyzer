@@ -1,10 +1,10 @@
 //PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'"
 
-int write_into_array(int *a, int size){
+void write_into_array(int *a, int size){
 	a[size - 1] = 123;
 }
 
-int test_array(){
+void test_array(){
 	int size = 10;
 	int a[size];
 
