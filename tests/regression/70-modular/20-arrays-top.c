@@ -4,8 +4,8 @@
 
 int g = 0;
 
-void write_into_array(int *a[], int size){
-	a[size - 1] = &g;
+void write_into_array(int *arr[], int size){
+	arr[size - 1] = &g;
 }
 
 void test_array(){
@@ -29,4 +29,9 @@ void test_array(){
 	// Requires not having `Top as the value a.
 	__goblint_check(a[size - 1] != &j);
 
+}
+
+int main(){
+	test_array();
+	return 0;
 }
