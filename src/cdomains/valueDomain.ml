@@ -206,12 +206,16 @@ struct
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik))), []
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind), []
     | TPtr (t, _) ->
-      let target = TypeVarinfoMap.to_varinfo t in
-      (* Assume type-based target. *)
-      let target_address = AD.from_var target in
+      let target_and_address_from_type t =
+        (* Assume type-based target. *)
+        let target = TypeVarinfoMap.to_varinfo t in
+        target, AD.from_var target
+      in
+      let singleton_target, singleton_target_address = target_and_address_from_type t in
+      let array_target, array_target_address = target_and_address_from_type (TArray (t, None, [])) in
       let null_ptr = AD.null_ptr in
-      let address = AD.join target_address null_ptr in
-      `Address address, [target]
+      let address = AD.join (AD.join singleton_target_address array_target_address) null_ptr in
+      `Address address, [singleton_target; array_target]
     | TComp ({cstruct=true; _} as ci,_) ->
       let init_field s fd =
         let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
@@ -227,7 +231,10 @@ struct
     | TComp ({cstruct=false; _},_) ->
       failwith "top_value_except_address_default not implemented for unions"
     | TArray (ai, length, _) ->
-      failwith "top_value_except_address_default not implemented for arrays"
+      let typAttr = typeAttrs ai in
+      let base_value, targets = top_value_typed_address_targets ai in
+      let len = array_length_idx (IndexDomain.top ()) length in
+      `Array (CArrays.make ~varAttr ~typAttr len base_value), targets
     | TNamed ({ttype=t; _}, _) -> top_value_typed_address_targets ~varAttr t
     | _ -> `Top, []
 
