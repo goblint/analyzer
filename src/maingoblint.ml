@@ -133,7 +133,7 @@ let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 let check_arguments () =
   let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in(* unused now, but might be useful for future checks here *)
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
-  if get_bool "modular" && get_bool "allfuns" then (set_bool "allfuns" false; warn "modular disables allfuns.\n");
+  if get_bool "modular" && get_bool "allfuns" then fail "modular and allfuns are incompatible";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
