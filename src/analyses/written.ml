@@ -70,6 +70,7 @@ struct
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* TODO: Record assignment of rval to lval*)
+    let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

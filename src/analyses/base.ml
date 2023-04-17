@@ -5,6 +5,7 @@ open Analyses
 open GobConfig
 open BaseUtil
 open ModularUtil0
+open Base0
 
 module A = Analyses
 module H = Hashtbl
@@ -138,18 +139,6 @@ struct
 
   let project ask p_opt cpa fundec =
     CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
-
-
-  (**************************************************************************
-   * Initializing my variables
-   **************************************************************************)
-
-  let return_varstore = ref dummyFunDec.svar
-  let return_varinfo () = !return_varstore
-  let return_var () = AD.from_var (return_varinfo ())
-  let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
-
-  let longjmp_return = ref dummyFunDec.svar
 
   let heap_var ctx =
     let info = match (ctx.ask Q.HeapVar) with
@@ -2762,8 +2751,6 @@ end
 module type MainSpec = sig
   include MCPSpec
   include BaseDomain.ExpEvaluator
-  val return_lval: unit -> Cil.lval
-  val return_varinfo: unit -> Cil.varinfo
 end
 
 let main_module: (module MainSpec) Lazy.t =
