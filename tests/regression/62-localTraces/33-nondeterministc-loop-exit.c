@@ -1,3 +1,4 @@
+// NONTERM
 // PARAM: --set ana.activated[+] "localTraces"
 #include <stdlib.h>
 #include <time.h>

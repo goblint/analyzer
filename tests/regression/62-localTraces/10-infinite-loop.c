@@ -1,3 +1,4 @@
+// NONTERM
 // PARAM: --set ana.activated[+] "localTraces"
 
 void main() {

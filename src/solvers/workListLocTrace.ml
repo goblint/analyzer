@@ -35,9 +35,9 @@ module Make =
       let from_list = Fun.id
       let push st elem =
         let stList = to_list st
-      in 
-      if List.mem elem stList then st else
-        List.cons elem st
+        in 
+        if List.mem elem stList then st else
+          List.cons elem st
       let peek = function [] -> raise Empty | x :: _ -> x
       let pop = function [] -> raise Empty | x :: s -> x, s
       let size = List.length
@@ -45,8 +45,8 @@ module Make =
       let fold f a b = List.fold_left f b (to_list a)
     end
     module VS = 
-    (* Set.Make(S.Var) *)
-    ListStack
+      (* Set.Make(S.Var) *)
+      ListStack
 
     open S.Dom
 
@@ -88,26 +88,26 @@ module Make =
           HM.replace rho x (join old d);
           let q = try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
-        let xNode = S.Var.node x
-      in
-      if predominatorRegistration#isLoopHead xNode  then
-          let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem -> 
-            let svarNode = S.Var.node svElem
+          let xNode = S.Var.node x
           in
-            (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q)
-          
-          in
-          let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList 
-      in
-      predominatorRegistration#printOut ();
-      (* prio und NonPrio mal ausgeben und gucken, ob das das ist, was ich erwarte *)
-      print_string ("qList:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" qList)^"
+          if predominatorRegistration#isLoopHead xNode  then
+            let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem -> 
+                let svarNode = S.Var.node svElem
+                in
+                (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q)
+
+            in
+            let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList 
+            in
+            predominatorRegistration#printOut ();
+            (* prio und NonPrio mal ausgeben und gucken, ob das das ist, was ich erwarte *)
+            print_string ("qList:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" qList)^"
       \nnonPrio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" nonPrio)^"
       \nprio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" prio)^"\n");
-          vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs nonPrio;
-          vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs prio;
-    else 
-          vs := (VS.fold VS.push q !vs)
+            vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs nonPrio;
+            vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs prio;
+          else 
+            vs := (VS.fold VS.push q !vs)
         end
       in
       start_event ();
@@ -122,8 +122,8 @@ module Make =
       done;
       if (omitPostSolving#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
       stop_event ();
-    print_string "Solver is done and returns rho\n";
-    rho
+      print_string "Solver is done and returns rho\n";
+      rho
   end
 
 
