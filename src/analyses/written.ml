@@ -67,7 +67,7 @@ struct
     D.fold translate_and_insert au (ctx.local)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    (* Record assignment of rval to lval*)
+    (* TODO: Record assignment of rval to lval*)
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
