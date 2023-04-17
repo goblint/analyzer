@@ -108,7 +108,7 @@ type node = {
   id: int;
   programPoint : MyCFG.node;
   sigma : varDomain SigmaMap.t;
-  tid:int;
+  tid: int;
   lockSet: VarinfoSet.t;
 }
 
@@ -667,9 +667,7 @@ List.exists (fun node_exists -> NodeImpl.equal node node_exists) all_nodes
   end
 
 (* Set domain for analysis framework *)
-module GraphSet = struct
-include SetDomain.Make(LocalTraces)
-end
+module GraphSet = SetDomain.Make(LocalTraces)
 
 (* Converts a GraphSet.t to a list *)
 let graphSet_to_list graphSet =

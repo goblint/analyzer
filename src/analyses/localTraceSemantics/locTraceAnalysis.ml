@@ -5,12 +5,8 @@ open PriorityCalc
 open PostSolvingFlag
   
 (* Custom exceptions for error messaging *)
-exception Division_by_zero_Int
 exception Overflow_addition_Int
-exception Overflow_multiplication_Int
-exception Underflow_multiplication_Int
 exception Underflow_subtraction_Int
-exception Join_Nonexistent_Tid
 
 (* Constants *)
 let intMax = 2147483647
@@ -223,9 +219,9 @@ if (Big_int_Z.add_big_int l1 neg_second_lower < Big_int_Z.big_int_of_int intMin)
     )
 
   | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0 )
-| Div -> fun x1 x2 -> (match (x1,x2) with 
+(* | Div -> fun x1 x2 -> (match (x1,x2) with 
 (Int(l1,u1,ik1)),(Int(l2,u2,ik2)) -> if l2 <= Big_int_Z.zero_big_int && u2 >= Big_int_Z.zero_big_int then raise Division_by_zero_Int else (Printf.printf "This type of assignment is not supported - as I do not allow Division yet\n"; exit 0)
-  | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0)
+  | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0) *)
 | _ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0)
 
 in
@@ -484,9 +480,6 @@ if success then (SigmaMap.add vinfo result sigNew, otherValues, newExpr)  else (
 (* Catches exception in eval function and produces warnings *)
 let eval_catch_exceptions sigOld vinfo rval graph node =
   try (eval sigOld vinfo rval graph node, true) with 
-  Division_by_zero_Int -> Messages.warn "Contains a trace with division by zero"; 
-  omitPostSolving#setFlag ();
-  ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
   | Overflow_addition_Int -> Messages.warn "Contains a trace with overflow of Integer addition";
   omitPostSolving#setFlag ();
   ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)

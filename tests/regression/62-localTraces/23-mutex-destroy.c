@@ -17,6 +17,5 @@ void main() {
   pthread_create(&id_threadG, NULL, &g, NULL);
   counter = 3;
   pthread_join(id_threadG, NULL);
-  // Oops, destroy on locked mutex!
-  pthread_mutex_destroy(&lock);
+  pthread_mutex_destroy(&lock);  // WARN
 }
