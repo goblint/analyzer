@@ -24,13 +24,12 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     match ask.f (Queries.EvalLval lval) with
-      | `Top ->
-        M.warn "Written lvalue is top. Write is not recorded!";
-        ctx.local
-      | `Lifted lv ->
-        let rv = ask.f (Queries.EvalValue rval) in
-        let st = D.add lv rv ctx.local in
-        st
+    | `Top ->
+      M.warn "Written lvalue is top. Write is not recorded!";
+      ctx.local
+    | `Lifted lv ->
+      let rv = ask.f (Queries.EvalValue rval) in
+      D.add lv rv ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -45,9 +44,8 @@ struct
     let callee_state = D.bot () in
     [ctx.local, callee_state]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
-    (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
+
+  let get_reachable ctx args f_ask  =
     let ask = Analyses.ask_of_ctx ctx in
     let used_globals = ModularUtil.get_callee_globals f_ask in
     let get_reachable_exp (exp: exp) =
@@ -57,7 +55,12 @@ struct
     in
     let effective_args = used_globals @ args in
     let reachable = List.map get_reachable_exp effective_args in
-    let reachable = List.fold AD.join (AD.bot ()) reachable in
+    List.fold AD.join (AD.bot ()) reachable
+
+  let combine_env ctx lval fexp f args fc au f_ask =
+    (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
+    (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
+    let reachable = get_reachable ctx args f_ask in
     let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
       let k' = match ModularUtil.ValueDomainExtension.map_back (`Address k) ~reachable with
         | `Address a -> a
@@ -70,8 +73,19 @@ struct
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     (* TODO: Record assignment of rval to lval*)
-    let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
-    ctx.local
+    let assign_return_val lval =
+      let reachable = get_reachable ctx args f_ask in
+      let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
+      let return_value = ModularUtil.ValueDomainExtension.map_back return_value ~reachable in
+      let ask = Analyses.ask_of_ctx ctx in
+      match ask.f (Queries.EvalLval lval) with
+      | `Top ->
+        M.warn "Written lvalue is top. Write is not recorded!";
+        ctx.local
+      | `Lifted lv ->
+        D.add lv return_value ctx.local
+    in
+    Option.map_default assign_return_val ctx.local lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
