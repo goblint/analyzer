@@ -1,9 +1,11 @@
 open GoblintCil
+open Prelude.Ana
 
 include ModularUtil0
 
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
+module VS = Set.Make (CilType.Varinfo)
 
 let address_to_canonical a =
   let t = Addr.get_type a in
@@ -24,6 +26,14 @@ let represented_by ~(canonical:varinfo) ~(reachable: AD.t) =
     if is_represented a then AD.add a acc else acc
   in
   AD.fold collect_represented reachable (AD.bot ())
+
+(** Get list of pointers to globals for all potentially used globals by function. *)
+let get_callee_globals (callee_ask: Queries.ask) =
+  match callee_ask.f Queries.AccessedGlobals with
+  | `Top ->
+    failwith @@ "Accessed globals returned `Top!"
+  | `Lifted globals ->
+    VS.fold (fun v acc -> mkAddrOf (Cil.var v) :: acc) globals []
 
 module ValueDomainExtension =
 struct

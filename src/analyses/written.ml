@@ -49,12 +49,14 @@ struct
     (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
     (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
     let ask = Analyses.ask_of_ctx ctx in
+    let used_globals = ModularUtil.get_callee_globals f_ask in
     let get_reachable_exp (exp: exp) =
       match ask.f (Q.ReachableAddressesFrom exp) with
       | `Top -> failwith @@ "Received `Top value for ReachableAddressesFrom " ^ (CilType.Exp.show exp) ^" query."
       | `Lifted rs -> rs
     in
-    let reachable = List.map get_reachable_exp args in
+    let effective_args = used_globals @ args in
+    let reachable = List.map get_reachable_exp effective_args in
     let reachable = List.fold AD.join (AD.bot ()) reachable in
     let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
       let k' = match ModularUtil.ValueDomainExtension.map_back (`Address k) ~reachable with
