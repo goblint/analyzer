@@ -58,8 +58,6 @@ struct
     List.fold AD.join (AD.bot ()) reachable
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    (* TODO: For a function call, we need to adapt the values collected for the callee into the representation of the caller. *)
-    (* I.e. this requires application of h^{-1}(., A), with A being the set of reachable addresses at the call. *)
     let reachable = get_reachable ctx args f_ask in
     let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
       let k' = match ModularUtil.ValueDomainExtension.map_back (`Address k) ~reachable with
@@ -72,7 +70,6 @@ struct
     D.fold translate_and_insert au (ctx.local)
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    (* TODO: Record assignment of rval to lval*)
     let assign_return_val lval =
       let reachable = get_reachable ctx args f_ask in
       let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in
