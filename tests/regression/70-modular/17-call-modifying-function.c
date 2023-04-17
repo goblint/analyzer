@@ -1,7 +1,9 @@
 //PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'"
+#include<stdlib.h>
 
 void change_param(int* p){
-	*p = 12;
+	if(p != NULL)
+		*p = 12;
 }
 
 void call_change_param(int *p){
