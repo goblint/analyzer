@@ -9,6 +9,9 @@ void read_global(int** i){ // i may point to g
 	int z;
 	int *p = &z;
 
+	if(i == NULL){
+		return;
+	}
 	__goblint_check(g == *i); //UNKNOWN!
 
 	__goblint_check(p != g);
@@ -27,6 +30,10 @@ void write_global(int** i){ // i may point to g
 	int z;
 	int *p = &z;
 
+	if(i == NULL){
+		return;
+	}
+
 	__goblint_check(g == *i); //UNKNOWN!
 
 	__goblint_check(p != g);
@@ -40,3 +47,13 @@ void write_global(int** i){ // i may point to g
 	int *k = g;
 	__goblint_check(k == j); //UNKNOWN!
 }
+
+// // Example main
+// int main(){
+// 	int x[2] = {0, 1};
+// 	int *p[2] = {&x[0], &x[1]};
+// 	g = x;
+// 	read_global(&g);
+// 	write_global(&g);
+// 	return 0;
+// }
