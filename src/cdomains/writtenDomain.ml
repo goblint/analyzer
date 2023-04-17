@@ -1,8 +1,8 @@
 module VD = ValueDomain.Compound
 
 module AD = struct
-  include ValueDomain.AD
   include Printable.Std
+  include ValueDomain.AD
 end
 
 module Written = MapDomain.MapBot_LiftTop (AD) (VD)
