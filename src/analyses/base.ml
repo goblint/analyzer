@@ -1927,7 +1927,7 @@ struct
     let add_target (x: varinfo) (store: CPA.t) =
       let t = x.vtype in
       let v, targets = VD.top_value_typed_address_targets t in
-      M.tracel "typed_pointer_closure" "Adding %a, type %a -> %a to store\n" CilType.Varinfo.pretty x CilType.Typ.pretty x.vtype VD.pretty v;
+      if M.tracing then M.tracel "typed_pointer_closure" "Adding %a, type %a -> %a to store\n" CilType.Varinfo.pretty x CilType.Typ.pretty x.vtype VD.pretty v;
       CPA.add x v store, targets
     in
     let workset = ref to_create in
