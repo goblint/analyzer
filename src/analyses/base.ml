@@ -1971,7 +1971,7 @@ struct
     let cpa = typed_pointer_closure cpa targets in
     let startstate = startstate () in
     let startstate = { startstate with cpa = cpa } in
-    M.tracel "make_canonical_entry" "Canonical entry state for function %a: %a\n" CilType.Fundec.pretty f D.pretty startstate;
+    if M.tracing then M.tracel "make_canonical_entry" "Canonical entry state for function %a: %a\n" CilType.Fundec.pretty f D.pretty startstate;
     startstate
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
