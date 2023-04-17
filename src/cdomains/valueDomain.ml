@@ -225,7 +225,7 @@ struct
         (v, targets @ acc)
       in
       let s, vs = List.fold_left init_field (Structs.top (), []) ci.cfields in
-      M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
+      if M.tracing then M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
       `Struct s, vs
     | TComp ({cstruct=false; _},_) ->
       failwith "top_value_except_address_default not implemented for unions"
