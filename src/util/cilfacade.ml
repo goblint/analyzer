@@ -37,7 +37,7 @@ let init () =
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
-  Rmtmps.keepUnused := true;
+  RmUnused.keepUnused := true;
   print_CIL_Input := true
 
 let current_file = ref dummyFile
@@ -57,7 +57,7 @@ let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
 
 let rmTemps fileAST =
-  Rmtmps.removeUnusedTemps fileAST
+  RmUnused.removeUnused fileAST
 
 
 let visitors = ref []
