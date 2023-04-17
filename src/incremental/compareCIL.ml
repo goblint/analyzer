@@ -17,6 +17,7 @@ let name_of_global_col gc = match gc.def with
     | None -> raise (Failure "empty global record")
 
 let compare_global_col gc1 gc2 = compare (name_of_global_col gc1) (name_of_global_col gc2)
+let equal_name_global_col gc1 gc2 = compare_global_col gc1 gc2 == 0
 
 let get_varinfo gc = match gc.decls, gc.def with
   | _, Some (Var v) -> v
@@ -90,6 +91,7 @@ let should_reanalyze (fdec: Cil.fundec) =
 let performRenames (renamesOnSuccess: renamesOnSuccess) =
   begin
     let (compinfoRenames, enumRenames) = renamesOnSuccess in
+    (* Reset cnames and ckeys to the old value. Only affects anonymous structs/unions where names are not checked for equality. *)
     List.iter (fun (compinfo2, compinfo1) -> compinfo2.cname <- compinfo1.cname; compinfo2.ckey <- compinfo1.ckey) compinfoRenames;
     List.iter (fun (enum2, enum1) -> enum2.ename <- enum1.ename) enumRenames;
   end
@@ -109,7 +111,7 @@ let already_matched oV nV final_matches =
 (* looks up the result of the already executed comparison and returns true if it is unchanged, false if it is changed.
    Throws an exception if not found. *)
 let change_info_lookup old_glob new_glob change_info =
-  List.mem {old = old_glob; current = new_glob} change_info.unchanged
+  List.exists (fun (u : unchanged_global) -> equal_name_global_col u.old old_glob && equal_name_global_col u.current new_glob) change_info.unchanged
 
 (* Compares two varinfos of globals. finalizeOnlyExactMatch=true allows to check a rename assumption and discard the comparison result in case they do not match *)
 let eq_glob_var ?(finalizeOnlyExactMatch=false) oV gc_old oldMap nV gc_new newMap change_info final_matches =
