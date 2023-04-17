@@ -16,13 +16,13 @@ struct
   module TypeMap = RichVarinfo.BiVarinfoMap.Make(Typ)
   include TypeMap
   let to_varinfo (t: t) =
-    (* Invariant: Only sanitized types are inserted into TypeMap *)
-    let sanitize_type (t: Cil.typ) =
-      let t = unrollType t in
+    (* Invariant: Only normalized types are contained in TypeMap *)
+    let normalize_type (t: Cil.typ) =
+      let t = unrollTypeDeep t in
       (* TODO: Remove attributes from t *)
       t
     in
-    let t = sanitize_type t in
+    let t = normalize_type t in
     TypeMap.to_varinfo t
 
   let from_varinfo (v: Cil.varinfo) =
