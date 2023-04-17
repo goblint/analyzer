@@ -29,6 +29,7 @@ struct
       ctx.local
     | `Lifted lv ->
       let rv = ask.f (Queries.EvalValue rval) in
+      (* TODO: Here and in transferfunctions below: join rv with value previously stored for lv. *)
       D.add lv rv ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
