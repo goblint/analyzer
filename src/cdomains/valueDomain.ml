@@ -207,15 +207,14 @@ struct
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind), []
     | TPtr (t, _) ->
       let target_and_address_from_type t =
-        (* Assume type-based target. *)
+        (* Assumes type-based target. *)
         let target = TypeVarinfoMap.to_varinfo t in
         target, AD.from_var target
       in
-      let singleton_target, singleton_target_address = target_and_address_from_type t in
-      let array_target, array_target_address = target_and_address_from_type (TArray (t, None, [])) in
+      let target, target_address = target_and_address_from_type t in
       let null_ptr = AD.null_ptr in
-      let address = AD.join (AD.join singleton_target_address array_target_address) null_ptr in
-      `Address address, [singleton_target; array_target]
+      let address = AD.join target_address null_ptr in
+      `Address address, [target]
     | TComp ({cstruct=true; _} as ci,_) ->
       let init_field s fd =
         let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
