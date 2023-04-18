@@ -141,7 +141,7 @@ let fresh_global_name file name =
       Hashtbl.replace used_names ti.tname ()
     | _ -> () );
   let with_suffix = function 0 -> name | n -> name ^ "_" ^ string_of_int n in
-  Seq.(iterate succ 0 |> map with_suffix |> filter (not % Hashtbl.mem used_names) |> first)
+  Seq.(ints 0 |> map with_suffix |> filter (not % Hashtbl.mem used_names) |> first)
 
 module RemoveDeadCode : Transform.S = struct
   let transform (q : Transform.queries) (file : file) : unit =
