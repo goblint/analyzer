@@ -197,11 +197,11 @@ module RemoveDeadCode : Transform.S = struct
     (* Step 2: Remove globals that are (transitively, syntactically) unreferenced by
        the main function(s). Dead functions and globals are removed, since there is no
        chain of syntactic references to them from the main function(s). *)
-    let open GoblintCil.Rmtmps in
+    let open GoblintCil.RmUnused in
     let keepUnused0 = !keepUnused in
     Fun.protect ~finally:(fun () -> keepUnused := keepUnused0) (fun () ->
         keepUnused := false;
-        removeUnusedTemps
+        removeUnused
           ~isRoot:(function
             | GFun (fd, _) -> List.mem fd.svar.vname (get_string_list "mainfun")
             | _ -> false)
