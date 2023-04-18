@@ -1,3 +1,5 @@
+// SKIP: this is an input file for cram tests
+
 // structs
 
 struct struct1 {
@@ -28,14 +30,7 @@ int struct_pointer_f(struct1_named4 *x) {
   return x->field1 + 1;
 }
 
-// enums
-
-
-
-
 // globals referencing each other
-
-// const int array_value1[3] = {1, 2, 3};
 
 const int global1 = 1;  // referenced (indirectly)
 const int global2 = global1 + 7;  // referenced (directly in main)

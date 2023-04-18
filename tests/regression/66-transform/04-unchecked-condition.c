@@ -1,3 +1,4 @@
+// SKIP: this is an input file for cram tests
 
 // the transformation would try to add a global with this name, make sure the conflict is resloved
 int _UNCHECKED_CONDITION = 3;

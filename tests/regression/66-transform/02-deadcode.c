@@ -1,3 +1,5 @@
+// SKIP: this is an input file for cram tests
+
 #include <stdnoreturn.h>
 
 // requires sem.noreturn.dead_code
