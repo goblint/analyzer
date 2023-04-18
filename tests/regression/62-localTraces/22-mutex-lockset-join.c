@@ -31,5 +31,5 @@ void main() {
   pthread_t id_threadG;
   pthread_create(&id_threadG, NULL, &g, NULL);
   pthread_mutex_destroy(&lock);
-  pthread_mutex_destroy(&other_lock);
+  pthread_mutex_destroy(&other_lock);  // WARN
 }

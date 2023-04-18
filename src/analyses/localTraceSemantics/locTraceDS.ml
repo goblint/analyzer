@@ -536,6 +536,18 @@ struct
       | [] -> false
     in loop allEdges
 
+    (* Checks whether mutex was unlocked at least once in graph *)
+  let exists_unlock_mutex graph mutexVinfo =
+    let allEdges = get_all_edges graph
+    in
+    let rec loop (edgeList:LocTraceGraph.edge list) =
+      match edgeList with
+      | (_, Proc(None, Lval(Var(lvalVinfo), _),[AddrOf(Var(argVinfo), _)]), _) ::xs -> 
+        if (String.equal lvalVinfo.vname "pthread_mutex_unlock") && (CilType.Varinfo.equal mutexVinfo argVinfo) then true else loop xs
+      | x::xs -> loop xs
+      | [] -> false
+    in loop allEdges
+
   let merge_edge_lists edgeList1 edgeList2 =
     List.fold (fun acc edge ->
         if (List.exists (fun edge_exists-> equal_edge edge edge_exists) acc) then acc else edge::acc
@@ -637,13 +649,13 @@ struct
     && (is_acyclic graph)
     && (has_valid_edge_branching graph)
 
-  let has_succeeding_depMutex_or_lock graph node mutexVinfo =
+  let has_succeeding_depMutex graph node mutexVinfo =
     let successorEdge = get_successors_edges graph node
     in
     List.exists (fun (edge: node * CustomEdge.t * node) ->
         match edge with (_,DepMutex(edgeMutex),_) -> String.equal mutexVinfo.vname edgeMutex.vname
-                      | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]), _) ->
-                        (String.equal fvinfo.vname "pthread_mutex_lock") && (String.equal mutexVinfo.vname fMutex.vname)
+                      (* | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]), _) ->
+                        (String.equal fvinfo.vname "pthread_mutex_lock") && (String.equal mutexVinfo.vname fMutex.vname) *)
                       | _ -> false
       ) successorEdge
 
@@ -655,7 +667,7 @@ struct
       | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]),dest_node)::xs ->
         if (String.equal fvinfo.vname "pthread_mutex_unlock") && (String.equal mutexVinfo.vname fMutex.vname) then 
           (
-            if has_succeeding_depMutex_or_lock graph dest_node mutexVinfo then loop xs 
+            if has_succeeding_depMutex graph dest_node mutexVinfo then loop xs 
             else dest_node
           )
         else loop xs
