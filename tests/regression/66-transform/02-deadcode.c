@@ -21,7 +21,6 @@ int basic1(int n) {
 }
 
 // only called with negative n
-// TODO: everything after if statement should be removed
 int basic2(int n) {
   int a = 0;
 
@@ -44,7 +43,6 @@ int one_branch_dead(int x) {
 
 
 
-// TODO: the body of this function should get removed
 int uncalled_but_referenced_function(int x) {
   int y = x + 1;
   return x * y;
