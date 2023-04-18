@@ -600,37 +600,21 @@ struct
       let active_transformations = get_string_list "trans.activated" in
       (if active_transformations <> [] then
 
-        let f = Printf.sprintf in
-        let pf fmt = Printf.ksprintf print_endline fmt in
-        let df fmt = Pretty.gprintf (Pretty.sprint ~width:Int.max_num) fmt in
-        let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:Int.max_num doc) fmt in
-        let op_on op f x y = op (f x) (f y) in
-
-        (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
+        (* Most transformations use the locations of statements, since they run using Cil visitors.
+           Join abstract values once per location and once per node. *)
         let joined_by_loc, joined_by_node =
-          let open Batteries in let open Enum in
-          let e = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
-          let by_loc = Hashtbl.create (if fast_count e then count e else 123) in
-          let by_node = NodeH.create (if fast_count e then count e else 123) in
-          e |> iter (fun (node, v) ->
+          let open Enum in
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let hashtbl_size = if fast_count node_values then count node_values else 123 in
+          let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
+          node_values |> iter (fun (node, v) ->
             let loc = Node.location node in
-            (* join values for the same location *)
+            (* join values once for the same location and once for the same node *)
             let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
             Hashtbl.modify_opt loc join by_loc;
             NodeH.modify_opt node join by_node;
-            (* Hashtbl.modify_opt loc (Option.some % function None -> v | Some v' -> Spec.D.join v v') by_loc;
-            let v' = Hashtbl.find_option by_loc loc |> Stdlib.Option.fold ~none:v ~some:(Spec.D.join v) in
-            Hashtbl.replace by_loc loc v';
-            let v' = NodeH.find_option by_node node |> Stdlib.Option.fold ~none:v ~some:(Spec.D.join v) in
-            NodeH.replace by_node node v' *)
           );
           by_loc, by_node
-        in
-
-        let debug_help =
-          LHT.to_list lh |> List.map (fst % fst) |> List.sort Node.compare
-          |> List.map (fun n -> df"id=%s loc=%a dead=%b\n%a\n" (Node.show_id n) CilType.Location.pretty (Node.location n) (NodeH.find joined_by_node n |> Spec.D.is_bot) Node.pretty_plain n)
-          |> String.join "\n"
         in
 
         let ask ?(node = MyCFG.dummy_node) loc =
@@ -642,44 +626,24 @@ struct
           ({ f } : Queries.ask)
         in
 
-        (* A statement (here: its location) is dead when its abstract value is bottom in all contexts;
-           it holds that: bottom in all contexts iff. bottom in the join of all contexts. Statements
-            that don't appear in the result are not marked dead; this includes compound statements. *)
-        let must_be_dead ~by_node stmt =
-          (* Hashtbl.find_option joined_by_loc (Cilfacade.get_stmtLoc stmt)
-          |> Stdlib.Option.fold ~none:false ~some:Spec.D.is_bot *)
-          let value_n = NodeH.find_option joined_by_node (Statement stmt) in
-          let is_dead_n = value_n |> GobOption.for_all Spec.D.is_bot in
-          (* TODO: for node, currently answer "true" if the node is not in the result, unlike for stmt where we answer "false" *)
-          (* dpf "in_result=%b is_dead=%b stmt:\n%a" (Option.is_some value_n) is_dead Node.pretty_plain (Statement stmt);
-          is_dead *)
-          let value = Hashtbl.find_option joined_by_loc (Cilfacade.get_stmtLoc stmt) in
-          let is_dead = value |> GobOption.exists Spec.D.is_bot in
-          (* dpf "id=%d loc=%a\nloc:  in_result=%5b is_dead=%5b\nnode: in_result=%5b is_dead=%5b\n%a\n"
-            stmt.sid CilType.Location.pretty (Cilfacade.get_stmtLoc stmt)
-            (Option.is_some value) is_dead
-            (Option.is_some value_n) is_dead_n
-            Node.pretty_plain (Statement stmt); *)
-          if by_node then is_dead_n else is_dead
-        in
-
-        let must_be_dead_node = function
-        | Statement stmt -> must_be_dead ~by_node:true stmt
-        | _ -> false
+        (* A node is dead when its abstract value is bottom in all contexts;
+           it holds that: bottom in all contexts iff. bottom in the join of all contexts.
+           Therefore, we just answer whether the (stored) join is bottom. *)
+        let must_be_dead node =
+          NodeH.find_option joined_by_node node
+          (* nodes that didn't make it into the result are definitely dead (hence for_all) *)
+          |> GobOption.for_all Spec.D.is_bot
         in
 
         let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
 
-        let skipped_statements from_node edge to_node = CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) [] in
+        let skipped_statements from_node edge to_node =
+          CfgTools.CfgEdgeH.find_default skippedByEdge (from_node, edge, to_node) []
+        in
 
         Transform.run_transformations file active_transformations
-          { ask ; must_be_dead = must_be_dead ~by_node:false ; must_be_uncalled ;
-            cfg_forward = Cfg.next ; cfg_backward = Cfg.prev ; skipped_statements ; must_be_dead_node };
-
-        (* LHT.to_list lh |> List.map (fst % fst) |> List.sort Node.compare |> List.map Node.show_id |> String.join "," |> print_endline; *)
-        debug_help |> print_endline;
-        (* Hashtbl.to_list joined_by_loc |> List.map fst |> List.sort CilType.Location.compare |> List.map CilType.Location.show |> String.join "," |> print_endline;
-        NodeH.to_list joined_by_node |> List.map fst |> List.sort Node.compare |> List.map Node.show_id |> String.join "," |> print_endline; *)
+          { ask ; must_be_dead ; must_be_uncalled ;
+            cfg_forward = Cfg.next ; cfg_backward = Cfg.prev ; skipped_statements };
       );
 
       lh, gh
@@ -809,26 +773,26 @@ end
    [analyze_loop] cannot reside in it anymore since each invocation of
    [get_spec] in the loop might/should return a different module, and we
    cannot swap the functor parameter from inside [AnalyzeCFG]. *)
-let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge = (*xxx*)
+let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
   try
     let (module Spec) = get_spec () in
     let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
-    GobConfig.with_immutable_conf (fun () -> A.analyze file fs skippedByEdge) (*xxx*)
+    GobConfig.with_immutable_conf (fun () -> A.analyze file fs skippedByEdge)
   with Refinement.RestartAnalysis ->
     (* Tail-recursively restart the analysis again, when requested.
         All solving starts from scratch.
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info skippedByEdge (*xxx*)
+    analyze_loop (module CFG) file fs change_info skippedByEdge
 
 let compute_cfg file =
-  let cfgF, cfgB, skippedByEdge = CfgTools.getCFG file in (*xxx*)
-  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge (*xxx*)
+  let cfgF, cfgB, skippedByEdge = CfgTools.getCFG file in
+  (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
-  let (module CFG), skippedByEdge = compute_cfg file in (*xxx*)
+  let (module CFG), skippedByEdge = compute_cfg file in
   MyCFG.current_cfg := (module CFG);
-  analyze_loop (module CFG) file fs change_info skippedByEdge (*xxx*)
+  analyze_loop (module CFG) file fs change_info skippedByEdge

@@ -2,11 +2,10 @@ open Prelude
 open GoblintCil
 module M = Messages
 
-(* The GADT-based approach of Query.t is overkill here *)
+(** data about analysis available to queries *)
 type queries = {
   ask : ?node:Node.t -> Cil.location -> Queries.ask ;
-  must_be_dead : stmt -> bool ;
-  must_be_dead_node : Node.t -> bool ;
+  must_be_dead : Node.t -> bool ;
   must_be_uncalled : fundec -> bool ;
 
   cfg_forward : MyCFG.cfg ;

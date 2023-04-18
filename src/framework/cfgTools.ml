@@ -135,13 +135,18 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
+(** Type of CFG "edges": keyed by 'from' and 'to' nodes,
+    along with the list of connecting instructions. *)
 module CfgEdge = struct
   open Batteries
 
   type t = node * MyCFG.edges * node
 
   let equal = Tuple3.eq Node.equal (List.equal (Tuple2.eq CilType.Location.equal Edge.equal)) Node.equal
-  let hash = Tuple3.map Node.hash (List.map (Tuple2.map CilType.Location.hash Edge.hash)) Node.hash %> Hashtbl.hash
+  let hash =
+    (* map the nodes to their hash, and each (location, edge) pair to their respective hashes;
+       then we have a structure of primitive constructors and ints, and can use polymorphic hash *)
+    Tuple3.map Node.hash (List.map (Tuple2.map CilType.Location.hash Edge.hash)) Node.hash %> Hashtbl.hash
 end
 
 module CfgEdgeH = BatHashtbl.Make (CfgEdge)
@@ -150,6 +155,8 @@ let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
 
+  (* Track the list of pure control-flow statements between two CFG nodes,
+     which do not otherwise appear in the control flow graph. *)
   let skippedByEdge = CfgEdgeH.create 113 in
 
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
@@ -169,21 +176,33 @@ let createCFG (file: file) =
     CfgEdgeH.add skippedByEdge (fromNode, edges, toNode) skippedStatements;
     if Messages.tracing then Messages.trace "cfg" "done\n\n"
   in
-  let addEdge ?skippedStatements fromNode edge toNode = addEdges ?skippedStatements fromNode [edge] toNode in
-  let addEdge_fromLoc ?skippedStatements fromNode edge toNode = addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode in
+  let addEdge ?skippedStatements fromNode edge toNode =
+    addEdges ?skippedStatements fromNode [edge] toNode
+  in
+  let addEdge_fromLoc ?skippedStatements fromNode edge toNode =
+    addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode
+  in
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.
+     The first return value is the next real successor, the second argument
+     is the list of skipped intermediate statements.
      If stmt is succ of parent, then optional argument parent must be passed
      to also detect cycle ending with parent itself.
      If not_found is true, then a stmt without succs will raise Not_found
      instead of returning that stmt. *)
   let find_real_stmt ?parent ?(not_found=false) stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
-    let rec find visited_stmts stmt : stmt * stmt list =
-      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
-      if List.exists (CilType.Stmt.equal stmt) visited_stmts then
-        (stmt, visited_stmts) (* cycle *)
+    let rec find visited_stmts stmt =
+      if Messages.tracing then
+        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n"
+          (d_list "; " (fun () x -> Pretty.text (string_of_int x)))
+          (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
+      if
+        GobOption.exists (CilType.Stmt.equal stmt) parent
+        || List.exists (CilType.Stmt.equal stmt) visited_stmts
+      then
+        stmt, visited_stmts (* cycle *)
       else
         match stmt.skind with
         | Goto _ (* 1 succ *)
@@ -195,7 +214,7 @@ let createCFG (file: file) =
               if not_found then
                 raise Not_found
               else
-                (stmt, visited_stmts)
+                stmt, visited_stmts
             | [next] ->
               find (stmt :: visited_stmts) next
             | _ -> (* >1 succ *)
@@ -205,7 +224,7 @@ let createCFG (file: file) =
         | Instr _
         | If _
         | Return _ ->
-          (stmt, visited_stmts)
+          stmt, visited_stmts
 
         | Continue _
         | Break _
@@ -217,10 +236,10 @@ let createCFG (file: file) =
           failwith "MyCFG.createCFG: unsupported stmt"
     in
     try
-      let final_stmt, rev_path = find (Option.to_list parent) stmt in
-      let path = List.rev rev_path |> BatList.drop (if Option.is_some parent then 1 else 0) in
+      (* rev_path is the stack of all visited statements, excluding the final statement *)
+      let final_stmt, rev_path = find [] stmt in
       if Messages.tracing then Messages.traceu "cfg" "-> %d\n" final_stmt.sid;
-      final_stmt, path
+      final_stmt, List.rev rev_path
     with Not_found ->
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
@@ -369,10 +388,10 @@ let createCFG (file: file) =
           | Break _
           | Switch _ ->
             (* Should be removed by Cil.prepareCFG. *)
-            failwith "MyCFG.createCFG: unprepared stmt"
+            failwith "CfgTools.createCFG: unprepared stmt"
 
           | ComputedGoto _ ->
-            failwith "MyCFG.createCFG: unsupported stmt"
+            failwith "CfgTools.createCFG: unsupported stmt"
         in
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "handle" (List.iter handle) fd.sallstmts;
 
@@ -591,7 +610,7 @@ let fprint_hash_dot cfg  =
   close_out out
 
 
-let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t = (*xxx*)
+let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   let cfgF, cfgB, skippedByEdge = createCFG file in
   let cfgF, cfgB =
     (* TODO: might be broken *)
@@ -601,7 +620,7 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t = (*xxx*)
       (cfgF, cfgB)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge (*xxx*)
+  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
 
 
 let iter_fd_edges (module Cfg : CfgBackward) fd =
