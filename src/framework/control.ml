@@ -786,13 +786,15 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info skippedByEdge =
     (* TODO: do some more incremental refinement and reuse parts of solution *)
     analyze_loop (module CFG) file fs change_info skippedByEdge
 
-let compute_cfg file =
+let compute_cfg_skips file =
   let cfgF, cfgB, skippedByEdge = CfgTools.getCFG file in
   (module struct let prev = cfgB let next = cfgF end : CfgBidir), skippedByEdge
+
+let compute_cfg = fst % compute_cfg_skips
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
-  let (module CFG), skippedByEdge = compute_cfg file in
+  let (module CFG), skippedByEdge = compute_cfg_skips file in
   MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info skippedByEdge
