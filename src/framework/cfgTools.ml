@@ -487,7 +487,7 @@ let createCFG (file: file) =
 let createCFG = Timing.wrap "createCFG" createCFG
 
 
-let minimizeCFG (fw,bw) =
+let minimizeCFG sk (fw,bw) =
   let keep = H.create (H.length bw) in
   let comp_keep t (_,f) =
     if (List.compare_length_with (H.find_default bw t []) 1 <> 0) || (List.compare_length_with (H.find_default fw t []) 1 <> 0) then
@@ -500,23 +500,33 @@ let minimizeCFG (fw,bw) =
   (* H.iter comp_keep fw; *)
   let cfgB = H.create (H.length bw) in
   let cfgF = H.create (H.length fw) in
+  let skippedStmts = CfgEdgeH.create (CfgEdgeH.length sk) in
   let ready = H.create (H.length bw) in
-  let rec add a b t (e,f)=
+  let inbound t =
+    H.find_default bw t []
+    |> List.map (fun (e, f) -> e, f, CfgEdgeH.find_default sk (f, e, t) [])
+  in
+  (* list of traversed edges, list of traversed skipped statements,
+     end of current path, current to node, (edge, current from node, skipped statements on edge) *)
+  let rec add a p b t (e, f, s) =
+    let a', p' = e @ a, s @ p in
     if H.mem keep f then begin
-      H.modify_def [] b (List.cons (e@a,f)) cfgB;
-      H.modify_def [] f (List.cons (e@a,b)) cfgF;
+      H.modify_def [] b (List.cons (a', f)) cfgB;
+      H.modify_def [] f (List.cons (a', b)) cfgF;
+      CfgEdgeH.replace skippedStmts (f, a', b) p';
       if H.mem ready b then begin
         H.replace ready f ();
-        List.iter (add [] f f) (H.find_default bw f [])
+        List.iter (add [] [] f f) (inbound f)
       end
     end else begin
-      List.iter (add (e@a) b f) (H.find_default bw f [])
+      let f_stmt = match f with Statement s -> [s] | _ -> [] in
+      List.iter (add a' (f_stmt @ p') b f) (inbound f)
     end
   in
-  H.iter (fun k _ -> List.iter (add [] k k) (H.find_default bw k [])) keep;
+  H.iter (fun k _ -> List.iter (add [] [] k k) (inbound k)) keep;
   H.clear ready;
   H.clear keep;
-  cfgF, cfgB
+  cfgF, cfgB, skippedStmts
 
 
 module type CfgPrinters =
@@ -612,12 +622,12 @@ let fprint_hash_dot cfg  =
 
 let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   let cfgF, cfgB, skippedByEdge = createCFG file in
-  let cfgF, cfgB =
+  let cfgF, cfgB, skippedByEdge =
     (* TODO: might be broken *)
     if get_bool "exp.mincfg" then
-      Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB)
+      Timing.wrap "minimizing the cfg" minimizeCFG skippedByEdge (cfgF, cfgB)
     else
-      (cfgF, cfgB)
+      (cfgF, cfgB, skippedByEdge)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n []), skippedByEdge
