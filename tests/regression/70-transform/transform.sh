@@ -17,7 +17,7 @@ function main() {
     esac
   done
 
-  output_file="$(mktemp --tmpdir=. transformed.c.XXXXXX)"
+  output_file="$(mktemp ./transformed.c.XXXXXX)"
 
   # save stdout to $stdout0
   exec {stdout0}>&1
