@@ -21,7 +21,7 @@ module type Stateless =
 sig
   include S
 
-  val threadenter: Node.t -> varinfo -> t
+  val threadenter: Node.t -> int option -> varinfo -> t
 end
 
 module type Stateful =
@@ -30,8 +30,8 @@ sig
 
   module D: Lattice.S
 
-  val threadenter: t * D.t -> Node.t -> varinfo -> t list
-  val threadspawn: D.t -> Node.t -> varinfo -> D.t
+  val threadenter: t * D.t -> Node.t -> int option -> varinfo -> t list
+  val threadspawn: D.t -> Node.t -> int option -> varinfo -> D.t
 
   (** If it is possible to get a list of unique thread create thus far, get it *)
   val created: t -> D.t -> (t list) option
@@ -41,10 +41,22 @@ end
 (** Type to represent an abstract thread ID. *)
 module FunNode: Stateless =
 struct
-  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no node" end))
+  include
+    Printable.Prod
+      (CilType.Varinfo)
+      (Printable.Option
+        (Printable.Prod
+          (Node)
+          (Printable.Option
+            (Printable.Int)
+            (struct let name = "no index" end)))
+        (struct let name = "no node" end))
 
   let show = function
-    | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
+    | (f, Some (n, i)) ->
+      f.vname
+      ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
+      ^ "#" ^ Option.fold ~none:"??" ~some:string_of_int i
     | (f, None) -> f.vname
 
   include Printable.SimpleShow (
@@ -55,12 +67,13 @@ struct
   )
 
   let threadinit v ~multiple: t = (v, None)
-  let threadenter l v: t =
+  let threadenter l i v: t =
     if GobConfig.get_bool "ana.thread.include-node" then
-      (v, Some l)
+      (v, Some (l, i))
     else
       (v, None)
 
+  (* shouldn't this check configured mainfun?? *)
   let is_main = function
     | ({vname = "main"; _}, None) -> true
     | _ -> false
@@ -77,8 +90,8 @@ struct
 
   module D = Lattice.Unit
 
-  let threadenter _ n v = [threadenter n v]
-  let threadspawn () _ _ = ()
+  let threadenter _ n i v = [threadenter n i v]
+  let threadspawn () _ _ _ = ()
 
   let created _ _ = None
 end
@@ -145,10 +158,11 @@ struct
     else
       ([base_tid], S.empty ())
 
-  let threadenter ((p, _ ) as current, cs) (n: Node.t) v =
-    let n = Base.threadenter n v in
-    let ((p', s') as composed) = compose current n in
-    if is_unique composed && S.mem n cs then
+  (*x*)
+  let threadenter ((p, _ ) as current, cs) (n: Node.t) i v =
+    let n = Base.threadenter n i v in
+    let ((p', s') as composed) = compose current n in (* todo: use i here *)
+    if is_unique composed && S.mem n cs then (* todo: use i here *)
       [(p, S.singleton n); composed] (* also respawn unique version of the thread to keep it reachable while thread ID sets refer to it *)
     else
       [composed]
@@ -157,8 +171,9 @@ struct
     let els = D.elements cs in
     Some (List.map (compose current) els)
 
-  let threadspawn cs l v =
-    S.add (Base.threadenter l v) cs
+  (*x*)
+  let threadspawn cs l i v =
+    S.add (Base.threadenter l i v) cs
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
@@ -228,24 +243,24 @@ struct
     | (None, Some x'), `Top -> liftp x' (P.D.top ())
     | _ -> None
 
-  let threadenter x n v =
+  let threadenter x n i v =
     match x with
-    | ((Some x', None), `Lifted1 d) -> H.threadenter (x',d) n v |> List.map (fun t -> (Some t, None))
-    | ((Some x', None), `Bot) -> H.threadenter (x',H.D.bot ()) n v |> List.map (fun t -> (Some t, None))
-    | ((Some x', None), `Top) -> H.threadenter (x',H.D.top ()) n v |> List.map (fun t -> (Some t, None))
-    | ((None, Some x'), `Lifted2 d) -> P.threadenter (x',d) n v |> List.map (fun t -> (None, Some t))
-    | ((None, Some x'), `Bot) -> P.threadenter (x',P.D.bot ()) n v |> List.map (fun t -> (None, Some t))
-    | ((None, Some x'), `Top) -> P.threadenter (x',P.D.top ()) n v |> List.map (fun t -> (None, Some t))
+    | ((Some x', None), `Lifted1 d) -> H.threadenter (x',d) n i v |> List.map (fun t -> (Some t, None))
+    | ((Some x', None), `Bot) -> H.threadenter (x',H.D.bot ()) n i v |> List.map (fun t -> (Some t, None))
+    | ((Some x', None), `Top) -> H.threadenter (x',H.D.top ()) n i v |> List.map (fun t -> (Some t, None))
+    | ((None, Some x'), `Lifted2 d) -> P.threadenter (x',d) n i v |> List.map (fun t -> (None, Some t))
+    | ((None, Some x'), `Bot) -> P.threadenter (x',P.D.bot ()) n i v |> List.map (fun t -> (None, Some t))
+    | ((None, Some x'), `Top) -> P.threadenter (x',P.D.top ()) n i v |> List.map (fun t -> (None, Some t))
     | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
 
-  let threadspawn x n v =
+  let threadspawn x n i v =
     match x with
-    | `Lifted1 x' -> `Lifted1 (H.threadspawn x' n v)
-    | `Lifted2 x' -> `Lifted2 (P.threadspawn x' n v)
-    | `Bot when history_enabled () -> `Lifted1 (H.threadspawn (H.D.bot ()) n v)
-    | `Bot  -> `Lifted2 (P.threadspawn (P.D.bot ()) n v)
-    | `Top when history_enabled () -> `Lifted1 (H.threadspawn (H.D.top ()) n v)
-    | `Top  -> `Lifted2 (P.threadspawn (P.D.top ()) n v)
+    | `Lifted1 x' -> `Lifted1 (H.threadspawn x' n i v)
+    | `Lifted2 x' -> `Lifted2 (P.threadspawn x' n i v)
+    | `Bot when history_enabled () -> `Lifted1 (H.threadspawn (H.D.bot ()) n i v)
+    | `Bot  -> `Lifted2 (P.threadspawn (P.D.bot ()) n i v)
+    | `Top when history_enabled () -> `Lifted1 (H.threadspawn (H.D.top ()) n i v)
+    | `Top  -> `Lifted2 (P.threadspawn (P.D.top ()) n i v)
 
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
 end

@@ -594,6 +594,16 @@ struct
   let relift _ = failwith Message.message
 end
 
+module Int : S with type t = int = struct
+  include Std
+  include Int
+  let hash = Hashtbl.hash
+  let show = string_of_int
+  let pretty () = Pretty.num
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x
+  let name () = "Int"
+  let to_yojson x = `Int x
+end
 
 (** Concatenates a list of strings that
     fit in the given character constraint *)

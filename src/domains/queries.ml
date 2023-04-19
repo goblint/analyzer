@@ -20,6 +20,7 @@ module NodeFlatLattice = Lattice.Flat (Node) (struct
   let bot_name = "Unreachable node"
 end)
 
+module ThreadNodeLattice = Lattice.Prod (NodeFlatLattice) (Lattice.LiftedInt)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
@@ -77,7 +78,7 @@ type _ t =
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
-  | ThreadId: NodeFlatLattice.t t
+  | ThreadCreateIndexedNode: ThreadNodeLattice.t t (* ~~todo: name that shows that id is included~~ *) (* todo: indexed node lattice should really be `Lifted (node, `Lifted id) not (`Lifted node, `Lifted id) see *1* *)
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -146,7 +147,7 @@ struct
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
-    | ThreadId -> (module NodeFlatLattice)
+    | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
@@ -206,7 +207,7 @@ struct
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
-    | ThreadId -> NodeFlatLattice.top ()
+    | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
@@ -255,7 +256,7 @@ struct
     | Any MustBeSingleThreaded -> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
-    | Any ThreadId -> 9999999
+    | Any ThreadCreateIndexedNode -> 9999999
     | Any MayBeThreadReturn -> 15
     | Any (EvalFunvar _) -> 16
     | Any (EvalInt _) -> 17
@@ -386,7 +387,7 @@ struct
     | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
-    | Any ThreadId -> Pretty.dprintf "ThreadId"
+    | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
