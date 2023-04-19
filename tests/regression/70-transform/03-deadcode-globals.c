@@ -34,7 +34,7 @@ int struct_pointer_f(struct1_named4 *x) {
 
 const int global1 = 1;  // referenced (indirectly)
 const int global2 = global1 + 7;  // referenced (directly in main)
-const int global3 = 2;  // referenced by global3 only
+const int global3 = 2;  // referenced by global4 only
 const int global4 = global3 + 9;
 
 // reference each other, but otherwise unreferenced

@@ -138,15 +138,7 @@ let () = Printexc.register_printer (function
 (** Type of CFG "edges": keyed by 'from' and 'to' nodes,
     along with the list of connecting instructions. *)
 module CfgEdge = struct
-  open Batteries
-
-  type t = node * MyCFG.edges * node
-
-  let equal = Tuple3.eq Node.equal (List.equal (Tuple2.eq CilType.Location.equal Edge.equal)) Node.equal
-  let hash =
-    (* map the nodes to their hash, and each (location, edge) pair to their respective hashes;
-       then we have a structure of primitive constructors and ints, and can use polymorphic hash *)
-    Tuple3.map Node.hash (List.map (Tuple2.map CilType.Location.hash Edge.hash)) Node.hash %> Hashtbl.hash
+  type t = Node.t * MyCFG.edges * Node.t [@@deriving eq, hash]
 end
 
 module CfgEdgeH = BatHashtbl.Make (CfgEdge)
@@ -173,7 +165,7 @@ let createCFG (file: file) =
     NH.replace fd_nodes toNode ();
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
     H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
-    CfgEdgeH.add skippedByEdge (fromNode, edges, toNode) skippedStatements;
+    CfgEdgeH.replace skippedByEdge (fromNode, edges, toNode) skippedStatements;
     if Messages.tracing then Messages.trace "cfg" "done\n\n"
   in
   let addEdge ?skippedStatements fromNode edge toNode =

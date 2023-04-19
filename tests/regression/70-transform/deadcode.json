@@ -1,6 +1,0 @@
-{
-  "trans": {
-    "activated": [ "remove_dead_code" ],
-    "output": "transformed.c"
-  }
-}

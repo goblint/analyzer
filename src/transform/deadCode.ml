@@ -3,8 +3,6 @@ open GoblintCil
 open GobConfig
 open MyCFG
 
-let dpf fmt = Pretty.gprintf (fun doc -> print_endline @@ Pretty.sprint ~width:Int.max_num doc) fmt
-
 let empty_block () = { battrs = [] ; bstmts = [] }
 
 (** Filter statements out of a block (recursively). CFG fields (prev/next,
