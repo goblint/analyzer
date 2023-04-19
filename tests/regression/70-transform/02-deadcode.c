@@ -30,7 +30,9 @@ int basic2(int n) {
     return 0;
 
   for (int i = 0; i < n; i++)
-    a += i + n;  // bug in dead code detection: is not found dead by goblint, because it is not included in the result
+    // Bug in dead code warnings: no dead code warning is emitted, because body is not included
+    // in the result. Transformation checks all CFG nodes, and therefore works.
+    a += i + n;
 
   return a;
 }
