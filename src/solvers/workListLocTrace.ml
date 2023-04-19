@@ -11,42 +11,30 @@ module Make =
 
     include Generic.SolverStats (S) (HM)
 
-    (* Copy-Pasta: https://cs3110.github.io/textbook/chapters/modules/functional_data_structures.html *)
-    module type Stack = sig
-      type 'a t
-      exception Empty
-      val empty : 'a t
-      val is_empty : 'a t -> bool
-      val push : 'a t -> 'a -> 'a t
-      val peek : 'a t -> 'a
-      val pop : 'a t -> 'a * 'a t
-      val size : 'a t -> int
-      val to_list : 'a t -> 'a list
-      val from_list : 'a list -> 'a t
-      val fold : ('a -> 'b -> 'a ) -> 'b t -> 'a  -> 'a 
-    end
-
-    module ListStack : Stack = struct
+    module ListQueue = struct
       type 'a t = 'a list
       exception Empty
       let empty = []
       let is_empty = function [] -> true | _ -> false
       let to_list = Fun.id
       let from_list = Fun.id
-      let push st elem =
+      let enqueue st elem =
         let stList = to_list st
         in 
-        if List.mem elem stList then st else
-          List.cons elem st
+        if List.mem elem stList then (
+          st
+        ) 
+        else
+          List.append st [elem]
       let peek = function [] -> raise Empty | x :: _ -> x
       let pop = function [] -> raise Empty | x :: s -> x, s
       let size = List.length
 
       let fold f a b = List.fold_left f b (to_list a)
+
     end
-    module VS = 
-      (* Set.Make(S.Var) *)
-      ListStack
+
+    module VS = ListQueue
 
     open S.Dom
 
@@ -73,12 +61,12 @@ module Make =
       in
       let eval x y =
         get_var_event y;
-        HM.replace infl y (VS.push (try HM.find infl y with Not_found -> VS.empty) x);
+        HM.replace infl y (VS.enqueue (try HM.find infl y with Not_found -> VS.empty) x);
         try HM.find rho y
         with Not_found ->
           new_var_event y;
           HM.replace rho y (bot ());
-          vs := VS.push !vs y;
+          vs := VS.enqueue !vs y;
           bot ()
       in
       let set x d =
@@ -104,10 +92,10 @@ module Make =
             print_string ("qList:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" qList)^"
       \nnonPrio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" nonPrio)^"
       \nprio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" prio)^"\n");
-            vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs nonPrio;
-            vs := List.fold ( fun acc node -> VS.push acc (SVarMap.find node qMap)) !vs prio;
+      vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs prio;
+            vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs nonPrio;
           else 
-            vs := (VS.fold VS.push q !vs)
+            vs := (VS.fold VS.enqueue q !vs)
         end
       in
       start_event ();

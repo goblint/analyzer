@@ -570,7 +570,6 @@ struct
             DepMutexCount.add vinfo ((DepMutexCount.find vinfo count_fold)+1) count_fold 
           )
           else (
-            print_string ("vinfo not yet contained in count_fold\n");
             DepMutexCount.add vinfo 1 count_fold
           )
                            | _ -> count_fold
