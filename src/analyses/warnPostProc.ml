@@ -159,7 +159,7 @@ let no_race_or_lock stmt node acc =
           ) [] xs in
         let is_lock library_desc = 
           match library_desc with
-          | LibraryDesc.Lock _ -> true
+          | LibraryDesc.Lock _ | LibraryDesc.Unlock _ -> true
           | _ -> false
         in
         List.fold (fun acc (var, exp_list) -> is_lock ((LibraryFunctions.find var).special exp_list) || acc) false varinfos
