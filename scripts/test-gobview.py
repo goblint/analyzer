@@ -37,7 +37,9 @@ thread.start()
 
 # installation of browser
 print("starting installation of browser\n")
-browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=Options())
+options = Options()
+options.add_argument('headless')
+browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
 print("finished webdriver installation \n")
 browser.maximize_window()
 
