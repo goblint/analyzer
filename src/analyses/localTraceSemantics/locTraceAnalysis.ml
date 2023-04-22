@@ -178,7 +178,7 @@ struct
        (Assign(_, edgeExp)) -> (
          let custom_glob_vinfo = makeVarinfo false "__goblint__traces__custom_nonglobal" (TInt(IInt,[]))
          in
-         let tmp_sigma_global,otherValues, _ = eval result_node.sigma custom_glob_vinfo edgeExp graph result_node
+         let tmp_sigma_global,otherValues, _ = eval result_node.sigma custom_glob_vinfo edgeExp graph result_node true (* truth value should not matter here *)
          in 
          let tmp = SigmaMap.find custom_glob_vinfo tmp_sigma_global
          in print_string ("eval_global evaluated to "^(show_varDomain tmp)^"\n");
@@ -187,7 +187,7 @@ struct
 
   and 
     (* Evaluates the effects of an assignment to sigma *)
-    eval sigOld vinfo (rval: exp) graph node = 
+    eval sigOld vinfo (rval: exp) graph node tv =
     let nopVal sigEnhanced newExp = (Int((Big_int_Z.big_int_of_int (-13)), (Big_int_Z.big_int_of_int (-13)),IInt), false, sigEnhanced, [], newExp)
 
     (* returns a function which calculates [l1, u1] OP [l2, u2]*)
@@ -215,7 +215,6 @@ struct
                     (if Big_int_Z.lt_big_int u1 l2 then (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, ik) )
                      else if Big_int_Z.le_big_int u2 l1 then (Int(Big_int_Z.zero_big_int,Big_int_Z.zero_big_int, ik))
                      else (print_string "Overlapping Lt is not supported\n"; exit 1)
-                     (* Int(Big_int_Z.zero_big_int,Big_int_Z.big_int_of_int 1, ik) *)
                     )
 
                   | _,_ -> Printf.printf "This type of assignment is not supported get_binop_int\n"; exit 0 )
@@ -344,7 +343,49 @@ struct
                   else (print_string "in overlap split there are two points, this should never happen actually\n";Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, var)\n"; exit 0))
              | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, var)\n"; exit 0
            )
-           else (print_string "nopVal created at binop Lt of two variables. One of them or both are unknown\n";nopVal (currentSigEnhanced) newExpr)
+           else if SigmaMap.mem newVar1 sigOld then
+            (print_string "nopVal created at binop Lt of two variables. second is unknown\n";
+            match SigmaMap.find newVar1 sigOld with 
+            | Int(l1,u1,k1) -> if tv then (
+              (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k1), true, SigmaMap.add newVar2 (Int(Big_int_Z.add_int_big_int 1 u1,Big_int_Z.big_int_of_int intMax, k1)) currentSigEnhanced, [], newExpr)
+            )
+            else (
+              (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k1), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int intMin,l1, k1)) currentSigEnhanced, [], newExpr)
+            )
+            | _ -> print_string "In expresion v1 < v2, v1 has unexpected type"; exit 0
+            )
+           else if SigmaMap.mem newVar2 sigOld then
+            (print_string "nopVal created at binop Lt of two variables. first is unknown\n";
+            match SigmaMap.find newVar2 sigOld with 
+            | Int(l2,u2,k2) -> if tv then (
+              (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k2), true, SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.sub_big_int u2 (Big_int_Z.big_int_of_int 1), k2)) currentSigEnhanced, [], newExpr)
+            )
+            else (
+              (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k2), true, SigmaMap.add newVar1 (Int(u2,Big_int_Z.big_int_of_int (intMax), k2)) currentSigEnhanced, [], newExpr)
+            )
+            | _ -> print_string "In expresion v1 < v2, v1 has unexpected type"; exit 0
+            )
+           else            
+            (print_string "nopVal created at binop Lt of two variables. both are unknown\n";
+            if tv then (
+              let newOtherValues = [(newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-1), IInt));
+            (newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-2), IInt));
+            (newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 1, IInt));
+            (newVar1, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 2, IInt))
+            ]
+          in 
+          (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, IInt), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int intMax, IInt)) (SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 0, IInt)) currentSigEnhanced), newOtherValues, newExpr)
+            )
+            else(
+              let newOtherValues = [(newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-1), IInt));
+            (newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int (-2), IInt));
+            (newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 1, IInt));
+            (newVar2, Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 2, IInt))
+            ]
+          in 
+          (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, IInt), true, SigmaMap.add newVar2 (Int(Big_int_Z.big_int_of_int intMin,Big_int_Z.big_int_of_int 0, IInt)) (SigmaMap.add newVar1 (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int intMax, IInt)) currentSigEnhanced), newOtherValues, newExpr)
+            )
+            )
          )
 
        | BinOp(Lt, binopExp1,Lval(Var(var), NoOffset),TInt(biopIk, attr)) ->(
@@ -372,8 +413,12 @@ struct
                                                     | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(exp, var)\n"; exit 0)
                else ( 
                 if var.vglob then (print_string("Error: there is a global in expression 'exp < var' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
+                if tv then
                  let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.add_big_int u (Big_int_Z.big_int_of_int 1), Big_int_Z.big_int_of_int intMax, k)) (SigmaMap.empty))
                  in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
+                else 
+                  let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.big_int_of_int intMin, u, k)) (SigmaMap.empty))
+                 in (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
                )
              )
            | (_,false, sigEnhanced,_, newBinOpExp1) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) newBinOpExp1
@@ -404,8 +449,12 @@ struct
                                                     | other -> print_string ("This type of assignment is not supported in eval_helper BinOp(var, exp), var="^(CilType.Varinfo.show newVar)^" is not an Integer in sigOld:"^(show_varDomain other)^"\n"); exit 0)
                else ( 
                if var.vglob then (print_string("Error: there is a global in expression 'var < exp' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
+               if tv then
                  let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(Big_int_Z.big_int_of_int intMin, Big_int_Z.sub_big_int l (Big_int_Z.big_int_of_int 1), k)) (SigmaMap.empty))
                  in (Int(Big_int_Z.big_int_of_int 1,Big_int_Z.big_int_of_int 1, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
+                else 
+                  let sigTmp = NodeImpl.destruct_add_sigma sigEnhanced (SigmaMap.add newVar (Int(u, Big_int_Z.big_int_of_int intMax, k )) (SigmaMap.empty))
+                 in (Int(Big_int_Z.big_int_of_int 0,Big_int_Z.big_int_of_int 0, k), true, NodeImpl.destruct_add_sigma currentSigEnhanced sigTmp, otherValues, newExpr)
                ))
            | (_,false, sigEnhanced, _, newExp) -> nopVal (NodeImpl.destruct_add_sigma currentSigEnhanced sigEnhanced) newExp
            | _ -> Printf.printf "This type of assignment is not supported in eval_helper BinOp(var, exp), exp does not evaluate properly\n"; exit 0)
@@ -446,8 +495,8 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
     if success then (SigmaMap.add vinfo result sigNew, otherValues, newExpr)  else (print_string "Eval could not evaluate expression\n"; exit 0)
 
   (* Catches exception in eval function and produces warnings *)
-  let eval_catch_exceptions sigOld vinfo rval graph node =
-    try (eval sigOld vinfo rval graph node, true) with 
+  let eval_catch_exceptions sigOld vinfo rval graph node tv =
+    try (eval sigOld vinfo rval graph node tv, true) with 
     | Overflow_addition_Int -> Messages.warn "Contains a trace with overflow of Integer addition";
       omitPostSolving#setFlag ();
       ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
@@ -456,19 +505,19 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
       ((SigmaMap.add vinfo Error sigOld, [], rval) ,false)
 
   (* Manages other generated values and return a set of sigmas *)
-  let eval_wrapper sigOld vinfo rval graph node =
+  let eval_wrapper sigOld vinfo rval graph node tv =
     let rec iter_otherValues doneValues workList sigmaList =
       match workList with 
         (var,vd)::xs -> if List.mem (var,vd) doneValues then iter_otherValues doneValues xs sigmaList
         else (let sigTmp = SigmaMap.add var vd sigOld
               in 
-              let (anotherSig, moreValues, _), success_other = eval_catch_exceptions sigTmp vinfo rval graph node
+              let (anotherSig, moreValues, _), success_other = eval_catch_exceptions sigTmp vinfo rval graph node tv
               in 
               let newWorkList = List.fold (fun acc value -> if List.mem value acc then acc else value::acc) workList moreValues
               in iter_otherValues ((var,vd)::doneValues) newWorkList (if (List.exists (fun sigma_exists -> NodeImpl.equal_sigma sigma_exists anotherSig) sigmaList) then sigmaList else (anotherSig::sigmaList)))
       | [] -> sigmaList
     in
-    let (sigNew,otherValues, newExpr), success = eval_catch_exceptions sigOld vinfo rval graph node 
+    let (sigNew,otherValues, newExpr), success = eval_catch_exceptions sigOld vinfo rval graph node tv
     in 
     let allSigmas = iter_otherValues [] otherValues [sigNew]
     in
@@ -538,7 +587,7 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
           firstLockedGraph::(mutexLock_join allUnlockingTraces lockedGraph lastNode lockingLabel lockedNode customMutex)
         in
         let graphList = List.fold (fun resultGraphList lockedGraph -> 
-            let sigmaList,success_inner, _ = eval_wrapper lockedNode.sigma localGlobalVar (Lval(Var(global),NoOffset)) lockedGraph lockedNode
+            let sigmaList,success_inner, _ = eval_wrapper lockedNode.sigma localGlobalVar (Lval(Var(global),NoOffset)) lockedGraph lockedNode true
             in
             (List.fold (fun sigma_graphList evaluated -> 
                  let assignedNode = {programPoint=ctx.prev_node;sigma=evaluated;id=(idGenerator#getID lockedNode 
@@ -588,7 +637,7 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
              (
                let lastNode = LocalTraces.get_last_node graph_outter
                in
-               let sigmaList,success_inner, newExp = eval_wrapper lastNode.sigma x rval  graph_outter lastNode in 
+               let sigmaList,success_inner, newExp = eval_wrapper lastNode.sigma x rval  graph_outter lastNode true in 
                if not success_inner then (print_string "assignment did not succeed!\n"; 
                                           [LocalTraces.extend_by_gEdge graph_outter (lastNode,Assign(lval, newExp),{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})] )
                else
@@ -708,13 +757,14 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
           in
           let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error lastNode.sigma 
           in
-          let sigmaList,success, newExp = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph_outter lastNode
+          let sigmaList,success, newExp = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph_outter lastNode tv
           in
           List.map (fun sigma_map ->
               let result_as_int = match (SigmaMap.find_default Error LocalTraces.branch_vinfo sigma_map) with
                   Int(i1,i2,_) -> print_string ("in branch, the result is ["^(Big_int_Z.string_of_big_int i1)^";"^(Big_int_Z.string_of_big_int i2)^"]");
-                  if (Big_int_Z.int_of_big_int i1 <= 0)&&(Big_int_Z.int_of_big_int i2 >= 0) then 0 
-                  else 1
+                  if (Big_int_Z.int_of_big_int i1 == 0)&&(Big_int_Z.int_of_big_int i2 == 0) then 0 
+                  else if (Big_int_Z.int_of_big_int i1 > 0)||(Big_int_Z.int_of_big_int i2 < 0) then 1
+                  else -1
                 |_ -> -1
               in
               let sigmaNew = remove_global_locals_sigma (SigmaMap.remove LocalTraces.branch_vinfo (NodeImpl.destruct_add_sigma lastNode.sigma sigma_map)) (VarinfoSet.to_list rvalGlobals)
@@ -724,7 +774,7 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
                                                    {programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID lastNode (Test(newExp, tv)) ctx.node sigmaNew tid ls);tid=tid;lockSet=ls})
               in
               print_string ("success="^(string_of_bool success)^", tv="^(string_of_bool tv)^", result_as_int="^(string_of_int result_as_int)^"\nand possible edge="^(LocalTraces.show_edge myEdge)^"\n");
-              let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0) || (result_as_int= -1)) 
+              let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0)) 
                 then LocalTraces.extend_by_gEdge graph_outter myEdge else (print_string "no edge added for current sigma in branch\n";graph)
               in
               result_graph
@@ -844,7 +894,7 @@ Evaluation continues because this could be some pthread.h initializations\n"); n
                                     (
                                       let lastNode = LocalTraces.get_last_node graph_outter
                                       in  
-                                      let resultList, success, newExp = eval_wrapper lastNode.sigma LocalTraces.return_vinfo ret_exp graph_outter lastNode
+                                      let resultList, success, newExp = eval_wrapper lastNode.sigma LocalTraces.return_vinfo ret_exp graph_outter lastNode true
                                       in
                                       List.map (fun sigma_map -> 
                                           let newSigma = remove_global_locals_sigma sigma_map (VarinfoSet.to_list rvalGlobals)
@@ -962,7 +1012,7 @@ else lockedGraph
       let myTmp = (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExp)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
                    let special_varinfo = makeVarinfo false "__goblint__traces__special" (TInt(IInt,[]))
                    in
-                   let tidSigmaList, success, newExp = eval_wrapper sigma special_varinfo tidExp graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}
+                   let tidSigmaList, success, newExp = eval_wrapper sigma special_varinfo tidExp graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} true
                    in if not success then (Printf.printf "Error: could not evaluate argument of pthread_join in special\n"; exit 0);
                    List.fold (fun graphList tidSigma -> 
                        let tidJoin = 
@@ -1122,7 +1172,7 @@ and after, we have:
           let sigma_formalList, _, newExpList = List.fold ( 
               fun (sigAcc, formalExp, expListAcc) formal -> (match formalExp with 
                   | x::xs -> (
-                      let resultList, success, newExp = eval_wrapper lastNode.sigma formal x graph_outter lastNode
+                      let resultList, success, newExp = eval_wrapper lastNode.sigma formal x graph_outter lastNode true
                       in if success = true 
                       then (
                         let varDomainList = List.fold (fun varDomList_fold sigma_fold -> (SigmaMap.find formal sigma_fold)::varDomList_fold) [] resultList  
