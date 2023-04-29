@@ -378,8 +378,8 @@ let warn_postprocess fd =
   let hoist_entry node =
     let module CFG = (val !MyCFG.current_cfg) in
     let prev_nodes = List.map snd (CFG.prev node) in
-    let prev_conds = List.map (fun prev_node -> Ant.conds_in (HM.find solution (`G prev_node))) prev_nodes in
-    let cs_in = Ant.conds_in (HM.find solution (`L node)) in
+    let prev_conds = List.map (fun prev_node -> Ant.conds_in (try HM.find solution (`G prev_node) with Not_found -> D.bot ())) prev_nodes in
+    let cs_in = Ant.conds_in (try HM.find solution (`L node) with Not_found -> D.bot ()) in
     let cs_out = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
     CondSet.diff cs_in cs_out |> filter_always_true (!ask node) in
 
