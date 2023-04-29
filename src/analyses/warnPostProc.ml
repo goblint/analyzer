@@ -314,7 +314,10 @@ struct
           let module CFG = (val !MyCFG.current_cfg) in
           let prev_nodes = List.map snd (CFG.prev node) in
           let prev_values = List.map (fun node -> get (`G node)) prev_nodes in
-          List.fold_left Dom.meet (Dom.top ()) prev_values
+          if List.is_empty prev_values then (* happens when there is unreachable code *)
+            Dom.empty ()
+          else
+            List.fold_left Dom.meet (Dom.top ()) prev_values
       in
       Some f
     (* AvOut *)
