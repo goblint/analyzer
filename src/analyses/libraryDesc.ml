@@ -60,6 +60,7 @@ type special =
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Memcpy of { dest: Cil.exp; src: Cil.exp }
   | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
+  | Strlen of Cil.exp
   | Abort
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Setjmp of { env: Cil.exp; }

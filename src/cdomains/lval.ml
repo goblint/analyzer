@@ -256,6 +256,9 @@ struct
   let to_string = function
     | StrPtr (Some x) -> Some x
     | _        -> None
+  let to_string_length = function
+    |  StrPtr (Some x) -> Some (String.length x)
+    | _ -> None
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string

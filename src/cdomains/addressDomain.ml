@@ -104,6 +104,7 @@ struct
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
   let to_string x = List.filter_map Addr.to_string (elements x)
+  let to_string_length x = List.filter_map Addr.to_string_length (elements x)
 
   (* add an & in front of real addresses *)
   module ShortAddr =

@@ -16,6 +16,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
     ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src });
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
+    ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
@@ -670,7 +671,6 @@ let invalidate_actions = [
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
     "strcmp", readsAll;(*safe*)
     "strftime", writes [1];(*keep [1]*)
-    "strlen", readsAll;(*safe*)
     "strncmp", readsAll;(*safe*)
     "strncat", writes [1];(*keep [1]*)
     "strstr", readsAll;(*safe*)
@@ -733,7 +733,6 @@ let invalidate_actions = [
     "sigaddset", writesAll;(*unsafe*)
     "pthread_sigmask", writesAllButFirst 2 readsAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
-    "_strlen", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
