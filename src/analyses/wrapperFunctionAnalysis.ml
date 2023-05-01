@@ -34,7 +34,9 @@ struct
   (* TODO:
     Does it matter if this is node or prev_node? [malloc] analysis used ctx.node and seemed to care.
     Thread ID analysis is using ctx.prev_node (which makes more sense, since that's where the thread_create edge is,
-    and would keep two wrapper calls apart if they are e.g. both on edges leading into a join point) *)
+    and would keep two wrapper calls apart if they are e.g. both on edges leading into a join point)
+    https://github.com/goblint/analyzer/commit/77c0423640c50bb82e4290bcc97f33d4082715d0
+      *)
   let node_for_ctx ctx = if UniqueCountArgs.use_previous_node then ctx.prev_node else ctx.node
 
   module Chain = Lattice.Chain (struct
