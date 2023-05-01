@@ -85,6 +85,12 @@ let filter_map_block ?(unchecked_condition = fun () -> GoblintCil.integer 1) f b
   in
   impl_block block
 
+(** Is it possible for this statement to begin executing normally, but not finish? *)
+let may_stop_execution stmt =
+  match stmt.skind with
+  | Instr is -> List.exists (function Call _ | Asm _ -> true | _ -> false) is
+  | _ -> false
+
 (** Perform a depth first search over the CFG. Record the IDs of live statements;
     for each traversed edge, record the skipped statements along the edge as live,
     if the nodes on both ends of the edge are live. Record live statements in the nodes
@@ -102,20 +108,24 @@ let find_live_statements
     NodeH.replace seen_nodes n ();
     let n_outbound = cfg n in
 
-    (* The skipped statements along each edge could be live if either the 'from'
-      or the 'to' nodes are live. This is an over-approximation; if the 'from'
-      node is live but never completes normally (e.g. a call to abort), and the
-      'to' node is live from another path, the statements will not be marked as dead. *)
+    (* If the 'from' node is dead, the statements along all outbound edges are definitely not live.
+       If just the 'to' node is dead, some traversed statement along the edge stops execution;
+         to be safe, mark all statements up to and including the last such statement as live.
+         For example, if we have, along an edge: f() -> x += 1 -> g() -> z = 0, then f() or g() are
+         not pure control-flow, so we must keep everything up to g(), but can drop z = 0.
+      If both nodes are live, we keep everything along the edge. *)
     let live_stmts' =
-      (* check if current node is dead: otherwise all outgoing edges are dead anyway *)
       if node_live n then
         n_outbound
-        |> List.filter (node_live % snd)
         |> List.map (fun (edges, n') ->
-            IS.union
-              (node_id_set n')
-              (skipped_statements n edges n' |> List.map (fun stmt -> stmt.sid) |> IS.of_list))
+            let skipped = skipped_statements n edges n' in
+            (if node_live n' then skipped
+              (* drop after the last non-control flow statement *)
+              else List.rev skipped |> BatList.drop_while (not % may_stop_execution))
+            |> List.map (fun stmt -> stmt.sid)
+            |> IS.of_list)
         |> List.fold_left IS.union live_stmts
+        |> IS.union (node_id_set n)
       else
         live_stmts
     in

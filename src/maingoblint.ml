@@ -143,13 +143,22 @@ let check_arguments () =
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
-  (* 'assert' transform happens before 'remove_dead_code' transform *)
-  ignore @@ List.fold_left
-    (fun deadcodeTransOccurred t ->
-      if deadcodeTransOccurred && t = "assert" then
-        fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
-        deadcodeTransOccurred || t = "remove_dead_code")
-    false (get_string_list "trans.activated");
+  if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
+    (* 'assert' transform happens before 'remove_dead_code' transform *)
+    ignore @@ List.fold_left
+      (fun deadcodeTransOccurred t ->
+        if deadcodeTransOccurred && t = "assert" then
+          fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
+          deadcodeTransOccurred || t = "remove_dead_code")
+      false (get_string_list "trans.activated");
+    (* compressing basic blocks or minimizing CFG makes dead code transformation much less
+       precise, since liveness information is then effectively only stored per-block *)
+    let imprecise_options = List.filter get_bool ["exp.basic-blocks"; "exp.mincfg"] in
+    if imprecise_options <> [] then
+      warn (
+        "trans.activated: to increase the precision of 'remove_dead_code' transform, disable "
+        ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
+  );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'"
 

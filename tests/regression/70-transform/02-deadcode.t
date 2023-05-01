@@ -1,4 +1,6 @@
-  $ ./transform.sh remove_dead_code -- --enable ana.int.interval --enable sem.noreturn.dead_code 02-deadcode.c
+  $ args='remove_dead_code -- --enable ana.int.interval --enable sem.noreturn.dead_code'
+
+  $ ./transform.sh $args 02-deadcode.c
   extern void abort()  __attribute__((__noreturn__)) ;
   int basic1(int n ) 
   { 
@@ -205,3 +207,36 @@
     }
   }
   }
+
+Transformation still works with 'exp.mincfg', but can not find all dead code; test against the diff.
+  $ diff -p -U0 "$(./transform.sh --file $args 02-deadcode.c)" "$(./transform.sh --file $args --enable exp.mincfg 02-deadcode.c)" | tail +3
+  @@ -13,0 +14,3 @@ int basic1(int n )
+  +  if (n < 0) {
+  +    return (0);
+  +  }
+  @@ -54,0 +58,2 @@ int one_branch_dead(int x )
+  +  } else {
+  +    return (7 - x);
+  @@ -65,0 +71,8 @@ int uncalled_but_referenced_function(int
+  +int uncalled1(void) 
+  +{ 
+  +
+  +
+  +  {
+  +
+  +}
+  +}
+  @@ -79,0 +93,5 @@ int conditional_call_in_loop(int x )
+  +    if (i > 7) {
+  +      {
+  +      uncalled1();
+  +      }
+  +    }
+  @@ -151,0 +170,4 @@ int loop_dead_on_break(int z )
+  +    {
+  +    s += s;
+  +    i ++;
+  +    }
+  @@ -203,0 +226,2 @@ int main(void)
+  +  uncalled1();
+  +  uncalled_but_referenced_function(3);

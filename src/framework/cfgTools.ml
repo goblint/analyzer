@@ -479,7 +479,7 @@ let createCFG (file: file) =
 let createCFG = Timing.wrap "createCFG" createCFG
 
 
-let minimizeCFG sk (fw,bw) =
+let minimizeCFG (fw,bw) sk =
   let keep = H.create (H.length bw) in
   let comp_keep t (_,f) =
     if (List.compare_length_with (H.find_default bw t []) 1 <> 0) || (List.compare_length_with (H.find_default fw t []) 1 <> 0) then
@@ -617,7 +617,7 @@ let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   let cfgF, cfgB, skippedByEdge =
     (* TODO: might be broken *)
     if get_bool "exp.mincfg" then
-      Timing.wrap "minimizing the cfg" minimizeCFG skippedByEdge (cfgF, cfgB)
+      Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB) skippedByEdge
     else
       (cfgF, cfgB, skippedByEdge)
   in
