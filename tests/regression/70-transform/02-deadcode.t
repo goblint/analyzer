@@ -210,7 +210,7 @@
 
 Transformation still works with 'exp.mincfg', but can not find all dead code; test against the diff.
 Macintosh's diff(1) adds whitespace after the function names, strip with sed.
-  $ diff p -U0 "$(./transform.sh --file $args 02-deadcode.c)" "$(./transform.sh --file $args --enable exp.mincfg 02-deadcode.c)" | sed 's/[[:blank:]]*$//' | tail +3
+  $ diff -p -U0 "$(./transform.sh --file $args 02-deadcode.c)" "$(./transform.sh --file $args --enable exp.mincfg 02-deadcode.c)" | sed 's/[[:blank:]]*$//' | tail +3
   @@ -13,0 +14,3 @@ int basic1(int n )
   +  if (n < 0) {
   +    return (0);
@@ -219,8 +219,8 @@ Macintosh's diff(1) adds whitespace after the function names, strip with sed.
   +  } else {
   +    return (7 - x);
   @@ -65,0 +71,8 @@ int uncalled_but_referenced_function(int
-  +int uncalled1(void) 
-  +{ 
+  +int uncalled1(void)
+  +{
   +
   +
   +  {
