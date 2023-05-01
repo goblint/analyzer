@@ -78,7 +78,7 @@ type _ t =
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
-  | ThreadCreateIndexedNode: bool -> ThreadNodeLattice.t t (* todo: indexed node lattice should really be `Lifted (node, `Lifted id) not (`Lifted node, `Lifted id) see *1* *)
+  | ThreadCreateIndexedNode: bool -> ThreadNodeLattice.t t (* TODO: indexed node lattice should really be `Lifted (node, `Lifted id) not (`Lifted node, `Lifted id) see *1* *)
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -256,7 +256,6 @@ struct
     | Any MustBeSingleThreaded -> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
-    | Any ThreadCreateIndexedNode _ -> 9999999
     | Any MayBeThreadReturn -> 15
     | Any (EvalFunvar _) -> 16
     | Any (EvalInt _) -> 17
@@ -287,6 +286,7 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
+    | Any ThreadCreateIndexedNode _ -> 49
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -303,6 +303,7 @@ struct
       | Any (MayBePublic x1), Any (MayBePublic x2) -> compare_maybepublic x1 x2
       | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
+      | Any (ThreadCreateIndexedNode inc1), Any (ThreadCreateIndexedNode inc2) -> Bool.compare inc1 inc2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
@@ -329,7 +330,6 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
-      | Any (ThreadCreateIndexedNode inc1), Any (ThreadCreateIndexedNode inc2) -> compare inc1 inc2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 

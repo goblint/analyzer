@@ -603,6 +603,7 @@ module Int : S with type t = int = struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x
   let name () = "Int"
   let to_yojson x = `Int x
+  let relift x = x
 end
 
 (** Concatenates a list of strings that
