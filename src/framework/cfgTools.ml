@@ -615,7 +615,6 @@ let fprint_hash_dot cfg  =
 let getCFG (file: file) : cfg * cfg * stmt list CfgEdgeH.t =
   let cfgF, cfgB, skippedByEdge = createCFG file in
   let cfgF, cfgB, skippedByEdge =
-    (* TODO: might be broken *)
     if get_bool "exp.mincfg" then
       Timing.wrap "minimizing the cfg" minimizeCFG (cfgF, cfgB) skippedByEdge
     else
