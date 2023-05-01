@@ -14,6 +14,7 @@ open Debug
 module type UniqueCountArgs = sig
   val unique_count : unit -> int
   val label : string
+  val use_previous_node : bool
 end
 
 (* Functor argument for determining wrapper and wrapped functions *)
@@ -28,8 +29,14 @@ struct
   include Analyses.DefaultSpec
 
   let dbg = WrapperArgs.is_wrapped (LibraryDesc.ThreadCreate { thread = Cil.integer 1; start_routine = Cil.integer 1; arg = Cil.integer 1; })
+  let st name ctx = if dbg then dpf"----------------------------------\n[%s] prev_node=%a => node=%a" name Node.pretty ctx.prev_node Node.pretty ctx.node
+  
+  (* TODO:
+    Does it matter if this is node or prev_node? [malloc] analysis used ctx.node and seemed to care.
+    Thread ID analysis is using ctx.prev_node (which makes more sense, since that's where the thread_create edge is,
+    and would keep two wrapper calls apart if they are e.g. both on edges leading into a join point) *)
+  let node_for_ctx ctx = if UniqueCountArgs.use_previous_node then ctx.prev_node else ctx.node
 
-  (* replace this entirely with LiftedChain? then check unique_count in UniqueCallCounter... *)
   module Chain = Lattice.Chain (struct
       let n () =
         let p = UniqueCountArgs.unique_count () in
@@ -45,7 +52,7 @@ struct
   module UniqueCallCounter = struct
     include MapDomain.MapBot_LiftTop(Q.NodeFlatLattice)(Chain)
 
-    (* Increase counter for given node. If it does not exists yet, create it. *)
+    (* Increase counter for given node. If it does not exist yet, create it. *)
     let add_unique_call counter node =
       let unique_call = `Lifted node in
       let count = find unique_call counter in
@@ -78,16 +85,19 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    if dbg then dpf"enter f=<%a>" CilType.Fundec.pretty f;
+    st "enter" ctx;
     let counter, wrapper_node = ctx.local in
     let new_wrapper_node =
       if Hashtbl.mem wrappers f.svar.vname then
         begin
         if dbg then dpf"is wrapper";
         match wrapper_node with
-        | `Lifted _ -> if dbg then dpf"interesting caller, keep caller context"; wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
-          (* todo: does malloc want prev_node??? *)
-        | _         -> if dbg then dpf"uninteresting caller, keep callee context";`Lifted ctx.prev_node (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
+        | `Lifted _ -> wrapper_node
+          (* if dbg then dpf"interesting caller, keep caller context"; *)
+        (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        | _         -> `Lifted (node_for_ctx ctx)
+          (* if dbg then dpf"uninteresting caller, keep callee context"; *)
         end
       else
         Q.NodeFlatLattice.top () (* if an uninteresting callee is called, then we forget what was called before *)
@@ -104,25 +114,29 @@ struct
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
-  let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    if dbg then dpf"special f=<%a>" CilType.Varinfo.pretty f;
+  let add_unique_call ctx =
+    let counter, wrapper_node = ctx.local in
+    (* TODO: previously, unique count isn't by wrapper node (e.g. my_malloc_wrapper), but by wrapped node (e.g. malloc). Why, and is it safe to change? *)
+    (UniqueCallCounter.add_unique_call counter (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx), wrapper_node)
+
+  let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
+    st "special" ctx;
     let desc = LibraryFunctions.find f in
-    if WrapperArgs.is_wrapped @@ desc.special arglist then
-      let counter, wrapper_node = ctx.local in
-      (* previously, unique count isn't by wrapper node but by wrapped node. why? *)
-      (* does malloc want prev_node?? *)
-      (UniqueCallCounter.add_unique_call counter (match wrapper_node with `Lifted node -> node | _ -> ctx.prev_node), wrapper_node)
-    else ctx.local
+    if WrapperArgs.is_wrapped @@ desc.special arglist then add_unique_call ctx else ctx.local
 
   let startstate v = D.bot ()
 
   let threadenter ctx lval f args =
-    if dbg then dpf"threadenter f=<%a>" CilType.Varinfo.pretty f;
+    st "threadenter" ctx;
+    if dbg then dpf"  f=%a" CilType.Varinfo.pretty f;
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 
   let threadspawn ctx lval f args fctx =
-    if dbg then dpf"threadspawn f=<%a>" CilType.Varinfo.pretty f; ctx.local
+    st "threadspawn" ctx;
+    if dbg then dpf"  f=%a" CilType.Varinfo.pretty f;
+    ctx.local
+
   let exitstate  v = D.top ()
 
   type marshal = unit
@@ -132,23 +146,17 @@ struct
 
 end
 
-
-(* module UniqueCountArgsFromConfig (Option : sig val key : string end) : UniqueCountArgs = struct
-  let unique_count () = get_int Option.key
-  let label = "Option " ^ Option.key
-end *)
-
 (* Create the chain argument-module, given the config key to loop up *)
-let unique_count_args_from_config key = (module struct
+let unique_count_args_from_config ?(use_previous_node = false) key = (module struct
   let unique_count () = get_int key
   let label = "Option " ^ key
+  let use_previous_node = use_previous_node
 end : UniqueCountArgs)
 
 
 module MallocWrapper : MCPSpec = struct
 
   include SpecBase
-    (* (UniqueCountArgsFromConfig (struct let key = "ana.malloc.unique_address_count" end)) *)
     (val unique_count_args_from_config "ana.malloc.unique_address_count")
     (struct
       let wrappers () = get_string_list "ana.malloc.wrappers"
@@ -181,7 +189,7 @@ module MallocWrapper : MCPSpec = struct
     | Q.HeapVar ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
-        | _ -> ctx.node
+        | _ -> node_for_ctx ctx
       in
       let count = UniqueCallCounter.find (`Lifted node) counter in
       let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
@@ -211,8 +219,7 @@ end
 module ThreadCreateWrapper : MCPSpec = struct
 
   include SpecBase
-    (* (UniqueCountArgsFromConfig (struct let key = "ana.thread.unique_thread_id_count" end)) *)
-    (val unique_count_args_from_config "ana.thread.unique_thread_id_count")
+    (val unique_count_args_from_config ~use_previous_node:true "ana.thread.unique_thread_id_count")
     (struct
       let wrappers () = get_string_list "ana.thread.wrappers"
 
@@ -225,18 +232,21 @@ module ThreadCreateWrapper : MCPSpec = struct
   let name () = "threadCreateWrapper"
 
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
-    let counter, wrapper_node = ctx.local in
     match q with
-    | Q.ThreadCreateIndexedNode ->
-      dpf"query node=<%a> prev_node=<%a>" Node.pretty ctx.node Node.pretty ctx.prev_node;
+    | Q.ThreadCreateIndexedNode (increment : bool) ->
+      st "query" ctx;
+      if dbg then dpf"  q=%a increment=%b" Queries.Any.pretty (Queries.Any q) increment;
+
+      let counter, wrapper_node = if increment then add_unique_call ctx else ctx.local in
       let node = match wrapper_node with
       | `Lifted wrapper_node -> wrapper_node
-      | _ -> ctx.prev_node
+      | _ -> node_for_ctx ctx
       in
       let count =
         Lattice.lifted_of_chain (module Chain)
-        @@ UniqueCallCounter.find (`Lifted node) counter
+        @@ max 0 (UniqueCallCounter.find (`Lifted node) counter - 1)
       in
+      dpf"  thread_create_ni node=%a index=%a" Node.pretty node Lattice.LiftedInt.pretty count;
       `Lifted node, count
     | _ -> Queries.Result.top q
 

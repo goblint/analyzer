@@ -7,8 +7,6 @@ open Prelude.Ana
 open Analyses
 open GobList.Syntax
 
-open Debug
-
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted
 
@@ -89,32 +87,27 @@ struct
     else
       None
 
-  let indexed_node_for_ctx ?(increment=false) ctx =
-    let ni = ctx.ask Queries.ThreadCreateIndexedNode in (* should this be ctx.prev_node? *)
-    dpf"%a" Queries.ThreadNodeLattice.pretty ni;
-    let ni = match ni with
-    (* would be better if lifted node always had count (see *1* ) *)
-    | `Lifted node, `Lifted count -> node, Some (if increment then succ count else count)
-    | `Lifted node, `Bot when increment -> node, Some 1  (* todo: bot and top are both 0, then this should stay None *)
+  let indexed_node_for_ctx ?(increment = false) ctx =
+    match ctx.ask (Queries.ThreadCreateIndexedNode increment) with
+    | `Lifted node, `Lifted count -> node, Some count
+    | `Lifted node, `Bot -> node, Some 0
     | `Lifted node, _ -> node, None
-    | _ -> ctx.prev_node, None
-    in
-    dpf"%a %s" Node.pretty (fst ni) (Stdlib.Option.fold ~some:(f"Some[%d]") ~none:"None" @@ snd ni);
-    ni
+    | _ -> ctx.node, None
 
-  (* todo: should `f` also come from wrapper?? *)
+  open Debug
   let threadenter ctx lval f args =
-    (* x *)
-    pf "threadenter";
-    let+ tid = create_tid ctx.local (indexed_node_for_ctx ~increment:true ctx |> Tuple2.map2 (Option.map succ)) f in
+    (* [ctx] here is the same as in [special], i.e. before incrementing the unique-counter;
+       thus we manually increment here so that it matches with [threadspawn],
+       where the context does contain the incremented counter *)
+    let+ tid = create_tid ctx.local (indexed_node_for_ctx ~increment:true ctx) f in
+    dpf"threadenter tid=%a" Thread.pretty (match tid with `Lifted x -> x | _ -> failwith "ah");
     (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
-    pf "threadspawn";
     let (current, td) = ctx.local in
     let node, index = indexed_node_for_ctx ctx in
-    (* x *)
-    (current, Thread.threadspawn td node index f) (* todo *)
+    dpf"threadspawn tid=%a" (fun () -> function | `Lifted x -> Thread.pretty () x | `Bot -> Pretty.text "bot" | `Top -> Pretty.text "top") current;
+    (current, Thread.threadspawn td node index f)
 
   type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =

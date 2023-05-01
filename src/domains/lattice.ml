@@ -618,7 +618,6 @@ struct
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
-(* ints are totally ordered... that's fine. *)
 module IntPO : PO with type t = int = struct
   include Printable.Int
   let leq = (<=)
@@ -631,8 +630,7 @@ end
 
 module LiftedInt = LiftPO (IntPO) (struct let bot_name = "bot" let top_name = "top" end)
 
-(* todo: 0 is top and bot when n=0 *)
 let lifted_of_chain (module Chain : S with type t = int) x =
-  if Chain.is_bot x then `Bot
-  else if Chain.is_top x then `Top
+  if Chain.is_top x then `Top
+  else if Chain.is_bot x then `Bot
   else `Lifted x

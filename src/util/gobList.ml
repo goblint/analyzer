@@ -30,6 +30,13 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
 
 let equal = List.eq
 
+(** [span p xs] is [take_while p xs, drop_while p xs] but may be more efficient *)
+let span p =
+  let rec span_helper prefix = function
+    | x :: xs when p x -> span_helper (x :: prefix) xs
+    | suffix -> List.rev prefix, suffix
+  in span_helper []
+
 (** Given a predicate and a list, returns two lists [(l1, l2)].
     [l1] contains the prefix of the list until the last element that satisfies the predicate, [l2] contains all subsequent elements. The order of elements is preserved. *)
 let until_last_with (pred: 'a -> bool) (xs: 'a list) =

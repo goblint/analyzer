@@ -12,15 +12,6 @@ int my_pthread_create(
   return pthread_create(thread, attr, start_routine, arg);
 }
 
-// int my_pthread_create2(
-//   pthread_t *restrict thread,
-//   const pthread_attr_t *restrict attr,
-//   void *(*start_routine)(void *),
-//   void *restrict arg
-// ) {
-//   return my_pthread_create(thread, attr, start_routine, arg);
-// }
-
 // uncomment to remove the wrapper
 // #define my_pthread_create pthread_create
 

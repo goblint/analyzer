@@ -78,7 +78,7 @@ type _ t =
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
-  | ThreadCreateIndexedNode: ThreadNodeLattice.t t (* ~~todo: name that shows that id is included~~ *) (* todo: indexed node lattice should really be `Lifted (node, `Lifted id) not (`Lifted node, `Lifted id) see *1* *)
+  | ThreadCreateIndexedNode: bool -> ThreadNodeLattice.t t (* todo: indexed node lattice should really be `Lifted (node, `Lifted id) not (`Lifted node, `Lifted id) see *1* *)
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -147,7 +147,7 @@ struct
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
-    | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
+    | ThreadCreateIndexedNode _ -> (module ThreadNodeLattice)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
@@ -207,7 +207,7 @@ struct
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
-    | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
+    | ThreadCreateIndexedNode _ -> ThreadNodeLattice.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
@@ -256,7 +256,7 @@ struct
     | Any MustBeSingleThreaded -> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
-    | Any ThreadCreateIndexedNode -> 9999999
+    | Any ThreadCreateIndexedNode _ -> 9999999
     | Any MayBeThreadReturn -> 15
     | Any (EvalFunvar _) -> 16
     | Any (EvalInt _) -> 17
@@ -329,6 +329,7 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
+      | Any (ThreadCreateIndexedNode inc1), Any (ThreadCreateIndexedNode inc2) -> compare inc1 inc2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -387,7 +388,7 @@ struct
     | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
-    | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
+    | Any (ThreadCreateIndexedNode inc) -> Pretty.dprintf "ThreadCreateIndexedNode %b" inc
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e

@@ -1,5 +1,6 @@
 open GoblintCil
 open FlagHelper
+open BatPervasives
 
 module type S =
 sig
@@ -37,20 +38,21 @@ sig
   val created: t -> D.t -> (t list) option
 end
 
+module IndexedFunNodeT =
+  Printable.Prod
+    (CilType.Varinfo)
+    (Printable.Option
+      (Printable.Prod
+        (Node)
+        (Printable.Option
+          (Printable.Int)
+          (struct let name = "no index" end)))
+      (struct let name = "no node" end))
 
 (** Type to represent an abstract thread ID. *)
-module FunNode: Stateless =
+module FunNode: Stateless with type t = IndexedFunNodeT.t =
 struct
-  include
-    Printable.Prod
-      (CilType.Varinfo)
-      (Printable.Option
-        (Printable.Prod
-          (Node)
-          (Printable.Option
-            (Printable.Int)
-            (struct let name = "no index" end)))
-        (struct let name = "no node" end))
+  include IndexedFunNodeT
 
   let show = function
     | (f, Some (n, i)) ->
@@ -67,15 +69,16 @@ struct
   )
 
   let threadinit v ~multiple: t = (v, None)
+
   let threadenter l i v: t =
     if GobConfig.get_bool "ana.thread.include-node" then
       (v, Some (l, i))
     else
       (v, None)
 
-  (* shouldn't this check configured mainfun?? *)
   let is_main = function
-    | ({vname = "main"; _}, None) -> true
+    (* shouldn't this check configured mainfun?? *)
+    | ({vname; _}, None) -> List.mem vname @@ GobConfig.get_string_list "mainfun"
     | _ -> false
 
   let is_unique _ = false (* TODO: should this consider main unique? *)
@@ -139,17 +142,15 @@ struct
   let may_create (p,s) (p',s') =
     S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
 
-  let compose ((p, s) as current) n =
-    if BatList.mem_cmp Base.compare n p then (
-      (* TODO: can be optimized by implementing some kind of partition_while function *)
-      let s' = S.of_list (BatList.take_while (fun m -> not (Base.equal n m)) p) in
-      let p' = List.tl (BatList.drop_while (fun m -> not (Base.equal n m)) p) in
-      (p', S.add n (S.union s s'))
+  let compose ((p, s) as current) ni =
+    if BatList.mem_cmp Base.compare ni p then (
+      let shared, unique = GobList.span (not % Base.equal ni) p in
+      (List.tl unique, S.of_list shared |> S.union s |> S.add ni)
     )
     else if is_unique current then
-      (n :: p, s)
+      (ni :: p, s)
     else
-      (p, S.add n s)
+      (p, S.add ni s)
 
   let threadinit v ~multiple =
     let base_tid = Base.threadinit v ~multiple in
@@ -158,12 +159,11 @@ struct
     else
       ([base_tid], S.empty ())
 
-  (*x*)
   let threadenter ((p, _ ) as current, cs) (n: Node.t) i v =
-    let n = Base.threadenter n i v in
-    let ((p', s') as composed) = compose current n in (* todo: use i here *)
-    if is_unique composed && S.mem n cs then (* todo: use i here *)
-      [(p, S.singleton n); composed] (* also respawn unique version of the thread to keep it reachable while thread ID sets refer to it *)
+    let ni = Base.threadenter n i v in
+    let ((p', s') as composed) = compose current ni in
+    if is_unique composed && S.mem ni cs then
+      [(p, S.singleton ni); composed] (* also respawn unique version of the thread to keep it reachable while thread ID sets refer to it *)
     else
       [composed]
 
@@ -171,7 +171,6 @@ struct
     let els = D.elements cs in
     Some (List.map (compose current) els)
 
-  (*x*)
   let threadspawn cs l i v =
     S.add (Base.threadenter l i v) cs
 
