@@ -2008,15 +2008,15 @@ struct
     {st' with cpa = new_cpa; weak = new_weak}
 
   (* Whether the callee should be analyzed modularly.
-    [ask]: ask of caller, [callee]: fundec of callee. *)
+     [ask]: ask of caller, [callee]: fundec of callee. *)
   let is_callee_modular ~(ask: Q.ask) ~(callee: fundec) =
     ask.f IsModular || is_modular_fun callee.svar
 
   let enter ctx lval fn args : (D.t * D.t) list =
     let entry_state = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:fn  then
-      make_canonical_entry fn
-    else
-      make_entry ctx fn args
+        make_canonical_entry fn
+      else
+        make_entry ctx fn args
     in
     [ctx.local, entry_state]
 
