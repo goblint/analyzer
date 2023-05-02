@@ -354,6 +354,23 @@
           "items": { "type": "string" },
           "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp" ]
         },
+        "modular": {
+          "title": "ana.modular",
+          "type": "object",
+          "properties": {
+            "funs": {
+              "title": "ana.modular.funs",
+              "description":
+                "List of functions that are to be analayzed modularly",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses",
