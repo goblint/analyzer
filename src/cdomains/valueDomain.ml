@@ -209,7 +209,7 @@ struct
       let target_and_address_from_type t =
         (* Assumes type-based target. *)
         let target = TypeVarinfoMap.to_varinfo t in
-        target, AD.from_var target
+        target, AD.from_var ~is_modular:true target
       in
       let target, target_address = target_and_address_from_type t in
       let null_ptr = AD.null_ptr in

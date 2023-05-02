@@ -312,5 +312,6 @@ struct
     | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
-  let from_var_offset (v, o) = from_var_offset (v, conv_const_offset o)
+  (* We assume that no locking is done in modularly analyzed code *)
+  let from_var_offset (v, o) = from_var_offset ~is_modular:false (v, conv_const_offset o)
 end

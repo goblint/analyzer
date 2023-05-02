@@ -235,12 +235,12 @@ struct
     | Addr (x,_) -> Basetype.Variables.to_group x
     | _ -> Some Basetype.Variables.Local
 
-  let from_var_offset (x, o) =
-    let x = ModularUtil0.varinfo_or_canonical x in
+  let from_var_offset ~is_modular (x, o) =
+    let x = ModularUtil0.varinfo_or_canonical ~is_modular x in
     Addr (x, o)
 
-  let from_var x =
-    from_var_offset (x, `NoOffset)
+  let from_var ~is_modular x =
+    from_var_offset ~is_modular (x, `NoOffset)
 
   let to_var = function
     | Addr (x,_) -> Some x

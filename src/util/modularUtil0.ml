@@ -38,5 +38,5 @@ let is_any_modular () =
   is_modular () || not (StringSet.is_empty (modular_funs ()))
 
 (** If [x] is global (but not a heap variable) and we are in ["modular"] mode, retrieves the varinfo_to_canonical for [x], else returns [x] itself *)
-let varinfo_or_canonical x =
-  if is_modular () && x.vglob && not (InvariantCil.var_is_heap x) then varinfo_to_canonical x else x
+let varinfo_or_canonical ~is_modular x =
+  if is_modular && x.vglob && not (InvariantCil.var_is_heap x) then varinfo_to_canonical x else x

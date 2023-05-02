@@ -158,7 +158,8 @@ struct
       ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      Mutexes.mem (LockDomain.Addr.from_var LF.verifier_atomic_var) held_locks
+      (* Assumes no locking in modular analysis *)
+      Mutexes.mem (LockDomain.Addr.from_var ~is_modular:false LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
       let protected = (if write then snd else fst) (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->

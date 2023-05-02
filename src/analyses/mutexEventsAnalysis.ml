@@ -25,7 +25,7 @@ struct
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
+    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset ~is_modular:(a.f IsModular)  (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
     | a when Queries.LS.is_top a ->
       [Addr.UnknownPtr]
@@ -62,12 +62,12 @@ struct
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Unlock (LockDomain.Addr.from_var LF.verifier_atomic_var))
+      ctx.emit (Events.Unlock (LockDomain.Addr.from_var ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) LF.verifier_atomic_var))
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Lock (LockDomain.Addr.from_var LF.verifier_atomic_var, true))
+      ctx.emit (Events.Lock (LockDomain.Addr.from_var ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular)  LF.verifier_atomic_var, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x = x in

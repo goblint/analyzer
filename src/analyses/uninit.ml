@@ -91,8 +91,8 @@ struct
     let f vs (v,o,_) = (v,o) :: vs in
     List.fold_left f [] (access_one_byval a false rval)
 
-  let vars a (rval:exp) : Addr.t list =
-    List.map Addr.from_var_offset (varoffs a rval)
+  let vars (a: Queries.ask) (rval:exp) : Addr.t list =
+    List.map (Addr.from_var_offset ~is_modular:(a.f IsModular)) (varoffs a rval)
 
   let is_prefix_of (v1,ofs1: varinfo * (Addr.field,Addr.idx) Lval.offs) (v2,ofs2: varinfo * (Addr.field,Addr.idx) Lval.offs) : bool =
     let rec is_offs_prefix_of pr os =
@@ -105,15 +105,16 @@ struct
 
 
   (* Does it contain non-initialized variables? *)
-  let is_expr_initd a (expr:exp) (st:D.t) : bool =
-    let variables = vars a expr in
+  let is_expr_initd (ask: Queries.ask) (expr:exp) (st:D.t) : bool =
+    let variables = vars ask expr in
     let raw_vars = List.filter_map Addr.to_var_offset variables in
     let will_addr_init (t:bool) a =
       let f addr =
         GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
+        let addr = Addr.from_var_offset ~is_modular:false a in
+        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty addr;
         false
       end else
         t in
@@ -152,7 +153,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
+        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset ~is_modular:false (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -180,7 +181,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
+      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset ~is_modular:false (v,rev cx));
       []
 
 
@@ -196,7 +197,7 @@ struct
       end
     | _ -> st
 
-  let to_addrs (v:varinfo) : Addr.t list =
+  let to_addrs (ask: Queries.ask) (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
     let rec add_fields (base: Addr.field list) fs acc =
       match fs with
@@ -204,12 +205,12 @@ struct
       | f :: fs ->
         match unrollType f.ftype with
         | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
-        | _                       -> add_fields base fs ((Addr.from_var_offset (v,make_offs (f::base))) :: acc)
+        | _                       -> add_fields base fs ((Addr.from_var_offset ~is_modular:(ask.f IsModular) (v,make_offs (f::base))) :: acc)
 
     in
     match unrollType v.vtype with
     | TComp ({cfields=fs; _},_) -> add_fields [] fs []
-    | _ -> [Addr.from_var v]
+    | _ -> [Addr.from_var ~is_modular:(ask.f IsModular) v]
 
 
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
@@ -217,7 +218,7 @@ struct
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a) ->
-          let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
+          let to_extra (v,o) xs = AD.from_var_offset ~is_modular:(ask.f IsModular) (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
@@ -226,7 +227,7 @@ struct
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat_map to_addrs vars) many
+      List.fold_right AD.add (List.concat_map (to_addrs ask) vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st
@@ -245,12 +246,12 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : trans_out =
-    let add_var st v = List.fold_right D.add (to_addrs v) st in
+    let add_var st v = List.fold_right D.add (to_addrs (Analyses.ask_of_ctx ctx) v) st in
     List.fold_left add_var ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : trans_out =
     let remove_var x v =
-      List.fold_right D.remove (to_addrs v) x in
+      List.fold_right D.remove (to_addrs (Analyses.ask_of_ctx ctx) v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
     | Some exp -> ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local); nst

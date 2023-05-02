@@ -40,11 +40,11 @@ struct
     CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
 
   (* We just had to dereference an lval --- warn if it was null *)
-  let warn_lval (st:D.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
+  let warn_lval (a: Queries.ask) (st:D.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
     try
       if D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
-        let var = Addr.from_var_offset v in
+        let var = Addr.from_var_offset ~is_modular:(a.f IsModular) v in
         Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
     with SetDomain.Unsupported _ -> ()
 
@@ -56,9 +56,9 @@ struct
       match e with
       | Lval (Var v, offs) ->
         begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
-          | a when not (Queries.LS.is_top a)
-                         && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-            Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
+          | t when not (Queries.LS.is_top t)
+                         && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) t) ->
+            Queries.LS.iter (fun (v,o) -> warn_lval a st (v, conv_offset o)) t
           | _ -> ()
         end
       | _ -> ()
@@ -98,7 +98,7 @@ struct
     | None -> ()
 
   (* Generate addresses to all points in an given varinfo. (Depends on type) *)
-  let to_addrs (v:varinfo) : Addr.t list =
+  let to_addrs (a: Queries.ask) (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
     let rec add_fields (base: Addr.field list) fs acc =
       match fs with
@@ -106,11 +106,11 @@ struct
       | f :: fs ->
         match unrollType f.ftype with
         | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
-        | _                       -> add_fields base fs ((Addr.from_var_offset (v,make_offs (f::base))) :: acc)
+        | _                       -> add_fields base fs ((Addr.from_var_offset ~is_modular:(a.f IsModular) (v,make_offs (f::base))) :: acc)
     in
     match unrollType v.vtype with
     | TComp ({cfields=fs; _},_) -> add_fields [] fs []
-    | _ -> [Addr.from_var v]
+    | _ -> [Addr.from_var ~is_modular:(a.f IsModular) v]
 
   (* Remove null values from state that are unreachable from exp.*)
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
@@ -118,7 +118,7 @@ struct
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a)  ->
-          let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
+          let to_extra (v,o) xs = AD.from_var_offset ~is_modular:(ask.f IsModular) (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
@@ -127,7 +127,7 @@ struct
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat_map to_addrs vars) many
+      List.fold_right AD.add (List.concat_map (to_addrs ask) vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st
@@ -167,7 +167,7 @@ struct
     warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local rval;
     match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
     | Some rv , Some (Var vt,ot) when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
-      D.add (Addr.from_var_offset (vt,ot)) ctx.local
+      D.add (Addr.from_var_offset ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) (vt,ot)) ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -181,7 +181,7 @@ struct
   let return_addr () = !return_addr_
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let remove_var x v = List.fold_right D.remove (to_addrs v) x in
+    let remove_var x v = List.fold_right D.remove (to_addrs (Analyses.ask_of_ctx ctx) v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
     | Some ret ->
@@ -208,7 +208,7 @@ struct
     match lval, D.mem (return_addr ()) au with
     | Some lv, true ->
       begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-        | Some (Var v,ofs) -> D.add (Addr.from_var_offset (v,ofs)) ctx.local
+        | Some (Var v,ofs) -> D.add (Addr.from_var_offset ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) (v,ofs)) ctx.local
         | _ -> ctx.local
       end
     | _ -> ctx.local
@@ -223,7 +223,7 @@ struct
         match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
         | Some (Var v, offs) ->
           ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
-          ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) [Events.SplitBranch ((Lval lv), false)];
+          ctx.split (D.add (Addr.from_var_offset ~is_modular:((Analyses.ask_of_ctx ctx).f IsModular) (v,offs)) ctx.local) [Events.SplitBranch ((Lval lv), false)];
           raise Analyses.Deadcode
         | _ -> ctx.local
       end
@@ -237,7 +237,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var ~is_modular:false (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

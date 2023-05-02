@@ -92,8 +92,8 @@ struct
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
     | _ -> voidType
 
-  let from_var x = singleton (Addr.from_var x)
-  let from_var_offset x = singleton (Addr.from_var_offset x)
+  let from_var ~is_modular x = singleton (Addr.from_var ~is_modular x)
+  let from_var_offset ~is_modular x = singleton (Addr.from_var_offset ~is_modular x)
   let to_var_may x = List.filter_map Addr.to_var_may (elements x)
   let to_var_must x = List.filter_map Addr.to_var_must (elements x)
   let to_var_offset x = List.filter_map Addr.to_var_offset (elements x)
