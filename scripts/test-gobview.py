@@ -43,9 +43,6 @@ browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()),opti
 print("finished webdriver installation \n")
 browser.maximize_window()
 
-# register cleanup function
-# atexit.register(cleanup, browser, httpd, thread)
-
 try:
     # retrieve and wait until page is fully loaded and rendered
     browser.get(url)
