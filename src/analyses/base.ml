@@ -2009,7 +2009,7 @@ struct
     {st' with cpa = new_cpa; weak = new_weak}
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    let entry_state = if is_modular_fun fn then
+    let entry_state = if is_modular_fun fn.svar then
       make_canonical_entry fn
     else
       make_entry ctx fn args
@@ -2516,7 +2516,7 @@ struct
       VarMap.fold update_written_addresses vars_to_writes ctx.local
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    if is_modular_fun f then
+    if is_modular_fun f.svar then
       combine_env_modular ctx lval fexp f args fc au f_ask
     else
       combine_env_regular ctx lval fexp f args fc au f_ask
@@ -2537,7 +2537,7 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-      let return_val = if is_modular_fun f then
+      let return_val = if is_modular_fun f.svar then
           let callee_globals = ModularUtil.get_callee_globals f_ask in
           let effective_args = args @ callee_globals in
           translate_callee_value_back ctx effective_args return_val

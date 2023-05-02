@@ -32,7 +32,7 @@ let is_modular_fun f =
   let is_modular_fun f =
     StringSet.mem f (modular_funs ())
   in
-  is_modular () || is_modular_fun f.svar.vname
+  is_modular () || is_modular_fun f.vname
 
 let is_any_modular () =
   is_modular () || not (StringSet.is_empty (modular_funs ()))
