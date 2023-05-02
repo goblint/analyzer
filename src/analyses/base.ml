@@ -2007,8 +2007,13 @@ struct
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
     {st' with cpa = new_cpa; weak = new_weak}
 
+  (* Whether the callee should be analyzed modularly.
+    [ask]: ask of caller, [callee]: fundec of callee. *)
+  let is_callee_modular ~(ask: Q.ask) ~(callee: fundec) =
+    ask.f IsModular || is_modular_fun callee.svar
+
   let enter ctx lval fn args : (D.t * D.t) list =
-    let entry_state = if is_modular_fun fn.svar then
+    let entry_state = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:fn  then
       make_canonical_entry fn
     else
       make_entry ctx fn args
@@ -2515,7 +2520,7 @@ struct
       VarMap.fold update_written_addresses vars_to_writes ctx.local
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    if is_modular_fun f.svar then
+    if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:f then
       combine_env_modular ctx lval fexp f args fc au f_ask
     else
       combine_env_regular ctx lval fexp f args fc au f_ask
@@ -2536,7 +2541,7 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-      let return_val = if is_modular_fun f.svar then
+      let return_val = if is_callee_modular ~ask:(Analyses.ask_of_ctx ctx) ~callee:f then
           let callee_globals = ModularUtil.get_callee_globals f_ask in
           let effective_args = args @ callee_globals in
           translate_callee_value_back ctx effective_args return_val
