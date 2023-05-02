@@ -33,7 +33,7 @@ struct
     [ctx.local, callee_modular]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    au
+    ctx.local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
@@ -41,13 +41,13 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
 
-  let startstate v = D.bot ()
+  let startstate v = false
   let threadenter ctx lval f args =
     let is_modular = ModularUtil0.is_modular_fun f in
     [is_modular]
 
   let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
+  let exitstate  v = false
 
   let query ctx (type a) (q: a Queries.t): a Queries.result = match q with
     | IsModular ->
