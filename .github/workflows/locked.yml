@@ -166,8 +166,10 @@ jobs:
       - name: Build Gobview
         run: opam exec -- dune build gobview
 
+      - name: Install selenium
+        run: pip3 install selenium webdriver-manager
+
       - name: Test Gobview
         run: |
           ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
-          pip3 install selenium webdriver-manager
           python3 scripts/test-gobview.py
