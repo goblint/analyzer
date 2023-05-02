@@ -2,7 +2,7 @@ open GoblintCil
 open MyCFG
 include CompareAST
 include CompareCFG
-open CilMaps
+include CilMaps
 
 module GlobalMap = Map.Make(String)
 
@@ -217,7 +217,7 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
       let var_glob_new = GlobalMap.fold extract_globs newMap VarinfoMap.empty in
       let funDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun f_old_var f_new_var (acc, ci, fm) ->
           let gc_old = VarinfoMap.find f_old_var var_glob_old in
-          let gc_new = VarinfoMap.find f_old_var var_glob_new in
+          let gc_new = VarinfoMap.find f_new_var var_glob_new in
           let f_old = get_fundec gc_old in
           let f_new = get_fundec gc_new in (* TODO: what happens if there exists no fundec for this varinfo? *)
           if acc then
