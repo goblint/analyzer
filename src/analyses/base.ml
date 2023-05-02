@@ -1461,6 +1461,7 @@ struct
         let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
         let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         (* TODO: Not clear why doing IsMultiple query instead of checking WeakUpdates leads to imprecision in 44/20 *)
+        (* TOD0: Decide whether weak updates have to be performed on function level for modular analysis *)
         let is_multiple = if is_modular () then a.f (Q.IsMultiple x) else WeakUpdates.mem x st.weak in
         if is_multiple then
           VD.join old_value new_value
@@ -2008,7 +2009,7 @@ struct
     {st' with cpa = new_cpa; weak = new_weak}
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    let entry_state = if is_modular () then
+    let entry_state = if is_modular_fun fn then
       make_canonical_entry fn
     else
       make_entry ctx fn args
@@ -2515,7 +2516,7 @@ struct
       VarMap.fold update_written_addresses vars_to_writes ctx.local
 
   let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    if is_modular () then
+    if is_modular_fun f then
       combine_env_modular ctx lval fexp f args fc au f_ask
     else
       combine_env_regular ctx lval fexp f args fc au f_ask
@@ -2536,7 +2537,7 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-      let return_val = if is_modular () then
+      let return_val = if is_modular_fun f then
           let callee_globals = ModularUtil.get_callee_globals f_ask in
           let effective_args = args @ callee_globals in
           translate_callee_value_back ctx effective_args return_val
@@ -2774,7 +2775,7 @@ let after_config () =
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
   let dep =
     let base_dependencies = ["mallocWrapper"] in
-    let modular_dependencies = if is_modular () then ["modular_queries"; "written"; "used_globals"] else [] in
+    let modular_dependencies = if is_any_modular () then ["modular_queries"; "written"; "used_globals"] else [] in
     base_dependencies @ modular_dependencies
   in
   MCP.register_analysis ~dep (module Main : MCPSpec)
