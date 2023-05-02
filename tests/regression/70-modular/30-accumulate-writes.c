@@ -26,6 +26,6 @@ void append_new(node_t *n){
 }
 
 int main(){
-	node_t n;
+	node_t n = {0, NULL};
 	append_new(&n);
 }
