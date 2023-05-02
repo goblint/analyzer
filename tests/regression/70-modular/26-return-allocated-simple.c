@@ -29,7 +29,7 @@ node_t *add_node(node_t *n){
         __goblint_check(new_node != NULL);
 
         n->next = new_node;
-        __goblint_check(n->next != NULL);
+        __goblint_check(n->next != NULL); //UNKNOWN
 
         new_node = init_node(new_node);
         __goblint_check(new_node != NULL); //UNKNOWN
