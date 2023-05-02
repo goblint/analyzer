@@ -411,7 +411,12 @@ let parse_preprocessed preprocessed =
       | _ ->
         let path = Fpath.v path_str in
         let path' = if get_bool "pre.transform-paths" then (
-            let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
+            let cwd_opt =
+              let open GobOption.Syntax in
+              let* task = task_opt in
+              task.ProcessPool.cwd
+            in
+            let dir = cwd_opt |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
             let path' = Fpath.normalize @@ Fpath.append dir path in
             Fpath.rem_prefix goblint_cwd path' |? path' (* remove goblint cwd prefix (if has one) for readability *)
           )
