@@ -14,9 +14,12 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
-    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src });
-    ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
+    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src; });
+    ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; });
+    ("strncat", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcat { dest; src; });
+    ("strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; });
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
+    ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
@@ -672,8 +675,6 @@ let invalidate_actions = [
     "strcmp", readsAll;(*safe*)
     "strftime", writes [1];(*keep [1]*)
     "strncmp", readsAll;(*safe*)
-    "strncat", writes [1];(*keep [1]*)
-    "strstr", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
     "toupper", readsAll;(*safe*)
     "tolower", readsAll;(*safe*)
@@ -743,7 +744,6 @@ let invalidate_actions = [
     "__builtin_strchr", readsAll;(*safe*)
     "__builtin___strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy_chk", writes [1];(*keep [1]*)
-    "strcat", writes [1];(*keep [1]*)
     "strtok", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
