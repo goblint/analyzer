@@ -1,4 +1,4 @@
-//PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'" --enable ana.int.interval
+//SKIP PARAM: --enable modular --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'" --enable ana.int.interval
 #include<goblint.h>
 #include<stdlib.h>
 
@@ -8,8 +8,9 @@ typedef struct node {
 } node_t;
 
 node_t *allocate_node(){
-    node_t* n = malloc(sizeof(node_t));
-    return n;
+    // Changing the pointer type to node_t* resolves the issue
+    int* n = malloc(sizeof(node_t));
+    return (node_t*) n;
 }
 
 node_t *init_node(node_t *n){
