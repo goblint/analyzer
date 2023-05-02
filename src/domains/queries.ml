@@ -106,6 +106,7 @@ type _ t =
   | AccessedGlobals: VS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | Written: WrittenDomain.Written.t t
+  | IsModular: MustBool.t t (* Whether the function is to be analyzed modularly *)
 
 type 'a result = 'a
 
@@ -170,6 +171,7 @@ struct
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | AccessedGlobals -> (module VS)
     | Written -> (module WrittenDomain.Written)
+    | IsModular -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -233,6 +235,7 @@ struct
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | Written -> WrittenDomain.Written.top ()
     | AccessedGlobals -> VS.top ()
+    | IsModular -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -293,6 +296,7 @@ struct
     | Any (EvalLval _) -> 50
     | Any AccessedGlobals -> 51
     | Any (ReachableAddressesFrom _) -> 52
+    | Any (IsModular) -> 53
 
 
   let rec compare a b =
@@ -431,6 +435,7 @@ struct
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any AccessedGlobals -> Pretty.printf "AccessedGlobals"
     | Any Written -> Pretty.dprintf "Written"
+    | Any IsModular -> Pretty.dprintf "IsModular"
 end
 
 let to_value_domain_ask (ask: ask) =
