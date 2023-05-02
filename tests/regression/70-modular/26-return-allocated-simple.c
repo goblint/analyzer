@@ -8,7 +8,7 @@ typedef struct node {
 } node_t;
 
 node_t *allocate_node(){
-    int* n = malloc(sizeof(node_t));
+    node_t* n = malloc(sizeof(node_t));
     return n;
 }
 
@@ -28,10 +28,10 @@ node_t *add_node(node_t *n){
         init_node(new_node);
         __goblint_check(new_node != NULL);
 
-        new_node = init_node (new_node);
-        __goblint_check(new_node != NULL);
-
         n->next = new_node;
         __goblint_check(n->next != NULL);
+
+        new_node = init_node(new_node);
+        __goblint_check(new_node != NULL); //UNKNOWN
     }
 }

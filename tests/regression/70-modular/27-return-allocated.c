@@ -13,7 +13,7 @@ int *allocate_int(){
 }
 
 node_t *allocate_node(){
-    int* n = malloc(sizeof(node_t));
+    node_t* n = malloc(sizeof(node_t));
     return n;
 }
 
