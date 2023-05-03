@@ -19,11 +19,13 @@ void *write_through_pointer(void *p){
 }
 
 void *change_pointer_wrapper(void *p){
-	return change_pointer(p);
+	void *r = change_pointer(p);
+	return r;
 }
 
 void *write_through_pointer_wrapper(void *p){
-	return write_through_pointer(p);
+	void *r = write_through_pointer(p);
+	return r;
 }
 
 int main(){
