@@ -87,12 +87,13 @@ struct
     else
       None
 
+  (** get the node that identifies the current context, possibly that of a wrapper function *)
   let indexed_node_for_ctx ?(increment = false) ctx =
     match ctx.ask (Queries.ThreadCreateIndexedNode increment) with
     | `Lifted node, `Lifted count -> node, Some count
     | `Lifted node, `Bot -> node, Some 0
     | `Lifted node, _ -> node, None
-    | _ -> ctx.node, None
+    | _ -> ctx.prev_node, None
 
   let threadenter ctx lval f args =
     (* [ctx] here is the same as in [special], i.e. before incrementing the unique-counter;

@@ -12,7 +12,6 @@ module Q = Queries
 module type UniqueCountArgs = sig
   val unique_count : unit -> int
   val label : string
-  val use_previous_node : bool
 end
 
 (* Functor argument for determining wrapper and wrapped functions *)
@@ -25,14 +24,13 @@ end
 module SpecBase (UniqueCountArgs : UniqueCountArgs) (WrapperArgs : WrapperArgs) =
 struct
   include Analyses.DefaultSpec
-  
-  (* TODO:
-    Does it matter if this is node or prev_node? [malloc] analysis used ctx.node and seemed to care.
-    Thread ID analysis is using ctx.prev_node (which makes more sense, since that's where the thread_create edge is,
-    and would keep two wrapper calls apart if they are e.g. both on edges leading into a join point)
-    https://github.com/goblint/analyzer/commit/77c0423640c50bb82e4290bcc97f33d4082715d0
-      *)
-  let node_for_ctx ctx = if UniqueCountArgs.use_previous_node then ctx.prev_node else ctx.node
+
+  (* Use the previous CFG node (ctx.prev_node) for identifying calls to (wrapper) functions.
+     For one, this is the node that typically contains the call as its statement.
+     Additionally, it distinguishes two calls that share the next CFG node (ctx.node), e.g.:
+     if (cond) { x = malloc(1); } else { x = malloc(2); }
+     Introduce a function for this to keep things consistent. *)
+  let node_for_ctx ctx = ctx.prev_node
 
   module Chain = Lattice.Chain (struct
       let n () =
@@ -128,10 +126,9 @@ struct
 end
 
 (* Create the chain argument-module, given the config key to loop up *)
-let unique_count_args_from_config ?(use_previous_node = false) key = (module struct
+let unique_count_args_from_config key = (module struct
   let unique_count () = get_int key
   let label = "Option " ^ key
-  let use_previous_node = use_previous_node
 end : UniqueCountArgs)
 
 
@@ -200,7 +197,7 @@ end
 module ThreadCreateWrapper : MCPSpec = struct
 
   include SpecBase
-    (val unique_count_args_from_config ~use_previous_node:true "ana.thread.unique_thread_id_count")
+    (val unique_count_args_from_config "ana.thread.unique_thread_id_count")
     (struct
       let wrappers () = get_string_list "ana.thread.wrappers"
 
