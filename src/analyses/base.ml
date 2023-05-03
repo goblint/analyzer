@@ -444,7 +444,7 @@ struct
     ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
-    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x && not (a.f IsModular) then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
@@ -2473,11 +2473,16 @@ struct
   module AddrMap = Map.Make (Addr)
   type value_map = VD.t AddrMap.t
 
+  let modular_glob_fun ctx v =
+    let ask = Analyses.ask_of_ctx ctx in
+    if ask.f IsModular then
+      failwith "glob fun should not be called."
+    else
+      ctx.global v
 
   let combine_env_modular ctx lval fexp f args fc au (f_ask: Queries.ask) =
-    (* Set of varinfos with offset *)
-    let glob_fun v = failwith "glob fun should not be called." in
     let ask = Analyses.ask_of_ctx ctx in
+    let glob_fun = modular_glob_fun ctx in
     let callee_globals = ModularUtil.get_callee_globals f_ask in
     let effective_args = args @ callee_globals in
     let reachable = collect_funargs ask ~warn:false glob_fun ctx.local effective_args in
@@ -2533,7 +2538,7 @@ struct
       combine_env_regular ctx lval fexp f args fc au f_ask
 
   let translate_callee_value_back ctx (args: exp list) (value: VD.t): VD.t =
-    let glob_fun _ = failwith "Globfun should not be called in modular mode." in
+    let glob_fun = modular_glob_fun ctx in
     let ask = Analyses.ask_of_ctx ctx in
     let reachable = collect_funargs ask ~warn:false glob_fun ctx.local args in
     let reachable = List.fold AD.join (AD.bot ()) reachable in
