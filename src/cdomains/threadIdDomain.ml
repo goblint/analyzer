@@ -58,7 +58,7 @@ struct
     | (f, Some (n, i)) ->
       f.vname
       ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
-      ^ "#" ^ Option.fold ~none:"??" ~some:string_of_int i
+      ^ "#" ^ Option.fold ~none:"top" ~some:string_of_int i
     | (f, None) -> f.vname
 
   include Printable.SimpleShow (
