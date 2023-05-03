@@ -507,10 +507,14 @@ let finalize _ = Cil.iterGlobals !Cilfacade.current_file (function
 
   let convert_to_single (alarm : Alarm.t) merged_pieces = 
     match alarm.multipiece with
-    | Group group -> 
-      if (List.length merged_pieces == 1) 
-      then {alarm with multipiece = Single (List.hd merged_pieces)}
-      else {alarm with multipiece = Group {group with pieces = merged_pieces}}
+    | Group group -> (
+        match alarm.cond with (* TODO: refactor to be more reasonable *)
+        | Acc _ -> {alarm with multipiece = Group {group with pieces = merged_pieces}}
+        | _ -> 
+          if List.length merged_pieces == 1
+          then (print_endline("D"); {alarm with multipiece = Single (List.hd merged_pieces)})
+          else {alarm with multipiece = Group {group with pieces = merged_pieces}}
+      )
     | _ -> alarm
   in
 
