@@ -79,7 +79,8 @@ struct
     collect_in_expression exp is_global
 
   let add_globals_from_exp_option (exp: exp option) (globals: D.t) : D.t =
-    Option.map_default collect_globals globals exp
+    let new_globals = Option.map_default collect_globals (D.bot ()) exp in
+    D.join globals new_globals
 
   let add_globals_from_list (args: exp list) (globals : D.t) : D.t =
     List.fold (fun acc exp -> D.join acc (collect_globals exp)) globals args
