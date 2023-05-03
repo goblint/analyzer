@@ -38,21 +38,21 @@ sig
   val created: t -> D.t -> (t list) option
 end
 
-module IndexedFunNodeT =
-  Printable.Prod
-    (CilType.Varinfo)
-    (Printable.Option
-      (Printable.Prod
-        (Node)
-        (Printable.Option
-          (Printable.Int)
-          (struct let name = "no index" end)))
-      (struct let name = "no node" end))
+
 
 (** Type to represent an abstract thread ID. *)
-module FunNode: Stateless with type t = IndexedFunNodeT.t =
+module FunNode: Stateless =
 struct
-  include IndexedFunNodeT
+  include
+    Printable.Prod
+      (CilType.Varinfo)
+      (Printable.Option
+        (Printable.Prod
+          (Node)
+          (Printable.Option
+            (Printable.Int)
+            (struct let name = "no index" end)))
+        (struct let name = "no node" end))
 
   let show = function
     | (f, Some (n, i)) ->

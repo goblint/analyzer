@@ -470,7 +470,7 @@ module type ChainParams = sig
   val names: int -> string
 end
 
-module Chain (P: ChainParams): S with type t = int =
+module Chain (P: ChainParams) =
 struct
   type t = int [@@deriving eq, ord, hash]
   include StdLeaf
