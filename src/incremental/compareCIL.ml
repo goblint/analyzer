@@ -25,10 +25,6 @@ let get_varinfo gc = match gc.decls, gc.def with
   | Some v, _ -> v
   | _ -> failwith "A global should have at least a declaration or a definition"
 
-let get_fundec gc = match gc.decls, gc.def with
-  | _, Some (Fun f) -> f
-  | _ -> failwith "Global does not have a function definition"
-
 module GlobalColMap = Map.Make(
   struct
     type t = global_col
@@ -181,26 +177,34 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) opti
   in
   identical, diffOpt, renamed_method_dependencies, renamed_global_vars_dependencies, renamesOnSuccess
 
-let eqF_only_consider_exact_match f1 f2 change_info final_matches oldMap newMap gc_old gc_new =
-  if already_matched f1.svar f2.svar final_matches then
-    (* check if this function was already matched and lookup the result *)
-    change_info_lookup gc_old gc_new change_info, change_info, final_matches
-  else if not (preservesSameNameMatches f1.svar.vname oldMap f2.svar.vname newMap) then
-    (* check that names of match are each only contained in new or old file *)
-    false, change_info, final_matches
-  else
-    (* the exact comparison is always uses the AST comparison because only when unchanged this match is manifested *)
-    let doMatch, diff, fun_deps, global_deps, renamesOnSuccess = eqF f1 f2 None VarinfoMap.empty VarinfoMap.empty in
-    match doMatch with
-    | Unchanged when empty_rename_assms (VarinfoMap.filter (fun vo vn -> not (vo.vname = f1.svar.vname && vn.vname = f2.svar.vname)) fun_deps) && empty_rename_assms global_deps ->
-      performRenames renamesOnSuccess;
-      change_info.unchanged <- {old = gc_old; current = gc_new} :: change_info.unchanged;
-      let final_matches = addToFinalMatchesMapping f1.svar f2.svar final_matches in
-      true, change_info, final_matches
-    | Unchanged -> false, change_info, final_matches
-    | Changed -> false, change_info, final_matches
-    | ChangedFunHeader _ -> false, change_info, final_matches
-    | ForceReanalyze _ -> false, change_info, final_matches
+let eqF_only_consider_exact_match gc_old gc_new change_info final_matches oldMap newMap =
+  match gc_old.def, gc_new.def with
+  | None, None -> (
+      match gc_old.decls, gc_new.decls with
+      | Some old_var, Some new_var ->
+        compare_varinfo_exact old_var gc_old oldMap new_var gc_new newMap change_info final_matches
+      | _ -> failwith "A global collection should never be empty")
+  | Some (Fun f1), Some (Fun f2) -> (
+      if already_matched f1.svar f2.svar final_matches then
+        (* check if this function was already matched and lookup the result *)
+        change_info_lookup gc_old gc_new change_info, change_info, final_matches
+      else if not (preservesSameNameMatches f1.svar.vname oldMap f2.svar.vname newMap) then
+        (* check that names of match are each only contained in new or old file *)
+        false, change_info, final_matches
+      else
+        (* the exact comparison is always uses the AST comparison because only when unchanged this match is manifested *)
+        let doMatch, diff, fun_deps, global_deps, renamesOnSuccess = eqF f1 f2 None VarinfoMap.empty VarinfoMap.empty in
+        match doMatch with
+        | Unchanged when empty_rename_assms (VarinfoMap.filter (fun vo vn -> not (vo.vname = f1.svar.vname && vn.vname = f2.svar.vname)) fun_deps) && empty_rename_assms global_deps ->
+          performRenames renamesOnSuccess;
+          change_info.unchanged <- {old = gc_old; current = gc_new} :: change_info.unchanged;
+          let final_matches = addToFinalMatchesMapping f1.svar f2.svar final_matches in
+          true, change_info, final_matches
+        | Unchanged -> false, change_info, final_matches
+        | Changed -> false, change_info, final_matches
+        | ChangedFunHeader _ -> false, change_info, final_matches
+        | ForceReanalyze _ -> false, change_info, final_matches)
+  | _, _ -> false, change_info, final_matches
 
 let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old gc_new (change_info, final_matches) =
   let doMatch, diff, function_dependencies, global_var_dependencies, renamesOnSuccess = eqF f1 f2 cfgs VarinfoMap.empty VarinfoMap.empty in
@@ -218,10 +222,8 @@ let eqF_check_contained_renames ~renameDetection f1 f2 oldMap newMap cfgs gc_old
       let funDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun f_old_var f_new_var (acc, ci, fm) ->
           let gc_old = VarinfoMap.find f_old_var var_glob_old in
           let gc_new = VarinfoMap.find f_new_var var_glob_new in
-          let f_old = get_fundec gc_old in
-          let f_new = get_fundec gc_new in (* TODO: what happens if there exists no fundec for this varinfo? *)
           if acc then
-            eqF_only_consider_exact_match f_old f_new ci fm oldMap newMap gc_old gc_new
+            eqF_only_consider_exact_match gc_old gc_new ci fm oldMap newMap
           else false, ci, fm
         ) function_dependencies (true, change_info, final_matches) in
       let globalDependenciesMatch, change_info, final_matches = VarinfoMap.fold (fun old_var new_var (acc, ci, fm) ->
