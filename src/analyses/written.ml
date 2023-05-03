@@ -20,6 +20,13 @@ struct
 
   let context _ _ = C.bot ()
 
+  let add_entry k v d =
+    let value = match D.find_opt k d with
+      | Some old_value -> VD.join old_value v
+      | None -> v
+    in
+    D.add k value d
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
@@ -29,8 +36,7 @@ struct
       ctx.local
     | `Lifted lv ->
       let rv = ask.f (Queries.EvalValue rval) in
-      (* TODO: Here and in transferfunctions below: join rv with value previously stored for lv. *)
-      D.add lv rv ctx.local
+      add_entry lv rv ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -66,7 +72,7 @@ struct
         | _ -> failwith "map_back yielded a non-address value for address input."
       in
       let v' = ModularUtil.ValueDomainExtension.map_back v ~reachable in
-      D.add k' v' map
+      add_entry k' v' map
     in
     D.fold translate_and_insert au (ctx.local)
 
@@ -81,7 +87,7 @@ struct
         M.warn "Written lvalue is top. Write is not recorded!";
         ctx.local
       | `Lifted lv ->
-        D.add lv return_value ctx.local
+        add_entry lv return_value ctx.local
     in
     Option.map_default assign_return_val ctx.local lval
 
