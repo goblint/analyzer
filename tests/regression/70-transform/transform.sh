@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# usage: transform.sh [--stdout] [--stderr] transform1 transform2 ... -- [goblint args] file.c
+# usage: transform.sh [--stdout] [--stderr] [--file] transform1 transform2 ... -- [goblint args] file.c
 # runs goblint with the given transformations active and outputs the transformed file to stdout
+# - unless --stdout/--stderr is passed, supress those streams
+# - if --file is passed, output to a temporary file and print its path to stdout
 
 set -eu -o pipefail
 
@@ -18,12 +20,15 @@ function main() {
     esac
   done
 
+  if (( file == 1 && ( stdout == 1 || stderr == 1 ) )); then
+    printf '%s\n' '--file and --stdout/--stderr are mutually exclusive'; exit 1; fi
+
   output_file="$(mktemp ./transformed.c.XXXXXX)"
 
   # save stdout to FD 3 (automatic FD allocation not availble on Macintosh's bash)
   exec 3>&1
-  [ $stdout -eq 1 ] || exec 1>/dev/null
-  [ $stderr -eq 1 ] || exec 2>/dev/null
+  if (( stdout != 1 )); then exec 1>/dev/null; fi
+  if (( stderr != 1 )); then exec 2>/dev/null; fi
 
   # turn off backtraces
   OCAMLRUNPARAM="${OCAMLRUNPARAM:-},b=0" \
@@ -35,7 +40,7 @@ function main() {
     cat "$output_file" 1>&3
     rm "$output_file"
   else
-    printf '%s' "$output_file" 1>&3
+    printf '%s\n' "$output_file" 1>&3
   fi
 
   return "${result-0}"
