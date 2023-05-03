@@ -100,8 +100,9 @@ struct
 
   let add_unique_call ctx =
     let counter, wrapper_node = ctx.local in
-    (* TODO: previously, unique count isn't by wrapper node (e.g. my_malloc_wrapper), but by wrapped node (e.g. malloc). Why, and is it safe to change? *)
-    (UniqueCallCounter.add_unique_call counter (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx), wrapper_node)
+    (* track the unique ID per call to the wrapper function, not to the wrapped function *)
+    (UniqueCallCounter.add_unique_call counter
+      (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx), wrapper_node)
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
