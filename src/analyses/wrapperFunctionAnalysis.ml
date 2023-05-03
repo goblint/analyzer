@@ -8,8 +8,6 @@ open GobConfig
 open ThreadIdDomain
 module Q = Queries
 
-open Debug
-
 (* Functor argument for creating the chain lattice of unique calls *)
 module type UniqueCountArgs = sig
   val unique_count : unit -> int
@@ -27,9 +25,6 @@ end
 module SpecBase (UniqueCountArgs : UniqueCountArgs) (WrapperArgs : WrapperArgs) =
 struct
   include Analyses.DefaultSpec
-
-  let dbg = WrapperArgs.is_wrapped (LibraryDesc.ThreadCreate { thread = Cil.integer 1; start_routine = Cil.integer 1; arg = Cil.integer 1; })
-  let st name ctx = if dbg then dpf"----------------------------------\n[%s] prev_node=%a => node=%a" name Node.pretty ctx.prev_node Node.pretty ctx.node
   
   (* TODO:
     Does it matter if this is node or prev_node? [malloc] analysis used ctx.node and seemed to care.
@@ -58,13 +53,10 @@ struct
     let add_unique_call counter node =
       let unique_call = `Lifted node in
       let count = find unique_call counter in
-      let c' = if Chain.is_top count then
+      if Chain.is_top count then
         counter
       else
         remove unique_call counter |> add unique_call (count + 1)
-      in
-      if dbg then dpf"add_unique_call node=<%a> count_before=%d count_after=%d" Node.pretty node count (find unique_call c');
-      c'
   end
 
   module D = Lattice.Prod (UniqueCallCounter) (Q.NodeFlatLattice)
@@ -83,24 +75,17 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    if dbg then dpf"return f=<%a>" CilType.Fundec.pretty f;
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    st "enter" ctx;
     let counter, wrapper_node = ctx.local in
     let new_wrapper_node =
       if Hashtbl.mem wrappers f.svar.vname then
-        begin
-        if dbg then dpf"is wrapper";
         match wrapper_node with
         (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
         | `Lifted _ -> wrapper_node
-          (* if dbg then dpf"interesting caller, keep caller context"; *)
         (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
         | _         -> `Lifted (node_for_ctx ctx)
-          (* if dbg then dpf"uninteresting caller, keep callee context"; *)
-        end
       else
         Q.NodeFlatLattice.top () (* if an uninteresting callee is called, then we forget what was called before *)
     in
@@ -108,7 +93,6 @@ struct
     [(ctx.local, callee)]
 
   let combine_env ctx lval fexp f args fc (counter, _) f_ask =
-    if dbg then dpf"combine f=<%a>" CilType.Fundec.pretty f;
     (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
     let _, lnode = ctx.local in
     (counter, lnode)
@@ -122,21 +106,16 @@ struct
     (UniqueCallCounter.add_unique_call counter (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx), wrapper_node)
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
-    st "special" ctx;
     let desc = LibraryFunctions.find f in
     if WrapperArgs.is_wrapped @@ desc.special arglist then add_unique_call ctx else ctx.local
 
   let startstate v = D.bot ()
 
   let threadenter ctx lval f args =
-    st "threadenter" ctx;
-    if dbg then dpf"  f=%a" CilType.Varinfo.pretty f;
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 
   let threadspawn ctx lval f args fctx =
-    st "threadspawn" ctx;
-    if dbg then dpf"  f=%a" CilType.Varinfo.pretty f;
     ctx.local
 
   let exitstate  v = D.top ()
@@ -236,9 +215,6 @@ module ThreadCreateWrapper : MCPSpec = struct
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.ThreadCreateIndexedNode (increment : bool) ->
-      st "query" ctx;
-      if dbg then dpf"  q=%a increment=%b" Queries.Any.pretty (Queries.Any q) increment;
-
       let counter, wrapper_node = if increment then add_unique_call ctx else ctx.local in
       let node = match wrapper_node with
       | `Lifted wrapper_node -> wrapper_node
@@ -248,7 +224,6 @@ module ThreadCreateWrapper : MCPSpec = struct
         Lattice.lifted_of_chain (module Chain)
         @@ max 0 (UniqueCallCounter.find (`Lifted node) counter - 1)
       in
-      dpf"  thread_create_ni node=%a index=%a" Node.pretty node Lattice.LiftedInt.pretty count;
       `Lifted node, count
     | _ -> Queries.Result.top q
 

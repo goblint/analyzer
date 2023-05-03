@@ -94,19 +94,16 @@ struct
     | `Lifted node, _ -> node, None
     | _ -> ctx.node, None
 
-  open Debug
   let threadenter ctx lval f args =
     (* [ctx] here is the same as in [special], i.e. before incrementing the unique-counter;
        thus we manually increment here so that it matches with [threadspawn],
        where the context does contain the incremented counter *)
     let+ tid = create_tid ctx.local (indexed_node_for_ctx ~increment:true ctx) f in
-    dpf"threadenter tid=%a" Thread.pretty (match tid with `Lifted x -> x | _ -> failwith "ah");
     (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
     let node, index = indexed_node_for_ctx ctx in
-    dpf"threadspawn tid=%a" (fun () -> function | `Lifted x -> Thread.pretty () x | `Bot -> Pretty.text "bot" | `Top -> Pretty.text "top") current;
     (current, Thread.threadspawn td node index f)
 
   type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
