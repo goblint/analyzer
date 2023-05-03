@@ -431,7 +431,7 @@ struct
         ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then
+    if (!GU.earlyglobs || multi) && not ((Analyses.ask_of_ctx ctx).f IsModular) then
       WideningTokens.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
