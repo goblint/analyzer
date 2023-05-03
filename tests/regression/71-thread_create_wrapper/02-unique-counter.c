@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadCreateWrapper --set ana.thread.unique_thread_id_count 2
+// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadCreateWrapper --set ana.thread.unique_thread_id_count 1
 #include <pthread.h>
 #include <stdio.h>
 
