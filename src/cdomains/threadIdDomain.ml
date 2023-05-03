@@ -45,11 +45,11 @@ module FunNode: Stateless =
 struct
   include
     Printable.Prod
-      (CilType.Varinfo)
-      (Printable.Option
-        (Printable.Prod
-          (Node)
-          (Printable.Option
+      (CilType.Varinfo) (
+      Printable.Option (
+        Printable.Prod
+          (Node) (
+          Printable.Option
             (Printable.Int)
             (struct let name = "no index" end)))
         (struct let name = "no node" end))
