@@ -8,15 +8,15 @@ module LV = Lval.NormalLat (ID)
 let ikind = IntDomain.PtrDiffIkind.ikind ()
 
 let a_var = Cil.makeGlobalVar "a" Cil.intPtrType
-let a_lv = LV.from_var a_var
+let a_lv = LV.from_var ~is_modular:false a_var
 let i_0 = ID.of_int ikind Z.zero
-let a_lv_0 = LV.from_var_offset (a_var, `Index (i_0, `NoOffset))
+let a_lv_0 = LV.from_var_offset ~is_modular:false (a_var, `Index (i_0, `NoOffset))
 let i_1 = ID.of_int ikind Z.one
-let a_lv_1 = LV.from_var_offset (a_var, `Index (i_1, `NoOffset))
+let a_lv_1 = LV.from_var_offset ~is_modular:false (a_var, `Index (i_1, `NoOffset))
 let i_top = ID.join i_0 i_1
-let a_lv_top = LV.from_var_offset (a_var, `Index (i_top, `NoOffset))
+let a_lv_top = LV.from_var_offset ~is_modular:false (a_var, `Index (i_top, `NoOffset))
 let i_not_0 = ID.join i_1 (ID.of_int ikind (Z.of_int 2))
-let a_lv_not_0 = LV.from_var_offset (a_var, `Index (i_not_0, `NoOffset))
+let a_lv_not_0 = LV.from_var_offset ~is_modular:false (a_var, `Index (i_not_0, `NoOffset))
 
 
 let assert_leq x y =
