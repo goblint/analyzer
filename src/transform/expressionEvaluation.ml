@@ -162,7 +162,7 @@ struct
   let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
   let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte
 
-  let transform (ask : ?node:Node.t -> Cil.location -> Queries.ask) (file : Cil.file) =
+  let transform (q : Transform.queries) (file : Cil.file) =
     let query = match !gv_query with
       | Some q -> Ok q
       | _ -> query_from_file (GobConfig.get_string transformation_query_file_name_identifier)
@@ -170,7 +170,7 @@ struct
     match query with
     | Ok query ->
       (* Create an evaluator *)
-      let evaluator = new evaluator file ask in
+      let evaluator = new evaluator file q.ask in
       (* Syntactic query *)
       let query_syntactic : CodeQuery.query =
         {
@@ -206,7 +206,11 @@ struct
       List.iter print results
     | Error e -> prerr_endline e
 
+  let name = transformation_identifier
+
+  let requires_file_output = false
+
 end
 
 let _ =
-  Transform.register transformation_identifier (module ExpEval)
+  Transform.register (module ExpEval)
