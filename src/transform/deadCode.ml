@@ -3,6 +3,7 @@ open GoblintCil
 open GobConfig
 open MyCFG
 
+(* create a new empty block; fields are mutable hence the function *)
 let empty_block () = { battrs = [] ; bstmts = [] }
 
 (** Filter statements out of a block (recursively). CFG fields (prev/next,
@@ -11,7 +12,7 @@ let empty_block () = { battrs = [] ; bstmts = [] }
     - f (goto label) ==> f (labelled stmt), i.e. if a goto statement is not
       filtered out, the target may not be filtered out either.
     - block may not contain switch statements. *)
-let filter_map_block ?(unchecked_condition = fun () -> GoblintCil.integer 1) f block =
+let filter_map_block ?(unchecked_condition = Fun.const (GoblintCil.integer 1)) f block =
   (* blocks and statements: modify in place, then return true if should be kept *)
   let rec impl_block block =
     block.bstmts <- List.filter impl_stmt block.bstmts;
@@ -137,46 +138,11 @@ let find_live_statements
 
   impl start [] (if node_live start then node_id_set start else IS.empty)
 
-(* TODO: does this not exist already? *)
-(** A fresh global name, of the form 'name' (if already unused), otherwise 'name_N'.
-    A call to [Cil.uniqueVarNames] may still be necessary to handle conflicting locals. *)
-let fresh_global_name file name =
-  let used_names = Hashtbl.create 7 in
-  Cil.iterGlobals file (function
-    | GVarDecl (vi, _) | GVar (vi, _, _) | GFun ({ svar = vi; _ }, _) ->
-      Hashtbl.replace used_names vi.vname ()
-    | GType (ti, _) ->
-      Hashtbl.replace used_names ti.tname ()
-    | _ -> () );
-  let with_suffix = function 0 -> name | n -> name ^ "_" ^ string_of_int n in
-  Seq.(ints 0 |> map with_suffix |> filter (not % Hashtbl.mem used_names) |> first)
-
 module RemoveDeadCode : Transform.S = struct
   let transform (q : Transform.queries) (file : file) : unit =
 
     (* whether a global function (might) still be live, and should therefore be kept *)
     let fundec_live : fundec -> bool = not % q.must_be_uncalled in
-
-    (* add an uninitialized global variable to be used as the condition
-       in if-statements where the condition is never checked *)
-    let unchecked_varinfo = ref None in
-    let unchecked_condition () =
-      let vi = match !unchecked_varinfo with
-      | None ->
-        (* TODO: const int? *)
-        let vi' = Cil.makeGlobalVar (fresh_global_name file "_UNCHECKED_CONDITION") Cil.intType in
-        (* TODO: is there a better way to add globals? *)
-        file.globals <-
-          GText "// dead code removal transformation: conditions that check this variable are dead"
-          :: GVar (vi', { init = None }, locUnknown)
-          :: file.globals;
-        Cil.uniqueVarNames file;  (* in case someone has their own _DEAD_CONDITION local... *)
-        vi'
-      | Some vi0 -> vi0
-      in
-      unchecked_varinfo := Some vi;
-      Lval (Var vi, NoOffset)
-    in
 
     (* Step 1: Remove statements found to be dead. *)
     Cil.iterGlobals file
@@ -192,9 +158,9 @@ module RemoveDeadCode : Transform.S = struct
                 (FunctionEntry fd)
             in
             filter_map_block
-              ~unchecked_condition
-                (fun stmt -> BatSet.Int.mem stmt.sid live_statements)
-                fd.sbody
+              ~unchecked_condition:GoblintCil.(Fun.const @@ mkString "UNCHECKED CONDITION")
+              (fun stmt -> BatSet.Int.mem stmt.sid live_statements)
+              fd.sbody
             |> ignore  (* ignore empty block: might be empty, but uncalled *)
           (* uncalled functions: as an optimaztion, clear the body immediately;
              if they are also unreferenced, they will be removed in the next step *)

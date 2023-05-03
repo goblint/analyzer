@@ -1,7 +1,4 @@
   $ ./transform.sh remove_dead_code -- 04-unchecked-condition.c
-  // dead code removal transformation: conditions that check this variable are dead
-  int _UNCHECKED_CONDITION_1  ;
-  int _UNCHECKED_CONDITION  =    3;
   int f_both(int x ) 
   { 
     int result ;
@@ -12,7 +9,7 @@
     } else {
       goto false_block;
     }
-    if (_UNCHECKED_CONDITION_1) {
+    if ("UNCHECKED CONDITION") {
       true_block: 
       {
       result = 2;
@@ -60,17 +57,6 @@
     return (result);
   }
   }
-  int conflicting_local(void) 
-  { 
-    int _UNCHECKED_CONDITION_1___0 ;
-  
-    {
-    {
-    _UNCHECKED_CONDITION_1___0 = 2;
-    }
-    return (_UNCHECKED_CONDITION_1___0);
-  }
-  }
   int main(void) 
   { 
   
@@ -81,10 +67,7 @@
     f_both(9);
     f_true(12);
     f_false(-3);
-    conflicting_local();
     }
-    if (_UNCHECKED_CONDITION) {
-      return (2);
-    }
+    return (0);
   }
   }
