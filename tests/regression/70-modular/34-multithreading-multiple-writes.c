@@ -3,18 +3,20 @@
 #include <pthread.h>
 #include <goblint.h>
 
-int global = 0;
+int g = 0;
 int **pp = NULL;
 
 void *change_pointer(void *p){
-	*pp = &global;
+	*pp = &g;
+	int *ptr = malloc(sizeof(int));
+	*ptr = 0;
+
+	*pp = ptr;
 	return NULL;
 }
 
 void *write_through_pointer(void *p){
-	if(p != NULL && *pp != NULL){
-		**pp = 12;
-	}
+	**pp = 12;
 	return NULL;
 }
 
@@ -24,12 +26,11 @@ int main(){
 	*pp = NULL;
 
 	pthread_create(&t1, NULL, change_pointer, NULL);
-	// pthread_create(&t2, NULL, write_through_pointer, NULL);
-	write_through_pointer(NULL);
+	pthread_create(&t2, NULL, write_through_pointer, NULL);
 
 	if(pp != NULL && *pp != NULL){
 		__goblint_check(**pp == 12); //UNKNOWN!
 	}
-	__goblint_check(global == 12); //UNKNOWN!
+	__goblint_check(g == 12); //UNKNOWN!
 	return 0;
 }
