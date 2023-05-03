@@ -536,7 +536,7 @@ struct
       | [] -> false
     in loop allEdges
 
-    (* Checks whether mutex was unlocked at least once in graph *)
+  (* Checks whether mutex was unlocked at least once in graph *)
   let exists_unlock_mutex graph mutexVinfo =
     let allEdges = get_all_edges graph
     in
@@ -654,7 +654,7 @@ struct
     List.exists (fun (edge: node * CustomEdge.t * node) ->
         match edge with (_,DepMutex(edgeMutex),_) -> String.equal mutexVinfo.vname edgeMutex.vname
                       (* | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]), _) ->
-                        (String.equal fvinfo.vname "pthread_mutex_lock") && (String.equal mutexVinfo.vname fMutex.vname) *)
+                         (String.equal fvinfo.vname "pthread_mutex_lock") && (String.equal mutexVinfo.vname fMutex.vname) *)
                       | _ -> false
       ) successorEdge
 

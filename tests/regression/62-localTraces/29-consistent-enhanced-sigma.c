@@ -3,5 +3,5 @@
 
 void main() {
   int y;
-  int x = (y - 27) + y + 4;
+  int x = (y - 27) + (y + 4);
 }
