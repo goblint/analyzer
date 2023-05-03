@@ -43,18 +43,19 @@ struct
 
     end)
 
-  (* Map for counting function call node visits up to n (of the current thread). *)
+  (* Map for counting function call node visits up to n (of the current thread).
+     Also keep track of the value before the most recent change for a given key. *)
   module UniqueCallCounter = struct
-    include MapDomain.MapBot_LiftTop(Q.NodeFlatLattice)(Chain)
+    include MapDomain.MapBot_LiftTop(Q.NodeFlatLattice)(Lattice.Prod (Chain) (Chain))
 
     (* Increase counter for given node. If it does not exist yet, create it. *)
     let add_unique_call counter node =
       let unique_call = `Lifted node in
-      let count = find unique_call counter in
-      if Chain.is_top count then
-        counter
-      else
-        remove unique_call counter |> add unique_call (count + 1)
+      let (count0, count) = find unique_call counter in
+      let count' = if Chain.is_top count then count else count + 1 in
+      (* if the old count, the current count, and the new count are all the same, nothing to do *)
+      if count0 = count && count = count' then counter
+        else remove unique_call counter |> add unique_call (count, count')
   end
 
   module D = Lattice.Prod (UniqueCallCounter) (Q.NodeFlatLattice)
@@ -95,14 +96,15 @@ struct
     let _, lnode = ctx.local in
     (counter, lnode)
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) (f_ask: Queries.ask) : D.t =
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (_:D.t) (f_ask: Queries.ask) : D.t =
     ctx.local
 
   let add_unique_call ctx =
     let counter, wrapper_node = ctx.local in
     (* track the unique ID per call to the wrapper function, not to the wrapped function *)
-    (UniqueCallCounter.add_unique_call counter
-      (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx), wrapper_node)
+    UniqueCallCounter.add_unique_call counter
+      (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx),
+    wrapper_node
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
@@ -141,7 +143,7 @@ module MallocWrapper : MCPSpec = struct
       let wrappers () = get_string_list "ana.malloc.wrappers"
 
       let is_wrapped = function
-      | LibraryDesc.Malloc _ | Calloc _ | Realloc _ -> true
+      | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true
       | _ -> false
     end)
 
@@ -170,7 +172,7 @@ module MallocWrapper : MCPSpec = struct
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_ctx ctx
       in
-      let count = UniqueCallCounter.find (`Lifted node) counter in
+      let (_, count) = UniqueCallCounter.find (`Lifted node) counter in
       let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
       `Lifted var
@@ -212,16 +214,14 @@ module ThreadCreateWrapper : MCPSpec = struct
 
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     match q with
-    | Q.ThreadCreateIndexedNode (increment : bool) ->
-      let counter, wrapper_node = if increment then add_unique_call ctx else ctx.local in
+    | Q.ThreadCreateIndexedNode (previous : bool) ->
+      let counter, wrapper_node = ctx.local in
       let node = match wrapper_node with
       | `Lifted wrapper_node -> wrapper_node
       | _ -> node_for_ctx ctx
       in
-      let count =
-        Lattice.lifted_of_chain (module Chain)
-        @@ max 0 (UniqueCallCounter.find (`Lifted node) counter - 1)
-      in
+      let (count0, count1) = UniqueCallCounter.find (`Lifted node) counter in
+      let count = Lattice.lifted_of_chain (module Chain) (if previous then count0 else count1) in
       `Lifted node, count
     | _ -> Queries.Result.top q
 

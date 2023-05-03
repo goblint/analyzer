@@ -630,6 +630,7 @@ end
 
 module LiftedInt = LiftPO (IntPO) (struct let bot_name = "bot" let top_name = "top" end)
 
+(* note: returns `Top even for single-valued lattices (whose value is really both top and bot) *)
 let lifted_of_chain (module Chain : S with type t = int) x =
   if Chain.is_top x then `Top
   else if Chain.is_bot x then `Bot

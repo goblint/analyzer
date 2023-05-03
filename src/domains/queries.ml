@@ -77,7 +77,7 @@ type _ t =
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
-  | ThreadCreateIndexedNode: bool -> ThreadNodeLattice.t t (* TODO: indexed node lattice should really be `Lifted (node, `Lifted id) not (`Lifted node, `Lifted id) see *1* *)
+  | ThreadCreateIndexedNode: bool -> ThreadNodeLattice.t t (* boolean previous: whether to get the previous unique index *)
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t

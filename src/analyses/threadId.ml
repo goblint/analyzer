@@ -88,23 +88,23 @@ struct
       None
 
   (** get the node that identifies the current context, possibly that of a wrapper function *)
-  let indexed_node_for_ctx ?(increment = false) ctx =
-    match ctx.ask (Queries.ThreadCreateIndexedNode increment) with
+  let indexed_node_for_ctx ?(previous = false) ctx =
+    match ctx.ask (Queries.ThreadCreateIndexedNode previous) with
     | `Lifted node, `Lifted count -> node, Some count
     | `Lifted node, `Bot -> node, Some 0
     | `Lifted node, _ -> node, None
     | _ -> ctx.prev_node, None
 
   let threadenter ctx lval f args =
-    (* [ctx] here is the same as in [special], i.e. before incrementing the unique-counter;
-       thus we manually increment here so that it matches with [threadspawn],
-       where the context does contain the incremented counter *)
-    let+ tid = create_tid ctx.local (indexed_node_for_ctx ~increment:true ctx) f in
+    (* [ctx] here is the same as in [special], i.e. before incrementing the unique-counter,
+       thus we want the current counter (previous: false) *)
+    let+ tid = create_tid ctx.local (indexed_node_for_ctx ctx) f in
     (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
-    let node, index = indexed_node_for_ctx ctx in
+    (* here we see the updated counter, so we want the previous counter value *)
+    let node, index = indexed_node_for_ctx ~previous:true ctx in
     (current, Thread.threadspawn td node index f)
 
   type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
