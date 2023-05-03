@@ -14,7 +14,6 @@ module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let top
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
 
 
-(* TODO: where to put this *)
 module NodeFlatLattice = Lattice.Flat (Node) (struct
   let top_name = "Unknown node"
   let bot_name = "Unreachable node"
