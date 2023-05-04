@@ -1,0 +1,35 @@
+name: build_testing
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.14.0
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          
+      - name: Install opam dependencies
+        run: opam install . --deps-only --locked
+
+      - name: Build
+        run: ./make.sh nat
