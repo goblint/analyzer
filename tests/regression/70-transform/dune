@@ -1,0 +1,2 @@
+(cram
+ (deps transform.sh (glob_files *.c) (glob_files *.json)))

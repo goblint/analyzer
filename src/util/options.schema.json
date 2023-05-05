@@ -1459,7 +1459,10 @@
           "description":
             "Lists of activated transformations. Transformations happen after analyses.",
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string",
+            "enum": ["partial", "expeval", "assert", "remove_dead_code"]
+          },
           "default": []
         },
         "expeval": {
