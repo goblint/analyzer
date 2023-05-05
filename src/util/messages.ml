@@ -250,7 +250,7 @@ let msg_context () =
 let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
-      let text = Pretty.sprint ~width:max_int doc in
+      let text = GobPretty.show doc in
       let loc = match loc with
         | Some node -> Some node
         | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
@@ -265,7 +265,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
-      let text = Pretty.sprint ~width:max_int doc in
+      let text = GobPretty.show doc in
       add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
     in
     Pretty.gprintf finish fmt
@@ -276,9 +276,9 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
-      let group_text = Pretty.sprint ~width:max_int doc in
+      let group_text = GobPretty.show doc in
       let piece_of_msg (doc, loc) =
-        let text = Pretty.sprint ~width:max_int doc in
+        let text = GobPretty.show doc in
         Piece.{loc; text; context = None}
       in
       add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
