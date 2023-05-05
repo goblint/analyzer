@@ -144,7 +144,7 @@ struct
 
   let compose ((p, s) as current) ni =
     if BatList.mem_cmp Base.compare ni p then (
-      let shared, unique = GobList.span (not % Base.equal ni) p in
+      let shared, unique = BatList.span (not % Base.equal ni) p in
       (List.tl unique, S.of_list shared |> S.union s |> S.add ni)
     )
     else if is_unique current then
