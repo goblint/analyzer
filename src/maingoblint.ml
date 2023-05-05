@@ -147,9 +147,9 @@ let check_arguments () =
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left
       (fun deadcodeTransOccurred t ->
-        if deadcodeTransOccurred && t = "assert" then
-          fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
-          deadcodeTransOccurred || t = "remove_dead_code")
+         if deadcodeTransOccurred && t = "assert" then
+           fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
+         deadcodeTransOccurred || t = "remove_dead_code")
       false (get_string_list "trans.activated");
     (* compressing basic blocks or minimizing CFG makes dead code transformation much less
        precise, since liveness information is then effectively only stored per-block *)
