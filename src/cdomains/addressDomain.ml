@@ -107,15 +107,15 @@ struct
   let to_n_string n x =
     let transform n elem =
       match Addr.to_n_string n elem with
-        | Some s -> from_string s
-        | None -> top () in
+      | Some s -> from_string s
+      | None -> top () in
     (* maps any StrPtr for which n is valid to the prefix of length n of its content, otherwise maps to top *)
     List.map (transform n) x
     (* returns the least upper bound of computed AddressDomain values *)
     |> List.fold_left join (bot ())
   (* let to_n_string n x =
-    let n_string_list = List.map (Addr.to_n_string n) (elements x) in
-    match List.find_opt (fun x -> if x = None then true else false) n_string_list with
+     let n_string_list = List.map (Addr.to_n_string n) (elements x) in
+     match List.find_opt (fun x -> if x = None then true else false) n_string_list with
       (* returns top if input address set contains an element that isn't a StrPtr or if n isn't valid *)
       | Some _ -> top ()
       (* else returns the least upper bound of all substrings of length n *)
@@ -124,15 +124,15 @@ struct
   let to_string_length x =
     let transform elem =
       match Addr.to_string_length elem with
-        | Some x -> Idx.of_int IUInt (Z.of_int x)
-        | None -> Idx.top_of IUInt in 
+      | Some x -> Idx.of_int IUInt (Z.of_int x)
+      | None -> Idx.top_of IUInt in 
     (* maps any StrPtr to the length of its content, otherwise maps to top *)
     List.map transform x
     (* returns the least upper bound of computed IntDomain values *)
     |> List.fold_left Idx.join (Idx.bot_of IUInt)
   (* let to_string_length x =
-    let length_list = List.map Addr.to_string_length (elements x) in
-    match List.find_opt (fun x -> if x = None then true else false) length_list with
+     let length_list = List.map Addr.to_string_length (elements x) in
+     match List.find_opt (fun x -> if x = None then true else false) length_list with
       (* returns top if input address set contains an element that isn't a StrPtr *)
       | Some _ -> Idx.top_of IUInt
       (* else returns the least upper bound of all lengths *)

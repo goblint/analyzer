@@ -2105,10 +2105,10 @@ struct
       let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
       let int_n = 
         match eval_n with
-          | `Int i -> (match ID.to_int i with
-                        | Some x -> Z.to_int x
-                        | _ -> -1)
-          | _ -> -1 in
+        | `Int i -> (match ID.to_int i with
+            | Some x -> Z.to_int x
+            | _ -> -1)
+        | _ -> -1 in
       (* When src and destination type coincide, take n-substring value from the source, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
