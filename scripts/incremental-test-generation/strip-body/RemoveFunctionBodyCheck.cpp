@@ -13,8 +13,8 @@
 • "cd build"
 • "cmake -G "Ninja" -DLLVM_CCACHE_BUILD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=lld -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_PARALLEL_LINK_JOBS=1 ../llvm"
   Additional Options: -DLLVM_PARALLEL_COMPILE_JOBS=2
-• "ninja all"
-• Use "bin/clang-tidy -checks=-*,readability-remove-function-body -fix --fix-errors -config="{CheckOptions: {readability-remove-function-body.RemoveOnlyFunctionName: ''}}" test.c --"
+• "sudo ninja install"
+• Use "clang-tidy -checks=-*,readability-remove-function-body -fix --fix-errors -config="{CheckOptions: {readability-remove-function-body.RemoveOnlyFunctionName: ''}}" test.c --"
   For RemoveOnlyFunctionName you can use '' to strip all bodies. Alternativly use 'functionName' or 'functionName1, functionName2' to specify the target functions
 
 */
