@@ -20,7 +20,7 @@ type edge = Edge.t =
   | Skip
 
 
-type edges = (location * edge) list
+type edges = (CilType.Location.t * Edge.t) list [@@deriving eq, hash]
 
 type cfg = node -> (edges * node) list
 
