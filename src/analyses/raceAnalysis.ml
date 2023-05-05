@@ -1,6 +1,6 @@
 (** Data race analysis. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 

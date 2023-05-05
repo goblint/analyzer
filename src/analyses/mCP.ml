@@ -1,6 +1,7 @@
 (** Master Control Program *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open GobConfig
 open Analyses
 

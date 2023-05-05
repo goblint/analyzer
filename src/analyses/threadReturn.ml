@@ -1,6 +1,6 @@
 (** Thread returning analysis. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 let is_current (ask: Queries.ask): bool =

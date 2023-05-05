@@ -1,5 +1,5 @@
 (** Thread join analysis. *)
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module TID  = ThreadIdDomain.Thread

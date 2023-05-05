@@ -1,6 +1,7 @@
 (** Tools for dealing with library functions. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open GobConfig
 
 module M = Messages

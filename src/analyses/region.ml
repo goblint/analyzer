@@ -1,6 +1,7 @@
 (** Assigning static regions to dynamic memory. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
