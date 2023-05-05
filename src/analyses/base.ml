@@ -2104,18 +2104,14 @@ struct
       let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
-      let casted_lval = mkMem ~addr:(Cilfacade.mkCast ~e:s ~newt:(TPtr (charPtrType, []))) ~off:NoOffset in
-      let address = eval_lv (Analyses.ask_of_ctx ctx) gs st casted_lval in
+      let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
+      let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
       begin match lv with 
         | Some v -> 
-          begin match AD.to_string_length address with 
-            |x::xs -> assign ctx v (integer x)
-            | [] -> 
-              let dest_adr = eval_lv (Analyses.ask_of_ctx ctx) gs st v in
-              let dest_typ = AD.get_type dest_adr in
-              set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_adr dest_typ (VD.top_value (unrollType dest_typ))
-          end
-        |None -> ctx.local
+          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
+          let value = `Int(AD.to_string_length address) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | None -> ctx.local
       end
     | Abort, _ -> raise Deadcode
     | ThreadExit { ret_val = exp }, _ ->

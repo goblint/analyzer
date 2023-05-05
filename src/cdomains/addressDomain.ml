@@ -104,7 +104,14 @@ struct
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
   let to_string x = List.filter_map Addr.to_string (elements x)
-  let to_string_length x = List.filter_map Addr.to_string_length (elements x)
+  let to_string_length x =
+    let address_list = List.map Addr.to_string_length (elements x) in
+    match List.find_opt (fun x -> if x = None then true else false) address_list with
+    (* returns top if address_list contains an element that isn't a StrPtr *)
+    | Some _ -> Idx.top_of IUInt
+    (* else returns the least upper bound of all lengths *)
+    | None -> List.map (fun x -> match x with Some y -> Idx.of_int IUInt (Z.of_int y) | None -> failwith "unreachable") address_list
+              |> List.fold_left Idx.join (Idx.bot_of IUInt)
 
   (* add an & in front of real addresses *)
   module ShortAddr =
