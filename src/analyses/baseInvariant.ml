@@ -731,9 +731,9 @@ struct
                inv_exp (`Int c') e st
              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ CilType.Typ.show t) st
            else
-             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ ID.show i ^ " which is bigger than the type it is cast to which is " ^ CilType.Typ.show t) st
+             fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
          | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ VD.show v) st)
-      | e, _ -> fallback (sprint d_plainexp e ^ " not implemented") st
+      | e, _ -> fallback (GobPretty.sprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else
