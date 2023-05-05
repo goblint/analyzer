@@ -361,8 +361,7 @@ struct
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ "Cast to neither array index nor struct field."
-                          ^ Format.sprintf " is_zero_offset: %b" (Addr.is_zero_offset o)
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
           end
     in
     let one_addr = let open Addr in function

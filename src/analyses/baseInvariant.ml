@@ -673,7 +673,7 @@ struct
            (* Mixed `Float and `Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
            | `Int _, `Float _ | `Float _, `Int _ -> failwith "ill-typed program";
              (* | `Address a, `Address b -> ... *)
-           | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ VD.show a1 ^ " and " ^ VD.show a2) st)
+           | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not `Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
           (* use closures to avoid unused casts *)
         in (match c_typed with
             | `Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
@@ -729,10 +729,10 @@ struct
                let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
                if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                inv_exp (`Int c') e st
-             | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ CilType.Typ.show t) st
+             | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to `Int, but the type did not match %a" CilType.Typ.pretty t) st
            else
              fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
-         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ VD.show v) st)
+         | v -> fallback (GobPretty.sprintf "CastE: e did not evaluate to `Int, but %a" VD.pretty v) st)
       | e, _ -> fallback (GobPretty.sprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)

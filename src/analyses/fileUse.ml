@@ -207,7 +207,7 @@ struct
     (* fold possible keys on domain *)
     let ret_all f lval =
       let xs = D.keys_from_lval lval (Analyses.ask_of_ctx ctx) in (* get all possible keys for a given lval *)
-      if xs = [] then (D.warn @@ "could not resolve "^CilType.Exp.show (Lval lval); m)
+      if xs = [] then (D.warn @@ GobPretty.sprintf "could not resolve %a" CilType.Lval.pretty lval; m)
       else if List.compare_length_with xs 1 = 0 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
       else
