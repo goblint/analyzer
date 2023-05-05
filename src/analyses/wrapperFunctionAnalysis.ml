@@ -19,7 +19,7 @@ end
 (* The main analysis, generic to which functions are being wrapped. *)
 module SpecBase (UniqueCount : Lattice.S with type t = int) (WrapperArgs : WrapperArgs) =
 struct
-  include Analyses.DefaultSpec
+  include IdentitySpec
 
   (* Use the previous CFG node (ctx.prev_node) for identifying calls to (wrapper) functions.
      For one, this is the node that typically contains the call as its statement.
@@ -51,17 +51,6 @@ struct
   let wrappers = Hashtbl.create 13
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let wrapper_node, counter = ctx.local in
@@ -83,9 +72,6 @@ struct
     let lnode, _ = ctx.local in
     (lnode, counter)
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (_:D.t) (f_ask: Queries.ask) : D.t =
-    ctx.local
-
   let add_unique_call_ctx ctx =
     let wrapper_node, counter = ctx.local in
     wrapper_node,
@@ -103,10 +89,7 @@ struct
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 
-  let threadspawn ctx lval f args fctx =
-    ctx.local
-
-  let exitstate  v = D.top ()
+  let exitstate v = D.top ()
 
   type marshal = unit
 
