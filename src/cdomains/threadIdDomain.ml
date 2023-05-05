@@ -77,7 +77,6 @@ struct
       (v, None)
 
   let is_main = function
-    (* shouldn't this check configured mainfun?? *)
     | ({vname; _}, None) -> List.mem vname @@ GobConfig.get_string_list "mainfun"
     | _ -> false
 
