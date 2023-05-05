@@ -35,8 +35,6 @@ struct
   open S
   open Messages
 
-  module GU = Goblintutil
-
   let stack_d = ref 0
   let full_trace = false
   let start_c = 0

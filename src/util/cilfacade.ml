@@ -3,7 +3,6 @@
 open GobConfig
 open GoblintCil
 module E = Errormsg
-module GU = Goblintutil
 
 include Cilfacade0
 

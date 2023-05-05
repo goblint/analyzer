@@ -1,7 +1,6 @@
 open GoblintCil
 open Pretty
 
-module GU = Goblintutil
 module M = Messages
 
 type ('a, 'b) offs = [

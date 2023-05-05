@@ -1,7 +1,6 @@
 open GoblintCil
 open GobConfig
 
-module GU = Goblintutil
 module V = Basetype.Variables
 module B = Printable.UnitConf (struct let name = "•" end)
 module F = Lval.Fields
