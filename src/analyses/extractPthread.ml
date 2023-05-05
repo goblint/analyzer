@@ -1,6 +1,8 @@
 (** Tracking of pthread lib code. Output to promela. *)
 
-open Prelude.Ana
+open GoblintCil
+open Pretty
+open GobPretty
 open Analyses
 open Cil
 open BatteriesExceptionless

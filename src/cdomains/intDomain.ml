@@ -386,7 +386,7 @@ struct
   let ikind {ikind; _} = ikind
 
   (* Helper functions *)
-  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
+  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ GobPretty.sprint Cil.d_ikind x.ikind ^ " and " ^ GobPretty.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ GobPretty.sprint I.pretty x.v ^ " and " ^ GobPretty.sprint I.pretty y.v)) else ()
   let lift op x = {x with v = op x.ikind x.v }
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}

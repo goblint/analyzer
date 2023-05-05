@@ -1,6 +1,7 @@
 (** An analysis for checking correct use of file handles. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -206,7 +207,7 @@ struct
     (* fold possible keys on domain *)
     let ret_all f lval =
       let xs = D.keys_from_lval lval (Analyses.ask_of_ctx ctx) in (* get all possible keys for a given lval *)
-      if xs = [] then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
+      if xs = [] then (D.warn @@ "could not resolve "^GobPretty.sprint d_exp (Lval lval); m)
       else if List.compare_length_with xs 1 = 0 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
       else
@@ -246,7 +247,7 @@ struct
             | _ -> D.warn "[Unsound]unknown filename"; D.fopen k loc "???" mode m
            )
          | xs ->
-           let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
+           let args = (String.concat ", " (List.map (GobPretty.sprint d_exp) xs)) in
            M.debug ~category:Analyzer "fopen args: %s" args;
            (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
            D.warn @@ "[Program]fopen needs two strings as arguments, given: "^args; m

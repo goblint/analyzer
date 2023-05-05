@@ -478,7 +478,7 @@ struct
           log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
-      let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
+      let s_torg = match torg with Some t -> GobPretty.sprint d_type t | None -> "?" in
       Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
 
 
