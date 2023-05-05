@@ -11,8 +11,10 @@
 • "cd .." to llvm-project/
 • "mkdir build"
 • "cd build"
-• "cmake -G "Ninja" -DLLVM_CCACHE_BUILD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=lld -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_PARALLEL_COMPILE_JOBS=8 -DLLVM_PARALLEL_LINK_JOBS=8 ../llvm"
-  You can vary the linker and compiler jobs depending on your memory to avoid swapping. You can see the free memory with "free -h --giga"
+• "cmake -G "Ninja" -DLLVM_CCACHE_BUILD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=lld -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_PARALLEL_COMPILE_JOBS=5 -DLLVM_PARALLEL_LINK_JOBS=5 ../llvm"
+  Make sure to set the right build target (AMDGPU, ARM, AVR, BPF, Hexagon, Lanai, LoongArch, Mips, MSP430, NVPTX, PowerPC, RISCV, Sparc, SystemZ, VE, WebAssembly, X86, XCore)
+  You can vary the linker and compiler jobs depending on your memory and CPU to improve the performance for "sudo ninja install"
+  You can see the free memory with "free -h --giga"
 • "sudo ninja install"
 • Use "clang-tidy -checks=-*,readability-remove-function-body -fix --fix-errors -config="{CheckOptions: {readability-remove-function-body.RemoveOnlyFunctionName: ''}}" test.c --"
   For RemoveOnlyFunctionName you can use '' to strip all bodies. Alternativly use 'functionName' or 'functionName1, functionName2' to specify the target functions
