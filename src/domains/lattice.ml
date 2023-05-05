@@ -617,21 +617,3 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
-
-module IntPO : PO with type t = int = struct
-  include Printable.Int
-  let leq = (<=)
-  let join = max
-  let meet = min
-  let widen = join
-  let narrow = meet
-  let pretty_diff () (x, y) = Pretty.dprintf "%a not leq %a" pretty x pretty y
-end
-
-module LiftedInt = LiftPO (IntPO) (struct let bot_name = "bot" let top_name = "top" end)
-
-(* note: returns `Top even for single-valued lattices (whose value is really both top and bot) *)
-let lifted_of_chain (module Chain : S with type t = int) x =
-  if Chain.is_top x then `Top
-  else if Chain.is_bot x then `Bot
-  else `Lifted x

@@ -90,10 +90,9 @@ struct
   (** get the node that identifies the current context, possibly that of a wrapper function *)
   let indexed_node_for_ctx ?(previous = false) ctx =
     match ctx.ask (Queries.ThreadCreateIndexedNode previous) with
-    | `Lifted node, `Lifted count -> node, Some count
-    | `Lifted node, `Bot -> node, Some 0
-    | `Lifted node, _ -> node, None
-    | _ -> ctx.prev_node, None
+    | `Lifted node, count when WrapperFunctionAnalysis.ThreadCreateUniqueCount.is_top count -> node, None
+    | `Lifted node, count -> node, Some count
+    | (`Bot | `Top), _ -> ctx.prev_node, None
 
   let threadenter ctx lval f args =
     (* [ctx] here is the same as in [special], i.e. before incrementing the unique-counter,

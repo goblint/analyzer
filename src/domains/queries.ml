@@ -13,13 +13,10 @@ module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
 
+module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
+module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 
-module NodeFlatLattice = Lattice.Flat (Node) (struct
-  let top_name = "Unknown node"
-  let bot_name = "Unreachable node"
-end)
-
-module ThreadNodeLattice = Lattice.Prod (NodeFlatLattice) (Lattice.LiftedInt)
+module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"

@@ -50,7 +50,7 @@ struct
         Printable.Prod
           (Node) (
           Printable.Option
-            (Printable.Int)
+            (WrapperFunctionAnalysis0.ThreadCreateUniqueCount)
             (struct let name = "no index" end)))
         (struct let name = "no node" end))
 
