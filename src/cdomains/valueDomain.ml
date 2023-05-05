@@ -103,12 +103,6 @@ struct
     | `Bot
   ] [@@deriving eq, ord, hash]
 
-  let relift = function
-    | `JmpBuf x -> `JmpBuf (JmpBufs.relift x)
-    | `Blob x -> `Blob (Blobs.relift x)
-    | `CArray x -> `CArray (CArrays.relift x)
-    | x -> x
-
 
   let is_mutex_type (t: typ): bool = match t with
     | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
