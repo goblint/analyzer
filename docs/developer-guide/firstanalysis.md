@@ -67,7 +67,7 @@ The key part now is to define transfer functions for assignment. We only handle 
 There is no need to implement the transfer functions for branching for this example; it only relies on lattice join operations to correctly take both paths into account.
 
 The assignment relies on the function `eval`, which is almost there. It just needs you to fix the evaluation of constants! Unless you jumped straight to this line, it should not be too complicated to fix this.
-With this in place, we should have sufficient information to tell Goblint that the assertion does hold.
+With this in place, we should have sufficient information to tell Goblint that the assertion does hold (run `make` to compile the updated analysis in Goblint).
 
 
 ## Extending the domain
