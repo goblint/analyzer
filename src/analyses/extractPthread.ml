@@ -969,7 +969,7 @@ module Spec : Analyses.MCPSpec = struct
       in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
       let pred_str op lhs rhs =
-        let cond_str = lhs ^ " " ^ sprint d_binop op ^ " " ^ rhs in
+        let cond_str = lhs ^ " " ^ CilType.Binop.show op ^ " " ^ rhs in
         if tv then cond_str else "!(" ^ cond_str ^ ")"
       in
 
