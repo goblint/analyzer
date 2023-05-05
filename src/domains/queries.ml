@@ -74,7 +74,7 @@ type _ t =
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
-  | ThreadCreateIndexedNode: bool -> ThreadNodeLattice.t t (* boolean previous: whether to get the previous unique index *)
+  | ThreadCreateIndexedNode: ThreadNodeLattice.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -143,7 +143,7 @@ struct
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
-    | ThreadCreateIndexedNode _ -> (module ThreadNodeLattice)
+    | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
@@ -203,7 +203,7 @@ struct
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
-    | ThreadCreateIndexedNode _ -> ThreadNodeLattice.top ()
+    | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
@@ -282,7 +282,7 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
-    | Any ThreadCreateIndexedNode _ -> 49
+    | Any ThreadCreateIndexedNode -> 49
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -299,7 +299,6 @@ struct
       | Any (MayBePublic x1), Any (MayBePublic x2) -> compare_maybepublic x1 x2
       | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
-      | Any (ThreadCreateIndexedNode inc1), Any (ThreadCreateIndexedNode inc2) -> Bool.compare inc1 inc2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
@@ -384,7 +383,7 @@ struct
     | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
-    | Any (ThreadCreateIndexedNode inc) -> Pretty.dprintf "ThreadCreateIndexedNode %b" inc
+    | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e

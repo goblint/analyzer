@@ -30,20 +30,17 @@ struct
 
   module UniqueCount = UniqueCount
 
-  (* Map for counting function call node visits up to n (of the current thread).
-     Also keep track of the value before the most recent change for a given key. *)
+  (* Map for counting function call node visits up to n (of the current thread). *)
   module UniqueCallCounter =
-    MapDomain.MapBot_LiftTop(NodeFlatLattice)(Lattice.Prod (UniqueCount) (UniqueCount))
+    MapDomain.MapBot_LiftTop(NodeFlatLattice)(UniqueCount)
 
   (* Increase counter for given node. If it does not exist yet, create it. *)
   let add_unique_call counter node =
     let open UniqueCallCounter in
     let unique_call = `Lifted node in
-    let (count0, count) = find unique_call counter in
-    let count' = if UniqueCount.is_top count then count else count + 1 in
-    (* if the old count, the current count, and the new count are all the same, nothing to do *)
-    if count0 = count && count = count' then counter
-    else remove unique_call counter |> add unique_call (count, count')
+    let count = find unique_call counter in
+    if UniqueCount.is_top count then counter
+    else remove unique_call counter |> add unique_call (count + 1)
 
   module D = Lattice.Prod (NodeFlatLattice) (UniqueCallCounter)
   module C = D
@@ -136,7 +133,7 @@ module MallocWrapper : MCPSpec = struct
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_ctx ctx
       in
-      let (_, count) = UniqueCallCounter.find (`Lifted node) counter in
+      let count = UniqueCallCounter.find (`Lifted node) counter in
       let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
       `Lifted var
@@ -178,14 +175,14 @@ module ThreadCreateWrapper : MCPSpec = struct
 
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     match q with
-    | Q.ThreadCreateIndexedNode (previous : bool) ->
+    | Q.ThreadCreateIndexedNode ->
       let wrapper_node, counter = ctx.local in
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_ctx ctx
       in
-      let (count0, count1) = UniqueCallCounter.find (`Lifted node) counter in
-      `Lifted node, (if previous then count0 else count1)
+      let count = UniqueCallCounter.find (`Lifted node) counter in
+      `Lifted node, count
     | _ -> Queries.Result.top q
 
 end
