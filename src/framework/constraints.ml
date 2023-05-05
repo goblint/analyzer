@@ -1,6 +1,6 @@
 (** How to generate constraints for a solver using specifications described in [Analyses]. *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
@@ -320,7 +320,7 @@ struct
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Prelude.Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
         v+1
       ) h;
   module D = struct
