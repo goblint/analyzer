@@ -18,10 +18,10 @@ module MakeUniqueCount (UniqueCountArgs : UniqueCountArgs) : Lattice.S with type
       if p < 0 then
         failwith @@ UniqueCountArgs.label ^ " has to be non-negative"
       else p + 1 (* Unique addresses + top address *)
-    
+
     let names x = if x = (n () - 1) then "top" else Format.asprintf "%d" x
-    
-    end)
+
+  end)
 
 (* Create the chain argument-module, given the config key to loop up *)
 let unique_count_args_from_config key = (module struct
@@ -37,6 +37,6 @@ module ThreadCreateUniqueCount =
 
 (* since the query also references NodeFlatLattice, it also needs to reside here *)
 module NodeFlatLattice = Lattice.Flat (Node) (struct
-  let top_name = "Unknown node"
-  let bot_name = "Unreachable node"
-end)
+    let top_name = "Unknown node"
+    let bot_name = "Unreachable node"
+  end)

@@ -43,7 +43,7 @@ struct
     let count' = if UniqueCount.is_top count then count else count + 1 in
     (* if the old count, the current count, and the new count are all the same, nothing to do *)
     if count0 = count && count = count' then counter
-      else remove unique_call counter |> add unique_call (count, count')
+    else remove unique_call counter |> add unique_call (count, count')
 
   module D = Lattice.Prod (NodeFlatLattice) (UniqueCallCounter)
   module C = D
@@ -119,14 +119,14 @@ end
 module MallocWrapper : MCPSpec = struct
 
   include SpecBase
-    (MallocUniqueCount)
-    (struct
-      let wrappers () = get_string_list "ana.malloc.wrappers"
+      (MallocUniqueCount)
+      (struct
+        let wrappers () = get_string_list "ana.malloc.wrappers"
 
-      let is_wrapped = function
-      | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true
-      | _ -> false
-    end)
+        let is_wrapped = function
+          | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true
+          | _ -> false
+      end)
 
   module ThreadNode = struct
     include Printable.Prod3 (ThreadIdDomain.ThreadLifted) (Node) (UniqueCount)
@@ -181,15 +181,15 @@ end
 module ThreadCreateWrapper : MCPSpec = struct
 
   include SpecBase
-    (ThreadCreateUniqueCount)
-    (struct
-      let wrappers () = get_string_list "ana.thread.wrappers"
+      (ThreadCreateUniqueCount)
+      (struct
+        let wrappers () = get_string_list "ana.thread.wrappers"
 
-      let is_wrapped = function
-      | LibraryDesc.ThreadCreate _ -> true
-      | _ -> false
+        let is_wrapped = function
+          | LibraryDesc.ThreadCreate _ -> true
+          | _ -> false
 
-    end)
+      end)
 
   let name () = "threadCreateWrapper"
 
@@ -198,8 +198,8 @@ module ThreadCreateWrapper : MCPSpec = struct
     | Q.ThreadCreateIndexedNode (previous : bool) ->
       let wrapper_node, counter = ctx.local in
       let node = match wrapper_node with
-      | `Lifted wrapper_node -> wrapper_node
-      | _ -> node_for_ctx ctx
+        | `Lifted wrapper_node -> wrapper_node
+        | _ -> node_for_ctx ctx
       in
       let (count0, count1) = UniqueCallCounter.find (`Lifted node) counter in
       `Lifted node, (if previous then count0 else count1)
