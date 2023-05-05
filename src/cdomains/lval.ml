@@ -256,6 +256,15 @@ struct
   let to_string = function
     | StrPtr (Some x) -> Some x
     | _        -> None
+  let to_n_string n = function
+    | StrPtr (Some x) -> 
+      if n > String.length x
+        then Some x
+      else if n < 0
+        then None
+      else
+        Some (String.sub x 0 n)
+    | _ -> None
   let to_string_length = function
     | StrPtr (Some x) -> Some (String.length x)
     | _ -> None

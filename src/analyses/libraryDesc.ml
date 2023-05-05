@@ -59,7 +59,8 @@ type special =
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Memcpy of { dest: Cil.exp; src: Cil.exp }
-  | Strcpy of { dest: Cil.exp; src: Cil.exp; } (* TODO: add count for strncpy when actually used *)
+  | Strcpy of { dest: Cil.exp; src: Cil.exp; }
+  | Strncpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strcat of { dest: Cil.exp; src: Cil.exp; }
   | Strlen of Cil.exp
   | Strstr of { haystack: Cil.exp; needle: Cil.exp; }

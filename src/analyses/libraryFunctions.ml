@@ -14,7 +14,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
-    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src; });
+    ("strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strncpy { dest; src; n; });
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; });
     ("strncat", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcat { dest; src; });
     ("strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; });

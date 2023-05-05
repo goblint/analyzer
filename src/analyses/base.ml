@@ -2084,16 +2084,10 @@ struct
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
       (* TODO: reuse addr_type_of_exp for master *)
       (* assigning from master *)
-      let get_type lval =
-        let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-        AD.get_type address
-      in
-      let dst_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+      let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-
-      let dest_typ = get_type dst_lval in
-      let src_typ = get_type src_lval in
-
+      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+                    |> AD.get_type in
       (* When src and destination type coincide, take value from the source, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
@@ -2101,7 +2095,28 @@ struct
         else
           VD.top_value (unrollType dest_typ)
       in
-      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+    | Strncpy { dest = dst; src; n }, _ ->
+      let dest_a, dest_typ = addr_type_of_exp dst in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+                    |> AD.get_type in
+      (* evaluate amount of characters which are to be extracted of src *)
+      let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
+      let int_n = 
+        match eval_n with
+          | `Int i -> (match ID.to_int i with
+                        | Some x -> Z.to_int x
+                        | _ -> -1)
+          | _ -> -1 in
+      (* When src and destination type coincide, take n-substring value from the source, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
+          `Address(AD.to_n_string int_n src_a)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
       let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
