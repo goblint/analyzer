@@ -31,9 +31,9 @@ struct
   type value = Values.t
 
   let field_to_option = function
-   | `Lifted f -> Some f
-   | `Bot
-   | `Top -> None
+    | `Lifted f -> Some f
+    | `Bot
+    | `Top -> None
 
   let fold g (f, x) acc =
     let fd = field_to_option f in

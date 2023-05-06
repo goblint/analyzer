@@ -1120,9 +1120,9 @@ struct
         CArrays.fold_left add_affecting_one_level immediately_affecting a
       end
     | `Struct s ->
-        Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
+      Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
     | `Union x ->
-        Unions.fold (fun x value acc -> add_affecting_one_level acc value) x []
+      Unions.fold (fun x value acc -> add_affecting_one_level acc value) x []
     (* `Blob can not contain Array *)
     | _ -> []
 
