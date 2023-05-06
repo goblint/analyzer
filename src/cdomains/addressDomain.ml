@@ -140,8 +140,8 @@ struct
                 |> List.fold_left Idx.join (Idx.bot_of IUInt) *)
   let string_concat x y n =
     let f = match n with
-    | Some num -> Addr.to_n_string num
-    | None -> Addr.to_string in
+      | Some num -> Addr.to_n_string num
+      | None -> Addr.to_string in
 
     (* map all StrPtr elements in input address sets to strings / n-substrings *)
     let x' = List.map Addr.to_string (elements x) in 
