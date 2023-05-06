@@ -711,7 +711,12 @@ struct
     |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
-    | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value ask fd.ftype n)
+    | TComp (ci,_)  , `Union x ->
+      let invalidate f v =
+        let typ = BatOption.map_default (fun f -> f.ftype) voidType f in
+        invalidate_value ask typ v
+      in
+      `Union (Unions.map invalidate x)
     | TArray (t,_,_), `Array n      ->
       let v = invalidate_value ask t (CArrays.get ask n array_idx_top) in
       `Array (CArrays.set ask n (array_idx_top) v)
