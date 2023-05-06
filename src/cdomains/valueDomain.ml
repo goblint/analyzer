@@ -639,8 +639,7 @@ struct
     match (x,y) with
     | (`Struct x, `Struct y) ->
           Structs.leq_with_fct leq_elem x y
-    | (`Union (f, x), `Union (g, y)) ->
-        UnionDomain.Field.leq f g && leq_elem x y
+    | (`Union x, `Union y) -> Unions.smart_leq ~leq_elem x y
     | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
     | _ -> leq x y (* Others can not contain array -> normal leq *)
 

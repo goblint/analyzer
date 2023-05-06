@@ -11,6 +11,7 @@ module type S =
 sig
   include Lattice.S
   type value
+  val smart_leq: leq_elem: (value -> value -> bool) -> t -> t -> bool
   val smart_join: join_elem:(value -> value -> value) -> t -> t -> t
   val smart_widen: widen_elem:(value -> value -> value) -> t -> t -> t
   val of_field: field:fieldinfo -> value:value -> t
@@ -26,6 +27,9 @@ module Simple (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
+
+  let smart_leq ~leq_elem (f, x) (g, y) =
+    Field.leq f g && leq_elem x y
 
   let join (f, x) (g, y) =
     match Field.join f g with
