@@ -629,9 +629,7 @@ struct
     let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
     match (x,y) with
     | (`Struct x, `Struct y) -> `Struct (Structs.widen_with_fct widen_elem x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.widen f g with
-        | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
-        | x -> x, `Top) (* f <> g *)
+    | (`Union x, `Union y) -> `Union (Unions.smart_widen ~widen_elem x y)
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | _ -> widen x y  (* Others can not contain array -> normal widen  *)
 
