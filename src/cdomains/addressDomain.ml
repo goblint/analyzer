@@ -138,10 +138,14 @@ struct
       (* else returns the least upper bound of all lengths *)
       | None -> List.map (fun x -> match x with Some y -> Idx.of_int IUInt (Z.of_int y) | None -> failwith "unreachable") length_list
                 |> List.fold_left Idx.join (Idx.bot_of IUInt) *)
-  let string_concat x y =
-    (* map all StrPtr elements in input address sets to strings *)
+  let string_concat x y n =
+    let f = match n with
+    | Some num -> Addr.to_n_string num
+    | None -> Addr.to_string in
+
+    (* map all StrPtr elements in input address sets to strings / n-substrings *)
     let x' = List.map Addr.to_string (elements x) in 
-    let y' = List.map Addr.to_string (elements y) in 
+    let y' = List.map f (elements y) in 
 
     (* helper functions *)
     let is_None x = if x = None then true else false in

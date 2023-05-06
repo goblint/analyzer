@@ -2127,7 +2127,29 @@ struct
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
           let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.string_concat dest_a src_a)
+          `Address(AD.string_concat dest_a src_a None)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+    | Strncat { dest = dst; src; n }, _ ->
+      let dest_a, dest_typ = addr_type_of_exp dst in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
+      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+                    |> AD.get_type in
+      (* evaluate amount of characters which are to be extracted of src *)
+      let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
+      let int_n = 
+        match eval_n with
+        | `Int i -> (match ID.to_int i with
+            | Some x -> Z.to_int x
+            | _ -> -1)
+        | _ -> -1 in
+      (* When src and destination type coincide, concatenate n-substring from src to dest, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
+          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
+          `Address(AD.string_concat dest_a src_a (Some int_n))
         else
           VD.top_value (unrollType dest_typ)
       in

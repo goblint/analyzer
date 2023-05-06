@@ -62,6 +62,7 @@ type special =
   | Strcpy of { dest: Cil.exp; src: Cil.exp; }
   | Strncpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strcat of { dest: Cil.exp; src: Cil.exp; }
+  | Strncat of { dest:Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strlen of Cil.exp
   | Strstr of { haystack: Cil.exp; needle: Cil.exp; }
   | Abort
