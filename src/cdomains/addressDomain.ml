@@ -110,7 +110,7 @@ struct
       | Some s -> from_string s
       | None -> top () in
     (* maps any StrPtr for which n is valid to the prefix of length n of its content, otherwise maps to top *)
-    List.map (transform n) x
+    List.map (transform n) (elements x)
     (* returns the least upper bound of computed AddressDomain values *)
     |> List.fold_left join (bot ())
   (* let to_n_string n x =
@@ -127,7 +127,7 @@ struct
       | Some x -> Idx.of_int IUInt (Z.of_int x)
       | None -> Idx.top_of IUInt in 
     (* maps any StrPtr to the length of its content, otherwise maps to top *)
-    List.map transform x
+    List.map transform (elements x)
     (* returns the least upper bound of computed IntDomain values *)
     |> List.fold_left Idx.join (Idx.bot_of IUInt)
   (* let to_string_length x =
@@ -138,6 +138,26 @@ struct
       (* else returns the least upper bound of all lengths *)
       | None -> List.map (fun x -> match x with Some y -> Idx.of_int IUInt (Z.of_int y) | None -> failwith "unreachable") length_list
                 |> List.fold_left Idx.join (Idx.bot_of IUInt) *)
+  let string_concat x y =
+    (* map all StrPtr elements in input address sets to strings *)
+    let x' = List.map Addr.to_string (elements x) in 
+    let y' = List.map Addr.to_string (elements y) in 
+
+    (* helper functions *)
+    let is_None x = if x = None then true else false in
+    let extract_string = function
+      | Some s -> s
+      | None -> failwith "unreachable" in
+
+    match List.find_opt is_None x', List.find_opt is_None y' with
+    (* if all elements of both lists are Some string *)
+    | None, None -> 
+      (* ... concatenate every string of x' with every string of y' *)
+      List.fold_left (fun acc elem -> acc @ (List.map (fun s -> from_string ((extract_string elem) ^ (extract_string s))) y')) [] x'
+      (* ... and join all combinations *)
+      |> List.fold_left join (bot ())
+    (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    | _ -> top ()
 
   (* add an & in front of real addresses *)
   module ShortAddr =

@@ -2118,6 +2118,20 @@ struct
           VD.top_value (unrollType dest_typ)
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+    | Strcat { dest = dst; src }, _ ->
+      let dest_a, dest_typ = addr_type_of_exp dst in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
+      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+                    |> AD.get_type in
+      (* When src and destination type coincide, concatenate src to dest, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
+          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
+          `Address(AD.string_concat dest_a src_a)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
       let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
       let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
