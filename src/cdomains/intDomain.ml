@@ -1054,11 +1054,6 @@ struct
   let (<=.) a b = Ints_t.compare a b <= 0
   let (+.) a b = Ints_t.add a b
   let (-.) a b = Ints_t.sub a b
-  let ( *.) a b = Ints_t.mul a b
-  let (/.) a b = Ints_t.div a b
-
-  let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
-  let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
   (*
     Each domain's element is guaranteed to be in canonical form. That is, each interval contained

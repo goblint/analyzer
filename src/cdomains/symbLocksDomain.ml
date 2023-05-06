@@ -1,5 +1,4 @@
 open GoblintCil
-open Pretty
 
 module M = Messages
 
