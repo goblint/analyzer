@@ -1105,7 +1105,7 @@ struct
         `Array (new_val)
       end
     | `Struct s -> `Struct (Structs.map (move_fun) s)
-    | `Union (f, v) -> `Union(f, move_fun v)
+    | `Union x -> `Union (Unions.map (fun _ -> move_fun) x)
     (* `Blob can not contain Array *)
     | x -> x
 
@@ -1121,8 +1121,8 @@ struct
       end
     | `Struct s ->
         Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
-    | `Union (f, v) ->
-        affecting_vars v
+    | `Union x ->
+        Unions.fold (fun x value acc -> add_affecting_one_level acc value) x []
     (* `Blob can not contain Array *)
     | _ -> []
 

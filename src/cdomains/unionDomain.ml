@@ -12,6 +12,7 @@ sig
   include Lattice.S
   type value
   val map: (fieldinfo option -> value -> value) -> t -> t
+  val fold: (fieldinfo option -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val smart_leq: leq_elem: (value -> value -> bool) -> t -> t -> bool
   val smart_join: join_elem:(value -> value -> value) -> t -> t -> t
   val smart_widen: widen_elem:(value -> value -> value) -> t -> t -> t
@@ -29,10 +30,18 @@ struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
 
-  let map g (f, x) = match f with
-    | `Lifted fd -> f, (g (Some fd) x)
-    | `Bot
-    | `Top -> f, g None x
+  let field_to_option = function
+   | `Lifted f -> Some f
+   | `Bot
+   | `Top -> None
+
+  let fold g (f, x) acc =
+    let fd = field_to_option f in
+    g fd x acc
+
+  let map g (f, x) =
+    let fd = field_to_option f in
+    f, (g fd x)
 
   let smart_leq ~leq_elem (f, x) (g, y) =
     Field.leq f g && leq_elem x y
