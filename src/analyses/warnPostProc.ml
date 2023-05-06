@@ -181,9 +181,6 @@ struct
 
   let conds_in s = Dom.fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
 
-  let rel_alarms c s = Dom.fold (fun alarm alarms -> 
-      if (RM.Cond.equal alarm.cond c) then AlarmSet.add alarm alarms else alarms) s (AlarmSet.empty ())
-
   let filter_killed stmt node (alarm : Alarm.t) = 
     match alarm.cond with 
     | Aob (exp, _) -> var_changed_in_node stmt exp
@@ -261,31 +258,13 @@ struct
     | Statement stmt -> Dom.filter (filter_killed stmt node) x
     | _ -> Dom.empty ()
 
-  let set_locs alarm node rel_alarms =
-    let alarm = set_loc alarm (M.Location.Node node) in (* TODO: does this work? *)
-    let rel_pieces = AlarmSet.fold (fun alarm acc ->
-        match alarm.multipiece with
-        | Group group -> append_unique group.pieces acc
-        | _ -> acc) rel_alarms []
-    in
-    match alarm.multipiece with
-    | Group group ->
-      let rel_alarms = append_unique group.pieces rel_pieces in
-      let new_group = {group with pieces=rel_alarms} in
-      {alarm with multipiece=Group new_group}
-    | _ -> alarm
-
   let gen node x = CondSet.fold (fun cond dom ->
-      let ant = HM.find antSolHM node in
-      let rel_alarms = Ant.rel_alarms cond ant in
-      (* Update the message locations to correspond to the sinked location and add original and related alarms *)
-      AlarmSet.fold (fun alarm dom_updated ->
-          Dom.add
-            (match node with
-             | `L n -> set_locs alarm n rel_alarms
-             | `G n -> set_locs alarm n rel_alarms)
-            dom_updated)
-        rel_alarms dom
+      let ant = Dom.tuples_of cond (HM.find antSolHM node) in
+      (* Update the message locations to correspond to the hoisted location *)
+      Dom.map (fun alarm ->
+          match node with
+          | `L n | `G n -> set_loc alarm (M.Location.Node n)
+        ) ant
     ) x (Dom.empty ())
 
   let gen_entry node x =
