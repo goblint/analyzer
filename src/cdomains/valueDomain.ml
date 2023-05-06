@@ -258,7 +258,8 @@ struct
       let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
           let firstmember = List.hd ci.cfields in
-          `Lifted firstmember, zero_init_value ~varAttr:firstmember.fattr firstmember.ftype
+          let value = zero_init_value ~varAttr:firstmember.fattr firstmember.ftype in
+          Unions.of_field ~field:firstmember ~value
         with
         (* Union with no members ò.O *)
           Failure _ -> Unions.top ()
@@ -566,9 +567,7 @@ struct
         | None -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
-    | (`Union (f,x), `Union (g,y)) -> `Union (match UnionDomain.Field.join f g with
-        | `Lifted f -> (`Lifted f, join x y) (* f = g *)
-        | x -> (x, `Top)) (* f <> g *)
+    | (`Union x, `Union y) -> `Union (Unions.join x y)
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s,o), y

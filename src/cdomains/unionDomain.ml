@@ -1,3 +1,4 @@
+
 open GoblintCil
 
 module type Arg =
@@ -10,6 +11,7 @@ module type S =
 sig
   include Lattice.S
   type value
+  val of_field: field:fieldinfo -> value:value -> t
   val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
@@ -22,6 +24,14 @@ module Simple (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
+
+  let join (f, x) (g, y) =
+    match Field.join f g with
+    | `Lifted f -> (`Lifted f, Values.join x y) (* f = g *)
+    | x -> (x, Values.top ()) (* f <> g *)
+
+  let of_field ~field ~value : t =
+    `Lifted field, value
 
   let invariant ~value_invariant ~offset ~lval (lift_f, v) =
     match offset with
