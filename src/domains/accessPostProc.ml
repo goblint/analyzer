@@ -115,7 +115,7 @@ let print_accesses (lv, ty) grouped_accs =
       | None -> AS.union safe_accs accs (* group all safe accs together for allglobs *)
       | Some conf ->
         if get_bool "ana.warn-postprocess.enabled" then (
-          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, filter_no_race a accs, accs)) ~loc:(loc a) ~category:Race "" [h a]);
+          accs |> AS.iter (fun a -> RM.msg_group (race_severity (A.conf a)) (Acc (a, filter_no_race a accs, accs)) ~loc:(loc a) ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf [h a]);
           safe_accs) 
         else
           let severity = race_severity conf in
