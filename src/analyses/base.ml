@@ -2088,7 +2088,7 @@ struct
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
       let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
                     |> AD.get_type in
-      (* When src and destination type coincide, take value from the source, otherwise use top *)
+      (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
@@ -2109,7 +2109,7 @@ struct
             | Some x -> Z.to_int x
             | _ -> -1)
         | _ -> -1 in
-      (* When src and destination type coincide, take n-substring value from the source, otherwise use top *)
+      (* when src and destination type coincide, take n-substring value from the source, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
@@ -2123,7 +2123,7 @@ struct
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
       let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
                     |> AD.get_type in
-      (* When src and destination type coincide, concatenate src to dest, otherwise use top *)
+      (* when src and destination type coincide, concatenate src to dest, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
           let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
@@ -2145,7 +2145,7 @@ struct
             | Some x -> Z.to_int x
             | _ -> -1)
         | _ -> -1 in
-      (* When src and destination type coincide, concatenate n-substring from src to dest, otherwise use top *)
+      (* when src and destination type coincide, concatenate n-substring from src to dest, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
           let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
@@ -2155,12 +2155,29 @@ struct
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
-      let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
-      let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
       begin match lv with 
         | Some v -> 
+          let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
+          let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
           let dest_a, dest_typ = addr_type_of_exp (Lval v) in
           let value = `Int(AD.to_string_length address) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | None -> ctx.local
+      end
+    | Strstr { haystack; needle }, _ ->
+      begin match lv with
+        | Some v ->
+          let haystack_a, haystack_typ = addr_type_of_exp haystack in 
+          let needle_a = mkMem ~addr:(Cil.stripCasts needle) ~off:NoOffset
+                         |> eval_lv (Analyses.ask_of_ctx ctx) gs st in 
+          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
+          (* when haystack and dest type coincide, check if needle is a substring of haystack: 
+             if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
+             else use top *)
+          let value = if typeSig dest_typ = typeSig haystack_typ then
+              `Address(AD.substring_extraction haystack_a needle_a)
+            else
+              VD.top_value (unrollType dest_typ) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> ctx.local
       end

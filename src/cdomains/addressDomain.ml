@@ -103,7 +103,9 @@ struct
 
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
+      
   let to_string x = List.filter_map Addr.to_string (elements x)
+      
   let to_n_string n x =
     let transform n elem =
       match Addr.to_n_string n elem with
@@ -121,6 +123,7 @@ struct
       (* else returns the least upper bound of all substrings of length n *)
       | None -> List.map (fun x -> match x with Some s -> from_string s | None -> failwith "unreachable") n_string_list
                 |> List.fold_left join (bot ()) *)
+      
   let to_string_length x =
     let transform elem =
       match Addr.to_string_length elem with
@@ -138,12 +141,13 @@ struct
       (* else returns the least upper bound of all lengths *)
       | None -> List.map (fun x -> match x with Some y -> Idx.of_int IUInt (Z.of_int y) | None -> failwith "unreachable") length_list
                 |> List.fold_left Idx.join (Idx.bot_of IUInt) *)
+      
   let string_concat x y n =
     let f = match n with
       | Some num -> Addr.to_n_string num
       | None -> Addr.to_string in
 
-    (* map all StrPtr elements in input address sets to strings / n-substrings *)
+    (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
     let x' = List.map Addr.to_string (elements x) in 
     let y' = List.map f (elements y) in 
 
@@ -160,6 +164,43 @@ struct
       List.fold_left (fun acc elem -> acc @ (List.map (fun s -> from_string ((extract_string elem) ^ (extract_string s))) y')) [] x'
       (* ... and join all combinations *)
       |> List.fold_left join (bot ())
+    (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    | _ -> top ()
+
+  let substring_extraction haystack needle =
+    (* map all StrPtr elements in input address sets to contained strings *)
+    let haystack' = List.map Addr.to_string (elements haystack) in
+    let needle' = List.map Addr.to_string (elements needle) in
+
+    (* helper functions *)
+    let is_None = function None -> true | Some _ -> false in
+    let is_Some = function Some _ -> true | None -> false in
+    let extract_string = function
+      | Some s -> s
+      | None -> failwith "unreachable" in
+    let extract_lval_string = function
+      | Some s -> from_string s
+      | None -> top () in
+    let compute_substring s1 s2 =
+      let i =
+        try Str.search_forward (Str.regexp_string s2) s1 0
+        with Not_found -> -1 in
+      if i < 0 then
+        None
+      else
+        Some (String.sub s1 i (String.length s1 - i)) in
+
+    match List.find_opt is_None haystack', List.find_opt is_None needle' with
+    (* if all elements of both lists are Some string *)
+    | None, None ->
+      (* ... try to extract substrings *)
+      (let substrings = List.fold_left (fun acc elem -> 
+           acc @ (List.map (fun s -> compute_substring (extract_string elem) (extract_string s)) needle')) [] haystack' in
+       match List.find_opt is_Some substrings with
+       (* ... and return bot if no string of needle' is a substring of any string of haystack' *)
+       | None -> bot ()
+       (* ... or join all combinations *)
+       | Some _ -> List.fold_left join (bot ()) (List.map extract_lval_string substrings))
     (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
     | _ -> top ()
 
