@@ -75,20 +75,9 @@ struct
 
     (* Just dbg prints *)
     (match lval with
-    | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with\n lval %a\n" f.vname d_lval lv
+    | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a\n" f.vname d_lval lv
     | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s\n" f.vname);
     let desc = LibraryFunctions.find f in
-    (* add new math fun desc*)
-    let d =
-    match lval, desc.special arglist with
-      | Some (Var v, offs), (Math { fun_args; }) -> 
-        let lvalDep = List.fold LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
-        if LS.is_top lvalDep then
-          d
-        else
-          D.add (v, resolve offs) ((ML.lift fun_args, lvalDep)) d
-      | _ -> d
-    in
 
     (* remove entrys, dependent on lvals that were possibly written by the special function *)
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
@@ -125,8 +114,25 @@ struct
       )
     | None -> d 
     in
+
+    (* add new math fun desc*)
+    let d =
+    match lval, desc.special arglist with
+      | Some (Var v, offs), (Math { fun_args; }) -> 
+        let argsDep = List.fold LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
+        let lvalsWritten = ls_of_lv ctx (Var v, offs) in
+        (* only add descriptor, if the set of lvals contained in the args is known and none is written by the assignment *)
+        (* actually it would be necessary to check here, if one of the arguments is written by the call. However this is not the case for any of the math functions and no other functions are covered so far *)
+        if LS.is_top argsDep || not (LS.is_empty (LS.meet argsDep lvalsWritten)) then
+          d
+        else
+          D.add (v, resolve offs) ((ML.lift fun_args, LS.union argsDep lvalsWritten)) d
+      | _ -> d
+    in
+
     if M.tracing then M.tracel "tmpSpecial" "Result: %a\n\n" D.pretty d;
     d
+
 
     let query ctx (type a) (q: a Queries.t) : a Queries.result =
       match q with
