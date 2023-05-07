@@ -1153,7 +1153,7 @@ struct
     | `JmpBuf (v,t) -> `JmpBuf (v, true)
     | `Array n -> `Array (CArrays.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
     | `Struct n -> `Struct (Structs.map (fun (x: t) -> mark_jmpbufs_as_copied x) n)
-    | `Union (f, n) -> `Union (f, mark_jmpbufs_as_copied n)
+    | `Union n -> `Union (Unions.map (fun _ (x: t) -> mark_jmpbufs_as_copied x) n)
     | `Blob (a,b,c) -> `Blob (mark_jmpbufs_as_copied a, b,c)
     | _ -> v
 
@@ -1197,7 +1197,7 @@ struct
     | `Int n, Some p, _->  `Int (ID.project p n)
     | `Address n, Some p, _-> `Address (project_addr p n)
     | `Struct n, _, _ -> `Struct (Structs.map (fun (x: t) -> project ask p None x) n)
-    | `Union (f, v), _, _ -> `Union (f, project ask p None v)
+    | `Union n, _, _ -> `Union (Unions.map (fun _ (x: t) -> project ask p None v) n)
     | `Array n , _, _ -> `Array (project_arr ask p array_attr n)
     | `Blob (v, s, z), Some p', _ -> `Blob (project ask p None v, ID.project p' s, z)
     | `Thread n, _, _ -> `Thread n
