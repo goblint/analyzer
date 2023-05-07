@@ -1058,9 +1058,6 @@ struct
                 | v -> v
               in
               `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
-            (* let v = do_update_offset ask tempval tempoffs value exp l' o' v t in
-               let u = Unions.of_field ~field:fld ~value:v in
-               `Union u *)
             | `Bot ->
               let v = do_update_offset ask `Bot offs value exp l' o' v t in
               let u = Unions.of_field ~field:fld ~value:v in
