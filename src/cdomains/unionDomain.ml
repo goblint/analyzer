@@ -5,12 +5,14 @@ module type Arg =
 sig
   include Lattice.S
   val cast: ?torg:typ -> typ -> t -> t
+  val top_value: ?varAttr:attributes -> typ -> t
 end
 
 module type S =
 sig
   include Lattice.S
   type value
+  val get: fieldinfo -> t -> value
   val map: (fieldinfo option -> value -> value) -> t -> t
   val fold: (fieldinfo option -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val smart_leq: leq_elem: (value -> value -> bool) -> t -> t -> bool
@@ -29,6 +31,12 @@ module Simple (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
+
+  let get field (f, x) =
+    if Field.equal f (`Lifted field) then
+      x
+    else
+      Values.top ()
 
   let field_to_option = function
     | `Lifted f -> Some f

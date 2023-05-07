@@ -1023,34 +1023,48 @@ struct
             let t = fld.ftype in
             let l', o' = shift_one_over l o in
             match x with
-            | `Union (last_fld, prev_val) ->
-              let tempval, tempoffs =
-                if UnionDomain.Field.equal last_fld (`Lifted fld) then
-                  prev_val, offs
-                else begin
-                  match offs with
-                  | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value ~varAttr:fld.fattr fld.ftype), offs
-                  | `Field (fldi, _) -> `Union (Unions.top ()), offs
-                  | `NoOffset -> top (), offs
-                  | `Index (idx, _) when Cil.isArrayType fld.ftype ->
-                    begin
-                      match fld.ftype with
-                      | TArray(_, l, _) ->
-                        let len = try Cil.lenOfArray l
-                          with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
-                        `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) `Top), offs
-                      | _ -> top (), offs (* will not happen*)
-                    end
-                  | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
-                    (* Why does cil index unions? We'll just pick the first field. *)
-                    top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
-                  | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
-                    top (), offs
-                end
+            | `Union u ->
+              let tempoffs = match offs with
+                | `Index (idx, _) when Cil.isArrayType fld.ftype -> offs
+                | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
+                  (* Why does cil index unions? We'll just pick the first field. *)
+                  `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
+                | `Index _ ->
+                  M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
+                  offs
+                | _ -> offs
+              in
+              let tempval = match Unions.get fld u with
+                | `Top ->
+                  begin
+                    match offs with
+                    | `Field (fldi, _) ->
+                      top_value ~varAttr:fld.fattr fld.ftype
+                    | `NoOffset ->
+                      top ()
+                    | `Index (idx, _) when Cil.isArrayType fld.ftype ->
+                      begin
+                        match fld.ftype with
+                        | TArray(_, l, _) ->
+                          let len = try Cil.lenOfArray l
+                            with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                          `Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (BI.of_int len)) `Top)
+                        | _ ->
+                          top ()
+                      end
+                    | _ ->
+                      top ()
+                  end
+                | v -> v
               in
               `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
-            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
+            (* let v = do_update_offset ask tempval tempoffs value exp l' o' v t in
+               let u = Unions.of_field ~field:fld ~value:v in
+               `Union u *)
+            | `Bot ->
+              let v = do_update_offset ask `Bot offs value exp l' o' v t in
+              let u = Unions.of_field ~field:fld ~value:v in
+              `Union u
             | `Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
           end
@@ -1059,8 +1073,8 @@ struct
             match x with
             | `Array x' ->
               let t = (match t with
-              | TArray(t1 ,_,_) -> t1
-              | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
+                  | TArray(t1 ,_,_) -> t1
+                  | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask (CArrays.get ask x' (e,idx)) offs value exp l' o' v t in
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
@@ -1243,7 +1257,7 @@ end
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
   StructDomain.FlagConfiguredStructDomain (Compound)
 
-and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
+and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t  and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
