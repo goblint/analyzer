@@ -1,6 +1,6 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open Pretty
 open GobConfig

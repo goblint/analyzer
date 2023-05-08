@@ -50,7 +50,7 @@ let with_local_side_tokens f =
   with_side_tokens !local_tokens f
 
 
-open Prelude
+open Batteries
 open Analyses
 
 (** Lift {!D} to carry widening tokens.

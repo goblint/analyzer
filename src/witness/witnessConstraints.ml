@@ -1,6 +1,6 @@
 (** An analysis specification for witnesses. *)
 
-open Prelude.Ana
+open Batteries
 open Analyses
 
 

@@ -1,6 +1,7 @@
 (** Deadlock analysis. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open DeadlockDomain
 

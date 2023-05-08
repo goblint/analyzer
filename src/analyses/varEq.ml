@@ -5,7 +5,7 @@ module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
 module Exp = CilType.Exp
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 

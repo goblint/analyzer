@@ -1,6 +1,8 @@
 (** Tracking of pthread lib code. Output to promela. *)
 
-open Prelude.Ana
+open GoblintCil
+open Pretty
+open GobPretty
 open Analyses
 open Cil
 open BatteriesExceptionless
@@ -748,7 +750,7 @@ module Codegen = struct
       |> List.of_enum
       |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
       |> List.unique
-      |> List.sort (compareBy PmlResTbl.get)
+      |> List.sort (BatOrd.map_comp PmlResTbl.get compare)
       |> List.concat_map process_def
     in
     let fun_ret_defs =
@@ -768,7 +770,7 @@ module Codegen = struct
           escape body
       in
       Tbls.FunCallTbl.to_list ()
-      |> List.group (compareBy (fst % fst))
+      |> List.group (BatOrd.map_comp (fst % fst) compare)
       |> List.concat_map fun_map
     in
     let globals = List.map Variable.show_def @@ Variables.get_globals () in
@@ -967,7 +969,7 @@ module Spec : Analyses.MCPSpec = struct
       in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
       let pred_str op lhs rhs =
-        let cond_str = lhs ^ " " ^ sprint d_binop op ^ " " ^ rhs in
+        let cond_str = lhs ^ " " ^ CilType.Binop.show op ^ " " ^ rhs in
         if tv then cond_str else "!(" ^ cond_str ^ ")"
       in
 
