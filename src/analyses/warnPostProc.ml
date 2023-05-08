@@ -23,14 +23,14 @@ struct
     | `Lifted _ -> fold (fun alarm conds -> CondSet.add alarm.cond conds) s (CondSet.empty ())
     | _ -> CondSet.empty ()
 
-  let tuples_of c s = filter (fun alarm -> RM.Cond.equal c alarm.cond) s
+  let filter_by_cond c s = filter (fun alarm -> RM.Cond.equal c alarm.cond) s
 
   let meet x y =
     let conds = CondSet.inter (conds_in x) (conds_in y) in
     match x, y with
     | `Top, _ -> y
     | _, `Top -> x
-    | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (tuples_of c x) (tuples_of c y))) conds (empty ())
+    | `Lifted _, `Lifted _ -> CondSet.fold (fun c acc -> union acc (union (filter_by_cond c x) (filter_by_cond c y))) conds (empty ())
 
 end
 
