@@ -854,11 +854,11 @@ struct
           zero_init_calloced_memory orig ev t
         end
       | `Blob((va, _, orig) as c), `NoOffset ->
-      begin
-        let l', o' = shift_one_over l o in
-        let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
-        zero_init_calloced_memory orig ev t
-      end
+        begin
+          let l', o' = shift_one_over l o in
+          let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+          zero_init_calloced_memory orig ev t
+        end
       | `Bot, _ -> `Bot
       | _ ->
         match offs with
@@ -1266,8 +1266,7 @@ end
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
   StructDomain.FlagConfiguredStructDomain (Compound)
 
-and Unions: UnionDomain.S with type value = Compound.t =
-  UnionDomain.Simple (Compound)
+and Unions: UnionDomain.S with type value = Compound.t = UnionDomain.Simple (Compound)
 
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
