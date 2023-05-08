@@ -5,7 +5,7 @@ module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =

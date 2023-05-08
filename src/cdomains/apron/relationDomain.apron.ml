@@ -1,6 +1,6 @@
 (** Interfaces/implementations that generalize the apronDomain and affineEqualityDomain. *)
 
-open Prelude
+open Batteries
 open GoblintCil
 
 (** Abstracts the extended apron Var. *)

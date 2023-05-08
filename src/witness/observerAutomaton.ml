@@ -1,6 +1,3 @@
-open Prelude.Ana
-
-
 module type S =
 sig
   type q

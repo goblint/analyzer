@@ -3,7 +3,8 @@
 module GU = Goblintutil
 module LF = LibraryFunctions
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open GobList.Syntax
 

@@ -1,4 +1,5 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open BaseUtil
 module Q = Queries

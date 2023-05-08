@@ -1,6 +1,6 @@
 (** This is the main program! *)
 
-open Prelude
+open Batteries
 open GobConfig
 open Printf
 open Goblintutil
@@ -183,7 +183,7 @@ let handle_flags () =
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
-    Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
+    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
 
 let handle_options () =
@@ -498,7 +498,7 @@ let do_stats () =
     ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
     print_string "Timings:\n";
-    Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 

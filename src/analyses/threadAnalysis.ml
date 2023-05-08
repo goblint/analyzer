@@ -1,6 +1,6 @@
 (** Thread creation and uniqueness analyses. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module T  = ThreadIdDomain.Thread

@@ -1,6 +1,6 @@
 (** An analysis that handles the case when malloc is called from a wrapper function all over the code. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 open ThreadIdDomain

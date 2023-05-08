@@ -1,4 +1,5 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -14,7 +15,7 @@ struct
 
   let check_lval tainted ((v, offset): Queries.LS.elt) =
     if not v.vglob && VS.mem v tainted then
-      M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" d_varinfo v
+      M.warn ~category:(Behavior (Undefined Other)) "Reading poisonous variable %a" CilType.Varinfo.pretty v
 
   let rem_lval tainted ((v, offset): Queries.LS.elt) = match offset with
     | `NoOffset -> VS.remove v tainted
