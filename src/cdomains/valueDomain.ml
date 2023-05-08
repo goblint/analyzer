@@ -877,17 +877,21 @@ struct
             | `Union u ->
               let value = Unions.get fld u in
               (match value, fld.ftype with
-               (* only return an actual value if we have a type and return actually the exact same type *)
-               | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
-               | `Float _, t -> top_value t
-               | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
                | `Top, _ ->
-                 (* No precise value for fld. Look last value stored in union and cast it. *)
-                 let l_fld, value = Unions.get_field_and_value u in
-                 let ftype = Option.map (fun f -> f.ftype) l_fld in
-                 let x = cast ?torg:ftype fld.ftype value in
-                 let l', o' = shift_one_over l o in
-                 do_eval_offset ask f x offs exp l' o' v t
+                 (* No precise value for fld. Look up last value stored in union and cast it. *)
+                 let last_fld, last_value = Unions.get_field_and_value u in
+                 begin
+                   match last_value, fld.ftype with
+                   (* only return an actual value if we have a type and return actually the exact same type *)
+                   | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
+                   | `Float _, t -> top_value t
+                   | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
+                   | _ ->
+                     let ftype = Option.map (fun f -> f.ftype) last_fld in
+                     let x = cast ?torg:ftype fld.ftype last_value in
+                     let l', o' = shift_one_over l o in
+                     do_eval_offset ask f x offs exp l' o' v t
+                 end
                | _, _ ->
                  let l', o' = shift_one_over l o in
                  do_eval_offset ask f value offs exp l' o' v t)
