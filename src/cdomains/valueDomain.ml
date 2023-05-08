@@ -874,17 +874,18 @@ struct
           end
         | `Field (fld, offs) -> begin
             match x with
-            | `Union (`Lifted l_fld, value) ->
+            | `Union u ->
+              let l_fld, value = Unions.get_field_and_value u in
               (match value, fld.ftype with
                (* only return an actual value if we have a type and return actually the exact same type *)
                | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
                | `Float _, t -> top_value t
                | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
                | _ ->
-                 let x = cast ~torg:l_fld.ftype fld.ftype value in
+                 let ftype = Option.map (fun f -> f.ftype) l_fld in
+                 let x = cast ?torg:ftype fld.ftype value in
                  let l', o' = shift_one_over l o in
                  do_eval_offset ask f x offs exp l' o' v t)
-            | `Union _ -> top ()
             | `Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
           end

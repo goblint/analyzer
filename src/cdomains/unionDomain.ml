@@ -13,6 +13,7 @@ sig
   include Lattice.S
   type value
   val get: fieldinfo -> t -> value
+  val get_field_and_value: t -> fieldinfo option * value
   val map: (fieldinfo option -> value -> value) -> t -> t
   val fold: (fieldinfo option -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val smart_leq: leq_elem: (value -> value -> bool) -> t -> t -> bool
@@ -42,6 +43,10 @@ struct
     | `Lifted f -> Some f
     | `Bot
     | `Top -> None
+
+  let get_field_and_value (f, x) =
+    let f = field_to_option f in
+    f, x
 
   let fold g (f, x) acc =
     let fd = field_to_option f in
