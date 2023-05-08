@@ -42,8 +42,8 @@ int main(){
 		__goblint_check(ptr.nptr->value <= 23);
 		__goblint_check(ptr.nptr->value == 23); // UNKNOWN
 	} else {
-		__goblint_check(ptr.iptr <= 12);
-		__goblint_check(ptr.iptr == 12); // UNKNOWN
+		__goblint_check(*(ptr.iptr) <= 12);
+		__goblint_check(*(ptr.iptr) == 12); // UNKNOWN
 	}
 
 	return 0;
