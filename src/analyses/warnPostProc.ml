@@ -401,22 +401,22 @@ let warn_postprocess fd =
     let sol = HM.find solution (`G node) in
     let conds = Av.conds_in sol in
     if (D.is_empty sol) then ()
-    else (
-      HM.modify_def (D.empty ()) (`L node) (D.fold D.add sol) solution;
-      HM.modify_def (CondSet.empty ()) (`L node) (CondSet.union conds) hoistHM;
-    )
-    (* let og_node = match (D.choose sol).multipiece with
-       | Group group ->
-        begin match (List.hd group.pieces).loc with
-          | Some Node n -> n
-          | _ -> node
-        end
-       | _ -> node
-       in
-       let merge = D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol in
-       let filter = D.map (fun alarm -> rem_related alarm og_node) in
-       HM.modify_def (D.empty ()) (`L og_node) (fun alarm -> filter (merge alarm)) solution;
-       HM.modify_def (CondSet.empty ()) (`L og_node) (CondSet.union conds) hoistHM; *)
+    else (* (
+            HM.modify_def (D.empty ()) (`G node) (D.fold D.add sol) solution;
+            HM.modify_def (CondSet.empty ()) (`G node) (CondSet.union conds) hoistHM;
+            ) *) (* Alternative: to not relocate those warnings that reach program start to their original location *)
+      let og_node = match (D.choose sol).multipiece with
+        | Group group ->
+          begin match (List.hd group.pieces).loc with
+            | Some Node n -> n
+            | _ -> node
+          end
+        | _ -> node
+      in
+      let merge = D.fold (fun alarm acc -> D.add (set_loc alarm (RM.Location.Node og_node)) acc) sol in
+      let filter = D.map (fun alarm -> rem_related alarm og_node) in
+      HM.modify_def (D.empty ()) (`G og_node) (fun alarm -> filter (merge alarm)) solution;
+      HM.modify_def (CondSet.empty ()) (`G og_node) (CondSet.union conds) hoistHM;
   in
 
   conds_start (Node.FunctionEntry fd);
