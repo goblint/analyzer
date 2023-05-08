@@ -14,6 +14,8 @@ sig
   type value
   val get: fieldinfo -> t -> value
   val get_field_and_value: t -> fieldinfo option * value
+  (** Return the field used in the last write of the union, and the value of that field *)
+
   val map: (fieldinfo option -> value -> value) -> t -> t
   val fold: (fieldinfo option -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val smart_leq: leq_elem: (value -> value -> bool) -> t -> t -> bool
@@ -128,41 +130,58 @@ struct
   let get_field_and_value m =
     if Map.is_empty m then
       None, Values.bot ()
+    else if Map.is_top m then
+      None, Values.top ()
     else if Map.cardinal m = 1 then
       let f, v = Map.choose m in
       Some f, v
     else
       None, Values.top ()
 
-  let fold g m acc =
-    Map.fold (fun fd v -> g (Some fd) v) m acc
+  let fold g (m: t) acc =
+    if Map.is_top m then
+      acc
+    else
+      Map.fold (fun fd v -> g (Some fd) v) m acc
 
   let map g m =
-    let map_elem fd v acc =
-      let v = g (Some fd) v in
-      Map.add fd v acc
-    in
-    Map.fold map_elem m (Map.empty ())
+    if Map.is_top m then
+      m
+    else
+      let map_elem fd v acc =
+        let v = g (Some fd) v in
+        Map.add fd v acc
+      in
+      Map.fold map_elem m (Map.empty ())
 
   let smart_leq ~leq_elem x y =
-    let check_entry f v =
-      let v' = Map.find_opt f y in
-      BatOption.map_default (leq_elem v) false v'
-    in
-    Map.for_all check_entry x
+    if is_top y then
+      true
+    else if is_top x then
+      false
+    else
+      let check_entry f v =
+        let v' = Map.find_opt f y in
+        BatOption.map_default (leq_elem v) false v'
+      in
+      Map.for_all check_entry x
 
   let join =
     Map.join
 
+  (** Performs join or widen operation using per element merge function *)
   let merge ~merge_values x y =
-    let merge_entry f v v' =
-      match v, v' with
-      | None, None -> None
-      | Some v, None
-      | None, Some v -> Some v
-      | Some v, Some v' -> Some (merge_values v v')
-    in
-    Map.merge merge_entry x y
+    if is_top x || is_top y then
+      x
+    else
+      let merge_entry f v v' =
+        match v, v' with
+        | None, None -> None
+        | Some v, None
+        | None, Some v -> Some v
+        | Some v, Some v' -> Some (merge_values v v')
+      in
+      Map.merge merge_entry x y
 
   let smart_join ~join_elem =
     merge ~merge_values:join_elem
