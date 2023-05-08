@@ -1,7 +1,7 @@
 (* Analysis that tracks which variables hold the results of calls to math library functions.
   For each equivalence a set of lvals is tracked, that contains all lvals on which the arguments of the corresponding call depend, so an equivalence can be removed if one of the lvals is written.*)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -26,7 +26,7 @@ struct
     | (Var v, offs) -> LS.of_list [(v, resolve offs)]
     | (Mem e, _) -> (ctx.ask (Queries.MayPointTo e))
 
-  let rec ls_of_exp ctx (exp:exp) : LS.t = 
+  let rec ls_of_exp ctx (exp:exp) : LS.t =
   match exp with
   | Const _ -> LS.bot ()
   | Lval lv -> ls_of_lv ctx lv
@@ -95,11 +95,11 @@ struct
       else
         deep_addrs
     in
-    let d = List.fold_left (fun accD addr -> 
+    let d = List.fold_left (fun accD addr ->
       let lvalsWritten = ctx.ask (Queries.MayPointTo addr) in
       D.filter (fun _ (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d shallow_addrs
     in
-    let d = List.fold_left (fun accD addr -> 
+    let d = List.fold_left (fun accD addr ->
       let lvalsWritten = ctx.ask (Queries.ReachableFrom addr) in
       D.filter (fun _ (_, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) accD) d deep_addrs
     in
@@ -112,14 +112,14 @@ struct
       let lvalsWritten = ls_of_lv ctx lv in
       D.filter (fun _ (ml, ls) -> LS.is_bot (LS.meet lvalsWritten ls) ) d
       )
-    | None -> d 
+    | None -> d
     in
 
     (* add new math fun desc*)
     let d =
     match lval, desc.special arglist with
-      | Some (Var v, offs), (Math { fun_args; }) -> 
-        let argsDep = List.fold LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
+      | Some (Var v, offs), (Math { fun_args; }) ->
+        let argsDep = List.fold_left LS.union (LS.empty ()) (List.map (ls_of_exp ctx) arglist) in
         let lvalsWritten = ls_of_lv ctx (Var v, offs) in
         (* only add descriptor, if the set of lvals contained in the args is known and none is written by the assignment *)
         (* actually it would be necessary to check here, if one of the arguments is written by the call. However this is not the case for any of the math functions and no other functions are covered so far *)
