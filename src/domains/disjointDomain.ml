@@ -46,7 +46,7 @@ struct
   (** Invariant: no explicit bot buckets.
       Required for efficient [is_empty], [cardinal] and [choose]. *)
 
-  let name () = "Projective (" ^ B.name () ^ ")"
+  let name () = "ProjectiveSet (" ^ B.name () ^ ")"
 
   (* explicitly delegate, so we don't accidentally delegate too much *)
 
@@ -461,6 +461,178 @@ module CombinedSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (RC: Re
 
     Generalization of above sets into maps, whose key set behaves like above sets,
     but each element can also be associated with a value. *)
+
+(** {2 By projection} *)
+
+(** Map of keys [E.t] grouped into buckets by [R],
+    where each bucket is described by the map [B] with values [V.t].
+
+    Common choice for [B] is {!MapDomain.Joined}.
+
+    Handles {!Lattice.BotValue} from [B]. *)
+module ProjectiveMap (E: Printable.S) (V: Printable.S) (B: MapDomain.S with type key = E.t and type value = V.t) (R: Representative with type elt = E.t): MapDomain.S with type key = E.t and type value = B.value =
+struct
+  type key = E.t
+  type value = B.value
+
+  module R =
+  struct
+    include Printable.Std (* for Groupable *)
+    include R
+  end
+  module M = MapDomain.MapBot (R) (B)
+
+  (** Invariant: no explicit bot buckets.
+      Required for efficient [is_empty], [cardinal] and [choose]. *)
+
+  let name () = "ProjectiveMap (" ^ B.name () ^ ")"
+
+  (* explicitly delegate, so we don't accidentally delegate too much *)
+
+  type t = M.t
+  let equal = M.equal
+  let compare = M.compare
+  let hash = M.hash
+  let tag = M.tag
+  let relift = M.relift
+
+  let is_bot = M.is_bot
+  let bot = M.bot
+  let is_top = M.is_top
+  let top = M.top
+
+  let is_empty = M.is_empty
+  let empty = M.empty
+  let cardinal = M.cardinal
+
+  let leq = M.leq
+  let join = M.join
+  let pretty_diff = M.pretty_diff
+
+  let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
+  let iter f m = M.iter (fun _ e -> B.iter f e) m
+  let exists p m = M.exists (fun _ e -> B.exists p e) m
+  let for_all p m = M.for_all (fun _ e -> B.for_all p e) m
+
+  let singleton e v = M.singleton (R.of_elt e) (B.singleton e v)
+  let choose m = B.choose (snd (M.choose m))
+
+  let mem e m =
+    match M.find_opt (R.of_elt e) m with
+    | Some b -> B.mem e b
+    | None -> false
+  let find e m =
+    let r = R.of_elt e in
+    let b = M.find r m in (* raises Not_found *)
+    B.find e b (* raises Not_found *)
+  let find_opt e m =
+    let r = R.of_elt e in
+    match M.find_opt r m with
+    | Some b ->
+      B.find_opt e b
+    | None -> None
+  let add e v m =
+    let r = R.of_elt e in
+    let b' = match M.find_opt r m with
+      | Some b -> B.add e v b
+      | None -> B.singleton e v
+    in
+    M.add r b' m
+  let remove e m =
+    let r = R.of_elt e in
+    match M.find_opt r m with
+    | Some b ->
+      begin match B.remove e b with
+        | b' when B.is_bot b' ->
+          M.remove r m (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          M.remove r m (* remove bot bucket to preserve invariant *)
+        | b' ->
+          M.add r b' m
+      end
+    | None -> m
+
+  let add_list evs m = List.fold_left (fun acc (e, v) ->
+      add e v acc
+    ) m evs
+  let add_list_set es v m = List.fold_left (fun acc e ->
+      add e v acc
+    ) m es
+  let add_list_fun es f m = List.fold_left (fun acc e ->
+      add e (f e) acc
+    ) m es
+  let bindings m = fold (fun e v acc -> (e, v) :: acc) m [] (* no intermediate per-bucket lists *)
+
+  let map f m = M.map (fun b ->
+      B.map f b
+    ) m
+  let mapi f m = M.map (fun b ->
+      B.mapi f b
+    ) m
+  let long_map2 f m1 m2 = M.long_map2 (fun b1 b2 ->
+      B.long_map2 f b1 b2
+    ) m1 m2
+  let map2 f m1 m2 = M.map2 (fun b1 b2 ->
+      B.map2 f b1 b2
+    ) m1 m2
+  let merge f m1 m2 = failwith "ProjectiveMap.merge" (* TODO: ? *)
+
+  let widen m1 m2 =
+    Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
+    M.widen m1 m2
+
+  let meet m1 m2 =
+    M.merge (fun _ b1 b2 ->
+        match b1, b2 with
+        | Some b1, Some b2 ->
+          begin match B.meet b1 b2 with
+            | b' when B.is_bot b' ->
+              None (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              None (* remove bot bucket to preserve invariant *)
+            | b' ->
+              Some b'
+          end
+        | _, _ -> None
+      ) m1 m2
+  let narrow m1 m2 =
+    M.merge (fun _ b1 b2 ->
+        match b1, b2 with
+        | Some b1, Some b2 ->
+          begin match B.narrow b1 b2 with
+            | b' when B.is_bot b' ->
+              None (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              None (* remove bot bucket to preserve invariant *)
+            | b' ->
+              Some b'
+          end
+        | _, _ -> None
+      ) m1 m2
+
+  module GroupableE =
+  struct
+    include Printable.Std (* for Groupable *)
+    include E
+  end
+  include MapDomain.Print (GroupableE) (V) (
+    struct
+      type nonrec t = t
+      type nonrec key = key
+      type nonrec value = value
+      let bindings = bindings
+      let iter = iter
+    end
+    )
+
+  let arbitrary () = failwith "ProjectiveMap.arbitrary"
+
+  let filter p m = failwith "ProjectiveMap.filter"
+
+  let leq_with_fct _ _ _ = failwith "ProjectiveMap.leq_with_fct"
+  let join_with_fct _ _ _ = failwith "ProjectiveMap.join_with_fct"
+  let widen_with_fct _ _ _ = failwith "ProjectiveMap.widen_with_fct"
+end
 
 (** {2 By congruence} *)
 
