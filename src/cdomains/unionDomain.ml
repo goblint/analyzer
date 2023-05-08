@@ -108,3 +108,74 @@ struct
     | Index (i, offset) ->
       Invariant.none
 end
+
+module Map (Values: Arg) : S with type value = Values.t =
+struct
+  module Fieldinfo = struct
+    include CilType.Fieldinfo
+    include Printable.Std (* To make it Groupable *)
+  end
+  (* Use MapBot because the join should keep the entries contained in one of the operands *)
+  module Map = MapDomain.MapBot_LiftTop (Fieldinfo) (Values)
+  include Map
+  type value = Values.t
+
+  let get field m =
+    match Map.find_opt field m with
+    | Some v -> v
+    | None -> Values.top ()
+
+  let get_field_and_value m =
+    if Map.is_empty m then
+      None, Values.bot ()
+    else if Map.cardinal m = 1 then
+      let f, v = Map.choose m in
+      Some f, v
+    else
+      None, Values.top ()
+
+  let fold g m acc =
+    Map.fold (fun fd v -> g (Some fd) v) m acc
+
+  let map g m =
+    let map_elem fd v acc =
+      let v = g (Some fd) v in
+      Map.add fd v acc
+    in
+    Map.fold map_elem m (Map.empty ())
+
+  let smart_leq ~leq_elem x y =
+    let check_entry f v =
+      let v' = Map.find_opt f y in
+      BatOption.map_default (leq_elem v) false v'
+    in
+    Map.for_all check_entry x
+
+  let join =
+    Map.join
+
+  let merge ~merge_values x y =
+    let merge_entry f v v' =
+      match v, v' with
+      | None, None -> None
+      | Some v, None
+      | None, Some v -> Some v
+      | Some v, Some v' -> Some (merge_values v v')
+    in
+    Map.merge merge_entry x y
+
+  let smart_join ~join_elem =
+    merge ~merge_values:join_elem
+
+  let widen =
+    Map.widen
+
+  let smart_widen ~widen_elem  =
+    merge ~merge_values:widen_elem
+
+  let of_field ~field ~value : t =
+    Map.singleton field value
+
+  let invariant ~value_invariant ~offset ~lval m =
+    failwith "invariant not implemented for UnionDomain.Map"
+end
