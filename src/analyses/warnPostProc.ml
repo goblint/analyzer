@@ -456,14 +456,7 @@ let warn_postprocess fd =
      the entry of the last node for repositioning,
      because a few avconds can reach the program end point,
      but not get computed by equations conds_entry and conds_exit. *)
-  let conds_end node =
-    let module CFG = (val !MyCFG.current_cfg) in
-    let prev_nodes = List.map snd (CFG.prev node) in
-    let prev_conds = List.map (fun prev_node -> Av.conds_in (HM.find solution_av (`G prev_node))) prev_nodes in
-    let conds = List.fold_left CondSet.inter (CondSet.top ()) prev_conds in
-    List.fold (fun acc node -> HM.replace sinkHM (`G node) conds) () prev_nodes in
-
-  conds_end (Function fd);
+  HM.replace sinkHM (`L (Function fd)) (Av.conds_in (HM.find solution_av (`L (Function fd))));
 
   (* HM.iter (fun k v -> ignore (Pretty.printf "%a->%a\n" Av.Var.pretty_trace k CondSet.pretty v)) sinkHM; *)
 
