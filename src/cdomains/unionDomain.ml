@@ -196,5 +196,31 @@ struct
     Map.singleton field value
 
   let invariant ~value_invariant ~offset ~lval m =
-    failwith "invariant not implemented for UnionDomain.Map"
+    (* TODO: Deduplicate with Simple.invariant *)
+
+    (* Obtains the single field that was last written, if any. *)
+    let field, v = get_field_and_value m in
+    match offset with
+    (* invariants for all fields *)
+    | Cil.NoOffset ->
+      begin match field with
+        | Some f ->
+          let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) lval in
+          value_invariant ~offset ~lval:f_lval v
+        | None ->
+          Invariant.none
+      end
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      begin match field with
+        | Some f' ->
+          let v = Values.cast ~torg:f'.ftype f.ftype v in
+          value_invariant ~offset ~lval v
+        | None ->
+          Invariant.none
+      end
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none
 end
+
