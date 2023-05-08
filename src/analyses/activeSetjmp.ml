@@ -11,8 +11,7 @@ struct
 
   module D = JmpBufDomain.JmpBufSet
   module C = JmpBufDomain.JmpBufSet
-
-  let should_join a b = D.equal a b
+  module P = IdentityP (D)
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =
     ctx.local (* keep local as opposed to IdentitySpec *)

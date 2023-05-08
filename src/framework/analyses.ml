@@ -358,6 +358,7 @@ sig
   module G : Lattice.S
   module C : Printable.S
   module V: SpecSysVar (** Global constraint variables. *)
+  module P: DisjointDomain.Representative with type elt := D.t (** Path-representative. *)
 
   val name : unit -> string
 
@@ -379,7 +380,6 @@ sig
   val morphstate : varinfo -> D.t -> D.t
   val exitstate  : varinfo -> D.t
 
-  val should_join : D.t -> D.t -> bool
   val context : fundec -> D.t -> C.t
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
@@ -585,23 +585,30 @@ struct
   let should_print _ = false
 end
 
+module UnitP =
+struct
+  include Printable.Unit
+  let of_elt _ = ()
+end
+
+module IdentityP (D: Lattice.S) =
+struct
+  include D
+  let of_elt x = x
+end
 
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
   module G = Lattice.Unit
   module V = EmptyV
+  module P = UnitP
 
   type marshal = unit
   let init _ = ()
   let finalize () = ()
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)
-
-  let should_join _ _ = true
-  (* hint for path sensitivity --- MCP no longer overrides this so if you want
-    your analysis to be path sensitive, do override this. To obtain a behavior
-    where all paths are kept apart, set this to D.equal x y                    *)
 
   let vdecl ctx _ = ctx.local
 

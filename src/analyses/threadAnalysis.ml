@@ -19,8 +19,7 @@ struct
     include T
     include StdV
   end
-
-  let should_join = D.equal
+  module P = IdentityP (D)
 
   (* transfer functions *)
 

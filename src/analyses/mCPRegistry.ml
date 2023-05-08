@@ -10,10 +10,12 @@ type spec_modules = { name : string
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
                     ; var  : (module SpecSysVar)
-                    ; acc  : (module MCPA) }
+                    ; acc  : (module MCPA)
+                    ; path : (module DisjointDomain.Representative) }
 
 let activated  : (int * spec_modules) list ref = ref []
 let activated_ctx_sens: (int * spec_modules) list ref = ref []
+let activated_path_sens: (int * spec_modules) list ref = ref []
 let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
 let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
 
@@ -21,6 +23,12 @@ let register_analysis =
   let count = ref 0 in
   fun ?(dep=[]) (module S:MCPSpec) ->
     let n = S.name () in
+    let module P =
+    struct
+      include S.P
+      type elt = S.D.t
+    end
+    in
     let s = { name = n
             ; dep
             ; spec = (module S : MCPSpec)
@@ -29,6 +37,7 @@ let register_analysis =
             ; cont = (module S.C : Printable.S)
             ; var  = (module S.V : SpecSysVar)
             ; acc  = (module S.A : MCPA)
+            ; path = (module P : DisjointDomain.Representative)
             }
     in
     Hashtbl.replace registered !count s;
@@ -45,6 +54,12 @@ module type DomainListPrintableSpec =
 sig
   val assoc_dom : int -> (module Printable.S)
   val domain_list : unit -> (int * (module Printable.S)) list
+end
+
+module type DomainListRepresentativeSpec =
+sig
+  val assoc_dom : int -> (module DisjointDomain.Representative)
+  val domain_list : unit -> (int * (module DisjointDomain.Representative)) list
 end
 
 module type DomainListSysVarSpec =
@@ -74,6 +89,18 @@ struct
 
   let domain_list () =
     let f (module L:Lattice.S) = (module L : Printable.S) in
+    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+end
+
+module PrintableOfRepresentativeSpec (D:DomainListRepresentativeSpec) : DomainListPrintableSpec =
+struct
+  let assoc_dom n =
+    let f (module L:DisjointDomain.Representative) = (module L : Printable.S)
+    in
+    f (D.assoc_dom n)
+
+  let domain_list () =
+    let f (module L:DisjointDomain.Representative) = (module L : Printable.S) in
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
@@ -278,6 +305,32 @@ struct
     )
 end
 
+module DomListRepresentative (DLSpec : DomainListRepresentativeSpec)
+  : DisjointDomain.Representative with type t = (int * unknown) list and type elt = (int * unknown) list
+=
+struct
+  open DLSpec
+  open List
+  open Obj
+
+  include DomListPrintable (PrintableOfRepresentativeSpec (DLSpec))
+
+  type elt = (int * unknown) list
+
+  let of_elt (xs: elt): t =
+    let rec aux xs ss acc =
+      match xs, ss with
+      | [], [] -> acc
+      | _ :: _, [] -> acc
+      | (n, d) :: xs', (n', (module P: DisjointDomain.Representative)) :: ss' when n = n' ->
+        aux xs' ss' ((n, repr (P.of_elt (obj d))) :: acc)
+      | _ :: xs', _ :: _ ->
+        aux xs' ss acc
+      | [], _ :: _ -> invalid_arg "DomListRepresentative.of_elt"
+    in
+    List.rev (aux xs (domain_list ()) [])
+end
+
 module DomListLattice (DLSpec : DomainListLatticeSpec)
   : Lattice.S with type t = (int * unknown) list
 =
@@ -392,4 +445,10 @@ module AccListSpec : DomainListMCPASpec =
 struct
   let assoc_dom n = (find_spec n).acc
   let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
+end
+
+module PathListSpec : DomainListRepresentativeSpec =
+struct
+  let assoc_dom n = (find_spec n).path
+  let domain_list () = List.map (fun (n,p) -> n, p.path) !activated_path_sens
 end

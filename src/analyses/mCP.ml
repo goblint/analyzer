@@ -11,12 +11,14 @@ module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
-   and module V = DomVariantSysVar (VarListSpec) =
+   and module V = DomVariantSysVar (VarListSpec)
+   and module P = DomListRepresentative (PathListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
   module V = DomVariantSysVar (VarListSpec)
+  module P = DomListRepresentative (PathListSpec)
 
   open List open Obj
   let v_of n v = (n, repr v)
@@ -82,6 +84,7 @@ struct
     check_deps !activated;
     activated := topo_sort_an !activated;
     activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
+    activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
       iter2 (fun (_,{spec=(module S:MCPSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal
@@ -110,22 +113,6 @@ struct
         else
           Some (n, repr @@ S.context fd (obj d))
       ) x
-
-  let should_join x y =
-    (* TODO: GobList.for_all3 *)
-    let rec zip3 lst1 lst2 lst3 = match lst1,lst2,lst3 with
-      | [],_, _ -> []
-      | _,[], _ -> []
-      | _,_ , []-> []
-      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
-    in
-    let should_join ((_,(module S:Analyses.MCPSpec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
-    (* obtain all analyses specs that are path sensitive and their values both in x and y *)
-    let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
-    let xs = filter (fun (x,_) -> mem x !path_sens) x in
-    let ys = filter (fun (x,_) -> mem x !path_sens) y in
-    let zipped = zip3 specs xs ys in
-    List.for_all should_join zipped
 
   let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated

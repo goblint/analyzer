@@ -17,8 +17,7 @@ struct
   let exitstate = startstate
 
   include Analyses.DefaultSpec
-
-  let should_join = D.equal
+  module P = IdentityP (D)
 
   let emit_splits ctx d =
     D.iter (fun e _ ->

@@ -45,7 +45,7 @@ struct
     module C =
     struct
       type elt = Spec.D.t
-      let cong = Spec.should_join
+      let cong x y = Spec.P.equal (Spec.P.of_elt x) (Spec.P.of_elt y) (* TODO: ProjectiveMap *)
     end
     module J = MapDomain.Joined (Spec.D) (R)
     include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
@@ -94,14 +94,13 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module P = UnitP
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())

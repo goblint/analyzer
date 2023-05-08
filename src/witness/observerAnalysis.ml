@@ -29,8 +29,7 @@ struct
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
   module C = D
-
-  let should_join x y = D.equal x y (* fully path-sensitive *)
+  module P = IdentityP (D) (* fully path-sensitive *)
 
   let step d prev_node node =
     match d with

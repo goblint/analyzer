@@ -6,9 +6,10 @@ module LF = LibraryFunctions
 
 module Spec (D: StackDomain.S) (P: sig val name : string end)=
 struct
+  module ArgP = P
   include Analyses.IdentitySpec
 
-  let name () = P.name
+  let name () = ArgP.name
   module D = D
   module C = D
 
