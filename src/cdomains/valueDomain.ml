@@ -221,8 +221,18 @@ struct
       let s, vs = List.fold_left init_field (Structs.top (), []) ci.cfields in
       if M.tracing then M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
       `Struct s, vs
-    | TComp ({cstruct=false; _},_) ->
-      failwith "top_value_except_address_default not implemented for unions"
+    | TComp ({cstruct=false; _} as ci,_) ->
+      let init_field s fd =
+        let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
+        (Unions.replace s fd v), targets
+      in
+      let init_field (s, acc) fd =
+        let v, targets = init_field s fd in
+        (v, targets @ acc)
+      in
+      let s, vs = List.fold_left init_field (Unions.bot (), []) ci.cfields in
+      if M.tracing then M.tracel "top_value_typed" "default_value for union type %a is %a\n" d_type t Unions.pretty s;
+      `Union s, vs
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let base_value, targets = top_value_typed_address_targets ai in

@@ -16,6 +16,7 @@ sig
   val get_field_and_value: t -> fieldinfo option * value
   (** Return the field used in the last write of the union, and the value of that field *)
 
+  val replace: t -> fieldinfo -> value -> t
   val map: (fieldinfo option -> value -> value) -> t -> t
   val fold: (fieldinfo option -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val smart_leq: leq_elem: (value -> value -> bool) -> t -> t -> bool
@@ -121,6 +122,12 @@ struct
   module Map = MapDomain.MapBot_LiftTop (Fieldinfo) (Values)
   include Map
   type value = Values.t
+
+  let replace m field v =
+    if Map.is_top m then
+      m
+    else
+      Map.add field v m
 
   let get field m =
     match Map.find_opt field m with
