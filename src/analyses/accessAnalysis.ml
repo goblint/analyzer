@@ -1,7 +1,7 @@
 (** Access analysis. *)
 
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 

@@ -10,7 +10,9 @@ module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 
 (* Note: This is currently more conservative than varEq --- but
