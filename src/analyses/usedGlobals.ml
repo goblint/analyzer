@@ -1,6 +1,7 @@
 (** An analysis that collects all global program variables syntactically appearing in each funciton and its callees. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module Spec =

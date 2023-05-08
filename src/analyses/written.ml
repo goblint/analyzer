@@ -1,7 +1,7 @@
 (** An analysis of all writes execution of a function *)
-
-open Prelude.Ana
 open Analyses
+open GoblintCil
+open Batteries
 
 module Q = Queries
 module AD = ValueDomain.AD
@@ -10,8 +10,6 @@ module VD = ValueDomain.Compound
 module Spec =
 struct
   include Analyses.DefaultSpec
-
-
 
   let name () = "written"
   (* Value of entries not in mapping: bot, LiftTop such that there is a `Top map. *)

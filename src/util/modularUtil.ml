@@ -1,11 +1,10 @@
 open GoblintCil
-open Prelude.Ana
 
 include ModularUtil0
 
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
-module VS = Set.Make (CilType.Varinfo)
+module VS = Batteries.Set.Make (CilType.Varinfo)
 
 let address_to_canonical a =
   let t = Addr.get_type a in

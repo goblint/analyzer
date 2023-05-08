@@ -1,6 +1,5 @@
 (** Analysis that tracks whether the current function is to be analyzed modularly. *)
-
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 (* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit and type marshal = unit = *)

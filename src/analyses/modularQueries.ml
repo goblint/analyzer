@@ -1,4 +1,3 @@
-open Prelude.Ana
 open Analyses
 
 module Spec =
