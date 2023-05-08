@@ -222,6 +222,7 @@ struct
       if M.tracing then M.tracel "top_value_typed" "default_value for struct type %a is %a\n" d_type t Structs.pretty s;
       `Struct s, vs
     | TComp ({cstruct=false; _} as ci,_) ->
+      (* TODO: Deduplicate w.r.t. case for Structs above *)
       let init_field s fd =
         let v, targets = top_value_typed_address_targets ~varAttr:fd.fattr fd.ftype in
         (Unions.replace s fd v), targets
