@@ -525,7 +525,8 @@ struct
     (* The main thing is to track where pointers go: *)
     | `Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
-    | `Union (f,e) -> reachable_from_value ask gs st e t description
+    | `Union u ->
+      ValueDomain.Unions.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) u empty
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
     | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
@@ -593,7 +594,7 @@ struct
         | `Int _       -> `Top
         | `Array n     -> `Array (ValueDomain.CArrays.map replace_val n)
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
-        | `Union (f,v) -> `Union (f,replace_val v)
+        | `Union n -> `Union (ValueDomain.Unions.map (fun _ -> replace_val) n)
         | `Blob (n,s,o)  -> `Blob (replace_val n,s,o)
         | `Address x -> `Address (ValueDomain.AD.map ValueDomain.Addr.drop_ints x)
         | x -> x
@@ -654,9 +655,8 @@ struct
         | x -> x
       in
       let with_field (a,t,b) = function
-        | `Top -> (AD.empty (), TS.top (), false)
-        | `Bot -> (a,t,false)
-        | `Lifted f -> with_type f.ftype (a,t,b)
+        | None -> (AD.empty (), TS.top (), false)
+        | Some f -> with_type f.ftype (a,t,b)
       in
       let rec reachable_from_value (value: value) =
         match value with
@@ -664,7 +664,12 @@ struct
         | `Bot -> (empty, TS.bot (), false)
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
-        | `Union (t,e) -> with_field (reachable_from_value e) t
+        | `Union n ->
+          let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
+          let f k v =
+            join_tr (with_field (reachable_from_value v) k)
+          in
+          ValueDomain.Unions.fold f n (empty, TS.bot (), false)
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
