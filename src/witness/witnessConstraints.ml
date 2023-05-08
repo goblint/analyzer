@@ -40,19 +40,20 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (R: Lattice.S) =
+  module SpecDMap (V: Lattice.S) =
   struct
-    module C =
+    module R =
     struct
+      include Spec.P
       type elt = Spec.D.t
-      let cong x y = Spec.P.equal (Spec.P.of_elt x) (Spec.P.of_elt y) (* TODO: ProjectiveMap *)
     end
-    module J = MapDomain.Joined (Spec.D) (R)
-    include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    module J = MapDomain.Joined (Spec.D) (V)
+    include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 
   module Dom =
   struct
+    module V = R
     include SpecDMap (R)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
@@ -60,7 +61,7 @@ struct
     let printXml f x =
       let print_one x r =
         (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
-        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x R.printXml r
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x V.printXml r
       in
       iter print_one x
 
