@@ -30,7 +30,7 @@ module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
     let bot_name = "If you see this, you are special!"
   end)
 
-module Simple (Values: Arg) =
+module SimpleOld (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
@@ -224,3 +224,4 @@ struct
       Invariant.none
 end
 
+module Simple = Map
