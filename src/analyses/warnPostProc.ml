@@ -259,7 +259,7 @@ struct
     | _ -> Dom.empty ()
 
   let gen node x = CondSet.fold (fun cond dom ->
-      let ant = Dom.tuples_of cond (HM.find antSolHM node) in
+      let ant = Dom.filter_by_cond cond (HM.find antSolHM node) in
       (* Update the message locations to correspond to the hoisted location *)
       Dom.map (fun alarm ->
           match node with
@@ -267,7 +267,7 @@ struct
         ) ant
     ) x (Dom.empty ())
 
-  let gen_entry node x =
+  let gen_entry node =
     match HM.find_option hoistHM (`L node) with
     | None -> Dom.empty ()
     | Some set ->
@@ -304,7 +304,7 @@ struct
       let f get _ =
         let av_in' n =
           let av_in = get (`L n) in
-          Dom.union av_in @@ gen_entry n av_in in
+          Dom.union av_in @@ gen_entry n in
         let av_out' n =
           let av_in' = av_in' n in
           Dom.union (Dom.diff av_in' (kill n av_in')) (dep_gen n av_in') in
@@ -435,7 +435,7 @@ let warn_postprocess fd =
 
   let conds_entry node =
     let av_in = HM.find solution_av (`L node) in
-    let av_in' = Av.Dom.union av_in @@ Av.gen_entry node av_in in
+    let av_in' = Av.Dom.union av_in @@ Av.gen_entry node in
     Av.conds_in (Av.kill node av_in') in
 
   let conds_exit node =
