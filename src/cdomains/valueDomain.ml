@@ -882,15 +882,15 @@ struct
                | `Float _, t -> top_value t
                | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> `Float (FD.top_of fkind)
                | `Top, _ ->
-                (* No precise value for fld. Look last value stored in union and cast it. *)
-                let l_fld, value = Unions.get_field_and_value u in
-                let ftype = Option.map (fun f -> f.ftype) l_fld in
-                let x = cast ?torg:ftype fld.ftype value in
-                let l', o' = shift_one_over l o in
-                do_eval_offset ask f x offs exp l' o' v t
+                 (* No precise value for fld. Look last value stored in union and cast it. *)
+                 let l_fld, value = Unions.get_field_and_value u in
+                 let ftype = Option.map (fun f -> f.ftype) l_fld in
+                 let x = cast ?torg:ftype fld.ftype value in
+                 let l', o' = shift_one_over l o in
+                 do_eval_offset ask f x offs exp l' o' v t
                | _, _ ->
-                let l', o' = shift_one_over l o in
-                do_eval_offset ask f value offs exp l' o' v t)
+                 let l', o' = shift_one_over l o in
+                 do_eval_offset ask f value offs exp l' o' v t)
             | `Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
           end
