@@ -66,7 +66,7 @@ type _ t =
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LS.t t
   | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: MustBool.t t
+  | MustBeSingleThreadedUptoCurrent: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
@@ -130,7 +130,7 @@ struct
     | IsHeapVar _ -> (module MayBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
-    | MustBeSingleThreaded -> (module MustBool)
+    | MustBeSingleThreadedUptoCurrent -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
@@ -189,7 +189,7 @@ struct
     | IsHeapVar _ -> MayBool.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
-    | MustBeSingleThreaded -> MustBool.top ()
+    | MustBeSingleThreadedUptoCurrent -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
@@ -241,7 +241,7 @@ struct
     | Any (MustBeProtectedBy _) -> 9
     | Any MustLockset -> 10
     | Any MustBeAtomic -> 11
-    | Any MustBeSingleThreaded -> 12
+    | Any MustBeSingleThreadedUptoCurrent -> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
     | Any MayBeThreadReturn -> 15
@@ -371,7 +371,7 @@ struct
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
     | Any MustLockset -> Pretty.dprintf "MustLockset"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
-    | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
+    | Any MustBeSingleThreadedUptoCurrent -> Pretty.dprintf "MustBeSingleThreaded"
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"

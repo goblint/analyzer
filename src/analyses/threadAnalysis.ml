@@ -67,7 +67,7 @@ struct
         | `Lifted tid -> not (is_not_unique ctx tid)
         | _ -> false
       end
-    | Queries.MustBeSingleThreaded -> begin
+    | Queries.MustBeSingleThreadedUptoCurrent -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
         | `Lifted tid when T.is_main tid -> D.is_empty ctx.local

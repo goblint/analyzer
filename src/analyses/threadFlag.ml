@@ -8,7 +8,7 @@ open Analyses
 
 let is_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
-  not (ask.f Queries.MustBeSingleThreaded)
+    not (ask.f Queries.MustBeSingleThreadedUptoCurrent)
 
 
 module Spec =
@@ -41,7 +41,7 @@ struct
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeSingleThreaded -> not (Flag.is_multi ctx.local)
+    | Queries.MustBeSingleThreadedUptoCurrent -> not (Flag.is_multi ctx.local)
     | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)

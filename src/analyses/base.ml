@@ -2463,14 +2463,14 @@ struct
               let asked' = Queries.Set.add anyq asked in
               let r: a Queries.result =
                 match q with
-                | MustBeSingleThreaded when single -> true
+                | MustBeSingleThreadedUptoCurrent when single -> true
                 | MayEscape _
                 | MayBePublic _
                 | MayBePublicWithout _
                 | MustBeProtectedBy _
                 | MustLockset
                 | MustBeAtomic
-                | MustBeSingleThreaded
+                | MustBeSingleThreadedUptoCurrent
                 | MustBeUniqueThread
                 | CurrentThreadId
                 | MayBeThreadReturn
