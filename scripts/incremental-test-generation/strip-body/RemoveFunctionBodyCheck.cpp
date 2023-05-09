@@ -51,6 +51,18 @@ void RemoveFunctionBodyCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
+    void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
+    const FunctionDecl *FD = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
+    const std::vector<const FunctionDecl *> &Decls = Result.Nodes.getNodeAsAll<const FunctionDecl>("remove_function_body"); // Filter by binding
+    int index = -1;
+    for (int i = 0; i < Decls.size(); i++) {
+        if (FD == Decls[i]) {
+        index = i;
+        break;
+        }
+    }
+    assert(index >= 0 && "Matched function not found in translation unit");
+
     auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("remove_function_body");
     // Remove the function body
     std::string Replacement = " {\n\t// Stripped function of its body\n";
@@ -75,8 +87,8 @@ void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
     SourceLocation Start = MatchedDecl->getTypeSpecEndLoc().getLocWithOffset(1);
     SourceLocation End = MatchedDecl->getBodyRBrace();
     auto Range = CharSourceRange::getCharRange(Start, End);
-    diag(Start, "Function %0 has been stripped of its body")
-        << MatchedDecl
+    diag(Start, "Function %0 with index %1 has been stripped of its body")
+        << MatchedDecl << index
         << FixItHint::CreateReplacement(Range, Replacement);
 }
 
