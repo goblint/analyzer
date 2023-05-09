@@ -55,7 +55,9 @@ struct
     let used_globals = ModularUtil.get_callee_globals f_ask in
     let get_reachable_exp (exp: exp) =
       match ask.f (Q.ReachableAddressesFrom exp) with
-      | `Top -> failwith @@ "Received `Top value for ReachableAddressesFrom " ^ (CilType.Exp.show exp) ^" query."
+      | `Top ->
+        Messages.warn ~category:Messages.Category.Analyzer  ~tags:[Category Unsound] "Target address of expression %a could not be resolved (i.e. the address was top)" CilType.Exp.pretty exp;
+        AD.top_ptr
       | `Lifted rs -> rs
     in
     let effective_args = used_globals @ args in
