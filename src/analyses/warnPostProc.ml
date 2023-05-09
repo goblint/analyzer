@@ -261,7 +261,7 @@ struct
   let gen node x = CondSet.fold (fun cond dom ->
       let ant = Dom.filter_by_cond cond (HM.find antSolHM node) in
       (* Update the message locations to correspond to the hoisted location *)
-      Dom.map (fun alarm ->
+      Dom.join dom @@ Dom.map (fun alarm ->
           match node with
           | `L n | `G n -> set_loc alarm (M.Location.Node n)
         ) ant
