@@ -2168,14 +2168,49 @@ struct
       begin match lv with
         | Some v ->
           let haystack_a, haystack_typ = addr_type_of_exp haystack in 
-          let needle_a = mkMem ~addr:(Cil.stripCasts needle) ~off:NoOffset
-                         |> eval_lv (Analyses.ask_of_ctx ctx) gs st in 
+          let needle_a, needle_typ = addr_type_of_exp needle in
           let dest_a, dest_typ = addr_type_of_exp (Lval v) in
-          (* when haystack and dest type coincide, check if needle is a substring of haystack: 
+          (* when haystack, needle and dest type coincide, check if needle is a substring of haystack: 
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
-          let value = if typeSig dest_typ = typeSig haystack_typ then
+          let value = if typeSig dest_typ = typeSig haystack_typ && typeSig haystack_typ = typeSig needle_typ then
               `Address(AD.substring_extraction haystack_a needle_a)
+            else
+              VD.top_value (unrollType dest_typ) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | None -> ctx.local
+      end
+    | Strcmp { s1; s2 }, _ ->
+      begin match lv with
+        | Some v ->
+          let s1_a, s1_typ = addr_type_of_exp s1 in 
+          let s2_a, s2_typ = addr_type_of_exp s2 in
+          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
+          (* when s1 and s2 type coincide, compare both strings, otherwise use top *)
+          let value = if typeSig s1_typ = typeSig s2_typ then
+              `Int(AD.string_comparison s1_a s2_a None)
+            else
+              VD.top_value (unrollType dest_typ) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | None -> ctx.local
+      end
+    | Strncmp { s1; s2; n }, _ ->
+      begin match lv with
+        | Some v ->
+          let s1_a, s1_typ = addr_type_of_exp s1 in 
+          let s2_a, s2_typ = addr_type_of_exp s2 in
+          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
+          (* evaluate amount of characters which are to be extracted of src *)
+          let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
+          let int_n = 
+            match eval_n with
+            | `Int i -> (match ID.to_int i with
+                | Some x -> Z.to_int x
+                | _ -> -1)
+            | _ -> -1 in
+          (* when s1 and s2 type coincide, compare both strings, otherwise use top *)
+          let value = if typeSig s1_typ = typeSig s2_typ then
+              `Int(AD.string_comparison s1_a s2_a (Some int_n))
             else
               VD.top_value (unrollType dest_typ) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value

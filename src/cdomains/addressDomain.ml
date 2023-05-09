@@ -197,12 +197,38 @@ struct
       (let substrings = List.fold_left (fun acc elem -> 
            acc @ (List.map (fun s -> compute_substring (extract_string elem) (extract_string s)) needle')) [] haystack' in
        match List.find_opt is_Some substrings with
-       (* ... and return bot if no string of needle' is a substring of any string of haystack' *)
-       | None -> bot ()
+       (* ... and return a null pointer if no string of needle' is a substring of any string of haystack' *)
+       | None -> null_ptr
        (* ... or join all combinations *)
        | Some _ -> List.fold_left join (bot ()) (List.map extract_lval_string substrings))
     (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
     | _ -> top ()
+
+  let string_comparison x y n =
+    let f = match n with
+      | Some num -> Addr.to_n_string num
+      | None -> Addr.to_string in
+
+    (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
+    let x' = List.map Addr.to_string (elements x) in 
+    let y' = List.map f (elements y) in 
+
+    (* helper functions *)
+    let is_None x = if x = None then true else false in
+    let extract_string = function
+      | Some s -> s
+      | None -> failwith "unreachable" in
+
+    match List.find_opt is_None x', List.find_opt is_None y' with
+    (* if all elements of both lists are Some string *)
+    | None, None ->
+      (* ... compare every string of x' with every string of y' *)
+      (* TODO: in case of only < or only >, is it really assured that the computed value is any negative / positive integer? *)
+      List.fold_left (fun acc elem -> acc @ (List.map (fun s -> Idx.of_int IInt (Z.of_int (String.compare (extract_string elem) (extract_string s)))) y')) [] x'
+      (* ... and join all computed IntDomain values *)
+      |> List.fold_left Idx.join (Idx.bot_of IInt)
+    (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    | _ -> Idx.top_of IInt
 
   (* add an & in front of real addresses *)
   module ShortAddr =
