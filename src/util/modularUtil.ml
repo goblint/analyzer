@@ -60,8 +60,11 @@ struct
         let addrs = AD.fold (fun a acc -> AD.join acc (map_back a)) ad (AD.bot ()) in
         `Address addrs
       end
-    | `Struct _
-    | `Union _
-    | `Array _
-    | `Blob _ -> failwith "not yet implemented"
+    | `Struct s ->
+      `Struct (Structs.map (map_back ~reachable) s)
+    | `Union u ->
+      `Union (Unions.map (fun _ -> map_back ~reachable) u)
+    | `Array a ->
+      `Array (CArrays.map (map_back ~reachable) a)
+    | `Blob _ -> failwith "Blob not yet implemented"
 end
