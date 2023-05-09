@@ -59,10 +59,14 @@ type special =
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Memcpy of { dest: Cil.exp; src: Cil.exp }
-  | Strcpy of { dest: Cil.exp; src: Cil.exp; } (* TODO: add count for strncpy when actually used *)
+  | Strcpy of { dest: Cil.exp; src: Cil.exp; }
+  | Strncpy of { dest: Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strcat of { dest: Cil.exp; src: Cil.exp; }
+  | Strncat of { dest:Cil.exp; src: Cil.exp; n: Cil.exp; }
   | Strlen of Cil.exp
   | Strstr of { haystack: Cil.exp; needle: Cil.exp; }
+  | Strcmp of { s1: Cil.exp; s2: Cil.exp; }
+  | Strncmp of { s1: Cil.exp; s2: Cil.exp; n: Cil.exp; }
   | Abort
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
   | Setjmp of { env: Cil.exp; }

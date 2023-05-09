@@ -14,12 +14,14 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
-    ("strncpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcpy { dest; src; });
+    ("strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strncpy { dest; src; n; });
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; });
-    ("strncat", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Strcat { dest; src; });
+    ("strncat", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strncat { dest; src; n; });
     ("strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; });
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
+    ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; });
+    ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strncmp { s1; s2; n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
@@ -672,9 +674,7 @@ let invalidate_actions = [
     "__builtin___snprintf_chk", writes [1];(*keep [1]*)
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
-    "strcmp", readsAll;(*safe*)
     "strftime", writes [1];(*keep [1]*)
-    "strncmp", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
     "toupper", readsAll;(*safe*)
     "tolower", readsAll;(*safe*)
