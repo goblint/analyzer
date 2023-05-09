@@ -1307,7 +1307,7 @@
               "description":
                 "Unknown function call spawns reachable functions",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "invalidate": {
               "title": "sem.unknown_function.invalidate",
