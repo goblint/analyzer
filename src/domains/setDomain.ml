@@ -166,7 +166,7 @@ struct
   let empty _ = empty
   let leq = subset
   let join = union
-  let widen t1 t2 = join t1 t2
+  let widen = join
   let meet = inter
   let narrow = meet
   let bot = empty
