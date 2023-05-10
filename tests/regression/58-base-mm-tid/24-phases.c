@@ -1,4 +1,4 @@
-// PARAM: --set ana.path_sens[+] threadflag --set ana.base.privatization mutex-meet-tid --enable ana.int.interval --set ana.activated[+] threadJoins
+// PARAM: --set ana.path_sens[+] threadflag --set ana.base.privatization mutex-meet-tid --enable ana.int.interval --set ana.activated[+] threadJoins --set ana.activated[+] thread
 #include <pthread.h>
 #include <goblint.h>
 
