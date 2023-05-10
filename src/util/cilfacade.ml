@@ -145,18 +145,20 @@ let getFuns fileAST : startfuns =
   let add_main f (m,e,o) = (f::m,e,o) in
   let add_exit f (m,e,o) = (m,f::e,o) in
   let add_other f (m,e,o) = (m,e,f::o) in
+  let modular_funs = get_string_list "ana.modular.funs" in
+  let only_modular_funs = get_bool "modular" && not (modular_funs = []) in
   let f acc glob =
     match glob with
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") -> add_main def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") && not only_modular_funs -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") && not only_modular_funs -> add_exit def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") && not only_modular_funs -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
-    | GFun ({svar={vattr; _}; _} as def, _) when get_bool "modular" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_main def  acc
+    | GFun ({svar={vattr; vname; _}; _} as def, _) when (get_bool "modular" && not only_modular_funs || List.mem vname modular_funs)  && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_main def  acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
