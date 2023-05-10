@@ -203,8 +203,29 @@ struct
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
-  let invariant ~value_invariant ~offset ~lval x =
-    Invariant.none (* TODO *)
+  let invariant ~value_invariant ~offset ~lval ((xl, xr) as x) =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset ->
+      let i_all =
+        if Val.is_bot xr then
+          Invariant.top ()
+        else (
+          let i_lval = Cil.addOffsetLval (Index (MyCFG.all_array_index_exp, NoOffset)) lval in
+          value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
+        )
+      in
+      BatList.fold_lefti (fun acc i x ->
+          let i_lval = Cil.addOffsetLval (Index (Cil.integer i, NoOffset)) lval in
+          let i = value_invariant ~offset ~lval:i_lval x in
+          Invariant.(acc && i)
+        ) i_all xl
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none (* TODO: look up *)
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
 end
 
 (** Special signature so that we can use the _with_length functions from PartitionedWithLength but still match the interface *
