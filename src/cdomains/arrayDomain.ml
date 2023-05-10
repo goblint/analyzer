@@ -61,6 +61,7 @@ sig
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
   val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type LatticeWithSmartOps =
@@ -100,6 +101,9 @@ struct
   let smart_leq _ _ = leq
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    Invariant.none (* TODO *)
 end
 
 let factor () =
@@ -188,6 +192,9 @@ struct
   let smart_leq _ _ = leq
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    Invariant.none (* TODO *)
 end
 
 (** Special signature so that we can use the _with_length functions from PartitionedWithLength but still match the interface *
@@ -701,6 +708,9 @@ struct
 
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    Invariant.none (* TODO *)
 end
 
 (* This is the main array out of bounds check *)
@@ -759,6 +769,9 @@ struct
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
+
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 
@@ -811,6 +824,9 @@ struct
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
+
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 
@@ -851,6 +867,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
@@ -972,4 +991,10 @@ struct
     | UnrolledDomain, (None, Some (Some x, None)) -> to_t @@ (None, None, Some (unroll_of_trivial ask x) )
     | UnrolledDomain, (None, Some (None, Some x)) -> to_t @@ (None, None, Some x)
     | _ ->  failwith "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
+
+  let invariant ~value_invariant ~offset ~lval =
+    unop'
+      (P.invariant ~value_invariant ~offset ~lval)
+      (T.invariant ~value_invariant ~offset ~lval)
+      (U.invariant ~value_invariant ~offset ~lval)
 end
