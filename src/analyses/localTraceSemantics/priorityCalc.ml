@@ -16,7 +16,7 @@ class predominator_registration =
 
     method update (prev_node:Node.t) (dest_node:Node.t) =
       if (PredominatorMap.mem prev_node predominatorMap)&&(NodeSet.mem dest_node (PredominatorMap.find prev_node predominatorMap)) 
-        then loopHeads <- NodeSet.add dest_node loopHeads; 
+      then loopHeads <- NodeSet.add dest_node loopHeads; 
       loopHead2BackEdge <- PredominatorMap.add dest_node prev_node loopHead2BackEdge;
       if self#isLoopHead dest_node then print_string ("We found a loop head: "^(Node.show dest_node)^"\n");
       let prevNodePreDoms = 
