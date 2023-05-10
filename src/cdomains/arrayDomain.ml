@@ -103,7 +103,17 @@ struct
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
   let invariant ~value_invariant ~offset ~lval x =
-    Invariant.none (* TODO *)
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset ->
+      let i_lval = Cil.addOffsetLval (Index (MyCFG.all_array_index_exp, NoOffset)) lval in
+      value_invariant ~offset ~lval:i_lval x
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      value_invariant ~offset ~lval x
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
 end
 
 let factor () =
