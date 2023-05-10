@@ -195,11 +195,10 @@ struct
 
   let relift x = map Base.relift x
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc = print_string "\nsetDomain.pretty_diff BEGIN\n";
-    if leq x y then (print_string "\nsetDomain.pretty_diff END\n";dprintf "%s: These are fine: \nx=%a \ny=%a" (name ()) pretty x pretty y) else
-    if is_bot y then (print_string "\nsetDomain.pretty_diff END\n";dprintf "%s: %a instead of bot" (name ()) pretty x) else begin
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    if leq x y then dprintf "%s: These are fine: \nx=%a \ny=%a" (name ()) pretty x pretty y else
+    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
       let evil = choose (diff x y) in
-      print_string "\nsetDomain.pretty_diff END\n";
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
 
