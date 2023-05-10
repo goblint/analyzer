@@ -1538,7 +1538,7 @@ struct
           else norm_interval ik (rcx, lcy) |> fst
       | _ -> []
     in
-    List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
+    List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
