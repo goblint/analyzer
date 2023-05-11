@@ -189,6 +189,13 @@ struct
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
+  let set ask (xl, xr) (ie, i) v =
+    match ie with
+    | Some ie when CilType.Exp.equal ie MyCFG.strong_all_array_index_exp ->
+      (BatList.make (factor ()) v, v)
+    | _ ->
+      set ask (xl, xr) (ie, i) v
+
   let make ?(varAttr=[]) ?(typAttr=[]) _ v =
     let xl = BatList.make (factor ()) v in
     (xl,Val.bot ())
@@ -468,13 +475,16 @@ struct
 
   let set_with_length length (ask:VDQ.t) x (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
-    if i = Some MyCFG.all_array_index_exp then
+    match i with
+    | Some ie when CilType.Exp.equal ie MyCFG.strong_all_array_index_exp ->
+      Joint a
+    | Some i when CilType.Exp.equal i MyCFG.all_array_index_exp ->
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)
        let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in
        let r =  Val.join o a in
        Joint r)
-    else
+    | _ ->
       normalize @@
       let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
       let exp_value e =
