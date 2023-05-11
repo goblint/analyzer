@@ -106,7 +106,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset ->
-      let i_lval = Cil.addOffsetLval (Index (MyCFG.all_array_index_exp, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (MyCFG.strong_all_array_index_exp, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval x
     (* invariant for one index *)
     | Index (i, offset) ->
@@ -211,7 +211,7 @@ struct
         if Val.is_bot xr then
           Invariant.top ()
         else (
-          let i_lval = Cil.addOffsetLval (Index (MyCFG.all_array_index_exp, NoOffset)) lval in
+          let i_lval = Cil.addOffsetLval (Index (MyCFG.strong_all_array_index_exp, NoOffset)) lval in
           value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
         )
       in
@@ -744,7 +744,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset ->
-      let i_lval = Cil.addOffsetLval (Index (MyCFG.all_array_index_exp, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (MyCFG.strong_all_array_index_exp, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
     (* invariant for one index *)
     | Index (i, offset) ->
