@@ -258,7 +258,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           ) edge_to_nodes
       end
       else
-        if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
+      if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
     end
   in
 
