@@ -66,7 +66,7 @@ module SigmaMap = Map.Make(VarinfoImpl)
 module VarinfoSet = Set.Make(VarinfoImpl)
 
 (* Value domain for variables contained in sigma mapping.
-   The supported types are: Integer and Address of a variable *)
+   The supported types are: Integer and Thread IDs *)
 type varDomain = 
     Int of Cilint.cilint * Cilint.cilint * ikind
   (* | Address of varinfo   *)
@@ -184,7 +184,7 @@ module LocTraceGraph = Persistent.Digraph.ConcreteBidirectionalLabeled (NodeImpl
 
 
 (* Module wrap for graph datastructure implementing necessary functions for analysis framework *)
-module LocalTraces =
+module LocalTrace =
 struct
   include Printable.Std
   type t = LocTraceGraph.t
@@ -678,7 +678,7 @@ struct
 end
 
 (* Set domain for analysis framework *)
-module GraphSet = SetDomain.Make(LocalTraces)
+module GraphSet = SetDomain.Make(LocalTrace)
 
 (* Converts a GraphSet.t to a list *)
 let graphSet_to_list graphSet =
