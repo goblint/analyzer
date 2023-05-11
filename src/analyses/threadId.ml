@@ -4,7 +4,6 @@ module GU = Goblintutil
 module LF = LibraryFunctions
 
 open Batteries
-open GoblintCil
 open Analyses
 open GobList.Syntax
 

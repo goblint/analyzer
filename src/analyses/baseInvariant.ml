@@ -1,4 +1,3 @@
-open GobPretty
 open GoblintCil
 
 module M = Messages
