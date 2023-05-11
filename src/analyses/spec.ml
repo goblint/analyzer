@@ -1,6 +1,7 @@
 (** Analysis by specification file. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module SC = SpecCore
@@ -311,8 +312,8 @@ struct
             (* c_exp=exp *) (* leads to Out_of_memory *)
             match SC.branch_exp c with
             | Some (c_exp,c_tv) ->
-              (* let exp_str = sprint d_exp exp in *) (* contains too many casts, so that matching fails *)
-              let exp_str = sprint d_exp binop in
+              (* let exp_str = CilType.Exp.show exp in *) (* contains too many casts, so that matching fails *)
+              let exp_str = CilType.Exp.show binop in
               let c_str = SC.exp_to_string c_exp in
               let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
               (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)

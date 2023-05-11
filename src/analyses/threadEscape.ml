@@ -1,6 +1,6 @@
 (** Variables that escape threads using the last argument from pthread_create. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module M = Messages

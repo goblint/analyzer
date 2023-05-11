@@ -159,7 +159,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       let old_global = GlobalMap.find name oldMap in
       match old_global.def, current_global.def with
       | Some (Fun f1), Some (Fun f2) ->
-        let renamed_params: string StringMap.t = if (List.length f1.sformals) = (List.length f2.sformals) then
+        let renamed_params: string StringMap.t = if List.compare_lengths f1.sformals f2.sformals = 0 then
             let mappings = List.combine f1.sformals f2.sformals |>
                            List.filter (fun (original, now) -> not (original.vname = now.vname)) |>
                            List.map (fun (original, now) -> (original.vname, now.vname)) |>

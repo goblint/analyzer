@@ -333,7 +333,7 @@ struct
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
-      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
+      let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
@@ -361,8 +361,7 @@ struct
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ "Cast to neither array index nor struct field."
-                          ^ Pretty.(sprint ~width:max_int @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
           end
     in
     let one_addr = let open Addr in function
@@ -478,7 +477,7 @@ struct
           log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
-      let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
+      let s_torg = match torg with Some t -> CilType.Typ.show t | None -> "?" in
       Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
 
 

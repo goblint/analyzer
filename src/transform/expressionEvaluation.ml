@@ -32,7 +32,7 @@ struct
   let (~!) value_option =
     match value_option with
     | Some value -> value
-    | None -> raise Exit
+    | None -> raise Stdlib.Exit
 
   let is_debug () =
     GobConfig.get_bool "dbg.verbose"

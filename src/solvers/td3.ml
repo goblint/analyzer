@@ -9,7 +9,7 @@
  * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
  *)
 
-open Prelude
+open Batteries
 open Analyses
 open Messages
 

@@ -1,6 +1,6 @@
 (** Data race analysis. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 
@@ -79,7 +79,7 @@ struct
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let accs = G.access (ctx.global g) in
           let (lv, ty) = g' in
-          let mem_loc_str = Pretty.sprint ~width:max_int (Access.d_memo () (ty, lv)) in
+          let mem_loc_str = GobPretty.sprint Access.d_memo (ty, lv) in
           Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)
           ()
