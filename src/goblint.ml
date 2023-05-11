@@ -68,7 +68,7 @@ let main () =
       if !verified = Some false then exit 3 (* verifier failed! *)
     )
   with
-  | Exit ->
+  | Stdlib.Exit ->
     do_stats ();
     Goblint_timing.teardown_tef ();
     exit 1
