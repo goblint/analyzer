@@ -4,169 +4,105 @@
 (include_subdirs unqualified)
 
 (library
- (name goblint_lib)
- (public_name goblint.lib)
- (modules
-  :standard
-  \
-  goblint
-  mainspec
-  privPrecCompare
-  apronPrecCompare
-  messagesCompare)
- (libraries
-  goblint.sites
-  goblint-cil.all-features
-  batteries.unthreaded
-  qcheck-core.runner
-  sha
-  json-data-encoding
-  jsonrpc
-  cpu
-  arg-complete
-  fpath
-  yaml
-  yaml.unix
-  uuidm
-  goblint_timing
-  catapult
-  ocamlgraph
-  ; Conditionally compile based on whether apron optional dependency is installed or not.
-  ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
-  ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
-  (select
-   apronDomain.ml
-   from
-   (apron
-    apron.octD
-    apron.boxD
-    apron.polkaMPQ
-    zarith_mlgmpidl
-    ->
-    apronDomain.apron.ml)
-   (-> apronDomain.no-apron.ml))
-  (select
-   apronPrecCompareUtil.ml
-   from
-   (apron -> apronPrecCompareUtil.apron.ml)
-   (-> apronPrecCompareUtil.no-apron.ml))
-  (select
-   apronAnalysis.ml
-   from
-   (apron -> apronAnalysis.apron.ml)
-   (-> apronAnalysis.no-apron.ml))
-  (select
-   apronPriv.ml
-   from
-   (apron -> apronPriv.apron.ml)
-   (-> apronPriv.no-apron.ml))
-  (select
-   violationZ3.ml
-   from
-   (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
-   (-> violationZ3.no-z3.ml)))
- (foreign_stubs
-  (language c)
-  (names stubs))
- (ocamlopt_flags :standard -no-float-const-prop)
- (preprocess
-  (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
- (preprocessor_deps
-  (file util/options.schema.json)))
+  (name goblint_lib)
+  (public_name goblint.lib)
+  (modules :standard \ goblint mainspec privPrecCompare apronPrecCompare messagesCompare)
+  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult ocamlgraph
+    ; Conditionally compile based on whether apron optional dependency is installed or not.
+    ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
+    ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
+    (select apronDomain.ml from
+      (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)
+      (-> apronDomain.no-apron.ml)
+    )
+    (select apronPrecCompareUtil.ml from
+      (apron -> apronPrecCompareUtil.apron.ml)
+      (-> apronPrecCompareUtil.no-apron.ml)
+    )
+    (select apronAnalysis.ml from
+      (apron -> apronAnalysis.apron.ml)
+      (-> apronAnalysis.no-apron.ml)
+    )
+    (select apronPriv.ml from
+      (apron -> apronPriv.apron.ml)
+      (-> apronPriv.no-apron.ml)
+    )
+    (select violationZ3.ml from
+      (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
+      (-> violationZ3.no-z3.ml)
+    )
+  )
+  (foreign_stubs (language c) (names stubs))
+  (ocamlopt_flags :standard -no-float-const-prop)
+  (preprocess
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
+  (preprocessor_deps (file util/options.schema.json))
+)
 
 ; Workaround for alternative dependencies with unqualified subdirs.
 ; See: https://github.com/ocaml/dune/issues/4383#issuecomment-805107435.
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
-
 (copy_files# cdomains/apron/*.ml)
-
 (copy_files# analyses/apron/*.ml)
-
 (copy_files# util/apron/*.ml)
-
 (copy_files# witness/z3/*.ml)
 
 (executables
- (names goblint mainspec)
- (public_names goblint -)
- (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
- (modules goblint mainspec)
- (libraries goblint.lib goblint.sites.dune)
- (preprocess
-  (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
- (flags :standard -linkall))
+  (names goblint mainspec)
+  (public_names goblint -)
+  (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
+  (modules goblint mainspec)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall)
+)
 
 (executable
- (name privPrecCompare)
- (modules privPrecCompare)
- (libraries goblint.lib goblint.sites.dune)
- (preprocess
-  (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
- (flags :standard -linkall))
+  (name privPrecCompare)
+  (modules privPrecCompare)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall)
+)
 
 (executable
- (name apronPrecCompare)
- (modules apronPrecCompare)
- (libraries goblint.lib goblint.sites.dune)
- (preprocess
-  (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
- (flags :standard -linkall))
+  (name apronPrecCompare)
+  (modules apronPrecCompare)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall)
+)
 
 (executable
- (name messagesCompare)
- (modules messagesCompare)
- (libraries goblint.lib goblint.sites.dune)
- (preprocess
-  (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
- (flags :standard -linkall))
+  (name messagesCompare)
+  (modules messagesCompare)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall)
+)
 
 (rule
- (target configVersion.ml)
- (mode
-  (promote
-   (until-clean)
-   (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
- (deps (universe)) ; do not cache, always regenerate
- (action
-  (pipe-stdout
-   (bash "git describe --all --long --dirty || echo \"n/a\"")
-   (with-stdout-to
-    %{target}
-    (bash
-     "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+  (target configVersion.ml)
+  (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
+  (deps (universe)) ; do not cache, always regenerate
+  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
 
 (rule
- (target configProfile.ml)
- (mode
-  (promote
-   (until-clean)
-   (only configProfile.ml))) ; replace existing file in source tree, even if releasing (only overrides)
- (action
-  (write-file
-   %{target}
-   "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
+  (target configProfile.ml)
+  (mode (promote (until-clean) (only configProfile.ml))) ; replace existing file in source tree, even if releasing (only overrides)
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
 
 (rule
- (alias runtest)
- (deps
-  ../goblint
-  ../scripts/update_suite.rb
-  ../Makefile
-  ../make.sh
-  (source_tree ../tests/regression)
-  (source_tree ../includes)
-  (source_tree ../linux-headers))
- (action
-  (chdir
-   ..
-   (run ./make.sh test))))
+  (alias runtest)
+  (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../includes) (source_tree ../linux-headers))
+  (action (chdir .. (run ./make.sh test)))
+)
 
 (env
- (dev
-  (flags
-   (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  (dev
+    (flags (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
- (trace
-  (flags
-   (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
-  ))
+  (trace
+    (flags (:standard -warn-error -A -w -unused-var-strict -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+)
