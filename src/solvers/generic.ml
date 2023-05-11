@@ -1,4 +1,4 @@
-open Prelude
+open Batteries
 open GobConfig
 open Analyses
 
@@ -89,7 +89,7 @@ struct
   let ncontexts = ref 0
   let print_context_stats rho =
     let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
-    let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
+    let str k = GobPretty.sprint S.Var.pretty_trace k in (* use string as key since k may have cycles which lead to exception *)
     let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
     HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 0 (str k) ((+)1) histo) rho;
     (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
@@ -115,7 +115,7 @@ struct
   let print_stats _ =
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
-    Printf.printf "runtime: %s\n" (string_of_time ());
+    Printf.printf "runtime: %s\n" (GobSys.string_of_time ());
     Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
@@ -126,7 +126,7 @@ struct
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
     print_newline ();
-    Option.may (write_csv [string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
+    Option.may (write_csv [GobSys.string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)

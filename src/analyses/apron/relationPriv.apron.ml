@@ -1,6 +1,7 @@
 (** Has been modified to work with any domain that uses the functions provided relationDomain. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open RelationDomain
 open GobConfig
@@ -1096,7 +1097,7 @@ struct
   module RelComponents = RelationDomain.RelComponents (RD) (D)
 
   let read_global ask getg st g x =
-    if M.tracing then M.traceli "relationpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
+    if M.tracing then M.traceli "relationpriv" "read_global %a %a\n" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
     if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -1108,7 +1109,7 @@ struct
     r
 
   let write_global ?invariant ask getg sideg st g x =
-    if M.tracing then M.traceli "relationpriv" "write_global %a %a\n" d_varinfo g d_varinfo x;
+    if M.tracing then M.traceli "relationpriv" "write_global %a %a\n" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
     if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
     let getg x =
       let r = getg x in

@@ -3,7 +3,7 @@
 module GU = Goblintutil
 module LF = LibraryFunctions
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
