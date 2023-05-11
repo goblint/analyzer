@@ -2057,6 +2057,42 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in
+    (* for string functions *)
+    let eval_n = function
+      (* if only n characters of a given string are needed, evaluate expression n to an integer option *) 
+      | Some n ->
+        begin match eval_rv (Analyses.ask_of_ctx ctx) gs st n with
+          | `Int i ->
+            begin match ID.to_int i with
+              | Some x -> Some (Z.to_int x)
+              | _ -> Some (-1)
+            end
+          | _ -> Some (-1)
+        end
+      (* do nothing if all characters are needed *)
+      | _ -> None 
+    in
+    let string_manipulation s1 s2 lv all op =
+      let s1_a, s1_typ = addr_type_of_exp s1 in 
+      let s2_a, s2_typ = addr_type_of_exp s2 in
+      (* when whished types coincide, compute result of operation op, otherwise use top *)
+      match lv with
+      | Some s ->
+        let lv_a, lv_typ = addr_type_of_exp s in
+        if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
+          lv_a, lv_typ, (op s1_a s2_a)
+        else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
+          lv_a, lv_typ, (op s1_a s2_a)
+        else
+          lv_a, lv_typ, (VD.top_value (unrollType lv_typ))
+      | None ->
+        if typeSig s1_typ = typeSig s2_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:s2 ~newt:(TPtr (s1_typ, []))) ~off:NoOffset in
+          let s2_cast_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
+          s1_a, s1_typ, (op s1_a s2_cast_a)
+        else
+          s1_a, s1_typ, (VD.top_value (unrollType s1_typ))
+    in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
@@ -2077,13 +2113,8 @@ struct
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Memcpy { dest = dst; src }, _
-    | Strcpy { dest = dst; src }, _ ->
-      (* invalidating from interactive *)
-      (* let dest_a, dest_typ = addr_type_of_exp dst in
-          let value = VD.top_value dest_typ in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
-      (* TODO: reuse addr_type_of_exp for master *)
-      (* assigning from master *)
+    (* strcpy(dest, src); *)
+    | Strcpy { dest = dst; src; n = None }, _ ->
       let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
       let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
@@ -2096,63 +2127,18 @@ struct
           VD.top_value (unrollType dest_typ)
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strncpy { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* evaluate amount of characters which are to be extracted of src *)
-      let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
-      let int_n = 
-        match eval_n with
-        | `Int i -> (match ID.to_int i with
-            | Some x -> Z.to_int x
-            | _ -> -1)
-        | _ -> -1 in
-      (* when src and destination type coincide, take n-substring value from the source, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.to_n_string int_n src_a)
-        else
-          VD.top_value (unrollType dest_typ)
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strcat { dest = dst; src }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* when src and destination type coincide, concatenate src to dest, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
-          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.string_concat dest_a src_a None)
-        else
-          VD.top_value (unrollType dest_typ)
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strncat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* evaluate amount of characters which are to be extracted of src *)
-      let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
-      let int_n = 
-        match eval_n with
-        | `Int i -> (match ID.to_int i with
-            | Some x -> Z.to_int x
-            | _ -> -1)
-        | _ -> -1 in
-      (* when src and destination type coincide, concatenate n-substring from src to dest, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
-          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.string_concat dest_a src_a (Some int_n))
-        else
-          VD.top_value (unrollType dest_typ)
-      in
+    (* strncpy(dest, src, n); *)
+    | Strcpy { dest = dst; src; n }, _ ->
+      begin match eval_n n with
+        | Some num ->
+          (* when src and destination type coincide, take n-substring value from the source, otherwise use top *)
+          let dest_a, dest_typ, value = string_manipulation dst src None false (fun _ src_a -> `Address(AD.to_n_string num src_a)) in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | None -> failwith "already handled in case above"
+      end
+    | Strcat { dest = dst; src; n }, _ ->
+      (* when src and destination type coincide, concatenate the whole string or a n-substring from src to dest, otherwise use top *)
+      let dest_a, dest_typ, value = string_manipulation dst src None false (fun dest_a src_a -> `Address(AD.string_concat dest_a src_a (eval_n n))) in 
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
       begin match lv with 
@@ -2167,52 +2153,18 @@ struct
     | Strstr { haystack; needle }, _ ->
       begin match lv with
         | Some v ->
-          let haystack_a, haystack_typ = addr_type_of_exp haystack in 
-          let needle_a, needle_typ = addr_type_of_exp needle in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
           (* when haystack, needle and dest type coincide, check if needle is a substring of haystack: 
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
-          let value = if typeSig dest_typ = typeSig haystack_typ && typeSig haystack_typ = typeSig needle_typ then
-              `Address(AD.substring_extraction haystack_a needle_a)
-            else
-              VD.top_value (unrollType dest_typ) in
+          let dest_a, dest_typ, value = string_manipulation haystack needle (Some (Lval v)) true (fun h_a n_a -> `Address(AD.substring_extraction h_a n_a)) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> ctx.local
       end
-    | Strcmp { s1; s2 }, _ ->
+    | Strcmp { s1; s2; n }, _ ->
       begin match lv with
         | Some v ->
-          let s1_a, s1_typ = addr_type_of_exp s1 in 
-          let s2_a, s2_typ = addr_type_of_exp s2 in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
-          (* when s1 and s2 type coincide, compare both strings, otherwise use top *)
-          let value = if typeSig s1_typ = typeSig s2_typ then
-              `Int(AD.string_comparison s1_a s2_a None)
-            else
-              VD.top_value (unrollType dest_typ) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> ctx.local
-      end
-    | Strncmp { s1; s2; n }, _ ->
-      begin match lv with
-        | Some v ->
-          let s1_a, s1_typ = addr_type_of_exp s1 in 
-          let s2_a, s2_typ = addr_type_of_exp s2 in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
-          (* evaluate amount of characters which are to be extracted of src *)
-          let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
-          let int_n = 
-            match eval_n with
-            | `Int i -> (match ID.to_int i with
-                | Some x -> Z.to_int x
-                | _ -> -1)
-            | _ -> -1 in
-          (* when s1 and s2 type coincide, compare both strings, otherwise use top *)
-          let value = if typeSig s1_typ = typeSig s2_typ then
-              `Int(AD.string_comparison s1_a s2_a (Some int_n))
-            else
-              VD.top_value (unrollType dest_typ) in
+          (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
+          let dest_a, dest_typ, value = string_manipulation s1 s2 (Some (Lval v)) false (fun s1_a s2_a -> `Int(AD.string_comparison s1_a s2_a (eval_n n))) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> ctx.local
       end
