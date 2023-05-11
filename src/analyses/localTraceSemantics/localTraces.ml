@@ -112,10 +112,10 @@ type node = {
   lockSet: VarinfoSet.t;
 }
 
-(* Helper functions for constructing varinfo names *)
-let make_mutex_varinfo x = "__goblint__traces__mutex__"^x.vname
+(* Helper functions for constructing implicit mutex names and custom local variable names for globals only *)
+let make_mutex_varinfo_name x = "__goblint__traces__mutex__"^x.vname
 
-let make_local_global_varinfo x = "__goblint__traces__"^x.vname
+let make_custom_local_varinfo_name x = "__goblint__traces__"^x.vname
 
 (* Module wrap for node implementing necessary functions for ocamlgraph *)
 module NodeImpl =

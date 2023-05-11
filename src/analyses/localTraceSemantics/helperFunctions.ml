@@ -14,29 +14,14 @@ let intMin = -2147483648
 
 
 let add_dependency_from_last_unlock graph mutexVinfo = 
-  let lastNode = LocalTrace.get_last_node graph
-  in 
-  let lastUnlockingNode = LocalTrace.get_last_unlocking_node graph mutexVinfo
-  in
+  let lastNode = LocalTrace.get_last_node graph in 
+  let lastUnlockingNode = LocalTrace.get_last_unlocking_node graph mutexVinfo in
   if not (Node.equal lastUnlockingNode.programPoint LocalTrace.error_node)
   then
     (
-      (* let allPredecessorEdges = LocalTrace.get_predecessors_edges graph lastNode
-         in if (List.exists ( fun (edge: node * CustomEdge.t * node) ->
-          match edge with (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]),_) -> 
-            (String.equal fvinfo.vname "pthread_mutex_unlock") && (String.equal mutexVinfo.vname fMutex.vname)
-                        | _ ->  false
-         ) allPredecessorEdges) 
-         then (
-         graph
-         (* print_string ("Unsupported: For now, lock("^(CilType.Varinfo.show mutexVinfo)^") directly succeeding unlock("^(CilType.Varinfo.show mutexVinfo)^") is not supported"); exit 0 *)
-         )
-         else ( *)
-      (* all checks passed *)
       let depEdge:LocTraceGraph.edge = (lastUnlockingNode,DepMutex (mutexVinfo),lastNode)
       in
       LocalTrace.extend_by_gEdge graph depEdge
-      (* ) *)
     )
   else
     (print_string ("Error: graph has no last unlocking node for mutex "^(CilType.Varinfo.show mutexVinfo)^", graph:\n"^(LocalTrace.show graph)^"\n"); exit 0)
@@ -219,7 +204,7 @@ and
      (* The only case where I need to evaluate a global *)
      | Lval(Var(var), NoOffset) -> if var.vglob = true 
        then (
-         let localGlobalVinfo = (customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype)
+         let localGlobalVinfo = (customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name var) var.vtype)
          in
          if SigmaMap.mem localGlobalVinfo sigOld then
            (
@@ -265,7 +250,7 @@ and
                   )))
 
      (* | AddrOf (Var(v), NoOffset) ->  if v.vglob 
-        then (Address(v), true, currentSigEnhanced, [], AddrOf (Var(customVinfoStore#getLocalVarinfo (make_local_global_varinfo v) v.vtype), NoOffset)) 
+        then (Address(v), true, currentSigEnhanced, [], AddrOf (Var(customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name v) v.vtype), NoOffset)) 
         else (Address(v), true, currentSigEnhanced, [], AddrOf (Var(v), NoOffset)) *)
 
      (* unop expressions *)
@@ -292,9 +277,9 @@ and
      (* Lt could be a special case since it has enhancements on sigma *)
      (* in var1 < var2 case, I have not yet managed boundary cases, so here are definitely some bugs *)
      | BinOp(Lt, Lval(Var(var1), NoOffset),Lval(Var(var2), NoOffset),TInt(biopIk, attr)) ->(
-         let newVar1 = if var1.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var1) var1.vtype else var1
+         let newVar1 = if var1.vglob then customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name var1) var1.vtype else var1
          in
-         let newVar2 = if var2.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var2) var2.vtype else var2
+         let newVar2 = if var2.vglob then customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name var2) var2.vtype else var2
          in
          let newExpr = BinOp(Lt, Lval(Var(newVar1), NoOffset),Lval(Var(newVar2), NoOffset),TInt(biopIk, attr)) 
          in
@@ -362,7 +347,7 @@ and
        )
 
      | BinOp(Lt, binopExp1,Lval(Var(var), NoOffset),TInt(biopIk, attr)) ->(
-         let newVar = if var.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype else var
+         let newVar = if var.vglob then customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name var) var.vtype else var
          in
          if ((var.vglob) && (not (SigmaMap.mem newVar sigOld))) 
          then (print_string ("Error: there is a global in expression 'expr < var' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
@@ -399,7 +384,7 @@ and
        )
 
      | BinOp(Lt, Lval(Var(var), NoOffset), binopExp2,TInt(biopIk, attr)) -> (
-         let newVar = if var.vglob then customVinfoStore#getLocalVarinfo (make_local_global_varinfo var) var.vtype else var
+         let newVar = if var.vglob then customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name var) var.vtype else var
          in
          if ((var.vglob) && (not (SigmaMap.mem newVar sigOld))) 
          then (print_string ("Error: there is a global in expression 'var < expr' but no custom local variable is in sigma="^(NodeImpl.show_sigma sigOld)^"\n"); exit 0);
@@ -511,5 +496,5 @@ let rec get_all_globals (expr:exp) (acc:VarinfoSet.t) =
 
 (* Reoves all custom locals for globals from the sigma *)
 let rec remove_global_locals_sigma sigma globalList =
-  match globalList with x::xs -> remove_global_locals_sigma (SigmaMap.remove (customVinfoStore#getGlobalVarinfo (make_local_global_varinfo x)) sigma) xs
+  match globalList with x::xs -> remove_global_locals_sigma (SigmaMap.remove (customVinfoStore#getGlobalVarinfo (make_custom_local_varinfo_name x)) sigma) xs
                       | [] -> sigma

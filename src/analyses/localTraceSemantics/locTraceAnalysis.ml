@@ -27,14 +27,14 @@ struct
       |  graph::gs ->
         let lastNode = LocalTrace.get_last_node graph
         in
-        let localGlobalVar = customVinfoStore#getLocalVarinfo (make_local_global_varinfo global) global.vtype
+        let localGlobalVar = customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name global) global.vtype
 
         in 
         let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock" 
         in
         let unlockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_unlock"
         in
-        let customMutex = customVinfoStore#getGlobalVarinfo (make_mutex_varinfo global)
+        let customMutex = customVinfoStore#getGlobalVarinfo (make_mutex_varinfo_name global)
         in
         let lockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
         in
@@ -105,8 +105,7 @@ struct
   let name () = "localTraces"
 
   (* start state is a set of one empty graph *)
-  let startstate v = let g = D.empty () in let tmp = D.add LocTraceGraph.empty g
-    in if D.is_empty tmp then tmp else tmp
+  let startstate v = let g = D.empty () in D.add LocTraceGraph.empty g
 
 
   let exitstate = startstate
@@ -136,7 +135,7 @@ struct
                       let newSigma = remove_global_locals_sigma evaluated (VarinfoSet.to_list rvalGlobals)
                       in
                       if x.vglob then (
-                        let customMutex = customVinfoStore#getGlobalVarinfo (make_mutex_varinfo x)
+                        let customMutex = customVinfoStore#getGlobalVarinfo (make_mutex_varinfo_name x)
                         in
                         let lockingLabel:Edge.t = Proc(None, Lval(Var(lockVarinfo), NoOffset),[AddrOf(Var(customMutex), NoOffset)])
                         in
