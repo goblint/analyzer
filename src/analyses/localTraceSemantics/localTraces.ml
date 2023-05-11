@@ -189,7 +189,7 @@ struct
   include Printable.Std
   type t = LocTraceGraph.t
 
-  let name () = "traceDataStruc"
+  let name () = "localTrace"
 
   let get_all_edges g =
     LocTraceGraph.fold_edges_e (fun x l -> x::l) g []
@@ -237,12 +237,11 @@ struct
     if equal g1 g2 then 0 else compare g1 g2
 
   (* Dummy to_yojson function *)
-  let to_yojson g1 :Yojson.Safe.t = `Variant("bam", None)
+  let to_yojson g1 :Yojson.Safe.t = `Variant("unsupported", None)
 
   (* Adds an edge to a graph
      Explicit function for future improvements *)
   let extend_by_gEdge gr gEdge = 
-    (* print_string "LocalTraces.extend_by_gEdge was invoked\n"; *)
     if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) 
     then gr 
     else let tmp = LocTraceGraph.add_edge_e gr gEdge in tmp 
@@ -309,7 +308,6 @@ struct
 
   (* Returns next node succeeding previous node with given label *)
   let get_succeeding_node prev_node edge_label graph =
-    print_string ("LocalTraces.get_succeeding_node was invoked with prev_node="^(NodeImpl.show prev_node)^", edge_label="^(EdgeImpl.show edge_label)^" and\n"^(show graph)^"\n");
     let edgeList = get_all_edges graph
     in let tmp =
          List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) -> 
@@ -317,14 +315,13 @@ struct
              then dest_fold
              else acc_node
            ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=VarinfoSet.empty} edgeList
-    in print_string ("in LocalTraces.get_succeeding_node we found the node "^(NodeImpl.show tmp)^"\n"); tmp
+    in tmp
 
   (* Finds the return endpoint of a calling node. 
-     Since function calls can be needed, we use a saldo which indicates in what calling depth the computation is starting at prev_node. *)
+     Since function calls can be nested, we use a saldo which indicates in what calling depth the computation is starting at prev_node. *)
   let find_returning_node prev_node edge_label graph =
     let node_start = get_succeeding_node prev_node edge_label graph
     in
-    print_string ("find_returning_node was invoked with node_start="^(NodeImpl.show node_start)^"\n");
     let rec find_returning_node_helper current_node current_saldo =(let succeeding_edges = get_successors_edges graph current_node
                                                                     in
                                                                     List.fold (fun acc_node ((prev_fold:node), (edge_fold:CustomEdge.t), (dest_fold:node)) -> 
@@ -417,13 +414,12 @@ struct
           in 
           if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
         )
-      | [] -> print_string ("find_calling_node did not succeed, ended in loop\n");
+      | [] -> 
         {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=VarinfoSet.empty}
     in loop allNodes
 
   (* Finds the creating node of a thread endpoint. *)
   let find_creating_node last_node graph  =
-    print_string ("find_creating_node was invoked with last_node="^(NodeImpl.show last_node)^",\ngraph="^(show graph)^"\n");
     let lastNodeTid = last_node.tid
     in
     let workQueue = Queue.create ()
@@ -565,13 +561,12 @@ struct
     let depCount = List.fold (fun count_fold (edge_fold:LocTraceGraph.edge) ->
         match edge_fold with (prev_node,DepMutex(vinfo),dest_node) -> 
           if DepMutexCount.mem vinfo count_fold 
-          then (
-            print_string ("vinfo already contained in count_fold\n");
+          then 
             DepMutexCount.add vinfo ((DepMutexCount.find vinfo count_fold)+1) count_fold 
-          )
-          else (
+          
+          else 
             DepMutexCount.add vinfo 1 count_fold
-          )
+          
                            | _ -> count_fold
       ) DepMutexCount.empty edgeList
     in 
@@ -634,8 +629,6 @@ struct
         if List.length edgeList < 2 then loop xs
         else
           (
-            print_string ("node="^(NodeImpl.show node)^" has more than one successor:
-          \n{"^(List.fold (fun acc edge -> (show_edge edge)^"; "^acc) "" edgeList)^"}\n");
             if (are_pthread_create_edges edgeList) || (are_mostly_depMutexes edgeList) then loop xs else false
           )
       | [] -> true
@@ -684,7 +677,7 @@ module GraphSet = SetDomain.Make(LocalTrace)
 let graphSet_to_list graphSet =
   GraphSet.fold (fun g acc -> g::acc) graphSet []
 
-(* Module that is used as a domain for side effect. *)
+(* Module that is used as a domain for global unknowns. *)
 module SideEffectDomain = struct
   type t = ThreadID of int | Mutex of varinfo
   let is_write_only _ = false
