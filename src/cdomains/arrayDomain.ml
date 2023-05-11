@@ -86,7 +86,12 @@ struct
   let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get ?(checkBounds=true) (ask: VDQ.t) a i = a
-  let set (ask: VDQ.t) a i v = join a v
+  let set (ask: VDQ.t) a (ie, i) v =
+    match ie with
+    | Some ie when CilType.Exp.equal ie MyCFG.strong_all_array_index_exp ->
+      v
+    | _ ->
+      join a v
   let make ?(varAttr=[]) ?(typAttr=[])  i v = v
   let length _ = None
 
