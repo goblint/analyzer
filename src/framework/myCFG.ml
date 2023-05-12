@@ -58,11 +58,6 @@ let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
 let dummy_node = FunctionEntry Cil.dummyFunDec
 
-(* TODO: actually some/exists, not all in fast_global_inits? *)
-let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
-
-let strong_all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), mkString "strong_all_array_index_exp")
-
 
 module type FileCfg =
 sig

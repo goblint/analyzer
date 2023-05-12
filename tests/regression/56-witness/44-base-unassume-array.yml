@@ -24,7 +24,7 @@
     column: 6
     function: main
   loop_invariant:
-    string: 0 <= a[(long )"strong_all_array_index_exp"]
+    string: 0 <= a[(long )"all_index"]
     type: assertion
     format: C
 - entry_type: loop_invariant
@@ -53,6 +53,6 @@
     column: 6
     function: main
   loop_invariant:
-    string: a[(long )"strong_all_array_index_exp"] < 3
+    string: a[(long )"all_index"] < 3
     type: assertion
     format: C

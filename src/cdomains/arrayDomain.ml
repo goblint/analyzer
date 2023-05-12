@@ -8,6 +8,10 @@ module A = Array
 module BI = IntOps.BigIntOps
 module VDQ = ValueDomainQueries
 
+let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
+
+
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
 (* determines the domain based on variable, type and flag *)
@@ -88,7 +92,7 @@ struct
   let get ?(checkBounds=true) (ask: VDQ.t) a i = a
   let set (ask: VDQ.t) a (ie, i) v =
     match ie with
-    | Some ie when CilType.Exp.equal ie MyCFG.strong_all_array_index_exp ->
+    | Some ie when CilType.Exp.equal ie all_index_exp ->
       v
     | _ ->
       join a v
@@ -111,7 +115,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset ->
-      let i_lval = Cil.addOffsetLval (Index (MyCFG.strong_all_array_index_exp, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (all_index_exp, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval x
     (* invariant for one index *)
     | Index (i, offset) ->
@@ -191,7 +195,7 @@ struct
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
   let set ask (xl, xr) (ie, i) v =
     match ie with
-    | Some ie when CilType.Exp.equal ie MyCFG.strong_all_array_index_exp ->
+    | Some ie when CilType.Exp.equal ie all_index_exp ->
       (BatList.make (factor ()) v, v)
     | _ ->
       set ask (xl, xr) (ie, i) v
@@ -223,7 +227,7 @@ struct
         if Val.is_bot xr then
           Invariant.top ()
         else (
-          let i_lval = Cil.addOffsetLval (Index (MyCFG.strong_all_array_index_exp, NoOffset)) lval in
+          let i_lval = Cil.addOffsetLval (Index (all_index_exp, NoOffset)) lval in
           value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
         )
       in
@@ -476,9 +480,9 @@ struct
   let set_with_length length (ask:VDQ.t) x (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
     match i with
-    | Some ie when CilType.Exp.equal ie MyCFG.strong_all_array_index_exp ->
+    | Some ie when CilType.Exp.equal ie all_index_exp ->
       Joint a
-    | Some i when CilType.Exp.equal i MyCFG.all_array_index_exp ->
+    | Some i when CilType.Exp.equal i any_index_exp ->
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)
        let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in
@@ -759,7 +763,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset ->
-      let i_lval = Cil.addOffsetLval (Index (MyCFG.strong_all_array_index_exp, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (all_index_exp, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
     (* invariant for one index *)
     | Index (i, offset) ->

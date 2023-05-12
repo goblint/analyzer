@@ -1679,7 +1679,7 @@
         "fast_global_inits": {
           "title": "exp.fast_global_inits",
           "description":
-            "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
+            "Only generate one 'a[any_index] = x' for all assignments a[...] = x for a global array a[n].",
           "type": "boolean",
           "default": true
         },
