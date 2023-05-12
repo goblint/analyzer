@@ -62,7 +62,7 @@ struct
   let stop_event () = ()
 
   let new_var_event x =
-    incr Goblintutil.vars;
+    incr SolverStats.vars;
     if tracing then trace "sol" "New %a\n" Var.pretty_trace x
 
   let get_var_event x =
@@ -70,7 +70,7 @@ struct
 
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    incr Goblintutil.evals;
+    incr SolverStats.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =
@@ -114,7 +114,7 @@ struct
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (GobSys.string_of_time ());
-    Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Printf.printf "vars: %d, evals: %d\n" !SolverStats.vars !SolverStats.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
@@ -124,7 +124,7 @@ struct
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
     let gc = GobGc.print_quick_stat Legacy.stdout in
     print_newline ();
-    Option.may (write_csv [GobSys.string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
+    Option.may (write_csv [GobSys.string_of_time (); string_of_int !SolverStats.vars; string_of_int !SolverStats.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)

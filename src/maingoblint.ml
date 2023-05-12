@@ -494,7 +494,7 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
+    SolverStats.print ();
     print_newline ();
     print_string "Timings:\n";
     Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
@@ -502,9 +502,7 @@ let do_stats () =
   )
 
 let reset_stats () =
-  Goblintutil.vars := 0;
-  Goblintutil.evals := 0;
-  Goblintutil.narrow_reuses := 0;
+  SolverStats.reset ();
   Timing.Default.reset ();
   Timing.Program.reset ()
 

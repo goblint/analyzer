@@ -38,11 +38,6 @@ let is_blessed (t:typ): varinfo option =
 let earlyglobs = ref false
 
 
-let vars = ref 0
-let evals = ref 0
-let narrow_reuses = ref 0
-
-
 let dummy_obj = Obj.repr ()
 
 let jobs () =
