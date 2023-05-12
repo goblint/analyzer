@@ -19,7 +19,3 @@ void getndelim2() {
   }
 g:
 }
-
-int main(){
-  return 0;
-}
