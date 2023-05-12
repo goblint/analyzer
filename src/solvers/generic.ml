@@ -122,7 +122,7 @@ struct
     print_newline ();
     (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
-    let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
+    let gc = GobGc.print_quick_stat Legacy.stdout in
     print_newline ();
     Option.may (write_csv [GobSys.string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
