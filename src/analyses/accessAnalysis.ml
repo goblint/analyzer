@@ -43,7 +43,7 @@ struct
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if force || !collect_local || !emit_single_threaded || ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) then (
+    if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
       if deref then
         do_access ctx kind reach exp;
       Access.distribute_access_exp (do_access ctx Read false) exp
