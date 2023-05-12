@@ -2,11 +2,11 @@
 struct {
   char *a;
 } b, c;
-long e;
+char *e;
 const char* d() { return b.a; }
-f() { c.a = e; }
-freadseek() { f(); }
-getndelim2() {
+void f() { c.a = e; }
+void freadseek() { f(); }
+void getndelim2() {
   const char* buffer;
   while (1) {
     buffer = d();
@@ -17,4 +17,8 @@ getndelim2() {
     freadseek();
   }
 g:
+}
+
+int main(){
+  return 0;
 }
