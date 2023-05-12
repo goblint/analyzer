@@ -5,7 +5,6 @@ open PrecisionUtil
 include PreValueDomain
 module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
-module GU = Goblintutil
 module BI = IntOps.BigIntOps
 module VDQ = ValueDomainQueries
 module LS = VDQ.LS

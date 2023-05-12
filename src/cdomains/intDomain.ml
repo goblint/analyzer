@@ -3,7 +3,6 @@ open GoblintCil
 open Pretty
 open PrecisionUtil
 
-module GU = Goblintutil
 module M = Messages
 module BI = IntOps.BigIntOps
 

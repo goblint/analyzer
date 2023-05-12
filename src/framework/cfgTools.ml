@@ -122,7 +122,7 @@ let rec pretty_edges () = function
 
 let get_pseudo_return_id fd =
   let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
   if sid < start_id then sid + start_id else sid
 
 let node_scc_global = NH.create 113

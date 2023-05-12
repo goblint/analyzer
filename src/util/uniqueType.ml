@@ -5,7 +5,7 @@ let type_inv_tbl = Hashtbl.create 13
 let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
-    let i = Goblintutil.create_var (makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[]))) in
+    let i = Cilfacade.create_var (makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[]))) in
     Hashtbl.add type_inv_tbl c.ckey i;
     i
 

@@ -10,7 +10,6 @@ module A = Analyses
 module H = Hashtbl
 module Q = Queries
 
-module GU = Goblintutil
 module ID = ValueDomain.ID
 module FD = ValueDomain.FD
 module IdxDom = ValueDomain.IndexDomain
@@ -165,8 +164,8 @@ struct
       | Some marshal -> array_map := marshal
       | None -> ()
     end;
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    longjmp_return := Goblintutil.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
+    return_varstore := Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType;
+    longjmp_return := Cilfacade.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
     Priv.init ()
 
   let finalize () =

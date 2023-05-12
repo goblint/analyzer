@@ -1,6 +1,5 @@
 open Goblint_lib
 open GobConfig
-open Goblintutil
 open Maingoblint
 open Printf
 

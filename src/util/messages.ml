@@ -1,7 +1,6 @@
 module Pretty = GoblintCil.Pretty
 
 open GobConfig
-module GU = Goblintutil
 
 module Category = MessageCategory
 

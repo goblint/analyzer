@@ -876,7 +876,7 @@ module Spec : Analyses.MCPSpec = struct
   module G = Tasks
 
   let tasks_var =
-    Goblintutil.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
+    Cilfacade.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
 
 
   module ExprEval = struct

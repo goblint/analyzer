@@ -1,6 +1,5 @@
 (** Multi-threadedness analysis. *)
 
-module GU = Goblintutil
 module LF = LibraryFunctions
 
 open GoblintCil
