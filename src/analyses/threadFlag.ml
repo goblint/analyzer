@@ -6,10 +6,13 @@ module LF = LibraryFunctions
 open GoblintCil
 open Analyses
 
-let is_multi (ask: Queries.ask): bool =
+let is_currently_multi (ask: Queries.ask): bool =
   if !GU.global_initialization then false else
-    not (ask.f Queries.MustBeSingleThreadedUptoCurrent)
+    not (ask.f (Queries.MustBeSingleThreaded {since_start = false}))
 
+let has_ever_been_multi (ask: Queries.ask): bool =
+  if !GU.global_initialization then false else
+    not (ask.f (Queries.MustBeSingleThreaded {since_start = true}))
 
 module Spec =
 struct
@@ -41,7 +44,7 @@ struct
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeSingleThreadedUptoCurrent -> not (Flag.is_multi ctx.local)
+    | Queries.MustBeSingleThreaded _ -> not (Flag.is_multi ctx.local) (* If this analysis can tell, it is the case since the start *)
     | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
@@ -55,15 +58,15 @@ struct
     let should_print m = not m
   end
   let access ctx _ =
-    is_multi (Analyses.ask_of_ctx ctx)
+    is_currently_multi (Analyses.ask_of_ctx ctx)
 
   let threadenter ctx lval f args =
-    if not (is_multi (Analyses.ask_of_ctx ctx)) then
+    if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    if not (is_multi (Analyses.ask_of_ctx ctx)) then
+    if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
       ctx.emit Events.EnterMultiThreaded;
     D.join ctx.local (Flag.get_main ())
 end

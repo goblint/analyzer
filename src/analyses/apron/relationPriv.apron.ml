@@ -95,7 +95,7 @@ struct
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
     | `Join ->
-      if (ask.f Q.MustBeSingleThreadedUptoCurrent) then
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -342,7 +342,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f Q.MustBeSingleThreadedUptoCurrent) then
+      if (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -548,7 +548,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f Q.MustBeSingleThreadedUptoCurrent) then
+      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in
@@ -1031,7 +1031,7 @@ struct
     match reason with
     | `Return -> st (* TODO: implement? *)
     | `Join ->
-      if (ask.f Q.MustBeSingleThreadedUptoCurrent) then
+      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in

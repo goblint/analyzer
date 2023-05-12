@@ -43,7 +43,7 @@ struct
   (* Functions for manipulating globals as temporary locals. *)
 
   let read_global ask getg st g x =
-    if ThreadFlag.is_multi ask then
+    if ThreadFlag.has_ever_been_multi ask then
       Priv.read_global ask getg st g x
     else (
       let rel = st.rel in
@@ -118,7 +118,7 @@ struct
     rel''
 
   let write_global ask getg sideg st g x =
-    if ThreadFlag.is_multi ask then
+    if ThreadFlag.has_ever_been_multi ask then
       Priv.write_global ask getg sideg st g x
     else (
       let rel = st.rel in
@@ -536,7 +536,7 @@ struct
     let scope = Node.find_fundec ctx.node in
 
     let (apr, e_inv) =
-      if ThreadFlag.is_multi ask then (
+      if ThreadFlag.has_ever_been_multi ask then (
         let priv_vars =
           if keep_global then
             Priv.invariant_vars ask ctx.global ctx.local
@@ -617,7 +617,7 @@ struct
          Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
          sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
          EnterMultithreaded events only execute after threadenter and threadspawn. *)
-      if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+      if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
       let arg_vars =
@@ -638,9 +638,9 @@ struct
   let event ctx e octx =
     let st = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
-    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->
