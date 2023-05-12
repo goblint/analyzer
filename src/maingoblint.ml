@@ -511,7 +511,7 @@ let do_analyze change_info merged_AST =
   if not (get_bool "g2html" || get_string "outfile" = "") then (
     if !Messages.out <> Legacy.stdout then
       Legacy.close_out !Messages.out;
-      Messages.out := Legacy.open_out (get_string "outfile"));
+    Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
