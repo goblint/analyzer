@@ -133,7 +133,7 @@ struct
     let write_header = write_csv ["runtime"; "vars"; "evals"; "contexts"; "max_heap"] (* TODO @ !solver_stats_headers *) in
     Option.may write_header stats_csv;
     (* call print_stats on dbg.solver-signal *)
-    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
+    Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
     (* call print_stats every dbg.solver-stats-interval *)
     Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
     (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)

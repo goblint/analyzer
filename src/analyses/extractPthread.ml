@@ -574,7 +574,7 @@ module Codegen = struct
 
   module Writer = struct
     let write desc ext content =
-      let dir = Goblintutil.create_dir (Fpath.v "pml-result") in
+      let dir = GobSys.mkdir_or_exists_absolute (Fpath.v "pml-result") in
       let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path

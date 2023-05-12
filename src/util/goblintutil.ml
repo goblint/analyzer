@@ -56,26 +56,6 @@ let verified : bool option ref = ref None
 let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 
-(** Creates a directory and returns the absolute path **)
-let create_dir name =
-  let dirName = GobFpath.cwd_append name in
-  GobSys.mkdir_or_exists dirName;
-  dirName
-
-(** Remove directory and its content, as "rm -rf" would do. *)
-let rm_rf path =
-  let rec f path =
-    let path_str = Fpath.to_string path in
-    if Sys.is_directory path_str then begin
-      let files = Array.map (Fpath.add_seg path) (Sys.readdir path_str) in
-      Array.iter f files;
-      Unix.rmdir path_str
-    end else
-      Sys.remove path_str
-  in
-  f path
-
-
 exception Timeout
 
 let timeout = Timeout.timeout
@@ -119,29 +99,6 @@ let print_gc_quick_stat chn =
     gc.Gc.compactions;
   gc
 
-let exe_dir = Fpath.(parent (v Sys.executable_name))
-let command_line = match Array.to_list Sys.argv with
-  | command :: arguments -> Filename.quote_command command arguments
-  | [] -> assert false
-
-(* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
-(* https://ocaml.github.io/ocamlunix/signals.html *)
-let signal_of_string = let open Sys in function
-    | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
-    | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
-    | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
-    | "sigalrm" -> sigalrm (* Timeout *)
-    | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
-    | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
-    | "sigterm" -> sigterm (* Termination *)
-    | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
-    | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
-    | "sigstop" -> sigstop (* Stop *)
-    | "sigprof" -> sigprof (* Profiling interrupt *)
-    | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
-    | s -> failwith ("Unhandled signal " ^ s)
-
-let self_signal signal = Unix.kill (Unix.getpid ()) signal
 
 let rec for_all_in_range (a, b) f =
   let module BI = IntOps.BigIntOps in

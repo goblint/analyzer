@@ -251,7 +251,7 @@ struct
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
         BatPrintf.fprintf f "<run>";
-        BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
+        BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
         BatPrintf.fprintf f "<statistics>";
         let timing_ppf = BatFormat.formatter_of_out_channel f in
         Timing.Default.print timing_ppf;
@@ -290,7 +290,7 @@ struct
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
         printf "Writing json to temp. file: %s\n%!" fn;
-        fprintf f "{\n  \"parameters\": \"%s\",\n  " Goblintutil.command_line;
+        fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
         fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
         (*gtfxml f gtable;*)

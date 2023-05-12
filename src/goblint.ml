@@ -37,7 +37,7 @@ let main () =
 
     if get_bool "dbg.verbose" then (
       print_endline (GobUnix.localtime ());
-      print_endline Goblintutil.command_line;
+      print_endline GobSys.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
