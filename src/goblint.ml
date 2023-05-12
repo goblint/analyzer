@@ -78,7 +78,7 @@ let main () =
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-  | Timeout ->
+  | Timeout.Timeout ->
     do_stats ();
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();

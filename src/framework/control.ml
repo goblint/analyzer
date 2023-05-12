@@ -656,10 +656,10 @@ struct
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
          The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
-      raise GU.Timeout
+      raise Timeout.Timeout
     in
-    let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let timeout = get_string "dbg.timeout" |> TimeUtil.seconds_of_duration_string in
+    let lh, gh = Timeout.wrap solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let module SpecSysSol: SpecSysSol with module SpecSys = SpecSys =
     struct
       module SpecSys = SpecSys
