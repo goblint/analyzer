@@ -410,7 +410,7 @@ let preprocess_files () =
       | process_status ->
         raise (FrontendError (Format.sprintf "preprocessor %s: %s" (GobUnix.string_of_process_status process_status) task.command))
     in
-    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
+    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(GobConfig.jobs ()) ~terminated) preprocess_tasks
   );
   preprocessed
 

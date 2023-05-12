@@ -333,7 +333,7 @@ struct
       Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
 
     AnalysisState.global_initialization := true;
-    GU.earlyglobs := get_bool "exp.earlyglobs";
+    GobConfig.earlyglobs := get_bool "exp.earlyglobs";
     let marshal: Spec.marshal option =
       if get_string "load_run" <> "" then
         Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))

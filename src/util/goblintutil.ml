@@ -34,13 +34,4 @@ let is_blessed (t:typ): varinfo option =
   | _ -> (None : varinfo option)
 
 
-(** Another hack to see if earlyglobs is enabled *)
-let earlyglobs = ref false
-
-
 let dummy_obj = Obj.repr ()
-
-let jobs () =
-  match get_int "jobs" with
-  | 0 -> Cpu.numcores ()
-  | n -> n
