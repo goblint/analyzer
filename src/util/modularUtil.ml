@@ -40,6 +40,9 @@ struct
   open ValueDomain.Compound
 
   let rec map_back (can_v: t) ~(reachable: AD.t) : t =
+    let add_offset (addr: AD.t) offs =
+      AD.map (fun a -> Addr.add_offset a offs) addr
+    in
     match can_v with
     | `Top
     | `Int _
@@ -53,7 +56,8 @@ struct
         let map_back (a: Addr.t) =
           match Addr.to_var_offset a with
           | Some (vi, off) when is_canonical vi ->
-            represented_by ~canonical:vi ~reachable
+            let represented_no_offs = represented_by ~canonical:vi ~reachable in
+            add_offset represented_no_offs off
           | _ ->
             AD.singleton a
         in
