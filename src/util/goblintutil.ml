@@ -65,9 +65,3 @@ let jobs () =
   match get_int "jobs" with
   | 0 -> Cpu.numcores ()
   | n -> n
-
-(** call [f], with [r] temporarily set to [x] *)
-let with_ref r x =
-  let x0 = !r in
-  r := x;
-  Fun.protect ~finally:(fun () -> r := x0)
