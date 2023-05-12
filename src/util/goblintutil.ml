@@ -53,8 +53,6 @@ let postsolving = ref false
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
-let escape = XmlUtil.escape (* TODO: inline everywhere *)
-
 
 let vars = ref 0
 let evals = ref 0
