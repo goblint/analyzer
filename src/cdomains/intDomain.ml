@@ -1878,7 +1878,7 @@ struct
     else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
       let min_a = min_of_range r in
       let max_a = max_of_range r in
-      GU.for_all_in_range (min_a, max_a) (fun el -> BISet.mem el xs || BISet.mem el ys)
+      GobZ.for_all_range (fun el -> BISet.mem el xs || BISet.mem el ys) (min_a, max_a)
 
   let leq (Exc (xs, r)) (Exc (ys, s)) =
     let min_a, max_a = min_of_range r, max_of_range r in
@@ -1892,13 +1892,13 @@ struct
           let min_b, max_b = min_of_range s, max_of_range s in
           let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
             if I.compare min_a min_b < 0 then
-              GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> BISet.mem x xs)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, BI.sub min_b BI.one)
             else
               true
           in
           let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
             if I.compare max_b max_a < 0 then
-              GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> BISet.mem x xs)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (BI.add max_b BI.one, max_a)
             else
               true
           in

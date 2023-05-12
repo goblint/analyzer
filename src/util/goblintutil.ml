@@ -59,12 +59,6 @@ let evals = ref 0
 let narrow_reuses = ref 0
 
 
-let rec for_all_in_range (a, b) f =
-  let module BI = IntOps.BigIntOps in
-  if BI.compare a b > 0
-  then true
-  else f a && (for_all_in_range (BI.add a (BI.one), b) f)
-
 let dummy_obj = Obj.repr ()
 
 let jobs () =
