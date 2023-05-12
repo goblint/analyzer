@@ -18,20 +18,5 @@ let create_var (var: varinfo) =
   let hash = if hash < start_id then hash + start_id else hash in
   { var with vid = hash }
 
-(* Type invariant variables. *)
-let type_inv_tbl = Hashtbl.create 13
-let type_inv (c:compinfo) : varinfo =
-  try Hashtbl.find type_inv_tbl c.ckey
-  with Not_found ->
-    let i = create_var (makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[]))) in
-    Hashtbl.add type_inv_tbl c.ckey i;
-    i
-
-let is_blessed (t:typ): varinfo option =
-  let me_gusta x = List.mem x (get_string_list "exp.unique") in
-  match unrollType t with
-  | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
-  | _ -> (None : varinfo option)
-
 
 let dummy_obj = Obj.repr ()

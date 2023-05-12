@@ -765,7 +765,7 @@ struct
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
-          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+          match UniqueType.find (TComp (fd.fcomp, [])) with
           | Some v -> do_offs (`Address (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs)))))) offs
           | None -> do_offs def offs
         end
@@ -1073,7 +1073,7 @@ struct
     let eval_rv = eval_rv_back_up in
     let rec do_offs def = function
       | Field (fd, offs) -> begin
-          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+          match UniqueType.find (TComp (fd.fcomp, [])) with
           | Some v -> do_offs (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs))))) offs
           | None -> do_offs def offs
         end
@@ -1081,8 +1081,8 @@ struct
       | NoOffset -> def
     in
     match lval with
-    | Var x, NoOffset when (not x.vglob) && Goblintutil.is_blessed x.vtype<> None ->
-      begin match Goblintutil.is_blessed x.vtype with
+    | Var x, NoOffset when (not x.vglob) && UniqueType.find x.vtype<> None ->
+      begin match UniqueType.find x.vtype with
         | Some v -> AD.singleton (Addr.from_var v)
         | _ ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st NoOffset))
       end
