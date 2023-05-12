@@ -57,8 +57,7 @@ class exp_contains_tmp_visitor (acc: bool ref) = object
 
   method! vexpr (e: exp) =
     if e = MyCFG.unknown_exp then (
-      (* TODO: add config option *)
-      (* acc := true; *)
+      acc := true;
       SkipChildren
     )
     else

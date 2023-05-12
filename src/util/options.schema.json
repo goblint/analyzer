@@ -2319,6 +2319,12 @@
                 "cond",
                 "RETURN"
               ]
+            },
+            "goblint": {
+              "title": "witness.invariant.goblint",
+              "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

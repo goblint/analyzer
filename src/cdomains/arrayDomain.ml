@@ -114,9 +114,11 @@ struct
   let invariant ~value_invariant ~offset ~lval x =
     match offset with
     (* invariants for all indices *)
-    | NoOffset ->
+    | NoOffset when get_bool "witness.invariant.goblint" ->
       let i_lval = Cil.addOffsetLval (Index (all_index_exp, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval x
+    | NoOffset ->
+      Invariant.none
     (* invariant for one index *)
     | Index (i, offset) ->
       value_invariant ~offset ~lval x
@@ -226,10 +228,12 @@ struct
       let i_all =
         if Val.is_bot xr then
           Invariant.top ()
-        else (
+        else if get_bool "witness.invariant.goblint" then (
           let i_lval = Cil.addOffsetLval (Index (all_index_exp, NoOffset)) lval in
           value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
         )
+        else
+          Invariant.top ()
       in
       BatList.fold_lefti (fun acc i x ->
           let i_lval = Cil.addOffsetLval (Index (Cil.integer i, NoOffset)) lval in
@@ -762,9 +766,11 @@ struct
   let invariant ~value_invariant ~offset ~lval x =
     match offset with
     (* invariants for all indices *)
-    | NoOffset ->
+    | NoOffset when get_bool "witness.invariant.goblint" ->
       let i_lval = Cil.addOffsetLval (Index (all_index_exp, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
+    | NoOffset ->
+      Invariant.none
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none (* TODO: look up *)
