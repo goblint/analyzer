@@ -683,7 +683,7 @@ let getGlobalInits (file: file) : edges  =
       lval
     in
     let rec any_index_offset = function
-      | Index (e,o) -> Index (ArrayDomain.any_index_exp, any_index_offset o)
+      | Index (e,o) -> Index (Lval.any_index_exp, any_index_offset o)
       | Field (f,o) -> Field (f, any_index_offset o)
       | NoOffset -> NoOffset
     in

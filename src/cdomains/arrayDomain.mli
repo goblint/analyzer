@@ -90,14 +90,3 @@ module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S wit
 
 module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
 (** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
-
-
-val any_index_exp: exp
-(** Special index expression for some unknown index.
-    Weakly updates array in assignment.
-    Used for exp.fast_global_inits. *)
-
-val all_index_exp: exp
-(** Special index expression for all indices.
-    Strongly updates array in assignment.
-    Used for Goblint-specific witness invariants. *)
