@@ -510,9 +510,9 @@ let reset_stats () =
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
   if not (get_bool "g2html" || get_string "outfile" = "") then (
-    if !Goblintutil.out <> Legacy.stdout then
-      Legacy.close_out !Goblintutil.out;
-    Goblintutil.out := Legacy.open_out (get_string "outfile"));
+    if !Messages.out <> Legacy.stdout then
+      Legacy.close_out !Messages.out;
+      Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then

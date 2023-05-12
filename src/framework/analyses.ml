@@ -225,7 +225,7 @@ struct
     List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
-    let out = Messages.get_out result_name !GU.out in
+    let out = Messages.get_out result_name !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "fast_xml" ->

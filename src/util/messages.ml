@@ -172,6 +172,8 @@ let () = AfterConfig.register (fun () ->
 
 let xml_file_name = ref ""
 
+(** The file where everything is output *)
+let out = ref stdout
 
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
