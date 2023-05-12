@@ -54,7 +54,7 @@ struct
   let side_vars ctx lv_opt ty =
     match lv_opt with
     | Some (v, _) ->
-      if !GU.should_warn then
+      if !AnalysisState.should_warn then
         ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
     | None ->
       ()
@@ -66,7 +66,7 @@ struct
       else
         ty
     in
-    if !GU.should_warn then
+    if !AnalysisState.should_warn then
       ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
 

@@ -7,7 +7,7 @@ open GoblintCil
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization then false else
+  if !AnalysisState.global_initialization then false else
   not (ask.f Queries.MustBeSingleThreaded)
 
 

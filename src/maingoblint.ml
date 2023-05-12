@@ -539,7 +539,7 @@ let do_analyze change_info merged_AST =
       try Control.analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
-        Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
+        AnalysisState.should_warn := true; (* such that the `about to crash` message gets printed *)
         let pretty_mark () = match Goblint_backtrace.find_marks e with
           | m :: _ -> Pretty.dprintf " at mark %s" (Goblint_backtrace.mark_to_string m)
           | [] -> Pretty.nil

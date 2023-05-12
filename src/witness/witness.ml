@@ -437,7 +437,7 @@ struct
         let next _ = []
       end
       in
-      if not !Goblintutil.svcomp_may_overflow then
+      if not !AnalysisState.svcomp_may_overflow then
         let module TaskResult =
         struct
           module Arg = Arg
@@ -475,7 +475,7 @@ struct
     )
 
   let write entrystates =
-    match !Goblintutil.verified with
+    match !AnalysisState.verified with
     | Some false -> print_svcomp_result "ERROR (verify)"
     | _ ->
       if get_string "witness.yaml.validate" <> "" then (

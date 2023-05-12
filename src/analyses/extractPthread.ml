@@ -1036,7 +1036,7 @@ module Spec : Analyses.MCPSpec = struct
 
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
-    let context_hash = Int64.of_int (if not !Goblintutil.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
+    let context_hash = Int64.of_int (if not !AnalysisState.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 

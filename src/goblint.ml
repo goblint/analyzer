@@ -65,7 +65,7 @@ let main () =
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
-      if !verified = Some false then exit 3 (* verifier failed! *)
+      if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with
   | Exit ->

@@ -248,7 +248,7 @@ let msg_context () =
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
 let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = Pretty.sprint ~width:max_int doc in
       let loc = match loc with
@@ -263,7 +263,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
     Tracing.mygprintf () fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = Pretty.sprint ~width:max_int doc in
       add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
@@ -274,7 +274,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     Tracing.mygprintf () fmt
 
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
       let group_text = Pretty.sprint ~width:max_int doc in
       let piece_of_msg (doc, loc) =

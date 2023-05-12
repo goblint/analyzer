@@ -224,7 +224,7 @@ struct
 
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    if !GU.global_initialization && e = MyCFG.unknown_exp then
+    if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so env is empty... *)
     else (
       let simplified_e = replace_deref_exps ctx.ask e in
@@ -683,7 +683,7 @@ struct
 
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
-    if !GU.postsolving then begin
+    if !AnalysisState.postsolving then begin
       let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
       let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
 

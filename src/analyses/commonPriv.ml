@@ -130,7 +130,7 @@ struct
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)
-    if !GU.global_initialization then
+    if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
       let ls = ask.f Queries.MustLockset in

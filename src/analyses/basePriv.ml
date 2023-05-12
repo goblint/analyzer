@@ -898,7 +898,7 @@ struct
 
   let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
-    if !GU.global_initialization then
+    if !AnalysisState.global_initialization then
       ThreadIdDomain.Thread.threadinit (global_init_thread ()) ~multiple:false
     else
       ThreadId.get_current_unlift ask
@@ -1632,7 +1632,7 @@ struct
 
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
-    if !GU.postsolving && !is_dumping then
+    if !AnalysisState.postsolving && !is_dumping then
       LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
     v
 

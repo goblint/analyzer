@@ -78,8 +78,8 @@ type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
   let signed = Cil.isSigned ik in
-  if !GU.postsolving && signed && not cast then
-    Goblintutil.svcomp_may_overflow := true;
+  if !AnalysisState.postsolving && signed && not cast then
+    AnalysisState.svcomp_may_overflow := true;
   let sign = if signed then "Signed" else "Unsigned" in
   match underflow, overflow with
   | true, true ->
