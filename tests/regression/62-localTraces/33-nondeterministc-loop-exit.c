@@ -1,5 +1,5 @@
 // NONTERM
-// PARAM: --set ana.activated[+] "localTraces"
+// PARAM:  --set "ana.activated[+]" localTraces --set solver "WLLocTrac" --set warn_at "early" --set verify false
 #include <stdlib.h>
 #include <time.h>
 

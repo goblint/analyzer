@@ -14,17 +14,17 @@ let intMin = -2147483648
 
 
 let add_dependency_from_last_unlock graph mutexVinfo = 
-  let lastNode = LocalTrace.get_last_node graph in 
-  let lastUnlockingNode = LocalTrace.get_last_unlocking_node graph mutexVinfo in
-  if not (Node.equal lastUnlockingNode.programPoint LocalTrace.error_node)
+  let lastNode = LocalTraces.get_last_node graph in 
+  let lastUnlockingNode = LocalTraces.get_last_unlocking_node graph mutexVinfo in
+  if not (Node.equal lastUnlockingNode.programPoint LocalTraces.error_node)
   then
     (
       let depEdge:LocTraceGraph.edge = (lastUnlockingNode,DepMutex (mutexVinfo),lastNode)
       in
-      LocalTrace.extend_by_gEdge graph depEdge
+      LocalTraces.extend_by_gEdge graph depEdge
     )
   else
-    (print_string ("Error: graph has no last unlocking node for mutex "^(CilType.Varinfo.show mutexVinfo)^", graph:\n"^(LocalTrace.show graph)^"\n"); exit 0)
+    (print_string ("Error: graph has no last unlocking node for mutex "^(CilType.Varinfo.show mutexVinfo)^", graph:\n"^(LocalTraces.show graph)^"\n"); exit 0)
 
 
 (* functions for join-check *)
@@ -36,15 +36,15 @@ let is_trace_joinable_symmetric candidate graph prefixNode =
                       | [] -> true
   and
     loop current_prefix =
-    let candidate_pred_edges = LocalTrace.get_predecessors_edges candidate current_prefix
-    in let graph_pred_edges = LocalTrace.get_predecessors_edges graph current_prefix
+    let candidate_pred_edges = LocalTraces.get_predecessors_edges candidate current_prefix
+    in let graph_pred_edges = LocalTraces.get_predecessors_edges graph current_prefix
     in
-    if not (LocalTrace.equal_edge_lists candidate_pred_edges graph_pred_edges) 
+    if not (LocalTraces.equal_edge_lists candidate_pred_edges graph_pred_edges) 
     then (
       false)
     else (
-      (LocalTrace.check_no_multiple_depMutexes 
-         (LocalTrace.merge_edge_lists (LocalTrace.get_successors_edges candidate current_prefix) (LocalTrace.get_successors_edges graph current_prefix)))
+      (LocalTraces.check_no_multiple_depMutexes 
+         (LocalTraces.merge_edge_lists (LocalTraces.get_successors_edges candidate current_prefix) (LocalTraces.get_successors_edges graph current_prefix)))
       &&
       (inner_loop candidate_pred_edges))
   in
@@ -52,10 +52,10 @@ let is_trace_joinable_symmetric candidate graph prefixNode =
 
 (* Checks prefix of two graphs assuming that graph is the creator of candidate *)
 let is_trace_joinable candidate graph creatorTID = 
-  let create_node = LocalTrace.find_creating_node (LocalTrace.get_last_node candidate) candidate
+  let create_node = LocalTraces.find_creating_node (LocalTraces.get_last_node candidate) candidate
   in
-  if not (LocalTrace.exists_node graph create_node) then (
-    print_string ("create_node does not exists in creator-trace with\ncreate_node="^(NodeImpl.show create_node)^"\ngraph="^(LocalTrace.show graph)^"\n");
+  if not (LocalTraces.exists_node graph create_node) then (
+    print_string ("create_node does not exists in creator-trace with\ncreate_node="^(NodeImpl.show create_node)^"\ngraph="^(LocalTraces.show graph)^"\n");
     false) else
     (
       is_trace_joinable_symmetric candidate graph create_node
@@ -71,14 +71,14 @@ let rec find_joinable_traces candidates graph creatorTID  =
 (* Checks whether the locking node of graph is contained in candidate 
    or the unlocking node of candidate is already contained in graph *)
 let check_exists_unlock_lock candidate graph = 
-  (LocalTrace.exists_node graph (LocalTrace.get_last_node candidate)) || (LocalTrace.exists_node candidate (LocalTrace.get_last_node graph))
+  (LocalTraces.exists_node graph (LocalTraces.get_last_node candidate)) || (LocalTraces.exists_node candidate (LocalTraces.get_last_node graph))
 
 (* Checks symmetrically whether candidate and graph have the same prefix while determining the prefix node *)
 let check_prefix candidate graph = 
-  let prefixNode = LocalTrace.get_recent_divergent_node candidate graph
+  let prefixNode = LocalTraces.get_recent_divergent_node candidate graph
   in 
   print_string ("in check_prefix, our prefixNode is "^(NodeImpl.show prefixNode)^"\n");
-  if Node.equal prefixNode.programPoint LocalTrace.error_node then 
+  if Node.equal prefixNode.programPoint LocalTraces.error_node then 
     (print_string "in check_prefix, we got an error_node\n";
      false)
   else
@@ -90,9 +90,9 @@ let check_compatible_lockSets lastCandidateNode lastGraphNode =
 
 (* Helper function for merging of graphs wrt the mutex *)
 let mutexLock_join_helper customGraph candidate mutex_vinfo ctxEdge lockingNode prevNode  =
-  let lastCandidateNode = LocalTrace.get_last_node candidate
+  let lastCandidateNode = LocalTraces.get_last_node candidate
   in
-  let lastGraphNode = LocalTrace.get_last_node customGraph
+  let lastGraphNode = LocalTraces.get_last_node customGraph
   in
   (* perform all pre-checks for merging *)
   if  
@@ -101,18 +101,18 @@ let mutexLock_join_helper customGraph candidate mutex_vinfo ctxEdge lockingNode 
     &&(check_compatible_lockSets lastCandidateNode lastGraphNode) 
   then (
     print_string "mutexLock_join passed all checks\n";
-    let merged_graph = LocalTrace.merge_graphs customGraph candidate
+    let merged_graph = LocalTraces.merge_graphs customGraph candidate
     in
     (* add unlock edge and add dependency edge from candidate end to graph end*)
     let depEdge : node * CustomEdge.t * node = (lastCandidateNode, DepMutex(mutex_vinfo), lockingNode)
     in
-    let result_graph = LocalTrace.extend_by_gEdge merged_graph depEdge
+    let result_graph = LocalTraces.extend_by_gEdge merged_graph depEdge
     in
     (* let myEdge = (prevNode,(EdgeImpl.convert_edge ctxEdge),lockingNode)
        in *)
     (* perform post-check and reject if merged graph did not pass *)
-    if LocalTrace.is_valid_merged_graph result_graph then [result_graph]  
-    else (print_string ("result_graph is not valid\nresult_graph:"^(LocalTrace.show result_graph)^"\n"); [])
+    if LocalTraces.is_valid_merged_graph result_graph then [result_graph]  
+    else (print_string ("result_graph is not valid\nresult_graph:"^(LocalTraces.show result_graph)^"\n"); [])
   )
   else  [] 
 
@@ -132,7 +132,7 @@ let mutexLock_join candidates graph {programPoint=programPoint;id=id;sigma=sigma
 
 (* evaluates global variables *)
 let rec eval_global var graph node  = 
-  let result_node, result_edge = LocalTrace.find_globvar_assign_node var graph node in 
+  let result_node, result_edge = LocalTraces.find_globvar_assign_node var graph node in 
   (match result_edge with 
      (Assign(_, edgeExp)) -> (
        let custom_glob_vinfo = makeVarinfo false "__goblint__traces__custom_nonglobal" (TInt(IInt,[]))
@@ -238,7 +238,7 @@ and
                    [], Lval(Var(var), NoOffset))
                 )
                 else
-                  let randomNr = randomIntGenerator#getRandomValue (LocalTrace.hash graph) var 
+                  let randomNr = randomIntGenerator#getRandomValue (LocalTraces.hash graph) var 
                   in
                   let randomVd = Int((Big_int_Z.big_int_of_int (randomNr)), (Big_int_Z.big_int_of_int (randomNr)),IInt)
                   in
