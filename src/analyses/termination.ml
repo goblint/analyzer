@@ -238,9 +238,8 @@ class loopInstrVisitor (fd : fundec) = object(self)
           let d1 = makeVar fd cur_loop "d1" in
           let d2 = makeVar fd cur_loop "d2" in
           (match stripCastsDeep e with
-            (* J: if x' + e2 or x' - e2 with x' = x and the type arithmetic:
-                  - adds incrementation for d1 and d2 to the code*)
-            (* J: if the loopVar is changed*)
+          (* J: if x' + e2 or x' - e2 with x' = x and the type arithmetic:- adds incrementation for d1 and d2 to the code*)
+          (* J: if the loopVar is changed*)
            | BinOp (op, Lval x', e2, typ) when (op = PlusA || op = MinusA) && x' = x && isArithmeticType typ -> (* TODO x = 1 + x, MinusA! *)
              (* increase diff by same expr *)
              let d1_inc = mkStmtOneInstr @@ Set (var d1, BinOp (PlusA, Lval (var d1), e2, typ), loc, eloc) in (* J: d1 = d1 + e2*)
