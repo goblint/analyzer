@@ -15,13 +15,11 @@ void freadptrinc()
 void freadseek(void)
 {
 	unsigned long total_buffered;
-	int tmp___1;
 	while (total_buffered > 0)
 	{
 		{
 			freadptrinc();
 		}
-		tmp___1 = 0;
 	}
 }
 
