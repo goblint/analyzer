@@ -40,7 +40,7 @@ end
 module Protection =
 struct
   let is_unprotected ask x: bool =
-    let multi = ThreadFlag.is_multi ask in
+    let multi = ThreadFlag.has_ever_been_multi ask in
     (!GU.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
@@ -48,7 +48,7 @@ struct
     )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
-    ThreadFlag.is_multi ask &&
+    ThreadFlag.has_ever_been_multi ask &&
     ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
 
   let is_protected_by ask m x: bool =

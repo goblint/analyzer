@@ -65,7 +65,7 @@ struct
       let escaped = reachable ask rval in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
       if M.tracing then M.tracel "escape" "assign vs: %a | %a\n" D.pretty vs D.pretty escaped;
-      if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
+      if not (D.is_empty escaped) && ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
       D.iter (fun v ->
           ctx.sideg v escaped;
