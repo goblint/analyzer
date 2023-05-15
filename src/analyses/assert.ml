@@ -21,7 +21,7 @@ struct
         | Some b -> `Lifted b
         | None -> `Top
     in
-    let expr = GobPretty.sprint d_exp e in
+    let expr = CilType.Exp.show e in
     let warn warn_fn ?annot msg = if check then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in

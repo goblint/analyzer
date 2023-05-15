@@ -389,8 +389,7 @@ module Variables = struct
   let get_globals () =
     Hashtbl.values !table
     |> List.of_enum
-    |> List.map Set.elements
-    |> List.flatten
+    |> List.concat_map Set.elements
     |> List.filter_map (function
         | Var v when Variable.is_global v ->
           Some v
@@ -844,8 +843,7 @@ module Codegen = struct
         Hashtbl.keys Edges.table
         |> List.of_enum
         |> List.unique
-        |> List.map dot_thread
-        |> List.concat
+        |> List.concat_map dot_thread
       in
       String.concat "\n  " ("digraph file {" :: lines) ^ "}"
     in
@@ -969,7 +967,7 @@ module Spec : Analyses.MCPSpec = struct
       in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
       let pred_str op lhs rhs =
-        let cond_str = lhs ^ " " ^ sprint d_binop op ^ " " ^ rhs in
+        let cond_str = lhs ^ " " ^ CilType.Binop.show op ^ " " ^ rhs in
         if tv then cond_str else "!(" ^ cond_str ^ ")"
       in
 

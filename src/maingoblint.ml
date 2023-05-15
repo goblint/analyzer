@@ -54,7 +54,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
     if Messages.tracing then Tracing.addsystem sys
-    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
     if (get_string "outfile" = "") then
@@ -125,7 +125,7 @@ and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_c
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
   |> List.iter print_endline;
-  raise Exit
+  raise Stdlib.Exit
 
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
@@ -201,14 +201,14 @@ let parse_arguments () =
   begin match !writeconffile with
     | Some writeconffile ->
       GobConfig.write_file writeconffile;
-      raise Exit
+      raise Stdlib.Exit
     | None -> ()
   end;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
-    raise Exit
+    raise Stdlib.Exit
   )
 
 

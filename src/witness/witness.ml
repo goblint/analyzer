@@ -3,6 +3,8 @@ open Graphml
 open Svcomp
 open GobConfig
 
+module M = Messages
+
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
@@ -147,7 +149,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         (* begin match cfgnode with
           | Statement s ->
-            [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
+            [("sourcecode", GobPretty.sprint Basetype.CilStmt.pretty s)] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
         end; *)
         (* violation actually only allowed in violation witness *)
@@ -225,30 +227,38 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       NH.add itered_nodes node ();
       write_node node;
       let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
+      if M.tracing then M.tracei "witness" "iter_node %s\n" (N.to_string node);
       if not is_sink then begin
         let edge_to_nodes =
           Arg.next node
           (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
+          |> List.filter_map (fun ((edge, to_node) as edge_to_node) ->
+              match edge with
+              | MyARG.CFGEdge _ ->
+                Some edge_to_node
+              | InlineEntry (_, f, args) ->
+                Some (InlineEntry (None, f, args), to_node) (* remove lval to avoid duplicate edges in witness *)
+              | InlineReturn (lval, f, _) ->
+                Some (InlineReturn (lval, f, []), to_node) (* remove args to avoid duplicate edges in witness *)
+              | InlinedEdge _
+              | ThreadEntry _ ->
+                None
+            )
+          (* deduplicate after removed lvals/args *)
+          |> BatList.unique_cmp ~cmp:[%ord: MyARG.inline_edge * N.t]
         in
         List.iter (fun (edge, to_node) ->
-            match edge with
-            | MyARG.CFGEdge _
-            | InlineEntry _
-            | InlineReturn _ ->
-              write_node to_node;
-              write_edge node edge to_node
-            | InlinedEdge _
-            | ThreadEntry _ -> ()
+            if M.tracing then M.tracec "witness" "edge %a to_node %s\n" MyARG.pretty_inline_edge edge (N.to_string to_node);
+            write_node to_node;
+            write_edge node edge to_node
           ) edge_to_nodes;
+        if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
         List.iter (fun (edge, to_node) ->
-            match edge with
-            | MyARG.CFGEdge _
-            | InlineEntry _
-            | InlineReturn _ -> iter_node to_node
-            | InlinedEdge _
-            | ThreadEntry _ -> ()
+            iter_node to_node
           ) edge_to_nodes
       end
+      else
+      if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
     end
   in
 

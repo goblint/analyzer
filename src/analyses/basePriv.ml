@@ -226,9 +226,9 @@ struct
     else
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
-    let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
-    r *)
+     let (cpa', v) as r = read_global ask getg cpa x in
+     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
+     r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
     if not invariant then
@@ -236,9 +236,9 @@ struct
     (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
-    let cpa' = write_global ask getg sideg cpa x v in
-    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa');
-    cpa' *)
+     let cpa' = write_global ask getg sideg cpa x v in
+     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa');
+     cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
     if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
@@ -331,9 +331,9 @@ struct
     );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
-    let cpa' = write_global ask getg sideg cpa x v in
-    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa');
-    cpa' *)
+     let cpa' = write_global ask getg sideg cpa x v in
+     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa');
+     cpa' *)
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
     if Locksets.(not (Lockset.mem m (current_lockset ask))) then (

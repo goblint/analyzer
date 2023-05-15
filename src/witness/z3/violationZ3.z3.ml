@@ -76,7 +76,7 @@ struct
     | UnOp (LNot, e, TInt _) ->
       bool_to_int (Boolean.mk_not ctx (int_to_bool (exp_to_expr env e)))
     | e ->
-      failwith @@ Pretty.sprint ~width:max_int @@ Pretty.dprintf "exp_to_expr: %a" Cil.d_exp e
+      failwith @@ GobPretty.sprintf "exp_to_expr: %a" Cil.d_exp e
 
   let get_arg_vname i = Cilfacade.create_var (Cil.makeVarinfo false ("_arg" ^ string_of_int i) Cil.intType) (* TODO: correct type in general *)
   let return_vname = Cilfacade.create_var (Cil.makeVarinfo false "_return" Cil.intType) (* TODO: correct type in general *)
@@ -124,7 +124,7 @@ struct
       (env', [Boolean.mk_eq ctx (Env.get_const env v) (Env.get_const env' return_vname)])
     | _ ->
       (* (env, Boolean.mk_true ctx) *)
-      failwith @@ Pretty.sprint ~width:max_int @@ Pretty.dprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
+      failwith @@ GobPretty.sprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
     assert (Expr.is_const expr);

@@ -1,3 +1,8 @@
 open GoblintCil
 
-let sprint f x = Pretty.sprint ~width:max_int (f () x)
+let show = Pretty.sprint ~width:max_int
+
+let sprint f x = show (f () x)
+
+let sprintf (fmt: ('a, unit, Pretty.doc, string) format4): 'a =
+  Pretty.gprintf show fmt

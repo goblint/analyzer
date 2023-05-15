@@ -799,7 +799,7 @@ struct
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:max_int (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = CilType.Constant.show c in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -1274,7 +1274,7 @@ struct
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
               x
-            | y -> failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local))
+            | y -> failwith (GobPretty.sprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local)
           end
         | _ -> failwith "problem?!"
       end

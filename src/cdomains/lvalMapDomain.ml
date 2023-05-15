@@ -270,13 +270,12 @@ struct
       (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category ~tags "%s" msg
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint ~width:max_int (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
     | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
-    | _ -> Cilfacade.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
+    | _ -> Cilfacade.create_var @@ Cil.makeVarinfo false ("?"^CilType.Lval.show lval) Cil.voidType, `NoOffset (* TODO *)
 
   let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)
