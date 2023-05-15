@@ -110,7 +110,7 @@ struct
     let transform n elem =
       match Addr.to_n_string n elem with
       | Some s -> from_string s
-      | None -> top () in
+      | None -> top_ptr in
     (* maps any StrPtr for which n is valid to the prefix of length n of its content, otherwise maps to top *)
     List.map (transform n) (elements x)
     (* and returns the least upper bound of computed AddressDomain values *)
@@ -142,7 +142,7 @@ struct
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
     if List.exists ((=) None) x' || List.exists ((=) None) y' then
-      top ()
+      top_ptr
     else
       (* else concatenate every string of x' with every string of y' and return the least upper bound *)
       BatList.cartesian_product x' y'
@@ -169,7 +169,7 @@ struct
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
     if List.exists ((=) None) haystack' || List.exists ((=) None) needle' then
-      top ()
+      top_ptr
     else
       (* else try to find the first occurrence of all strings in needle' in all strings s of haystack',
          collect s starting from that occurrence or if there is none, collect a NULL pointer,
@@ -208,6 +208,14 @@ struct
       BatList.cartesian_product x' y'
       |> List.map (fun (s1, s2) -> compare (extract_string s1) (extract_string s2))
       |> List.fold_left Idx.join (Idx.bot_of IInt)
+
+  let string_writing_defined dest =
+    (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
+    if List.exists (fun x -> match x with Some _ -> true | None -> false) (List.map Addr.to_string (elements dest)) then
+      (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
+       false)
+    else
+      true
 
   (* add an & in front of real addresses *)
   module ShortAddr =
