@@ -434,7 +434,7 @@ struct
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
-      if Queries.LS.is_top tainted || not (ctx.ask Queries.MustBeSingleThreaded) then
+      if Queries.LS.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
         D.top ()
       else
         let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in
