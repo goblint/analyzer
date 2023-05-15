@@ -1,5 +1,8 @@
+// PARAM: --disable ana.base.limit-string-addresses --enable ana.int.interval
+
 #include <goblint.h>
 #include <string.h>
+#include <stdlib.h>
 
 void concat_1(char* s, int i) {
     if (i <= 0)
@@ -11,19 +14,16 @@ void concat_1(char* s, int i) {
 
 int main() {
     char* s1 = malloc(40);
-    if (!s1)
-        return 1;
-    strcpy(s1, "hello");
-
-    char s2[] = " world!";
+    strcpy(s1, "hello ");
+    char s2[] = "world!";
     char s3[10] = "abcd";
     char s4[20] = "abcdf";
 
     int i = strlen(s1);
-    __goblint_check(i == 5); // UNKNOWN
+    __goblint_check(i == 6); // UNKNOWN
 
     i = strlen(s2);
-    __goblint_check(i == 7); // UNKNOWN
+    __goblint_check(i == 6); // UNKNOWN
 
     i = strlen(s3);
     __goblint_check(i == 4); // UNKNOWN
@@ -35,10 +35,13 @@ int main() {
     strcpy(s1, "hi ");
     strncpy(s1, s3, 3);
     i = strlen(s1);
-    __goblint_check(i == 7); // UNKNOWN
+    __goblint_check(i == 3); // UNKNOWN
 
-    char* cmp = strstr(s1, " ");
-    i = strcmp(cmp, s3);
+    strcat(s1, "ababcd");
+    char* cmp = strstr(s1, "bab");
+    __goblint_check(cmp != NULL); // UNKNOWN
+
+    i = strcmp(cmp, "babcd"); // WARN: no check if cmp != NULL (even if it obviously is != NULL)
     __goblint_check(i == 0); // UNKNOWN
 
     i = strncmp(s4, s3, 4);
