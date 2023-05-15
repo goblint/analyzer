@@ -740,6 +740,7 @@ let invalidate_actions = [
     "sigaddset", writesAll;(*unsafe*)
     "pthread_sigmask", writesAllButFirst 2 readsAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
+    "_strlen", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
