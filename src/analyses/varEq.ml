@@ -55,13 +55,13 @@ struct
 
       method! vexpr e =
         if Cilfacade.isFloatType (Cilfacade.typeOf e) then
-          raise Exit;
+          raise Stdlib.Exit;
         DoChildren
     end
     in
     match Cil.visitCilExpr visitor e with
     | _ -> false
-    | exception Exit -> true
+    | exception Stdlib.Exit -> true
   let exp_equal e1 e2 =
     CilType.Exp.equal e1 e2 && not (contains_float_subexp e1)
 
