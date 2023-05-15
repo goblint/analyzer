@@ -194,11 +194,11 @@ struct
     let compare s1 s2 =
       let res = String.compare s1 s2 in
       if res = 0 then
-        Idx.of_int IInt (Z.of_int 0)
+        Idx.of_int IInt Z.zero
       else if res > 0 then
-        Idx.starting IInt (Z.of_int 1)
+        Idx.starting IInt Z.one
       else
-        Idx.ending IInt (Z.of_int (-1)) in
+        Idx.ending IInt (Z.neg (Z.one)) in
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
     if List.exists ((=) None) x' || List.exists ((=) None) y' then
