@@ -14,6 +14,7 @@ void freadptrinc()
 void freadseek(void)
 {
 	unsigned long total_buffered;
+	// Evaluation of this loop used to not terminate
 	while (total_buffered > 0)
 	{
 		{
