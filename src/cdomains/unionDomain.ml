@@ -31,7 +31,7 @@ module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
     let bot_name = "If you see this, you are special!"
   end)
 
-module SimpleOld (Values: Arg) =
+module Simple (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
   type value = Values.t
@@ -84,6 +84,9 @@ struct
 
   let of_field ~field ~value : t =
     `Lifted field, value
+
+  let replace m field value =
+    of_field ~field ~value
 
   let invariant ~value_invariant ~offset ~lval (lift_f, v) =
     match offset with
@@ -231,4 +234,129 @@ struct
       Invariant.none
 end
 
-module Simple = Map
+module FlagConfiguredUnionDomain (Val: Arg) : S with type value = Val.t =
+struct
+  include Printable.Std
+  module S = Simple(Val)
+  module MS = Map(Val)
+
+  type field = fieldinfo
+  type value = Val.t
+
+  include Printable.Either (S) (MS)
+
+  let name () = "FlagConfiguredUnionDomain"
+
+  let binop_error = "FlagConfiguredUnionDomain received values where not the same component is set"
+  let config_error = "FlagConfiguredUnionDomain is configured with a non-perimssible value."
+
+  type domain = Simple | Map
+  let chosen_domain = ref None
+  let chosen_domain () = match !chosen_domain with
+    | None ->
+      let domain = match GobConfig.get_string "ana.base.unions.domain" with
+        | "simple" -> Simple
+        | "map" -> Map
+        | _ -> failwith config_error
+      in
+      chosen_domain := Some domain;
+      domain
+    | Some domain -> domain
+
+  let unop_to_t unop_left unop_right u =
+    match chosen_domain () with
+    | Simple -> `Left (unop_left u)
+    | Map -> `Right (unop_right u)
+
+  let unop_of_t unop_left unop_right u =
+    match u with
+    | `Left x -> (unop_left x)
+    | `Right x -> (unop_right x)
+
+  let unop_on_t unop_left unop_right u =
+    match u with
+    | `Left x -> `Left (unop_left x)
+    | `Right x -> `Right (unop_right x)
+
+  let unop unop_left unop_right u =
+    match chosen_domain () with
+    | Simple -> unop_left u
+    | Map -> unop_right u
+
+  let binop_to_t binop_left binop_right x y  =
+    match x, y with
+    | `Left x, `Left y -> `Left (binop_left x y)
+    | `Right x, `Right y -> `Right (binop_right x y)
+    | _ -> failwith binop_error
+
+  let binop binop_left binop_right x y  =
+    match x, y with
+    | `Left x, `Left y -> binop_left x y
+    | `Right x, `Right y -> binop_right x y
+    | _ -> failwith binop_error
+
+  let bot () =
+    unop_to_t S.bot MS.bot ()
+
+  let top () =
+    unop_to_t S.top MS.top ()
+
+  let leq =
+    binop S.leq MS.leq
+
+  let join =
+    binop_to_t S.join MS.join
+
+  let meet =
+    binop_to_t S.meet MS.meet
+
+  let widen =
+    binop_to_t S.widen MS.widen
+
+  let narrow =
+    binop_to_t S.narrow MS.narrow
+
+  let of_field ~field ~value =
+    unop_to_t (fun value -> S.of_field ~field ~value) (fun value -> MS.of_field ~field ~value) value
+
+  let get f v =
+    unop_of_t (S.get f) (MS.get f) v
+
+  let get_field_and_value x =
+    unop_of_t S.get_field_and_value MS.get_field_and_value x
+
+  let is_top =
+    unop_of_t S.is_top MS.is_top
+
+  let is_bot =
+    unop_of_t S.is_bot MS.is_bot
+
+  let replace x fd v =
+    unop_on_t (fun x -> S.replace x fd v) (fun x -> MS.replace x fd v) x
+
+  let map f =
+    unop_on_t (S.map f) (MS.map f)
+
+  let fold (f: fieldinfo option -> value -> 'a -> 'a) (x: t) (acc: 'a) : 'a =
+    let left = (fun x -> S.fold f x acc) in
+    let right =  (fun x -> MS.fold f x acc) in
+    unop_of_t left right x
+
+  let pretty_diff () (x, y) =
+    match x, y with
+    | `Left x, `Left y -> S.pretty_diff () (x, y)
+    | `Right x, `Right y -> MS.pretty_diff () (x, y)
+    | `Left x, `Right y -> Pretty.dprintf "%s: %a not leq %a" (name ()) S.pretty x MS.pretty y
+    | `Right x, `Left y -> Pretty.dprintf "%s: %a not leq %a" (name ()) MS.pretty x S.pretty y
+
+  let invariant ~value_invariant ~offset ~lval = unop_of_t (S.invariant ~value_invariant ~offset ~lval) (MS.invariant ~value_invariant ~offset ~lval)
+
+  let smart_leq ~leq_elem =
+    binop (S.smart_leq ~leq_elem) (MS.smart_leq ~leq_elem)
+
+  let smart_join ~join_elem =
+    binop_to_t (S.smart_join ~join_elem) (MS.smart_join ~join_elem)
+
+  let smart_widen ~widen_elem =
+    binop_to_t (S.smart_widen ~widen_elem) (MS.smart_widen ~widen_elem)
+end

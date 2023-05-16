@@ -755,6 +755,21 @@
               },
               "additionalProperties": false
             },
+            "unions": {
+              "title": "ana.base.unions",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.unions.domain",
+                  "description":
+                    "The domain that should be used for unions. Options: simple/map",
+                  "type": "string",
+                  "enum": ["simple", "map"],
+                  "default": "map"
+                }
+              },
+              "additionalProperties": false
+            },
             "privatization": {
               "title": "ana.base.privatization",
               "description":

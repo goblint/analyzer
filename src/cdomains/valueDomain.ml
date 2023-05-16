@@ -1276,7 +1276,7 @@ end
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
   StructDomain.FlagConfiguredStructDomain (Compound)
 
-and Unions: UnionDomain.S with type value = Compound.t = UnionDomain.Simple (Compound)
+and Unions: UnionDomain.S with type value = Compound.t = UnionDomain.FlagConfiguredUnionDomain (Compound)
 
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
