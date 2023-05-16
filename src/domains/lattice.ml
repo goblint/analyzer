@@ -617,3 +617,43 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
+
+module Option (Base: S) : S with type t = Base.t option =
+struct
+  module Option = Printable.Option (Base) (struct let name = Base.name () end)
+  include Option
+
+  let binop f x y = match x, y with
+    | Some x, Some y -> Some (f x y)
+    | None, Some x
+    | Some x, None -> Some x
+    | None, None -> None
+
+  let leq x y = match x, y with
+    | Some x, Some y -> Base.leq x y
+    | Some x, None -> false
+    | None, _ -> true
+
+  let join x y =
+    binop Base.join x y
+  let meet x y =
+    binop Base.meet x y
+
+  let widen x y =
+    binop Base.widen x y
+  let narrow x y =
+    binop Base.narrow x y
+  let bot () =
+    Some (Base.bot ())
+  let top () =
+    Some (Base.top ())
+  let is_top = function
+    | Some x -> Base.is_top x
+    | None -> false
+  let is_bot = function
+    | Some x -> Base.is_bot x
+    | None -> false (* TODO: Check whether it works with true (and does not produce spurious Deadcode) *)
+
+  let pretty_diff () (x, y) =
+    failwith "not implemented"
+end

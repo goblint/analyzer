@@ -422,6 +422,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
+
 module type MCPA =
 sig
   include Printable.S
@@ -435,6 +436,19 @@ sig
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
+end
+
+module type PostSpec =
+sig
+  include Spec
+  val to_modular : D.t -> D.t
+  val to_non_modular : D.t -> D.t
+end
+module type MCPPostSpec =
+sig
+  include MCPSpec
+  val to_modular : D.t -> D.t
+  val to_non_modular : D.t -> D.t
 end
 
 type increment_data = {

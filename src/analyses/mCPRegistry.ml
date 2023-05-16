@@ -20,6 +20,7 @@ let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
 let register_analysis =
   let count = ref 0 in
   fun ?(dep=[]) (module S:MCPSpec) ->
+    let module S = (val (module ModularWrapper.Spec (S): MCPPostSpec)) in
     let n = S.name () in
     let s = { name = n
             ; dep
