@@ -605,11 +605,12 @@ struct
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
+    let unprotected_after x = ask.f (Q.MayBePublic {global=x; write=true; recoverable=true}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
       let cpa' = CPA.fold (fun x v cpa ->
           (* recoverable is false as after this, we will be multi-threaded *)
-          if is_unprotected ask ~recoverable:false x then
+          if unprotected_after x then
             CPA.remove x cpa
           else
             cpa
