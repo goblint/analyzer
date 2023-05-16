@@ -3,6 +3,8 @@ open Graphml
 open Svcomp
 open GobConfig
 
+module M = Messages
+
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
@@ -147,7 +149,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         (* begin match cfgnode with
           | Statement s ->
-            [("sourcecode", Pretty.sprint 80 (Basetype.CilStmt.pretty () s))] (* TODO: sourcecode not official? especially on node? *)
+            [("sourcecode", GobPretty.sprint Basetype.CilStmt.pretty s)] (* TODO: sourcecode not official? especially on node? *)
           | _ -> []
         end; *)
         (* violation actually only allowed in violation witness *)
@@ -225,19 +227,38 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       NH.add itered_nodes node ();
       write_node node;
       let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
+      if M.tracing then M.tracei "witness" "iter_node %s\n" (N.to_string node);
       if not is_sink then begin
         let edge_to_nodes =
           Arg.next node
           (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
+          |> List.filter_map (fun ((edge, to_node) as edge_to_node) ->
+              match edge with
+              | MyARG.CFGEdge _ ->
+                Some edge_to_node
+              | InlineEntry (_, f, args) ->
+                Some (InlineEntry (None, f, args), to_node) (* remove lval to avoid duplicate edges in witness *)
+              | InlineReturn (lval, f, _) ->
+                Some (InlineReturn (lval, f, []), to_node) (* remove args to avoid duplicate edges in witness *)
+              | InlinedEdge _
+              | ThreadEntry _ ->
+                None
+            )
+          (* deduplicate after removed lvals/args *)
+          |> BatList.unique_cmp ~cmp:[%ord: MyARG.inline_edge * N.t]
         in
         List.iter (fun (edge, to_node) ->
+            if M.tracing then M.tracec "witness" "edge %a to_node %s\n" MyARG.pretty_inline_edge edge (N.to_string to_node);
             write_node to_node;
             write_edge node edge to_node
           ) edge_to_nodes;
+        if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
         List.iter (fun (edge, to_node) ->
             iter_node to_node
           ) edge_to_nodes
       end
+      else
+      if M.tracing then M.traceu "witness" "iter_node %s\n" (N.to_string node);
     end
   in
 
@@ -271,100 +292,11 @@ struct
   open Svcomp
 
   module Query = ResultQuery.Query (SpecSys)
+  module ArgTool = ArgTools.Make (R)
+  module NHT = ArgTool.NHT
 
   let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
-    let get: node * Spec.C.t -> Spec.D.t =
-      fun nc -> LHT.find_default lh nc (Spec.D.bot ())
-    in
-    let ask_indices lvar =
-      let indices = ref [] in
-      ignore (ask_local lvar (Queries.IterVars (fun i ->
-          indices := i :: !indices
-        )));
-      !indices
-    in
-
-    let module CfgNode = Node in
-
-    let module Node =
-    struct
-      type t = MyCFG.node * Spec.C.t * int
-
-      let equal (n1, c1, i1) (n2, c2, i2) =
-        EQSys.LVar.equal (n1, c1) (n2, c2) && i1 = i2
-
-      let hash (n, c, i) = 31 * EQSys.LVar.hash (n, c) + i
-
-      let cfgnode (n, c, i) = n
-
-      let to_string (n, c, i) =
-        (* copied from NodeCtxStackGraphMlWriter *)
-        let c_tag = Spec.C.tag c in
-        let i_str = string_of_int i in
-        match n with
-        | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
-        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
-        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
-
-      (* TODO: less hacky way (without ask_indices) to move node *)
-      let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
-      let move_opt (n, c, i) to_n =
-        match ask_indices (to_n, c) with
-        | [] -> None
-        | [to_i] ->
-          let to_node = (to_n, c, to_i) in
-          BatOption.filter is_live (Some to_node)
-        | _ :: _ :: _ ->
-          failwith "Node.move_opt: ambiguous moved index"
-      let equal_node_context (n1, c1, i1) (n2, c2, i2) =
-        EQSys.LVar.equal (n1, c1) (n2, c2)
-    end
-    in
-
-    let module NHT = BatHashtbl.Make (Node) in
-
-    let (witness_prev_map, witness_prev, witness_next) =
-      let prev = NHT.create 100 in
-      let next = NHT.create 100 in
-      LHT.iter (fun lvar local ->
-          ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
-              let lvar' = (fst lvar, snd lvar, i) in
-              let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
-              NHT.modify_def [] lvar' (fun prevs -> (edge, prev_lvar) :: prevs) prev;
-              NHT.modify_def [] prev_lvar (fun nexts -> (edge, lvar') :: nexts) next
-            )))
-        ) lh;
-
-      (prev,
-        (fun n ->
-          NHT.find_default prev n []), (* main entry is not in prev at all *)
-        (fun n ->
-          NHT.find_default next n [])) (* main return is not in next at all *)
-    in
-    let witness_main =
-      let lvar = WitnessUtil.find_main_entry entrystates in
-      let main_indices = ask_indices lvar in
-      (* TODO: get rid of this hack for getting index of entry state *)
-      assert (List.compare_length_with main_indices 1 = 0);
-      let main_index = List.hd main_indices in
-      (fst lvar, snd lvar, main_index)
-    in
-
-    let module Arg =
-    struct
-      module Node = Node
-      module Edge = MyARG.InlineEdge
-      let main_entry = witness_main
-      let next = witness_next
-    end
-    in
-    let module Arg =
-    struct
-      open MyARG
-      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))
-      include Intra (ArgIntra) (Arg)
-    end
-    in
+    let module Arg = (val ArgTool.create entrystates) in
 
     let find_invariant (n, c, i) =
       let context = {Invariant.default_context with path = Some i} in
@@ -407,18 +339,18 @@ struct
           |> List.exists (fun (_, to_n) -> is_violation to_n)
         in
         let violations =
-          NHT.fold (fun lvar _ acc ->
+          (* TODO: fold_nodes?s *)
+          let acc = ref [] in
+          Arg.iter_nodes (fun lvar ->
               if is_violation lvar then
-                lvar :: acc
-              else
-                acc
-            ) witness_prev_map []
+                acc := lvar :: !acc
+            );
+          !acc
         in
         let module ViolationArg =
         struct
           include Arg
 
-          let prev = witness_prev
           let violations = violations
         end
         in

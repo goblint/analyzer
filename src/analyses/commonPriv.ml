@@ -1,4 +1,5 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open BaseUtil
 module Q = Queries
@@ -39,7 +40,7 @@ end
 module Protection =
 struct
   let is_unprotected ask x: bool =
-    let multi = ThreadFlag.is_multi ask in
+    let multi = ThreadFlag.has_ever_been_multi ask in
     (!GU.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
@@ -47,7 +48,7 @@ struct
     )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
-    ThreadFlag.is_multi ask &&
+    ThreadFlag.has_ever_been_multi ask &&
     ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
 
   let is_protected_by ask m x: bool =
@@ -85,6 +86,7 @@ struct
   struct
     (* TODO: Either3? *)
     include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    let name () = "MutexGlobals"
     let mutex x: t = `Left (`Left x)
     let mutex_inits: t = `Left (`Right ())
     let global x: t = `Right x

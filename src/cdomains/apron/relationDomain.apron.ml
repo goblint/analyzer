@@ -1,6 +1,6 @@
 (** Interfaces/implementations that generalize the apronDomain and affineEqualityDomain. *)
 
-open Prelude
+open Batteries
 open GoblintCil
 
 (** Abstracts the extended apron Var. *)
@@ -162,6 +162,8 @@ struct
 
   include Printable.Std
   open Pretty
+
+  let relift {rel; priv} = {rel = RD.relift rel; priv = PrivD.relift priv}
 
   let show r =
     let first  = RD.show r.rel in

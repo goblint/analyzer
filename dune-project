@@ -28,7 +28,7 @@
     (batteries (>= 3.4.0))
     (zarith (>= 1.8))
     (yojson (>= 2.0.0))
-    qcheck-core
+    (qcheck-core (>= 0.19))
     ppx_deriving
     ppx_deriving_hash
     (ppx_deriving_yojson (>= 3.7.0))
@@ -41,6 +41,7 @@
     json-data-encoding
     (jsonrpc (>= 1.12))
     (sha (>= 1.12))
+    (fileutils (>= 0.6.4))
     cpu
     arg-complete
     yaml

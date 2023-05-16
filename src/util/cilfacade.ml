@@ -18,6 +18,13 @@ let isFloatType t =
   | TFloat _ -> true
   | _ -> false
 
+let rec isVLAType t =
+  match Cil.unrollType t with
+  | TArray (et, len, _) ->
+    let variable_len = GobOption.exists (Fun.negate Cil.isConstant) len in
+    variable_len || isVLAType et
+  | _ -> false
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
@@ -30,7 +37,7 @@ let init () =
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
-  Rmtmps.keepUnused := true;
+  RmUnused.keepUnused := true;
   print_CIL_Input := true
 
 let current_file = ref dummyFile
@@ -50,7 +57,7 @@ let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
 
 let rmTemps fileAST =
-  Rmtmps.removeUnusedTemps fileAST
+  RmUnused.removeUnused fileAST
 
 
 let visitors = ref []
@@ -445,6 +452,8 @@ let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
             VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
             List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
             List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+          | GVarDecl (vi, _) when Cil.isFunctionType vi.vtype ->
+            VarinfoH.replace h vi Function
           | GVar (vi, _, _)
           | GVarDecl (vi, _) ->
             VarinfoH.replace h vi Global

@@ -31,7 +31,7 @@ struct
   let name () = "array partitioning deps"
 end
 
-(** Maintains a set of local variables that need to be weakly updated, because multiple reachbale copies of them may *)
+(** Maintains a set of local variables that need to be weakly updated, because multiple reachable copies of them may *)
 (* exist on the call stack *)
 module WeakUpdates =
 struct
@@ -121,6 +121,9 @@ struct
   let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet PrivD.meet
   let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen PrivD.widen
   let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow PrivD.narrow
+
+  let relift {cpa; deps; weak; priv} =
+    {cpa = CPA.relift cpa; deps = PartDeps.relift deps; weak = WeakUpdates.relift weak; priv = PrivD.relift priv}
 end
 
 module type ExpEvaluator =

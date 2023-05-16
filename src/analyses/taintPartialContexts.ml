@@ -1,7 +1,7 @@
 (* TaintPartialContexts: Set of Lvalues, which are tainted at a specific Node. *)
 (* An Lvalue is tainted, if its Rvalue might have been altered in the context of the current function,
    implying that the Rvalue of any Lvalue not in the set has definitely not been changed within the current context. *)
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -21,7 +21,7 @@ struct
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
     let d = ctx.local in
-    (match lval with 
+    (match lval with
      | (Var v, offs) -> D.add (v, resolve offs) d
      | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
     )
@@ -36,9 +36,18 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* remove locals, except ones which need to be weakly updated*)
     let d = ctx.local in
-    let locals = (f.sformals @ f.slocals) in
-    let locals_noweak = List.filter (fun v_info -> not (ctx.ask (Queries.IsMultiple v_info))) locals in
-    let d_return = if D.is_top d then d else D.filter (fun (v, _) -> not (List.mem v locals_noweak)) d in
+    let d_return =
+      if D.is_top d then
+        d
+      else (
+        let locals = f.sformals @ f.slocals in
+        D.filter (fun (v, _) ->
+            not (List.exists (fun local ->
+                CilType.Varinfo.equal v local && not (ctx.ask (Queries.IsMultiple local))
+              ) locals)
+          ) d
+      )
+    in
     if M.tracing then M.trace "taintPC" "returning from %s: tainted vars: %a\n without locals: %a\n" f.svar.vname D.pretty d D.pretty d_return;
     d_return
 
@@ -47,21 +56,21 @@ struct
     (* Entering a function, all globals count as untainted *)
     [ctx.local, (D.bot ())]
 
-  let combine ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
     if M.tracing then M.trace "taintPC" "combine for %s in TaintPC: tainted: in function: %a before call: %a\n" f.svar.vname D.pretty au D.pretty ctx.local;
-    let d =
-      match lvalOpt with
-      | Some lv -> taint_lval ctx lv
-      | None -> ctx.local 
-    in
-    D.union d au
+    D.union ctx.local au
+
+  let combine_assign ctx (lvalOpt:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    match lvalOpt with
+    | Some lv -> taint_lval ctx lv
+    | None -> ctx.local
 
   let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* perform shallow and deep invalidate according to Library descriptors *)
     let d =
       match lvalOpt with
       | Some lv -> taint_lval ctx lv
-      | None -> ctx.local 
+      | None -> ctx.local
     in
     let desc = LibraryFunctions.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
@@ -86,9 +95,9 @@ struct
     d
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = 
+  let threadenter ctx lval f args =
     [D.bot ()]
-  let threadspawn ctx lval f args fctx = 
+  let threadspawn ctx lval f args fctx =
     match lval with
     | Some lv -> taint_lval ctx lv
     | None -> ctx.local
@@ -107,5 +116,5 @@ let _ =
 module VS = SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All" end)
 
 (* Convert Lval set to (less precise) Varinfo set. *)
-let conv_varset (lval_set : Spec.D.t) : VS.t = 
+let conv_varset (lval_set : Spec.D.t) : VS.t =
   if Spec.D.is_top lval_set then VS.top () else VS.of_list (List.map (fun (v, _) -> v) (Spec.D.elements lval_set))

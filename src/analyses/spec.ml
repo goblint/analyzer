@@ -1,6 +1,7 @@
 (** Analysis by specification file. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module SC = SpecCore
@@ -311,8 +312,8 @@ struct
             (* c_exp=exp *) (* leads to Out_of_memory *)
             match SC.branch_exp c with
             | Some (c_exp,c_tv) ->
-              (* let exp_str = sprint d_exp exp in *) (* contains too many casts, so that matching fails *)
-              let exp_str = sprint d_exp binop in
+              (* let exp_str = CilType.Exp.show exp in *) (* contains too many casts, so that matching fails *)
+              let exp_str = CilType.Exp.show binop in
               let c_str = SC.exp_to_string c_exp in
               let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
               (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)
@@ -414,29 +415,33 @@ struct
         D.edit_callstack (BatList.cons (Option.get !Node.current_node)) ctx.local
       else ctx.local in [m, m]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
     (* M.debug ~category:Analyzer @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
+    (* remove special return var *)
+    D.remove' return_var au
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
       let k = D.key_from_lval lval in
-      (* remove special return var and handle potential overwrites *)
-      let au = D.remove' return_var au (* |> check_overwrite_open k *) in
+      (* handle potential overwrites *)
+      (* |> check_overwrite_open k *)
       (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
       (* TODO what if there is a local with the same name as the global? *)
       if D.V.is_top v then (* returned a local that was top -> just add k as top *)
-        D.add' k v au
+        D.add' k v ctx.local
       else (* v is now a local which is not top or a global which is aliased *)
         let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
         if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
           (* let _ = M.debug ~category:Analyzer @@ vvar.vname^" was a global -> alias" in *)
-          D.alias k vvar au
+          D.alias k vvar ctx.local
         else (* returned variable was a local *)
           let v = D.V.set_key k v in (* adjust var-field to lval *)
           (* M.debug ~category:Analyzer @@ vvar.vname^" was a local -> rebind"; *)
-          D.add' k v au
-    | _ -> au
+          D.add' k v ctx.local
+    | _ -> ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* let _ = GobConfig.set_bool "dbg.debug" false in *)

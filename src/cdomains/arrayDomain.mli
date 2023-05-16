@@ -1,5 +1,6 @@
 open IntOps
 open GoblintCil
+module VDQ = ValueDomainQueries
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
@@ -22,10 +23,10 @@ sig
   val domain_of_t: t -> domain
   (* Returns the domain used for the array*)
 
-  val get: ?checkBounds:bool -> Queries.ask -> t -> Basetype.CilExp.t option * idx -> value
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 
-  val set: Queries.ask -> t -> Basetype.CilExp.t option * idx -> value -> t
+  val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
 
@@ -36,7 +37,7 @@ sig
   val length: t -> idx option
   (** returns length of array if known *)
 
-  val move_if_affected: ?replace_with_const:bool -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   (** changes the way in which the array is partitioned if this is necessitated by a change
     * to the variable **)
 
@@ -55,7 +56,7 @@ sig
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
   val update_length: idx -> t -> t
 
-  val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> Queries.ask -> t -> t
+  val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> VDQ.t -> t -> t
 end
 
 module type LatticeWithSmartOps =

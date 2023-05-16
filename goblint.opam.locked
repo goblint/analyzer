@@ -62,6 +62,7 @@ depends: [
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.12.1"}
   "jsonrpc" {= "1.15.0~5.0preview1"}
+  "fileutils" {= "0.6.4"}
   "logs" {= "0.7.0"}
   "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
@@ -128,7 +129,7 @@ conflicts: [
 pin-depends: [
   [
     "goblint-cil.2.0.1"
-    "git+https://github.com/goblint/cil.git#6137a35a88dbe16c29e77d0138f7f2ae117d228d"
+    "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e"
   ]
   [
     "apron.v0.9.13"

@@ -21,6 +21,7 @@ nav:
     - 🚚 Installing: https://github.com/goblint/analyzer#installing
     - ▶️ Running: user-guide/running.md
     - 🔧 Configuring: user-guide/configuring.md
+    - 🗂️ Options reference: jsfh/options.schema.html
     - 🔍 Inspecting: user-guide/inspecting.md
     - 📝 Annotating: user-guide/annotating.md
     - 🐎 Benchmarking: user-guide/benchmarking.md
@@ -36,3 +37,4 @@ nav:
     - 🚀 Releasing: developer-guide/releasing.md
   - '📦 Artifact descriptions':
     - "🇸 SAS '21": artifact-descriptions/sas21.md
+    - "🇪 ESOP '23": artifact-descriptions/esop23.md

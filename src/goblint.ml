@@ -2,7 +2,6 @@ open Goblint_lib
 open GobConfig
 open Goblintutil
 open Maingoblint
-open Prelude
 open Printf
 
 (** the main function *)
@@ -37,7 +36,7 @@ let main () =
     GoblintDir.init ();
 
     if get_bool "dbg.verbose" then (
-      print_endline (localtime ());
+      print_endline (GobUnix.localtime ());
       print_endline Goblintutil.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
@@ -58,16 +57,18 @@ let main () =
         else
           None
       in
+      (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
+      AutoTune.activateLongjmpAnalysesWhenRequired ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_html_output ();
-      do_gobview ();
+      do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
       if !verified = Some false then exit 3 (* verifier failed! *)
     )
   with
-  | Exit ->
+  | Stdlib.Exit ->
     do_stats ();
     Goblint_timing.teardown_tef ();
     exit 1

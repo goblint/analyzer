@@ -63,12 +63,12 @@ struct
   type t = {
     loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
+    context: (ControlSpecC.t [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
   } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
     match context with
-    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (Hashtbl.hash context) (* TODO: this is kind of useless *)
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.hash context) (* TODO: this is kind of useless *)
     | _ -> text
 end
 
@@ -239,7 +239,7 @@ let add m =
   )
 
 
-let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
+let current_context: ControlSpecC.t option ref = ref None
 
 let msg_context () =
   if GobConfig.get_bool "dbg.warn_with_context" then
@@ -250,7 +250,7 @@ let msg_context () =
 let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
-      let text = Pretty.sprint ~width:max_int doc in
+      let text = GobPretty.show doc in
       let loc = match loc with
         | Some node -> Some node
         | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
@@ -265,7 +265,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
-      let text = Pretty.sprint ~width:max_int doc in
+      let text = GobPretty.show doc in
       add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
     in
     Pretty.gprintf finish fmt
@@ -276,9 +276,9 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
-      let group_text = Pretty.sprint ~width:max_int doc in
+      let group_text = GobPretty.show doc in
       let piece_of_msg (doc, loc) =
-        let text = Pretty.sprint ~width:max_int doc in
+        let text = GobPretty.show doc in
         Piece.{loc; text; context = None}
       in
       add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}

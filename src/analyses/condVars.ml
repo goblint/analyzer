@@ -1,7 +1,8 @@
 (** Must equality between variables and logical expressions. *)
 (* TODO: unused, what is this analysis? *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module Domain = struct
@@ -28,7 +29,7 @@ module Domain = struct
     |> filter_exprs_with_var p
   let remove_var v = filter_vars ((<>) v)
   let remove_fun_locals f d =
-    let p v = not @@ List.mem v (f.sformals @ f.slocals) in
+    let p v = not @@ List.mem_cmp CilType.Varinfo.compare v (f.sformals @ f.slocals) in
     filter_vars p d
   let only_globals d =
     let p v = v.vglob in
@@ -139,12 +140,15 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
     let tainted = TaintPartialContexts.conv_varset (f_ask.f Queries.MayBeTainted) in
     D.only_untainted ctx.local tainted (* tainted globals might have changed... *)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* TODO: shouldn't there be some kind of invalidadte, depending on the effect of the special function? *)

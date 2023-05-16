@@ -282,11 +282,30 @@ and distribute_access_exp f = function
     distribute_access_exp f b;
     distribute_access_exp f t;
     distribute_access_exp f e
+
+  | SizeOf t ->
+    distribute_access_type f t
+
   | Const _
-  | SizeOf _
   | SizeOfStr _
   | AlignOf _
   | AddrOfLabel _ ->
+    ()
+
+and distribute_access_type f = function
+  | TArray (et, len, _) ->
+    Option.may (distribute_access_exp f) len;
+    distribute_access_type f et
+
+  | TVoid _
+  | TInt _
+  | TFloat _
+  | TPtr _
+  | TFun _
+  | TNamed _
+  | TComp _
+  | TEnum _
+  | TBuiltin_va_list _ ->
     ()
 
 let add side e kind conf vo oo a =
@@ -309,6 +328,8 @@ struct
   include Printable.Std
   type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
+  let name () = "access"
+
   let pretty () (conf, kind, node, e, lp) =
     Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
@@ -320,6 +341,9 @@ struct
     )
 
   let conf (conf, _, _, _, _) = conf
+
+  let relift (conf, kind, node, e, a) =
+    (conf, kind, node, e, MCPAccess.A.relift a)
 end
 module AS =
 struct
@@ -330,8 +354,10 @@ struct
 end
 module T =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = acc_typ [@@deriving eq, ord, hash]
+
+  let name () = "acc_typ"
 
   let pretty = d_acct
   include Printable.SimplePretty (
@@ -343,8 +369,10 @@ struct
 end
 module O =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = offs [@@deriving eq, ord, hash]
+
+  let name () = "offs"
 
   let pretty = d_offs
   include Printable.SimplePretty (

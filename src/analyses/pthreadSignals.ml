@@ -1,6 +1,6 @@
 (** Analysis of must-received pthread_signals. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 module LF = LibraryFunctions
 
@@ -9,7 +9,7 @@ struct
   module Signals = SetDomain.ToppedSet (ValueDomain.Addr) (struct let topname = "All signals" end)
   module MustSignals = Lattice.Reverse (Signals)
 
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
   module V = VarinfoV
 
   let name () = "pthreadSignals"
@@ -35,23 +35,6 @@ struct
     List.filter_map ValueDomain.Addr.to_var_may (eval_exp_addr a cv_arg)
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
-
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LF.find f in
@@ -105,7 +88,6 @@ struct
 
   let startstate v = Signals.empty ()
   let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = Signals.empty ()
 end
 

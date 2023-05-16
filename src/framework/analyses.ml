@@ -1,6 +1,6 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
@@ -34,7 +34,7 @@ end
 module Var =
 struct
   type t = Node.t [@@deriving eq, ord, hash]
-  let relift x = x
+  let relift = Node.relift
 
   let printXml f n =
     let l = Node.location n in
@@ -98,6 +98,7 @@ struct
         let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
       end
       )
+    let name () = "contexts"
   end
 
   include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
@@ -317,63 +318,6 @@ struct
 end
 
 
-(** Reference to top-level Control Spec context first-class module. *)
-let control_spec_c: (module Printable.S) ref =
-  let module Failwith = Printable.Failwith (
-    struct
-      let message = "uninitialized control_spec_c"
-    end
-    )
-  in
-  ref (module Failwith: Printable.S)
-
-(** Top-level Control Spec context as static module, which delegates to {!control_spec_c}.
-    This allows using top-level context values inside individual analyses. *)
-module ControlSpecC: Printable.S =
-struct
-  type t = Obj.t (** represents [(val !control_spec_c).t] *)
-
-  (* The extra level of indirection allows calls to this static module to go to a dynamic first-class module. *)
-
-  let name () =
-    let module C = (val !control_spec_c) in
-    C.name ()
-
-  let equal x y =
-    let module C = (val !control_spec_c) in
-    C.equal (Obj.obj x) (Obj.obj y)
-  let compare x y =
-    let module C = (val !control_spec_c) in
-    C.compare (Obj.obj x) (Obj.obj y)
-  let hash x =
-    let module C = (val !control_spec_c) in
-    C.hash (Obj.obj x)
-  let tag x =
-    let module C = (val !control_spec_c) in
-    C.tag (Obj.obj x)
-
-  let show x =
-    let module C = (val !control_spec_c) in
-    C.show (Obj.obj x)
-  let pretty () x =
-    let module C = (val !control_spec_c) in
-    C.pretty () (Obj.obj x)
-  let printXml f x =
-    let module C = (val !control_spec_c) in
-    C.printXml f (Obj.obj x)
-  let to_yojson x =
-    let module C = (val !control_spec_c) in
-    C.to_yojson (Obj.obj x)
-
-  let arbitrary () =
-    let module C = (val !control_spec_c) in
-    QCheck.map ~rev:Obj.obj Obj.repr (C.arbitrary ())
-  let relift x =
-    let module C = (val !control_spec_c) in
-    Obj.repr (C.relift (Obj.obj x))
-end
-
-
 (* Experiment to reduce the number of arguments on transfer functions and allow
    sub-analyses. The list sub contains the current local states of analyses in
    the same order as written in the dependencies list (in MCP).
@@ -451,13 +395,31 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+
+  (* Combine is split into two steps: *)
+
+  (** Combine environment (global variables, mutexes, etc)
+      between local state (first component from enter) and function return.
+
+      This shouldn't yet assign to the lval. *)
+  val combine_env : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+
+  (** Combine return value assignment
+      to local state (result from combine_env) and function return.
+
+      This should only assign to the lval. *)
+  val combine_assign : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+
+  (* Paths as sets: I know this is ugly! *)
+  val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
 module type MCPA =
@@ -470,7 +432,6 @@ end
 module type MCPSpec =
 sig
   include Spec
-  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
@@ -528,6 +489,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
 end
 
@@ -663,6 +625,8 @@ struct
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
+  let paths_as_set ctx = [ctx.local]
+
   module A = UnitA
   let access _ _ = ()
 end
@@ -686,8 +650,11 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     au
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     ctx.local

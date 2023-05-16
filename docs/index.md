@@ -6,14 +6,13 @@ Below is a picture of *Wettlaufweltmeister*, the Goblint organization mascot. Th
 
 <img align="left" width="60%" src="img/wettlaufweltmeister.svg">
 
-1. **Goblint (1342)**
-2. Deagle (1199)
-3. UAutomizer (880)
-4. UGemCutter (785)
-5. UTaipan (745)
-6. Dartagnan (704)
-7. CPAchecker (454)
-8. PeSCo (454)
+1. **Goblint (1304)**
+2. Deagle (1211)
+3. Dartagnan (768)
+4. UAutomizer (756)
+5. UGemCutter (732)
+6. UTaipan (612)
+7. CPAchecker (400)
+8. Locksmith (226)
 9. Theta (205)
-10. Locksmith (234)
-11. ...
+10. ...

@@ -20,12 +20,19 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
+  module BaseAddr = Lval.BaseAddrRepr (Idx)
   module Addr = Lval.NormalLatRepr (Idx)
-  module J = SetDomain.Joined (Addr)
+  module J = (struct
+    include SetDomain.Joined (Addr)
+    let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
+  end)
+  module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.R)
+
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  include DisjointDomain.ProjectiveSet (Addr) (J) (Addr.R)
+  module AddressSet : SetDomain.S with type elt = Addr.t = DisjointDomain.ProjectiveSet (BaseAddr) (OffsetSplit) (BaseAddr.R)
+  include AddressSet
 
   (* short-circuit with physical equality,
      makes a difference at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)

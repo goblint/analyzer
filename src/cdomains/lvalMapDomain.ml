@@ -1,4 +1,4 @@
-open Prelude
+open Batteries
 open GoblintCil
 
 module M = Messages
@@ -69,10 +69,19 @@ struct
   type k = Lval.CilLval.t [@@deriving eq, ord, hash]
   type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
-    include Printable.Blank
+    include Printable.StdLeaf
     type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
-    let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
+
+    let pretty () {key; loc; state} =
+      Pretty.dprintf "{key=%a; loc=%a; state=%s}" Lval.CilLval.pretty key (Pretty.d_list ", " Node.pretty) loc (Impl.string_of_state state)
+
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
   type r = R.t
   open R
@@ -261,13 +270,12 @@ struct
       (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category ~tags "%s" msg
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint ~width:max_int (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
     | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
-    | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
+    | _ -> Goblintutil.create_var @@ Cil.makeVarinfo false ("?"^CilType.Lval.show lval) Cil.voidType, `NoOffset (* TODO *)
 
   let keys_from_lval lval (ask: Queries.ask) = (* use MayPointTo query to get all possible pointees of &lval *)
     (* print_query_lv ctx.ask (AddrOf lval); *)

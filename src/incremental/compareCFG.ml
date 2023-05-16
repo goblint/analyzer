@@ -1,7 +1,6 @@
 open MyCFG
 open Queue
 open GoblintCil
-open CilMaps
 include CompareAST
 
 (*Non propagating version of &&>>. Discards the new rename_mapping and alwas propagates the one in prev_result. However propagates the renames_on_success*)

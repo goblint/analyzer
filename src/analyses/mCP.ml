@@ -1,6 +1,7 @@
 (** Master Control Program *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open GobConfig
 open Analyses
 
@@ -56,7 +57,7 @@ struct
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = find_spec_name x in
         Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
-        raise Exit
+        raise Stdlib.Exit
       end
     in
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
@@ -129,7 +130,6 @@ struct
   let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
-
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
@@ -307,6 +307,8 @@ struct
              (* TODO: only query others that actually respond to EvalInt *)
              (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
              f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+          | Queries.DYojson ->
+            `Lifted (D.to_yojson ctx.local)
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;
@@ -518,11 +520,11 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
+  let combine_env (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "combine" ~spawns ~sides ~emits ctx in
+    let ctx'' = outer_ctx "combine_env" ~spawns ~sides ~emits ctx in
     (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
        Due to context-insensitivity, second list is optional and may only contain a subset of analyses
        in the same order, so some skipping needs to happen to align the three lists.
@@ -538,8 +540,37 @@ struct
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine" ~post_all ctx'' n d in
-      n, repr @@ S.combine ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_env" ~post_all ctx'' n d in
+      n, repr @@ S.combine_env ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
+    in
+    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let combine_assign (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
+    let spawns = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "combine_assign" ~spawns ~sides ~emits ctx in
+    (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
+       Due to context-insensitivity, second list is optional and may only contain a subset of analyses
+       in the same order, so some skipping needs to happen to align the three lists.
+       See https://github.com/goblint/analyzer/pull/578/files#r794376508. *)
+    let rec spec_list3_rev_acc acc l1 l2_opt l3 = match l1, l2_opt, l3 with
+      | [], _, [] -> acc
+      | (n, x) :: l1, Some ((n', y) :: l2), (n'', z) :: l3 when n = n' -> (* context-sensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, Some y, z)) :: acc) l1 (Some l2) l3
+      | (n, x) :: l1, l2_opt, (n'', z) :: l3 -> (* context-insensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
+      | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
+    in
+    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_assign" ~post_all ctx'' n d in
+      n, repr @@ S.combine_assign ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
@@ -574,4 +605,9 @@ struct
     do_sideg ctx !sides;
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
+
+  let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
+
+  (* Just to satisfy signature *)
+  let paths_as_set ctx = [ctx.local]
 end

@@ -1,6 +1,7 @@
 (** Assigning static regions to dynamic memory. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
@@ -137,7 +138,10 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
     | `Lifted reg -> begin
       let old_regpart = ctx.global () in

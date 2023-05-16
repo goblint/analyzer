@@ -25,7 +25,7 @@ depends: [
   "batteries" {>= "3.4.0"}
   "zarith" {>= "1.8"}
   "yojson" {>= "2.0.0"}
-  "qcheck-core"
+  "qcheck-core" {>= "0.19"}
   "ppx_deriving"
   "ppx_deriving_hash"
   "ppx_deriving_yojson" {>= "3.7.0"}
@@ -38,6 +38,7 @@ depends: [
   "json-data-encoding"
   "jsonrpc" {>= "1.12"}
   "sha" {>= "1.12"}
+  "fileutils" {>= "0.6.4"}
   "cpu"
   "arg-complete"
   "yaml"
@@ -74,7 +75,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-distribution != "alpine" & arch != "arm64"
 pin-depends: [
-  [ "goblint-cil.2.0.1" "git+https://github.com/goblint/cil.git#6137a35a88dbe16c29e77d0138f7f2ae117d228d" ]
+  [ "goblint-cil.2.0.1" "git+https://github.com/goblint/cil.git#4df989fe625d91ce07d94afe1d85b3b5c6cdd63e" ]
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   # TODO: add back after release, only pinned for CI stability

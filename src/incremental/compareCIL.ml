@@ -287,7 +287,7 @@ let addOldGlobals name gc_old (change_info, final_matches) =
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
-    then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
+    then Some Batteries.(CfgTools.getCFG oldAST |> Tuple3.first, CfgTools.getCFG newAST |> Tuple3.get12)
     else None in
 
   let addGlobal map global =

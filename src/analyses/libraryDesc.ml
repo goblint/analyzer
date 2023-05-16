@@ -62,6 +62,8 @@ type special =
   | Strcpy of { dest: Cil.exp; src: Cil.exp } (* TODO: add count for strncpy when actually used *)
   | Abort
   | Identity of Cil.exp (** Identity function. Some compiler optimization annotation functions map to this. *)
+  | Setjmp of { env: Cil.exp; }
+  | Longjmp of { env: Cil.exp; value: Cil.exp; }
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 

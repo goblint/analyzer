@@ -27,24 +27,8 @@ let assert_not_leq x y =
 let assert_equal x y =
   assert_equal ~cmp:LV.equal ~printer:LV.show x y
 
-
-let test_equal_0 _ =
-  assert_equal a_lv a_lv_0
-
-let test_compare_0 _ =
-  assert_bool "test_compare_0" @@ (LV.compare a_lv a_lv_0 = 0)
-
-let test_hash_0 _ =
-  assert_bool "test_hash_0" @@ (LV.hash a_lv = LV.hash a_lv_0)
-
-let test_leq_0 _ =
-  assert_leq a_lv a_lv_0;
-  assert_leq a_lv_0 a_lv
-
 let test_join_0 _ =
-  assert_equal a_lv_top (LV.join a_lv_0 a_lv_1);
-  skip_if true "TODO";
-  assert_equal a_lv_top (LV.join a_lv a_lv_1) (* TODO *)
+  assert_equal a_lv_top (LV.join a_lv_0 a_lv_1)
 
 let test_leq_not_0 _ =
   assert_leq a_lv_1 a_lv_not_0;
@@ -55,10 +39,6 @@ let test_leq_not_0 _ =
 
 let test () =
   "lvalTest" >::: [
-    "test_equal_0" >:: test_equal_0;
-    "test_compare_0" >:: test_compare_0;
-    "test_hash_0" >:: test_hash_0;
     "test_join_0" >:: test_join_0;
-    "test_leq_0" >:: test_leq_0;
     "test_leq_not_0" >:: test_leq_not_0;
   ]
