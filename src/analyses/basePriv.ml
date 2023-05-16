@@ -596,12 +596,9 @@ struct
     {st with cpa= cpa_local }
 
   let threadenter ask (st: BaseComponents (D).t): BaseComponents (D).t =
-    (* Copy-paste from Base make_entry *)
-    let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
-    (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
-    let new_cpa = globals in
+    (* We cannot copy over protected things, the thread may start with things privatized that are overwritten before becoming public *)
     let _,lmust,l = st.priv in
-    {st with cpa = new_cpa; priv = (W.bot (),lmust,l)}
+    {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in

@@ -17,7 +17,7 @@ void *t_benign(void *arg) {
 
 void *t_benign2(void *arg) {
   pthread_mutex_lock(&A);
-  __goblint_check(g == 30); //TODO (does not work as 20 from parent thread is potentially read)
+  __goblint_check(g == 30); //UNKNOWN!
   g = 10;
   __goblint_check(g == 10);
   pthread_mutex_unlock(&A);
@@ -42,6 +42,7 @@ int main(void) {
   g = 30;
   pthread_create(&id2, NULL, t_benign2, NULL);
   __goblint_check(g == 30);
+  g = 40;
   pthread_mutex_unlock(&A);
 
   return 0;
