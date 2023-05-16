@@ -16,8 +16,9 @@
   You can vary the linker and compiler jobs depending on your memory and CPU to improve the performance for "sudo ninja install"
   You can see the free memory with "free -h --giga"
 • "sudo ninja install"
-• Use "clang-tidy -checks=-*,readability-remove-function-body -fix --fix-errors -config="{CheckOptions: {readability-remove-function-body.RemoveOnlyFunctionName: ''}}" test.c --"
-  For RemoveOnlyFunctionName you can use '' to strip all bodies. Alternativly use 'functionName' or 'functionName1, functionName2' to specify the target functions
+• Use "clang-tidy -checks=-*,readability-remove-function-body -fix --fix-errors -config="{CheckOptions: {readability-remove-function-body.RemoveOnlyFunctionName: ''}}" -line-filter='[{"name":"test.c","lines":[[4,4],[14,14]]}]' test.c --"
+  For RemoveOnlyFunctionName you can use '' to strip all bodies. Alternativly use 'functionName1, functionName2' to specify the target functions
+  Additionaly you can specify which lines should be considered with the -line-filter option. To find all possible lines run without -fix --fix-errors.
 
 */
 
@@ -51,18 +52,6 @@ void RemoveFunctionBodyCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
-    void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
-    const FunctionDecl *FD = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
-    const std::vector<const FunctionDecl *> &Decls = Result.Nodes.getNodeAsAll<const FunctionDecl>("remove_function_body"); // Filter by binding
-    int index = -1;
-    for (int i = 0; i < Decls.size(); i++) {
-        if (FD == Decls[i]) {
-        index = i;
-        break;
-        }
-    }
-    assert(index >= 0 && "Matched function not found in translation unit");
-
     auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("remove_function_body");
     // Remove the function body
     std::string Replacement = " {\n\t// Stripped function of its body\n";
@@ -88,7 +77,7 @@ void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
     SourceLocation End = MatchedDecl->getBodyRBrace();
     auto Range = CharSourceRange::getCharRange(Start, End);
     diag(Start, "Function %0 with index %1 has been stripped of its body")
-        << MatchedDecl << index
+        << MatchedDecl
         << FixItHint::CreateReplacement(Range, Replacement);
 }
 
