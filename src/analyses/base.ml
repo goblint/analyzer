@@ -430,7 +430,7 @@ struct
       | `Thread ->
         true
       | _ ->
-        ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
+        ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
     if (!GU.earlyglobs || multi) && not ((Analyses.ask_of_ctx ctx).f IsModular) then
@@ -446,7 +446,7 @@ struct
     ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
-    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x && not (a.f IsModular) then
+    if (!GU.earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x && not (a.f IsModular) then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
@@ -1207,7 +1207,7 @@ struct
     in
 
     if CilLval.Set.is_top context.Invariant.lvals then (
-      if !GU.earlyglobs || ThreadFlag.is_multi ask then (
+      if !GU.earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
           CPA.fold (fun k v a ->
               if not (is_global ask k) then
@@ -1495,7 +1495,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
+      if (!GU.earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
@@ -1992,7 +1992,7 @@ struct
            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
           ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
         Priv.threadenter (Analyses.ask_of_ctx ctx) st
       ) else
@@ -2628,14 +2628,14 @@ struct
               let asked' = Queries.Set.add anyq asked in
               let r: a Queries.result =
                 match q with
-                | MustBeSingleThreaded when single -> true
+                | MustBeSingleThreaded _ when single -> true
                 | MayEscape _
                 | MayBePublic _
                 | MayBePublicWithout _
                 | MustBeProtectedBy _
                 | MustLockset
                 | MustBeAtomic
-                | MustBeSingleThreaded
+                | MustBeSingleThreaded _
                 | MustBeUniqueThread
                 | CurrentThreadId
                 | MayBeThreadReturn
@@ -2741,10 +2741,10 @@ struct
   let event ctx e octx =
     let st: store = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
-    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->

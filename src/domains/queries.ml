@@ -70,7 +70,7 @@ type _ t =
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LS.t t
   | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: MustBool.t t
+  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
@@ -139,7 +139,7 @@ struct
     | IsHeapVar _ -> (module MayBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
-    | MustBeSingleThreaded -> (module MustBool)
+    | MustBeSingleThreaded _ -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
@@ -203,7 +203,7 @@ struct
     | IsHeapVar _ -> MayBool.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
-    | MustBeSingleThreaded -> MustBool.top ()
+    | MustBeSingleThreaded _ -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
@@ -259,7 +259,7 @@ struct
     | Any (MustBeProtectedBy _) -> 9
     | Any MustLockset -> 10
     | Any MustBeAtomic -> 11
-    | Any MustBeSingleThreaded -> 12
+    | Any (MustBeSingleThreaded _)-> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
     | Any MayBeThreadReturn -> 15
@@ -342,6 +342,7 @@ struct
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (EvalLval e1), Any (EvalLval e2) -> CilType.Lval.compare e1 e2
       | Any (ReachableAddressesFrom e1), Any (ReachableAddressesFrom e2) -> CilType.Exp.compare e1 e2
+      | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -378,6 +379,7 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
+    | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -399,7 +401,7 @@ struct
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
     | Any MustLockset -> Pretty.dprintf "MustLockset"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
-    | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
+    | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
