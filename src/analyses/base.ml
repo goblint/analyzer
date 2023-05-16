@@ -2438,7 +2438,7 @@ struct
       | None -> ()
     end;
     (* D.join ctx.local @@ *)
-    ctx.local
+    Priv.threadspawn (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local
 
   let unassume (ctx: (D.t, _, _, _) ctx) e uuids =
     (* TODO: structural unassume instead of invariant hack *)

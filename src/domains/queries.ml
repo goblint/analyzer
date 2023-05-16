@@ -37,9 +37,9 @@ module MustBool = BoolDomain.MustBool
 module Unit = Lattice.Unit
 
 (* Helper definitions for deriving complex parts of Any.compare below. *)
-type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type maybepublic = {global: CilType.Varinfo.t; write: bool; recoverable: bool} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; recoverable: bool} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; recoverable: bool} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
 type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} [@@deriving ord, hash]
 type access =

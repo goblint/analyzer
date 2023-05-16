@@ -36,6 +36,7 @@ sig
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
+  val threadspawn: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
@@ -82,6 +83,7 @@ struct
   let escape ask getg sideg st escaped = st
   let enter_multithreaded ask getg sideg st = st
   let threadenter = old_threadenter
+  let threadspawn ask getg sideg st = st
 
   let iter_sys_vars getg vq vf =
     match vq with
@@ -204,6 +206,7 @@ struct
     {st with cpa = cpa'}
 
   let threadenter = old_threadenter
+  let threadspawn ask get set st = st
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
@@ -403,6 +406,12 @@ struct
 
   let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2
 
+  let update_if_mem var value m =
+    if CPA.mem var m then
+      CPA.add var value m
+    else
+      m
+
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
     let r = if not inits then
@@ -417,7 +426,7 @@ struct
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
-    let is_in_Gm x _ = is_protected_by ask m x in
+    let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
           CPA.join acc (CPA.filter is_in_Gm v)
@@ -432,7 +441,7 @@ struct
         get_m
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-        let is_in_Gm x _ = is_protected_by ask m x in
+        let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
         let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
         CPA.join get_m get_mutex_inits'
     in
@@ -443,7 +452,7 @@ struct
     let lm = LLock.global x in
     let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg x in
     let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
-    if is_unprotected ask x then
+    if is_unprotected ask ~recoverable:true x then
       (* We can not rely upon the old value here, it may be too small due to reuse at widening points (and or nice bot/top confusion) in Base *)
       CPA.find x (CPA.join tmp local_m)
     else
@@ -451,14 +460,14 @@ struct
 
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ~recoverable:true ask x) CPA.pretty st.cpa VD.pretty v;
     v
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let w,lmust,l = st.priv in
     let lm = LLock.global x in
     let cpa' =
-      if is_unprotected ask x then
+      if is_unprotected ask ~recoverable:true x then
         st.cpa
       else
         CPA.add x v st.cpa
@@ -467,6 +476,13 @@ struct
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
+    let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
+    let l' = if is_recovered_st then
+        (* update value of local record for all where it appears *)
+        L.map (update_if_mem x v) l'
+      else
+        l'
+    in
     sideg (V.global x) (G.create_global sidev);
     {st with cpa = cpa'; priv = (W.add x w,LMust.add lm lmust,l')}
 
@@ -476,9 +492,10 @@ struct
       let lm = LLock.mutex m in
       let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
       let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
-      let is_in_Gm x _ = is_protected_by ask m x in
+      let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
       let local_m = CPA.filter is_in_Gm local_m in
-      let meet = long_meet st.cpa (CPA.join get_m local_m) in
+      let r = CPA.join get_m local_m in
+      let meet = long_meet st.cpa r in
       {st with cpa = meet}
     )
     else
@@ -487,18 +504,18 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let w,lmust,l = st.priv in
     let cpa' = CPA.fold (fun x v cpa ->
-        if is_protected_by ask m x && is_unprotected_without ask x m then
+        if is_protected_by ~recoverable:true ask m x && is_unprotected_without ~recoverable:true ask x m then
           CPA.remove x cpa
         else
           cpa
       ) st.cpa st.cpa
     in
-    let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
-    let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
+    let w' = W.filter (fun v -> not (is_unprotected_without ~recoverable:true ask v m)) w in
+    let side_needed = W.exists (fun v -> is_protected_by ~recoverable:true ask m v) w in
     if not side_needed then
       {st with cpa = cpa'; priv = (w',lmust,l)}
     else
-      let is_in_Gm x _ = is_protected_by ask m x in
+      let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid (CPA.filter is_in_Gm st.cpa) in
       sideg (V.mutex m) (G.create_mutex sidev);
@@ -585,6 +602,21 @@ struct
     let new_cpa = globals in
     let _,lmust,l = st.priv in
     {st with cpa = new_cpa; priv = (W.bot (),lmust,l)}
+
+  let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
+    let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
+    if is_recovered_st then
+      (* Remove all things that are now unprotected *)
+      let cpa' = CPA.fold (fun x v cpa ->
+          (* recoverable is false as after this, we will be multi-threaded *)
+          if is_unprotected ask ~recoverable:false x then
+            CPA.remove x cpa
+          else
+            cpa
+        ) st.cpa st.cpa
+      in
+      {st with cpa = cpa'}
+    else st
 
   let read_unprotected_global getg x =
     let get_mutex_global_x = merge_all @@ G.mutex @@ getg (V.global x) in
@@ -739,6 +771,7 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+  let threadspawn ask get set st = st
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
@@ -865,6 +898,7 @@ struct
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
+  let threadspawn ask get set st = st
 end
 
 module MineNaivePrivBase =
@@ -1604,6 +1638,7 @@ struct
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
+  let threadspawn ask get set st = time "threadspawn" (Priv.threadspawn ask get set) st
   let iter_sys_vars getg vq vf = time "iter_sys_vars" (Priv.iter_sys_vars getg vq) vf
   let invariant_global getg v = time "invariant_global" (Priv.invariant_global getg) v
   let invariant_vars ask getg st = time "invariant_vars" (Priv.invariant_vars ask getg) st

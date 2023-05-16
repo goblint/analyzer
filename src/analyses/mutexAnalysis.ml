@@ -54,7 +54,7 @@ struct
       module WriteRecover =
       struct
         include G0
-        let name () = "writeNoRecover"
+        let name () = "writeRecover"
       end
       include Lattice.Prod4 (ReadWriteNoRecover) (WriteNoRecover) (ReadWriteRecover) (WriteRecover)
     end
@@ -126,7 +126,11 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let check_fun ~write ~recover ls =
       let locks = Lockset.export_locks ls in
-      if write then (Mutexes.bot (), locks, Mutexes.bot (), if recover then locks else Mutexes.bot ()) else (locks, Mutexes.bot (), (if recover then locks else Mutexes.bot ()), Mutexes.bot ())
+      let rw,w = if write then (Mutexes.bot (),locks) else (locks, Mutexes.bot ()) in
+      if recover then
+        (Mutexes.bot (), Mutexes.bot (), rw, w)
+      else
+        (rw, w, Mutexes.bot (), Mutexes.bot ())
     in
     let non_overlapping locks1 locks2 =
       let intersect = GProtecting.join locks1 locks2 in
@@ -134,24 +138,24 @@ struct
     in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
-    | Queries.MayBePublic {global=v; write} ->
-      let held_locks: GProtecting.t = check_fun ~write ~recover:false (Lockset.filter snd ctx.local) in
+    | Queries.MayBePublic {global=v; write; recoverable} ->
+      let held_locks: GProtecting.t = check_fun ~write ~recover:recoverable (Lockset.filter snd ctx.local) in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
       else *)
       non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
-    | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
-      let held_locks: GProtecting.t = check_fun ~write ~recover:false  (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
+    | Queries.MayBePublicWithout {global=v; write; without_mutex; recoverable} ->
+      let held_locks: GProtecting.t = check_fun ~write ~recover:recoverable (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
       non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
-    | Queries.MustBeProtectedBy {mutex; global; write} ->
+    | Queries.MustBeProtectedBy {mutex; global; write; recoverable} ->
       let mutex_lockset = Lockset.singleton (mutex, true) in
-      let held_locks: GProtecting.t = check_fun ~write ~recover:false mutex_lockset in
+      let held_locks: GProtecting.t = check_fun ~write ~recover:recoverable mutex_lockset in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex verifier_atomic then
         true
