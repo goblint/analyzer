@@ -25,6 +25,11 @@ module EvalAssert = struct
   (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
   let surroundByAtomic = true
 
+  (* variable for generating __goblint_check(exp) instead of __VERIFIER_assert(exp) *)
+  let goblintCheck () = GobConfig.get_bool "trans.goblint-check"
+
+  (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
+  let ass () = if goblintCheck then makeVarinfo true "__goblint_check" (TVoid []) else makeVarinfo true "__VERIFIER_assert" (TVoid []) in
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
@@ -35,8 +40,6 @@ module EvalAssert = struct
     (* TODO: handle witness.invariant.loop-head *)
     val emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
     val emit_other = GobConfig.get_bool "witness.invariant.other"
-    (* variable for generating __goblint_check(exp) instead of __VERIFIER_assert(exp) *)
-    val goblintCheck = GobConfig.get_bool "trans.goblint-check"
 
     method! vstmt s =
       let is_lock exp args =
@@ -48,10 +51,6 @@ module EvalAssert = struct
            | _ -> false)
         | _ -> false
       in
-
-      (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-      (* Moved in method because Options can not be checked in the module *)
-      let ass = if goblintCheck then makeVarinfo true "__goblint_check" (TVoid []) else makeVarinfo true "__VERIFIER_assert" (TVoid []) in
 
       let make_assert ~node loc lval =
         let lvals = match lval with
