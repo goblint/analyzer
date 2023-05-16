@@ -1,3 +1,5 @@
+//PARAM: --enable sem.unknown_function.spawn
+
 #include <pthread.h>
 #include <goblint.h>
 

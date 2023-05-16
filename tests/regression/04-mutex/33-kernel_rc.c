@@ -1,4 +1,4 @@
-// PARAM: --set kernel true --set mainfun[+] "'test_init'"
+// PARAM: --set kernel true --set mainfun[+] "'test_init'" --enable sem.unknown_function.spawn
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/init.h>

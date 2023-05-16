@@ -1,3 +1,4 @@
+//PARAM: --enable sem.unknown_function.spawn
 #include<pthread.h>
 
 extern void foo(int (*callback)());
