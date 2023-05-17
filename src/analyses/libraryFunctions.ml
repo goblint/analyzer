@@ -19,6 +19,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+    (* TODO: Do we need accessKind of "r" for "free" or is "f" alone already sufficient? *)
     ("free", special [__ "ptr" [r; f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
