@@ -29,18 +29,18 @@ struct
     match ctx.local with
     | Some local ->
       Some { ask = ctx.ask
-      ; emit = ctx.emit
-      ; node = ctx.node
-      ; prev_node = ctx.prev_node
-      ; control_context = ctx.control_context
-      ; context = (fun () -> Option.get (ctx.context ()))
-      ; edge = ctx.edge
-      ; local
-      ; global = ctx.global
-      ; spawn = ctx.spawn
-      ; split = (fun d events -> ctx.split (Some d) events)
-      ; sideg = ctx.sideg
-      }
+           ; emit = ctx.emit
+           ; node = ctx.node
+           ; prev_node = ctx.prev_node
+           ; control_context = ctx.control_context
+           ; context = (fun () -> Option.get (ctx.context ()))
+           ; edge = ctx.edge
+           ; local
+           ; global = ctx.global
+           ; spawn = ctx.spawn
+           ; split = (fun d events -> ctx.split (Some d) events)
+           ; sideg = ctx.sideg
+           }
     | _ ->
       None
 
@@ -158,4 +158,4 @@ struct
 end
 
 (* let _ =
-  MCP.register_analysis (module Spec : MCPSpec) *)
+   MCP.register_analysis (module Spec : MCPSpec) *)
