@@ -1,6 +1,8 @@
 (** Contains most of the implementation of the original apronDomain, but now solely operates with functions provided by relationDomain. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 open RelationDomain
 
@@ -41,7 +43,7 @@ struct
   (* Functions for manipulating globals as temporary locals. *)
 
   let read_global ask getg st g x =
-    if ThreadFlag.is_multi ask then
+    if ThreadFlag.has_ever_been_multi ask then
       Priv.read_global ask getg st g x
     else (
       let rel = st.rel in
@@ -76,7 +78,7 @@ struct
     let e' = visitCilExpr visitor e in
     let rel = RD.add_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
-        if M.tracing then M.trace "relation" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
+        if M.tracing then M.trace "relation" "read_global %a %a\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins rel
     in
@@ -116,7 +118,7 @@ struct
     rel''
 
   let write_global ask getg sideg st g x =
-    if ThreadFlag.is_multi ask then
+    if ThreadFlag.has_ever_been_multi ask then
       Priv.write_global ask getg sideg st g x
     else (
       let rel = st.rel in
@@ -141,7 +143,7 @@ struct
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
         let st' = {st with rel = f st v_out} in (* g#out = e; *)
-        if M.tracing then M.trace "relation" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
+        if M.tracing then M.trace "relation" "write_global %a %a\n" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let rel'' = RD.remove_vars st'.rel [RV.local v_out] in (* remove temporary g#out *)
         {st' with rel = rel''}
@@ -230,7 +232,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
-              if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" d_varinfo v d_exp e' d_plainexp e';
+              if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)\n" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
               if M.tracing then M.trace "relation" "st: %a\n" RD.pretty apr';
               let r = RD.assign_exp apr' (RV.local v) e' (no_overflow ask simplified_e) in
               if M.tracing then M.traceu "relation" "-> %a\n" RD.pretty r;
@@ -274,8 +276,8 @@ struct
   let enter ctx r f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
-    if M.tracing then M.tracel "combine" "relation enter f: %a\n" d_varinfo f.svar;
-    if M.tracing then M.tracel "combine" "relation enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
+    if M.tracing then M.tracel "combine" "relation enter f: %a\n" CilType.Varinfo.pretty f.svar;
+    if M.tracing then M.tracel "combine" "relation enter formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
     if M.tracing then M.tracel "combine" "relation enter local: %a\n" D.pretty ctx.local;
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
@@ -354,8 +356,8 @@ struct
     let st = ctx.local in
     let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let fundec = Node.find_fundec ctx.node in
-    if M.tracing then M.tracel "combine" "relation f: %a\n" d_varinfo f.svar;
-    if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," d_varinfo) f.sformals;
+    if M.tracing then M.tracel "combine" "relation f: %a\n" CilType.Varinfo.pretty f.svar;
+    if M.tracing then M.tracel "combine" "relation formals: %a\n" (d_list "," CilType.Varinfo.pretty) f.sformals;
     if M.tracing then M.tracel "combine" "relation args: %a\n" (d_list "," d_exp) args;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
@@ -534,7 +536,7 @@ struct
     let scope = Node.find_fundec ctx.node in
 
     let (apr, e_inv) =
-      if ThreadFlag.is_multi ask then (
+      if ThreadFlag.has_ever_been_multi ask then (
         let priv_vars =
           if keep_global then
             Priv.invariant_vars ask ctx.global ctx.local
@@ -615,7 +617,7 @@ struct
          Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
          sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
          EnterMultithreaded events only execute after threadenter and threadspawn. *)
-      if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+      if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
       let arg_vars =
@@ -636,9 +638,9 @@ struct
   let event ctx e octx =
     let st = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
-    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->

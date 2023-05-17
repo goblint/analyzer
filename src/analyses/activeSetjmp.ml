@@ -1,6 +1,6 @@
 (** Analysis tracking which setjmp(s) are currently active *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =

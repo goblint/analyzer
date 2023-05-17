@@ -1,4 +1,5 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open GobConfig
 open BaseUtil
@@ -175,7 +176,7 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
           sideg (V.global x) (CPA.singleton x v);
           CPA.remove x acc
         )
@@ -191,8 +192,8 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" d_varinfo x;
-          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" d_varinfo x VD.pretty v;
+          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a\n" CilType.Varinfo.pretty x;
+          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
           sideg (V.global x) (CPA.singleton x v);
           CPA.remove x acc
         )
@@ -225,9 +226,9 @@ struct
     else
       CPA.find x st.cpa
   (* let read_global ask getg cpa x =
-    let (cpa', v) as r = read_global ask getg cpa x in
-    ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" d_varinfo x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
-    r *)
+     let (cpa', v) as r = read_global ask getg cpa x in
+     ignore (Pretty.printf "READ GLOBAL %a (%a, %B) = %a\n" CilType.Varinfo.pretty x CilType.Location.pretty !Tracing.current_loc (is_unprotected ask x) VD.pretty v);
+     r *)
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' = CPA.add x v st.cpa in
     if not invariant then
@@ -235,9 +236,9 @@ struct
     (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
-    let cpa' = write_global ask getg sideg cpa x v in
-    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
-    cpa' *)
+     let cpa' = write_global ask getg sideg cpa x v in
+     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa');
+     cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
     if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
@@ -314,7 +315,7 @@ struct
       CPA.find x st.cpa
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" d_varinfo x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
     v
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' =
@@ -324,15 +325,15 @@ struct
         CPA.add x v st.cpa
     in
     if not invariant then (
-      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
       sideg (V.global x) (CPA.singleton x v)
       (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write. *)
     );
     {st with cpa = cpa'}
   (* let write_global ask getg sideg cpa x v =
-    let cpa' = write_global ask getg sideg cpa x v in
-    ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
-    cpa' *)
+     let cpa' = write_global ask getg sideg cpa x v in
+     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" CilType.Varinfo.pretty x VD.pretty v CPA.pretty cpa');
+     cpa' *)
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
     if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
@@ -369,12 +370,12 @@ struct
 
       let cpa' = CPA.fold (fun x v cpa ->
           if is_global ask x && is_unprotected ask x (* && not (VD.is_top v) *) then (
-            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
+            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
             sideg (V.global x) (CPA.singleton x v);
             CPA.remove x cpa
           )
           else (
-            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a\n" d_varinfo x VD.pretty v;
+            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
             cpa
           )
         ) st.cpa st.cpa
@@ -450,7 +451,7 @@ struct
 
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" d_varinfo x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
     v
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -462,7 +463,7 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
@@ -554,7 +555,7 @@ struct
     sideg V.mutex_inits (G.create_mutex sidev);
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" CilType.Varinfo.pretty x VD.pretty v;
           let sidev = GMutex.singleton tid (CPA.singleton x v) in
           sideg (V.global x) (G.create_global sidev);
           CPA.remove x acc
@@ -1370,7 +1371,7 @@ struct
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then (
           let w_x = W.find x w in
-          if M.tracing then M.trace "priv" "gsyncw %a %a %a\n" d_varinfo x VD.pretty v MinLocksets.pretty w_x;
+          if M.tracing then M.trace "priv" "gsyncw %a %a %a\n" CilType.Varinfo.pretty x VD.pretty v MinLocksets.pretty w_x;
           MinLocksets.fold (fun w acc ->
               let v = distr_init getg x v in
               GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
@@ -1638,7 +1639,7 @@ struct
   let dump () =
     let f = open_out_bin (get_string "exp.priv-prec-dump") in
     (* LVH.iter (fun (l, x) v ->
-        ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l d_varinfo x VD.pretty v)
+        ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v)
       ) lvh; *)
     Marshal.output f ({name = get_string "ana.base.privatization"; results = lvh}: result);
     close_out_noerr f
@@ -1656,7 +1657,7 @@ struct
   module BaseComponents = BaseComponents (D)
 
   let read_global ask getg st x =
-    if M.tracing then M.traceli "priv" "read_global %a\n" d_varinfo x;
+    if M.tracing then M.traceli "priv" "read_global %a\n" CilType.Varinfo.pretty x;
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -1668,7 +1669,7 @@ struct
     v
 
   let write_global ?invariant ask getg sideg st x v =
-    if M.tracing then M.traceli "priv" "write_global %a %a\n" d_varinfo x VD.pretty v;
+    if M.tracing then M.traceli "priv" "write_global %a %a\n" CilType.Varinfo.pretty x VD.pretty v;
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in

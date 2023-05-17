@@ -89,7 +89,7 @@ end
 
 module SimplePretty (P: Prettyable) =
 struct
-  let show x = Pretty.sprint ~width:max_int (P.pretty () x)
+  let show x = GobPretty.sprint P.pretty x
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end

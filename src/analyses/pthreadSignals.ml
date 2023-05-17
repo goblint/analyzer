@@ -1,6 +1,6 @@
 (** Analysis of must-received pthread_signals. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 module LF = LibraryFunctions
 

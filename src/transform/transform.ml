@@ -1,4 +1,3 @@
-open Prelude
 open GoblintCil
 module M = Messages
 
@@ -26,9 +25,9 @@ let run_transformations ?(file_output = true) file names ask =
   let active_transformations =
     List.filter_map
       (fun name ->
-        match Hashtbl.find_option h name with
-        | Some t -> Some (name, t)
-        | None -> failwith "Transformation %s does not exist!")
+         match BatHashtbl.find_option h name with
+         | Some t -> Some (name, t)
+         | None -> failwith "Transformation %s does not exist!")
       names
   in
 
@@ -38,7 +37,7 @@ let run_transformations ?(file_output = true) file names ask =
     let filename = GobConfig.get_string "trans.output" in
     let oc = Stdlib.open_out filename in
     Goblintutil.with_ref GoblintCil.lineDirectiveStyle None @@ fun () ->
-      dumpFile defaultCilPrinter oc filename file;
+    dumpFile defaultCilPrinter oc filename file;
     Stdlib.close_out oc
 
 let run file name = run_transformations ~file_output:false file [name]
