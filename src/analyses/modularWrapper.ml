@@ -41,7 +41,8 @@ struct
       ; split = (fun d events -> ctx.split (Some d) events)
       ; sideg = ctx.sideg
       }
-    | _ -> None
+    | _ ->
+      None
 
   let map_ctx f ctx =
     match to_analysis_ctx ctx with
@@ -50,8 +51,13 @@ struct
 
   let map_ctx_fs_fc f ~ctx ~fs ~fc =
     match to_analysis_ctx ctx, fs, fc with
-    | Some ctx, Some fs, Some fc -> Some (f ctx fs fc)
-    | _ -> None
+    | _, _, Some None -> None (* Means no-context is not active, but there is still not context; do not continue *)
+    | Some ctx, Some fs, Some ((Some _) as fc) (* matches regular "no-context" case *)
+    | Some ctx, Some fs, (None as fc)
+      ->
+      Some (f ctx fs fc)
+    | _ ->
+      None
 
   let map_ctx_fctx f ~ctx ~fctx =
     match to_analysis_ctx ctx, to_analysis_ctx fctx with
