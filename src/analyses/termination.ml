@@ -317,4 +317,5 @@ let _ =
   Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor); (* J: ??? *)
   Hashtbl.clear loopBreaks; (* because the sids are now different *) (* J: delete entries in loopBreaks*)
   Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor); (* J: newly set hash table loopBreaks with goto statements*)
-  MCP.register_analysis (module Spec : MCPSpec) (* J: ???*)
+  MCP.register_analysis (module Spec : MCPSpec) (* A: register this (termination) analysis withing the master control program, which
+  collects all active analyses and represents the combination of them as a new, single analysis to FromSpec *)
