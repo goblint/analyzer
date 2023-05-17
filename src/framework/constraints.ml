@@ -751,7 +751,7 @@ struct
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
         (* TODO: Insert some handling that, for functions that are to be analyzed modularly,
-          use special for non-modular analyses, normal call for modular anlayses *)
+           use special for non-modular analyses, normal call for modular anlayses *)
         (* Check whether number of arguments fits. *)
         (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
         if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
