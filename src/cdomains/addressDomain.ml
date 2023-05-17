@@ -106,16 +106,6 @@ struct
       
   let to_string x = List.filter_map Addr.to_string (elements x)
       
-  let to_n_string n x =
-    let transform n elem =
-      match Addr.to_n_string n elem with
-      | Some s -> from_string s
-      | None -> top_ptr in
-    (* maps any StrPtr for which n is valid to the prefix of length n of its content, otherwise maps to top *)
-    List.map (transform n) (elements x)
-    (* and returns the least upper bound of computed AddressDomain values *)
-    |> List.fold_left join (bot ())
-      
   let to_string_length x =
     let transform elem =
       match Addr.to_string_length elem with
@@ -125,29 +115,6 @@ struct
     List.map transform (elements x)
     (* and returns the least upper bound of computed IntDomain values *)
     |> List.fold_left Idx.join (Idx.bot_of IUInt)
-      
-  let string_concat x y n =
-    let f = match n with
-      | Some num -> Addr.to_n_string num
-      | None -> Addr.to_string in
-
-    (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
-    let x' = List.map Addr.to_string (elements x) in 
-    let y' = List.map f (elements y) in 
-
-    (* helper function *)
-    let extract_string = function
-      | Some s -> s
-      | None -> failwith "unreachable" in
-
-    (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
-    if List.exists ((=) None) x' || List.exists ((=) None) y' then
-      top_ptr
-    else
-      (* else concatenate every string of x' with every string of y' and return the least upper bound *)
-      BatList.cartesian_product x' y'
-      |> List.map (fun (s1, s2) -> from_string ((extract_string s1) ^ (extract_string s2)))
-      |> List.fold_left join (bot ())
 
   let substring_extraction haystack needle =
     (* map all StrPtr elements in input address sets to contained strings *)
