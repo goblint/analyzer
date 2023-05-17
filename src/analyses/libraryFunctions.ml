@@ -489,6 +489,11 @@ let classify fn exps: categories =
       | n::size::_ -> `Calloc (n, size)
       | _ -> strange_arguments ()
     end
+    (*
+     * TODO: Docs (https://goblint.readthedocs.io/en/latest/developer-guide/extending-library/#library-function-specifications)
+     * say we shouldn't add new specifications in classify
+     * Should I remove the guard for "free"-related functions here in this case?
+    *)
   | "kfree" | "usb_free_urb" ->
     begin match exps with
       | ptr::_ -> `Free ptr
