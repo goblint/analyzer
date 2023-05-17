@@ -1,6 +1,5 @@
 (** Work in progress *)
 
-open Prelude.Ana
 open Analyses
 
 let terminates loop = () (* TODO *)
