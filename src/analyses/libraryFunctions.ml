@@ -19,6 +19,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+    ("free", special [__ "ptr" [r; f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
@@ -292,7 +293,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
     ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
-    ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
+    ("ZSTD_customFree", special [__ "ptr" [f]; drop "customMem" [r]] @@ fun ptr -> Free ptr);
   ]
 
 (** math functions.
@@ -454,6 +455,7 @@ type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
   | `Realloc      of exp * exp
+  | `Free         of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
@@ -485,6 +487,11 @@ let classify fn exps: categories =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
+      | _ -> strange_arguments ()
+    end
+  | "kfree" | "usb_free_urb" ->
+    begin match exps with
+      | ptr::_ -> `Free ptr
       | _ -> strange_arguments ()
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
