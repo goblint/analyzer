@@ -29,11 +29,12 @@ void RemoveFunctionBodyCheck::registerMatchers(MatchFinder *Finder) {
 
 void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
     auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("remove_function_body");
+    
     // Remove the function body
-    std::string Replacement = " {\n\t// [MUTATION] Stripped function of its body\n";
+    std::string Replacement = " { ";
     const auto ReturnType = MatchedDecl->getReturnType();
     if (!ReturnType->isVoidType()) {
-        Replacement += "\treturn ";
+        Replacement += "return ";
         if (ReturnType->isPointerType() || ReturnType->isNullPtrType()) {
             Replacement += "0";
         } else if (ReturnType->isIntegralType(*Result.Context) || ReturnType->isCharType()) {
@@ -45,12 +46,15 @@ void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
         } else if (const RecordType *RT = ReturnType->getAsUnionType()) {
             Replacement += "(union " + RT->getDecl()->getNameAsString() + "){}";
         } else {
-            Replacement += "/* TODO: Add generic return value for " + ReturnType.getAsString() + " */";
+            Replacement += "/* [TODO]: Add generic return value for " + ReturnType.getAsString() + " */";
         }
-        Replacement += ";\n";
+        Replacement += "; ";
     }
+    Replacement += "/* [MUTATION] Stripped function of its body */ }";
+
+    // Get locations
     SourceLocation Start = MatchedDecl->getTypeSpecEndLoc().getLocWithOffset(1);
-    SourceLocation End = MatchedDecl->getBodyRBrace();
+    SourceLocation End = MatchedDecl->getBodyRBrace().getLocWithOffset(1);
     auto Range = CharSourceRange::getCharRange(Start, End);
     diag(Start, "Function %0 has been stripped of its body")
         << MatchedDecl
