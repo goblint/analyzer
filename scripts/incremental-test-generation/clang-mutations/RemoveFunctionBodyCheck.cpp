@@ -30,7 +30,7 @@ void RemoveFunctionBodyCheck::registerMatchers(MatchFinder *Finder) {
 void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
     auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("remove_function_body");
     // Remove the function body
-    std::string Replacement = " {\n\t// Stripped function of its body\n";
+    std::string Replacement = " {\n\t// [MUTATION] Stripped function of its body\n";
     const auto ReturnType = MatchedDecl->getReturnType();
     if (!ReturnType->isVoidType()) {
         Replacement += "\treturn ";
