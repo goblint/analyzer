@@ -5,7 +5,7 @@
    - return variables that are newly created   
    *)
 
-open Prelude.Ana
+open GoblintCil
 
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column
