@@ -2234,7 +2234,7 @@ struct
           let ik = Cilfacade.ptrdiff_ikind () in
           let sizeval = eval_int (Analyses.ask_of_ctx ctx) gs st size in
           let countval = eval_int (Analyses.ask_of_ctx ctx) gs st n in
-          if ID.to_int countval = Some Z.one then (
+          if ID.to_int countval = Some Z.one then ( (* TODO: this causes some var_eq tests to fail *)
             set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.from_var heap_var), TVoid [], `Blob (VD.bot (), sizeval, false));
           (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var heap_var)))]
           )
