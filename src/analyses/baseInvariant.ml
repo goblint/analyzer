@@ -20,7 +20,7 @@ sig
 
   val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
   val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
-  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> VD.t -> D.t
+  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
@@ -93,7 +93,7 @@ struct
       else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx a gs st c x c' pretty exp =
-    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~ctx in
+    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
