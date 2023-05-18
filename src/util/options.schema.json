@@ -1737,12 +1737,6 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
-        "debug": {
-          "title": "dbg.debug",
-          "description": "Debug mode: for testing the analyzer itself.",
-          "type": "boolean",
-          "default": false
-        },
         "verbose": {
           "title": "dbg.verbose",
           "description": "Prints some status information.",

@@ -170,9 +170,6 @@ let handle_flags () =
     Errormsg.verboseFlag := true
   );
 
-  if get_bool "dbg.debug" then
-    set_bool "warn.debug" true;
-
   if get_bool "ana.sv-comp.functions" then
     set_auto "lib.activated[+]" "sv-comp";
 
