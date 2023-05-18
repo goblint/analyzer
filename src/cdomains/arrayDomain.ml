@@ -194,6 +194,7 @@ struct
   let set ask (xl, xr) (ie, i) v =
     match ie with
     | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      (* TODO: Doesn't seem to work for unassume because unrolled elements are top-initialized, not bot-initialized. *)
       (BatList.make (factor ()) v, v)
     | _ ->
       set ask (xl, xr) (ie, i) v
@@ -481,6 +482,7 @@ struct
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
     match i with
     | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      (* TODO: Doesn't seem to work for unassume. *)
       Joint a
     | Some i when CilType.Exp.equal i Lval.any_index_exp ->
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
