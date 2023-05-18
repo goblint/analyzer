@@ -56,7 +56,7 @@ We will use the **>>check-name<<** again as defined in "Creating the checks".
 `clang-tidy` The command itself.
 
  - [ ] General Options
- `-checks=-*,>>check-name<<` Deactivating all checks except >>check-name<<.
+ `-checks=-*,readability->>check-name<<` Deactivating all checks except >>check-name<<.
 `-fix --fix-errors` Applying the mutations.
 `-line filter='[{"name":"test.c","lines":[[4,4],[14,14]]}]'` Apply the mutations only on line 4 and 14.
 
