@@ -1,6 +1,6 @@
 (** An analysis specification for didactic purposes. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open TerminationPreprocessing
 

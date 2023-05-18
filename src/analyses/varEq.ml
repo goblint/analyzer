@@ -5,7 +5,7 @@ module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
 module Exp = CilType.Exp
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 
@@ -55,13 +55,13 @@ struct
 
       method! vexpr e =
         if Cilfacade.isFloatType (Cilfacade.typeOf e) then
-          raise Exit;
+          raise Stdlib.Exit;
         DoChildren
     end
     in
     match Cil.visitCilExpr visitor e with
     | _ -> false
-    | exception Exit -> true
+    | exception Stdlib.Exit -> true
   let exp_equal e1 e2 =
     CilType.Exp.equal e1 e2 && not (contains_float_subexp e1)
 
@@ -434,7 +434,7 @@ struct
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
-      if Queries.LS.is_top tainted || not (ctx.ask Queries.MustBeSingleThreaded) then
+      if Queries.LS.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
         D.top ()
       else
         let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in

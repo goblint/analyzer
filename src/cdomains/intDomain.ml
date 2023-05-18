@@ -386,7 +386,7 @@ struct
   let ikind {ikind; _} = ikind
 
   (* Helper functions *)
-  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
+  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds (GobPretty.sprintf "ikinds %a and %a are incompatible. Values: %a and %a" CilType.Ikind.pretty x.ikind CilType.Ikind.pretty y.ikind I.pretty x.v I.pretty y.v))
   let lift op x = {x with v = op x.ikind x.v }
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
@@ -1054,11 +1054,6 @@ struct
   let (<=.) a b = Ints_t.compare a b <= 0
   let (+.) a b = Ints_t.add a b
   let (-.) a b = Ints_t.sub a b
-  let ( *.) a b = Ints_t.mul a b
-  let (/.) a b = Ints_t.div a b
-
-  let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
-  let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
   (*
     Each domain's element is guaranteed to be in canonical form. That is, each interval contained
@@ -1543,7 +1538,7 @@ struct
           else norm_interval ik (rcx, lcy) |> fst
       | _ -> []
     in
-    List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
+    List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 

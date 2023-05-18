@@ -1,6 +1,6 @@
 (** This is the main program! *)
 
-open Prelude
+open Batteries
 open GobConfig
 open Printf
 open Goblintutil
@@ -55,7 +55,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
     if Messages.tracing then Tracing.addsystem sys
-    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
     if (get_string "outfile" = "") then
@@ -126,7 +126,7 @@ and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_c
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
   |> List.iter print_endline;
-  raise Exit
+  raise Stdlib.Exit
 
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
@@ -147,9 +147,9 @@ let check_arguments () =
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left
       (fun deadcodeTransOccurred t ->
-        if deadcodeTransOccurred && t = "assert" then
-          fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
-          deadcodeTransOccurred || t = "remove_dead_code")
+         if deadcodeTransOccurred && t = "assert" then
+           fail "trans.activated: the 'assert' transform may not occur after the 'remove_dead_code' transform";
+         deadcodeTransOccurred || t = "remove_dead_code")
       false (get_string_list "trans.activated");
     (* compressing basic blocks or minimizing CFG makes dead code transformation much less
        precise, since liveness information is then effectively only stored per-block *)
@@ -182,7 +182,7 @@ let handle_flags () =
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
-    Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
+    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
 
 let handle_options () =
@@ -202,14 +202,14 @@ let parse_arguments () =
   begin match !writeconffile with
     | Some writeconffile ->
       GobConfig.write_file writeconffile;
-      raise Exit
+      raise Stdlib.Exit
     | None -> ()
   end;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
-    raise Exit
+    raise Stdlib.Exit
   )
 
 
@@ -497,7 +497,7 @@ let do_stats () =
     ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
     print_string "Timings:\n";
-    Timing.Default.print (Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 

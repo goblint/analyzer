@@ -1,6 +1,7 @@
 (** Termination of loops. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module M = Messages
@@ -238,9 +239,8 @@ class loopInstrVisitor (fd : fundec) = object(self)
           let d1 = makeVar fd cur_loop "d1" in
           let d2 = makeVar fd cur_loop "d2" in
           (match stripCastsDeep e with
-            (* J: if x' + e2 or x' - e2 with x' = x and the type arithmetic:
-                  - adds incrementation for d1 and d2 to the code*)
-            (* J: if the loopVar is changed*)
+           (* J: if x' + e2 or x' - e2 with x' = x and the type arithmetic:- adds incrementation for d1 and d2 to the code*)
+           (* J: if the loopVar is changed*)
            | BinOp (op, Lval x', e2, typ) when (op = PlusA || op = MinusA) && x' = x && isArithmeticType typ -> (* TODO x = 1 + x, MinusA! *)
              (* increase diff by same expr *)
              let d1_inc = mkStmtOneInstr @@ Set (var d1, BinOp (PlusA, Lval (var d1), e2, typ), loc, eloc) in (* J: d1 = d1 + e2*)
@@ -318,4 +318,5 @@ let _ =
   Cilfacade.register_preprocess (Spec.name ()) (new recomputeVisitor); (* J: ??? *)
   Hashtbl.clear loopBreaks; (* because the sids are now different *) (* J: delete entries in loopBreaks*)
   Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor); (* J: newly set hash table loopBreaks with goto statements*)
-  MCP.register_analysis (module Spec : MCPSpec) (* J: ???*)
+  MCP.register_analysis (module Spec : MCPSpec) (* A: register this (termination) analysis withing the master control program, which
+  collects all active analyses and represents the combination of them as a new, single analysis to FromSpec *)

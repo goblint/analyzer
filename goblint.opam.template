@@ -6,5 +6,5 @@ pin-depends: [
   # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   # TODO: add back after release, only pinned for CI stability
-  [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
+  [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#1a8e91062c0d7d1e80333d19d5a432332bbbaec8"]
 ]

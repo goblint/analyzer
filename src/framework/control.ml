@@ -1,6 +1,6 @@
 (** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
@@ -527,7 +527,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -600,21 +600,21 @@ struct
       let active_transformations = get_string_list "trans.activated" in
       (if active_transformations <> [] then
 
-        (* Most transformations use the locations of statements, since they run using Cil visitors.
-           Join abstract values once per location and once per node. *)
-        let joined_by_loc, joined_by_node =
-          let open Enum in
-          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
-          let hashtbl_size = if fast_count node_values then count node_values else 123 in
-          let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
-          node_values |> iter (fun (node, v) ->
-            let loc = Node.location node in
-            (* join values once for the same location and once for the same node *)
-            let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
-            Hashtbl.modify_opt loc join by_loc;
-            NodeH.modify_opt node join by_node;
-          );
-          by_loc, by_node
+         (* Most transformations use the locations of statements, since they run using Cil visitors.
+            Join abstract values once per location and once per node. *)
+         let joined_by_loc, joined_by_node =
+           let open Enum in
+           let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+           let hashtbl_size = if fast_count node_values then count node_values else 123 in
+           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
+           node_values |> iter (fun (node, v) ->
+               let loc = Node.location node in
+               (* join values once for the same location and once for the same node *)
+               let join = Option.some % function None -> v | Some v' -> Spec.D.join v v' in
+               Hashtbl.modify_opt loc join by_loc;
+               NodeH.modify_opt node join by_node;
+             );
+           by_loc, by_node
         in
 
         let ask ?(node = MyCFG.dummy_node) loc =
@@ -723,13 +723,13 @@ struct
       let module Arg = (val ArgTool.create entrystates) in
       if get_bool "exp.argdot" then (
         let module ArgDot = ArgTools.Dot (Arg) in
-        let oc = Stdlib.open_out "arg.dot" in
+        let oc = Batteries.open_out "arg.dot" in
         Fun.protect (fun () ->
             let ppf = Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;
             Format.pp_print_flush ppf ()
           ) ~finally:(fun () ->
-            Stdlib.close_out oc
+            Batteries.close_out oc
           )
       );
       ArgTools.current_arg := Some (module Arg);

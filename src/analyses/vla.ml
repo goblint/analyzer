@@ -1,6 +1,6 @@
 (** An analysis to detect if an invocation is in the scope of a variably modified variable. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
