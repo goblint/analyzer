@@ -20,7 +20,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
-      Result.top q (* TODO *)
+    Result.top q (* TODO *)
 
 end
 
