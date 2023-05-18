@@ -16,12 +16,21 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
+    ("__builtin_strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
+    ("__builtin___strcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
+    ("__builtin_strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
+    ("__builtin___strncpy_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
     ("strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("__builtin_strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("__builtin___strcat_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcat { dest; src; n = None; });
     ("strncat", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("__builtin_strncat", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("__builtin___strncat_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
+    ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
@@ -675,12 +684,7 @@ let invalidate_actions = [
     "__builtin___snprintf_chk", writes [1];(*keep [1]*)
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
-    "strcmp", readsAll;(*safe*)
     "strftime", writes [1];(*keep [1]*)
-    "strlen", readsAll;(*safe*)
-    "strncmp", readsAll;(*safe*)
-    "strncat", writes [1];(*keep [1]*)
-    "strstr", readsAll;(*safe*)
     "strdup", readsAll;(*safe*)
     "toupper", readsAll;(*safe*)
     "tolower", readsAll;(*safe*)
@@ -699,7 +703,6 @@ let invalidate_actions = [
     "sigfillset", writesAll; (*unsafe*)
     "sigprocmask", writesAll; (*unsafe*)
     "uname", writesAll;(*unsafe*)
-    "__builtin_strcmp", readsAll;(*safe*)
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
@@ -741,6 +744,7 @@ let invalidate_actions = [
     "pthread_sigmask", writesAllButFirst 2 readsAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
+    "__builtin_object_size", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
@@ -749,12 +753,6 @@ let invalidate_actions = [
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
-    "__builtin___strcpy", writes [1];(*keep [1]*)
-    "__builtin___strcpy_chk", writes [1];(*keep [1]*)
-    "__builtin___strncpy_chk", writes [1];(*keep [1]*)
-    "strcat", writes [1];(*keep [1]*)
-    "__builtin___strcat_chk", writes[1];(*keep [1]*)
-    "__builtin___strncat_chk", writes[1];(*keep [1]*)
     "strtok", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
