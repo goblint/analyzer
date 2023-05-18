@@ -1651,9 +1651,9 @@
         },
         "g2html_path": {
           "title": "exp.g2html_path",
-          "description": "Location of the g2html.jar file.",
+          "description": "Location of the g2html.jar file. If empty, then goblint executable directory is used.",
           "type": "string",
-          "default": "."
+          "default": ""
         },
         "extraspecials": {
           "title": "exp.extraspecials",
