@@ -46,6 +46,11 @@
         "ldv_xzalloc",
         "ldv_calloc"
       ]
+    },
+    "base": {
+      "invariant": {
+        "blobs": true
+      }
     }
   },
   "witness": {
@@ -54,7 +59,10 @@
       "enabled": true
     },
     "invariant": {
+      "accessed": false,
+      "goblint": true,
       "exact": false,
+      "inexact-type-bounds": true,
       "exclude-vars": [
         "tmp\\(___[0-9]+\\)?",
         "cond",
