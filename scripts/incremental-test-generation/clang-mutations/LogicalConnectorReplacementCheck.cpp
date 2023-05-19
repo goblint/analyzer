@@ -25,14 +25,14 @@ void LogicalConnectorReplacementCheck::check(const MatchFinder::MatchResult &Res
   } else {
     return;
   }
-  Replacement += " /* [MUTATION] Replaced Logical Connector */";
+  Replacement += " /* [MUTATION][LCR] Replaced Logical Connector */";
   
   // Get locations
   SourceLocation Start = MatchedDecl->getOperatorLoc();
   SourceLocation End = MatchedDecl->getOperatorLoc().getLocWithOffset(2);
   auto Range = CharSourceRange::getCharRange(Start, End);
 
-  diag(Start, "Replaced Logical Connector %0")
+  diag(Start, "[MUTATION][LCR] Replaced Logical Connector %0")
       << MatchedDecl->getOpcodeStr()
       << FixItHint::CreateReplacement(Range, Replacement);
 }

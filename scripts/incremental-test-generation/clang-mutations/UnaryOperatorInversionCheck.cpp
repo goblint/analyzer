@@ -24,8 +24,8 @@ void UnaryOperatorInversionCheck::check(const MatchFinder::MatchResult &Result) 
   size_t Length = EndPtr - StartPtr;
   std::string Expression(StartPtr, Length);
   // Invert the expression with the unary operator
-  std::string Replacement = "!(" + Expression + ")" + " /* [MUTATION] Inverted if statement */";
-  diag(Start, "If Statement %0 was inverted")
+  std::string Replacement = "!(" + Expression + ")" + " /* [MUTATION][UOI] Inverted if statement */";
+  diag(Start, "[MUTATION][UOI] If Statement %0 was inverted")
       << Expression
       << FixItHint::CreateReplacement(Range, Replacement);
 }

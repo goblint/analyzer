@@ -25,14 +25,14 @@ void ConstantReplacementCheck::check(const MatchFinder::MatchResult &Result) {
   SourceLocation Start = MatchedDecl->getBeginLoc();
   auto Range = MatchedDecl->getSourceRange();
   // Check if it is a Macro
-  std::string MacroInfo = "";
+  std::string MacroInfo = " ";
   if (MatchedDecl->getLocation().isMacroID()) {
     std::string MacroId = Lexer::getImmediateMacroName(MatchedDecl->getLocation(), *Result.SourceManager, Result.Context->getLangOpts()).str();
-    MacroInfo = "[MACRO][" + MacroId + "]";
+    MacroInfo = "[MACRO][" + MacroId + "] ";
   }
   // Replace with 1
-  std::string Replacement = "1 /* [MUTATION]" + MacroInfo + " Replaced Constant " + valueAsString + " */";
-  diag(Start, (MacroInfo.empty() ? "" : (MacroInfo + " ")) + "Replaced Constant %0 with 1")
+  std::string Replacement = "1 /* [MUTATION][CR]" + MacroInfo + "Replaced Constant " + valueAsString + " */";
+  diag(Start, "[MUTATION][CR]" + MacroInfo + "Replaced Constant %0 with 1")
     << valueAsString
     << FixItHint::CreateReplacement(Range, Replacement);
 }

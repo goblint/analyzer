@@ -50,13 +50,13 @@ void RemoveFunctionBodyCheck::check(const MatchFinder::MatchResult &Result) {
         }
         Replacement += "; ";
     }
-    Replacement += "/* [MUTATION] Stripped function of its body */ }";
+    Replacement += "/* [MUTATION][RFB] Stripped function of its body */ }";
 
     // Get locations
     SourceLocation Start = MatchedDecl->getTypeSpecEndLoc().getLocWithOffset(1);
     SourceLocation End = MatchedDecl->getBodyRBrace().getLocWithOffset(1);
     auto Range = CharSourceRange::getCharRange(Start, End);
-    diag(Start, "Function %0 has been stripped of its body")
+    diag(Start, "[MUTATION][RFB] Function %0 has been stripped of its body")
         << MatchedDecl
         << FixItHint::CreateReplacement(Range, Replacement);
 }

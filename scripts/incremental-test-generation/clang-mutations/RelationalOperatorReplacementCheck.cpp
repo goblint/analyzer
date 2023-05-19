@@ -36,14 +36,14 @@ void RelationalOperatorReplacementCheck::check(const MatchFinder::MatchResult &R
   } else {
     return;
   }
-  Replacement += " /* [MUTATION] Replaced Relational Operator */";
+  Replacement += " /* [MUTATION][ROR] Replaced Relational Operator */";
   
   // Get locations
   SourceLocation Start = MatchedDecl->getOperatorLoc();
   SourceLocation End = MatchedDecl->getOperatorLoc().getLocWithOffset(OperatorSize);
   auto Range = CharSourceRange::getCharRange(Start, End);
 
-  diag(Start, "Replaced Relational Operator %0")
+  diag(Start, "[MUTATION][ROR] Replaced Relational Operator %0")
       << MatchedDecl->getOpcodeStr()
       << FixItHint::CreateReplacement(Range, Replacement);
 }
