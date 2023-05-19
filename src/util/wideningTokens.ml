@@ -91,7 +91,7 @@ struct
 end
 
 (** Lift {!S} to carry widening tokens with both local and global states. *)
-module Lifter (S: Spec): Spec =
+module Lifter (S: PostSpec): PostSpec =
 struct
   module D =
   struct
@@ -109,6 +109,7 @@ struct
   end
   module C = S.C
   module V = S.V
+  include Analyses.IdentityModularConverter
 
   let name () = S.name ()^" with widening tokens"
 

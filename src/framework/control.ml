@@ -7,17 +7,17 @@ open Analyses
 open GobConfig
 open Constraints
 
-module type S2S = functor (X : Spec) -> Spec
+module type S2S = functor (X : PostSpec) -> PostSpec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
-let spec_module: (module Spec) Lazy.t = lazy (
+let spec_module: (module PostSpec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "ana.sv-comp.enabled" || get_bool "exp.arg" in
   let open Batteries in
   (* apply functor F on module X if opt is true *)
-  let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
+  let lift opt (module F : S2S) (module X : PostSpec) = (module (val if opt then (module F (X)) else (module X) : PostSpec) : PostSpec) in
   let module S1 = (val
-            (module MCP.MCP2 : Spec)
+            (module MCP.MCP2 : PostSpec)
             |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
@@ -41,7 +41,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
 )
 
 (** gets Spec for current options *)
-let get_spec (): (module Spec) =
+let get_spec (): (module PostSpec) =
   Lazy.force spec_module
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
@@ -49,7 +49,7 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ 
 let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
+module AnalyzeCFG (Cfg:CfgBidir) (Spec:PostSpec) (Inc:Increment) =
 struct
 
   module SpecSys: SpecSys with module Spec = Spec =

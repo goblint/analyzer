@@ -11,7 +11,7 @@ module M = Messages
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S:Spec)
-  : Spec with module D = Lattice.HConsed (S.D)
+  : PostSpec with module D = Lattice.HConsed (S.D)
           and module G = S.G
           and module C = S.C
 =
@@ -20,6 +20,8 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+
+  include IdentityModularConverter
 
   let name () = S.name () ^" hashconsed"
 
@@ -93,8 +95,8 @@ struct
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
-module HashconsContextLifter (S:Spec)
-  : Spec with module D = S.D
+module HashconsContextLifter (S:PostSpec)
+  : PostSpec with module D = S.D
           and module G = S.G
           and module C = Printable.HConsed (S.C)
 =
@@ -103,6 +105,8 @@ struct
   module G = S.G
   module C = Printable.HConsed (S.C)
   module V = S.V
+
+  include IdentityModularConverter
 
   let name () = S.name () ^" context hashconsed"
 
@@ -175,16 +179,17 @@ struct
 end
 
 (* see option ana.opt.equal *)
-module OptEqual (S: Spec) = struct
+module OptEqual (S: PostSpec) = struct
   module D = struct include S.D let equal x y = x == y || equal x y end
   module G = struct include S.G let equal x y = x == y || equal x y end
   module C = struct include S.C let equal x y = x == y || equal x y end
   include (S : Spec with module D := D and module G := G and module C := C)
+  include IdentityModularConverter
 end
 
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
-module LevelSliceLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+module LevelSliceLifter (S:PostSpec)
+  : PostSpec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
           and module G = S.G
           and module C = S.C
 =
@@ -193,6 +198,8 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+
+  include IdentityModularConverter
 
   let name () = S.name ()^" level sliced"
 
@@ -304,9 +311,10 @@ end
 
 
 (** Limits the number of widenings per node. *)
-module LimitLifter (S:Spec) =
+module LimitLifter (S:PostSpec) =
 struct
   include (S : module type of S with module D := S.D and type marshal = S.marshal)
+  include IdentityModularConverter
 
   let name () = S.name ()^" limited"
 
@@ -331,7 +339,7 @@ end
 
 
 (* widening on contexts, keeps contexts for calls only in D *)
-module WidenContextLifterSide (S:Spec)
+module WidenContextLifterSide (S:PostSpec)
 =
 struct
   module DD =
@@ -349,6 +357,7 @@ struct
   module C = S.C
   module V = S.V
 
+  include IdentityModularConverter
 
   let name () = S.name ()^" with widened contexts"
 
@@ -413,8 +422,8 @@ end
 
 
 (** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
-module DeadCodeLifter (S:Spec)
-  : Spec with module D = Dom (S.D)
+module DeadCodeLifter (S:PostSpec)
+  : PostSpec with module D = Dom (S.D)
           and module G = S.G
           and module C = S.C
 =
@@ -424,6 +433,7 @@ struct
   module C = S.C
   module V = S.V
 
+  include IdentityModularConverter
   let name () = S.name ()^" lifted"
 
   type marshal = S.marshal
@@ -518,7 +528,7 @@ struct
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:PostSpec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = GVarF (S.V)
@@ -760,6 +770,16 @@ struct
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
                 tf_special_call ctx lv f args
               | fd ->
+                (* if function is to be analyzed modularly (and the the current mode is not modular), then analyze first only with modular analyses *)
+                (* Then analyze with non-modular analyses *)
+                (* otherwise just analyze the function modularly *)
+                (* if ModularUtil.is_modular_fun f then begin
+                   let local = S.to_modular ctx.local in
+                   let ctx = {ctx with local = local } in
+                   let local = tf_normal_call ctx lv e fd args getl sidel getg sideg in
+                   (* tf_special_call ctx lv f args *)
+                   local
+                   end else *)
                 tf_normal_call ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
                 tf_special_call ctx lv f args)
@@ -1170,8 +1190,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
 
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive2 (Spec:Spec)
-  : Spec
+module PathSensitive2 (Spec:PostSpec)
+  : PostSpec
     with module G = Spec.G
      and module C = Spec.C
      and module V = Spec.V
@@ -1199,6 +1219,8 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+
+  include IdentityModularConverter
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
@@ -1310,9 +1332,11 @@ struct
     if D.is_bot d then raise Deadcode else d
 end
 
-module DeadBranchLifter (S: Spec): Spec =
+module DeadBranchLifter (S: PostSpec): PostSpec =
 struct
   include S
+
+  include IdentityModularConverter
 
   let name () = "DeadBranch (" ^ S.name () ^ ")"
 
@@ -1447,9 +1471,10 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
-module LongjmpLifter (S: Spec): Spec =
+module LongjmpLifter (S: PostSpec): PostSpec =
 struct
   include S
+  include IdentityModularConverter
 
   let name () = "Longjmp (" ^ S.name () ^ ")"
 

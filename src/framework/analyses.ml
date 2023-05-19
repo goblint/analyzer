@@ -444,6 +444,13 @@ sig
   val to_modular : D.t -> D.t
   val to_non_modular : D.t -> D.t
 end
+
+module IdentityModularConverter =
+struct
+  let to_modular = Fun.id
+  let to_non_modular = Fun.id
+end
+
 module type MCPPostSpec =
 sig
   include MCPSpec
@@ -680,7 +687,7 @@ end
 
 module type SpecSys =
 sig
-  module Spec: Spec
+  module Spec: PostSpec
   module EQSys: GlobConstrSys with module LVar = VarF (Spec.C)
                                and module GVar = GVarF (Spec.V)
                                and module D = Spec.D

@@ -5,8 +5,8 @@ open Analyses
 
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive3 (Spec:Spec)
-  : Spec
+module PathSensitive3 (Spec:PostSpec)
+  : PostSpec
     (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
      and module G = Spec.G
      and module C = Spec.C *)
@@ -94,6 +94,8 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+
+  include IdentityModularConverter
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
