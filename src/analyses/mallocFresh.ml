@@ -6,21 +6,35 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  (* must fresh variables *)
-  module D = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end)) (* need bot (top) for hoare widen *)
+  (* must fresh (or may not fresh) variables *)
+  module DF = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end) (* need bot (top) for hoare widen *)
+  module D =
+  struct 
+    include Lattice.Prod (DF) (DF)
+
+    let join (df1, dnf1) (df2, dnf2) =
+      let dnf = DF.union dnf1 dnf2 in
+      let df = DF.diff (DF.union df1 df2) dnf in
+      (df, dnf)
+
+    let leq x y = equal (join x y) y
+
+    let widen = join
+    let narrow a b = a
+  end
   module C = D
 
   let name () = "mallocFresh"
 
-  let startstate _ = D.empty ()
-  let exitstate _ = D.empty ()
+  let startstate _ = (DF.empty (), DF.empty ())
+  let exitstate _ = (DF.empty (), DF.empty ())
 
   let assign_lval (ask: Queries.ask) lval local =
-    match ask.f (MayPointTo (AddrOf lval)) with
-    | ls when Queries.LS.is_top ls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls ->
-      D.empty ()
-    | ls when Queries.LS.exists (fun (v, _) -> not (D.mem v local) && (v.vglob || ThreadEscape.has_escaped ask v)) ls ->
-      D.empty ()
+    match ask.f (MayPointTo (AddrOf lval)), local with
+    | ls, (df, dnf) when Queries.LS.is_top ls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls ->
+      (DF.empty (), DF.union df dnf)
+    | ls, (df, dnf) when Queries.LS.exists (fun (v, _) -> not (DF.mem v (fst local)) && (v.vglob || ThreadEscape.has_escaped ask v)) ls ->
+      (DF.empty (), DF.union df dnf)
     | _ ->
       local
 
@@ -42,7 +56,7 @@ struct
     | Calloc _
     | Realloc _ ->
       begin match ctx.ask HeapVar with
-        | `Lifted var -> D.add var ctx.local
+        | `Lifted var -> (DF.add var (fst ctx.local), (snd ctx.local)) 
         | _ -> ctx.local
       end
     | _ ->
@@ -51,10 +65,10 @@ struct
       | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let threadenter ctx lval f args =
-    [D.empty ()]
+    [(DF.empty (), DF.empty ())]
 
   let threadspawn ctx lval f args fctx =
-    D.empty ()
+    (DF.empty (), DF.union (fst ctx.local) (snd ctx.local))
 
   module A =
   struct
@@ -66,7 +80,7 @@ struct
   let access ctx (a: Queries.access) =
     match a with
     | Memory {var_opt = Some v; _} ->
-      D.mem v ctx.local
+      DF.mem v (fst ctx.local)
     | _ ->
       false
 end
