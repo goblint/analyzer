@@ -111,7 +111,7 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                 NH.add invs n {exp = inv_exp; uuid}
@@ -157,12 +157,12 @@ struct
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc pre_cabs with
               | Ok pre_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
                 FH.add fun_pres fundec pre_exp;
 
-                begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                begin match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
                   | Ok inv_exp ->
                     M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
