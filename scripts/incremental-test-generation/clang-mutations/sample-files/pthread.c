@@ -98,7 +98,7 @@ int main() {
     pthread_mutexattr_settype(&mutex_attr, 0);
 
     // One-time initialization
-    pthread_once(&once_control, thread_function);
+    pthread_once(&once_control, (void (*)(void))thread_function);
 
     // Read-write lock functions
     pthread_rwlock_destroy(&rwlock);
@@ -119,8 +119,6 @@ int main() {
     pthread_self();
     pthread_getschedparam(thread, NULL, &param);
     pthread_setschedparam(thread, 0, &param);
-    pthread_getconcurrency();
-    pthread_setconcurrency(0);
 
     return 0;
 }
