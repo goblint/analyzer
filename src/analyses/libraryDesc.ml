@@ -150,33 +150,7 @@ module MathPrintable = struct
 
   let name () = "MathPrintable"
 
-  let relift = function
-  | Nan (fk, exp) -> Nan (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Inf fk -> Inf (CilType.Fkind.relift fk)
-  | Isfinite exp -> Isfinite (CilType.Exp.relift exp)
-  | Isinf exp -> Isinf (CilType.Exp.relift exp)
-  | Isnan exp -> Isnan (CilType.Exp.relift exp)
-  | Isnormal exp -> Isnormal (CilType.Exp.relift exp)
-  | Signbit exp -> Signbit (CilType.Exp.relift exp)
-  | Isgreater (exp1, exp2) -> Isgreater (CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Isgreaterequal (exp1, exp2) -> Isgreaterequal (CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Isless (exp1, exp2) -> Isless (CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Islessequal (exp1, exp2) -> Islessequal (CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Islessgreater (exp1, exp2) -> Islessgreater (CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Isunordered (exp1, exp2) -> Isunordered (CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Ceil (fk, exp) -> Ceil (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Floor (fk, exp) -> Floor (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Fabs (fk, exp) -> Fabs (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Fmax (fk, exp1, exp2) -> Fmax (CilType.Fkind.relift fk, CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Fmin (fk, exp1, exp2) -> Fmin (fk, CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Acos (fk, exp) -> Acos (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Asin (fk, exp) -> Asin (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Atan (fk, exp) -> Atan (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Atan2 (fk, exp1, exp2) -> Atan2 (CilType.Fkind.relift fk, CilType.Exp.relift exp1, CilType.Exp.relift exp2)
-  | Cos (fk, exp) -> Cos (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Sin (fk, exp) -> Sin (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-  | Tan (fk, exp) -> Tan (CilType.Fkind.relift fk, CilType.Exp.relift exp)
-
+  let relift ml = ml 
 
   let order = function
     | Nan _ -> 1

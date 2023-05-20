@@ -279,7 +279,7 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
-    | Any (TmpSpecial _) -> 42
+    | Any (TmpSpecial _) -> 49
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in

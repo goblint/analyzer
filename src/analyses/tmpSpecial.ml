@@ -28,22 +28,22 @@ struct
 
   let rec ls_of_exp ctx (exp:exp) : LS.t =
   match exp with
-  | Const _ -> LS.bot ()
+  | Const _ -> LS.empty ()
   | Lval lv -> ls_of_lv ctx lv
-  | SizeOf _ -> LS.bot ()
+  | SizeOf _ -> LS.empty ()
   | Real e -> ls_of_exp ctx e
   | Imag e -> ls_of_exp ctx e
   | SizeOfE e -> ls_of_exp ctx e
   | SizeOfStr _ -> LS.empty ()
-  | AlignOf _ -> LS.top () (* TODO: what is this*)
-  | AlignOfE _ -> LS.top () (* TODO: what is this*)
+  | AlignOf _ -> LS.empty ()
+  | AlignOfE e -> ls_of_exp ctx e
   | UnOp (_,e,_) -> ls_of_exp ctx e
   | BinOp (_,e1,e2,_) -> LS.union (ls_of_exp ctx e1) (ls_of_exp ctx e2)
   | Question (q,e1,e2,_) -> LS.union (ls_of_exp ctx q) (LS.union (ls_of_exp ctx e1) (ls_of_exp ctx e2))
   | CastE (_,e) -> ls_of_exp ctx e
   | AddrOf _ -> ctx.ask (Queries.MayPointTo exp)
-  | AddrOfLabel _ -> LS.top () (* TODO: what is this*)
-  | StartOf _ -> LS.top () (* TODO: what is this*)
+  | AddrOfLabel _ -> LS.empty ()
+  | StartOf _ -> ctx.ask (Queries.MayPointTo exp)
 
 
   let context _ _ = ()
@@ -65,20 +65,24 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    (* For now we only track relationships intraprocedurally. TODO: handle interprocedural tracking *)
     [ctx.local, D.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) f_ask : D.t =
+    (* For now we only track relationships intraprocedurally. TODO: handle interprocedural tracking *)
     D.bot ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let d = ctx.local in
 
     (* Just dbg prints *)
-    (match lval with
-    | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a\n" f.vname d_lval lv
-    | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s\n" f.vname);
-    let desc = LibraryFunctions.find f in
+    (if M.tracing then
+      match lval with
+      | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a\n" f.vname d_lval lv
+      | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s\n" f.vname);
 
+  
+    let desc = LibraryFunctions.find f in
     (* remove entrys, dependent on lvals that were possibly written by the special function *)
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in

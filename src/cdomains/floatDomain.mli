@@ -103,7 +103,6 @@ module type FloatDomainBase = sig
   val maximal: t -> float option
 
   val is_exact : t -> bool
-  val is_interval : t -> bool
 end
 
 (* Only exposed for testing *)
@@ -139,7 +138,6 @@ module type FloatDomain = sig
   val maximal: t -> float option
 
   val is_exact : t -> bool
-  val is_interval : t -> bool
   val get_fkind : t -> Cil.fkind
   val invariant: Cil.exp -> t -> Invariant.t
 end

@@ -101,7 +101,6 @@ module type FloatDomainBase = sig
   val maximal: t -> float option
 
   val is_exact : t -> bool
-  val is_interval : t -> bool
 end
 
 module FloatIntervalImpl(Float_t : CFloatType) = struct
@@ -180,10 +179,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let is_minus_inf = function
     | MinusInfinity -> true
-    | _ -> false
-
-  let is_interval = function
-    | Interval _ -> true
     | _ -> false
 
   let norm = function
@@ -802,7 +797,6 @@ module type FloatDomain = sig
   val maximal: t -> float option
 
   val is_exact : t -> bool
-  val is_interval : t -> bool
   val get_fkind : t -> Cil.fkind
   val invariant: Cil.exp -> t -> Invariant.t
 end
@@ -909,7 +903,6 @@ module FloatIntervalImplLifted = struct
   let minus_inf_of fkind = dispatch_fkind fkind (F1.minus_inf, F2.minus_inf)
   let is_inf = dispatch (F1.is_inf, F2.is_inf)
   let is_neg_inf = dispatch (F1.is_minus_inf, F2.is_minus_inf)
-  let is_interval = dispatch (F1.is_interval, F2.is_interval)
 
   let get_fkind = function
     | F32 _ -> FFloat
@@ -1075,9 +1068,6 @@ module FloatDomTupleImpl = struct
   let is_exact =
     exists
     % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_exact); }
-  let is_interval =
-    for_all
-    % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_interval); }
   let is_top =
     for_all
     % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_top); }
