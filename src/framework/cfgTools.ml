@@ -682,12 +682,12 @@ let getGlobalInits (file: file) : edges  =
       doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
-    let rec all_index = function
-      | Index (e,o) -> Index (all_array_index_exp, all_index o)
-      | Field (f,o) -> Field (f, all_index o)
+    let rec any_index_offset = function
+      | Index (e,o) -> Index (Lval.any_index_exp, any_index_offset o)
+      | Field (f,o) -> Field (f, any_index_offset o)
       | NoOffset -> NoOffset
     in
-    let all_index (lh,offs) = lh, all_index offs in
+    let any_index (lh,offs) = lh, any_index_offset offs in
     match init with
     | SingleInit exp ->
       let assign lval = (loc, Assign (lval, exp)) in
@@ -695,8 +695,8 @@ let getGlobalInits (file: file) : edges  =
          Instead, we get one assign for each distinct value in the array *)
       if not fast_global_inits then
         Hashtbl.add inits (assign lval) ()
-      else if not (Hashtbl.mem inits (assign (all_index lval))) then
-        Hashtbl.add inits (assign (all_index lval)) ()
+      else if not (Hashtbl.mem inits (assign (any_index lval))) then
+        Hashtbl.add inits (assign (any_index lval)) ()
       else
         ()
     | CompoundInit (typ, lst) ->
