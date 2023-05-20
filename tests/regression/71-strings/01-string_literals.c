@@ -59,19 +59,24 @@ int main() {
 
     i = strncmp(s1, s2, 5);
     __goblint_check(i != 0);
+    
+    #ifdef __APPLE__
+        /* the following portion fails on macOS because of a spurious warning:
+         * see issue goblint/cil#143 */
+    #else
+        strcpy(s1, "hi"); // WARN
+        strncpy(s1, "hi", 1); // WARN
+        strcat(s1, "hi"); // WARN
+        strncat(s1, "hi", 1); // WARN
+    
+        char s4[] = "hello";
+        strcpy(s4, s2); // NOWARN
+        strncpy(s4, s3, 2); // NOWARN
 
-    strcpy(s1, "hi"); // WARN
-    strncpy(s1, "hi", 1); // WARN
-    strcat(s1, "hi"); // WARN
-    strncat(s1, "hi", 1); // WARN
-
-    char s4[] = "hello";
-    strcpy(s4, s2); // NOWARN
-    strncpy(s4, s3, 2); // NOWARN
-
-    char s5[13] = "hello";
-    strcat(s5, " world"); // NOWARN
-    strncat(s5, "! some further text", 1); // NOWARN
+        char s5[13] = "hello";
+        strcat(s5, " world"); // NOWARN
+        strncat(s5, "! some further text", 1); // NOWARN
+    #endif
 
     return 0;
 }
