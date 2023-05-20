@@ -13,31 +13,31 @@ struct
 end
 
 type math =
-  | Nan of (Cil.fkind * Cil.exp)
-  | Inf of Cil.fkind
-  | Isfinite of Cil.exp
-  | Isinf of Cil.exp
-  | Isnan of Cil.exp
-  | Isnormal of Cil.exp
-  | Signbit of Cil.exp
-  | Isgreater of (Cil.exp * Cil.exp)
-  | Isgreaterequal of (Cil.exp * Cil.exp)
-  | Isless of (Cil.exp * Cil.exp)
-  | Islessequal of (Cil.exp * Cil.exp)
-  | Islessgreater of (Cil.exp * Cil.exp)
-  | Isunordered of (Cil.exp * Cil.exp)
-  | Ceil of (Cil.fkind * Cil.exp)
-  | Floor of (Cil.fkind * Cil.exp)
-  | Fabs of (Cil.fkind * Cil.exp)
-  | Fmax of (Cil.fkind * Cil.exp * Cil.exp)
-  | Fmin of (Cil.fkind * Cil.exp * Cil.exp)
-  | Acos of (Cil.fkind * Cil.exp)
-  | Asin of (Cil.fkind * Cil.exp)
-  | Atan of (Cil.fkind * Cil.exp)
-  | Atan2 of (Cil.fkind * Cil.exp * Cil.exp)
-  | Cos of (Cil.fkind * Cil.exp)
-  | Sin of (Cil.fkind * Cil.exp)
-  | Tan of (Cil.fkind * Cil.exp)
+  | Nan of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Inf of CilType.Fkind.t
+  | Isfinite of Basetype.CilExp.t
+  | Isinf of Basetype.CilExp.t
+  | Isnan of Basetype.CilExp.t
+  | Isnormal of Basetype.CilExp.t
+  | Signbit of Basetype.CilExp.t
+  | Isgreater of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Isgreaterequal of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Isless of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Islessequal of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Islessgreater of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Isunordered of (Basetype.CilExp.t * Basetype.CilExp.t)
+  | Ceil of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Floor of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Fabs of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Fmax of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
+  | Fmin of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
+  | Acos of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Asin of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Atan of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Atan2 of (CilType.Fkind.t * Basetype.CilExp.t * Basetype.CilExp.t)
+  | Cos of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Sin of (CilType.Fkind.t * Basetype.CilExp.t)
+  | Tan of (CilType.Fkind.t * Basetype.CilExp.t) [@@deriving eq, ord, hash]
 
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
@@ -146,95 +146,11 @@ let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): 
 
 module MathPrintable = struct
   include Printable.Std
-  type t = math
+  type t = math [@@deriving eq, ord, hash]
 
   let name () = "MathPrintable"
 
   let relift ml = ml 
-
-  let order = function
-    | Nan _ -> 1
-    | Inf _ -> 2
-    | Isfinite _ -> 3
-    | Isinf _ -> 4
-    | Isnan _ -> 5
-    | Isnormal _ -> 6
-    | Signbit _ -> 7
-    | Isgreater _ -> 8
-    | Isgreaterequal _ -> 9
-    | Isless _ -> 10
-    | Islessequal _ -> 11
-    | Islessgreater _ -> 12
-    | Isunordered _ -> 13
-    | Ceil _ -> 14
-    | Floor _ -> 15
-    | Fabs _ -> 16
-    | Fmax _ -> 17
-    | Fmin _ -> 18
-    | Acos _ -> 19
-    | Asin _ -> 20
-    | Atan _ -> 21
-    | Atan2 _ -> 22
-    | Cos _ -> 23
-    | Sin _ -> 24
-    | Tan _ -> 25
-
-  let equal m1 m2 = (compare m1 m2) == 0
-  let hash = order
-
-  let cmp_fk_exp (fk1, e1) (fk2, e2) =
-    let r = (CilType.Fkind.compare fk1 fk2) in
-    if r <> 0 then
-      r
-    else
-      CilType.Exp.compare e1 e2
-
-  let cmp_exp_exp (e1, e1') (e2, e2') =
-    let r = (CilType.Exp.compare e1 e2) in
-    if r <> 0 then
-      r
-    else
-      CilType.Exp.compare e1' e2'
-
-  let cmp_fk_exp_exp (fk1, e1, e1') (fk2, e2, e2') =
-    let r = (CilType.Fkind.compare fk1 fk2) in
-    if r <> 0 then
-      r
-    else
-      cmp_exp_exp (e1, e1') (e2, e2')
-
-  let compare m1 m2 =
-    let r = Stdlib.compare (order m1) (order m2) in
-    if r <> 0 then
-      r
-    else
-      match m1, m2 with
-      | Nan fe1, Nan fe2 -> cmp_fk_exp fe1 fe2
-      | Inf fk1, Inf fk2 -> CilType.Fkind.compare fk1 fk2
-      | Isfinite e1, Isfinite e2 -> CilType.Exp.compare e1 e2
-      | Isinf e1, Isinf e2 -> CilType.Exp.compare e1 e2
-      | Isnan e1, Isnan e2 -> CilType.Exp.compare e1 e2
-      | Isnormal e1, Isnormal e2 -> CilType.Exp.compare e1 e2
-      | Signbit e1, Signbit e2 -> CilType.Exp.compare e1 e2
-      | Isgreater ee1, Isgreater ee2 -> cmp_exp_exp ee1 ee2
-      | Isgreaterequal ee1, Isgreaterequal ee2 -> cmp_exp_exp ee1 ee2
-      | Isless ee1, Isless ee2 -> cmp_exp_exp ee1 ee2
-      | Islessequal ee1, Islessequal ee2 -> cmp_exp_exp ee1 ee2
-      | Islessgreater ee1, Islessgreater ee2 -> cmp_exp_exp ee1 ee2
-      | Isunordered ee1, Isunordered ee2 -> cmp_exp_exp ee1 ee2
-      | Ceil fe1, Ceil fe2 -> cmp_fk_exp fe1 fe2
-      | Floor fe1, Floor fe2 -> cmp_fk_exp fe1 fe2
-      | Fabs fe1, Fabs fe2 -> cmp_fk_exp fe1 fe2
-      | Fmax fee1, Fmax fee2 -> cmp_fk_exp_exp fee1 fee2
-      | Fmin fee1, Fmin fee2 -> cmp_fk_exp_exp fee1 fee2
-      | Acos fe1, Acos fe2 -> cmp_fk_exp fe1 fe2
-      | Asin fe1, Asin fe2 -> cmp_fk_exp fe1 fe2
-      | Atan fe1, Atan fe2 -> cmp_fk_exp fe1 fe2
-      | Atan2 fee1, Atan2 fee2 -> cmp_fk_exp_exp fee1 fee2
-      | Cos fe1, Cos fe2 -> cmp_fk_exp fe1 fe2
-      | Sin fe1, Sin fe2 -> cmp_fk_exp fe1 fe2
-      | Tan fe1, Tan fe2 -> cmp_fk_exp fe1 fe2
-      | _ -> failwith "impossible"
 
   let show = function
     | Nan _ -> "nan"
@@ -295,6 +211,6 @@ module MathPrintable = struct
 end
 
 module MathLifted = Lattice.Flat (MathPrintable) (struct
-  let top_name = "Unknown math desc"
+  let top_name = "Unknown or no math desc"
   let bot_name = "Nonexistent math desc"
 end)
