@@ -31,7 +31,7 @@ struct
 
 end
 
-let _ =
+let () =
   (** Register the preprocessing *)
   Cilfacade.register_preprocess (Spec.name ()) (new loopCounterVisitor);
   (** Register this analysis within the master control program *)
