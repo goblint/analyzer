@@ -69,6 +69,7 @@ There is no need to implement the transfer functions for branching for this exam
 The assignment relies on the function `eval`, which is almost there. It just needs you to fix the evaluation of constants! Unless you jumped straight to this line, it should not be too complicated to fix this.
 With this in place, we should have sufficient information to tell Goblint that the assertion does hold.
 
+For more information on the signature of the individual transfer functions, please check out their documentation in the file which they're defined in: [src/framework/analyses.ml](https://github.com/goblint/analyzer/blob/master/src/framework/analyses.ml#LL355C1-L355C17).
 
 ## Extending the domain
 
