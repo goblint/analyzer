@@ -62,12 +62,14 @@ int main() {
     
     #ifdef __APPLE__
         /* the following portion fails on macOS because of a spurious warning:
-         * see issue goblint/cil#143 */
+         * see issue goblint/cil#143
+         *
+         * remove #ifdef portion and change "should warn" to "WARN" as soon as issue fixed */
     #else
-        strcpy(s1, "hi"); // will warn -- change to normal annotation when issue fixed
-        strncpy(s1, "hi", 1); // will warn
-        strcat(s1, "hi"); // will warn
-        strncat(s1, "hi", 1); // will warn
+        strcpy(s1, "hi"); // should warn
+        strncpy(s1, "hi", 1); // should warn
+        strcat(s1, "hi"); // should warn
+        strncat(s1, "hi", 1); // should warn
     
         char s4[] = "hello";
         strcpy(s4, s2); // NOWARN
