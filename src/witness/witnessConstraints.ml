@@ -16,6 +16,8 @@ struct
   module I =
   struct
     include Spec.D
+    let to_modular = Spec.D.to_modular
+    let to_non_modular = Spec.D.to_non_modular
     (* assumes Hashcons inside PathSensitive *)
     let to_int = tag
     let name () = "D"
@@ -27,9 +29,23 @@ struct
     let name () = "C"
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c
   end
-  module VI = Printable.Prod3 (Node) (CC) (I)
-  module VIE = Printable.Prod (VI) (MyARG.InlineEdgePrintable)
-  module VIES = SetDomain.Make (VIE)
+  module VI = struct
+    include Printable.Prod3 (Node) (CC) (I)
+    let to_modular (n, c, i) = (n, c, I.to_modular i)
+    let to_non_modular (n, c, i) = (n, c, I.to_non_modular i)
+
+  end
+  module VIE = struct
+    include Printable.Prod (VI) (MyARG.InlineEdgePrintable)
+    let to_modular (vi, m) = VI.to_modular vi, m
+    let to_non_modular (vi, m) = VI.to_non_modular vi, m
+  end
+  module VIES = struct
+    module VIES = SetDomain.Make (VIE)
+    include VIES
+    let to_modular s = VIES.map VIE.to_modular s
+    let to_non_modular s = VIES.map VIE.to_non_modular s
+  end
   (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
      instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
   module R =
@@ -40,7 +56,7 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (R: Lattice.S) =
+  module SpecDMap (R: Lattice.T) =
   struct
     module C =
     struct
@@ -48,7 +64,10 @@ struct
       let cong = Spec.should_join
     end
     module J = MapDomain.Joined (Spec.D) (R)
-    include DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    module SpecDMap = DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
+    include SpecDMap
+    let to_modular (x: t) = SpecDMap.map R.to_modular x
+    let to_non_modular (x: t) = SpecDMap.map R.to_non_modular x
   end
 
   module Dom =
@@ -82,11 +101,15 @@ struct
     (* new predecessors are always the right ones for the latest evaluation *)
     let widen x y = y
     let narrow x y = y
+    let to_modular x = map Spec.D.to_modular x
+    let to_non_modular x = map Spec.D.to_non_modular x
   end
   module Sync = SpecDMap (SyncSet)
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)
+    let to_modular (d, s) = Dom.to_modular d, s
+    let to_non_modular (d, s) = Dom.to_non_modular d, s
 
     let printXml f (d, _) = Dom.printXml f d
   end

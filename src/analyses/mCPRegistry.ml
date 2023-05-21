@@ -5,9 +5,9 @@ open Analyses
 
 type spec_modules = { name : string
                     ; dep  : string list
-                    ; spec : (module MCPSpec)
-                    ; dom  : (module Lattice.S)
-                    ; glob : (module Lattice.S)
+                    ; spec : (module MCPPostSpec)
+                    ; dom  : (module Lattice.T)
+                    ; glob : (module Lattice.T)
                     ; cont : (module Printable.S)
                     ; var  : (module SpecSysVar)
                     ; acc  : (module MCPA) }
@@ -24,9 +24,9 @@ let register_analysis =
     let n = S.name () in
     let s = { name = n
             ; dep
-            ; spec = (module S : MCPSpec)
-            ; dom  = (module S.D : Lattice.S)
-            ; glob = (module S.G : Lattice.S)
+            ; spec = (module S : MCPPostSpec)
+            ; dom  = (module S.D : Lattice.T)
+            ; glob = (module S.G : Lattice.T)
             ; cont = (module S.C : Printable.S)
             ; var  = (module S.V : SpecSysVar)
             ; acc  = (module S.A : MCPA)
@@ -62,19 +62,19 @@ end
 
 module type DomainListLatticeSpec =
 sig
-  val assoc_dom : int -> (module Lattice.S)
-  val domain_list : unit -> (int * (module Lattice.S)) list
+  val assoc_dom : int -> (module Lattice.T)
+  val domain_list : unit -> (int * (module Lattice.T)) list
 end
 
 module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpec =
 struct
   let assoc_dom n =
-    let f (module L:Lattice.S) = (module L : Printable.S)
+    let f (module L:Lattice.T) = (module L : Printable.S)
     in
     f (D.assoc_dom n)
 
   let domain_list () =
-    let f (module L:Lattice.S) = (module L : Printable.S) in
+    let f (module L:Lattice.T) = (module L : Printable.S) in
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
@@ -280,7 +280,7 @@ struct
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
-  : Lattice.S with type t = (int * unknown) list
+  : Lattice.T with type t = (int * unknown) list
 =
 struct
   open DLSpec
@@ -292,7 +292,7 @@ struct
   let binop_fold f a (x:t) (y:t) =
     GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
-  let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
+  let binop_map (f: (module Lattice.T) -> Obj.t -> Obj.t -> Obj.t) x y =
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
 
   let binop_for_all f (x:t) (y:t) =
@@ -301,25 +301,38 @@ struct
   let unop_for_all f (x:t) =
     List.for_all2 (fun (n,d) (n',s) -> assert (n = n'); f n s d) x (domain_list ())
 
-  let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
-  let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
-  let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
-  let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
+  let narrow = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.narrow (obj x) (obj y))
+  let widen  = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.widen  (obj x) (obj y))
+  let meet   = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.meet   (obj x) (obj y))
+  let join   = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.join   (obj x) (obj y))
 
-  let leq    = binop_for_all (fun n (module S : Lattice.S) x y -> S.leq (obj x) (obj y))
+  let leq    = binop_for_all (fun n (module S : Lattice.T) x y -> S.leq (obj x) (obj y))
 
-  let is_top = unop_for_all (fun n (module S : Lattice.S) x -> S.is_top (obj x))
-  let is_bot = unop_for_all (fun n (module S : Lattice.S) x -> S.is_bot (obj x))
+  let is_top = unop_for_all (fun n (module S : Lattice.T) x -> S.is_top (obj x))
+  let is_bot = unop_for_all (fun n (module S : Lattice.T) x -> S.is_bot (obj x))
 
-  let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
-  let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
+  let top () = map (fun (n,(module S : Lattice.T)) -> (n,repr @@ S.top ())) @@ domain_list ()
+  let bot () = map (fun (n,(module S : Lattice.T)) -> (n,repr @@ S.bot ())) @@ domain_list ()
 
   let pretty_diff () (x,y) =
-    let f a n (module S : Lattice.S) x y =
+    let f a n (module S : Lattice.T) x y =
       if S.leq (obj x) (obj y) then a
       else a ++ S.pretty_diff () (obj x, obj y) ++ text ". "
     in
     binop_fold f nil x y
+
+  let unop_fold f a (x:t) =
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+
+  let unop_map f x =
+    List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
+
+  let to_modular =
+    unop_map (fun (module S: Lattice.T) x -> Obj.repr (S.to_modular (Obj.obj x)))
+
+  let to_non_modular =
+    unop_map (fun (module S: Lattice.T) x -> Obj.repr (S.to_non_modular (Obj.obj x)))
+
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
@@ -332,19 +345,19 @@ struct
   include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
   let name () = "MCP.G"
 
-  let binop_map' (f: int -> (module Lattice.S) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
+  let binop_map' (f: int -> (module Lattice.T) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
     assert (n1 = n2);
     f n1 (assoc_dom n1) d1 d2
 
-  let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) =
+  let binop_map (f: (module Lattice.T) -> Obj.t -> Obj.t -> Obj.t) =
     binop_map' (fun n s d1 d2 -> (n, f s d1 d2))
 
-  let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
-  let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
-  let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
-  let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
+  let narrow = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.narrow (obj x) (obj y))
+  let widen  = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.widen  (obj x) (obj y))
+  let meet   = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.meet   (obj x) (obj y))
+  let join   = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.join   (obj x) (obj y))
 
-  let leq    = binop_map' (fun _ (module S : Lattice.S) x y -> S.leq (obj x) (obj y))
+  let leq    = binop_map' (fun _ (module S : Lattice.T) x y -> S.leq (obj x) (obj y))
 
   let is_top x = false
   let is_bot x = false
@@ -352,9 +365,9 @@ struct
   let bot () = failwith "DomVariantLattice0.bot"
 
   let pretty_diff () (x, y) =
-    let f _ (module S : Lattice.S) x y =
-      if S.leq (obj x) (obj y) then nil
-      else S.pretty_diff () (obj x, obj y)
+    let f _ (module T : Lattice.T) x y =
+      if T.leq (obj x) (obj y) then nil
+      else T.pretty_diff () (obj x, obj y)
     in
     binop_map' f x y
 end

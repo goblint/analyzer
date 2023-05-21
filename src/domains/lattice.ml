@@ -37,6 +37,13 @@ sig
   val is_top: t -> bool
 end
 
+module type T =
+sig
+  include S
+  val to_modular: t -> t
+  val to_non_modular: t -> t
+end
+
 exception TopValue
 (** Exception raised by a topless lattice in place of a top value.
     Surrounding lattice functors may handle this on their own. *)
@@ -148,7 +155,7 @@ struct
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
-module HConsed (Base:S) =
+module HConsed (Base:T) =
 struct
   include Printable.HConsed (Base)
   let lift_f2 f x y = f (unlift x) (unlift y)
@@ -163,6 +170,9 @@ struct
   let bot () = lift (Base.bot ())
 
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
+
+  let to_modular x = lift (lift_f Base.to_modular x)
+  let to_non_modular x = lift (lift_f Base.to_non_modular x)
 end
 
 module HashCached (M: S) =

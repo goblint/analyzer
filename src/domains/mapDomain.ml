@@ -239,7 +239,7 @@ struct
 
   let relift = lift_f' M.relift
 end
-
+(*
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
 module HConsed (M: S) : S with
   type key = M.key and
@@ -288,7 +288,7 @@ struct
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
-end
+end *)
 
 module Timed (M: S) : S with
   type key = M.key and

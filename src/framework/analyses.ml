@@ -124,7 +124,7 @@ end
 exception Deadcode
 
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
-module Dom (LD: Lattice.S) =
+module Dom (LD: Lattice.T) =
 struct
   include Lattice.Lift (LD) (struct
       let bot_name = "Dead code"
@@ -132,6 +132,16 @@ struct
     end)
 
   let lift (x:LD.t) : t = `Lifted x
+
+  let map (f: LD.t -> LD.t) (x: t) : t =
+    match x with
+    | `Lifted x -> `Lifted (f x)
+    | `Bot
+    | `Top -> x
+
+  let to_modular = map (LD.to_modular)
+  let to_non_modular = map (LD.to_non_modular)
+
 
   let unlift x =
     match x with
@@ -430,19 +440,21 @@ sig
   val should_print: t -> bool (** Whether value should be printed in race output. *)
 end
 
+type modular_support = Modular | NonModular | Both
+
 module type MCPSpec =
 sig
   include Spec
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
+  val modular_support: unit -> modular_support
 end
 
 module type PostSpec =
 sig
-  include Spec
-  val to_modular : D.t -> D.t
-  val to_non_modular : D.t -> D.t
+  module D: Lattice.T
+  include Spec with module D := D
 end
 
 module IdentityModularConverter =
@@ -453,9 +465,9 @@ end
 
 module type MCPPostSpec =
 sig
-  include MCPSpec
-  val to_modular : D.t -> D.t
-  val to_non_modular : D.t -> D.t
+  module D: Lattice.T
+  module G: Lattice.T
+  include MCPSpec with module D := D and module G := G
 end
 
 type increment_data = {
@@ -650,6 +662,8 @@ struct
 
   module A = UnitA
   let access _ _ = ()
+
+  let modular_support () = NonModular
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

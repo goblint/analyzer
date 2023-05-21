@@ -97,6 +97,9 @@ struct
   struct
     include Dom (S.D)
 
+    let to_modular (d, ts) = S.D.to_modular d, ts
+    let to_non_modular (d, ts) = S.D.to_non_modular d, ts
+
     let printXml f (d, t) =
       BatPrintf.fprintf f "\n%a<path><analysis name=\"tokens\">%a</analysis></path>" S.D.printXml d TS.printXml t
   end
@@ -109,7 +112,9 @@ struct
   end
   module C = S.C
   module V = S.V
-  include Analyses.IdentityModularConverter
+
+  let to_modular = D.to_modular
+  let to_non_modular = D.to_non_modular
 
   let name () = S.name ()^" with widening tokens"
 

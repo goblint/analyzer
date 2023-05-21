@@ -10,8 +10,27 @@ struct
 
   let name () = S.name ()
   module V = S.V
-  module G = S.G
-  module D = Lattice.Option (S.D)
+  module D = struct
+    include Lattice.Option (S.D)
+    let to_modular x =
+      match S.modular_support () with
+      | Modular
+      | Both -> x
+      | NonModular -> None
+    let to_non_modular x =
+      match S.modular_support () with
+      | NonModular
+      | Both -> x
+      | Modular -> None
+  end
+
+  (* Extend G to the Lattice.T signature *)
+  module G = struct
+    include S.G
+    let to_modular x = x
+    let to_non_modular x = x
+  end
+
   module C = Printable.Option (S.C) (struct let name = S.C.name () end)
   module A = struct
     include Printable.Option (S.A) (struct let name = S.A.name () end)
@@ -153,8 +172,8 @@ struct
   let event ctx events ctx2 =
     map_ctx_fctx (fun ctx ctx2 -> event ctx events ctx2) ~ctx ~fctx:ctx2
 
-  let to_modular v = v
-  let to_non_modular v = v
+  let to_modular v = D.to_modular v
+  let to_non_modular v = D.to_non_modular v
 end
 
 (* let _ =

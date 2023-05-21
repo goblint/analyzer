@@ -10,18 +10,20 @@ module M = Messages
 
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
-module HashconsLifter (S:Spec)
+module HashconsLifter (S:PostSpec)
   : PostSpec with module D = Lattice.HConsed (S.D)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.HConsed (S.D)
+  module D =  Lattice.HConsed (S.D)
+    (* let to_modular = S.D.to_modular
+    let to_non_modular = S.D.to_non_modular *)
+
   module G = S.G
   module C = S.C
   module V = S.V
 
-  include IdentityModularConverter
 
   let name () = S.name () ^" hashconsed"
 
@@ -187,14 +189,20 @@ module OptEqual (S: PostSpec) = struct
   include IdentityModularConverter
 end
 
+module D (S: PostSpec) = struct
+  include Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  let to_modular (x, y) = (S.D.to_modular x, y)
+  let to_non_modular (x, y) = (S.D.to_non_modular x, y)
+end
+
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:PostSpec)
-  : PostSpec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  : PostSpec with module D = D (S)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  module D = D (S)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -352,12 +360,15 @@ struct
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
+    let to_modular (x, y) = S.D.to_modular x, y
+    let to_non_modular (x, y) = S.D.to_non_modular x, y
   end
   module G = S.G
   module C = S.C
   module V = S.V
 
-  include IdentityModularConverter
+  let to_modular ((d, m): D.t) : D.t = S.D.to_modular d, m
+  let to_non_modular ((d, m) : D.t) : D.t = S.D.to_non_modular d, m
 
   let name () = S.name ()^" with widened contexts"
 
@@ -773,14 +784,14 @@ struct
                 (* if function is to be analyzed modularly (and the the current mode is not modular), then analyze first only with modular analyses *)
                 (* Then analyze with non-modular analyses *)
                 (* otherwise just analyze the function modularly *)
-                (* if ModularUtil.is_modular_fun f then begin
-                   let local = S.to_modular ctx.local in
-                   let ctx = {ctx with local = local } in
-                   let local = tf_normal_call ctx lv e fd args getl sidel getg sideg in
-                   (* tf_special_call ctx lv f args *)
-                   local
-                   end else *)
-                tf_normal_call ctx lv e fd args getl sidel getg sideg
+                if ModularUtil.is_modular_fun f then begin
+                  let local = S.D.to_modular ctx.local in
+                  let ctx = {ctx with local = local } in
+                  let local = tf_normal_call ctx lv e fd args getl sidel getg sideg in
+                  (* tf_special_call ctx lv f args *)
+                  local
+                end else
+                  tf_normal_call ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
                 tf_special_call ctx lv f args)
           end
@@ -1207,6 +1218,9 @@ struct
     end
     module J = SetDomain.Joined (Spec.D)
     include DisjointDomain.PairwiseSet (Spec.D) (J) (C)
+
+    let to_modular x = map Spec.D.to_modular x
+    let to_non_modular x = map Spec.D.to_non_modular x
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -1219,8 +1233,6 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
-
-  include IdentityModularConverter
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
@@ -1474,7 +1486,6 @@ end
 module LongjmpLifter (S: PostSpec): PostSpec =
 struct
   include S
-  include IdentityModularConverter
 
   let name () = "Longjmp (" ^ S.name () ^ ")"
 
