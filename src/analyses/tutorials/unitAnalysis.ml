@@ -1,6 +1,6 @@
 (** An analysis specification for didactic purposes. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 (* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit and type marshal = unit = *)

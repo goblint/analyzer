@@ -1,6 +1,8 @@
 (** Value analysis.  *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 open GobConfig
 open BaseUtil
@@ -346,7 +348,7 @@ struct
             let ay = AD.choose y in
             let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
-                if M.tracing then M.tracel "addr" "IsMultiple %a\n" d_varinfo v;
+                if M.tracing then M.tracel "addr" "IsMultiple %a\n" CilType.Varinfo.pretty v;
                 None
               | _ ->
                 Some true
@@ -431,7 +433,7 @@ struct
       | `Thread ->
         true
       | _ ->
-        ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
+        ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
     if !GU.earlyglobs || multi then
@@ -447,7 +449,7 @@ struct
     ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
-    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+    if (!GU.earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
@@ -798,7 +800,7 @@ struct
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:max_int (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = CilType.Constant.show c in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -1201,7 +1203,7 @@ struct
     in
 
     if CilLval.Set.is_top context.Invariant.lvals then (
-      if !GU.earlyglobs || ThreadFlag.is_multi ask then (
+      if !GU.earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
           CPA.fold (fun k v a ->
               if not (is_global ask k) then
@@ -1273,7 +1275,7 @@ struct
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
               x
-            | y -> failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local))
+            | y -> failwith (GobPretty.sprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local)
           end
         | _ -> failwith "problem?!"
       end
@@ -1469,7 +1471,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
+      if (!GU.earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
@@ -1914,7 +1916,7 @@ struct
            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
           ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
         Priv.threadenter (Analyses.ask_of_ctx ctx) st
       ) else
@@ -2002,7 +2004,7 @@ struct
       let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
-      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
+      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread None None) addrs
     | _, _ -> []
 
@@ -2052,11 +2054,58 @@ struct
       (addr, AD.get_type addr)
     in
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in
+    let memory_copying dst src =
+      let dest_a, dest_typ = addr_type_of_exp dst in
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+                    |> AD.get_type in
+      (* when src and destination type coincide, take value from the source, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value in
+    (* for string functions *)
+    let eval_n = function
+      (* if only n characters of a given string are needed, evaluate expression n to an integer option *) 
+      | Some n ->
+        begin match eval_rv (Analyses.ask_of_ctx ctx) gs st n with
+          | `Int i ->
+            begin match ID.to_int i with
+              | Some x -> Some (Z.to_int x)
+              | _ -> Some (-1)
+            end
+          | _ -> Some (-1)
+        end
+      (* do nothing if all characters are needed *)
+      | _ -> None 
+    in
+    let string_manipulation s1 s2 lv all op =
+      let s1_a, s1_typ = addr_type_of_exp s1 in 
+      let s2_a, s2_typ = addr_type_of_exp s2 in
+      match lv, op with
+      | Some lv_val, Some f ->
+        (* when whished types coincide, compute result of operation op, otherwise use top *)
+        let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+        let lv_typ = Cilfacade.typeOfLval lv_val in
+        if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
+          lv_a, lv_typ, (f s1_a s2_a)
+        else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
+          lv_a, lv_typ, (f s1_a s2_a)
+        else
+          lv_a, lv_typ, (VD.top_value (unrollType lv_typ))
+      | _ ->
+        (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
+        let _ = AD.string_writing_defined s1_a in
+        s1_a, s1_typ, VD.top_value (unrollType s1_typ)
+    in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
@@ -2076,145 +2125,56 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Memcpy { dest = dst; src }, _
-    | Strcpy { dest = dst; src }, _ ->
-      (* invalidating from interactive *)
-      (* let dest_a, dest_typ = addr_type_of_exp dst in
-          let value = VD.top_value dest_typ in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value *)
-      (* TODO: reuse addr_type_of_exp for master *)
-      (* assigning from master *)
+    | Memcpy { dest = dst; src }, _ ->
+      memory_copying dst src
+    (* strcpy(dest, src); *)
+    | Strcpy { dest = dst; src; n = None }, _ ->
       let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* when src and destination type coincide, take value from the source, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
-        else
-          VD.top_value (unrollType dest_typ)
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strncpy { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* evaluate amount of characters which are to be extracted of src *)
-      let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
-      let int_n = 
-        match eval_n with
-        | `Int i -> (match ID.to_int i with
-            | Some x -> Z.to_int x
-            | _ -> -1)
-        | _ -> -1 in
-      (* when src and destination type coincide, take n-substring value from the source, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.to_n_string int_n src_a)
-        else
-          VD.top_value (unrollType dest_typ)
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strcat { dest = dst; src }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* when src and destination type coincide, concatenate src to dest, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
-          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.string_concat dest_a src_a None)
-        else
-          VD.top_value (unrollType dest_typ)
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Strncat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in 
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* evaluate amount of characters which are to be extracted of src *)
-      let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
-      let int_n = 
-        match eval_n with
-        | `Int i -> (match ID.to_int i with
-            | Some x -> Z.to_int x
-            | _ -> -1)
-        | _ -> -1 in
-      (* when src and destination type coincide, concatenate n-substring from src to dest, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in 
-          let src_a = eval_lv (Analyses.ask_of_ctx ctx) gs st src_cast_lval in
-          `Address(AD.string_concat dest_a src_a (Some int_n))
-        else
-          VD.top_value (unrollType dest_typ)
-      in
+      (* when dest surely isn't a string literal, try copying src to dest *)
+      if AD.string_writing_defined dest_a then
+        memory_copying dst src
+      else
+        (* else return top (after a warning was issued) *)
+        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
+    (* strncpy(dest, src, n); *)
+    | Strcpy { dest = dst; src; n }, _ ->
+      begin match eval_n n with
+        | Some num ->
+          let dest_a, dest_typ, value = string_manipulation dst src None false None in
+          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | None -> failwith "already handled in case above"
+      end
+    | Strcat { dest = dst; src; n }, _ ->
+      let dest_a, dest_typ, value = string_manipulation dst src None false None in 
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
       begin match lv with 
-        | Some v -> 
+        | Some lv_val -> 
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+          let dest_typ = Cilfacade.typeOfLval lv_val in
           let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
           let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
           let value = `Int(AD.to_string_length address) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> ctx.local
+        | None -> st
       end
     | Strstr { haystack; needle }, _ ->
       begin match lv with
-        | Some v ->
-          let haystack_a, haystack_typ = addr_type_of_exp haystack in 
-          let needle_a, needle_typ = addr_type_of_exp needle in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
+        | Some _ ->
           (* when haystack, needle and dest type coincide, check if needle is a substring of haystack: 
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
-          let value = if typeSig dest_typ = typeSig haystack_typ && typeSig haystack_typ = typeSig needle_typ then
-              `Address(AD.substring_extraction haystack_a needle_a)
-            else
-              VD.top_value (unrollType dest_typ) in
+          let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> `Address(AD.substring_extraction h_a n_a))) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> ctx.local
+        | None -> st
       end
-    | Strcmp { s1; s2 }, _ ->
+    | Strcmp { s1; s2; n }, _ ->
       begin match lv with
-        | Some v ->
-          let s1_a, s1_typ = addr_type_of_exp s1 in 
-          let s2_a, s2_typ = addr_type_of_exp s2 in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
-          (* when s1 and s2 type coincide, compare both strings, otherwise use top *)
-          let value = if typeSig s1_typ = typeSig s2_typ then
-              `Int(AD.string_comparison s1_a s2_a None)
-            else
-              VD.top_value (unrollType dest_typ) in
+        | Some _ ->
+          (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
+          let dest_a, dest_typ, value = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> `Int(AD.string_comparison s1_a s2_a (eval_n n)))) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> ctx.local
-      end
-    | Strncmp { s1; s2; n }, _ ->
-      begin match lv with
-        | Some v ->
-          let s1_a, s1_typ = addr_type_of_exp s1 in 
-          let s2_a, s2_typ = addr_type_of_exp s2 in
-          let dest_a, dest_typ = addr_type_of_exp (Lval v) in
-          (* evaluate amount of characters which are to be extracted of src *)
-          let eval_n = eval_rv (Analyses.ask_of_ctx ctx) gs st n in
-          let int_n = 
-            match eval_n with
-            | `Int i -> (match ID.to_int i with
-                | Some x -> Z.to_int x
-                | _ -> -1)
-            | _ -> -1 in
-          (* when s1 and s2 type coincide, compare both strings, otherwise use top *)
-          let value = if typeSig s1_typ = typeSig s2_typ then
-              `Int(AD.string_comparison s1_a s2_a (Some int_n))
-            else
-              VD.top_value (unrollType dest_typ) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> ctx.local
+        | None -> st
       end
     | Abort, _ -> raise Deadcode
     | ThreadExit { ret_val = exp }, _ ->
@@ -2574,14 +2534,14 @@ struct
               let asked' = Queries.Set.add anyq asked in
               let r: a Queries.result =
                 match q with
-                | MustBeSingleThreaded when single -> true
+                | MustBeSingleThreaded _ when single -> true
                 | MayEscape _
                 | MayBePublic _
                 | MayBePublicWithout _
                 | MustBeProtectedBy _
                 | MustLockset
                 | MustBeAtomic
-                | MustBeSingleThreaded
+                | MustBeSingleThreaded _
                 | MustBeUniqueThread
                 | CurrentThreadId
                 | MayBeThreadReturn
@@ -2687,10 +2647,10 @@ struct
   let event ctx e octx =
     let st: store = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
-    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->

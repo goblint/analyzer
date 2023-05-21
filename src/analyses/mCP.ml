@@ -1,6 +1,7 @@
 (** Master Control Program *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open GobConfig
 open Analyses
 
@@ -56,7 +57,7 @@ struct
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = find_spec_name x in
         Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
-        raise Exit
+        raise Stdlib.Exit
       end
     in
     let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in

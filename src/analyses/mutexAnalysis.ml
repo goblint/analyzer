@@ -5,7 +5,7 @@ module Addr = ValueDomain.Addr
 module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 
@@ -209,7 +209,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; _} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let old_access var_opt offs_opt =
         (* TODO: this used to use ctx instead of octx, why? *)

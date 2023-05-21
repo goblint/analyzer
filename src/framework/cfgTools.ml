@@ -541,7 +541,7 @@ struct
   let p_node out n = Format.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
+  let p_edge (out: Format.formatter) x = Format.fprintf out "%s" (String.escaped (GobPretty.sprint Edge.pretty x))
 
   let rec p_edges out = function
     | [] -> Format.fprintf out ""

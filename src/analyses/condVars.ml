@@ -1,7 +1,8 @@
 (** Must equality between variables and logical expressions. *)
 (* TODO: unused, what is this analysis? *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module Domain = struct

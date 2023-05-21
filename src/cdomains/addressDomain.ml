@@ -106,24 +106,6 @@ struct
       
   let to_string x = List.filter_map Addr.to_string (elements x)
       
-  let to_n_string n x =
-    let transform n elem =
-      match Addr.to_n_string n elem with
-      | Some s -> from_string s
-      | None -> top () in
-    (* maps any StrPtr for which n is valid to the prefix of length n of its content, otherwise maps to top *)
-    List.map (transform n) (elements x)
-    (* returns the least upper bound of computed AddressDomain values *)
-    |> List.fold_left join (bot ())
-  (* let to_n_string n x =
-     let n_string_list = List.map (Addr.to_n_string n) (elements x) in
-     match List.find_opt (fun x -> if x = None then true else false) n_string_list with
-      (* returns top if input address set contains an element that isn't a StrPtr or if n isn't valid *)
-      | Some _ -> top ()
-      (* else returns the least upper bound of all substrings of length n *)
-      | None -> List.map (fun x -> match x with Some s -> from_string s | None -> failwith "unreachable") n_string_list
-                |> List.fold_left join (bot ()) *)
-      
   let to_string_length x =
     let transform elem =
       match Addr.to_string_length elem with
@@ -131,41 +113,8 @@ struct
       | None -> Idx.top_of IUInt in 
     (* maps any StrPtr to the length of its content, otherwise maps to top *)
     List.map transform (elements x)
-    (* returns the least upper bound of computed IntDomain values *)
+    (* and returns the least upper bound of computed IntDomain values *)
     |> List.fold_left Idx.join (Idx.bot_of IUInt)
-  (* let to_string_length x =
-     let length_list = List.map Addr.to_string_length (elements x) in
-     match List.find_opt (fun x -> if x = None then true else false) length_list with
-      (* returns top if input address set contains an element that isn't a StrPtr *)
-      | Some _ -> Idx.top_of IUInt
-      (* else returns the least upper bound of all lengths *)
-      | None -> List.map (fun x -> match x with Some y -> Idx.of_int IUInt (Z.of_int y) | None -> failwith "unreachable") length_list
-                |> List.fold_left Idx.join (Idx.bot_of IUInt) *)
-      
-  let string_concat x y n =
-    let f = match n with
-      | Some num -> Addr.to_n_string num
-      | None -> Addr.to_string in
-
-    (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
-    let x' = List.map Addr.to_string (elements x) in 
-    let y' = List.map f (elements y) in 
-
-    (* helper functions *)
-    let is_None x = if x = None then true else false in
-    let extract_string = function
-      | Some s -> s
-      | None -> failwith "unreachable" in
-
-    match List.find_opt is_None x', List.find_opt is_None y' with
-    (* if all elements of both lists are Some string *)
-    | None, None -> 
-      (* ... concatenate every string of x' with every string of y' *)
-      List.fold_left (fun acc elem -> acc @ (List.map (fun s -> from_string ((extract_string elem) ^ (extract_string s))) y')) [] x'
-      (* ... and join all combinations *)
-      |> List.fold_left join (bot ())
-    (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
-    | _ -> top ()
 
   let substring_extraction haystack needle =
     (* map all StrPtr elements in input address sets to contained strings *)
@@ -173,36 +122,28 @@ struct
     let needle' = List.map Addr.to_string (elements needle) in
 
     (* helper functions *)
-    let is_None = function None -> true | Some _ -> false in
-    let is_Some = function Some _ -> true | None -> false in
     let extract_string = function
       | Some s -> s
       | None -> failwith "unreachable" in
     let extract_lval_string = function
       | Some s -> from_string s
-      | None -> top () in
+      | None -> null_ptr in
     let compute_substring s1 s2 =
-      let i =
-        try Str.search_forward (Str.regexp_string s2) s1 0
-        with Not_found -> -1 in
-      if i < 0 then
-        None
-      else
-        Some (String.sub s1 i (String.length s1 - i)) in
+      try 
+        let i = Str.search_forward (Str.regexp_string s2) s1 0 in
+        Some (String.sub s1 i (String.length s1 - i))
+      with Not_found -> None in
 
-    match List.find_opt is_None haystack', List.find_opt is_None needle' with
-    (* if all elements of both lists are Some string *)
-    | None, None ->
-      (* ... try to extract substrings *)
-      (let substrings = List.fold_left (fun acc elem -> 
-           acc @ (List.map (fun s -> compute_substring (extract_string elem) (extract_string s)) needle')) [] haystack' in
-       match List.find_opt is_Some substrings with
-       (* ... and return a null pointer if no string of needle' is a substring of any string of haystack' *)
-       | None -> null_ptr
-       (* ... or join all combinations *)
-       | Some _ -> List.fold_left join (bot ()) (List.map extract_lval_string substrings))
-    (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
-    | _ -> top ()
+    (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    if List.exists ((=) None) haystack' || List.exists ((=) None) needle' then
+      top_ptr
+    else
+      (* else try to find the first occurrence of all strings in needle' in all strings s of haystack',
+         collect s starting from that occurrence or if there is none, collect a NULL pointer,
+         and return the least upper bound *)
+      BatList.cartesian_product haystack' needle'
+      |> List.map (fun (s1, s2) -> extract_lval_string (compute_substring (extract_string s1) (extract_string s2)))
+      |> List.fold_left join (bot ())
 
   let string_comparison x y n =
     let f = match n with
@@ -210,25 +151,38 @@ struct
       | None -> Addr.to_string in
 
     (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
-    let x' = List.map Addr.to_string (elements x) in 
+    let x' = List.map f (elements x) in 
     let y' = List.map f (elements y) in 
 
     (* helper functions *)
-    let is_None x = if x = None then true else false in
     let extract_string = function
       | Some s -> s
       | None -> failwith "unreachable" in
+    let compare s1 s2 =
+      let res = String.compare s1 s2 in
+      if res = 0 then
+        Idx.of_int IInt Z.zero
+      else if res > 0 then
+        Idx.starting IInt Z.one
+      else
+        Idx.ending IInt (Z.neg (Z.one)) in
 
-    match List.find_opt is_None x', List.find_opt is_None y' with
-    (* if all elements of both lists are Some string *)
-    | None, None ->
-      (* ... compare every string of x' with every string of y' *)
-      (* TODO: in case of only < or only >, is it really assured that the computed value is any negative / positive integer? *)
-      List.fold_left (fun acc elem -> acc @ (List.map (fun s -> Idx.of_int IInt (Z.of_int (String.compare (extract_string elem) (extract_string s)))) y')) [] x'
-      (* ... and join all computed IntDomain values *)
+    (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    if List.exists ((=) None) x' || List.exists ((=) None) y' then
+      Idx.top_of IInt
+    else
+      (* else compare every string of x' with every string of y' and return the least upper bound *)
+      BatList.cartesian_product x' y'
+      |> List.map (fun (s1, s2) -> compare (extract_string s1) (extract_string s2))
       |> List.fold_left Idx.join (Idx.bot_of IInt)
-    (* else if any of the input address sets contains an element that isn't a StrPtr, return top *)
-    | _ -> Idx.top_of IInt
+
+  let string_writing_defined dest =
+    (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
+    if List.exists (fun x -> match x with Some _ -> true | None -> false) (List.map Addr.to_string (elements dest)) then
+      (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
+       false)
+    else
+      true
 
   (* add an & in front of real addresses *)
   module ShortAddr =

@@ -1,6 +1,6 @@
 (** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
@@ -527,7 +527,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -723,13 +723,13 @@ struct
       let module Arg = (val ArgTool.create entrystates) in
       if get_bool "exp.argdot" then (
         let module ArgDot = ArgTools.Dot (Arg) in
-        let oc = Stdlib.open_out "arg.dot" in
+        let oc = Batteries.open_out "arg.dot" in
         Fun.protect (fun () ->
             let ppf = Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;
             Format.pp_print_flush ppf ()
           ) ~finally:(fun () ->
-            Stdlib.close_out oc
+            Batteries.close_out oc
           )
       );
       ArgTools.current_arg := Some (module Arg);
