@@ -64,7 +64,7 @@ int main() {
         /* the following portion fails on macOS because of a spurious warning:
          * see issue goblint/cil#143
          *
-         * remove #ifdef portion and change "should warn" to "WARN" as soon as issue fixed */
+         * remove #ifdef portion and change "should warn" to normal warning as soon as issue fixed */
     #else
         strcpy(s1, "hi"); // should warn
         strncpy(s1, "hi", 1); // should warn
