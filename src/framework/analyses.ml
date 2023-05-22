@@ -457,12 +457,6 @@ sig
   include Spec with module D := D
 end
 
-module IdentityModularConverter =
-struct
-  let to_modular = Fun.id
-  let to_non_modular = Fun.id
-end
-
 module type MCPPostSpec =
 sig
   module D: Lattice.T

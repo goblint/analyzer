@@ -105,6 +105,8 @@ struct
       let written : D.t = ctx.local in
       written
     | _ -> Q.Result.top q
+
+  let modular_support () = Modular
 end
 
 let _ =

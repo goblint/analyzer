@@ -13,10 +13,17 @@ struct
   module D = struct
     include Lattice.Option (S.D)
     let to_modular x =
-      match S.modular_support () with
-      | Modular
-      | Both -> x
-      | NonModular -> None
+      (* let stack = Printexc.get_callstack 10 in *)
+      (* let stack = Printexc.raw_backtrace_to_string stack in *)
+      (* M.tracel "to_modular" "%s\n" stack; *)
+      let text, r = match S.modular_support () with
+        | Modular
+        | Both -> "unchanged", x
+        | NonModular -> "none", None
+      in
+      M.tracel "to_modular" "Calling to_modular for analysis %s. Results is %s!\n" (S.name ()) text;
+      r
+
     let to_non_modular x =
       match S.modular_support () with
       | NonModular
@@ -171,9 +178,6 @@ struct
 
   let event ctx events ctx2 =
     map_ctx_fctx (fun ctx ctx2 -> event ctx events ctx2) ~ctx ~fctx:ctx2
-
-  let to_modular v = D.to_modular v
-  let to_non_modular v = D.to_non_modular v
 end
 
 (* let _ =

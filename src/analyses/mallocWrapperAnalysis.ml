@@ -146,6 +146,9 @@ struct
 
   let finalize () =
     NodeVarinfoMap.marshal ()
+
+ (* TODO: Adapt implementaiton for modular mode to not yield additional contexts *)
+  let modular_support () = Both
 end
 
 let _ =

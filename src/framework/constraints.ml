@@ -17,9 +17,6 @@ module HashconsLifter (S:PostSpec)
 =
 struct
   module D =  Lattice.HConsed (S.D)
-    (* let to_modular = S.D.to_modular
-    let to_non_modular = S.D.to_non_modular *)
-
   module G = S.G
   module C = S.C
   module V = S.V
@@ -108,8 +105,6 @@ struct
   module C = Printable.HConsed (S.C)
   module V = S.V
 
-  include IdentityModularConverter
-
   let name () = S.name () ^" context hashconsed"
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
@@ -186,7 +181,6 @@ module OptEqual (S: PostSpec) = struct
   module G = struct include S.G let equal x y = x == y || equal x y end
   module C = struct include S.C let equal x y = x == y || equal x y end
   include (S : Spec with module D := D and module G := G and module C := C)
-  include IdentityModularConverter
 end
 
 module D (S: PostSpec) = struct
@@ -206,8 +200,6 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
-
-  include IdentityModularConverter
 
   let name () = S.name ()^" level sliced"
 
@@ -322,7 +314,6 @@ end
 module LimitLifter (S:PostSpec) =
 struct
   include (S : module type of S with module D := S.D and type marshal = S.marshal)
-  include IdentityModularConverter
 
   let name () = S.name ()^" limited"
 
@@ -444,7 +435,6 @@ struct
   module C = S.C
   module V = S.V
 
-  include IdentityModularConverter
   let name () = S.name ()^" lifted"
 
   type marshal = S.marshal
@@ -786,6 +776,7 @@ struct
                 (* otherwise just analyze the function modularly *)
                 if ModularUtil.is_modular_fun f then begin
                   let local = S.D.to_modular ctx.local in
+                  M.tracel "to_modular" "ctx.local: %a\nto_modular: %a\n" S.D.pretty ctx.local S.D.pretty local;
                   let ctx = {ctx with local = local } in
                   let local = tf_normal_call ctx lv e fd args getl sidel getg sideg in
                   (* tf_special_call ctx lv f args *)
@@ -1347,9 +1338,6 @@ end
 module DeadBranchLifter (S: PostSpec): PostSpec =
 struct
   include S
-
-  include IdentityModularConverter
-
   let name () = "DeadBranch (" ^ S.name () ^ ")"
 
   (* Two global invariants:

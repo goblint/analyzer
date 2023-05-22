@@ -630,7 +630,7 @@ end
 
 module Option (Base: S) : S with type t = Base.t option =
 struct
-  module Option = Printable.Option (Base) (struct let name = Base.name () end)
+  module Option = Printable.Option (Base) (struct let name = "None" end)
   include Option
 
   let binop f x y = match x, y with

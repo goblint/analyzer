@@ -610,8 +610,4 @@ struct
 
   (* Just to satisfy signature *)
   let paths_as_set ctx = [ctx.local]
-
-  let to_modular d = d
-
-  let to_non_modular d = d
 end

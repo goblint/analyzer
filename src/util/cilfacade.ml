@@ -158,7 +158,7 @@ let getFuns fileAST : startfuns =
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
-    | GFun ({svar={vattr; vname; _}; _} as def, _) when (get_bool "modular" && not only_modular_funs || List.mem vname modular_funs)  && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_main def  acc
+    | GFun ({svar={vattr; vname; _}; _} as def, _) when (get_bool "modular" && (not only_modular_funs || List.mem vname modular_funs))  && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_main def  acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])

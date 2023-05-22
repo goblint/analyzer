@@ -118,8 +118,6 @@ struct
   module C = Spec.C
   module V = Spec.V
 
-  include IdentityModularConverter
-
   let name () = "PathSensitive3("^Spec.name ()^")"
 
   type marshal = Spec.marshal

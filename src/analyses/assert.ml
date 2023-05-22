@@ -58,6 +58,8 @@ struct
     match desc.special args, f.vname with
     | Assert { exp; check; refine }, _ -> assert_fn ctx exp check refine
     | _, _ -> ctx.local
+
+  let modular_support () = Both
 end
 
 let _ =

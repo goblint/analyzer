@@ -1470,12 +1470,13 @@ struct
               M.debug ~category:Analyzer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
+      let is_modular = a.f Q.IsModular in
       let update_offset old_value =
         (* Projection globals to highest Precision *)
         let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
         let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         (* TODO: Not clear why doing IsMultiple query instead of checking WeakUpdates leads to imprecision in 44/20 *)
-        let is_multiple = if a.f Q.IsModular then a.f (Q.IsMultiple x) else WeakUpdates.mem x st.weak in
+        let is_multiple = if is_modular then a.f (Q.IsMultiple x) else WeakUpdates.mem x st.weak in
         if is_multiple then
           VD.join old_value new_value
         else if invariant then
@@ -1484,7 +1485,7 @@ struct
         else
           new_value
       in
-      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset ~is_modular:(a.f IsModular) (x,offs)) d_type x.vtype D.pretty st;
+      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset ~is_modular (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         st
@@ -1495,7 +1496,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
+      if (!GU.earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x && not is_modular then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
@@ -2770,6 +2771,8 @@ struct
       end
     | _ ->
       ctx.local
+
+  let modular_support () = Both
 end
 
 module type MainSpec = sig

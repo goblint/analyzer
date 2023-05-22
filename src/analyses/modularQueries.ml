@@ -11,6 +11,8 @@ struct
     | IsMultiple v ->
       TypeVarinfoMap.mem_varinfo v
     | _ -> Queries.Result.top q
+
+  let modular_support () = Modular
 end
 
 let _ =

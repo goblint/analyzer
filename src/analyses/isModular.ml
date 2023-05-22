@@ -53,6 +53,8 @@ struct
       let result: bool = ctx.local in (* type annotation required *)
       result
     | _ -> Queries.Result.top q
+
+  let modular_support () = Both
 end
 
 let _ =
