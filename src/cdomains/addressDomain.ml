@@ -109,12 +109,12 @@ struct
   let to_string_length x =
     let transform elem =
       match Addr.to_string_length elem with
-      | Some x -> Idx.of_int IUInt (Z.of_int x)
-      | None -> Idx.top_of IUInt in 
+      | Some x -> Idx.of_int !Cil.kindOfSizeOf (Z.of_int x)
+      | None -> Idx.top_of !Cil.kindOfSizeOf in 
     (* maps any StrPtr to the length of its content, otherwise maps to top *)
     List.map transform (elements x)
     (* and returns the least upper bound of computed IntDomain values *)
-    |> List.fold_left Idx.join (Idx.bot_of IUInt)
+    |> List.fold_left Idx.join (Idx.bot_of !Cil.kindOfSizeOf)
 
   let substring_extraction haystack needle =
     (* map all StrPtr elements in input address sets to contained strings *)
