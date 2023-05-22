@@ -19,8 +19,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
-    (* TODO: Do we need accessKind of "r" for "free" or is "f" alone already sufficient? *)
-    ("free", special [__ "ptr" [r; f]] @@ fun ptr -> Free ptr);
+    ("free", special [__ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
@@ -488,16 +487,6 @@ let classify fn exps: categories =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
-      | _ -> strange_arguments ()
-    end
-    (*
-     * TODO: Docs (https://goblint.readthedocs.io/en/latest/developer-guide/extending-library/#library-function-specifications)
-     * say we shouldn't add new specifications in classify
-     * Should I remove the guard for "free"-related functions here in this case?
-    *)
-  | "kfree" | "usb_free_urb" ->
-    begin match exps with
-      | ptr::_ -> `Free ptr
       | _ -> strange_arguments ()
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
