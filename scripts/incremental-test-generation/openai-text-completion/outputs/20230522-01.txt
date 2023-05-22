@@ -1,0 +1,233 @@
+Promt: Please modify the following C code to a state as it might have been in the earlier implementation. You are allowed to remove code and introduce bugs. But the code should still compile. Here the C code: 
+###############################################################################################
+#include <stdio.h>
+#include <pthread.h>
+
+#define NUM_THREADS 5
+
+void *threadFunction(void *arg) {
+    int threadID = *(int *)arg;
+    printf("Thread %d is running.\n", threadID);
+    
+    // Perform some task in the thread
+    
+    printf("Thread %d completed.\n", threadID);
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t threads[NUM_THREADS];
+    int threadArgs[NUM_THREADS];
+    int i, result;
+
+    // Create threads
+    for (i = 0; i < NUM_THREADS; i++) {
+        threadArgs[i] = i;
+        result = pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]);
+        if (result != 0) {
+            printf("Error creating thread %d. Exiting program.\n", i);
+            return -1;
+        }
+    }
+
+    // Wait for threads to finish
+    for (i = 0; i < NUM_THREADS; i++) {
+        result = pthread_join(threads[i], NULL);
+        if (result != 0) {
+            printf("Error joining thread %d. Exiting program.\n", i);
+            return -1;
+        }
+    }
+
+    printf("All threads have completed. Exiting program.\n");
+
+    return 0;
+}
+
+############################################################################################################
+
+#include <stdio.h>
+
+void *threadFunction(void *arg) {
+    int threadID = *(int *)arg;
+    printf("Thread %d is running.\n", threadID);
+    printf("Thread %d completed.\n", threadID);
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t threads[NUM_THREADS];
+    int threadArgs[NUM_THREADS];
+    int i, result;
+
+    for (i = 0; i < NUM_THREADS; i++) {
+        threadArgs[i] = i;
+        result = pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]);
+    }
+
+    for (i = 0; i < NUM_THREADS; i++) {
+        result = pthread_join(threads[i], NULL);
+    }
+
+    printf("Exiting program.\n");
+
+    return 0;
+}
+
+############################################################################################################
+#include <stdio.h>
+
+#define NUM_THREADS 5
+
+void *threadFunction(void *arg) {
+    int threadID = *(int *)arg;
+    printf("Thread %d is running.\n", threadID);
+    // Perform some task in the thread
+    printf("Thread %d completed.\n", threadID);
+    return NULL;
+}
+
+int main() {
+    int threads[NUM_THREADS];
+    int threadArgs[NUM_THREADS];
+    int i, result;
+
+    // Create threads
+    for (i = 0; i < NUM_THREADS; i++) {
+        threadArgs[i] = i;
+        result = threads[i]; // Introduce bug
+        if (result != 0) {
+            printf("Error creating thread %d. Exiting program.\n", i);
+            return -1;
+        }
+    }
+
+    // Wait for threads to finish
+    for (i = 0; i < NUM_THREADS; i++) {
+        result = threads[i]; // Introduce bug
+        if (result != 0) {
+            printf("Error joining thread %d. Exiting program.\n", i);
+            return -1;
+        }
+    }
+
+    printf("All threads have completed. Exiting program.\n");
+
+    return 0;
+}
+
+############################################################################################################
+#include <stdio.h>
+
+int sum(int a, int b) {
+    return a + b;
+}
+
+int product(int a, int b) {
+    return a * b;
+}
+
+float divide(int a, int b) {
+    if (b != 0) {
+        return (float) a / b;
+    } else {
+        printf("Error: Division by zero is not allowed.\n");
+        return 0;
+    }
+}
+
+int main() {
+    int num1, num2;
+
+    printf("Enter two numbers: ");
+    scanf("%d", &num1);
+    scanf("%d", &num2);
+
+    printf("Sum: %d\n", sum(num1, num2));
+    printf("Product: %d\n", product(num1, num2));
+    printf("Quotient: %.2f\n", divide(num1, num2));
+
+    return 0;
+}
+
+############################################################################################################
+#include <stdio.h>
+
+int sum(int a, int b) {
+    return a + b;
+}
+
+int product(int a, int b) {
+    return a * b;
+}
+
+float divide(int a, int b) {
+    if (b != 0) {
+        return (float) a / b;
+    } else {
+        printf("Error: Division by zero is not allowed.\n");
+        return 0;
+    }
+}
+
+int main() {
+    int num1, num2;
+
+    printf("Enter two numbers: ");
+    scanf("%d", &num1);
+    scanf("%d", &num2);
+
+    printf("Sum: %d\n", sum(num1, num2));
+    printf("Product: %d\n", product(num1, num2));
+    printf("Quotient: %.2f\n", divide(num1, num2));
+
+    return 0;
+}
+
+############################################################################################################
+#include <stdio.h>
+
+// Function to calculate the sum of two numbers
+int sum(int a, int b) {
+    return a + b; // function remains unchanged
+}
+
+// Function to calculate the difference of two numbers
+int difference(int a, int b) {
+    return a - b; // function remains unchanged
+}
+
+// Function to calculate the product of two numbers
+int product(int a, int b) {
+    return a; // introducing bug by returning only the first number
+}
+
+// Function to calculate the quotient of two numbers
+float divide(int a, int b) {
+    if (b != 0) {
+        return a / b; // introducing bug by not casting to float
+    } else {
+        printf("Error: Division by zero is not allowed.\n");
+        return a; // introducing bug by returning the first number instead of 0
+    }
+}
+
+int main() {
+    int num1, num2;
+
+    printf("Enter two numbers: ");
+    scanf("%d %d", &num1, &num2);
+
+    printf("Sum: %d\n", sum(num1, num2));
+    printf("Difference: %d\n", difference(num1, num2));
+    printf("Product: %d\n", product(num1, num2));
+    printf("Quotient: %.2f\n", divide(num1, num2));
+
+    return 0;
+}
+
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
+############################################################################################################
