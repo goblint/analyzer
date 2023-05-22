@@ -66,7 +66,7 @@ int main() {
          *
          * remove #ifdef portion and change "should warn" to normal warning as soon as issue fixed */
     #else
-        id(s2);
+        id(s2); // should warn
 
         strcpy(s1, "hi"); // should warn
         strncpy(s1, "hi", 1); // should warn
