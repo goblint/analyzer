@@ -24,7 +24,7 @@ gobopt='--set ana.base.privatization write+lock' ./scripts/update_suite.rb
 ```
 
 ### Writing
-* Add parameters to a regression test in the first line: `// PARAM: --set dbg.debug true`
+* Add parameters to a regression test in the first line: `// PARAM: --set warn.debug true`
 * Annotate lines inside the regression test with comments: `arr[9] = 10; // WARN`
 
 ## Cram Tests

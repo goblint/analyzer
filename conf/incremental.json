@@ -28,10 +28,12 @@
     "trace": {
       "context": true
     },
-    "debug": true,
     "timing": {
       "enabled": true
     }
+  },
+  "warn": {
+    "debug": true
   },
   "result": "none",
   "solver": "td3",
