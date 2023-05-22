@@ -1,10 +1,7 @@
 # Create Clang-Tidy Checks for mutations
-
 In this document is described how you can create all the Clang-Tidy checks needed for generating the code mutations.
 
-
 ## Dependencies
-
 For building Clang you need to install some dependencies:
 
  - [ ] `sudo apt install ninja-build`
@@ -12,7 +9,6 @@ For building Clang you need to install some dependencies:
  - [ ] `sudo apt install lld`
 
 ## Cloning the repository
-
  - [ ] There are two alternatives for getting the repository
 
 For creating all the checks by yourself clone the **Official Clang Repository**:
@@ -21,7 +17,6 @@ Alternatively you can clone the **Fork** with all the additional checks ready:
 `git clone https://github.com/J2000A/llvm-project.git`
 
 ## Creating the checks
-
  - [ ] When you cloned the Official Clang Repository you need to add the checks. Otherwise you can skip this part.
  - [ ] Move to the directory `llvm-project/clang-tools-extra`
 
@@ -34,7 +29,6 @@ In this directory are the implementations of the checks with their corresponding
 Now you have added all the check we need for the mutations.
 
 ## Build
-
 The first build can take a while (up to multiple hours). But you can increase the performance by changing the parallel compile and link jobs. For me using the value 5 for both of them got me the fastest results. When using too many jobs the memory becomes a bottleneck. You can check the memory status with `free -h --giga`.
 Additionally you may need to change the build target. Avaiable targets are: AMDGPU, ARM, AVR, BPF, Hexagon, Lanai, LoongArch, Mips, MSP430, NVPTX, PowerPC, RISCV, Sparc, SystemZ, VE, WebAssembly, X86, XCore
 
@@ -44,20 +38,19 @@ Additionally you may need to change the build target. Avaiable targets are: AMDG
  - [ ] `sudo ninja install`
 
 ## Running Clang-Tidy
-
 We will use the **>>check-name<<** again as defined in "Creating the checks".
 
 **Example:** Create the mutation "remove function body" on a file "test.c" in lines "4" and "14" when the function name is "foo":
 `clang-tidy -checks=-*,readability-remove-function-body -fix --fix-errors -config="{CheckOptions: {readability-remove-function-body.RemoveOnlyFunctionName: 'foo'}}" -line filter='[{"name":"test.c","lines":[[4,4],[14,14]]}]' test.c --`
 
 **The command consists of the following components:**
-
  - [ ] Clang-Tidy
 `clang-tidy` The command itself.
 
  - [ ] General Options
  `-checks=-*,readability->>check-name<<` Deactivating all checks except >>check-name<<.
-`-fix --fix-errors` Applying the mutations.
+`-fix` Applying the mutations.
+`--fix-errors` Apply also when errors where detected
 `-line filter='[{"name":"test.c","lines":[[4,4],[14,14]]}]'` Apply the mutations only on line 4 and 14.
 
  - [ ] Special Options
@@ -65,6 +58,9 @@ We will use the **>>check-name<<** again as defined in "Creating the checks".
 
  - [ ] Filename
 `test.c --` The filename.
+
+## Mutations
+You find more details about the different Mutations in the [Mutations](MUTATIONS.md) file.
 
 ## Workflow
 First run the check without `-fix --fix-errors` to see where mutations are possible without applying them. Remember the lines where you actually want to apply the mutation. Make a copy of the input file that you will mutate. The run the check again with `-fix --fix-errors` and `-line filter=...` on the copied file to apply only specific mutations and not all at ones.
