@@ -2,6 +2,8 @@ open GoblintCil
 
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13
+(* TODO: This should probably be marshaled (for incremental mode) or even use RichVarinfo mapping. *)
+
 let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
