@@ -496,8 +496,8 @@ class ProjectWitness < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable dbg.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable dbg.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable warn.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable warn.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     starttime = Time.now
@@ -544,7 +544,7 @@ regs.sort.each do |d|
       if $1 then params = $1 else params = "" end
     end
     # always enable debugging so that the warnings would work
-    params << " --set dbg.debug true"
+    params << " --set warn.debug true"
     p = if incremental then
           patch = f[0..-3] + ".patch"
           patch_path = File.expand_path(patch, grouppath)
