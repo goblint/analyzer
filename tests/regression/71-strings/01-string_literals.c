@@ -9,13 +9,14 @@ char* hello_world() {
 }
 
 void id(char* s) {
-    s = s;
+    strcpy(s, s); // should warn
 }
 
 int main() {
     char* s1 = "abcde";
     char* s2 = "abcdfg";
     char* s3 = hello_world();
+    char* edge_case = "hello\0world";
     
     int i = strlen(s1);
     __goblint_check(i == 5);
@@ -26,9 +27,8 @@ int main() {
     i = strlen(s3);
     __goblint_check(i == 12);
 
-    id(s2);
-    i = strlen(s2);
-    __goblint_check(i == 6);
+    i = strlen(edge_case);
+    __goblint_check(i == 5);
 
     i = strcmp(s1, s2);
     __goblint_check(i < 0);
@@ -66,6 +66,8 @@ int main() {
          *
          * remove #ifdef portion and change "should warn" to normal warning as soon as issue fixed */
     #else
+        id(s2);
+
         strcpy(s1, "hi"); // should warn
         strncpy(s1, "hi", 1); // should warn
         strcat(s1, "hi"); // should warn

@@ -21,12 +21,12 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
     ("__builtin_strncpy", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
     ("__builtin___strncpy_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcpy { dest; src; n = Some n; });
-    ("strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
-    ("__builtin_strcat", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
-    ("__builtin___strcat_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcat { dest; src; n = None; });
-    ("strncat", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
-    ("__builtin_strncat", special [__ "dest" [w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
-    ("__builtin___strncat_chk", special [__ "dest" [w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("strcat", special [__ "dest" [r; w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("__builtin_strcat", special [__ "dest" [r; w]; __ "src" [r]] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("__builtin___strcat_chk", special [__ "dest" [r; w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcat { dest; src; n = None; });
+    ("strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });

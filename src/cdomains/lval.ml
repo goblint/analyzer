@@ -266,7 +266,11 @@ struct
         Some (String.sub x 0 n)
     | _ -> None
   let to_string_length = function
-    | StrPtr (Some x) -> Some (String.length x)
+    | StrPtr (Some x) -> 
+      begin match String.split_on_char '\x00' x with
+        | s::_ -> Some (String.length s)
+        | [] -> None
+      end
     | _ -> None
 
   (* exception if the offset can't be followed completely *)
