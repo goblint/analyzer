@@ -1,0 +1,68 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - api-docs # TODO: change to master
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  api-build:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          # don't add any other because they won't be used
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v2
+
+      - name: Install dependencies
+        run: opam install . --deps-only --locked --with-doc
+
+      - name: Build API docs
+        run: opam exec -- dune build @doc
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: _build/default/_doc/_html/
+
+  api-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: api-build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
