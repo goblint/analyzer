@@ -169,9 +169,6 @@ let handle_flags () =
     Errormsg.verboseFlag := true
   );
 
-  if get_bool "dbg.debug" then
-    set_bool "warn.debug" true;
-
   if get_bool "ana.sv-comp.functions" then
     set_auto "lib.activated[+]" "sv-comp";
 
@@ -554,18 +551,24 @@ let do_analyze change_info merged_AST =
   )
 
 let do_html_output () =
-  (* TODO: Fpath *)
-  let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
-    if Sys.file_exists jar then (
-      let command = "java -jar "^ jar ^" --num-threads " ^ (string_of_int (jobs ())) ^ " --dot-timeout 0 --result-dir "^ (get_string "outfile")^" "^ !Messages.xml_file_name in
-      try match Timing.wrap "g2html" Unix.system command with
-        | Unix.WEXITED 0 -> ()
-        | _ -> eprintf "HTML generation failed! Command: %s\n" command
-      with Unix.Unix_error (e, f, a) ->
+    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
+    if Sys.file_exists (Fpath.to_string jar) then (
+      let command = Filename.quote_command "java" [
+          "-jar"; Fpath.to_string jar;
+          "--num-threads"; string_of_int (jobs ());
+          "--dot-timeout"; "0";
+          "--result-dir"; get_string "outfile";
+          !Messages.xml_file_name
+        ]
+      in
+      match Timing.wrap "g2html" Unix.system command with
+      | Unix.WEXITED 0 -> ()
+      | _ -> eprintf "HTML generation failed! Command: %s\n" command
+      | exception Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
     ) else
-      eprintf "Warning: jar file %s not found.\n" jar
+      Format.eprintf "Warning: jar file %a not found.\n" Fpath.pp jar
   )
 
 let do_gobview cilfile =

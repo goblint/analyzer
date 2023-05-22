@@ -590,7 +590,7 @@ struct
 
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
-      if get_bool "dbg.debug" && Spec.D.is_bot main_sol then
+      if Spec.D.is_bot main_sol then
         M.warn_noloc ~category:Deadcode "Function 'main' does not return";
 
       if get_bool "dump_globs" then

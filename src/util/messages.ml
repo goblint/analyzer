@@ -261,7 +261,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf () fmt
+    GobPretty.igprintf () fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
@@ -272,7 +272,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf () fmt
+    GobPretty.igprintf () fmt
 
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
@@ -287,7 +287,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf (fun msgs -> ()) fmt
+    GobPretty.igprintf (fun msgs -> ()) fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?loc = msg Warning ?loc

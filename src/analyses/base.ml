@@ -432,7 +432,7 @@ struct
       | `Thread ->
         true
       | _ ->
-        ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
+        ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !earlyglobs;
     if !earlyglobs || multi then
@@ -448,7 +448,7 @@ struct
     ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
-    if (!earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+    if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
@@ -624,8 +624,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> Cilfacade.mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
-
+        | _ -> Lval.any_index_exp
       in
       match o with
       | `NoOffset -> `NoOffset
@@ -1058,7 +1057,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
-    | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when CilType.Exp.equal exp Lval.any_index_exp -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       match eval_rv a gs st exp with
@@ -1202,7 +1201,7 @@ struct
     in
 
     if CilLval.Set.is_top context.Invariant.lvals then (
-      if !earlyglobs || ThreadFlag.is_multi ask then (
+      if !earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
           CPA.fold (fun k v a ->
               if not (is_global ask k) then
@@ -1470,7 +1469,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
+      if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
@@ -1636,7 +1635,7 @@ struct
 
     let get_var = get_var
     let get a gs st addrs exp = get a gs st addrs exp
-    let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:true gs st lval lval_type value
+    let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:true gs st lval lval_type ?lval_raw value
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
@@ -1915,7 +1914,7 @@ struct
            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
           ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
         Priv.threadenter (Analyses.ask_of_ctx ctx) st
       ) else
@@ -2462,14 +2461,14 @@ struct
               let asked' = Queries.Set.add anyq asked in
               let r: a Queries.result =
                 match q with
-                | MustBeSingleThreaded when single -> true
+                | MustBeSingleThreaded _ when single -> true
                 | MayEscape _
                 | MayBePublic _
                 | MayBePublicWithout _
                 | MustBeProtectedBy _
                 | MustLockset
                 | MustBeAtomic
-                | MustBeSingleThreaded
+                | MustBeSingleThreaded _
                 | MustBeUniqueThread
                 | CurrentThreadId
                 | MayBeThreadReturn
@@ -2521,7 +2520,7 @@ struct
           (* all updates happen in ctx with top values *)
           let get_var = get_var
           let get a gs st addrs exp = get a gs st addrs exp
-          let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:false gs st lval lval_type value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+          let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:false gs st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =
@@ -2575,10 +2574,10 @@ struct
   let event ctx e octx =
     let st: store = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
-    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->

@@ -92,7 +92,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module LS = Queries.LS in

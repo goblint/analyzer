@@ -61,7 +61,7 @@ module Prune: F =
     include Unit (S) (VH)
 
     let finalize ~vh ~reachable =
-      if get_bool "dbg.debug" then
+      if get_bool "dbg.verbose" then
         print_endline "Pruning result";
 
       VH.filteri_inplace (fun x _ ->

@@ -109,7 +109,7 @@ struct
       let i_exp =
         match ValueDomain.IndexDomain.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> MyCFG.unknown_exp
+        | None -> Lval.any_index_exp
       in
       `Index (i_exp, conv_offset_inv o)
 
@@ -209,7 +209,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; _} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let old_access var_opt offs_opt =
         (* TODO: this used to use ctx instead of octx, why? *)

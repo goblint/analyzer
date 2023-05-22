@@ -444,7 +444,6 @@ struct
     | _ -> ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->

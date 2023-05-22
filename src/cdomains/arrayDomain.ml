@@ -61,6 +61,7 @@ sig
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
   val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type LatticeWithSmartOps =
@@ -85,7 +86,12 @@ struct
   let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get ?(checkBounds=true) (ask: VDQ.t) a i = a
-  let set (ask: VDQ.t) a i v = join a v
+  let set (ask: VDQ.t) a (ie, i) v =
+    match ie with
+    | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      v
+    | _ ->
+      join a v
   let make ?(varAttr=[]) ?(typAttr=[])  i v = v
   let length _ = None
 
@@ -100,6 +106,21 @@ struct
   let smart_leq _ _ = leq
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset when get_bool "witness.invariant.goblint" ->
+      let i_lval = Cil.addOffsetLval (Index (Lval.all_index_exp, NoOffset)) lval in
+      value_invariant ~offset ~lval:i_lval x
+    | NoOffset ->
+      Invariant.none
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      value_invariant ~offset ~lval x
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
 end
 
 let factor () =
@@ -170,6 +191,14 @@ struct
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
+  let set ask (xl, xr) (ie, i) v =
+    match ie with
+    | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      (* TODO: Doesn't seem to work for unassume because unrolled elements are top-initialized, not bot-initialized. *)
+      (BatList.make (factor ()) v, v)
+    | _ ->
+      set ask (xl, xr) (ie, i) v
+
   let make ?(varAttr=[]) ?(typAttr=[]) _ v =
     let xl = BatList.make (factor ()) v in
     (xl,Val.bot ())
@@ -188,6 +217,32 @@ struct
   let smart_leq _ _ = leq
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval ((xl, xr) as x) =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset ->
+      let i_all =
+        if Val.is_bot xr then
+          Invariant.top ()
+        else if get_bool "witness.invariant.goblint" then (
+          let i_lval = Cil.addOffsetLval (Index (Lval.all_index_exp, NoOffset)) lval in
+          value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
+        )
+        else
+          Invariant.top ()
+      in
+      BatList.fold_lefti (fun acc i x ->
+          let i_lval = Cil.addOffsetLval (Index (Cil.integer i, NoOffset)) lval in
+          let i = value_invariant ~offset ~lval:i_lval x in
+          Invariant.(acc && i)
+        ) i_all xl
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none (* TODO: look up *)
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
 end
 
 (** Special signature so that we can use the _with_length functions from PartitionedWithLength but still match the interface *
@@ -425,13 +480,17 @@ struct
 
   let set_with_length length (ask:VDQ.t) x (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
-    if i = Some MyCFG.all_array_index_exp then
+    match i with
+    | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      (* TODO: Doesn't seem to work for unassume. *)
+      Joint a
+    | Some i when CilType.Exp.equal i Lval.any_index_exp ->
       (assert !AnalysisState.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)
        let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in
        let r =  Val.join o a in
        Joint r)
-    else
+    | _ ->
       normalize @@
       let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
       let exp_value e =
@@ -701,6 +760,21 @@ struct
 
   let update_length _ x = x
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset when get_bool "witness.invariant.goblint" ->
+      let i_lval = Cil.addOffsetLval (Index (Lval.all_index_exp, NoOffset)) lval in
+      value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
+    | NoOffset ->
+      Invariant.none
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none (* TODO: look up *)
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
 end
 
 (* This is the main array out of bounds check *)
@@ -759,6 +833,9 @@ struct
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
+
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 
@@ -811,6 +888,9 @@ struct
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
+
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 
@@ -851,6 +931,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
@@ -972,4 +1055,10 @@ struct
     | UnrolledDomain, (None, Some (Some x, None)) -> to_t @@ (None, None, Some (unroll_of_trivial ask x) )
     | UnrolledDomain, (None, Some (None, Some x)) -> to_t @@ (None, None, Some x)
     | _ ->  failwith "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
+
+  let invariant ~value_invariant ~offset ~lval =
+    unop'
+      (P.invariant ~value_invariant ~offset ~lval)
+      (T.invariant ~value_invariant ~offset ~lval)
+      (U.invariant ~value_invariant ~offset ~lval)
 end
