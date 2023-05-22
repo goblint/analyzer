@@ -15,7 +15,6 @@ int main() {
     pthread_t threads[NUM_THREADS];
     int threadArgs[NUM_THREADS];
     int i, result;
-    int j = 1;
 
     // Create threads
     for (i = 0; i < NUM_THREADS; i++) {
