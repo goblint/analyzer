@@ -1,3 +1,5 @@
+(** OCaml implementations of vectors and matrices. *)
+
 open Batteries
 module Array = Batteries.Array
 module M = Messages

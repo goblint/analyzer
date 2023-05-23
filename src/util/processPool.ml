@@ -1,3 +1,5 @@
+(** Process pool for running processes in parallel. *)
+
 type task = {
   command: string;
   cwd: Fpath.t option;

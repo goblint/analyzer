@@ -397,7 +397,9 @@ module RichVarinfo = RichVarinfo
 module CilCfg = CilCfg
 module LoopUnrolling = LoopUnrolling
 
-(** {2 Library specification} *)
+(** {2 Library specification}
+
+    For more precise analysis of C standard library, etc functions, whose definitions are not available, custom specifications can be added. *)
 
 module AccessKind = AccessKind
 module LibraryDesc = LibraryDesc
@@ -426,9 +428,16 @@ module ApronPrecCompareUtil = ApronPrecCompareUtil
 
 (** {2 Build info} *)
 
+(** OCaml compiler info. *)
 module ConfigOcaml = ConfigOcaml
+
+(** Dune profile info. *)
 module ConfigProfile = ConfigProfile
+
+(** Goblint version info. *)
 module Version = Version
+
+(** Goblint git version info. *)
 module ConfigVersion = ConfigVersion
 
 

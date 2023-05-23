@@ -1,3 +1,5 @@
+(** Unified interface for floating-point types. *)
+
 type round_mode =
   | Nearest
   | ToZero

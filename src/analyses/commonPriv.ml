@@ -1,3 +1,5 @@
+(** Thread-modular value analysis utilities. *)
+
 open Batteries
 open GoblintCil
 open Analyses

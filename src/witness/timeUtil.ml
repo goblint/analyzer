@@ -1,3 +1,5 @@
+(** Date and time utilities. *)
+
 open Unix
 
 let iso8601_of_tm {tm_year; tm_mon; tm_mday; tm_hour; tm_min; tm_sec; _} =

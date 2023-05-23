@@ -1,3 +1,5 @@
+(** XML utilities. *)
+
 (* XML escape extracted here to avoid dependency cycle:
    CilType -> Goblintutil -> GobConfig -> Tracing -> Node -> CilType *)
 

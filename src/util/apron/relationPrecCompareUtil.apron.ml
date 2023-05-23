@@ -1,3 +1,5 @@
+(** {!RelationPriv} precison comparison. *)
+
 open PrecCompareUtil
 
 module MyNode =

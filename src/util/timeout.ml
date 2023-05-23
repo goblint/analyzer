@@ -1,3 +1,5 @@
+(** Timeout utilities. *)
+
 module Unix = struct
   let timeout f arg tsecs timeout_fn =
     let oldsig = Sys.signal Sys.sigprof (Sys.Signal_handle (fun _ -> timeout_fn ())) in

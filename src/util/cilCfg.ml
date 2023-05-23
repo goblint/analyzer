@@ -1,3 +1,5 @@
+(** Creation of CIL CFGs. *)
+
 open GobConfig
 open GoblintCil
 
@@ -30,9 +32,9 @@ class countLoopsVisitor(count) = object
     | Loop _ -> count := !count + 1; DoChildren
     | _ -> DoChildren
 
-end 
+end
 
-let loopCount file = 
+let loopCount file =
   let count = ref 0 in
   let visitor = new countLoopsVisitor(count) in
   ignore (visitCilFileSameGlobals visitor file);

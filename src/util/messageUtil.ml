@@ -1,3 +1,5 @@
+(** Terminal color utilities. *)
+
 open GobConfig
 
 let ansi_color_table =

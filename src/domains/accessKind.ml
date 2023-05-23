@@ -1,3 +1,5 @@
+(** Kinds of memory accesses. *)
+
 type t =
   | Write  (** argument may be read or written to *)
   | Read   (** argument may be read *)
