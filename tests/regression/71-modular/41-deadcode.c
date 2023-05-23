@@ -1,4 +1,4 @@
-//PARAM: --set ana.modular.funs "['getndelim2']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'" --enable ana.int.interval --enable exp.no-narrow
+//PARAM: --enable modular --set ana.modular.funs "['getndelim2']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'" --enable ana.int.interval --enable exp.no-narrow
 struct {
   char *a;
 } b, c;
