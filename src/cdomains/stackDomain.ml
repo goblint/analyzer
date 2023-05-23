@@ -1,5 +1,3 @@
-module GU = Goblintutil
-
 module type S =
 sig
   include Lattice.S

@@ -18,7 +18,7 @@ struct
   let should_join x y = D.equal x y
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
+     element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
@@ -237,7 +237,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

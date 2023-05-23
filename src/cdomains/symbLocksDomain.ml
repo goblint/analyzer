@@ -112,7 +112,7 @@ struct
     | Index (i,o) -> isConstant i && conc o
     | Field (_,o) -> conc o
 
-  let star = Lval (Cil.var (Goblintutil.create_var (makeGlobalVar "*" intType)))
+  let star = Lval (Cil.var (Cilfacade.create_var (makeGlobalVar "*" intType)))
 
   let rec one_unknown_array_index exp =
     let rec separate_fields_index o =

@@ -1,8 +1,18 @@
 open GoblintCil
 open Pretty
 
-module GU = Goblintutil
 module M = Messages
+
+(** Special index expression for some unknown index.
+    Weakly updates array in assignment.
+    Used for exp.fast_global_inits. *)
+let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+
+(** Special index expression for all indices.
+    Strongly updates array in assignment.
+    Used for Goblint-specific witness invariants. *)
+let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
+
 
 type ('a, 'b) offs = [
   | `NoOffset
@@ -583,7 +593,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
+    | `Index (e,o) when CilType.Exp.equal e any_index_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =

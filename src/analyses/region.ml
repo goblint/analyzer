@@ -83,7 +83,7 @@ struct
       let rec unknown_index = function
         | `NoOffset -> `NoOffset
         | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
+        | `Index (i, os) -> `Index (Lval.any_index_exp, unknown_index os) (* forget specific indices *)
       in
       Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 
@@ -175,7 +175,7 @@ struct
       let t, _, _, _ = splitFunctionTypeVI  f in
       match unrollType t with
       | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
+        begin match UniqueType.find t, lval with
           | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
           | _ -> ctx.local
         end

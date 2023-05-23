@@ -133,7 +133,7 @@ pin-depends: [
   ]
   [
     "apron.v0.9.13"
-    "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
+    "git+https://github.com/antoinemine/apron.git#1a8e91062c0d7d1e80333d19d5a432332bbbaec8"
   ]
   [
     "ppx_deriving.5.2.1"

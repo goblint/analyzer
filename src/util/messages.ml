@@ -1,7 +1,6 @@
 module Pretty = GoblintCil.Pretty
 
 open GobConfig
-module GU = Goblintutil
 
 module Category = MessageCategory
 
@@ -172,6 +171,8 @@ let () = AfterConfig.register (fun () ->
 
 let xml_file_name = ref ""
 
+(** The file where everything is output *)
+let out = ref stdout
 
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
@@ -248,7 +249,7 @@ let msg_context () =
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
 let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = GobPretty.show doc in
       let loc = match loc with
@@ -260,10 +261,10 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf () fmt
+    GobPretty.igprintf () fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = GobPretty.show doc in
       add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
@@ -271,10 +272,10 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf () fmt
+    GobPretty.igprintf () fmt
 
 let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !GU.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
       let group_text = GobPretty.show doc in
       let piece_of_msg (doc, loc) =
@@ -286,7 +287,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     Pretty.gprintf finish fmt
   )
   else
-    Tracing.mygprintf (fun msgs -> ()) fmt
+    GobPretty.igprintf (fun msgs -> ()) fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?loc = msg Warning ?loc

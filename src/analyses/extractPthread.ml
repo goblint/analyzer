@@ -389,8 +389,7 @@ module Variables = struct
   let get_globals () =
     Hashtbl.values !table
     |> List.of_enum
-    |> List.map Set.elements
-    |> List.flatten
+    |> List.concat_map Set.elements
     |> List.filter_map (function
         | Var v when Variable.is_global v ->
           Some v
@@ -574,7 +573,7 @@ module Codegen = struct
 
   module Writer = struct
     let write desc ext content =
-      let dir = Goblintutil.create_dir (Fpath.v "pml-result") in
+      let dir = GobSys.mkdir_or_exists_absolute (Fpath.v "pml-result") in
       let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path
@@ -844,8 +843,7 @@ module Codegen = struct
         Hashtbl.keys Edges.table
         |> List.of_enum
         |> List.unique
-        |> List.map dot_thread
-        |> List.concat
+        |> List.concat_map dot_thread
       in
       String.concat "\n  " ("digraph file {" :: lines) ^ "}"
     in
@@ -876,7 +874,7 @@ module Spec : Analyses.MCPSpec = struct
   module G = Tasks
 
   let tasks_var =
-    Goblintutil.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
+    Cilfacade.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
 
 
   module ExprEval = struct
@@ -1036,7 +1034,7 @@ module Spec : Analyses.MCPSpec = struct
 
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
-    let context_hash = Int64.of_int (if not !Goblintutil.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
+    let context_hash = Int64.of_int (if not !AnalysisState.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 

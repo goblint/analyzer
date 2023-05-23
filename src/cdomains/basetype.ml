@@ -1,4 +1,3 @@
-module GU = Goblintutil
 open GoblintCil
 
 

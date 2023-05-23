@@ -35,7 +35,7 @@ This program is in the Goblint repository: `tests/regression/99-tutorials/01-fir
 But if you run Goblint out of the box on this example, it will not work:
 
 ```console
-./goblint --enable dbg.debug tests/regression/99-tutorials/01-first.c
+./goblint --enable warn.debug tests/regression/99-tutorials/01-first.c
 ```
 
 This will claim that the assertion in unknown.

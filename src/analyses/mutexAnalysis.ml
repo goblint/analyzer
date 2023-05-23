@@ -119,7 +119,7 @@ struct
       let i_exp =
         match ValueDomain.IndexDomain.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> MyCFG.unknown_exp
+        | None -> Lval.any_index_exp
       in
       `Index (i_exp, conv_offset_inv o)
 
@@ -249,7 +249,7 @@ struct
             in
             ctx.sideg (V.protecting v) (G.create_protecting el);
 
-            if !GU.postsolving then (
+            if !AnalysisState.postsolving then (
               let protecting = G.protecting (ctx.global (V.protecting v)) in
               let vs_empty = VarSet.empty () in
               let vs = VarSet.singleton v in

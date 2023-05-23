@@ -5,7 +5,6 @@ open PrecisionUtil
 include PreValueDomain
 module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
-module GU = Goblintutil
 module BI = IntOps.BigIntOps
 module VDQ = ValueDomainQueries
 module LS = VDQ.LS
@@ -873,7 +872,7 @@ struct
 
   let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
@@ -935,7 +934,7 @@ struct
         begin match value with
           | `Thread t -> value (* if actually assigning thread, use value *)
           | _ ->
-            if !GU.global_initialization then
+            if !AnalysisState.global_initialization then
               `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
             else
               `Top
@@ -946,7 +945,7 @@ struct
           | `JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
           | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
           | _ ->
-            if !GU.global_initialization then
+            if !AnalysisState.global_initialization then
               `JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
             else
               `Top
@@ -1317,6 +1316,7 @@ struct
     | `Address n -> ad_invariant ~vs ~offset ~lval n
     | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | `Array n -> CArrays.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
