@@ -2,32 +2,32 @@
 (** {1 Framework} *)
 
 module Maingoblint = Maingoblint
-module Server = Server
-
-module Analyses = Analyses
-module Constraints = Constraints
 module Control = Control
-module ControlSpecC = ControlSpecC
-module Events = Events
-module Queries = Queries
-
-module MCP = MCP
-module MCPAccess = MCPAccess
-module MCPRegistry = MCPRegistry
-
-module PostSolver = PostSolver
-module Refinement = Refinement
-
-module ResultQuery = ResultQuery
-module VarQuery = VarQuery
+module Server = Server
 
 (** {2 CFG} *)
 
-module CfgTools = CfgTools
+module Node = Node
 module Edge = Edge
 module MyCFG = MyCFG
-module Node = Node
-module Node0 = Node0
+module CfgTools = CfgTools
+
+(** {2 Specification} *)
+
+module Analyses = Analyses
+module Constraints = Constraints
+module ControlSpecC = ControlSpecC
+
+module MCP = MCP
+module MCPRegistry = MCPRegistry
+module MCPAccess = MCPAccess
+module Queries = Queries
+module Events = Events
+
+(** {2 Results} *)
+
+module ResultQuery = ResultQuery
+module VarQuery = VarQuery
 
 (** {2 Configuration} *)
 
@@ -35,270 +35,345 @@ module GobConfig = GobConfig
 module AfterConfig = AfterConfig
 
 module AutoTune = AutoTune
-module AutoTune0 = AutoTune0
+
 module JsonSchema = JsonSchema
 module Options = Options
 
+
 (** {1 Analyses} *)
 
-module AbortUnless = AbortUnless
-module AccessAnalysis = AccessAnalysis
-module ActiveLongjmp = ActiveLongjmp
-module ActiveSetjmp = ActiveSetjmp
-module AffineEqualityAnalysis = AffineEqualityAnalysis
-module ApronAnalysis = ApronAnalysis
-module Assert = Assert
+(** {2 Value} *)
+
 module Base = Base
-module BasePriv = BasePriv
-module CondVars = CondVars
-module Constants = Constants
-module Deadlock = Deadlock
-module ExpRelation = ExpRelation
-module Expsplit = Expsplit
-module ExtractPthread = ExtractPthread
-module FileUse = FileUse
-module LocksetAnalysis = LocksetAnalysis
-module MHPAnalysis = MHPAnalysis
-module MallocFresh = MallocFresh
-module MallocWrapperAnalysis = MallocWrapperAnalysis
-module Malloc_null = Malloc_null
-module MayLocks = MayLocks
-module ModifiedSinceLongjmp = ModifiedSinceLongjmp
-module MutexAnalysis = MutexAnalysis
-module MutexEventsAnalysis = MutexEventsAnalysis
-module ObserverAnalysis = ObserverAnalysis
-module PoisonVariables = PoisonVariables
-module PthreadSignals = PthreadSignals
-module RaceAnalysis = RaceAnalysis
-module Region = Region
 module RelationAnalysis = RelationAnalysis
-module RelationPriv = RelationPriv
-module Signs = Signs
-module Spec = Spec
-module StackTrace = StackTrace
+module ApronAnalysis = ApronAnalysis
+module AffineEqualityAnalysis = AffineEqualityAnalysis
+module VarEq = VarEq
+module CondVars = CondVars
+
+(** {2 Heap} *)
+
+module MallocWrapperAnalysis = MallocWrapperAnalysis
+module Region = Region
+module MallocFresh = MallocFresh
+module Malloc_null = Malloc_null
+
+(** {2 Concurrency} *)
+
+(** {3 Locks} *)
+
+module MutexEventsAnalysis = MutexEventsAnalysis
+module LocksetAnalysis = LocksetAnalysis
+module MutexAnalysis = MutexAnalysis
+module MayLocks = MayLocks
 module SymbLocks = SymbLocks
-module Taint = Taint
-module TaintPartialContexts = TaintPartialContexts
-module Termination = Termination
-module ThreadAnalysis = ThreadAnalysis
-module ThreadEscape = ThreadEscape
+module Deadlock = Deadlock
+
+(** {3 Threads} *)
+
 module ThreadFlag = ThreadFlag
 module ThreadId = ThreadId
+module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
+module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
-module UnassumeAnalysis = UnassumeAnalysis
-module Uninit = Uninit
-module UnitAnalysis = UnitAnalysis
-module VarEq = VarEq
+
+(** {3 Other} *)
+
+module RaceAnalysis = RaceAnalysis
+module BasePriv = BasePriv
+module RelationPriv = RelationPriv
+module ThreadEscape = ThreadEscape
+module PthreadSignals = PthreadSignals
+module ExtractPthread = ExtractPthread
+
+(** {2 Longjmp} *)
+
+module ActiveSetjmp = ActiveSetjmp
+module ModifiedSinceLongjmp = ModifiedSinceLongjmp
+module ActiveLongjmp = ActiveLongjmp
+module PoisonVariables = PoisonVariables
 module Vla = Vla
+
+(** {2 Tutorial} *)
+
+module Constants = Constants
+module Signs = Signs
+module Taint = Taint
+module UnitAnalysis = UnitAnalysis
+
+(** {2 Other} *)
+
+module Assert = Assert
+module FileUse = FileUse
+module Uninit = Uninit
+module Termination = Termination
+module Expsplit = Expsplit
+module StackTrace = StackTrace
+module Spec = Spec
+
+(** {2 Helper} *)
+
+module AccessAnalysis = AccessAnalysis
+module TaintPartialContexts = TaintPartialContexts
+module UnassumeAnalysis = UnassumeAnalysis
+module ExpRelation = ExpRelation
+module AbortUnless = AbortUnless
+
 
 (** {1 Domains} *)
 
 module Printable = Printable
 module Lattice = Lattice
-module FlagHelper = FlagHelper
 
 (** {2 General} *)
 
 module BoolDomain = BoolDomain
+module SetDomain = SetDomain
+module MapDomain = MapDomain
 module DisjointDomain = DisjointDomain
 module HoareDomain = HoareDomain
-module MapDomain = MapDomain
 module PartitionDomain = PartitionDomain
-module SetDomain = SetDomain
+module FlagHelper = FlagHelper
 
 (** {2 Analysis-specific} *)
 
-module Access = Access
-module AccessDomain = AccessDomain
-module AddressDomain = AddressDomain
-module AffineEqualityDomain = AffineEqualityDomain
-module ApronDomain = ApronDomain
-module ArrayDomain = ArrayDomain
+(** {3 Value} *)
+
+(** {4 Non-relational} *)
+
 module BaseDomain = BaseDomain
-module CilLval = CilLval
-module ConcDomain = ConcDomain
-module DeadlockDomain = DeadlockDomain
-module EscapeDomain = EscapeDomain
-module FileDomain = FileDomain
-module FlagModeDomain = FlagModeDomain
-module FloatDomain = FloatDomain
+module ValueDomain = ValueDomain
 module IntDomain = IntDomain
-module JmpBufDomain = JmpBufDomain
-module LockDomain = LockDomain
-module Lval = Lval
-module LvalMapDomain = LvalMapDomain
-module MHP = MHP
-module MusteqDomain = MusteqDomain
-module PreValueDomain = PreValueDomain
-module PthreadDomain = PthreadDomain
-module RegionDomain = RegionDomain
-module RelationDomain = RelationDomain
-module SpecDomain = SpecDomain
-module StackDomain = StackDomain
+module FloatDomain = FloatDomain
+module AddressDomain = AddressDomain
 module StructDomain = StructDomain
+module UnionDomain = UnionDomain
+module ArrayDomain = ArrayDomain
+module JmpBufDomain = JmpBufDomain
+module ValueDomainQueries = ValueDomainQueries
+
+(** {4 Relational} *)
+
+module RelationDomain = RelationDomain
+module ApronDomain = ApronDomain
+module AffineEqualityDomain = AffineEqualityDomain
+
+(** {3 Concurrency} *)
+
+module LockDomain = LockDomain
 module SymbLocksDomain = SymbLocksDomain
+module DeadlockDomain = DeadlockDomain
+
 module ThreadFlagDomain = ThreadFlagDomain
 module ThreadIdDomain = ThreadIdDomain
-module UnionDomain = UnionDomain
-module ValueDomain = ValueDomain
-module ValueDomainQueries = ValueDomainQueries
+module ConcDomain = ConcDomain
+module MHP = MHP
+
+module EscapeDomain = EscapeDomain
+module PthreadDomain = PthreadDomain
+
+(** {3 Other} *)
+
+module Basetype = Basetype
+module Lval = Lval
+module CilLval = CilLval
+module Access = Access
+module AccessDomain = AccessDomain
+
+module MusteqDomain = MusteqDomain
+module RegionDomain = RegionDomain
+module FileDomain = FileDomain
+module StackDomain = StackDomain
+
+module LvalMapDomain = LvalMapDomain
+module SpecDomain = SpecDomain
 
 (** {2 Testing} *)
 
-module AbstractionDomainProperties = AbstractionDomainProperties
 module DomainProperties = DomainProperties
+module AbstractionDomainProperties = AbstractionDomainProperties
 module IntDomainProperties = IntDomainProperties
+
 
 (** {1 Incremental} *)
 
-module CilMaps = CilMaps
+module CompareCIL = CompareCIL
 module CompareAST = CompareAST
 module CompareCFG = CompareCFG
-module CompareCIL = CompareCIL
+module UpdateCil = UpdateCil
 module MaxIdUtil = MaxIdUtil
 module Serialize = Serialize
-module UpdateCil = UpdateCil
-module UpdateCil0 = UpdateCil0
+module CilMaps = CilMaps
 
-(** {1 Transformation} *)
-
-module DeadCode = DeadCode
-module EvalAssert = EvalAssert
-module ExpressionEvaluation = ExpressionEvaluation
-module Transform = Transform
 
 (** {1 Solvers} *)
 
-module EffectWConEq = EffectWConEq
-module Generic = Generic
-module LocalFixpoint = LocalFixpoint
-module SLR = SLR
-module SLRphased = SLRphased
-module SLRterm = SLRterm
-module Selector = Selector
+(** {2 Top-down} *)
+
 module Td3 = Td3
 module TopDown = TopDown
-module TopDown_deprecated = TopDown_deprecated
-module TopDown_space_cache_term = TopDown_space_cache_term
 module TopDown_term = TopDown_term
+module TopDown_space_cache_term = TopDown_space_cache_term
+module TopDown_deprecated = TopDown_deprecated
+
+(** {2 SLR} *)
+
+module SLR = SLR
+module SLRterm = SLRterm
+module SLRphased = SLRphased
+
+(** {2 Other} *)
+
+module EffectWConEq = EffectWConEq
 module Worklist = Worklist
+module Generic = Generic
+module Selector = Selector
 
-(** {1 Output} *)
+module PostSolver = PostSolver
+module LocalFixpoint = LocalFixpoint
+module SolverBox = SolverBox
 
-module MessageCategory = MessageCategory
-module MessageUtil = MessageUtil
+
+(** {1 I/O} *)
+
 module Messages = Messages
-
-module Sarif = Sarif
-module SarifRules = SarifRules
-module SarifType = SarifType
-
 module Tracing = Tracing
 
-(** {1 Utility} *)
+(** {2 Front-end} *)
+
+module Preprocessor = Preprocessor
+module CompilationDatabase = CompilationDatabase
+module MakefileUtil = MakefileUtil
+
+(** {2 Witnesses} *)
+
+module Svcomp = Svcomp
+module SvcompSpec = SvcompSpec
+
+module Invariant = Invariant
+module InvariantCil = InvariantCil
+module WitnessUtil = WitnessUtil
+
+(** {3 GraphML} *)
+
+module MyARG = MyARG
+module WitnessConstraints = WitnessConstraints
+module ArgTools = ArgTools
+module Witness = Witness
+module Graphml = Graphml
+
+(** {3 YAML}*)
+
+module YamlWitness = YamlWitness
+module YamlWitnessType = YamlWitnessType
+module WideningTokens = WideningTokens
+
+(** {3 Violation} *)
+
+module Violation = Violation
+module ViolationZ3 = ViolationZ3
+module ObserverAutomaton = ObserverAutomaton
+module ObserverAnalysis = ObserverAnalysis
+module Refinement = Refinement
+
+(** {2 SARIF} *)
+
+module Sarif = Sarif
+module SarifType = SarifType
+module SarifRules = SarifRules
+
+
+(** {1 Transformations} *)
+
+module Transform = Transform
+module DeadCode = DeadCode
+module EvalAssert = EvalAssert
+module ExpressionEvaluation = ExpressionEvaluation
+
+
+(** {1 Utilities} *)
 
 module Goblintutil = Goblintutil
-
 module Timing = Timing
-
 module GoblintDir = GoblintDir
 
 
 (** {2 General} *)
 
-module AccessKind = AccessKind
-module Basetype = Basetype
-module FloatOps = FloatOps
 module IntOps = IntOps
+module FloatOps = FloatOps
+
 module LazyEval = LazyEval
-module LibraryDesc = LibraryDesc
-module LibraryDsl = LibraryDsl
-module LibraryFunctions = LibraryFunctions
-
-module PrecCompare = PrecCompare
-module PrecCompareUtil = PrecCompareUtil
-
-module ProcessPool = ProcessPool
 module ResettableLazy = ResettableLazy
 
-module SolverBox = SolverBox
+module ProcessPool = ProcessPool
+module Timeout = Timeout
 
 module TimeUtil = TimeUtil
-module Timeout = Timeout
+module MessageUtil = MessageUtil
 module XmlUtil = XmlUtil
 
 (** {2 CIL} *)
 
-module Cilfacade = Cilfacade
-module Cilfacade0 = Cilfacade0
-module CilCfg = CilCfg
 module CilType = CilType
-module LoopUnrolling = LoopUnrolling
+module Cilfacade = Cilfacade
 module RichVarinfo = RichVarinfo
 
-(** {2 Input} *)
+module CilCfg = CilCfg
+module LoopUnrolling = LoopUnrolling
 
-module CompilationDatabase = CompilationDatabase
-module MakefileUtil = MakefileUtil
-module Preprocessor = Preprocessor
+(** {2 Library specification} *)
 
-module SpecLexer = SpecLexer
-module SpecParser = SpecParser
+module AccessKind = AccessKind
+module LibraryDesc = LibraryDesc
+module LibraryDsl = LibraryDsl
+module LibraryFunctions = LibraryFunctions
 
 (** {2 Analysis-specific} *)
 
-module ApronPrecCompareUtil = ApronPrecCompareUtil
-module BaseInvariant = BaseInvariant
 module BaseUtil = BaseUtil
-module CommonPriv = CommonPriv
-module ContextUtil = ContextUtil
 module PrecisionUtil = PrecisionUtil
-module PrivPrecCompareUtil = PrivPrecCompareUtil
-module RelationPrecCompareUtil = RelationPrecCompareUtil
-module SharedFunctions = SharedFunctions
-module SpecCore = SpecCore
-module SpecUtil = SpecUtil
-module VectorMatrix = VectorMatrix
+module ContextUtil = ContextUtil
+module BaseInvariant = BaseInvariant
+module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
-(** {2 Witnesses} *)
+module VectorMatrix = VectorMatrix
+module SharedFunctions = SharedFunctions
 
-module ArgTools = ArgTools
-module Graphml = Graphml
-module Invariant = Invariant
-module InvariantCil = InvariantCil
-module MyARG = MyARG
-module ObserverAutomaton = ObserverAutomaton
-module Svcomp = Svcomp
-module SvcompSpec = SvcompSpec
-module Violation = Violation
-module ViolationZ3 = ViolationZ3
-module WideningTokens = WideningTokens
-module Witness = Witness
-module WitnessConstraints = WitnessConstraints
-module WitnessUtil = WitnessUtil
-module YamlWitness = YamlWitness
-module YamlWitnessType = YamlWitnessType
+(** {2 Precision comparison} *)
 
-(** {2 Config} *)
+module PrecCompare = PrecCompare
+module PrecCompareUtil = PrecCompareUtil
+module PrivPrecCompareUtil = PrivPrecCompareUtil
+module RelationPrecCompareUtil = RelationPrecCompareUtil
+module ApronPrecCompareUtil = ApronPrecCompareUtil
+
+(** {2 Build info} *)
 
 module ConfigOcaml = ConfigOcaml
 module ConfigProfile = ConfigProfile
-module ConfigVersion = ConfigVersion
 module Version = Version
+module ConfigVersion = ConfigVersion
+
 
 (** {1 Library extensions} *)
 
-module GobUnix = GobUnix
+(** {2 Standard library} *)
+
 module GobFormat = GobFormat
-module GobFpath = GobFpath
 module GobHashtbl = GobHashtbl
 module GobList = GobList
-module GobOption = GobOption
-module GobPretty = GobPretty
 module GobResult = GobResult
+module GobOption = GobOption
 module GobSys = GobSys
+module GobUnix = GobUnix
+
+(** {2 Other libraries} *)
+
+module GobFpath = GobFpath
+module GobPretty = GobPretty
 module GobYaml = GobYaml
 module GobYojson = GobYojson
 module GobZ = GobZ
