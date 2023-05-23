@@ -1,3 +1,5 @@
+(** Construction and output of CFGs. *)
+
 open MyCFG
 open GoblintCil
 open Pretty

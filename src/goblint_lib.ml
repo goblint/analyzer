@@ -5,31 +5,50 @@ module Maingoblint = Maingoblint
 module Control = Control
 module Server = Server
 
-(** {2 CFG} *)
+(** {2 CFG}
+
+    Control-flow graphs (CFGs) are used to represent each function. *)
 
 module Node = Node
 module Edge = Edge
 module MyCFG = MyCFG
 module CfgTools = CfgTools
 
-(** {2 Specification} *)
+(** {2 Specification}
+
+    Analyses are specified by domains and transfer functions.
+    A dynamic composition of analyses is combined with CFGs to produce a constraint system. *)
 
 module Analyses = Analyses
 module Constraints = Constraints
 module ControlSpecC = ControlSpecC
 
+(** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
+
 module MCP = MCP
 module MCPRegistry = MCPRegistry
 module MCPAccess = MCPAccess
+
+(** MCP allows activated analyses to query each other during the analysis.
+    Query results from different analyses for the same query are {{!Lattice.S.meet} met} for precision. *)
+
 module Queries = Queries
+
+(** MCP allows activated analyses to emit events to each other during the analysis. *)
+
 module Events = Events
 
-(** {2 Results} *)
+(** {2 Results}
+
+    The following modules help query the constraint system solution using semantic information. *)
 
 module ResultQuery = ResultQuery
 module VarQuery = VarQuery
 
-(** {2 Configuration} *)
+(** {2 Configuration}
+
+    Runtime configuration is represented as JSON.
+    Options are specified and documented by the JSON schema [src/util/options.schema.json]. *)
 
 module GobConfig = GobConfig
 module AfterConfig = AfterConfig

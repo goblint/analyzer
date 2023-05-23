@@ -1,4 +1,6 @@
-(** Our Control-flow graph implementation. *)
+(** Control-flow graph.
+
+    Distinct from CIL's CFG. *)
 
 open GoblintCil
 

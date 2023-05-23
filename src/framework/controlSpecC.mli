@@ -1,3 +1,5 @@
+(** {{!Analyses.Spec.C} Context module} for the dynamically composed analysis. *)
+
 (** Top-level Control Spec context as static module, which delegates to {!control_spec_c}.
     This allows using top-level context values inside individual analyses. *)
 include Printable.S
