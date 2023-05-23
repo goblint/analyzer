@@ -677,7 +677,7 @@
                   "description":
                     "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
                   "type": "string",
-                  "enum": ["trivial", "partitioned", "unroll"],
+                  "enum": ["trivial", "partitioned", "unroll", "mustnullbyte"],
                   "default": "trivial"
                 },
                 "unrolling-factor": {

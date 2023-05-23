@@ -8,7 +8,7 @@ module A = Array
 module BI = IntOps.BigIntOps
 module VDQ = ValueDomainQueries
 
-type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain | MustNullByteDomain
 
 (* determines the domain based on variable, type and flag *)
 let get_domain ~varAttr ~typAttr =
@@ -16,6 +16,7 @@ let get_domain ~varAttr ~typAttr =
     | "partitioned" -> PartitionedDomain
     | "trivial" -> TrivialDomain
     | "unroll" ->  UnrolledDomain
+    | "mustnullbyte" -> MustNullByteDomain
     | _ -> failwith "AttributeConfiguredArrayDomain: invalid option for domain"
   in
   (*TODO add options?*)
@@ -60,6 +61,14 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
+
+  val to_string: t -> t
+  val to_n_string: t -> int -> bool -> t 
+  val to_string_length: t -> idx
+  val string_concat: t -> t -> int option -> t
+  val substring_extraction: t -> t -> t option
+  val string_comparison: t -> t -> int option -> idx
+
   val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
 end
 
@@ -99,6 +108,14 @@ struct
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
   let update_length _ x = x
+
+  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top ()
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top ()
+
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
 
@@ -187,6 +204,12 @@ struct
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
   let update_length _ x = x
+  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
 
@@ -699,7 +722,202 @@ struct
         (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
         x
 
+  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
+
   let update_length _ x = x
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+end
+
+module MustNullByte (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t option and type idx = Idx.t =
+struct
+  include SetDomain.Reverse (SetDomain.Make (Idx))
+  let name () = "arrays containing null bytes"
+  type idx = Idx.t
+  type value = Val.t option (* None = null byte *)
+
+  let domain_of_t _ = MustNullByteDomain
+
+  let get ?(checkBounds=true) (ask: VDQ.t) index_set (_, i) =
+    let rec check_indexes i max =
+      if Z.gt i max then
+        true
+      else if exists (fun x -> match Idx.to_int x with Some num -> Z.equal i num | None -> false) index_set then
+        check_indexes (Z.add i Z.one) max
+      else
+        false in
+    let min_i = match Idx.minimal i with
+      | Some min -> min
+      | None -> Z.zero in (* assume worst case minimal index *)
+    let max_i = Idx.maximal i in
+    match max_i with
+    (* if there is no maximum number in interval, return top of value *)
+    | None -> Some (Val.top ())
+    | Some max ->
+      (* else only return null if all numbers in interval are in index set *)
+      if check_indexes min_i max then
+        None
+      else
+        Some (Val.top ())
+
+  let set (ask: VDQ.t) index_set (_, i) v =
+    let min_i = match Idx.minimal i with
+      | Some min -> min
+      | None -> Z.zero in (* assume worst case minimal index *)
+    let max_i = Idx.maximal i in
+    match max_i, v with
+    (* if there is no maxinum number in interval and value = null, return index set unchanged *)
+    | None, None -> index_set
+    (* if there is no maximum number in interval and value != null, return top = empty set *)
+    | None, Some _ -> top ()
+    | Some max, None ->
+      (* if i is an exact number and value = null, add i to index set *)
+      if Z.equal min_i max then
+        add (Idx.of_int !Cil.kindOfSizeOf min_i) index_set
+      (* if i is an interval and value = null, return index set unchanged *)
+      else
+        index_set
+    | Some max, Some _ ->
+      (* if i is an exact number and value != null, remove i from index set *)
+      if Z.equal min_i max then
+        remove (Idx.of_int !Cil.kindOfSizeOf min_i) index_set
+      (* if i is an interval and value != null, return top = empty set *)
+      else
+        top ()
+
+  let make ?(varAttr=[]) ?(typAttr=[]) i v =
+    (* TODO: for now naive addition of all indexes in interval one by one -- yup, that's very inefficient *)
+    let rec add_indexes index_set i max =
+      if Z.gt i max then
+        index_set
+      else 
+        add_indexes (add (Idx.of_int !Cil.kindOfSizeOf i) index_set) (Z.add i Z.one) max in
+    match Idx.minimal i, Idx.maximal i, v with
+    (* if there is no minimal number in interval or value != null, return top *)
+    | None, _, _
+    | Some _, _, Some _ -> top ()
+    (* if value = null, return bot (i.e. set of all indexes from 0 to min) *)
+    | Some min, _, None -> add_indexes (empty ()) Z.zero min
+
+  let length _ = None
+
+  let move_if_affected ?(replace_with_const=false) _ index_set _ _ = index_set
+
+  let get_vars_in_e _ = []
+
+  let map f index_set =
+    (* if f(null) = null, all values at indexes in set are still surely null *)
+    if f None = None then
+      index_set
+    (* else return top as checking the effect of f for every possible value is unfeasible *)
+    else
+      top ()
+
+  (* TODO: check if there is no smarter implementation of this (probably not) *)
+  let fold_left f a _ = f a (Some (Val.top ()))
+  
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+
+  (* string functions *)
+  let to_string index_set =
+    (* if index set is empty, the array doesn't surely contain a null byte and an overflow might happen *)
+    if is_empty index_set then
+      (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end: potential buffer overflow";
+      index_set)
+    (* else only keep the smallest index in the set *)
+    else
+      (* TODO: would min_elt work? (probably not) *)
+      let min_null = fold (fun x acc -> Idx.lt x acc) index_set (Idx.bot_of !Cil.kindOfSizeOf) in
+      singleton min_null
+
+  let to_n_string index_set n no_null_warn =
+    (* TODO: for now naive addition of all indexes in interval one by one -- yup, that's very inefficient *)
+    let rec add_indexes index_set i max =
+      if Z.geq i max then
+        index_set
+      else 
+        add_indexes (add (Idx.of_int !Cil.kindOfSizeOf i) index_set) (Z.add i Z.one) max in
+    (* if index set is empty, the array doesn't surely contain a null byte and an overflow might happen *)
+      if is_empty index_set then
+        (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end: potential buffer overflow";
+        index_set)
+      (* else if index set not empty *)
+      else
+        (* TODO: would min_elt work? (probably not) *)
+        let min_null = fold (fun x acc -> Idx.lt x acc) index_set (Idx.bot_of !Cil.kindOfSizeOf) in
+        match Idx.to_int min_null with
+        | Some i -> 
+          (* ... keep smallest index in set if smaller than n and add as many null bytes as necessary to obtain n bytes string  *)
+          if Z.lt i (Z.of_int n) then
+            add_indexes (singleton min_null) i (Z.of_int n)
+          (* ... or if smallest index >= n, return empty set and warn if no_null_warn = true *)
+          else if no_null_warn then
+            (M.warn "Resulting string may not contain a terminating null byte";
+            empty ())
+          else
+            empty ()
+        | None -> singleton min_null (* should not happen, but if it does, can't compute additional must null bytes *)
+
+  let to_string_length index_set =
+    (* if index set is empty, return top as array may contain null bytes we don't know of *)
+    (* TODO: warning not useful I believe? ((In theory, one could use strlen to determine if there is a null byte in array or not to 
+     * know if bytes of the array are possibly overwriten in a malicious undertaking)) *)
+    if is_empty index_set then
+      Idx.top_of !Cil.kindOfSizeOf
+    else
+      (* TODO: would min_elt work? (probably not) *)
+      let min_null = fold (fun x acc -> Idx.lt x acc) index_set (Idx.bot_of !Cil.kindOfSizeOf) in
+      match Idx.to_int min_null with
+      (* else if we can determine the minimal index in set, we know 0 <= length <= minimal index *)
+      | Some i -> Idx.of_interval !Cil.kindOfSizeOf (Z.zero, i)
+      | None -> Idx.top_of !Cil.kindOfSizeOf
+
+  let string_concat index_set1 index_set2 n =
+    let s1 = to_string index_set1 in
+    (* if s1 is empty, no statement possible for must null bytes of concatenation; warning generated by to_string above *)
+    if is_empty s1 then
+      empty ()
+    else
+      begin match n with
+        (* concat at most n bytes of index_set2 to index_set1 = strncat *)
+        | Some num ->
+          let s1_i = choose s1 in
+          let s2 = to_n_string index_set2 num false in
+          (* if no must null byte among first n bytes of s2, no statement possible as no knowledge of may null bytes *)
+          if is_empty s2 then
+            empty()
+          (* else concatenation has null byte at strlen(s1) + first null byte found in s2 *)
+          else
+            (* TODO: would min_elt work? (probably not) *)
+            let min_null_s2 = fold (fun x acc -> Idx.lt x acc) s2 (Idx.bot_of !Cil.kindOfSizeOf) in
+            singleton (Idx.add s1_i min_null_s2)
+        (* concat bytes of index_set2 to index_set1 until a null byte is reached = strcat *)
+        | None -> 
+          let s2 = to_string index_set2 in
+          (* if s2 is empty, no statement possible for must null bytes of concatenation; warning generated by to_string above *)
+          if is_empty s2 then
+            empty ()
+          (* else concatenation has null byte at strlen(s1) + strlen(s2) *)
+          else 
+            let s1_i = choose s1 in
+            let s2_i = choose s2 in
+            singleton (Idx.add s1_i s2_i)
+      end
+
+  (* TODO -- can I even do something useful at all? Might as well leave out substring_extraction and string_comparison *)
+  let substring_extraction _ _ = Some (top ())
+
+  (* TODO *)
+  let string_comparison _ _ _ = Idx.top_of IInt
+
+  let update_length _ x = x
+
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
 
@@ -748,6 +966,26 @@ struct
   let smart_join _ _ = join
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
+
+  let to_string _ = top ()
+  let to_n_string a n _ = 
+    begin match length a with
+      | Some len ->
+        begin match Idx.maximal len with
+          | Some max -> 
+            if Z.gt (Z.of_int n) max then
+              (M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May produce a buffer overflow if the string doesn't contain a null byte in the first n bytes";
+              top ())
+            else
+              top ()
+          | None -> top ()
+        end
+      | None -> top ()
+    end
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
 
   (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (* Any array can only be declared in one location. The value for newl that we get there is  *)
@@ -801,6 +1039,13 @@ struct
     let l = Idx.join xl yl in
     Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_eval_int y_eval_int x y
 
+  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
+
   (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (* Any array can only be declared in one location. The value for newl that we get there is  *)
   (* the one obtained by abstractly evaluating the size expression at this location for the   *)
@@ -822,8 +1067,12 @@ struct
   module Base = Unroll (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
-  type value = Val.t
-
+  type value = Val.t  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
   let domain_of_t _ = UnrolledDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
@@ -841,6 +1090,13 @@ struct
   let smart_join _ _ = join
   let smart_widen _ _ = widen
   let smart_leq _ _ = leq
+
+  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
 
   (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (* Any array can only be declared in one location. The value for newl that we get there is  *)
@@ -959,6 +1215,14 @@ struct
     let u = U.make (Option.value (P.length p) ~default:(Idx.top ())) (Val.bot ()) in
     let set_i u (i,v) =  U.set ask u (index_as_expression i) v in
     set_i (List.fold_left set_i u unrolledValues) (factor (), rest)
+
+  (* TODO! *)
+  let to_string _ = top ()
+  let to_n_string _ _ _ = top ()
+  let to_string_length _ = Idx.top_of !Cil.kindOfSizeOf
+  let string_concat _ _ _ = top ()
+  let substring_extraction _ _ = Some (top ())
+  let string_comparison _ _ _ = Idx.top_of IInt
 
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t:t) =
     match get_domain ~varAttr ~typAttr, t with
