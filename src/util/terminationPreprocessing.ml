@@ -6,7 +6,6 @@
    *)
 
 open GoblintCil
-open Printf
 
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
@@ -19,7 +18,7 @@ let extract_file_name s =                    (*There still may be a need to filt
    s'   
 
 let show_location_id l =
-   string_of_int l.line ^ "_" ^ string_of_int l.column (*extract_file_name l.file ^ "_" ^ *)
+   string_of_int l.line ^ "_" ^ string_of_int l.column ^ "_" ^ "file" ^ "_" ^  extract_file_name l.file
 
 class loopCounterVisitor (fd : fundec) = object(self)
    inherit nopCilVisitor
@@ -29,7 +28,6 @@ class loopCounterVisitor (fd : fundec) = object(self)
          let name = "term"^show_location_id loc in
          let typ = Cil.intType in 
          let v = (Cil.makeLocalVar fd name typ) in
-         (*let init_stmt = mkStmt (Instr [Set (var v, zero, loc, eloc)]) in*)
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          (match b.bstmts with
