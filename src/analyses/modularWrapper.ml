@@ -26,8 +26,8 @@ struct
 
     let to_non_modular x =
       match S.modular_support () with
-      | NonModular
-      | Both -> x
+      | NonModular -> x
+      | Both
       | Modular -> None
   end
 
@@ -151,9 +151,10 @@ struct
 
   let should_join d1 d2 =
     match d1, d2 with
-    | Some d1, Some d2 -> S.should_join d1 d2
+    | Some d1, Some d2 ->
+      S.should_join d1 d2
     | Some _, None
-    | None, Some _ -> false
+    | None, Some _ -> true
     | None, None -> true
 
   let sync ctx reason =
