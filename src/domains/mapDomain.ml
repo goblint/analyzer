@@ -3,7 +3,6 @@
 module Pretty = GoblintCil.Pretty
 open Pretty
 module ME = Messages
-module GU = Goblintutil
 
 module type PS =
 sig

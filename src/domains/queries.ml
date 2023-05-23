@@ -2,8 +2,6 @@
 
 open GoblintCil
 
-module GU = Goblintutil
-
 module VDQ = ValueDomainQueries
 
 module ID = VDQ.ID

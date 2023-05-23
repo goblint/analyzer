@@ -300,7 +300,7 @@ module Base =
             | Some d when narrow_reuse ->
               (* Do not reset deps for reuse of eq *)
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
-              incr Goblintutil.narrow_reuses;
+              incr SolverStats.narrow_reuses;
               d
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
@@ -837,7 +837,7 @@ module Base =
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Timing.wrap "restore" restore ();
-        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !SolverStats.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing && cache then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );

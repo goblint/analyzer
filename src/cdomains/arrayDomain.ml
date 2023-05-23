@@ -485,7 +485,7 @@ struct
       (* TODO: Doesn't seem to work for unassume. *)
       Joint a
     | Some i when CilType.Exp.equal i Lval.any_index_exp ->
-      (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
+      (assert !AnalysisState.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)
        let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in
        let r =  Val.join o a in

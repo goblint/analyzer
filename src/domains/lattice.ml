@@ -1,7 +1,6 @@
 (** The lattice signature and simple functors for building lattices. *)
 
 module Pretty = GoblintCil.Pretty
-module GU = Goblintutil
 
 (* module type Rel =
 sig

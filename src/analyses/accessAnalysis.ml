@@ -65,7 +65,7 @@ struct
 
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else begin
+    if !AnalysisState.global_initialization then ctx.local else begin
       access_one_top ~deref:true ctx Write false (AddrOf lval);
       access_one_top ctx Read false rval;
       ctx.local
@@ -135,7 +135,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !Goblintutil.postsolving ->
+    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
