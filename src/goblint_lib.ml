@@ -356,7 +356,9 @@ module SarifType = SarifType
 module SarifRules = SarifRules
 
 
-(** {1 Transformations} *)
+(** {1 Transformations}
+
+    Transformations can be activated to transform the program using analysis results. *)
 
 module Transform = Transform
 module DeadCode = DeadCode

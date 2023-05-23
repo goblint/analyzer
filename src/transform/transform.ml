@@ -1,3 +1,5 @@
+(** Signatures and registry for transformations. *)
+
 open GoblintCil
 module M = Messages
 

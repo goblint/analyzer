@@ -1,3 +1,5 @@
+(** Dead code elimination transformation ([remove_dead_code]). *)
+
 open Batteries
 open GoblintCil
 open GobConfig
