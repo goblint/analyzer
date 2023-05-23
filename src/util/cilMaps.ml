@@ -1,3 +1,5 @@
+(** Special maps used for incremental comparison. *)
+
 open GoblintCil
 
 module VarinfoOrdered = struct

@@ -1,3 +1,5 @@
+(** Serialization/deserialization of incremental analysis data. *)
+
 open Batteries
 
 (* TODO: GoblintDir *)

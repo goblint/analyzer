@@ -1,3 +1,5 @@
+(** Comparison of CIL ASTs. *)
+
 open GoblintCil
 open CilMaps
 

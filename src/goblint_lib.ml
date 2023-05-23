@@ -248,7 +248,9 @@ module AbstractionDomainProperties = AbstractionDomainProperties
 module IntDomainProperties = IntDomainProperties
 
 
-(** {1 Incremental} *)
+(** {1 Incremental}
+
+    Incremental analysis is for analyzing multiple versions of the same program and reusing as many results as possible. *)
 
 module CompareCIL = CompareCIL
 module CompareAST = CompareAST
