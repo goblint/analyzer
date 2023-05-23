@@ -1,3 +1,5 @@
+(** Path-sensitive analysis using an {!ObserverAutomaton}. *)
+
 open GoblintCil
 open Analyses
 open MyCFG

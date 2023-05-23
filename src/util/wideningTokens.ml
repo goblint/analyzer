@@ -1,4 +1,5 @@
 (** Widening tokens are a generic and dynamic mechanism for delaying widening.
+
     All abstract elements carry a set of tokens, which analyses can add into.
     Lifted abstract elements are only widened if the token set does not increase,
     i.e. adding a widening token delays a widening.

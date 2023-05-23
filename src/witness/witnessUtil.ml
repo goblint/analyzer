@@ -1,3 +1,5 @@
+(** Utilities for witness generation and witness invariants. *)
+
 open MyCFG
 open GoblintCil
 

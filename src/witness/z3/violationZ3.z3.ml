@@ -1,3 +1,5 @@
+(** ARG path feasibility checking using weakest precondition and {!Z3}. *)
+
 open Violation
 
 module WP (Node: MyARG.Node): Feasibility with module Node = Node =

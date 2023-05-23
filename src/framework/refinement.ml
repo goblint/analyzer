@@ -1,3 +1,5 @@
+(** Experimental analysis refinement. *)
+
 (** Restarts the analysis from scratch in Control.
     Its raiser is expected to have modified modified some global state to do
     a more precise analysis next time.

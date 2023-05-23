@@ -1,3 +1,4 @@
+(** SARIF rule definitions for Goblint. *)
 
 type categoryInformation = {
   name:string;

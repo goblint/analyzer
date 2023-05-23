@@ -1,3 +1,5 @@
+(** YAML witness generation and validation. *)
+
 open Analyses
 open GoblintCil
 

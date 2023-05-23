@@ -1,3 +1,5 @@
+(** Input program from a real-world project using a Makefile. *)
+
 open Unix
 
 let buff_size = 1024

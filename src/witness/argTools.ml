@@ -1,3 +1,5 @@
+(** Construction of ARGs from constraint system solutions. *)
+
 open MyCFG
 
 module M = Messages

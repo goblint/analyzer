@@ -1,3 +1,5 @@
+(** Nested tracing system for debugging. *)
+
 (* TRACING STUFF. A rewrite of Cil's tracing framework which is too slow for the
  * large domains we output. The original code generated the document object
  * even when the subsystem is not activated. *)

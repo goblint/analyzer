@@ -1,4 +1,4 @@
-(** An analysis specification for witnesses. *)
+(** Analysis specification transformation for ARG construction. *)
 
 open Batteries
 open Analyses

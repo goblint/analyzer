@@ -295,18 +295,24 @@ module LocalFixpoint = LocalFixpoint
 module SolverBox = SolverBox
 
 
-(** {1 I/O} *)
+(** {1 I/O}
+
+    Various input/output interfaces and formats. *)
 
 module Messages = Messages
 module Tracing = Tracing
 
-(** {2 Front-end} *)
+(** {2 Front-end}
+
+    The following modules handle program input. *)
 
 module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
 
-(** {2 Witnesses} *)
+(** {2 Witnesses}
+
+    Witnesses are an exchangeable format for analysis results. *)
 
 module Svcomp = Svcomp
 module SvcompSpec = SvcompSpec
@@ -315,7 +321,9 @@ module Invariant = Invariant
 module InvariantCil = InvariantCil
 module WitnessUtil = WitnessUtil
 
-(** {3 GraphML} *)
+(** {3 GraphML}
+
+    Automaton-based GraphML witnesses used in SV-COMP. *)
 
 module MyARG = MyARG
 module WitnessConstraints = WitnessConstraints
@@ -323,13 +331,17 @@ module ArgTools = ArgTools
 module Witness = Witness
 module Graphml = Graphml
 
-(** {3 YAML}*)
+(** {3 YAML}
+
+    Entry-based YAML witnesses to be used in SV-COMP. *)
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
 module WideningTokens = WideningTokens
 
-(** {3 Violation} *)
+(** {3 Violation}
+
+    Experimental generation of violation witness automata or refinement with observer automata. *)
 
 module Violation = Violation
 module ViolationZ3 = ViolationZ3

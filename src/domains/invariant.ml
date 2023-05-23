@@ -1,3 +1,5 @@
+(** Invariants for witnesses. *)
+
 open GoblintCil
 
 (** Symbolic (and fully syntactic) expression "lattice". *)

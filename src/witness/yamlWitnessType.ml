@@ -1,3 +1,5 @@
+(** YAML witness format types. *)
+
 module Producer =
 struct
   type t = {
