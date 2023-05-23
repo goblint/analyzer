@@ -13,8 +13,12 @@ void *t_benign(void *arg) {
 
 void *t_benign2(void *arg) {
   pthread_mutex_lock(&A);
-  int x =  g == 40; // For evaluations that happen before the side-effect of the unlock of A, g is bot and the exception is caught by eval_rv
-  __goblint_check(x); //UNKNOWN!
+  // For evaluations that happen before the side-effect of the unlock of A, g is bot.
+  // This caused an excpetion in query_evalint which we now catch when we are not in verify mode.
+  __goblint_check(g == 40); //UNKNOWN!
+  __goblint_check(g == 30); //UNKNOWN!
+  __goblint_check(g == 10); //FAIL
+  pthread_mutex_unlock(&A);
   return NULL;
 }
 
