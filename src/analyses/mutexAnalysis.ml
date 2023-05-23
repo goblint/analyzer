@@ -109,7 +109,7 @@ struct
       let i_exp =
         match ValueDomain.IndexDomain.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> MyCFG.unknown_exp
+        | None -> Lval.any_index_exp
       in
       `Index (i_exp, conv_offset_inv o)
 

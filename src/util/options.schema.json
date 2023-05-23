@@ -1689,9 +1689,9 @@
         },
         "g2html_path": {
           "title": "exp.g2html_path",
-          "description": "Location of the g2html.jar file.",
+          "description": "Location of the g2html.jar file. If empty, then goblint executable directory is used.",
           "type": "string",
-          "default": "."
+          "default": ""
         },
         "extraspecials": {
           "title": "exp.extraspecials",
@@ -1717,7 +1717,7 @@
         "fast_global_inits": {
           "title": "exp.fast_global_inits",
           "description":
-            "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
+            "Only generate one 'a[any_index] = x' for all assignments a[...] = x for a global array a[n].",
           "type": "boolean",
           "default": true
         },
@@ -1775,12 +1775,6 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
-        "debug": {
-          "title": "dbg.debug",
-          "description": "Debug mode: for testing the analyzer itself.",
-          "type": "boolean",
-          "default": false
-        },
         "verbose": {
           "title": "dbg.verbose",
           "description": "Prints some status information.",
@@ -2357,6 +2351,12 @@
                 "cond",
                 "RETURN"
               ]
+            },
+            "goblint": {
+              "title": "witness.invariant.goblint",
+              "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

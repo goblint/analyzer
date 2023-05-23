@@ -38,7 +38,8 @@ let init () =
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
-  print_CIL_Input := true
+  print_CIL_Input := true;
+  Cabs2cil.allowDuplication := false
 
 let current_file = ref dummyFile
 

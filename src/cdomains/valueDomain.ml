@@ -931,7 +931,7 @@ struct
 
   let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
@@ -1387,6 +1387,7 @@ struct
     | `Address n -> ad_invariant ~vs ~offset ~lval n
     | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | `Array n -> CArrays.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 
