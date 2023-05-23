@@ -74,6 +74,7 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 let visitors_cil = ref []
+(* does exactly the same as register_preprocess_cil but it is executed earlier, before the CFG is created*)
 let register_preprocess_cil name visitor_fun =
   visitors_cil := !visitors_cil @ [name, visitor_fun]
   
