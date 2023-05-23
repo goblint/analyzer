@@ -180,8 +180,8 @@ struct
   let event ctx events ctx2 =
     map_ctx_fctx (fun ctx ctx2 -> S.event ctx events ctx2) ~ctx ~fctx:ctx2
 
-  let modular_call ctx lval fd exp =
-      map_ctx (fun ctx -> S.modular_call ctx lval fd exp) ctx
+  let modular_call ctx lval fd exp f_ask =
+      map_ctx (fun ctx -> S.modular_call ctx lval fd exp f_ask) ctx
 end
 
 (* let _ =

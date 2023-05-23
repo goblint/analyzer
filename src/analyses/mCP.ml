@@ -490,7 +490,7 @@ struct
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let modular_call (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
+  let modular_call (ctx:(D.t, G.t, C.t, V.t) ctx) r f a f_ask =
     (* TODO: Deduplicate with special *)
     let spawns = ref [] in
     let splits = ref [] in
@@ -499,7 +499,7 @@ struct
     let ctx'' = outer_ctx "modular_call" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPPostSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "modular_call" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.modular_call ctx' r f a
+      n, repr @@ S.modular_call ctx' r f a f_ask
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

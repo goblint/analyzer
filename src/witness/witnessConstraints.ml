@@ -215,7 +215,7 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-  let modular_call ctx l f a = map ctx Spec.modular_call (fun h -> h l f a)
+  let modular_call ctx l f a f_ask = map ctx Spec.modular_call (fun h -> h l f a f_ask)
   let event ctx e octx = map_event ctx e (* TODO: ???? *)
 
   let paths_as_set ctx =

@@ -74,8 +74,8 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
-  let modular_call ctx r f args =
-    D.lift @@ S.modular_call (conv ctx) r f args
+  let modular_call ctx r f args f_ask =
+    D.lift @@ S.modular_call (conv ctx) r f args f_ask
 
   let combine_env ctx r fe f args fc es f_ask =
     D.lift @@ S.combine_env (conv ctx) r fe f args fc (D.unlift es) f_ask
@@ -253,7 +253,7 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
-  let modular_call ctx r f args        = lift_fun ctx (lift ctx) S.modular_call ((|>) args % (|>) f % (|>) r)
+  let modular_call ctx r f args f_ask       = lift_fun ctx (lift ctx) S.modular_call ((|>) f_ask % (|>) args % (|>) f % (|>) r)
   let combine_env' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
@@ -396,7 +396,7 @@ struct
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
-  let modular_call ctx r f args       = lift_fun ctx S.modular_call ((|>) args % (|>) f % (|>) r)
+  let modular_call ctx r f args f_ask     = lift_fun ctx S.modular_call ((|>) f_ask % (|>) args % (|>) f % (|>) r)
 
   let event ctx e octx = lift_fun ctx S.event ((|>) (conv octx) % (|>) e)
 
@@ -485,7 +485,7 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
-  let modular_call ctx r f args       = lift_fun ctx D.lift S.modular_call ((|>) args % (|>) f % (|>) r)        `Bot
+  let modular_call ctx r f args f_ask      = lift_fun ctx D.lift S.modular_call ((|>) f_ask % (|>) args % (|>) f % (|>) r)        `Bot
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
@@ -788,7 +788,9 @@ struct
                   (* tf_special_call ctx lv f args *)
                   let local = S.D.to_non_modular ctx.local in
                   let ctx = {ctx with local = local } in
-                  let local_non_modular = tf_modular_call ctx lv fd args in
+                  (* TODO: Does more than the local field need to be adapted? *)
+                  let f_ask = Analyses.ask_of_ctx {ctx with local = local_modular} in
+                  let local_non_modular = tf_modular_call ctx lv fd args f_ask in
                   let local = S.D.join local_modular local_non_modular in
                   local
                 end else
@@ -1283,7 +1285,7 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-  let modular_call ctx l f a = map ctx Spec.modular_call (fun h -> h l f a)
+  let modular_call ctx l f a f_ask = map ctx Spec.modular_call (fun h -> h l f a f_ask)
 
   let event ctx e octx =
     let fd1 = D.choose octx.local in
