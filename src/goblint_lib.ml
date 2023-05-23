@@ -441,9 +441,13 @@ module Version = Version
 module ConfigVersion = ConfigVersion
 
 
-(** {1 Library extensions} *)
+(** {1 Library extensions}
 
-(** {2 Standard library} *)
+    OCaml library extensions which are completely independent of Goblint. *)
+
+(** {2 Standard library}
+
+    OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
 module GobHashtbl = GobHashtbl
@@ -453,7 +457,9 @@ module GobOption = GobOption
 module GobSys = GobSys
 module GobUnix = GobUnix
 
-(** {2 Other libraries} *)
+(** {2 Other libraries}
+
+    External library extensions. *)
 
 module GobFpath = GobFpath
 module GobPretty = GobPretty
