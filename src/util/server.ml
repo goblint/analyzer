@@ -304,7 +304,7 @@ let () =
     let process { reset } serve =
       try
         analyze serve ~reset;
-        {status = if !Goblintutil.verified = Some false then VerifyError else Success}
+        {status = if !AnalysisState.verified = Some false then VerifyError else Success}
       with
       | Sys.Break ->
         {status = Aborted}

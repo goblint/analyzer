@@ -43,7 +43,7 @@ module Protection =
 struct
   let is_unprotected ask x: bool =
     let multi = ThreadFlag.has_ever_been_multi ask in
-    (!GU.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
+    (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
       ask.f (Q.MayBePublic {global=x; write=true})
@@ -132,7 +132,7 @@ struct
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)
-    if !GU.global_initialization then
+    if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
       let ls = ask.f Queries.MustLockset in

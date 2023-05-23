@@ -19,8 +19,8 @@ struct
   module C = SpecDomain.Dom
 
   (* special variables *)
-  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let global_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
+  let return_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let global_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
   (* spec data *)
   let nodes = ref []

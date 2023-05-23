@@ -3,7 +3,6 @@
 open Batteries
 open GobConfig
 open Printf
-open Goblintutil
 open GoblintCil
 
 let writeconffile = ref None
@@ -61,7 +60,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" (Fpath.to_string exe_dir);
+      set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
     set_string "result" "fast_xml"
@@ -185,7 +184,7 @@ let handle_flags () =
 let handle_options () =
   check_arguments ();
   AfterConfig.run ();
-  Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
+  Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
   Cilfacade.init_options ();
   handle_flags ()
 
@@ -256,7 +255,7 @@ let preprocess_files () =
   (* the base include directory *)
   (* TODO: any better way? dune executable promotion doesn't add _build sites *)
   let source_lib_dirs =
-    let source_lib = Fpath.(exe_dir / "lib") in
+    let source_lib = Fpath.(GobSys.exe_dir / "lib") in
     if Sys.file_exists (Fpath.to_string source_lib) && Sys.is_directory (Fpath.to_string source_lib) then (
       Sys.readdir Fpath.(to_string source_lib)
       |> Array.to_list
@@ -319,7 +318,7 @@ let preprocess_files () =
         else
           []
       end @ [
-        Fpath.(exe_dir / "linux-headers");
+        Fpath.(GobSys.exe_dir / "linux-headers");
         (* linux-headers not installed with goblint package *)
       ]
     in
@@ -407,7 +406,7 @@ let preprocess_files () =
       | process_status ->
         raise (FrontendError (Format.sprintf "preprocessor %s: %s" (GobUnix.string_of_process_status process_status) task.command))
     in
-    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated) preprocess_tasks
+    Timing.wrap "preprocess" (ProcessPool.run ~jobs:(GobConfig.jobs ()) ~terminated) preprocess_tasks
   );
   preprocessed
 
@@ -491,7 +490,7 @@ let preprocess_parse_merge () =
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
+    SolverStats.print ();
     print_newline ();
     print_string "Timings:\n";
     Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
@@ -499,9 +498,7 @@ let do_stats () =
   )
 
 let reset_stats () =
-  Goblintutil.vars := 0;
-  Goblintutil.evals := 0;
-  Goblintutil.narrow_reuses := 0;
+  SolverStats.reset ();
   Timing.Default.reset ();
   Timing.Program.reset ()
 
@@ -509,9 +506,9 @@ let reset_stats () =
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
   if not (get_bool "g2html" || get_string "outfile" = "") then (
-    if !Goblintutil.out <> Legacy.stdout then
-      Legacy.close_out !Goblintutil.out;
-    Goblintutil.out := Legacy.open_out (get_string "outfile"));
+    if !Messages.out <> Legacy.stdout then
+      Legacy.close_out !Messages.out;
+    Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
@@ -536,14 +533,14 @@ let do_analyze change_info merged_AST =
       try Control.analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
-        Goblintutil.should_warn := true; (* such that the `about to crash` message gets printed *)
+        AnalysisState.should_warn := true; (* such that the `about to crash` message gets printed *)
         let pretty_mark () = match Goblint_backtrace.find_marks e with
           | m :: _ -> Pretty.dprintf " at mark %s" (Goblint_backtrace.mark_to_string m)
           | [] -> Pretty.nil
         in
         Messages.error ~category:Analyzer "About to crash%t!" pretty_mark;
         (* trigger Generic.SolverStats...print_stats *)
-        Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
+        GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
         do_stats ();
         print_newline ();
         Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
@@ -671,4 +668,4 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   catch_break true;
-  set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
+  set_signal (GobSys.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)

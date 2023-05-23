@@ -1,6 +1,5 @@
 open Goblint_lib
 open GobConfig
-open Goblintutil
 open Maingoblint
 open Printf
 
@@ -37,7 +36,7 @@ let main () =
 
     if get_bool "dbg.verbose" then (
       print_endline (GobUnix.localtime ());
-      print_endline Goblintutil.command_line;
+      print_endline GobSys.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
@@ -65,7 +64,7 @@ let main () =
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
-      if !verified = Some false then exit 3 (* verifier failed! *)
+      if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with
   | Stdlib.Exit ->
@@ -78,7 +77,7 @@ let main () =
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-  | Timeout ->
+  | Timeout.Timeout ->
     do_stats ();
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();

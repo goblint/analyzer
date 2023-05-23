@@ -137,7 +137,7 @@ let to_yojson messages =
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
     runs = [{
         invocations = [{
-            commandLine = Goblintutil.command_line;
+            commandLine = GobSys.command_line;
             executionSuccessful = true;
           }];
         artifacts = artifacts_of_messages messages;

@@ -5,8 +5,6 @@ open Analyses
 open Constraints
 open Messages
 
-module GU = Goblintutil
-
 exception SolverCannotDoGlobals
 
 

@@ -5,7 +5,6 @@ open GoblintCil
 open Pretty
 open GobConfig
 
-module GU = Goblintutil
 module M  = Messages
 
 (** Analysis starts from lists of functions: start functions, exit functions, and
@@ -212,7 +211,7 @@ struct
       match loc with
       | Some loc ->
         let l = Messages.Location.to_cil loc in
-        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
       | None ->
         () (* TODO: not outputting warning without location *)
     in
@@ -225,7 +224,7 @@ struct
     List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
-    let out = Messages.get_out result_name !GU.out in
+    let out = Messages.get_out result_name !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "fast_xml" ->
@@ -251,7 +250,7 @@ struct
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
         BatPrintf.fprintf f "<run>";
-        BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
+        BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
         BatPrintf.fprintf f "<statistics>";
         let timing_ppf = BatFormat.formatter_of_out_channel f in
         Timing.Default.print timing_ppf;
@@ -290,7 +289,7 @@ struct
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
         printf "Writing json to temp. file: %s\n%!" fn;
-        fprintf f "{\n  \"parameters\": \"%s\",\n  " Goblintutil.command_line;
+        fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
         fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
         (*gtfxml f gtable;*)

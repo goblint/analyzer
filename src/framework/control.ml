@@ -217,7 +217,7 @@ struct
     end
     in
 
-    Goblintutil.should_warn := false; (* reset for server mode *)
+    AnalysisState.should_warn := false; (* reset for server mode *)
 
     (* exctract global xml from result *)
     let make_global_fast_xml f g =
@@ -323,7 +323,7 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out (Spec.name ()) !GU.out in
+      let out = M.get_out (Spec.name ()) !M.out in
       let print_one v st =
         ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
       in
@@ -334,8 +334,8 @@ struct
     if get_bool "ana.sv-comp.enabled" then
       Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
 
-    GU.global_initialization := true;
-    GU.earlyglobs := get_bool "exp.earlyglobs";
+    AnalysisState.global_initialization := true;
+    GobConfig.earlyglobs := get_bool "exp.earlyglobs";
     let marshal: Spec.marshal option =
       if get_string "load_run" <> "" then
         Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
@@ -346,10 +346,10 @@ struct
     in
 
     (* Some happen in init, so enable this temporarily (if required by option). *)
-    Goblintutil.should_warn := PostSolverArg.should_warn;
+    AnalysisState.should_warn := PostSolverArg.should_warn;
     Spec.init marshal;
     Access.init file;
-    Goblintutil.should_warn := false;
+    AnalysisState.should_warn := false;
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
@@ -432,7 +432,7 @@ struct
     if startvars = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
-    GU.global_initialization := false;
+    AnalysisState.global_initialization := false;
 
     let startvars' =
       if get_bool "exp.forward" then
@@ -509,7 +509,7 @@ struct
           in
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
+          AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
@@ -529,7 +529,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
+                let json = to_yojson { command = GobSys.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = GobUnix.localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -542,7 +542,7 @@ struct
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
             );
-            Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
+            GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
           lh, gh
         )
@@ -565,7 +565,7 @@ struct
       );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
-      Goblintutil.should_warn := PostSolverArg.should_warn;
+      AnalysisState.should_warn := PostSolverArg.should_warn;
 
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -658,10 +658,10 @@ struct
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
          The alternative would be to catch the below Timeout, print_stats and re-raise in each solver (or include it in some functor above them). *)
-      raise GU.Timeout
+      raise Timeout.Timeout
     in
-    let timeout = get_string "dbg.timeout" |> Goblintutil.seconds_of_duration_string in
-    let lh, gh = Goblintutil.timeout solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let timeout = get_string "dbg.timeout" |> TimeUtil.seconds_of_duration_string in
+    let lh, gh = Timeout.wrap solve_and_postprocess () (float_of_int timeout) timeout_reached in
     let module SpecSysSol: SpecSysSol with module SpecSys = SpecSys =
     struct
       module SpecSys = SpecSys

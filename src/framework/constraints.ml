@@ -549,7 +549,7 @@ struct
     | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
-    if !GU.postsolving then
+    if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
@@ -1413,7 +1413,7 @@ struct
   let branch ctx = S.branch (conv ctx)
 
   let branch ctx exp tv =
-    if !GU.postsolving then (
+    if !AnalysisState.postsolving then (
       try
         let r = branch ctx exp tv in
         (* branch is live *)

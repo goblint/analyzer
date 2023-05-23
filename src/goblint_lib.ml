@@ -21,6 +21,7 @@ module CfgTools = CfgTools
 
 module Analyses = Analyses
 module Constraints = Constraints
+module AnalysisState = AnalysisState
 module ControlSpecC = ControlSpecC
 
 (** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
@@ -292,6 +293,7 @@ module Selector = Selector
 
 module PostSolver = PostSolver
 module LocalFixpoint = LocalFixpoint
+module SolverStats = SolverStats
 module SolverBox = SolverBox
 
 
@@ -368,10 +370,8 @@ module ExpressionEvaluation = ExpressionEvaluation
 
 (** {1 Utilities} *)
 
-module Goblintutil = Goblintutil
 module Timing = Timing
 module GoblintDir = GoblintDir
-
 
 (** {2 General} *)
 
@@ -417,6 +417,7 @@ module WideningThresholds = WideningThresholds
 
 module VectorMatrix = VectorMatrix
 module SharedFunctions = SharedFunctions
+module UniqueType = UniqueType
 
 (** {2 Precision comparison} *)
 
@@ -450,8 +451,10 @@ module ConfigVersion = ConfigVersion
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobFormat = GobFormat
+module GobGc = GobGc
 module GobHashtbl = GobHashtbl
 module GobList = GobList
+module GobRef = GobRef
 module GobResult = GobResult
 module GobOption = GobOption
 module GobSys = GobSys

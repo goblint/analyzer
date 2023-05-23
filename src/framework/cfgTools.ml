@@ -124,7 +124,7 @@ let rec pretty_edges () = function
 
 let get_pseudo_return_id fd =
   let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Cilfacade.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
   if sid < start_id then sid + start_id else sid
 
 let node_scc_global = NH.create 113
@@ -661,10 +661,10 @@ let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-        let base_dir = Goblintutil.create_dir (Fpath.v "cfgs") in
+        let base_dir = GobSys.mkdir_or_exists_absolute (Fpath.v "cfgs") in
         let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
         let dot_file_name = fd.svar.vname^".dot" in
-        let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
+        let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
         let out = open_out (Fpath.to_string fname) in
         let ppf = Format.formatter_of_out_channel out in
