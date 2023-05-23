@@ -1,6 +1,7 @@
 (** Analysis using Apron for integer variables. *)
 open Analyses
-
+open TerminationPreprocessing
+open Cilfacade
 include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
@@ -33,9 +34,11 @@ let get_spec (): (module MCPSpec) =
 let after_config () =
   let module Spec = (val get_spec ()) in
   MCP.register_analysis (module Spec : MCPSpec);
-  GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
+  GobConfig.set_string "ana.path_sens[+]" (Spec.name ())
+  
 
 let _ =
+  Cilfacade.register_preprocess_cil ("apron") (new loopCounterVisitor);
   AfterConfig.register after_config
 
 

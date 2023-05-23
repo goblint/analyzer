@@ -40,6 +40,8 @@ let loopCount file =
 
 
 let createCFG (fileAST: file) =
+  
+  Cilfacade.do_preprocess_cil fileAST;
   (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
   (* needs to be in its own block. end_basic_blocks does that.                                                        *)
   (* After adding support for VLAs, there are new VarDecl instructions at the point where a variable was declared and *)
@@ -54,7 +56,7 @@ let createCFG (fileAST: file) =
    * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
 
   let loops = loopCount fileAST in
-
+  
   iterGlobals fileAST (fun glob ->
       match glob with
       | GFun(fd,_) ->
@@ -64,6 +66,6 @@ let createCFG (fileAST: file) =
         computeCFGInfo fd true
       | _ -> ()
     );
-  if get_bool "dbg.run_cil_check" then assert (Check.checkFile [] fileAST);
-
+  
+  if get_bool "dbg.run_cil_check" then assert (Check.checkFile [] fileAST);  
   Cilfacade.do_preprocess fileAST
