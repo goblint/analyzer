@@ -1,3 +1,5 @@
+(** Domains for addresses/pointers. *)
+
 open GoblintCil
 open IntOps
 

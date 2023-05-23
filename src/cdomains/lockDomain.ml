@@ -1,3 +1,5 @@
+(** Lockset domains. *)
+
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module Equ = MusteqDomain.Equ

@@ -1,4 +1,4 @@
-(** domain of the base analysis *)
+(** Full domain of {!Base} analysis. *)
 
 open GoblintCil
 module VD = ValueDomain.Compound

@@ -1,3 +1,5 @@
+(** Printables and domains for some common types. *)
+
 module GU = Goblintutil
 open GoblintCil
 

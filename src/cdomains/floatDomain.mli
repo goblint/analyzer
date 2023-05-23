@@ -1,5 +1,5 @@
-(** Abstract Domains for floats. These are domains that support the C
-  * operations on double/float values. *)
+(** Abstract domains for C floating-point numbers. *)
+
 open GoblintCil
 
 exception ArithmeticOnFloatBot of string

@@ -1,3 +1,5 @@
+(** Domains for file handles. *)
+
 open Batteries
 
 module D = LvalMapDomain

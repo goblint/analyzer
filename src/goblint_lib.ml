@@ -158,12 +158,19 @@ module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 
 
-(** {1 Domains} *)
+(** {1 Domains}
+
+    Domains used by analysis specifications and constraint systems are {{!Lattice.S} lattices}.
+
+    Besides lattice operations, their elements can also be compared and output (in various formats).
+    Those operations are specified by {!Printable.S}. *)
 
 module Printable = Printable
 module Lattice = Lattice
 
-(** {2 General} *)
+(** {2 General}
+
+    Standard general-purpose domains and domain functors. *)
 
 module BoolDomain = BoolDomain
 module SetDomain = SetDomain
@@ -173,11 +180,15 @@ module HoareDomain = HoareDomain
 module PartitionDomain = PartitionDomain
 module FlagHelper = FlagHelper
 
-(** {2 Analysis-specific} *)
+(** {2 Analysis-specific}
+
+    Domains for specific analyses. *)
 
 (** {3 Value} *)
 
-(** {4 Non-relational} *)
+(** {4 Non-relational}
+
+    Domains for {!Base} analysis. *)
 
 module BaseDomain = BaseDomain
 module ValueDomain = ValueDomain
@@ -190,7 +201,9 @@ module ArrayDomain = ArrayDomain
 module JmpBufDomain = JmpBufDomain
 module ValueDomainQueries = ValueDomainQueries
 
-(** {4 Relational} *)
+(** {4 Relational}
+
+    Domains for {!RelationAnalysis}. *)
 
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
@@ -226,7 +239,9 @@ module StackDomain = StackDomain
 module LvalMapDomain = LvalMapDomain
 module SpecDomain = SpecDomain
 
-(** {2 Testing} *)
+(** {2 Testing}
+
+    Modules related to (property-based) testing of domains. *)
 
 module DomainProperties = DomainProperties
 module AbstractionDomainProperties = AbstractionDomainProperties

@@ -1,4 +1,4 @@
-(** Abstract domains representing structs. *)
+(** Abstract domains for C structs. *)
 
 open GoblintCil
 

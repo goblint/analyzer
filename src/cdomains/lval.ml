@@ -1,3 +1,5 @@
+(** Domains for offsets and lvalues. *)
+
 open GoblintCil
 open Pretty
 

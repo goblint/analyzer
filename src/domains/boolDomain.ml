@@ -1,3 +1,5 @@
+(** Boolean domains. *)
+
 module Bool =
 struct
   include Basetype.RawBools

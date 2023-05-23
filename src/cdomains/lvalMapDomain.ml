@@ -1,3 +1,5 @@
+(** Domains for lvalue maps. *)
+
 open Batteries
 open GoblintCil
 

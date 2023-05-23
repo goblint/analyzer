@@ -1,3 +1,5 @@
+(** Domain alternatives chosen by a runtime flag. *)
+
 module type FlagError = sig
   val msg: string
   val name: string

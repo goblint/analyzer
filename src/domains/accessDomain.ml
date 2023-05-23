@@ -1,3 +1,5 @@
+(** Domain for memory accesses. *)
+
 open GoblintCil.Pretty
 
 module Event =

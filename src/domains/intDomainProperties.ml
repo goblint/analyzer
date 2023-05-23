@@ -1,3 +1,5 @@
+(** QCheck properties for {!IntDomain}. *)
+
 open GoblintCil
 module BI = IntOps.BigIntOps
 

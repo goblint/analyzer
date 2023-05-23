@@ -1,3 +1,5 @@
+(** Call stack domains. *)
+
 module GU = Goblintutil
 
 module type S =
