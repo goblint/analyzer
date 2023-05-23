@@ -785,11 +785,16 @@ struct
                   let local = S.D.to_modular ctx.local in
                   let ctx_modular = {ctx with local = local } in
                   let local_modular = tf_normal_call ctx_modular lv e fd args getl sidel getg sideg in
-                  (* tf_special_call ctx lv f args *)
                   let local = S.D.to_non_modular ctx.local in
                   let ctx = {ctx with local = local } in
-                  (* TODO: Does more than the local field need to be adapted? *)
-                  let f_ask = Analyses.ask_of_ctx {ctx with local = local_modular} in
+                  (* TODO: Deal with pathsensitivity here like in tf_normal_call? *)
+                  let rec f_ctx =
+                    { ctx with
+                      ask = (fun (type a) (q: a Queries.t) -> S.query f_ctx q);
+                      local = local_modular;
+                    }
+                  in
+                  let f_ask = Analyses.ask_of_ctx f_ctx in
                   let local_non_modular = tf_modular_call ctx lv fd args f_ask in
                   let local = S.D.join local_modular local_non_modular in
                   local

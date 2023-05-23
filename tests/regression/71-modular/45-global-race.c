@@ -3,29 +3,26 @@
 #include<pthread.h>
 
 
+int g = 0;
+
 int write(int *p){
-	*p = 23; // RACE
+	g = 23;
 }
 
 void *thread1(void *p){
-	int *i = (int*) p;
-	*i = 12;
-	write(p);
+	write(p);  // RACE
 	return NULL;
 }
 
 void *thread2(void *p){
-	int *ip = (int *) p;
-	*ip = 12; // RACE
+	g = 12; // RACE
 	return NULL;
 }
 
 int main(){
 	pthread_t t1;
 	pthread_t t2;
-	int j = 0;
-
-	pthread_create(&t1, NULL, thread1, &j);
-	pthread_create(&t2, NULL, thread2, &j);
+	pthread_create(&t1, NULL, thread1, NULL);
+	pthread_create(&t2, NULL, thread2, NULL);
 }
 

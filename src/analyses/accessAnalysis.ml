@@ -102,6 +102,34 @@ struct
       List.iter (access_one_top ctx Read false) arglist; (* always read all argument expressions without dereferencing *)
       ctx.local
 
+  let modular_call ctx lv f arglist (f_ask: Queries.ask) : D.t =
+    let open ValueDomain in
+    let open WrittenDomain in
+    (* TODO: Handle values that are read in modular functions *)
+    let written = f_ask.f Queries.Written in
+    (* M.tracel "modular_call" "written: %d\n" (Written.cardinal written); *)
+    (* Collect all addreses that were written to. *)
+    let addresses =
+      let list = ref [] in
+      Written.iter (fun a _ -> list := a :: !list) written;
+      !list
+    in
+    (* Convert to lvals *)
+    let address_to_lvals (ad: AD.t) : lval list =
+      let addr_to_lval (v, offs: varinfo * (fieldinfo, ID.t) Lval.offs) : lval =
+        let offset = Offs.to_cil_offset offs in
+        let lval = GoblintCil.Var v, offset in
+        lval
+      in
+      let addrs = AD.to_var_offset ad in
+      List.map addr_to_lval addrs
+    in
+    let lvals = List.concat_map address_to_lvals addresses in
+    let exps = List.map (fun lval -> AddrOf lval) lvals in
+    (* M.tracel "modular_call" "Creating %d accesses: %a\n" (List.length exps) (Pretty.d_list ", " CilType.Exp.pretty) exps; *)
+    (* Trigger access events *)
+    List.iter (fun exp -> access_one_top ~deref:true ctx AccessKind.Write false exp) exps
+
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
