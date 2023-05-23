@@ -1,0 +1,25 @@
+Promt: Please modify the following C code to a state as it might have been in the earlier implementation. You are allowed to remove code, introduce bugs or do any other modifications that might happen in a development workflow. But the code should still compile. Explain shortly what you have changed. Here the C code:
+##################################################################################
+#include <stdio.h>
+
+int main() {
+    int num1, num2;
+
+    // User input
+    printf("Enter two numbers: ");
+    scanf("%d %d", &num1, &num2);
+
+    // Calculation and output
+    printf("Sum: %d\n", num1 + num2);
+    printf("Difference: %d\n", num1 - num2);
+    printf("Product: %d\n", num1 * num2);
+
+    if (num2 != 0) {
+        printf("Quotient: %.2f\n", (float)num1 / num2);
+    } else {
+        printf("Error: Division by zero is not allowed.\n");
+    }
+
+    return 0;
+}
+##################################################################################

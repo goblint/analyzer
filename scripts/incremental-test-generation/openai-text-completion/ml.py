@@ -5,7 +5,7 @@ import openai
 # [TODO] run "sudo pip install openai"
 #
 # [TODO] get api key and store it in a yaml file:
-# organisation: ....
+# organisation: ...
 # api-key: ...
 #
 api_key_path = os.path.expanduser("~/BA/Goblint-Repo/analyzer/scripts/incremental-test-generation/openai-text-completion/APIKEY.yaml")
@@ -70,7 +70,7 @@ completion = openai.ChatCompletion.create(
   model="gpt-3.5-turbo",
   n = 3,
   messages=[
-    {"role": "user", "content": "Please modify the following C code to a state as it might have been in the earlier implementation. You are allowed to remove code and introduce bugs. But the code should still compile. Here the C code: " + input},
+    {"role": "user", "content": "Please modify the following C code to a state as it might have been in the earlier implementation. You are allowed to remove code, introduce bugs or do any other modifications that might happen in a development workflow. But the code should still compile. Explain shortly what you have changed. Here the C code: " + input},
   ]
 )
 
