@@ -1,4 +1,4 @@
-(** Thread returning analysis. *)
+(** Thread returning analysis using boolean call stack ([threadreturn]). *)
 
 open GoblintCil
 open Analyses

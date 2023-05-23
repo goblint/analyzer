@@ -1,4 +1,4 @@
-(** Current thread ID analysis. *)
+(** Current thread ID analysis ([threadid]). *)
 
 module GU = Goblintutil
 module LF = LibraryFunctions

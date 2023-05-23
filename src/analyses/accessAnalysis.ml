@@ -1,4 +1,4 @@
-(** Access analysis. *)
+(** Analysis of memory accesses ([access]). *)
 
 module LF = LibraryFunctions
 open GoblintCil

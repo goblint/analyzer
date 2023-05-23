@@ -1,4 +1,8 @@
-(** Analysis by specification file. *)
+(** Analysis using finite automaton specification file ([spec]).
+
+    @author Ralf Vogler
+
+    @see <https://www2.in.tum.de/hp/file?fid=1323> Vogler, R. Verifying Regular Safety Properties of C Programs Using the Static Analyzer Goblint. Section 4. *)
 
 open Batteries
 open GoblintCil

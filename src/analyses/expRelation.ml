@@ -1,3 +1,5 @@
+(** Stateless symbolic comparison expression analysis ([expRelation]). *)
+
 (** An analysis specification to answer questions about how two expressions relate to each other.   *)
 (** Currently this works purely syntactically on the expressions, and only for =_{must}.            *)
 (** Does not keep state, this is only formulated as an analysis to integrate well into framework    *)

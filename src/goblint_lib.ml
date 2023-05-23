@@ -59,9 +59,13 @@ module JsonSchema = JsonSchema
 module Options = Options
 
 
-(** {1 Analyses} *)
+(** {1 Analyses}
 
-(** {2 Value} *)
+    Analyses activatable under MCP. *)
+
+(** {2 Value}
+
+    Analyses related to values of program variables. *)
 
 module Base = Base
 module RelationAnalysis = RelationAnalysis
@@ -70,16 +74,22 @@ module AffineEqualityAnalysis = AffineEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 
-(** {2 Heap} *)
+(** {2 Heap}
+
+    Analyses related to the heap. *)
 
 module MallocWrapperAnalysis = MallocWrapperAnalysis
 module Region = Region
 module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
 
-(** {2 Concurrency} *)
+(** {2 Concurrency}
 
-(** {3 Locks} *)
+    Analyses related to concurrency. *)
+
+(** {3 Locks}
+
+    Analyses related to locking. *)
 
 module MutexEventsAnalysis = MutexEventsAnalysis
 module LocksetAnalysis = LocksetAnalysis
@@ -88,7 +98,9 @@ module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
 
-(** {3 Threads} *)
+(** {3 Threads}
+
+    Analyses related to threads. *)
 
 module ThreadFlag = ThreadFlag
 module ThreadId = ThreadId
@@ -106,7 +118,9 @@ module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
 module ExtractPthread = ExtractPthread
 
-(** {2 Longjmp} *)
+(** {2 Longjmp}
+
+    Analyses related to [longjmp] and [setjmp]. *)
 
 module ActiveSetjmp = ActiveSetjmp
 module ModifiedSinceLongjmp = ModifiedSinceLongjmp
@@ -114,7 +128,9 @@ module ActiveLongjmp = ActiveLongjmp
 module PoisonVariables = PoisonVariables
 module Vla = Vla
 
-(** {2 Tutorial} *)
+(** {2 Tutorial}
+
+    Analyses for didactic purposes. *)
 
 module Constants = Constants
 module Signs = Signs
@@ -131,7 +147,9 @@ module Expsplit = Expsplit
 module StackTrace = StackTrace
 module Spec = Spec
 
-(** {2 Helper} *)
+(** {2 Helper}
+
+    Analyses which only support other analyses. *)
 
 module AccessAnalysis = AccessAnalysis
 module TaintPartialContexts = TaintPartialContexts

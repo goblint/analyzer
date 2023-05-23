@@ -1,4 +1,4 @@
-(** An analysis specification for didactic purposes. *)
+(** Simplest possible analysis with unit domain ([unit]). *)
 
 open GoblintCil
 open Analyses

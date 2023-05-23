@@ -1,6 +1,6 @@
-(** Symbolic lock-sets for use in per-element patterns.
+(** Symbolic lockset analysis for per-element (field or index) locking patterns ([symb_locks]).
 
-    See Section 5 and 6 in https://dl.acm.org/doi/10.1145/2970276.2970337 for more details. *)
+    @see <https://doi.org/10.1145/2970276.2970337> Static race detection for device drivers: the Goblint approach. Section 5 and 6. *)
 
 module LF = LibraryFunctions
 module LP = SymbLocksDomain.LockingPattern

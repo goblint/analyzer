@@ -1,4 +1,4 @@
-(** Local variable initialization analysis. *)
+(** Analysis of initialized local variables ([uninit]). *)
 
 module M = Messages
 module AD = ValueDomain.AD

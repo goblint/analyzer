@@ -1,4 +1,6 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
+
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
 
 open Batteries
 open GoblintCil

@@ -1,4 +1,4 @@
-(** Variables that escape threads using the last argument from pthread_create. *)
+(** Escape analysis for thread-local variables ([escape]). *)
 
 open GoblintCil
 open Analyses

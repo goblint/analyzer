@@ -1,4 +1,5 @@
-(** Thread join analysis. *)
+(** Joined threads analysis ([threadJoins]). *)
+
 open GoblintCil
 open Analyses
 

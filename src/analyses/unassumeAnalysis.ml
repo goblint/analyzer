@@ -1,6 +1,7 @@
-(** Unassume analysis.
+(** Unassume analysis ([unassume]).
 
     Emits unassume events for other analyses based on YAML witness invariants. *)
+
 open Analyses
 
 module Cil = GoblintCil.Cil

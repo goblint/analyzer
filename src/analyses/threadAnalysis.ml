@@ -1,4 +1,4 @@
-(** Thread creation and uniqueness analyses. *)
+(** Created threads and their uniqueness analysis ([thread]). *)
 
 open GoblintCil
 open Analyses

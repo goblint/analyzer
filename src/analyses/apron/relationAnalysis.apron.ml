@@ -1,3 +1,7 @@
+(** Abstract relational {e integer} value analysis.
+
+    See {!ApronAnalysis} and {!AffineEqualityAnalysis}. *)
+
 (** Contains most of the implementation of the original apronDomain, but now solely operates with functions provided by relationDomain. *)
 
 open Batteries

@@ -1,4 +1,4 @@
-(** An analysis specification for didactic purposes. *)
+(** Simple intraprocedural integer signs analysis template ([signs]). *)
 
 open GoblintCil
 open Analyses

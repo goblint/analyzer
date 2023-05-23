@@ -1,4 +1,6 @@
-(** An analysis checking whether a function only returns if its only argument has a non-zero value. *)
+(** Analysis of [assume_abort_if_not]-style functions ([abortUnless]).
+
+    Such function only returns if its only argument has a non-zero value. *)
 
 open GoblintCil
 open Analyses

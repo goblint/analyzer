@@ -1,3 +1,7 @@
+(** Non-relational thread-modular value analyses for {!Base}.
+
+    @see <https://doi.org/10.1007/978-3-030-88806-0_18> Schwarz, M., Saan, S., Seidl, H., Apinis, K., Erhard, J., Vojdani, V. Improving Thread-Modular Abstract Interpretation. *)
+
 open GoblintCil
 (* Cannot use local module substitutions because ppx_import is still stuck at 4.07 AST: https://github.com/ocaml-ppx/ppx_import/issues/50#issuecomment-775817579. *)
 (* TODO: try again, because ppx_import is now removed *)
