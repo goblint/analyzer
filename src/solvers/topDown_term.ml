@@ -1,4 +1,5 @@
-(** Top down solver. *)
+(** Terminating top-down solver ([topdown_term]).
+    Simpler version of {!Td3} without space-efficiency and incremental. *)
 
 open Batteries
 open Analyses

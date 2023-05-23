@@ -1,3 +1,5 @@
+(** Extra constraint system evaluation pass for warning generation, verification, pruning, etc. *)
+
 open Batteries
 open Analyses
 open GobConfig

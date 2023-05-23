@@ -1,3 +1,5 @@
+(** Various old solvers. *)
+
 open Batteries
 open GobConfig
 open Analyses

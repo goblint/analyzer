@@ -1,3 +1,5 @@
+(** Solver, which delegates at runtime to the configured solver. *)
+
 open Batteries
 open Analyses
 open GobConfig

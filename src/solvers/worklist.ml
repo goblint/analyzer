@@ -1,3 +1,5 @@
+(** Worklist solver ([WL]). *)
+
 open Batteries
 open Analyses
 open Constraints

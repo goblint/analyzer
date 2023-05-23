@@ -1,4 +1,6 @@
-(** The 'slr*' solvers. *)
+(** Various SLR solvers.
+
+    @see <http://www2.in.tum.de/bib/files/apinis14diss.pdf> Apinis, K. Frameworks for analyzing multi-threaded C. *)
 
 open Batteries
 open Analyses

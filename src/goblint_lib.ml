@@ -261,9 +261,13 @@ module Serialize = Serialize
 module CilMaps = CilMaps
 
 
-(** {1 Solvers} *)
+(** {1 Solvers}
 
-(** {2 Top-down} *)
+    Generic solvers are used to solve {{!Analyses.MonSystem} (side-effecting) constraint systems}. *)
+
+(** {2 Top-down}
+
+    The top-down solver family. *)
 
 module Td3 = Td3
 module TopDown = TopDown
@@ -271,11 +275,13 @@ module TopDown_term = TopDown_term
 module TopDown_space_cache_term = TopDown_space_cache_term
 module TopDown_deprecated = TopDown_deprecated
 
-(** {2 SLR} *)
+(** {2 SLR}
 
-module SLR = SLR
-module SLRterm = SLRterm
+    The SLR solver family. *)
+
 module SLRphased = SLRphased
+module SLRterm = SLRterm
+module SLR = SLR
 
 (** {2 Other} *)
 
