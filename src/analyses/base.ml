@@ -625,8 +625,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> Cilfacade.mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
-
+        | _ -> Lval.any_index_exp
       in
       match o with
       | `NoOffset -> `NoOffset
@@ -1059,7 +1058,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
-    | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when CilType.Exp.equal exp Lval.any_index_exp -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       match eval_rv a gs st exp with
@@ -1637,7 +1636,7 @@ struct
 
     let get_var = get_var
     let get a gs st addrs exp = get a gs st addrs exp
-    let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:true gs st lval lval_type value
+    let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:true gs st lval lval_type ?lval_raw value
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
@@ -2522,7 +2521,7 @@ struct
           (* all updates happen in ctx with top values *)
           let get_var = get_var
           let get a gs st addrs exp = get a gs st addrs exp
-          let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:false gs st lval lval_type value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+          let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:false gs st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =

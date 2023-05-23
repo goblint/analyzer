@@ -12,7 +12,7 @@ else
     ana="spec"
     opt="--set ana.spec.file $spec"
 fi
-cmd="./goblint --set ana.activated[0][+] $ana $opt --html --set dbg.debug $debug $file"
+cmd="./goblint --set ana.activated[0][+] $ana $opt --html --set warn.debug $debug $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 

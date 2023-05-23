@@ -1,0 +1,58 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: c03a4c45-567e-4791-ac75-0675f782dc8c
+    creation_time: 2023-05-10T15:02:06Z
+    producer:
+      name: Goblint
+      version: heads/array-witness-invariant-0-gfb806119b-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''44-base-unassume-array.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-44'''
+    task:
+      input_files:
+      - 44-base-unassume-array.c
+      input_file_hashes:
+        44-base-unassume-array.c: 9d9dc013c8d8aee483852aa73d0b4ac48ee7ea0f5433dc86ee28c3fe54c49726
+      data_model: LP64
+      language: C
+  location:
+    file_name: 44-base-unassume-array.c
+    file_hash: 9d9dc013c8d8aee483852aa73d0b4ac48ee7ea0f5433dc86ee28c3fe54c49726
+    line: 7
+    column: 6
+    function: main
+  loop_invariant:
+    string: 0 <= a[(long )"all_index"]
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: c03a4c45-567e-4791-ac75-0675f782dc8c
+    creation_time: 2023-05-10T15:02:06Z
+    producer:
+      name: Goblint
+      version: heads/array-witness-invariant-0-gfb806119b-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''44-base-unassume-array.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled'' ''--set'' ''goblint-dir''
+        ''.goblint-56-44'''
+    task:
+      input_files:
+      - 44-base-unassume-array.c
+      input_file_hashes:
+        44-base-unassume-array.c: 9d9dc013c8d8aee483852aa73d0b4ac48ee7ea0f5433dc86ee28c3fe54c49726
+      data_model: LP64
+      language: C
+  location:
+    file_name: 44-base-unassume-array.c
+    file_hash: 9d9dc013c8d8aee483852aa73d0b4ac48ee7ea0f5433dc86ee28c3fe54c49726
+    line: 7
+    column: 6
+    function: main
+  loop_invariant:
+    string: a[(long )"all_index"] < 3
+    type: assertion
+    format: C
