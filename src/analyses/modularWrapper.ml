@@ -178,7 +178,10 @@ struct
     map_ctx_list S.paths_as_set ctx
 
   let event ctx events ctx2 =
-    map_ctx_fctx (fun ctx ctx2 -> event ctx events ctx2) ~ctx ~fctx:ctx2
+    map_ctx_fctx (fun ctx ctx2 -> S.event ctx events ctx2) ~ctx ~fctx:ctx2
+
+  let modular_call ctx lval fd exp =
+      map_ctx (fun ctx -> S.modular_call ctx lval fd exp) ctx
 end
 
 (* let _ =

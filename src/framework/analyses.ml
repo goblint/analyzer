@@ -404,6 +404,12 @@ sig
 
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
+
+
+  (** Handle a call to a function that is analyzed modularly.
+      Only needs to be implemented for anylses that do not support the modular analysis mode. *)
+  val modular_call : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> D.t
+
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
 
   (* Combine is split into two steps: *)
@@ -658,6 +664,7 @@ struct
   let access _ _ = ()
 
   let modular_support () = NonModular
+  let modular_call ctx _ _ _ = ctx.local
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

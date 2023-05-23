@@ -74,6 +74,9 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
+  let modular_call ctx r f args =
+    D.lift @@ S.modular_call (conv ctx) r f args
+
   let combine_env ctx r fe f args fc es f_ask =
     D.lift @@ S.combine_env (conv ctx) r fe f args fc (D.unlift es) f_ask
 
@@ -158,6 +161,9 @@ struct
 
   let special ctx r f args =
     S.special (conv ctx) r f args
+
+  let modular_call ctx r f args =
+    S.modular_call (conv ctx) r f args
 
   let combine_env ctx r fe f args fc es f_ask =
     S.combine_env (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
@@ -247,6 +253,7 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
+  let modular_call ctx r f args        = lift_fun ctx (lift ctx) S.modular_call ((|>) args % (|>) f % (|>) r)
   let combine_env' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
@@ -357,10 +364,6 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
-
-  let to_modular ((d, m): D.t) : D.t = S.D.to_modular d, m
-  let to_non_modular ((d, m) : D.t) : D.t = S.D.to_non_modular d, m
-
   let name () = S.name ()^" with widened contexts"
 
   type marshal = S.marshal
@@ -393,6 +396,7 @@ struct
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
+  let modular_call ctx r f args       = lift_fun ctx S.modular_call ((|>) args % (|>) f % (|>) r)
 
   let event ctx e octx = lift_fun ctx S.event ((|>) (conv octx) % (|>) e)
 
@@ -481,6 +485,7 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
+  let modular_call ctx r f args       = lift_fun ctx D.lift S.modular_call ((|>) args % (|>) f % (|>) r)        `Bot
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
@@ -743,6 +748,8 @@ struct
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
+  let tf_modular_call ctx lv f args = S.modular_call ctx lv f args
+
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =
@@ -776,10 +783,13 @@ struct
                 (* otherwise just analyze the function modularly *)
                 if ModularUtil.is_modular_fun f then begin
                   let local = S.D.to_modular ctx.local in
-                  M.tracel "to_modular" "ctx.local: %a\nto_modular: %a\n" S.D.pretty ctx.local S.D.pretty local;
-                  let ctx = {ctx with local = local } in
-                  let local = tf_normal_call ctx lv e fd args getl sidel getg sideg in
+                  let ctx_modular = {ctx with local = local } in
+                  let local_modular = tf_normal_call ctx_modular lv e fd args getl sidel getg sideg in
                   (* tf_special_call ctx lv f args *)
+                  let local = S.D.to_non_modular ctx.local in
+                  let ctx = {ctx with local = local } in
+                  let local_non_modular = tf_modular_call ctx lv fd args in
+                  let local = S.D.join local_modular local_non_modular in
                   local
                 end else
                   tf_normal_call ctx lv e fd args getl sidel getg sideg
@@ -1273,6 +1283,7 @@ struct
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
+  let modular_call ctx l f a = map ctx Spec.modular_call (fun h -> h l f a)
 
   let event ctx e octx =
     let fd1 = D.choose octx.local in
@@ -1463,6 +1474,7 @@ struct
   let combine_env ctx = S.combine_env (conv ctx)
   let combine_assign ctx = S.combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
+  let modular_call ctx = S.modular_call (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
@@ -1699,6 +1711,8 @@ struct
       List.iter handle_path (S.paths_as_set conv_ctx);
       S.D.bot ()
     | _ -> S.special conv_ctx lv f args
+
+  let modular_call ctx = S.modular_call (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
   let sync ctx = S.sync (conv ctx)
