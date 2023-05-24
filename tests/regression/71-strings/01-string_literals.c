@@ -10,10 +10,11 @@ char* hello_world() {
 
 void id(char* s) {
     #ifdef __APPLE__
-        *0;
+        #define ID *NULL
     #else
-        strcpy(s, s); // WARN
+        #define ID strcpy(s, s)
     #endif
+    ID; // WARN
 }
 
 int main() {
@@ -37,7 +38,7 @@ int main() {
     i = strcmp(s1, s2);
     __goblint_check(i < 0);
 
-    i = strcmp(s2, "abcdfg"); // WARN
+    i = strcmp(s2, "abcdfg");
     __goblint_check(i == 0);
 
     char* cmp = strstr(s1, "bcd");
@@ -71,28 +72,32 @@ int main() {
     id(s2);
 
     #ifdef __APPLE__
-        *0;
+        #define STRCPY *NULL
     #else
-        strcpy(s1, "hi"); // WARN
+        #define STRCPY strcpy(s1, "hi");
     #endif
+    STRCPY; // WARN
 
     #ifdef __APPLE__
-        *0;
+        #define STRNCPY *NULL
     #else
-        strncpy(s1, "hi", 1); // WARN
+        # define STRNCPY strncpy(s1, "hi", 1)
     #endif
+    STRNCPY; // WARN
 
     #ifdef __APPLE__
-        *0;
+        #define STRCAT *NULL
     #else
-        strcat(s1, "hi"); // WARN
+        #define STRCAT strcat(s1, "hi")
     #endif
+    STRCAT; // WARN
 
     #ifdef __APPLE__
-        *0;
+        #define STRNCAT *NULL
     #else
-        strncat(s1, "hi", 1); // WARN
+        #define STRNCAT strncat(s1, "hi", 1)
     #endif
+    STRNCAT; // WARN
         
     #ifdef __APPLE__
         // do nothing => no warning
