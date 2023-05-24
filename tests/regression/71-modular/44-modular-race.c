@@ -4,13 +4,13 @@
 
 
 int write(int *p){
-	*p = 23; // RACE
+	*p = 23;
 }
 
 void *thread1(void *p){
-	int *i = (int*) p;
-	*i = 12;
-	write(p);
+	// int *i = (int*) p;
+	// *i = 12;
+	write(p); // RACE
 	return NULL;
 }
 

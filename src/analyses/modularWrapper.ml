@@ -43,7 +43,7 @@ struct
     include Printable.Option (S.A) (struct let name = S.A.name () end)
     let may_race x y = match x, y with
       | Some x, Some y -> A.may_race x y
-      | _, _ -> false
+      | _, _ -> true
 
     let should_print x =
       BatOption.map_default A.should_print false x
