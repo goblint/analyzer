@@ -389,7 +389,8 @@ sig
       it handles program points of the form "lval = rval;" *)
   val assign: (D.t, G.t, C.t, V.t) ctx -> lval -> exp -> D.t
 
-  (* A transfer function typically used for handling variable arguments (varargs) *)
+  (** A transfer function used for declaring local variables.
+      By default only for variable-length arrays (VLAs). *)
   val vdecl : (D.t, G.t, C.t, V.t) ctx -> varinfo -> D.t
 
   (** A transfer function which handles conditional branching yielding the
