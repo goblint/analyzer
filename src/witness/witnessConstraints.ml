@@ -1,6 +1,6 @@
 (** An analysis specification for witnesses. *)
 
-open Prelude.Ana
+open Batteries
 open Analyses
 
 
@@ -221,10 +221,16 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
+      if M.tracing then M.tracei "witness" "IterPrevVars\n";
       Dom.iter (fun x r ->
+          if M.tracing then M.tracei "witness" "x = %a\n" Spec.D.pretty x;
           R.iter (function ((n, c, j), e) ->
+              if M.tracing then M.tracec "witness" "n = %a\n" Node.pretty_plain n;
+              if M.tracing then M.tracec "witness" "c = %a\n" Spec.C.pretty c;
+              if M.tracing then M.tracec "witness" "j = %a\n" Spec.D.pretty j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
-            ) r
+            ) r;
+          if M.tracing then M.traceu "witness" "\n"
         ) (fst ctx.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
@@ -233,6 +239,7 @@ struct
            | Function _ -> () (* returns post-sync in FromSpec *)
            | _ -> assert (Sync.is_bot (snd ctx.local));
          end; *)
+      if M.tracing then M.traceu "witness" "\n";
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->
@@ -278,7 +285,21 @@ struct
     in
     fold' ctx Spec.enter (fun h -> h l f a) g []
 
-  let combine ctx l fe f a fc d  f_ask =
+  let combine_env ctx l fe f a fc d  f_ask =
+    (* Don't yet consider call edge done before assign. *)
+    assert (Dom.cardinal (fst ctx.local) = 1);
+    let (cd, cdr) = Dom.choose (fst ctx.local) in
+    let k x (y, sync) =
+      try
+        let x' = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
+        (Dom.add x' cdr y, Sync.add x' (Sync.find cd (snd ctx.local)) sync) (* keep predecessors and sync from ctx, sync required for step_ctx_inlined_edge in combine_assign *)
+      with Deadcode -> (y, sync)
+    in
+    let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
+    if Dom.is_bot (fst d) then raise Deadcode else d
+
+  let combine_assign ctx l fe f a fc d  f_ask =
+    (* Consider call edge done after entire call-assign. *)
     assert (Dom.cardinal (fst ctx.local) = 1);
     let cd = Dom.choose_key (fst ctx.local) in
     let k x (y, sync) =
@@ -292,7 +313,7 @@ struct
           step_ctx_edge ctx cd
       in
       try
-        let x' = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
+        let x' = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
         (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in

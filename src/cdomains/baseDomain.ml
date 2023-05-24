@@ -121,6 +121,9 @@ struct
   let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet PrivD.meet
   let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen PrivD.widen
   let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow PrivD.narrow
+
+  let relift {cpa; deps; weak; priv} =
+    {cpa = CPA.relift cpa; deps = PartDeps.relift deps; weak = WeakUpdates.relift weak; priv = PrivD.relift priv}
 end
 
 module type ExpEvaluator =

@@ -1,34 +1,15 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open GobConfig
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include UnitAnalysis.Spec
 
   let name () = "assert"
-  module D = Lattice.Unit
-  module G = Lattice.Unit
-  module C = Lattice.Unit
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
-
-  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
 
   let assert_fn ctx e check refine =
 
@@ -40,7 +21,7 @@ struct
         | Some b -> `Lifted b
         | None -> `Top
     in
-    let expr = sprint d_exp e in
+    let expr = CilType.Exp.show e in
     let warn warn_fn ?annot msg = if check then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
@@ -77,11 +58,6 @@ struct
     match desc.special args, f.vname with
     | Assert { exp; check; refine }, _ -> assert_fn ctx exp check refine
     | _, _ -> ctx.local
-
-  let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
 end
 
 let _ =

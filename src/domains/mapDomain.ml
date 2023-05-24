@@ -3,7 +3,6 @@
 module Pretty = GoblintCil.Pretty
 open Pretty
 module ME = Messages
-module GU = Goblintutil
 
 module type PS =
 sig
@@ -130,6 +129,8 @@ struct
   type value = Range.t
   type t = Range.t M.t (* key -> value  mapping *)
 
+  let name () = "map"
+
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal x y = x == y || for_all2 Range.equal x y
@@ -182,6 +183,11 @@ struct
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
+
+  let relift m =
+    M.fold (fun k v acc ->
+        M.add (Domain.relift k) (Range.relift v) acc
+      ) m M.empty
 end
 
 (* TODO: why is HashCached.hash significantly slower as a functor compared to being inlined into PMap? *)
@@ -230,7 +236,7 @@ struct
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
 
-  let relift x = x
+  let relift = lift_f' M.relift
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)

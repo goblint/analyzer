@@ -16,6 +16,8 @@ void bar() {
          return 8;
       }
    }
+   else
+      longjmp(env_buffer, 1); // unreachable longjmp to trick us into activating longjmp analyses
 
    bar();
 }

@@ -1,7 +1,7 @@
 open GoblintCil
 open Pretty
 
-include Printable.Std
+include Printable.StdLeaf
 
 include Node0
 

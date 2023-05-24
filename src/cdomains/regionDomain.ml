@@ -1,7 +1,6 @@
 open GoblintCil
 open GobConfig
 
-module GU = Goblintutil
 module V = Basetype.Variables
 module B = Printable.UnitConf (struct let name = "•" end)
 module F = Lval.Fields
@@ -144,7 +143,7 @@ struct
     let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
     let rec do_offs deref def = function
       | Field (fd, offs) -> begin
-          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+          match UniqueType.find (TComp (fd.fcomp, [])) with
           | Some v -> do_offs deref (Some (deref, (v, offsornot (Field (fd, offs))), [])) offs
           | None -> do_offs deref def offs
         end
@@ -167,8 +166,8 @@ struct
       | _ -> None
     and eval_lval deref lval =
       match lval with
-      | (Var x, NoOffset) when Goblintutil.is_blessed x.vtype <> None ->
-        begin match Goblintutil.is_blessed x.vtype with
+      | (Var x, NoOffset) when UniqueType.find x.vtype <> None ->
+        begin match UniqueType.find x.vtype with
           | Some v -> Some (deref, (v,[]), [])
           | _ when x.vglob -> Some (deref, (x, []), [])
           | _ -> None

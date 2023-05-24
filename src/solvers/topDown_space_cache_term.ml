@@ -1,7 +1,7 @@
 (** Terminating top down solver that only keeps values at widening points and restores other values afterwards. *)
 (* This is superseded by td3 but kept as a simpler version without the incremental parts. *)
 
-open Prelude
+open Batteries
 open Analyses
 open Constraints
 open Messages
@@ -182,7 +182,7 @@ module WP =
           List.iter get vs
         in
         Timing.wrap "restore" restore ();
-        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !SolverStats.vars (HM.length rho);
       );
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);

@@ -1,4 +1,6 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 
 type spec_modules = { name : string
@@ -114,6 +116,9 @@ struct
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
+  let unop_map f x =
+    List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
+
   let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
@@ -161,12 +166,13 @@ struct
 
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
 
-  let name () =
-    let domain_name (n, (module D: Printable.S)) =
-      let analysis_name = find_spec_name n in
-      analysis_name ^ ":(" ^ D.name () ^ ")"
-    in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
+  (* let name () =
+       let domain_name (n, (module D: Printable.S)) =
+         let analysis_name = find_spec_name n in
+         analysis_name ^ ":(" ^ D.name () ^ ")"
+       in
+       IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ()) *)
+  let name () = "MCP.C"
 
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit =
@@ -179,6 +185,8 @@ struct
   let arbitrary () =
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
     MyCheck.Arbitrary.sequence arbs
+
+  let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
 end
 
 module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
@@ -248,6 +256,8 @@ struct
   let arbitrary () =
     let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
     QCheck.oneof arbs
+
+  let relift = unop_map (fun n (module S: Printable.S) x -> (n, Obj.repr (S.relift (Obj.obj x))))
 end
 
 module DomVariantSysVar (DLSpec : DomainListSysVarSpec)
@@ -319,6 +329,7 @@ struct
   open Obj
 
   include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
+  let name () = "MCP.G"
 
   let binop_map' (f: int -> (module Lattice.S) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
     assert (n1 = n2);
@@ -348,7 +359,10 @@ struct
 end
 
 module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
-  Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
+struct
+  include Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
+  let name () = "MCP.G"
+end
 
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct

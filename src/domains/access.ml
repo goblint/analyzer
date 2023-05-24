@@ -328,6 +328,8 @@ struct
   include Printable.Std
   type t = int * AccessKind.t * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
+  let name () = "access"
+
   let pretty () (conf, kind, node, e, lp) =
     Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
@@ -339,6 +341,9 @@ struct
     )
 
   let conf (conf, _, _, _, _) = conf
+
+  let relift (conf, kind, node, e, a) =
+    (conf, kind, node, e, MCPAccess.A.relift a)
 end
 module AS =
 struct
@@ -349,8 +354,10 @@ struct
 end
 module T =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = acc_typ [@@deriving eq, ord, hash]
+
+  let name () = "acc_typ"
 
   let pretty = d_acct
   include Printable.SimplePretty (
@@ -362,8 +369,10 @@ struct
 end
 module O =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = offs [@@deriving eq, ord, hash]
+
+  let name () = "offs"
 
   let pretty = d_offs
   include Printable.SimplePretty (
@@ -453,17 +462,11 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
 
 let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
-  let debug = get_bool "dbg.debug" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,kind,node,e,a) =
       let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
-      let doc =
-        if debug then
-          dprintf "%t  (exp: %a)" d_msg d_exp e
-        else
-          d_msg ()
-      in
+      let doc = dprintf "%t  (exp: %a)" d_msg d_exp e in
       (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs

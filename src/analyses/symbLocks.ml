@@ -10,7 +10,9 @@ module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 
 (* Note: This is currently more conservative than varEq --- but
@@ -46,7 +48,8 @@ struct
     List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local
 
   let enter ctx lval f args = [(ctx.local,ctx.local)]
-  let combine ctx lval fexp f args fc st2 f_ask = st2
+  let combine_env ctx lval fexp f args fc au f_ask = au
+  let combine_assign ctx lval fexp f args fc st2 f_ask = ctx.local
 
   let get_locks e st =
     let add_perel x xs =

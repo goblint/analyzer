@@ -28,7 +28,7 @@ struct
   type t = edge
 
   let embed e = e
-  let to_string e = Pretty.sprint ~width:max_int (Edge.pretty_plain () e)
+  let to_string e = GobPretty.sprint Edge.pretty_plain e
 end
 
 type inline_edge =
@@ -83,7 +83,7 @@ let inline_edge_to_yojson = function
 
 module InlineEdgePrintable: Printable.S with type t = inline_edge =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
   type t = inline_edge [@@deriving eq, ord, hash, to_yojson]
 
   let name () = "inline edge"

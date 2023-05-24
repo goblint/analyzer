@@ -1,6 +1,6 @@
 (** How to generate constraints for a solver using specifications described in [Analyses]. *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
@@ -73,8 +73,11 @@ struct
   let special ctx r f args =
     D.lift @@ S.special (conv ctx) r f args
 
-  let combine ctx r fe f args fc es f_ask =
-    D.lift @@ S.combine (conv ctx) r fe f args fc (D.unlift es) f_ask
+  let combine_env ctx r fe f args fc es f_ask =
+    D.lift @@ S.combine_env (conv ctx) r fe f args fc (D.unlift es) f_ask
+
+  let combine_assign ctx r fe f args fc es f_ask =
+    D.lift @@ S.combine_assign (conv ctx) r fe f args fc (D.unlift es) f_ask
 
   let threadenter ctx lval f args =
     List.map D.lift @@ S.threadenter (conv ctx) lval f args
@@ -155,8 +158,11 @@ struct
   let special ctx r f args =
     S.special (conv ctx) r f args
 
-  let combine ctx r fe f args fc es f_ask =
-    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
+  let combine_env ctx r fe f args fc es f_ask =
+    S.combine_env (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
+
+  let combine_assign ctx r fe f args fc es f_ask =
+    S.combine_assign (conv ctx) r fe f args (Option.map C.unlift fc) es f_ask
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -234,7 +240,8 @@ struct
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
-  let combine' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_env' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_assign' ctx r fe f args fc es f_ask = lift_fun ctx (lift ctx) S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
   let threadenter ctx lval f args = lift_fun ctx (List.map lift_start_level) S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx (lift ctx) S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
@@ -266,13 +273,22 @@ struct
     else
       enter' {ctx with local=(d, sub1 l)} r f args
 
-  let combine ctx r fe f args fc es f_ask =
+  let combine_env ctx r fe f args fc es f_ask =
     let (d,l) = ctx.local in
     let l = add1 l in
     if leq0 l then
       (d, l)
     else
-      let d',_ = combine' ctx r fe f args fc es f_ask in
+      let d',_ = combine_env' ctx r fe f args fc es f_ask in
+      (d', l)
+
+  let combine_assign ctx r fe f args fc es f_ask =
+    let (d,l) = ctx.local in
+    (* No need to add1 here, already done in combine_env. *)
+    if leq0 l then
+      (d, l)
+    else
+      let d',_ = combine_assign' ctx r fe f args fc es f_ask in
       (d', l)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -304,7 +320,7 @@ struct
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith (GobPretty.sprintf "LimitLifter: Reached limit (%d) for node %a" !limit Node.pretty_plain_short (Option.get !MyCFG.current_node));
         v+1
       ) h;
   module D = struct
@@ -391,7 +407,8 @@ struct
     let m = snd ctx.local in
     S.paths_as_set (conv ctx) |> List.map (fun v -> (v,m))
 
-  let combine ctx r fe f args fc es f_ask = lift_fun ctx S.combine (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 end
 
 
@@ -441,7 +458,7 @@ struct
 
   let paths_as_set ctx =
     let liftmap = List.map (fun x -> D.lift x) in
-    lift_fun ctx liftmap S.paths_as_set (Fun.id) []
+    lift_fun ctx liftmap S.paths_as_set (Fun.id) [D.bot ()] (* One dead path instead of none, such that combine_env gets called for functions with dead normal return (and thus longjmpy returns can be correctly handled by lifter). *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
@@ -453,7 +470,8 @@ struct
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
-  let combine ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
   let threadenter ctx lval f args = lift_fun ctx (List.map D.lift) S.threadenter ((|>) args % (|>) f % (|>) lval) []
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
@@ -523,12 +541,14 @@ struct
      2. fundec -> set of S.C  --  used for IterSysVars Node *)
 
   let sync ctx =
-    match Cfg.prev ctx.prev_node with
-    | _ :: _ :: _ -> S.sync ctx `Join
-    | _ -> S.sync ctx `Normal
+    match ctx.prev_node, Cfg.prev ctx.prev_node with
+    | _, _ :: _ :: _ (* Join in CFG. *)
+    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+      S.sync ctx `Join
+    | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
-    if !GU.postsolving then
+    if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
@@ -647,6 +667,7 @@ struct
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
+      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
       let rec cd_ctx =
         { ctx with
           ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
@@ -676,8 +697,23 @@ struct
         in
         fd_ctx
       in
-      if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
-      let r = S.combine cd_ctx lv e f args fc fd_ctx.local (Analyses.ask_of_ctx fd_ctx) in
+      let r = List.fold_left (fun acc fd1 ->
+          let rec fd1_ctx =
+            { fd_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query fd1_ctx q);
+              local = fd1;
+            }
+          in
+          let combine_enved = S.combine_env cd_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
+          let rec combine_assign_ctx =
+            { cd_ctx with
+              ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
+              local = combine_enved;
+            }
+          in
+          S.D.join acc (S.combine_assign combine_assign_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx))
+        ) (S.D.bot ()) (S.paths_as_set fd_ctx)
+      in
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
@@ -821,15 +857,17 @@ struct
           (* TODO: Is it possible to do soundly for multi-entry loops? *)
           let stricts = NodeH.find_default scc.prev v [] in
           let xs_stricts = List.map tf' stricts in
+          (* Evaluate non-strict for dead code warnings. See 00-sanity/36-strict-loop-dead. *)
+          let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
+          let is_strict eu = List.exists (equal eu) stricts in
+          let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
+          let xs_non_stricts = List.map tf' non_stricts in
           if List.for_all S.D.is_bot xs_stricts then
             S.D.bot ()
-          else
+          else (
             let xs_strict = List.fold_left S.D.join (S.D.bot ()) xs_stricts in
-            let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
-            let is_strict eu = List.exists (equal eu) stricts in
-            let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
-            let xs_non_stricts = List.map tf' non_stricts in
             List.fold_left S.D.join xs_strict xs_non_stricts
+          )
         | _ ->
           let xs = List.map tf' (Cfg.prev v) in
           List.fold_left S.D.join (S.D.bot ()) xs
@@ -1237,13 +1275,29 @@ struct
     let elems = D.elements ctx.local in
     List.map (D.singleton) elems
 
-  let combine ctx l fe f a fc d f_ask =
+  let combine_env ctx l fe f a fc d f_ask =
     assert (D.cardinal ctx.local = 1);
     let cd = D.choose ctx.local in
     let k x y =
       if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
       try
-        let r = Spec.combine (conv ctx cd) l fe f a fc x f_ask in
+        let r = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
+        if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
+        D.add r y
+      with Deadcode ->
+        if M.tracing then M.traceu "combine" "combined function: dead\n";
+        y
+    in
+    let d = D.fold k d (D.bot ()) in
+    if D.is_bot d then raise Deadcode else d
+
+  let combine_assign ctx l fe f a fc d f_ask =
+    assert (D.cardinal ctx.local = 1);
+    let cd = D.choose ctx.local in
+    let k x y =
+      if M.tracing then M.traceli "combine" "function: %a\n" Spec.D.pretty x;
+      try
+        let r = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
         if M.tracing then M.traceu "combine" "combined function: %a\n" Spec.D.pretty r;
         D.add r y
       with Deadcode ->
@@ -1275,11 +1329,16 @@ struct
       | `Right _ -> true
   end
 
-  module EM = MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+  module EM =
+  struct
+    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    let name () = "branches"
+  end
 
   module G =
   struct
     include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    let name () = "deadbranch"
 
     let s = function
       | `Bot -> S.G.bot ()
@@ -1353,7 +1412,7 @@ struct
   let branch ctx = S.branch (conv ctx)
 
   let branch ctx exp tv =
-    if !GU.postsolving then (
+    if !AnalysisState.postsolving then (
       try
         let r = branch ctx exp tv in
         (* branch is live *)
@@ -1375,7 +1434,8 @@ struct
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
-  let combine ctx = S.combine (conv ctx)
+  let combine_env ctx = S.combine_env (conv ctx)
+  let combine_assign ctx = S.combine_assign (conv ctx)
   let special ctx = S.special (conv ctx)
   let threadenter ctx = S.threadenter (conv ctx)
   let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
@@ -1464,7 +1524,7 @@ struct
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
 
-  let combine ctx lv e f args fc fd f_ask =
+  let combine_env ctx lv e f args fc fd f_ask =
     let conv_ctx = conv ctx in
     let current_fundec = Node.find_fundec ctx.node in
     let handle_longjmp (cd, fc, longfd) =
@@ -1498,7 +1558,7 @@ struct
         (* Globals are non-problematic here, as they are always carried around without any issues! *)
         (* A combine call is mostly needed to ensure locals have appropriate values. *)
         (* Using f from called function on purpose here! Needed? *)
-        S.combine cd_ctx None e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx) (* no lval because longjmp return skips return value assignment *)
+        S.combine_env cd_ctx None e f args fc longfd_ctx.local (Analyses.ask_of_ctx longfd_ctx) (* no lval because longjmp return skips return value assignment *)
       )
       in
       let returned = lazy ( (* does not depend on target, do at most once *)
@@ -1537,7 +1597,10 @@ struct
     if M.tracing then M.tracel "longjmp" "longfd %a\n" D.pretty longfd;
     if not (D.is_bot longfd) then
       handle_longjmp (ctx.local, fc, longfd);
-    S.combine (conv_ctx) lv e f args fc fd f_ask
+    S.combine_env (conv_ctx) lv e f args fc fd f_ask
+
+  let combine_assign ctx lv e f args fc fd f_ask =
+    S.combine_assign (conv ctx) lv e f args fc fd f_ask
 
   let special ctx lv f args =
     let conv_ctx = conv ctx in
@@ -1757,6 +1820,7 @@ struct
   struct
     include Printable.Std
     include Var
+    let name () = "var"
 
     let pretty = pretty_trace
     include Printable.SimplePretty (

@@ -18,7 +18,7 @@
    There is a "conf" [trace] option that traces setting.
 *)
 
-open Prelude
+open Batteries
 open Tracing
 open Printf
 
@@ -407,3 +407,12 @@ end
 include Impl
 
 let () = set_conf Options.defaults
+
+
+(** Another hack to see if earlyglobs is enabled *)
+let earlyglobs = ref false
+
+let jobs () =
+  match get_int "jobs" with
+  | 0 -> Cpu.numcores ()
+  | n -> n

@@ -1,6 +1,6 @@
 module MutexKind =
 struct
-  include Printable.Std
+  include Printable.StdLeaf
 
   type t = NonRec | Recursive [@@deriving eq, ord, hash, to_yojson]
   let name () = "mutexKind"

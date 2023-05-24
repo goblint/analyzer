@@ -1,6 +1,7 @@
 (** Has been modified to work with any domain that uses the functions provided relationDomain. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open RelationDomain
 open GobConfig
@@ -94,7 +95,7 @@ struct
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     match reason with
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -341,7 +342,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -547,7 +548,7 @@ struct
           st
       end
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in
@@ -1030,7 +1031,7 @@ struct
     match reason with
     | `Return -> st (* TODO: implement? *)
     | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
+      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
         st
       else
         let rel = st.rel in
@@ -1096,7 +1097,7 @@ struct
   module RelComponents = RelationDomain.RelComponents (RD) (D)
 
   let read_global ask getg st g x =
-    if M.tracing then M.traceli "relationpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
+    if M.tracing then M.traceli "relationpriv" "read_global %a %a\n" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
     if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -1108,7 +1109,7 @@ struct
     r
 
   let write_global ?invariant ask getg sideg st g x =
-    if M.tracing then M.traceli "relationpriv" "write_global %a %a\n" d_varinfo g d_varinfo x;
+    if M.tracing then M.traceli "relationpriv" "write_global %a %a\n" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
     if M.tracing then M.trace "relationpriv" "st: %a\n" RelComponents.pretty st;
     let getg x =
       let r = getg x in

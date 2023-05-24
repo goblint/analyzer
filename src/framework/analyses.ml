@@ -1,11 +1,10 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
 
-module GU = Goblintutil
 module M  = Messages
 
 (** Analysis starts from lists of functions: start functions, exit functions, and
@@ -34,7 +33,7 @@ end
 module Var =
 struct
   type t = Node.t [@@deriving eq, ord, hash]
-  let relift x = x
+  let relift = Node.relift
 
   let printXml f n =
     let l = Node.location n in
@@ -98,6 +97,7 @@ struct
         let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
       end
       )
+    let name () = "contexts"
   end
 
   include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
@@ -211,7 +211,7 @@ struct
       match loc with
       | Some loc ->
         let l = Messages.Location.to_cil loc in
-        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
       | None ->
         () (* TODO: not outputting warning without location *)
     in
@@ -224,7 +224,7 @@ struct
     List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
-    let out = Messages.get_out result_name !GU.out in
+    let out = Messages.get_out result_name !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "fast_xml" ->
@@ -250,7 +250,7 @@ struct
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
         BatPrintf.fprintf f "<run>";
-        BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
+        BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
         BatPrintf.fprintf f "<statistics>";
         let timing_ppf = BatFormat.formatter_of_out_channel f in
         Timing.Default.print timing_ppf;
@@ -289,7 +289,7 @@ struct
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
         printf "Writing json to temp. file: %s\n%!" fn;
-        fprintf f "{\n  \"parameters\": \"%s\",\n  " Goblintutil.command_line;
+        fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
         fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
         (*gtfxml f gtable;*)
@@ -394,7 +394,20 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+
+  (* Combine is split into two steps: *)
+
+  (** Combine environment (global variables, mutexes, etc)
+      between local state (first component from enter) and function return.
+
+      This shouldn't yet assign to the lval. *)
+  val combine_env : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+
+  (** Combine return value assignment
+      to local state (result from combine_env) and function return.
+
+      This should only assign to the lval. *)
+  val combine_assign : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (* Paths as sets: I know this is ugly! *)
   val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
@@ -475,6 +488,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
 end
 
@@ -635,8 +649,11 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     au
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     ctx.local

@@ -1,6 +1,6 @@
 (** An analysis that handles the case when malloc is called from a wrapper function all over the code. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 open ThreadIdDomain
@@ -87,10 +87,13 @@ struct
     let callee = (counter, new_wrapper_node) in
     [(ctx.local, callee)]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc (counter, _) f_ask =
     (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
     let _, lnode = ctx.local in
     (counter, lnode)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) (f_ask: Queries.ask) : D.t =
+    ctx.local
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in

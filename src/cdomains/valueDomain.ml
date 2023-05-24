@@ -3,12 +3,12 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Lval.Offset (IndexDomain)
+module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
-module GU = Goblintutil
-module Q = Queries
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
+module VDQ = ValueDomainQueries
+module LS = VDQ.LS
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
 
@@ -16,12 +16,12 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
-  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> typ -> t
+  val eval_offset: VDQ.t -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
+  val update_offset: VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
-  val affect_move: ?replace_with_const:bool -> Q.ask -> t -> varinfo -> (exp -> int option) -> t
+  val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
   val affecting_vars: t -> varinfo list
-  val invalidate_value: Q.ask -> typ -> t -> t
+  val invalidate_value: VDQ.t -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
   val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
@@ -36,7 +36,7 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
-  val project: Q.ask -> int_precision option-> ( attributes * attributes ) option -> t -> t
+  val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
 end
 
@@ -48,7 +48,7 @@ sig
   include Lattice.S with type t = value * size * origin
 
   val value: t -> value
-  val invalidate_value: Q.ask -> typ -> t -> t
+  val invalidate_value: VDQ.t -> typ -> t -> t
 end
 
 (* ZeroInit is true if malloc was used to allocate memory and it's false if calloc was used *)
@@ -67,6 +67,7 @@ struct
   type origin = ZeroInit.t
 
   let value (a, b, c) = a
+  let relift (a, b, c) = Value.relift a, b, c
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 end
 
@@ -343,7 +344,7 @@ struct
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
-      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
+      let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
@@ -371,8 +372,7 @@ struct
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ "Cast to neither array index nor struct field."
-                          ^ Pretty.(sprint ~width:max_int @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
           end
     in
     let one_addr = let open Addr in function
@@ -489,7 +489,7 @@ struct
           log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
-      let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
+      let s_torg = match torg with Some t -> CilType.Typ.show t | None -> "?" in
       Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
 
 
@@ -676,7 +676,7 @@ struct
       warn_type "narrow" x y;
       x
 
-  let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
+  let rec invalidate_value (ask:VDQ.t) typ (state:t) : t =
     let typ = unrollType typ in
     let invalid_struct compinfo old =
       let nstruct = Structs.create (fun fd -> invalidate_value ask fd.ftype (Structs.get old fd)) compinfo in
@@ -720,7 +720,7 @@ struct
       end
     | _ -> None, None
 
-  let determine_offset (ask: Q.ask) left offset exp v =
+  let determine_offset (ask: VDQ.t) left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
       |	Const _
@@ -745,9 +745,9 @@ struct
     let equiv_expr exp start_of_array_lval =
       match exp, start_of_array_lval with
       | BinOp(IndexPI, Lval lval, add, _), (Var arr_start_var, NoOffset) when not (contains_pointer add) ->
-        begin match ask.f (Q.MayPointTo (Lval lval)) with
-          | v when Q.LS.cardinal v = 1 && not (Q.LS.is_top v) ->
-            begin match Q.LS.choose v with
+        begin match ask.may_point_to (Lval lval) with
+          | v when LS.cardinal v = 1 && not (LS.is_top v) ->
+            begin match LS.choose v with
               | (var,`Index (i,`NoOffset)) when Cil.isZero (Cil.constFold true i) && CilType.Varinfo.equal var arr_start_var ->
                 (* The idea here is that if a must(!) point to arr and we do sth like a[i] we don't want arr to be partitioned according to (arr+i)-&a but according to i instead  *)
                 add
@@ -812,8 +812,8 @@ struct
       x (* This already contains some value *)
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
-    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
+  let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
+    let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
       match x, offs with
       | `Blob((va, _, orig) as c), `Index (_, ox) ->
         begin
@@ -883,9 +883,9 @@ struct
     in
     do_eval_offset ask f x offs exp l o v t
 
-  let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
-    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
+  let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
+    let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
@@ -910,7 +910,7 @@ struct
             | (Var var, Field (fld,_)) ->
               let toptype = fld.fcomp in
               let blob_size_opt = ID.to_int s in
-              not @@ ask.f (Q.IsMultiple var)
+              not @@ ask.is_multiple var
               && not @@ Cil.isVoidType t      (* Size of value is known *)
               && Option.is_some blob_size_opt (* Size of blob is known *)
               && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
@@ -930,7 +930,7 @@ struct
             begin match v with
               | (Var var, _) ->
                 let blob_size_opt = ID.to_int s in
-                not @@ ask.f (Q.IsMultiple var)
+                not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && Option.is_some blob_size_opt (* Size of blob is known *)
                 && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
@@ -947,7 +947,7 @@ struct
         begin match value with
           | `Thread t -> value (* if actually assigning thread, use value *)
           | _ ->
-            if !GU.global_initialization then
+            if !AnalysisState.global_initialization then
               `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
             else
               `Top
@@ -958,7 +958,7 @@ struct
           | `JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
           | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
           | _ ->
-            if !GU.global_initialization then
+            if !AnalysisState.global_initialization then
               `JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
             else
               `Top
@@ -1199,6 +1199,22 @@ struct
     | None, _
     | _, None -> n'
     | Some l, Some p -> CArrays.update_length (ID.project p l) n'
+
+  let relift state =
+    match state with
+    | `Int n -> `Int (ID.relift n)
+    | `Float n -> `Float (FD.relift n)
+    | `Address n -> `Address (AD.relift n)
+    | `Struct n -> `Struct (Structs.relift n)
+    | `Union n -> `Union (Unions.relift n)
+    | `Array n -> `Array (CArrays.relift n)
+    | `Blob n -> `Blob (Blobs.relift n)
+    | `Thread n -> `Thread (Threads.relift n)
+    | `JmpBuf n -> `JmpBuf (JmpBufs.relift n)
+    | `MutexAttr n -> `MutexAttr (MutexAttr.relift n)
+    | `Mutex -> `Mutex
+    | `Bot -> `Bot
+    | `Top -> `Top
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
@@ -1316,6 +1332,7 @@ struct
     | `Address n -> ad_invariant ~vs ~offset ~lval n
     | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | `Array n -> CArrays.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 

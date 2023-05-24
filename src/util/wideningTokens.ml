@@ -50,7 +50,7 @@ let with_local_side_tokens f =
   with_side_tokens !local_tokens f
 
 
-open Prelude
+open Batteries
 open Analyses
 
 (** Lift {!D} to carry widening tokens.
@@ -172,7 +172,8 @@ struct
   let asm ctx         = lift_fun ctx lift'   S.asm    identity
   let skip ctx        = lift_fun ctx lift'   S.skip   identity
   let special ctx r f args       = lift_fun ctx lift' S.special ((|>) args % (|>) f % (|>) r)
-  let combine ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
+  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
+  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 
   let threadenter ctx lval f args = lift_fun ctx (fun l ts -> List.map (Fun.flip lift' ts) l) S.threadenter ((|>) args % (|>) f % (|>) lval)
   let threadspawn ctx lval f args fctx = lift_fun ctx lift' S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)

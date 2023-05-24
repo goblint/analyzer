@@ -1,6 +1,6 @@
 (** Interfaces/implementations that generalize the apronDomain and affineEqualityDomain. *)
 
-open Prelude
+open Batteries
 open GoblintCil
 
 (** Abstracts the extended apron Var. *)
@@ -163,6 +163,8 @@ struct
   include Printable.Std
   open Pretty
 
+  let relift {rel; priv} = {rel = RD.relift rel; priv = PrivD.relift priv}
+
   let show r =
     let first  = RD.show r.rel in
     let third  = PrivD.show r.priv in
@@ -176,7 +178,7 @@ struct
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (RD.name ())) RD.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (RD.name ())) RD.printXml r.rel (XmlUtil.escape (PrivD.name ())) PrivD.printXml r.priv
 
   let name () = RD.name () ^ " * " ^ PrivD.name ()
 

@@ -1,6 +1,6 @@
 (** Thread returning analysis. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 let is_current (ask: Queries.ask): bool =
@@ -9,41 +9,26 @@ let is_current (ask: Queries.ask): bool =
 
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
   module C = D
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    if !Goblintutil.global_initialization then
+    if !AnalysisState.global_initialization then
       (* We are inside enter_with inside a startfun, and thus the current function retruning is the main function *)
       [ctx.local, true]
     else
       [ctx.local, false]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    ctx.local
-
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = true
   let threadenter ctx lval f args = [true]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =

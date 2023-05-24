@@ -5,7 +5,7 @@ module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -31,7 +31,7 @@ struct
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
+     element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
@@ -261,13 +261,15 @@ struct
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     [ctx.local, nst]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : trans_out =
+  let combine_env ctx lval fexp f args fc au f_ask =
     ignore (List.map (fun x -> is_expr_initd (Analyses.ask_of_ctx ctx) x ctx.local) args);
     let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    let ret_st = D.union au (D.diff ctx.local cal_st) in
+    D.union au (D.diff ctx.local cal_st)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : trans_out =
     match lval with
-    | None -> ret_st
-    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ret_st
+    | None -> ctx.local
+    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ctx.local
 
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

@@ -3,7 +3,6 @@ open GoblintCil
 open Pretty
 open PrecisionUtil
 
-module GU = Goblintutil
 module M = Messages
 module BI = IntOps.BigIntOps
 
@@ -78,8 +77,8 @@ type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
   let signed = Cil.isSigned ik in
-  if !GU.postsolving && signed && not cast then
-    Goblintutil.svcomp_may_overflow := true;
+  if !AnalysisState.postsolving && signed && not cast then
+    AnalysisState.svcomp_may_overflow := true;
   let sign = if signed then "Signed" else "Unsigned" in
   match underflow, overflow with
   | true, true ->
@@ -386,7 +385,7 @@ struct
   let ikind {ikind; _} = ikind
 
   (* Helper functions *)
-  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
+  let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds (GobPretty.sprintf "ikinds %a and %a are incompatible. Values: %a and %a" CilType.Ikind.pretty x.ikind CilType.Ikind.pretty y.ikind I.pretty x.v I.pretty y.v))
   let lift op x = {x with v = op x.ikind x.v }
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
@@ -576,7 +575,7 @@ module Std (B: sig
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.Std
+  include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
@@ -973,7 +972,6 @@ struct
       | None -> empty
     in
     QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
-  let relift x = x
 
   let modulo n k =
     let result = Ints_t.rem n k in
@@ -1055,11 +1053,6 @@ struct
   let (<=.) a b = Ints_t.compare a b <= 0
   let (+.) a b = Ints_t.add a b
   let (-.) a b = Ints_t.sub a b
-  let ( *.) a b = Ints_t.mul a b
-  let (/.) a b = Ints_t.div a b
-
-  let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
-  let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
   (*
     Each domain's element is guaranteed to be in canonical form. That is, each interval contained
@@ -1544,7 +1537,7 @@ struct
           else norm_interval ik (rcx, lcy) |> fst
       | _ -> []
     in
-    List.map (fun x -> Some x) intvs |> List.map (refine_with_congruence_interval ik cong) |> List.flatten
+    List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
@@ -1583,7 +1576,6 @@ struct
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
     let shrink xs = MyCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
-
 end
 
 module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
@@ -1612,7 +1604,6 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
   let shift_right ik x y = fst @@ D.shift_right ik x y
-
 end
 
 module IntIkind = struct let ikind () = Cil.IInt end
@@ -1886,7 +1877,7 @@ struct
     else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
       let min_a = min_of_range r in
       let max_a = max_of_range r in
-      GU.for_all_in_range (min_a, max_a) (fun el -> BISet.mem el xs || BISet.mem el ys)
+      GobZ.for_all_range (fun el -> BISet.mem el xs || BISet.mem el ys) (min_a, max_a)
 
   let leq (Exc (xs, r)) (Exc (ys, s)) =
     let min_a, max_a = min_of_range r, max_of_range r in
@@ -1900,13 +1891,13 @@ struct
           let min_b, max_b = min_of_range s, max_of_range s in
           let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
             if I.compare min_a min_b < 0 then
-              GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> BISet.mem x xs)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (min_a, BI.sub min_b BI.one)
             else
               true
           in
           let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
             if I.compare max_b max_a < 0 then
-              GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> BISet.mem x xs)
+              GobZ.for_all_range (fun x -> BISet.mem x xs) (BI.add max_b BI.one, max_a)
             else
               true
           in
@@ -3246,8 +3237,6 @@ struct
     let to_pair = Option.get in
     set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
 
-  let relift x = x
-
   let refine_with_interval ik (cong : t) (intv : (int_t * int_t ) option) : t =
     match intv, cong with
     | Some (x, y), Some (c, m) ->
@@ -3759,6 +3748,9 @@ module IntDomTupleImpl = struct
         ) (Invariant.top ()) is
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
+
+  let relift (a, b, c, d, e) =
+    (Option.map I1.relift a, Option.map I2.relift b, Option.map I3.relift c, Option.map I4.relift d, Option.map I5.relift e)
 end
 
 module IntDomTuple =

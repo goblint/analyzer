@@ -1,6 +1,6 @@
 (** Data race analysis. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 
@@ -54,7 +54,7 @@ struct
   let side_vars ctx lv_opt ty =
     match lv_opt with
     | Some (v, _) ->
-      if !GU.should_warn then
+      if !AnalysisState.should_warn then
         ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
     | None ->
       ()
@@ -66,7 +66,7 @@ struct
       else
         ty
     in
-    if !GU.should_warn then
+    if !AnalysisState.should_warn then
       ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
 
@@ -79,7 +79,7 @@ struct
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let accs = G.access (ctx.global g) in
           let (lv, ty) = g' in
-          let mem_loc_str = Pretty.sprint ~width:max_int (Access.d_memo () (ty, lv)) in
+          let mem_loc_str = GobPretty.sprint Access.d_memo (ty, lv) in
           Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe g') accs
         | `Right _ -> (* vars *)
           ()
@@ -92,7 +92,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp=e; lvals; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module LS = Queries.LS in

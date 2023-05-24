@@ -1,6 +1,6 @@
 (** Analysis tracking which setjmp(s) are currently active *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -14,7 +14,7 @@ struct
 
   let should_join a b = D.equal a b
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =
+  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =
     ctx.local (* keep local as opposed to IdentitySpec *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

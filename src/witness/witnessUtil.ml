@@ -153,8 +153,12 @@ struct
     {genv; global_vars}
 
   let parse_cabs (inv: string): (Cabs.expression, string) result =
+    Errormsg.hadErrors := false; (* reset because CIL doesn't *)
     match Timing.wrap "FrontC" Frontc.parse_standalone_exp inv with
-    | inv_cabs -> Ok inv_cabs
+    | _ when !Errormsg.hadErrors ->
+      Error "hadErrors"
+    | inv_cabs ->
+      Ok inv_cabs
     | exception (Frontc.ParseError e) ->
       Errormsg.log "\n"; (* CIL prints garbage without \n before *)
       Error e
@@ -165,6 +169,7 @@ struct
         Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
       ) (fundec.sformals @ fundec.slocals);
 
+    Errormsg.hadErrors := false; (* reset because CIL doesn't *)
     let inv_exp_opt =
       Cil.currentLoc := loc;
       Cil.currentExpLoc := loc;
@@ -182,6 +187,8 @@ struct
 
     let vars = fundec.sformals @ fundec.slocals @ global_vars in
     match inv_exp_opt with
+    | _ when !Errormsg.hadErrors ->
+      Error "hadErrors"
     | Some inv_exp when not check || Check.checkStandaloneExp ~vars inv_exp ->
       Ok inv_exp
     | _ ->

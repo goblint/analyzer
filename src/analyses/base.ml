@@ -1,6 +1,8 @@
 (** Value analysis.  *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 open GobConfig
 open BaseUtil
@@ -8,7 +10,6 @@ module A = Analyses
 module H = Hashtbl
 module Q = Queries
 
-module GU = Goblintutil
 module ID = ValueDomain.ID
 module FD = ValueDomain.FD
 module IdxDom = ValueDomain.IndexDomain
@@ -163,8 +164,8 @@ struct
       | Some marshal -> array_map := marshal
       | None -> ()
     end;
-    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
-    longjmp_return := Goblintutil.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
+    return_varstore := Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType;
+    longjmp_return := Cilfacade.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
     Priv.init ()
 
   let finalize () =
@@ -344,15 +345,20 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            if AD.Addr.equal ax ay then
-              match AD.Addr.to_var ax with
+            let handle_address_is_multiple addr = begin match AD.Addr.to_var addr with
               | Some v when a.f (Q.IsMultiple v) ->
+                if M.tracing then M.tracel "addr" "IsMultiple %a\n" CilType.Varinfo.pretty v;
                 None
               | _ ->
                 Some true
-            else
-              (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
-              Some false
+            end
+            in
+            match AD.Addr.semantic_equal ax ay with
+            | Some true ->
+              if M.tracing then M.tracel "addr" "semantic_equal %a %a\n" AD.pretty x AD.pretty y;
+              handle_address_is_multiple ax
+            | Some false -> Some false
+            | None -> None
           else
             None
         in
@@ -426,10 +432,10 @@ struct
       | `Thread ->
         true
       | _ ->
-        ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
+        ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)
     in
-    if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then
+    if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !earlyglobs;
+    if !earlyglobs || multi then
       WideningTokens.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
@@ -442,7 +448,7 @@ struct
     ignore (sync' reason ctx)
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
-    if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
+    if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then
       Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
@@ -462,7 +468,7 @@ struct
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
         let var = get_var a gs st x in
-        let v = VD.eval_offset a (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+        let v = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c,s,_) -> c
@@ -525,7 +531,7 @@ struct
     | `Union (f,e) -> reachable_from_value ask gs st e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
@@ -607,7 +613,7 @@ struct
     st |>
     (* Here earlyglobs only drops syntactic globals from the context and does not consider e.g. escaped globals. *)
     (* This is equivalent to having escaped globals excluded from earlyglobs for contexts *)
-    f (not !GU.earlyglobs) (CPA.filter (fun k v -> (not k.vglob) || is_excluded_from_earlyglobs k))
+    f (not !earlyglobs) (CPA.filter (fun k v -> (not k.vglob) || is_excluded_from_earlyglobs k))
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
@@ -619,8 +625,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> Cilfacade.mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
-
+        | _ -> Lval.any_index_exp
       in
       match o with
       | `NoOffset -> `NoOffset
@@ -663,7 +668,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (None, ValueDomain.ArrIdxDomain.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -760,7 +765,7 @@ struct
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
-          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+          match UniqueType.find (TComp (fd.fcomp, [])) with
           | Some v -> do_offs (`Address (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs)))))) offs
           | None -> do_offs def offs
         end
@@ -795,7 +800,7 @@ struct
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint ~width:max_int (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = CilType.Constant.show c in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       | Const _ -> VD.top ()
@@ -807,7 +812,13 @@ struct
       | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
-        let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
+        let extra_is_safe =
+          match evalbinop_base a st op t1 a1 t2 a2 typ with
+          | `Int i -> ID.to_bool i = Some true
+          | _
+          | exception IntDomain.IncompatibleIKinds _ -> false
+        in
+        let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
         evalbinop a gs st op ~e1 ~t1 ~e2 ~t2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
@@ -976,7 +987,7 @@ struct
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask a) (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
         let v' = do_offs v' ofs in (* handle blessed fields? *)
         v'
       in
@@ -1048,7 +1059,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
-    | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when CilType.Exp.equal exp Lval.any_index_exp -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       match eval_rv a gs st exp with
@@ -1062,7 +1073,7 @@ struct
     let eval_rv = eval_rv_back_up in
     let rec do_offs def = function
       | Field (fd, offs) -> begin
-          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+          match UniqueType.find (TComp (fd.fcomp, [])) with
           | Some v -> do_offs (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs))))) offs
           | None -> do_offs def offs
         end
@@ -1070,8 +1081,8 @@ struct
       | NoOffset -> def
     in
     match lval with
-    | Var x, NoOffset when (not x.vglob) && Goblintutil.is_blessed x.vtype<> None ->
-      begin match Goblintutil.is_blessed x.vtype with
+    | Var x, NoOffset when (not x.vglob) && UniqueType.find x.vtype<> None ->
+      begin match UniqueType.find x.vtype with
         | Some v -> AD.singleton (Addr.from_var v)
         | _ ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st NoOffset))
       end
@@ -1192,7 +1203,7 @@ struct
     in
 
     if CilLval.Set.is_top context.Invariant.lvals then (
-      if !GU.earlyglobs || ThreadFlag.is_multi ask then (
+      if !earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
           CPA.fold (fun k v a ->
               if not (is_global ask k) then
@@ -1264,7 +1275,7 @@ struct
               if copied then
                 M.warn ~category:(Behavior (Undefined Other)) "The jump buffer %a contains values that were copied here instead of being set by setjmp. This is Undefined Behavior." d_exp e;
               x
-            | y -> failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local))
+            | y -> failwith (GobPretty.sprintf "problem?! is %a %a:\n state is %a" CilType.Exp.pretty e VD.pretty y D.pretty ctx.local)
           end
         | _ -> failwith "problem?!"
       end
@@ -1291,9 +1302,8 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
-    | Q.EvalValueYojson e ->
-      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-      `Lifted (VD.to_yojson v)
+    | Q.EvalValue e ->
+      eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.BlobSize e -> begin
         let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
@@ -1446,8 +1456,8 @@ struct
       in
       let update_offset old_value =
         (* Projection globals to highest Precision *)
-        let projected_value = project_val a None None value (is_global a x) in
-        let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+        let projected_value = project_val (Queries.to_value_domain_ask a) None None value (is_global a x) in
+        let new_value = VD.update_offset (Queries.to_value_domain_ask a) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then
@@ -1467,7 +1477,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
+      if (!earlyglobs || ThreadFlag.has_ever_been_multi a) && is_global a x then begin
         if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
@@ -1518,10 +1528,10 @@ struct
                 | Some (Lval(Var l',NoOffset)), Some r' ->
                   begin
                     let moved_by = movement_for_expr l' r' in
-                    VD.affect_move a v x moved_by
+                    VD.affect_move (Queries.to_value_domain_ask a) v x moved_by
                   end
                 | _  ->
-                  VD.affect_move a v x (fun x -> None)
+                  VD.affect_move (Queries.to_value_domain_ask a) v x (fun x -> None)
               else
                 let patched_ask =
                   (* The usual recursion trick for ctx. *)
@@ -1545,7 +1555,7 @@ struct
                 in
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 (* TODO: why does affect_move need general ask (of any query) instead of eval_exp? *)
-                VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
+                VD.affect_move (Queries.to_value_domain_ask patched_ask) v x moved_by     (* was a set call caused e.g. by a guard *)
             in
             { st with cpa = update_variable arr arr.vtype nval st.cpa }
           in
@@ -1633,7 +1643,7 @@ struct
 
     let get_var = get_var
     let get a gs st addrs exp = get a gs st addrs exp
-    let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:true gs st lval lval_type value
+    let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:true gs st lval lval_type ?lval_raw value
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
@@ -1712,7 +1722,7 @@ struct
     in
     (match rval_val, lval_val with
      | `Address adrs, lval
-       when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+       when (not !AnalysisState.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
        let find_fps e xs = match Addr.to_var_must e with
          | Some x -> x :: xs
          | None -> xs
@@ -1740,7 +1750,7 @@ struct
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
-              let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | None ->
               set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
@@ -1817,7 +1827,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | _ ->
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
-      let nst_part = rem_many_partitioning (Analyses.ask_of_ctx ctx) ctx.local locals in
+      let nst_part = rem_many_partitioning (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) ctx.local locals in
       let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
       match exp with
       | None -> nst
@@ -1877,7 +1887,7 @@ struct
     let invalidate_address st a =
       let t = AD.get_type a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
-      let nv =  VD.invalidate_value ask t v in
+      let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v in
       (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
@@ -1912,13 +1922,13 @@ struct
            Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
           ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
         Priv.threadenter (Analyses.ask_of_ctx ctx) st
       ) else
         (* use is_global to account for values that became globals because they were saved into global variables *)
         let globals = CPA.filter (fun k v -> is_global (Analyses.ask_of_ctx ctx) k) st.cpa in
-        (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+        (* let new_cpa = if !earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
         let new_cpa = globals in
         {st with cpa = new_cpa}
     in
@@ -1933,7 +1943,7 @@ struct
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
-    let new_cpa = project (Analyses.ask_of_ctx ctx) (Some p) new_cpa fundec in
+    let new_cpa = project (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2000,7 +2010,7 @@ struct
       let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
       let flist = shallow_flist @ deep_flist in
       let addrs = List.concat_map AD.to_var_may flist in
-      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
+      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread None None) addrs
     | _, _ -> []
 
@@ -2050,7 +2060,7 @@ struct
       (addr, AD.get_type addr)
     in
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
@@ -2358,7 +2368,7 @@ struct
             end
         else st) tainted_lvs local_st
 
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
     let combine_one (st: D.t) (fun_st: D.t) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       (* This function does miscellaneous things, but the main task was to give the
@@ -2393,12 +2403,6 @@ struct
           if M.tracing then M.trace "taintPC" "combined: %a\n" CPA.pretty st_combined.cpa;
           { fun_st with cpa = st_combined.cpa }
       in
-      let return_var = return_var () in
-      let return_val =
-        if CPA.mem (return_varinfo ()) fun_st.cpa
-        then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
-        else VD.top ()
-      in
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
@@ -2407,12 +2411,31 @@ struct
         | Some n -> Node.find_fundec n
         | None -> failwith "callerfundec not found"
       in
-      let return_val = project_val (Analyses.ask_of_ctx ctx) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
-      let cpa' = project (Analyses.ask_of_ctx ctx) (Some p) nst.cpa callerFundec in
+      let cpa' = project (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (Some p) nst.cpa callerFundec in
 
       if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
 
-      let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
+      { nst with cpa = cpa'; weak = st.weak } (* keep weak from caller *)
+    in
+    combine_one ctx.local au
+
+  let combine_assign ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
+    let combine_one (st: D.t) (fun_st: D.t) =
+      let return_var = return_var () in
+      let return_val =
+        if CPA.mem (return_varinfo ()) fun_st.cpa
+        then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
+        else VD.top ()
+      in
+
+      (* Projection to Precision of the Caller *)
+      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let callerFundec = match !MyCFG.current_node with
+        | Some n -> Node.find_fundec n
+        | None -> failwith "callerfundec not found"
+      in
+      let return_val = project_val (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
+
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
@@ -2466,14 +2489,14 @@ struct
               let asked' = Queries.Set.add anyq asked in
               let r: a Queries.result =
                 match q with
-                | MustBeSingleThreaded when single -> true
+                | MustBeSingleThreaded _ when single -> true
                 | MayEscape _
                 | MayBePublic _
                 | MayBePublicWithout _
                 | MustBeProtectedBy _
                 | MustLockset
                 | MustBeAtomic
-                | MustBeSingleThreaded
+                | MustBeSingleThreaded _
                 | MustBeUniqueThread
                 | CurrentThreadId
                 | MayBeThreadReturn
@@ -2525,7 +2548,7 @@ struct
           (* all updates happen in ctx with top values *)
           let get_var = get_var
           let get a gs st addrs exp = get a gs st addrs exp
-          let set a ~ctx gs st lval lval_type value = set a ~ctx ~invariant:false gs st lval lval_type value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+          let set a ~ctx gs st lval lval_type ?lval_raw value = set a ~ctx ~invariant:false gs st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =
@@ -2579,10 +2602,10 @@ struct
   let event ctx e octx =
     let st: store = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
       Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
-    | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if addr = UnknownPtr then
         M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
       WideningTokens.with_local_side_tokens (fun () ->

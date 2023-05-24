@@ -1,4 +1,3 @@
-open Prelude.Ana
 open GoblintCil
 
 module M = Messages
@@ -21,7 +20,7 @@ sig
 
   val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
   val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
-  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> VD.t -> D.t
+  val set: Queries.ask -> ctx:(D.t, G.t, _, V.t) Analyses.ctx -> (V.t -> G.t) -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
@@ -94,18 +93,18 @@ struct
       else set a gs st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
 
   let refine_lv ctx a gs st c x c' pretty exp =
-    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~ctx in
+    let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
       let oldv = get_var a gs st var in
       let oldv = map_oldval oldv var.vtype in
       let offs = convert_offset a gs st o in
-      let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+      let newv = VD.update_offset (Queries.to_value_domain_ask a) oldv offs c' (Some exp) x (var.vtype) in
       let v = VD.meet oldv newv in
       if is_some_bot v then contra st
       else (
-        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
+        if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" CilType.Varinfo.pretty var VD.pretty oldv VD.pretty v pretty c VD.pretty c';
         let r = set' (Var var,NoOffset) v st in
         if M.tracing then M.tracel "inv" "st from %a to %a\n" D.pretty st D.pretty r;
         r
@@ -673,7 +672,7 @@ struct
            (* Mixed `Float and `Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
            | `Int _, `Float _ | `Float _, `Int _ -> failwith "ill-typed program";
              (* | `Address a, `Address b -> ... *)
-           | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
+           | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not `Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
           (* use closures to avoid unused casts *)
         in (match c_typed with
             | `Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
@@ -729,11 +728,11 @@ struct
                let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
                if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                inv_exp (`Int c') e st
-             | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
+             | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to `Int, but the type did not match %a" CilType.Typ.pretty t) st
            else
-             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
-         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
-      | e, _ -> fallback (sprint d_plainexp e ^ " not implemented") st
+             fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+         | v -> fallback (GobPretty.sprintf "CastE: e did not evaluate to `Int, but %a" VD.pretty v) st)
+      | e, _ -> fallback (GobPretty.sprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else

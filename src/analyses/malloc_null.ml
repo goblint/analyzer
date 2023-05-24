@@ -4,7 +4,7 @@ module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -18,7 +18,7 @@ struct
   let should_join x y = D.equal x y
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
+     element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
@@ -200,18 +200,18 @@ struct
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
     [ctx.local,nst]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
     let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    let ret_st = D.union au (D.diff ctx.local cal_st) in
-    let new_u =
-      match lval, D.mem (return_addr ()) ret_st with
-      | Some lv, true ->
-        begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-          | Some (Var v,ofs) -> D.remove (return_addr ()) (D.add (Addr.from_var_offset (v,ofs)) ret_st)
-          | _ -> ret_st end
-      | _ -> ret_st
-    in
-    new_u
+    D.union (D.remove (return_addr ()) au) (D.diff ctx.local cal_st)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    match lval, D.mem (return_addr ()) au with
+    | Some lv, true ->
+      begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
+        | Some (Var v,ofs) -> D.add (Addr.from_var_offset (v,ofs)) ctx.local
+        | _ -> ctx.local
+      end
+    | _ -> ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
@@ -237,7 +237,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

@@ -1,5 +1,5 @@
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 (** An analysis specification for didactic purposes.
@@ -63,7 +63,7 @@ struct
 
   let body ctx (f:fundec) : D.t =
     (* Initialize locals to top *)
-    List.fold (fun m l -> D.add l (I.top ()) m) ctx.local f.slocals
+    List.fold_left (fun m l -> D.add l (I.top ()) m) ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
@@ -71,7 +71,7 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
-    let callee_state = List.fold (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
+    let callee_state = List.fold_left (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
     [(ctx.local, callee_state)]
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
@@ -83,7 +83,10 @@ struct
         )
       |_ -> state
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask): D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local (* keep local as opposed to IdentitySpec *)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask): D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
       with a local int variable x on the left, we set it to top *)

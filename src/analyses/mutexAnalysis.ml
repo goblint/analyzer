@@ -5,7 +5,7 @@ module Addr = ValueDomain.Addr
 module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 
@@ -111,7 +111,7 @@ struct
       let i_exp =
         match ValueDomain.IndexDomain.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> MyCFG.unknown_exp
+        | None -> Lval.any_index_exp
       in
       `Index (i_exp, conv_offset_inv o)
 
@@ -211,7 +211,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {exp; lvals; kind; _} when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+    | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
       (* must use original (pre-assign, etc) ctx queries *)
       let old_access var_opt offs_opt =
         (* TODO: this used to use ctx instead of octx, why? *)
@@ -228,7 +228,7 @@ struct
             let el = (locks, if write then locks else Mutexes.top ()) in
             ctx.sideg (V.protecting v) (G.create_protecting el);
 
-            if !GU.postsolving then (
+            if !AnalysisState.postsolving then (
               let held_locks = (if write then snd else fst) (G.protecting (ctx.global (V.protecting v))) in
               let vs_empty = VarSet.empty () in
               Mutexes.iter (fun addr ->

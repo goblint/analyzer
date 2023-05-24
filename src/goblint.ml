@@ -1,8 +1,6 @@
 open Goblint_lib
 open GobConfig
-open Goblintutil
 open Maingoblint
-open Prelude
 open Printf
 
 (** the main function *)
@@ -37,8 +35,8 @@ let main () =
     GoblintDir.init ();
 
     if get_bool "dbg.verbose" then (
-      print_endline (localtime ());
-      print_endline Goblintutil.command_line;
+      print_endline (GobUnix.localtime ());
+      print_endline GobSys.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
@@ -58,16 +56,18 @@ let main () =
         else
           None
       in
+      (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
+      AutoTune.activateLongjmpAnalysesWhenRequired ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_html_output ();
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
-      if !verified = Some false then exit 3 (* verifier failed! *)
+      if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with
-  | Exit ->
+  | Stdlib.Exit ->
     do_stats ();
     Goblint_timing.teardown_tef ();
     exit 1
@@ -77,7 +77,7 @@ let main () =
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     Goblint_timing.teardown_tef ();
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-  | Timeout ->
+  | Timeout.Timeout ->
     do_stats ();
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();

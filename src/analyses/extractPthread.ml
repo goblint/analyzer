@@ -1,6 +1,8 @@
 (** Tracking of pthread lib code. Output to promela. *)
 
-open Prelude.Ana
+open GoblintCil
+open Pretty
+open GobPretty
 open Analyses
 open Cil
 open BatteriesExceptionless
@@ -387,8 +389,7 @@ module Variables = struct
   let get_globals () =
     Hashtbl.values !table
     |> List.of_enum
-    |> List.map Set.elements
-    |> List.flatten
+    |> List.concat_map Set.elements
     |> List.filter_map (function
         | Var v when Variable.is_global v ->
           Some v
@@ -572,7 +573,7 @@ module Codegen = struct
 
   module Writer = struct
     let write desc ext content =
-      let dir = Goblintutil.create_dir (Fpath.v "pml-result") in
+      let dir = GobSys.mkdir_or_exists_absolute (Fpath.v "pml-result") in
       let path = Fpath.to_string @@ Fpath.append dir  (Fpath.v ("pthread." ^ ext)) in
       output_file ~filename:path ~text:content ;
       print_endline @@ "saved " ^ desc ^ " as " ^ path
@@ -748,7 +749,7 @@ module Codegen = struct
       |> List.of_enum
       |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
       |> List.unique
-      |> List.sort (compareBy PmlResTbl.get)
+      |> List.sort (BatOrd.map_comp PmlResTbl.get compare)
       |> List.concat_map process_def
     in
     let fun_ret_defs =
@@ -768,7 +769,7 @@ module Codegen = struct
           escape body
       in
       Tbls.FunCallTbl.to_list ()
-      |> List.group (compareBy (fst % fst))
+      |> List.group (BatOrd.map_comp (fst % fst) compare)
       |> List.concat_map fun_map
     in
     let globals = List.map Variable.show_def @@ Variables.get_globals () in
@@ -842,8 +843,7 @@ module Codegen = struct
         Hashtbl.keys Edges.table
         |> List.of_enum
         |> List.unique
-        |> List.map dot_thread
-        |> List.concat
+        |> List.concat_map dot_thread
       in
       String.concat "\n  " ("digraph file {" :: lines) ^ "}"
     in
@@ -874,7 +874,7 @@ module Spec : Analyses.MCPSpec = struct
   module G = Tasks
 
   let tasks_var =
-    Goblintutil.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
+    Cilfacade.create_var (makeGlobalVar "__GOBLINT_PTHREAD_TASKS" voidPtrType)
 
 
   module ExprEval = struct
@@ -967,7 +967,7 @@ module Spec : Analyses.MCPSpec = struct
       in
       let var_str = Variable.show % Option.get % Variable.make_from_lhost in
       let pred_str op lhs rhs =
-        let cond_str = lhs ^ " " ^ sprint d_binop op ^ " " ^ rhs in
+        let cond_str = lhs ^ " " ^ CilType.Binop.show op ^ " " ^ rhs in
         if tv then cond_str else "!(" ^ cond_str ^ ")"
       in
 
@@ -1034,7 +1034,7 @@ module Spec : Analyses.MCPSpec = struct
 
   let body ctx (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
-    let context_hash = Int64.of_int (if not !Goblintutil.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
+    let context_hash = Int64.of_int (if not !AnalysisState.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
     { ctx.local with ctx = Ctx.of_int context_hash }
 
 
@@ -1056,8 +1056,10 @@ module Spec : Analyses.MCPSpec = struct
     (* set predecessor set to start node of function *)
     [ (d_caller, d_callee) ]
 
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
 
-  let combine ctx (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
+  let combine_assign ctx (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
     if D.any_is_bot ctx.local || D.any_is_bot au
     then ctx.local
     else

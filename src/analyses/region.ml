@@ -1,6 +1,7 @@
 (** Assigning static regions to dynamic memory. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
@@ -82,7 +83,7 @@ struct
       let rec unknown_index = function
         | `NoOffset -> `NoOffset
         | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
+        | `Index (i, os) -> `Index (Lval.any_index_exp, unknown_index os) (* forget specific indices *)
       in
       Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 
@@ -137,7 +138,10 @@ struct
       [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
     | `Lifted reg -> begin
       let old_regpart = ctx.global () in
@@ -171,7 +175,7 @@ struct
       let t, _, _, _ = splitFunctionTypeVI  f in
       match unrollType t with
       | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
+        begin match UniqueType.find t, lval with
           | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
           | _ -> ctx.local
         end

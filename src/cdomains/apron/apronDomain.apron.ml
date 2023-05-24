@@ -1,4 +1,4 @@
-open Prelude
+open Batteries
 open GoblintCil
 open Pretty
 (* A binding to a selection of Apron-Domains *)
@@ -463,6 +463,8 @@ end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
+  include Printable.StdLeaf
+
   type t = Man.mt A.t
 
   let name () = "Apron " ^ Man.name ()
@@ -474,9 +476,6 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let invariant _ = []
-  let tag _ = failwith "Std: no tag"
-  let arbitrary () = failwith "no arbitrary"
-  let relift x = x
 
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)

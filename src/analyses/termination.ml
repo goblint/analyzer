@@ -1,6 +1,7 @@
 (** Termination of loops. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 
 module M = Messages
@@ -22,7 +23,7 @@ class loopCounterVisitor (fd : fundec) = object(self)
         (* insert loop counter variable *)
         let name = "term"^show_location_id loc in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-        let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
+        let v = Cilfacade.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
         (* make an init stmt since the init above is apparently ignored *)
         let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
         (* increment it every iteration *)
@@ -90,7 +91,7 @@ let makeVar fd loc name =
   try List.find (fun v -> v.vname = id) fd.slocals
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-    Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
+    Cilfacade.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
 let f_assume = Lval (var (emptyFunction "__goblint_assume").svar)
 let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 class loopInstrVisitor (fd : fundec) = object(self)
@@ -184,7 +185,7 @@ end
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "term"
   module D = TermDomain
@@ -197,8 +198,6 @@ struct
   (*| _ -> Queries.Result.top ()*)
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -217,24 +216,8 @@ struct
   (*       ctx.local *)
   (* | _ -> ctx.local *)
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local,ctx.local]
-
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    au
-
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
-
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 end
 

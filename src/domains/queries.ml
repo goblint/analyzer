@@ -2,45 +2,11 @@
 
 open GoblintCil
 
-module GU = Goblintutil
-module ID =
-struct
-  module I = IntDomain.IntDomTuple
-  include Lattice.Lift (I) (Printable.DefaultNames)
+module VDQ = ValueDomainQueries
 
-  let lift op x = `Lifted (op x)
-  let unlift op x = match x with
-    | `Lifted x -> op x
-    | _ -> failwith "Queries.ID.unlift"
-  let unlift_opt op x = match x with
-    | `Lifted x -> op x
-    | _ -> None
-  let unlift_is op x = match x with
-    | `Lifted x -> op x
-    | _ -> false
+module ID = VDQ.ID
 
-  let bot_of = lift I.bot_of
-  let top_of = lift I.top_of
-
-  let of_int ik = lift (I.of_int ik)
-  let of_bool ik = lift (I.of_bool ik)
-  let of_interval ?(suppress_ovwarn=false) ik = lift (I.of_interval ~suppress_ovwarn ik)
-  let of_excl_list ik = lift (I.of_excl_list ik)
-  let of_congruence ik = lift (I.of_congruence ik)
-  let starting ?(suppress_ovwarn=false) ik = lift (I.starting ~suppress_ovwarn ik)
-  let ending ?(suppress_ovwarn=false) ik = lift (I.ending ~suppress_ovwarn ik)
-
-  let to_int x = unlift_opt I.to_int x
-  let to_bool x = unlift_opt I.to_bool x
-
-  let is_top_of ik = unlift_is (I.is_top_of ik)
-
-  let is_bot_ikind = function
-    | `Bot -> false
-    | `Lifted x -> I.is_bot x
-    | `Top -> false
-end
-module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
@@ -61,6 +27,7 @@ module FlatYojson = Lattice.Flat (Printable.Yojson) (struct
   end)
 
 module SD = Basetype.Strings
+module VD = ValueDomain.Compound
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
@@ -97,7 +64,7 @@ type _ t =
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LS.t t
   | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: MustBool.t t
+  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
@@ -105,7 +72,7 @@ type _ t =
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
-  | EvalValueYojson: exp -> FlatYojson.t t (** Yojson because [ValueDomain] would have dependency cycle. *)
+  | EvalValue: exp -> VD.t t
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
@@ -163,12 +130,12 @@ struct
     | IsHeapVar _ -> (module MayBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
-    | MustBeSingleThreaded -> (module MustBool)
+    | MustBeSingleThreaded _ -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | EvalMutexAttr _ -> (module MutexAttrDomain)
-    | EvalValueYojson _ -> (module FlatYojson)
+    | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
@@ -225,12 +192,12 @@ struct
     | IsRecursiveMutex _ -> MustBool.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
-    | MustBeSingleThreaded -> MustBool.top ()
+    | MustBeSingleThreaded _ -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | EvalMutexAttr _ -> MutexAttrDomain.top ()
-    | EvalValueYojson _ -> FlatYojson.top ()
+    | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
@@ -278,7 +245,7 @@ struct
     | Any (MustBeProtectedBy _) -> 9
     | Any MustLockset -> 10
     | Any MustBeAtomic -> 11
-    | Any MustBeSingleThreaded -> 12
+    | Any (MustBeSingleThreaded _)-> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
     | Any MayBeThreadReturn -> 15
@@ -306,7 +273,7 @@ struct
     | Any MayBeTainted -> 41
     | Any (PathQuery _) -> 42
     | Any DYojson -> 43
-    | Any (EvalValueYojson _) -> 44
+    | Any (EvalValue _) -> 44
     | Any (EvalJumpBuf _) -> 45
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
@@ -334,7 +301,7 @@ struct
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
-      | Any (EvalValueYojson e1), Any (EvalValueYojson e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
       | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
@@ -357,6 +324,7 @@ struct
       | Any (IsRecursiveMutex v1), Any (IsRecursiveMutex v2) -> CilType.Varinfo.compare v1 v2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
+      | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -377,7 +345,7 @@ struct
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
-    | Any (EvalValueYojson e) -> CilType.Exp.hash e
+    | Any (EvalValue e) -> CilType.Exp.hash e
     | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
@@ -394,6 +362,7 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
+    | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -414,7 +383,7 @@ struct
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
     | Any MustLockset -> Pretty.dprintf "MustLockset"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
-    | Any MustBeSingleThreaded -> Pretty.dprintf "MustBeSingleThreaded"
+    | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
@@ -422,7 +391,7 @@ struct
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
-    | Any (EvalValueYojson e) -> Pretty.dprintf "EvalValueYojson %a" CilType.Exp.pretty e
+    | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
     | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
@@ -451,16 +420,15 @@ struct
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
 end
 
+let to_value_domain_ask (ask: ask) =
+  let eval_int e = ask.f (EvalInt e) in
+  let may_point_to e = ask.f (MayPointTo e) in
+  let is_multiple v = ask.f (IsMultiple v) in
+  { VDQ.eval_int; may_point_to; is_multiple }
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
-  let e = Cilfacade.makeBinOp binop e1 e2 in
-  let i = ask.f (EvalInt e) in
-  if ID.is_bot i || ID.is_bot_ikind i then
-    Bool.top () (* base returns bot for non-int results, consider unknown *)
-  else
-    match ID.to_bool i with
-    | Some b -> b
-    | None -> Bool.top ()
+  let eval_int e = ask.f (EvalInt e) in
+  VDQ.eval_int_binop (module Bool) binop eval_int e1 e2
 
 (** Backwards-compatibility for former [MustBeEqual] query. *)
 let must_be_equal = eval_int_binop (module MustBool) Eq
