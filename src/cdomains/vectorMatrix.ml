@@ -1,4 +1,4 @@
-open Prelude.Ana
+open Batteries
 module Array = Batteries.Array
 module M = Messages
 
@@ -582,14 +582,14 @@ module ArrayMatrix: AbstractMatrix =
                   match Array.bsearch Int.ord (Lazy.force p2) j with
                   | `At pos -> let beta =  m1_i.(j) in
                     Array.iteri (fun j' x -> m1_i.(j') <- m1_i.(j') -: beta *: m2.(pos).(j') ) m1_i
-                  | _ -> raise Exit;
+                  | _ -> raise Stdlib.Exit;
               done;
               if m1_i. (num_cols m1 - 1) <>: A.zero then
-                raise Exit
+                raise Stdlib.Exit
           done;
           true
         )
-        with Exit -> false;;
+        with Stdlib.Exit -> false;;
 
     let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
 

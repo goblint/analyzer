@@ -13,6 +13,9 @@ module Js = struct
   (* TODO: Implement this *)
 end
 
-let timeout = match Sys.backend_type with
+let wrap = match Sys.backend_type with
   | Other "js_of_ocaml" -> Js.timeout
   | _ -> Unix.timeout
+
+
+exception Timeout

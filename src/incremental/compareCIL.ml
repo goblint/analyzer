@@ -127,7 +127,7 @@ let eq_glob (old: global_col) (current: global_col) (cfgs : (cfg * (cfg * cfg)) 
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
-    then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
+    then Some Batteries.(CfgTools.getCFG oldAST |> Tuple3.first, CfgTools.getCFG newAST |> Tuple3.get12)
     else None in
 
   let addGlobal map global  =
@@ -159,7 +159,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       let old_global = GlobalMap.find name oldMap in
       match old_global.def, current_global.def with
       | Some (Fun f1), Some (Fun f2) ->
-        let renamed_params: string StringMap.t = if (List.length f1.sformals) = (List.length f2.sformals) then
+        let renamed_params: string StringMap.t = if List.compare_lengths f1.sformals f2.sformals = 0 then
             let mappings = List.combine f1.sformals f2.sformals |>
                            List.filter (fun (original, now) -> not (original.vname = now.vname)) |>
                            List.map (fun (original, now) -> (original.vname, now.vname)) |>

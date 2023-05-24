@@ -1,7 +1,7 @@
 (** Access analysis. *)
 
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 
@@ -43,7 +43,7 @@ struct
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
-    if force || !collect_local || !emit_single_threaded || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
+    if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
       if deref then
         do_access ctx kind reach exp;
       Access.distribute_access_exp (do_access ctx Read false) exp
@@ -65,7 +65,7 @@ struct
 
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else begin
+    if !AnalysisState.global_initialization then ctx.local else begin
       access_one_top ~deref:true ctx Write false (AddrOf lval);
       access_one_top ctx Read false rval;
       ctx.local
@@ -135,7 +135,7 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !Goblintutil.postsolving ->
+    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in

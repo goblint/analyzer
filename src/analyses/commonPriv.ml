@@ -1,4 +1,5 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open BaseUtil
 module Q = Queries
@@ -39,15 +40,15 @@ end
 module Protection =
 struct
   let is_unprotected ask x: bool =
-    let multi = ThreadFlag.is_multi ask in
-    (!GU.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
+    let multi = ThreadFlag.has_ever_been_multi ask in
+    (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
       ask.f (Q.MayBePublic {global=x; write=true})
     )
 
   let is_unprotected_without ask ?(write=true) x m: bool =
-    ThreadFlag.is_multi ask &&
+    ThreadFlag.has_ever_been_multi ask &&
     ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
 
   let is_protected_by ask m x: bool =
@@ -129,7 +130,7 @@ struct
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)
-    if !GU.global_initialization then
+    if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
       let ls = ask.f Queries.MustLockset in

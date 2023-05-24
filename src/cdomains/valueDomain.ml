@@ -5,7 +5,6 @@ open PrecisionUtil
 include PreValueDomain
 module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
-module GU = Goblintutil
 module BI = IntOps.BigIntOps
 module VDQ = ValueDomainQueries
 module LS = VDQ.LS
@@ -102,12 +101,6 @@ struct
     | `Mutex
     | `Bot
   ] [@@deriving eq, ord, hash]
-
-  let relift = function
-    | `JmpBuf x -> `JmpBuf (JmpBufs.relift x)
-    | `Blob x -> `Blob (Blobs.relift x)
-    | `CArray x -> `CArray (CArrays.relift x)
-    | x -> x
 
 
   let is_mutex_type (t: typ): bool = match t with
@@ -339,7 +332,7 @@ struct
     in
     let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
-      let info = Pretty.(sprint ~width:max_int @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
+      let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Stdlib.compare (bitsSizeOf (stripVarLenArr t)) (bitsSizeOf (stripVarLenArr ta)) with (* TODO is it enough to compare the size? -> yes? *)
@@ -367,8 +360,7 @@ struct
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ "Cast to neither array index nor struct field."
-                          ^ Pretty.(sprint ~width:max_int @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
           end
     in
     let one_addr = let open Addr in function
@@ -484,7 +476,7 @@ struct
           log_top __POS__; `Top
         | _ -> log_top __POS__; assert false
       in
-      let s_torg = match torg with Some t -> Prelude.Ana.sprint d_type t | None -> "?" in
+      let s_torg = match torg with Some t -> CilType.Typ.show t | None -> "?" in
       Messages.tracel "cast" "cast %a from %s to %a is %a!\n" pretty v s_torg d_type t pretty v'; v'
 
 
@@ -880,7 +872,7 @@ struct
 
   let update_offset (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a\n" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
@@ -942,7 +934,7 @@ struct
         begin match value with
           | `Thread t -> value (* if actually assigning thread, use value *)
           | _ ->
-            if !GU.global_initialization then
+            if !AnalysisState.global_initialization then
               `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
             else
               `Top
@@ -953,7 +945,7 @@ struct
           | `JmpBuf t -> value (* if actually assigning jmpbuf, use value *)
           | `Blob(`Bot, _, _) -> `Bot (* TODO: Stopgap for malloced jmp_bufs, there is something fundamentally flawed somewhere *)
           | _ ->
-            if !GU.global_initialization then
+            if !AnalysisState.global_initialization then
               `JmpBuf (JmpBufs.Bufs.empty (), false) (* if assigning global init, use empty set instead *)
             else
               `Top
@@ -1324,6 +1316,7 @@ struct
     | `Address n -> ad_invariant ~vs ~offset ~lval n
     | `Struct n -> Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Union n -> Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
+    | `Array n -> CArrays.invariant ~value_invariant:(vd_invariant ~vs) ~offset ~lval n
     | `Blob n when GobConfig.get_bool "ana.base.invariant.blobs" -> blob_invariant ~vs ~offset ~lval n
     | _ -> Invariant.none (* TODO *)
 

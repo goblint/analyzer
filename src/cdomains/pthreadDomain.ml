@@ -1,4 +1,4 @@
-open Prelude
+open Batteries
 
 (** Thread ID *)
 module Tid = IntDomain.Flattened

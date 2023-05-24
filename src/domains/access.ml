@@ -462,17 +462,11 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
 
 let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
-  let debug = get_bool "dbg.debug" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,kind,node,e,a) =
       let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
-      let doc =
-        if debug then
-          dprintf "%t  (exp: %a)" d_msg d_exp e
-        else
-          d_msg ()
-      in
+      let doc = dprintf "%t  (exp: %a)" d_msg d_exp e in
       (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs

@@ -5,7 +5,8 @@ module Addr = ValueDomain.Addr
 module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open GobConfig
 

@@ -120,7 +120,7 @@ struct
     else
       Pretty.dprintf "%a, %a" P.pretty p S.pretty s
 
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let show x = GobPretty.sprint pretty x
 
   module D =
   struct

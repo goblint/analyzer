@@ -106,5 +106,5 @@ let to_yojson e =
       ]
   in
   `Assoc ([
-      ("string", `String (Pretty.sprint ~width:max_int (pretty () e)))
+      ("string", `String (GobPretty.sprint pretty e))
     ] @ fields)

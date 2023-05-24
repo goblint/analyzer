@@ -1,6 +1,6 @@
 (** An analysis checking whether a function only returns if its only argument has a non-zero value. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =

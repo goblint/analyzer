@@ -1,7 +1,6 @@
 (** The lattice signature and simple functors for building lattices. *)
 
 module Pretty = GoblintCil.Pretty
-module GU = Goblintutil
 
 (* module type Rel =
 sig
@@ -52,7 +51,7 @@ exception Invalid_widen of Pretty.doc
 
 let () = Printexc.register_printer (function
     | Invalid_widen doc ->
-      Some (Pretty.sprint ~width:max_int (Pretty.dprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc))
+      Some (GobPretty.sprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc)
     | _ -> None (* for other exceptions *)
   )
 

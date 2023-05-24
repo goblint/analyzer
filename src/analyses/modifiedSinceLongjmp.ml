@@ -1,6 +1,6 @@
 (** Locally track the variables that may have been written since the corresponding jumpbuffer was set *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =

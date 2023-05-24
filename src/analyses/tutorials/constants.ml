@@ -1,5 +1,5 @@
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 (** An analysis specification for didactic purposes.
@@ -63,7 +63,7 @@ struct
 
   let body ctx (f:fundec) : D.t =
     (* Initialize locals to top *)
-    List.fold (fun m l -> D.add l (I.top ()) m) ctx.local f.slocals
+    List.fold_left (fun m l -> D.add l (I.top ()) m) ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
@@ -71,7 +71,7 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
-    let callee_state = List.fold (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
+    let callee_state = List.fold_left (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
     [(ctx.local, callee_state)]
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =

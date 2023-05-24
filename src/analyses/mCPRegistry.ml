@@ -1,4 +1,6 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 open Analyses
 
 type spec_modules = { name : string

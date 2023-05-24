@@ -2,7 +2,9 @@
     Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
     The apron environment is hereby used to organize the order of columns and variables. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
+open Pretty
 module M = Messages
 open Apron
 open VectorMatrix

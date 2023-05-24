@@ -1,6 +1,6 @@
 (** Analysis tracking which longjmp is currently active *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =

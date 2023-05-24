@@ -5,7 +5,7 @@ module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -31,7 +31,7 @@ struct
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
+     element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset

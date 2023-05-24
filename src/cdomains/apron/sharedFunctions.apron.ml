@@ -1,7 +1,7 @@
 (** Functions and modules that are shared among the original apronDomain and the new affineEqualityDomain. *)
 
 open GoblintCil
-open Prelude
+open Batteries
 open Apron
 module M = Messages
 

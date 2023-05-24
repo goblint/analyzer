@@ -1,8 +1,18 @@
 open GoblintCil
 open Pretty
 
-module GU = Goblintutil
 module M = Messages
+
+(** Special index expression for some unknown index.
+    Weakly updates array in assignment.
+    Used for exp.fast_global_inits. *)
+let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+
+(** Special index expression for all indices.
+    Strongly updates array in assignment.
+    Used for Goblint-specific witness invariants. *)
+let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
+
 
 type ('a, 'b) offs = [
   | `NoOffset
@@ -267,12 +277,12 @@ struct
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
         with Not_found ->
-          let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
+          let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
           raise (Type_offset (t, s))
       in type_offset fi.ftype o
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
-      let s = sprint ~width:max_int @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t Offs.pretty o in
+      let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t Offs.pretty o in
       raise (Type_offset (t, s))
 
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
@@ -583,7 +593,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
+    | `Index (e,o) when CilType.Exp.equal e any_index_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =

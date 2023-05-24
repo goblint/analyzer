@@ -2,7 +2,7 @@
 (** Currently this works purely syntactically on the expressions, and only for =_{must}.            *)
 (** Does not keep state, this is only formulated as an analysis to integrate well into framework    *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module Spec : Analyses.MCPSpec =

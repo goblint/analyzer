@@ -1,6 +1,6 @@
 (** How to generate constraints for a solver using specifications described in [Analyses]. *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
@@ -320,7 +320,7 @@ struct
   let h = H.create 13
   let incr k =
     H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint Node.pretty_plain_short (Option.get !MyCFG.current_node));
+        if v >= !limit then failwith (GobPretty.sprintf "LimitLifter: Reached limit (%d) for node %a" !limit Node.pretty_plain_short (Option.get !MyCFG.current_node));
         v+1
       ) h;
   module D = struct
@@ -548,7 +548,7 @@ struct
     | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
-    if !GU.postsolving then
+    if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
@@ -857,15 +857,17 @@ struct
           (* TODO: Is it possible to do soundly for multi-entry loops? *)
           let stricts = NodeH.find_default scc.prev v [] in
           let xs_stricts = List.map tf' stricts in
+          (* Evaluate non-strict for dead code warnings. See 00-sanity/36-strict-loop-dead. *)
+          let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
+          let is_strict eu = List.exists (equal eu) stricts in
+          let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
+          let xs_non_stricts = List.map tf' non_stricts in
           if List.for_all S.D.is_bot xs_stricts then
             S.D.bot ()
-          else
+          else (
             let xs_strict = List.fold_left S.D.join (S.D.bot ()) xs_stricts in
-            let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
-            let is_strict eu = List.exists (equal eu) stricts in
-            let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
-            let xs_non_stricts = List.map tf' non_stricts in
             List.fold_left S.D.join xs_strict xs_non_stricts
+          )
         | _ ->
           let xs = List.map tf' (Cfg.prev v) in
           List.fold_left S.D.join (S.D.bot ()) xs
@@ -1410,7 +1412,7 @@ struct
   let branch ctx = S.branch (conv ctx)
 
   let branch ctx exp tv =
-    if !GU.postsolving then (
+    if !AnalysisState.postsolving then (
       try
         let r = branch ctx exp tv in
         (* branch is live *)

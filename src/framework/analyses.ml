@@ -1,11 +1,10 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
-open Prelude
+open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
 
-module GU = Goblintutil
 module M  = Messages
 
 (** Analysis starts from lists of functions: start functions, exit functions, and
@@ -212,7 +211,7 @@ struct
       match loc with
       | Some loc ->
         let l = Messages.Location.to_cil loc in
-        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
       | None ->
         () (* TODO: not outputting warning without location *)
     in
@@ -225,7 +224,7 @@ struct
     List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
-    let out = Messages.get_out result_name !GU.out in
+    let out = Messages.get_out result_name !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "fast_xml" ->
@@ -251,7 +250,7 @@ struct
         Messages.xml_file_name := fn;
         BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
         BatPrintf.fprintf f "<run>";
-        BatPrintf.fprintf f "<parameters>%s</parameters>" Goblintutil.command_line;
+        BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
         BatPrintf.fprintf f "<statistics>";
         let timing_ppf = BatFormat.formatter_of_out_channel f in
         Timing.Default.print timing_ppf;
@@ -290,7 +289,7 @@ struct
       let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
       let write_file f fn =
         printf "Writing json to temp. file: %s\n%!" fn;
-        fprintf f "{\n  \"parameters\": \"%s\",\n  " Goblintutil.command_line;
+        fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
         fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
         (*gtfxml f gtable;*)
@@ -384,16 +383,42 @@ sig
 
   val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
+
+  (** A transfer function which handles the assignment of a rval to a lval, i.e.,
+      it handles program points of the form "lval = rval;" *)
   val assign: (D.t, G.t, C.t, V.t) ctx -> lval -> exp -> D.t
+
+  (** A transfer function used for declaring local variables.
+      By default only for variable-length arrays (VLAs). *)
   val vdecl : (D.t, G.t, C.t, V.t) ctx -> varinfo -> D.t
+
+  (** A transfer function which handles conditional branching yielding the
+      truth value passed as a boolean argument *)
   val branch: (D.t, G.t, C.t, V.t) ctx -> exp -> bool -> D.t
+
+  (** A transfer function which handles going from the start node of a function (fundec) into
+      its function body. Meant to handle, e.g., initialization of local variables *)
   val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
+
+  (** A transfer function which handles the return statement, i.e.,
+      "return exp" or "return" in the passed function (fundec) *)
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
+
+  (** A transfer function meant to handle inline assembler program points *)
   val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  (** A transfer function which works as the identity function, i.e., it skips and does nothing.
+      Used for empty loops. *)
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
-
+  (** A transfer function which, for a call to a {e special} function f "lval = f(args)" or "f(args)",
+      computes the caller state after the function call *)
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
+
+  (** For a function call "lval = f(args)" or "f(args)",
+      [enter] returns a caller state, and the initial state of the callee.
+      In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
+      will compute the caller state after the function call, given the return state of the callee *)
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
 
   (* Combine is split into two steps: *)

@@ -4,7 +4,7 @@
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module VarinfoSet = SetDomain.Make(CilType.Varinfo)

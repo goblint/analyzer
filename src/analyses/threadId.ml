@@ -1,9 +1,8 @@
 (** Current thread ID analysis. *)
 
-module GU = Goblintutil
 module LF = LibraryFunctions
 
-open Prelude.Ana
+open Batteries
 open Analyses
 open GobList.Syntax
 

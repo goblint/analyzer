@@ -2,7 +2,7 @@
     from a wrapper function all over the code. Currently handles the [malloc]-
     family of memory allocation functions, as well as [pthread_create] *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 open ThreadIdDomain
