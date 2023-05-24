@@ -10,7 +10,7 @@ int g;
 void* f1(void* ptr) {
     pthread_mutex_t* mut = (pthread_mutex_t*) ptr;
 
-    pthread_mutex_lock(mut); //WARN
+    pthread_mutex_lock(mut);
     pthread_mutex_lock(mut); //WARN
     pthread_mutex_unlock(mut);
     pthread_mutex_unlock(mut);
@@ -31,7 +31,7 @@ int main(int argc, char const *argv[])
     pthread_create(&t1,NULL,f1,&mut);
 
 
-    pthread_mutex_lock(&mut); //WARN
+    pthread_mutex_lock(&mut);
     pthread_mutex_lock(&mut); //WARN
     pthread_mutex_unlock(&mut);
     pthread_mutex_unlock(&mut);
