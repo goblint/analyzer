@@ -408,7 +408,8 @@ sig
   (** A transfer function meant to handle inline assembler program points *)
   val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
 
-  (* A transfer function which works as the identity function, i.e., it skips and does nothing *)
+  (** A transfer function which works as the identity function, i.e., it skips and does nothing.
+      Used for empty loops. *)
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
   (** A transfer function which, for a call to a _special_ function f "lval = f(args)" or "f(args)",
