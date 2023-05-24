@@ -19,7 +19,11 @@ struct
     else
       D.add l ctx.local
 
-  let remove ctx l = D.remove l ctx.local
+  let remove ctx l =
+    if D.mem l ctx.local then
+      D.remove l ctx.local
+    else
+      (M.warn "Releasing a mutex that is definitely not held"; ctx.local)
 end
 
 module Spec =
