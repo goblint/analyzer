@@ -9,7 +9,11 @@ char* hello_world() {
 }
 
 void id(char* s) {
-    strcpy(s, s); // should warn
+    #ifdef __APPLE__
+        *0;
+    #else
+        strcpy(s, s); // WARN
+    #endif
 }
 
 int main() {
@@ -33,7 +37,7 @@ int main() {
     i = strcmp(s1, s2);
     __goblint_check(i < 0);
 
-    i = strcmp(s2, "abcdfg");
+    i = strcmp(s2, "abcdfg"); // WARN
     __goblint_check(i == 0);
 
     char* cmp = strstr(s1, "bcd");
@@ -59,20 +63,40 @@ int main() {
 
     i = strncmp(s1, s2, 5);
     __goblint_check(i != 0);
-    
-    #ifdef __APPLE__
-        /* the following portion fails on macOS because of a spurious warning:
-         * see issue goblint/cil#143
-         *
-         * remove #ifdef portion and change "should warn" to normal warning as soon as issue fixed */
-    #else
-        id(s2);
 
-        strcpy(s1, "hi"); // should warn
-        strncpy(s1, "hi", 1); // should warn
-        strcat(s1, "hi"); // should warn
-        strncat(s1, "hi", 1); // should warn
-    
+    /* the following portion fails on macOS because of a spurious warning:
+     * see issue goblint/cil#143
+     *
+     * remove #ifdef portions as soon as issue fixed */
+    id(s2);
+
+    #ifdef __APPLE__
+        *0;
+    #else
+        strcpy(s1, "hi"); // WARN
+    #endif
+
+    #ifdef __APPLE__
+        *0;
+    #else
+        strncpy(s1, "hi", 1); // WARN
+    #endif
+
+    #ifdef __APPLE__
+        *0;
+    #else
+        strcat(s1, "hi"); // WARN
+    #endif
+
+    #ifdef __APPLE__
+        *0;
+    #else
+        strncat(s1, "hi", 1); // WARN
+    #endif
+        
+    #ifdef __APPLE__
+        // do nothing => no warning
+    #else  
         char s4[] = "hello";
         strcpy(s4, s2); // NOWARN
         strncpy(s4, s3, 2); // NOWARN
