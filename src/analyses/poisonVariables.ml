@@ -1,4 +1,4 @@
-(** Taint analysis of variables modified between [setjmp] and [longjmp] ([poisonVariables]). *)
+(** Taint analysis of variables that were modified between [setjmp] and [longjmp] and not yet overwritten. ([poisonVariables]). *)
 
 open Batteries
 open GoblintCil
