@@ -1,4 +1,4 @@
-(** Thread-modular value analysis utilities. *)
+(** Thread-modular value analysis utilities for {!BasePriv} and {!RelationPriv}. *)
 
 open Batteries
 open GoblintCil

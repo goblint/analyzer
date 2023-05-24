@@ -1,4 +1,4 @@
-(** Construction of ARGs from constraint system solutions. *)
+(** Construction of {{!MyArg} ARGs} from constraint system solutions. *)
 
 open MyCFG
 
