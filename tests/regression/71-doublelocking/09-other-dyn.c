@@ -12,15 +12,27 @@ void* f1(void* ptr) {
 
     pthread_mutex_lock(mut);
     pthread_mutex_lock(mut); //WARN
-    pthread_mutex_unlock(mut);
-    pthread_mutex_unlock(mut);
+
     return NULL;
 }
+
+
+void* f2(void* ptr) {
+    pthread_mutex_t* mut = (pthread_mutex_t*) ptr;
+
+    pthread_mutex_lock(mut);
+    pthread_mutex_unlock(mut);
+
+    // To check that this is now actually removed from the may lockset
+    return NULL; //WARN
+}
+
 
 
 int main(int argc, char const *argv[])
 {
     pthread_t t1;
+    pthread_t t2;
     pthread_mutex_t mut;
 
     pthread_mutexattr_t attr;
@@ -33,11 +45,11 @@ int main(int argc, char const *argv[])
 
     pthread_mutex_lock(&mut);
     pthread_mutex_lock(&mut); //WARN
-    pthread_mutex_unlock(&mut);
-    pthread_mutex_unlock(&mut);
+
 
     pthread_join(t1, NULL);
 
+    pthread_create(&t2,NULL,f2,&mut);
 
     return 0;
 }
