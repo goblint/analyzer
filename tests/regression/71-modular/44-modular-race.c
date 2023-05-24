@@ -8,8 +8,6 @@ int write(int *p){
 }
 
 void *thread1(void *p){
-	// int *i = (int*) p;
-	// *i = 12;
 	write(p); // RACE
 	return NULL;
 }
