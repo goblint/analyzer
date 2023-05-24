@@ -405,7 +405,7 @@ sig
       "return exp" or "return" in the passed function (fundec) *)
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
 
-  (* A transfer function meant to handle inline assembler program points *)
+  (** A transfer function meant to handle inline assembler program points *)
   val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
 
   (* A transfer function which works as the identity function, i.e., it skips and does nothing *)
