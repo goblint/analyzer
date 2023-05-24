@@ -13,8 +13,10 @@
     "apron" : {
       "domain": "octagon",
       "threshold_widening": true,
-      "privatization": "mutex-meet-tid-cluster12",
       "strengthening": true
+    },
+    "relation" : {
+      "privatization": "mutex-meet-tid-cluster12"
     },
     "activated": [
       "base",
@@ -24,8 +26,11 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
+      "mhp",
+      "assert",
       "var_eq",
       "symb_locks",
       "region",

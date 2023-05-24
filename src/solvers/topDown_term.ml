@@ -1,6 +1,6 @@
 (** Top down solver. *)
 
-open Prelude
+open Batteries
 open Analyses
 open Constraints
 open Messages
@@ -20,7 +20,7 @@ module WP =
 
     type phase = Widen | Narrow
 
-    let solve box st vs =
+    let solve st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
       let called = HM.create  10 in

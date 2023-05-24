@@ -1,6 +1,6 @@
 (** Thread creation and uniqueness analyses. *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module T  = ThreadIdDomain.Thread
@@ -8,7 +8,7 @@ module TS = ConcDomain.ThreadSet
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "thread"
   module D = ConcDomain.CreatedThreadSet
@@ -23,9 +23,7 @@ struct
   let should_join = D.equal
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
-  let body ctx (f:fundec) : D.t =  ctx.local
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
@@ -33,8 +31,6 @@ struct
       | _ -> ()
     end;
     ctx.local
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   let rec is_not_unique ctx tid =
     let (rep, parents, _) = ctx.global tid in
@@ -51,16 +47,16 @@ struct
     match desc.special arglist with
     | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
-      (* TODO: elements might throw an exception *)
-      let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
-      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
-      let join_thread s tid =
-        if has_clean_exit tid && not (is_not_unique ctx tid) then
-          D.remove tid s
-        else
-          s
-      in
-      List.fold_left join_thread ctx.local threads
+      (let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
+       let join_thread s tid =
+         if has_clean_exit tid && not (is_not_unique ctx tid) then
+           D.remove tid s
+         else
+           s
+       in
+       match TS.elements (ctx.ask (Queries.EvalThread id)) with
+       | threads -> List.fold_left join_thread ctx.local threads
+       | exception SetDomain.Unsupported _ -> ctx.local)
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -71,10 +67,12 @@ struct
         | `Lifted tid -> not (is_not_unique ctx tid)
         | _ -> false
       end
-    | Queries.MustBeSingleThreaded -> begin
+    | Queries.MustBeSingleThreaded {since_start = false} -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
-        | `Lifted tid when T.is_main tid -> D.is_empty ctx.local
+        | `Lifted tid when T.is_main tid ->
+          (* This analysis cannot tell if we are back in single-threaded mode or never left it. *)
+          D.is_empty ctx.local
         | _ -> false
       end
     | _ -> Queries.Result.top q

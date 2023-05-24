@@ -7,7 +7,7 @@ conf=$base/$test.json
 patch1=$base/${test}_1.patch
 patch2=$base/${test}_2.patch
 
-args="--enable dbg.debug --enable dbg.timing.enabled -v"
+args="--enable warn.debug --enable dbg.timing.enabled -v"
 
 cat $source
 

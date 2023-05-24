@@ -19,7 +19,7 @@ struct
   let nil: _ t = fun x k ->
     match x with
     | [] -> k
-    | _ -> fail "nil"
+    | _ -> fail "Library function is called with more arguments than expected."
 
   let ( ^:: ) (p1: _ t) (p2: _ t): _ t = fun x k ->
     match x with

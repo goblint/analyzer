@@ -22,19 +22,6 @@ struct
     incr next_tef_pid;
     tef_pid
 
-  let start options' =
-    options := options';
-    if !options.tef then (
-      (* Override TEF process and thread name for track rendering. *)
-      Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~cat:["__firefox_profiler_hack__"] ~args:[("name", `String Name.name)] Catapult.Event_type.M;
-      (* First event must have category, otherwise Firefox Profiler refuses to open. *)
-      Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
-    );
-    enabled := true
-
-  let stop () =
-    enabled := false
-
   let create_tree name =
     {
       name = name;
@@ -76,21 +63,35 @@ struct
     }
 
   (** Stack of currently active timing frames. *)
-  let current: frame Stack.t =
-    let current = Stack.create () in
-    Stack.push
-      {
-        tree = root;
-        start_cputime = current_cputime ();
-        start_walltime = current_walltime ();
-        start_allocated = current_allocated ()
-      } current;
-    (* TODO: root frame should actually be created after {!start}, otherwise options are wrong in {!create_frame} *)
-    (* Stack.push (create_frame root) current; *)
-    current
+  let current: frame Stack.t = Stack.create ()
 
   let reset () =
-    root.children <- [] (* TODO: reset cputime, etc? *)
+    (* Reset tree. *)
+    root.cputime <- 0.0;
+    root.walltime <- 0.0;
+    root.allocated <- 0.0;
+    root.count <- 0;
+    root.children <- [];
+    (* Reset frames. *)
+    if not (Stack.is_empty current) then ( (* If ever started. In case reset before first start. *)
+      Stack.clear current;
+      Stack.push (create_frame root) current
+    )
+
+  let start options' =
+    options := options';
+    if !options.tef then (
+      (* Override TEF process and thread name for track rendering. *)
+      Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~cat:["__firefox_profiler_hack__"] ~args:[("name", `String Name.name)] Catapult.Event_type.M;
+      (* First event must have category, otherwise Firefox Profiler refuses to open. *)
+      Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
+    );
+    enabled := true;
+    if Stack.is_empty current then (* If never started. *)
+      Stack.push (create_frame root) current
+
+  let stop () =
+    enabled := false
 
   let enter ?args name =
     (* Find the right tree. *)

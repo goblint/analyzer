@@ -1,4 +1,5 @@
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open LocalTraces
 open AuxiliaryClasses
@@ -11,7 +12,7 @@ struct
   include Analyses.DefaultSpec
   module D = GraphSet
 
-  module C = Lattice.Unit 
+  module C = Lattice.Unit
 
   (* side effect components *)
   module V = SideEffectDomain
@@ -23,14 +24,14 @@ struct
      This helper-function utilizes modules D and V, therefore it is not moved into 'locTraceHelper.ml' *)
   let rec create_local_assignments graphList globals ctx =
     let rec loop global graphList acc =
-      match graphList with 
+      match graphList with
       |  graph::gs ->
         let lastNode = LocalTraces.get_last_node graph
         in
         let localGlobalVar = customVinfoStore#getLocalVarinfo (make_custom_local_varinfo_name global) global.vtype
 
-        in 
-        let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock" 
+        in
+        let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock"
         in
         let unlockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_unlock"
         in
@@ -47,28 +48,28 @@ struct
         let myTmp:V.t = Mutex(customMutex)
         in
         let allUnlockingTraces = ctx.global myTmp
-        in 
+        in
         let firstNode = LocalTraces.get_first_node graph
         in
         let firstLockEdge:node*CustomEdge.t*node =(firstNode, DepMutex(customMutex),lockedNode)
         in
         let lockedGraph = LocalTraces.extend_by_gEdge graph lockingEdge
-        in 
+        in
         let firstLockedGraph = if (NodeImpl.equal firstNode lastNode) then lockedGraph
           else if (LocalTraces.exists_unlock_mutex graph customMutex)
-          then add_dependency_from_last_unlock lockedGraph customMutex 
+          then add_dependency_from_last_unlock lockedGraph customMutex
           else if not (LocalTraces.exists_lock_mutex graph customMutex) then  LocalTraces.extend_by_gEdge lockedGraph firstLockEdge
           else lockedGraph (* This case happens if lock(m) is executed consecutively. Should I support that? *)
         in
         print_string ("firstLockedGraph="^(LocalTraces.show firstLockedGraph)^"\n");
-        let lockedGraphList = 
+        let lockedGraphList =
           firstLockedGraph::(mutexLock_join allUnlockingTraces lockedGraph lastNode lockingLabel lockedNode customMutex)
         in
-        let graphList = List.fold (fun resultGraphList lockedGraph -> 
+        let graphList = List.fold (fun resultGraphList lockedGraph ->
             let sigmaList,success_inner, _ = eval_wrapper lockedNode.sigma localGlobalVar (Lval(Var(global),NoOffset)) lockedGraph lockedNode true
             in
-            (List.fold (fun sigma_graphList evaluated -> 
-                 let assignedNode = {programPoint=ctx.prev_node;sigma=evaluated;id=(idGenerator#getID lockedNode 
+            (List.fold (fun sigma_graphList evaluated ->
+                 let assignedNode = {programPoint=ctx.prev_node;sigma=evaluated;id=(idGenerator#getID lockedNode
                                                                                       (Assign((Var(localGlobalVar),NoOffset),Lval(Var(global), NoOffset))) ctx.prev_node evaluated lastNode.tid lvalLockedLs);tid=lastNode.tid;lockSet=lvalLockedLs}
                  in
                  let assigningEdge:(node * CustomEdge.t * node) =  (lockedNode, (Assign((Var(localGlobalVar),NoOffset),Lval(Var(global), NoOffset))), assignedNode)
@@ -94,7 +95,7 @@ struct
         graphList@acc
       | [] -> acc
     in
-    match globals with global::xs -> 
+    match globals with global::xs ->
       create_local_assignments (loop global graphList []) xs ctx
                      | [] -> graphList
 
@@ -112,9 +113,9 @@ struct
 
   (* ASSIGN helper functions *)
   (* perform assign-effect on given node *)
-  let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} = 
-    (match lval with (Var x, _) -> 
-       let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock" 
+  let assign_on_node graph ctx lval rval {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} =
+    (match lval with (Var x, _) ->
+       let lockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_lock"
        in
        let unlockVarinfo = customVinfoStore#getGlobalVarinfo "pthread_mutex_unlock"
        in
@@ -127,8 +128,8 @@ struct
              (
                let lastNode = LocalTraces.get_last_node graph_outter
                in
-               let sigmaList,success_inner, newExp = eval_wrapper lastNode.sigma x rval  graph_outter lastNode true in 
-               if not success_inner then (print_string "assignment did not succeed!\n"; 
+               let sigmaList,success_inner, newExp = eval_wrapper lastNode.sigma x rval  graph_outter lastNode true in
+               if not success_inner then (print_string "assignment did not succeed!\n";
                                           [LocalTraces.extend_by_gEdge graph_outter (lastNode,Assign(lval, newExp),{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})] )
                else
                  (List.fold ( fun outerGraphList evaluated ->
@@ -145,12 +146,12 @@ struct
                         in
                         let lockingEdge = (lastNode,EdgeImpl.convert_edge lockingLabel,lockedNode)
                         in
-                        let lockedGraph = LocalTraces.extend_by_gEdge graph_outter lockingEdge  
+                        let lockedGraph = LocalTraces.extend_by_gEdge graph_outter lockingEdge
                         in
                         let myTmp:V.t = Mutex(customMutex)
                         in
                         let allUnlockingTraces = ctx.global myTmp
-                        in 
+                        in
                         let firstNode = LocalTraces.get_first_node graph_outter
                         in
                         print_string ("In assign, firstNode is "^(NodeImpl.show firstNode)^" for graph_outter "^(LocalTraces.show graph_outter)^"\n");
@@ -158,19 +159,19 @@ struct
                         in
                         let firstLockedGraph = if (NodeImpl.equal firstNode lastNode) then lockedGraph
                           else if (LocalTraces.exists_unlock_mutex graph_outter customMutex)
-                          then add_dependency_from_last_unlock lockedGraph customMutex 
+                          then add_dependency_from_last_unlock lockedGraph customMutex
                           else if not (LocalTraces.exists_lock_mutex graph_outter customMutex) then LocalTraces.extend_by_gEdge lockedGraph firstLockEdge
                           else lockedGraph
-                        in 
+                        in
                         print_string ("firstLockedGraph="^(LocalTraces.show firstLockedGraph)^"\n");
-                        let lockedGraphList = 
+                        let lockedGraphList =
                           firstLockedGraph::(mutexLock_join allUnlockingTraces lockedGraph lastNode lockingLabel lockedNode customMutex)
                         in
-                        let graphList = List.fold (fun resultGraphList lockedGraph -> 
-                            let assignedNode = {programPoint=ctx.node;sigma=newSigma;id=(idGenerator#getID lockedNode 
+                        let graphList = List.fold (fun resultGraphList lockedGraph ->
+                            let assignedNode = {programPoint=ctx.node;sigma=newSigma;id=(idGenerator#getID lockedNode
                                                                                            (Assign(lval,newExp)) ctx.node newSigma tid lvalLockedLs);tid=tid;lockSet=lvalLockedLs}
                             in
-                            let assigningEdge:(node * CustomEdge.t * node) = 
+                            let assigningEdge:(node * CustomEdge.t * node) =
                               (lockedNode, (Assign(lval,newExp)), assignedNode)
                             in
                             let assignedGraph = LocalTraces.extend_by_gEdge lockedGraph assigningEdge
@@ -207,7 +208,7 @@ struct
 
   (* iterate over the graphs in previous state *)
   let assign_fold_graphSet graph (lval, rval, ctx,set_acc) =
-    let lastNode = 
+    let lastNode =
       if (LocTraceGraph.is_empty graph)&&(match lval with (Var x, _) -> x.vglob | _ -> false) then
         (
           tidRecord#addTID 1;
@@ -215,10 +216,10 @@ struct
         )
       else LocalTraces.get_last_node_progPoint graph ctx.prev_node
     in
-    let new_set = 
+    let new_set =
       (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In assign, we have a trace that does not end in previous node:
-    "^(LocalTraces.show graph)^"\n"); set_acc) else 
-         let result_graphList = 
+    "^(LocalTraces.show graph)^"\n"); set_acc) else
+         let result_graphList =
            assign_on_node (if LocTraceGraph.is_empty graph then (LocTraceGraph.add_vertex graph lastNode) else graph) ctx lval rval lastNode
          in
          List.fold (fun set_fold result_graph -> if (LocalTraces.equal graph result_graph)  then set_acc else D.add result_graph set_fold) set_acc result_graphList
@@ -226,7 +227,7 @@ struct
     in
     (lval, rval, ctx, new_set)
 
-  let assign ctx (lval:lval) (rval:exp) : D.t = 
+  let assign ctx (lval:lval) (rval:exp) : D.t =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect assign was invoked with lval "^(CilType.Lval.show lval)^" and rval "^(CilType.Exp.show rval)^" and ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
     print_string("in assign, ctx.local=["^(D.fold (fun graph acc -> (LocalTraces.show graph)^"\n"^acc) ctx.local "")^"]\n");
@@ -241,18 +242,18 @@ struct
     in print_string ("in branch, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
     let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx
     in
-    List.fold (fun resultList_outter graph_outter -> 
+    List.fold (fun resultList_outter graph_outter ->
         (
           let lastNode = LocalTraces.get_last_node graph_outter
           in
-          let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error lastNode.sigma 
+          let branch_sigma = SigmaMap.add LocalTraces.branch_vinfo Error lastNode.sigma
           in
           let sigmaList,success, newExp = eval_wrapper branch_sigma LocalTraces.branch_vinfo exp graph_outter lastNode tv
           in
           List.map (fun sigma_map ->
               let result_as_int = match (SigmaMap.find_default Error LocalTraces.branch_vinfo sigma_map) with
                   Int(i1,i2,_) -> print_string ("in branch, the result is ["^(Big_int_Z.string_of_big_int i1)^";"^(Big_int_Z.string_of_big_int i2)^"]");
-                  if (Big_int_Z.int_of_big_int i1 == 0)&&(Big_int_Z.int_of_big_int i2 == 0) then 0 
+                  if (Big_int_Z.int_of_big_int i1 == 0)&&(Big_int_Z.int_of_big_int i2 == 0) then 0
                   else if (Big_int_Z.int_of_big_int i1 > 0)||(Big_int_Z.int_of_big_int i2 < 0) then 1
                   else -1
                 |_ -> -1
@@ -264,7 +265,7 @@ struct
                                                    {programPoint=ctx.node;sigma=sigmaNew;id=(idGenerator#getID lastNode (Test(newExp, tv)) ctx.node sigmaNew tid ls);tid=tid;lockSet=ls})
               in
               print_string ("success="^(string_of_bool success)^", tv="^(string_of_bool tv)^", result_as_int="^(string_of_int result_as_int)^"\nand possible edge="^(LocalTraces.show_edge myEdge)^"\n");
-              let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0)) 
+              let result_graph = if success&&((tv=true && result_as_int = 1)||(tv=false&&result_as_int=0))
                 then LocalTraces.extend_by_gEdge graph_outter myEdge else (print_string "no edge added for current sigma in branch\n";graph)
               in
               result_graph
@@ -279,7 +280,7 @@ struct
     let new_set =
       (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In branch, we have a trace that does not end in previous node:
   "^(LocalTraces.show graph)^"\n"); set_acc) else
-         let result_graphList = 
+         let result_graphList =
            branch_on_node graph ctx exp tv lastNode
          in
          List.fold (fun set_fold result_graph -> if (LocalTraces.equal graph result_graph) then set_fold else D.add result_graph set_fold) set_acc result_graphList
@@ -287,7 +288,7 @@ struct
     in
     (exp, tv, ctx, new_set)
 
-  let branch ctx (exp:exp) (tv:bool) : D.t = 
+  let branch ctx (exp:exp) (tv:bool) : D.t =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect branch was invoked with exp="^(CilType.Exp.show exp)^" and tv="^(string_of_bool tv)^" and ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
     let _, _, _, result =
@@ -308,7 +309,7 @@ struct
     let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
     in
     let new_set = (if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In body, we have a trace that does not end in previous node:
-    "^(LocalTraces.show graph)^"\n");if LocTraceGraph.is_empty graph 
+    "^(LocalTraces.show graph)^"\n");if LocTraceGraph.is_empty graph
                                                                                     then(
                                                                                       let first_ID = idGenerator#increment()
                                                                                       in
@@ -317,14 +318,14 @@ struct
                                                                                       tidRecord#addTID first_ID;
                                                                                       D.add (LocalTraces.extend_by_gEdge graph ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id= first_ID;tid=first_ID;lockSet=VarinfoSet.empty},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=SigmaMap.empty; id= second_ID;tid=first_ID;lockSet=VarinfoSet.empty})) set_acc)
                                                                                     else set_acc) else
-                     let result_graph = 
+                     let result_graph =
                        body_on_node graph ctx lastNode
                      in
                      D.add result_graph set_acc)
     in
     (ctx, new_set)
 
-  let body ctx (f:fundec) : D.t = 
+  let body ctx (f:fundec) : D.t =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect body was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
     let _, result =
@@ -336,7 +337,7 @@ struct
   (* perform return-effect on given node *)
   let return_on_node graph ctx exp {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} (f:fundec) =
     let result_graphList =
-      match exp with 
+      match exp with
       | None ->  let myEdge =  print_string "In return case None\n";
                    ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls})
         in
@@ -350,7 +351,7 @@ struct
             let ctxGlobalTid = ctx.global myTmp
             in
             ctx.sideg myTmp (D.add result_graph ctxGlobalTid)
-          | _ -> () 
+          | _ -> ()
         );
         [result_graph]
       | Some(ret_exp) -> (  ( print_string ("return expression: "^(CilType.Exp.show ret_exp)^"\n");
@@ -358,7 +359,7 @@ struct
                               | CastE(TPtr(TVoid(_), attrList2),Const(CInt(cilint,IInt,_))) ->
                                 let myEdge =
                                   if Cilint.is_zero_cilint cilint then (
-                                    {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls}) 
+                                    {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls},(EdgeImpl.convert_edge ctx.edge),{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls})
                                   else (print_string "In return, unsupported expression\n"; exit 0)
                                 in
                                 let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -371,10 +372,10 @@ struct
                                     let ctxGlobalTid = ctx.global myTmp
                                     in
                                     ctx.sideg myTmp (D.add result_graph ctxGlobalTid)
-                                  | _ -> () 
+                                  | _ -> ()
                                 );
                                 [result_graph]
-                              | _ -> 
+                              | _ ->
                                 let rvalGlobals = get_all_globals ret_exp VarinfoSet.empty
                                 in print_string ("in return, rvalGlobals =["^(NodeImpl.show_lockSet rvalGlobals)^"]\n");
                                 let someTmp = create_local_assignments [graph] (VarinfoSet.to_list rvalGlobals) ctx
@@ -382,10 +383,10 @@ struct
                                 let outterResultList = List.fold ( fun resultList_outter graph_outter ->
                                     (
                                       let lastNode = LocalTraces.get_last_node graph_outter
-                                      in  
+                                      in
                                       let resultList, success, newExp = eval_wrapper lastNode.sigma LocalTraces.return_vinfo ret_exp graph_outter lastNode true
                                       in
-                                      List.map (fun sigma_map -> 
+                                      List.map (fun sigma_map ->
                                           let newSigma = remove_global_locals_sigma sigma_map (VarinfoSet.to_list rvalGlobals)
                                           in
                                           let myEdge: node*CustomEdge.t*node =
@@ -403,7 +404,7 @@ struct
                                               let ctxGlobalTid = ctx.global myTmp
                                               in
                                               ctx.sideg myTmp (D.add result_graph ctxGlobalTid)
-                                            | _ -> () 
+                                            | _ -> ()
                                           );
                                           result_graph
                                         ) resultList )@resultList_outter
@@ -420,10 +421,10 @@ struct
   let return_fold_graphSet graph (f, exp, ctx,set_acc) =
     let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
     in
-    let new_set = 
+    let new_set =
       if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In return, we have a trace that does not end in previous node:
   "^(LocalTraces.show graph)^"\n"); set_acc) else
-        let result_graphList = 
+        let result_graphList =
           return_on_node graph ctx exp lastNode f
         in
         List.fold (fun set_fold result_graph -> D.add result_graph set_fold) set_acc result_graphList
@@ -431,11 +432,11 @@ struct
     in
     (f, exp, ctx, new_set)
 
-  let return ctx (exp:exp option) (f:fundec) : D.t = 
+  let return ctx (exp:exp option) (f:fundec) : D.t =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect return was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^"\n");
     let _, _, _, result = D.fold return_fold_graphSet ctx.local (f, exp, ctx, D.empty ())
-    in 
+    in
     result
 
   (* SPECIAL helper functions *)
@@ -469,9 +470,9 @@ struct
         in
         (* First lock is only added, if this is the first lock *)
         let firstLockedGraph = if LocalTraces.exists_unlock_mutex graph mutex_vinfo then
-            add_dependency_from_last_unlock lockedGraph mutex_vinfo 
-          else if not (LocalTraces.exists_lock_mutex graph mutex_vinfo) then 
-            ( 
+            add_dependency_from_last_unlock lockedGraph mutex_vinfo
+          else if not (LocalTraces.exists_lock_mutex graph mutex_vinfo) then
+            (
               LocalTraces.extend_by_gEdge lockedGraph firstLockEdge)
           else lockedGraph
         in
@@ -498,13 +499,13 @@ struct
         [result_graph])
 
     | ThreadJoin { thread = tidExp; ret_var }, _ ->
-      let myTmp = (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExp)^" and ret_var="^(CilType.Exp.show ret_var)^"\n"); 
+      let myTmp = (print_string ("We found a pthread_join in special with tidExp="^(CilType.Exp.show tidExp)^" and ret_var="^(CilType.Exp.show ret_var)^"\n");
                    let special_varinfo = makeVarinfo false "__goblint__traces__special" (TInt(IInt,[]))
                    in
                    let tidSigmaList, success, newExp = eval_wrapper sigma special_varinfo tidExp graph {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} true
                    in if not success then (Printf.printf "Error: could not evaluate argument of pthread_join in special\n"; exit 0);
-                   List.fold (fun graphList tidSigma -> 
-                       let tidJoin = 
+                   List.fold (fun graphList tidSigma ->
+                       let tidJoin =
                          match SigmaMap.find special_varinfo tidSigma with
                            Int(l,u,_) -> if l = u then Big_int_Z.int_of_big_int l (* TODO iterate over interval or pick a few values *) else (Printf.printf "Intervals for pthread_join is not supported in special\n"; exit 0)
                          | ThreadID(tid_find) -> tid_find
@@ -514,11 +515,11 @@ struct
                          Messages.warn "ThreadJoin on already joined Thread-ID";
                          omitPostSolving#setFlag ();
                          print_string ("ThreadJoin did not succeed due to already joined TID for graph: \n"^(LocalTraces.show graph)^"\nand tidJoin: "^(string_of_int tidJoin)^"\n");
-                         let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) 
+                         let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})
                          in
                          graph_error_edge::graphList
                        )
-                       else 
+                       else
                          let myTmp:V.t = ThreadID(tidJoin)
                          in
                          let endingTraces = graphSet_to_list (ctx.global myTmp)
@@ -529,16 +530,16 @@ struct
                          if not (tidRecord#existsTID tidJoin) then (
                            Messages.warn "ThreadJoin on non-existent Thread-ID";
                            omitPostSolving#setFlag ();
-                           let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}) 
+                           let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})
                            in
                            print_string("In ThreadJoin, we add an error-trace with endingTraces:\n
 ["^(List.fold (fun s_fold graph_fold -> (LocalTraces.show graph_fold)^";\n"^s_fold) "" endingTraces)^"]\n");
                            graph_error_edge::graphList
                          )
-                         else if List.is_empty joinableTraces then 
+                         else if List.is_empty joinableTraces then
                            (* we cannot join *)
                            graphList
-                         else 
+                         else
                            (
                              print_string ("in special, joinable traces for tidJoin "^(string_of_int tidJoin)^" are: ["^(List.fold (fun acc g -> acc^(LocalTraces.show g)) "" joinableTraces)^"]\n");
                              List.fold (
@@ -557,7 +558,7 @@ struct
                                  ((tmp_graph_edge2)::list_fold)
                              ) [] joinableTraces)@graphList
                      ) [] tidSigmaList)
-      in 
+      in
       print_string("Before ThreadJoin, we had:\n
 "^(LocalTraces.show graph)^"\n
 and after, we have:
@@ -566,7 +567,7 @@ and after, we have:
 
     | ThreadCreate {thread = tidExp;start_routine=start_routine;arg=arg_create}, _ ->  print_string ("We found a pthread_create in special\n"); [graph]
 
-    | ThreadExit _, _ -> print_string "In special, I reached ThreadExit\n"; 
+    | ThreadExit _, _ -> print_string "In special, I reached ThreadExit\n";
       let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls})
       in
       let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -577,16 +578,16 @@ and after, we have:
       in
       ctx.sideg myTmp (D.add result_graph ctxGlobalTid); [result_graph]
 
-    | _ -> 
-      if String.equal f.vname "pthread_mutex_destroy" 
-      then (print_string ("In special, we found pthread_mutex_destroy 
+    | _ ->
+      if String.equal f.vname "pthread_mutex_destroy"
+      then (print_string ("In special, we found pthread_mutex_destroy
     with arglist: "^(List.fold (fun acc_fold arg_fold -> (CilType.Exp.show arg_fold)^"; "^acc_fold) "" arglist)^"\n");
-            match arglist with [AddrOf(Var(argVinfo),_)] -> if VarinfoSet.mem argVinfo ls 
+            match arglist with [AddrOf(Var(argVinfo),_)] -> if VarinfoSet.mem argVinfo ls
               then ( Messages.warn "mutex_destroy on locked mutex";
                      omitPostSolving#setFlag ();
                      let graph_error_edge = LocalTraces.extend_by_gEdge graph ({programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=LocalTraces.error_node ;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty})
                      in
-                     [graph_error_edge]) 
+                     [graph_error_edge])
               else (let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls})
                     in
                     let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -595,7 +596,7 @@ and after, we have:
                              | _ -> Printf.printf "Error: wrong amount of arguments for pthread_mutex_destroy in special\n"; exit 0)
 
       else if String.equal f.vname "rand" then (
-        match lval with 
+        match lval with
         | Some(Var(var), NoOffset) ->
           let randomValue = Big_int_Z.big_int_of_int (randomIntGenerator#getRandomValueFullCInt (LocalTraces.hash graph) var )
           in
@@ -610,7 +611,7 @@ and after, we have:
         | _ -> print_string "In special, lval for rand is not suitable\n"; exit 0
       )
       else
-        (print_string ("This edge is not one of my considered special functions\n"); 
+        (print_string ("This edge is not one of my considered special functions\n");
          let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls})
          in
          let result_graph = LocalTraces.extend_by_gEdge graph myEdge
@@ -623,15 +624,15 @@ and after, we have:
     in
     let new_set =
       if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In special, we have a trace that does not end in previous node:
-    "^(LocalTraces.show graph)^"\n"); set_acc) else 
-        let result_graph = 
+    "^(LocalTraces.show graph)^"\n"); set_acc) else
+        let result_graph =
           special_on_node graph ctx lastNode f arglist lval
         in
         List.fold (fun set_fold graph_fold -> D.add graph_fold set_fold) set_acc result_graph
     in
     (lval, f, arglist, ctx, new_set)
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = 
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect special was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" und ctx.node "^(Node.show ctx.node)^" and ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" und f "^(CilType.Varinfo.show f)^"\n");
     let _, _, _, _, result =   D.fold special_fold_graphSet ctx.local (lval, f, arglist, ctx, D.empty ())
@@ -658,15 +659,15 @@ and after, we have:
         (
           let lastNode = LocalTraces.get_last_node graph_outter
           in
-          let sigma_formalList, _, newExpList = List.fold ( 
-              fun (sigAcc, formalExp, expListAcc) formal -> (match formalExp with 
+          let sigma_formalList, _, newExpList = List.fold (
+              fun (sigAcc, formalExp, expListAcc) formal -> (match formalExp with
                   | x::xs -> (
                       let resultList, success, newExp = eval_wrapper lastNode.sigma formal x graph_outter lastNode true
-                      in if success = true 
+                      in if success = true
                       then (
-                        let varDomainList = List.fold (fun varDomList_fold sigma_fold -> (SigmaMap.find formal sigma_fold)::varDomList_fold) [] resultList  
+                        let varDomainList = List.fold (fun varDomList_fold sigma_fold -> (SigmaMap.find formal sigma_fold)::varDomList_fold) [] resultList
                         in
-                        (construct_sigma_combinations formal varDomainList sigAcc) , xs, newExp::expListAcc) 
+                        (construct_sigma_combinations formal varDomainList sigAcc) , xs, newExp::expListAcc)
                       else (sigAcc, xs, newExp::expListAcc)
                     )
                   | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
@@ -675,7 +676,7 @@ and after, we have:
           print_string ("sigma_formalList={"^(List.fold (fun s_fold sigma_fold -> (NodeImpl.show_sigma sigma_fold)^";"^s_fold) "" sigma_formalList)^"}\n");
           List.map (fun sigma_map ->
               print_string ("in enter_on_node, sigma_map="^(NodeImpl.show_sigma sigma_map)^"\n");
-              let newEdgeLabel:CustomEdge.t = match ctx.edge with Proc(lvalOp, fexp, _) -> print_string ("Edge is a Proc("^(CilType.Exp.show fexp)^") \n"); 
+              let newEdgeLabel:CustomEdge.t = match ctx.edge with Proc(lvalOp, fexp, _) -> print_string ("Edge is a Proc("^(CilType.Exp.show fexp)^") \n");
                 Proc(lvalOp, fexp, List.rev newExpList)
                                                                 | Skip -> Skip (* in case of main function *)
                                                                 | _ -> print_string ("Error: in enter, the edge label is not a function call (or skip); ctx.edge="^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"\n"); exit 0
@@ -695,7 +696,7 @@ and after, we have:
   let enter_fold_graphSet graph (f, args, ctx,set_acc) =
     let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
     in
-    let new_set = 
+    let new_set =
       if Node.equal lastNode.programPoint LocalTraces.error_node then (print_string ("In enter, we have a trace that does not end in previous node:
   "^(LocalTraces.show graph)^"\n"); set_acc) else
         let result_graphList =
@@ -705,7 +706,7 @@ and after, we have:
     in
     (f, args,ctx, new_set)
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = 
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect enter was invoked with function "^(CilType.Fundec.show f)^" with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
   with formals "^(List.fold (fun s sformal -> s^", "^(CilType.Varinfo.show sformal)) "" f.sformals)^" and arguments "^(List.fold (fun s exp -> s^", "^(CilType.Exp.show exp)) "" args)^"\n");
@@ -716,10 +717,10 @@ and after, we have:
       in
       [ctx.local, D.add (LocalTraces.extend_by_gEdge (LocTraceGraph.empty) ({programPoint=ctx.prev_node;sigma=SigmaMap.empty;id=first_ID;tid=first_ID;lockSet=VarinfoSet.empty}, (EdgeImpl.convert_edge ctx.edge), {programPoint=(FunctionEntry(f));sigma=SigmaMap.empty;id= second_ID;tid=first_ID;lockSet=VarinfoSet.empty})) (D.empty ())] )
     else
-      let _, _, _, result = print_string ("In enter, neuer state wird erstellt\n mit ctx.local: "^(D.show ctx.local)^" und |ctx.local| = "^(string_of_int (D.cardinal ctx.local))^"\n"); 
+      let _, _, _, result = print_string ("In enter, neuer state wird erstellt\n mit ctx.local: "^(D.show ctx.local)^" und |ctx.local| = "^(string_of_int (D.cardinal ctx.local))^"\n");
         D.fold enter_fold_graphSet ctx.local (f, args, ctx, D.empty ())
       in
-      [ctx.local, result]  
+      [ctx.local, result]
 
   (* COMBINE helper functions *)
   (* perform combine-effect on node *)
@@ -731,14 +732,14 @@ and after, we have:
     let newSigma = remove_global_locals_sigma sigma (VarinfoSet.to_list rvalGlobals)
     in
     if tid != tid_returning then (Printf.printf "TIDs from current node and found returning node are different in combine\n"; exit 0);
-    let (myEdge:(node * CustomEdge.t * node)) = 
-      (match lval with None -> 
+    let (myEdge:(node * CustomEdge.t * node)) =
+      (match lval with None ->
          {programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning;lockSet=ls_returning},Skip,
          {programPoint=ctx.node;sigma=newSigma; id=(idGenerator#getID {programPoint=programPoint;sigma=newSigma;id=id;tid=tid_returning; lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node newSigma tid_returning (VarinfoSet.union ls_returning ls));tid=tid_returning;lockSet=(VarinfoSet.union ls_returning ls)}
-                     |Some (Var x, y) ->  if x.vglob 
-                       then 
-                         ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning;lockSet=ls_returning},Assign((Var(x), y), 
-                                                                                                                                             (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=newSigma; id=(idGenerator#getID {programPoint=programPoint;sigma=newSigma;id=id;tid=tid_returning;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node newSigma tid_returning (VarinfoSet.union ls_returning ls));tid=tid_returning;lockSet=(VarinfoSet.union ls_returning ls)}) 
+                     |Some (Var x, y) ->  if x.vglob
+                       then
+                         ({programPoint=progP_returning;sigma=sigma_returning;id=id_returning;tid=tid_returning;lockSet=ls_returning},Assign((Var(x), y),
+                                                                                                                                             (Lval(Var(LocalTraces.return_vinfo),NoOffset))),{programPoint=ctx.node;sigma=newSigma; id=(idGenerator#getID {programPoint=programPoint;sigma=newSigma;id=id;tid=tid_returning;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node newSigma tid_returning (VarinfoSet.union ls_returning ls));tid=tid_returning;lockSet=(VarinfoSet.union ls_returning ls)})
                        else
                          (let return_value = SigmaMap.find LocalTraces.return_vinfo sigma_returning
                           in if equal_varDomain return_value Error then (print_string "In combine, a returning Error is assigned to some lval, this is not supported\n";exit 0) else
@@ -754,23 +755,23 @@ and after, we have:
   (* iterate over the graphs in previous state *)
   let combine_fold_graphSet graph (args, lval, callee_local, ctx,set_acc) =
     (* wir müssen schauen, ob ein returnender Knoten für irgendein ctx.prev_node ein last node ist*)
-    let lastGraphNode = LocalTraces.get_last_node graph 
-    in if Node.equal lastGraphNode.programPoint LocalTraces.error_node then (print_string "In combine, we have an empty graph\n"; (args, lval, callee_local, ctx,set_acc)) 
+    let lastGraphNode = LocalTraces.get_last_node graph
+    in if Node.equal lastGraphNode.programPoint LocalTraces.error_node then (print_string "In combine, we have an empty graph\n"; (args, lval, callee_local, ctx,set_acc))
     else (
-      let currentNode = 
+      let currentNode =
         LocalTraces.find_calling_node lastGraphNode graph ctx.prev_node
       in
-      let new_set = 
+      let new_set =
         (if Node.equal currentNode.programPoint LocalTraces.error_node then (print_string ("In combine, we could not find the calling node:
       "^(LocalTraces.show graph)^"\n"); set_acc) else
-           let result_graph= 
+           let result_graph=
              combine_on_node args ctx currentNode lastGraphNode callee_local lval graph
            in
            D.add result_graph set_acc)
       in
       (args, lval, callee_local, ctx, new_set))
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t = 
+  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) f_ask : D.t =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect combine was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^" and ctx.node "^(Node.show ctx.node)^", edge label "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^"
     and lval "^(match lval with None -> "None" | Some(l) -> CilType.Lval.show l)^" and fexp "^(CilType.Exp.show fexp)^"\n");
@@ -778,20 +779,22 @@ and after, we have:
       D.fold combine_fold_graphSet callee_local (args, lval, callee_local, ctx, D.empty ())
     in result
 
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) f_ask : D.t = ctx.local
+
   (* THREADENTER helper functions *)
   (* perform threadenter-effect on node *)
   let threadenter_on_node graph ctx f args {programPoint=programPoint;id=id;sigma=sigma;tid=tid;lockSet=ls} =
     match Cilfacade.find_varinfo_fundec f with
     | fd -> print_string ("fd.sformals ={"^(List.fold (fun acc_fold formal_fold -> acc_fold^(CilType.Varinfo.show formal_fold)^"; ") "" fd.sformals )^"}\n");
-      ( let sigma_formals, _ = 
+      ( let sigma_formals, _ =
           List.fold (
-            fun (sigAcc, formalExp) formal -> (match formalExp with 
-                | CastE(TPtr(TVoid(_), attrList2),CastE(TPtr(TVoid(_), _),Const(CInt(cilint,IInt,_))))::xs -> if Cilint.is_zero_cilint cilint 
-                  then (SigmaMap.empty, xs) 
+            fun (sigAcc, formalExp) formal -> (match formalExp with
+                | CastE(TPtr(TVoid(_), attrList2),CastE(TPtr(TVoid(_), _),Const(CInt(cilint,IInt,_))))::xs -> if Cilint.is_zero_cilint cilint
+                  then (SigmaMap.empty, xs)
                   else (print_string "Inputs for threads is not yet supported\n"; exit 0)
                 | x::xs -> (print_string "Inputs for threads is not yet supported\n"; exit 0)
                 | [] -> Printf.printf "Fatal error: missing expression for formals in enter\n"; exit 0)
-          ) (sigma, args) fd.sformals 
+          ) (sigma, args) fd.sformals
         in print_string ("sigma_formals: "^(NodeImpl.show_sigma sigma_formals)^"\n");
         let new_id = idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma_formals id VarinfoSet.empty
         in
@@ -810,8 +813,8 @@ and after, we have:
   let threadenter_fold_graphSet graph (args, f, ctx,set_acc) =
     let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
     in
-    let new_set = 
-      if Node.equal lastNode.programPoint LocalTraces.error_node 
+    let new_set =
+      if Node.equal lastNode.programPoint LocalTraces.error_node
       then (print_string ("In threadenter, we have a trace that does not end in previous node:
    "^(LocalTraces.show graph)^"\n"); set_acc) else(
         let result_graph = threadenter_on_node graph ctx f args lastNode
@@ -820,7 +823,7 @@ and after, we have:
     in
     (args, f, ctx, new_set)
 
-  let threadenter ctx lval f (args:exp list) = 
+  let threadenter ctx lval f (args:exp list) =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect threadenter was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" and ctx.node "^(Node.show ctx.node)^"
     , lval "^(match lval with None -> "None" |Some(l) -> CilType.Lval.show l)^"
@@ -837,17 +840,17 @@ and after, we have:
     let myEdge =  (match lval with None ->
         {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node sigma tid ls);tid=tid;lockSet=ls}
                                  | Some(Mem(CastE(TPtr(TNamed(tInfo, tAttr), ptrAttr), AddrOf(Var(lvalVinfo),_))), offset) -> (
-                                     if String.equal tInfo.tname "pthread_t" 
+                                     if String.equal tInfo.tname "pthread_t"
                                      then (print_string ("input in threadspawn is pthread_t\n");
                                            let result_sigma = SigmaMap.add lvalVinfo (ThreadID(id)) sigma
-                                           in 
-                                           {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node result_sigma tid ls);tid=tid;lockSet=ls}  
+                                           in
+                                           {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,{programPoint=ctx.node;sigma=result_sigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node result_sigma tid ls);tid=tid;lockSet=ls}
                                           )
                                      else (Printf.printf "Unsupported argument in threadspawn\n"; exit 0))
                                  | Some(lvalOption) -> (print_string ("Unsupported argument in threadspawn with "^(CilType.Lval.show lvalOption)^"\n"); exit 0)
       )
     in
-    let result_graph = 
+    let result_graph =
       print_string ("In threadspawn, we add the edge "^(LocalTraces.show_edge myEdge)^"\n
     to the graph:"^(LocalTraces.show graph)^"\n"); LocalTraces.extend_by_gEdge graph myEdge
     in
@@ -857,8 +860,8 @@ and after, we have:
   let threadspawn_fold_graphSet graph (lval, ctx,set_acc) =
     let lastNode = LocalTraces.get_last_node_progPoint graph ctx.prev_node
     in
-    let new_set = 
-      if Node.equal lastNode.programPoint LocalTraces.error_node 
+    let new_set =
+      if Node.equal lastNode.programPoint LocalTraces.error_node
       then (print_string ("In threadspawn, we have a trace that does not end in previous node:\n
      "^(LocalTraces.show graph)^"\n"); set_acc) else(
         let result_graph = threadspawn_on_node graph ctx lval lastNode
@@ -867,7 +870,7 @@ and after, we have:
     in
     (lval, ctx, new_set)
 
-  let threadspawn ctx lval f args fctx = 
+  let threadspawn ctx lval f args fctx =
     predominatorRegistration#update ctx.prev_node ctx.node;
     print_string ("Edge effect threadspawn was invoked with ctx.prev_node "^(Node.show ctx.prev_node)^", ctx.edge "^(EdgeImpl.show (EdgeImpl.convert_edge ctx.edge))^" and ctx.node "^(Node.show ctx.node)^"\n");
     let _, _, result = D.fold threadspawn_fold_graphSet (ctx.local) (lval, ctx, D.empty())

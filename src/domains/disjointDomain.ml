@@ -27,7 +27,12 @@ end
     Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t =
+module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t):
+sig
+  include SetDomain.S with type elt = E.t
+  val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
+end
+=
 struct
   type elt = E.t
 
@@ -174,6 +179,36 @@ struct
   let min_elt m = SetDomain.unsupported "Projective.min_elt"
   let max_elt m = SetDomain.unsupported "Projective.max_elt"
   let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
+
+  let fold_buckets = M.fold
+end
+
+module type MayEqualSetDomain =
+sig
+  include SetDomain.S
+  val may_be_equal: elt -> elt -> bool
+end
+
+module ProjectiveSetPairwiseMeet (E: Printable.S) (B: MayEqualSetDomain with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t = struct
+  include ProjectiveSet (E) (B) (R)
+
+  let meet m1 m2 =
+    let meet_buckets b1 b2 acc =
+      B.fold (fun e1 acc ->
+          B.fold (fun e2 acc ->
+              if B.may_be_equal e1 e2 then
+                add e1 (add e2 acc)
+              else
+                acc
+            ) b2 acc
+        ) b1 acc
+    in
+    fold_buckets (fun _ b1 acc ->
+        fold_buckets (fun _ b2 acc ->
+            meet_buckets b1 b2 acc
+          ) m2 acc
+      ) m1 (empty ())
+
 end
 
 (** {2 By congruence} *)

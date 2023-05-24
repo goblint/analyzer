@@ -20,7 +20,7 @@ type edge = Edge.t =
   | Skip
 
 
-type edges = (location * edge) list
+type edges = (CilType.Location.t * Edge.t) list [@@deriving eq, hash]
 
 type cfg = node -> (edges * node) list
 
@@ -58,4 +58,9 @@ let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
 let dummy_node = FunctionEntry Cil.dummyFunDec
 
-let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
+
+module type FileCfg =
+sig
+  val file: Cil.file
+  module Cfg: CfgBidir
+end

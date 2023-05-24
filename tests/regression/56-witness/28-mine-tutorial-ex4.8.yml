@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 299c2080-fb13-4879-be2b-5d2758465577
+    creation_time: 2022-10-07T10:36:41Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g9426848d9-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''28-mine-tutorial-ex4.8.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''ana.sv-comp.functions'' ''--enable''
+        ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled''
+        ''--set'' ''goblint-dir'' ''.goblint-56-28'''
+    task:
+      input_files:
+      - 28-mine-tutorial-ex4.8.c
+      input_file_hashes:
+        28-mine-tutorial-ex4.8.c: bd5b719b0d268dd7669edc1dd21b55a2bacab3187f26f112839093b910c91347
+      data_model: LP64
+      language: C
+  location:
+    file_name: 28-mine-tutorial-ex4.8.c
+    file_hash: bd5b719b0d268dd7669edc1dd21b55a2bacab3187f26f112839093b910c91347
+    line: 6
+    column: 2
+    function: main
+  location_invariant:
+    string: 0 <= v && v <= 1
+    type: assertion
+    format: C

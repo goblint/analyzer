@@ -44,6 +44,7 @@ _opam/
 cfgs/
 cfg.dot
 cilcfg.*.dot
+arg.dot
 
 *.graphml
 goblint.bc.js
@@ -87,3 +88,9 @@ gobview_out/*
 # witnesses
 witness.yml
 witness.certificate.yml
+
+# transformations
+transformed.c
+
+# docs
+site/

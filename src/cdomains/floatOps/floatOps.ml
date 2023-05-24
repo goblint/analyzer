@@ -15,7 +15,7 @@ module type CFloatType = sig
 
   val of_float: round_mode -> float -> t
   val to_float: t -> float option
-  val to_big_int: t -> Big_int_Z.big_int
+  val to_big_int: t -> Z.t
 
   val is_finite: t -> bool
   val pred: t -> t
@@ -42,9 +42,9 @@ let big_int_of_float f =
   let x, n = Float.frexp f in
   let shift = min 52 n in
   let x' = x *. Float.pow 2. (Float.of_int shift) in
-  Big_int_Z.mult_big_int
-    (Big_int_Z.big_int_of_int64 (Int64.of_float x'))
-    (Big_int_Z.power_int_positive_int 2 (n - shift))
+  Z.mul
+    (Z.of_int64 (Int64.of_float x'))
+    (Z.pow (Z.of_int 2) (n - shift))
 
 module CDouble = struct
   type t = float [@@deriving eq, ord, to_yojson]

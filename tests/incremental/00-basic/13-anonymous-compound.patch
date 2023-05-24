@@ -1,0 +1,34 @@
+diff --git tests/incremental/00-basic/13-anonymous-compound.c tests/incremental/00-basic/13-anonymous-compound.c
+index 3e2d7b527..81f3e704a 100644
+--- tests/incremental/00-basic/13-anonymous-compound.c
++++ tests/incremental/00-basic/13-anonymous-compound.c
+@@ -1,5 +1,21 @@
+ #include <pthread.h>
+ 
++
++typedef struct foo_bar {
++	int x;
++	int y;
++} foo_bar_t;
++
++typedef struct bar {
++	union{
++		int x;
++		struct inner {
++			int a;
++			int b;
++		} i;
++	} un;
++} bar_t;
++
+ typedef struct foo_struct {
+ 	union {
+ 		int i;
+@@ -13,6 +29,7 @@ foo_t str;
+ 
+ void *read(void *ptr){
+ 	int x = str.coin.head; // RACE!
++	int y = str.coin.head; // RACE!
+ 	int a = 32;
+ 	return NULL;
+ }

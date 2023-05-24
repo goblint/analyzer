@@ -1,10 +1,14 @@
 open IntOps
 open GoblintCil
+module VDQ = ValueDomainQueries
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
 val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
 (** gets the underlying domain: chosen by the attributes in AttributeConfiguredArrayDomain *)
+
+val can_recover_from_top: domain -> bool
+(** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
 
 (** Abstract domains representing arrays. *)
 module type S =
@@ -16,10 +20,13 @@ sig
   type value
   (** The abstract domain of values stored in the array. *)
 
-  val get: ?checkBounds:bool -> Queries.ask -> t -> ExpDomain.t * idx -> value
+  val domain_of_t: t -> domain
+  (* Returns the domain used for the array*)
+
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
 
-  val set: Queries.ask -> t -> ExpDomain.t * idx -> value -> t
+  val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
 
@@ -30,7 +37,7 @@ sig
   val length: t -> idx option
   (** returns length of array if known *)
 
-  val move_if_affected: ?replace_with_const:bool -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   (** changes the way in which the array is partitioned if this is necessitated by a change
     * to the variable **)
 
@@ -49,7 +56,8 @@ sig
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
   val update_length: idx -> t -> t
 
-  val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> Queries.ask -> t -> t
+  val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type LatticeWithSmartOps =

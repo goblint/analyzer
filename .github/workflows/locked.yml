@@ -20,10 +20,13 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
+
+    env:
+      OCAMLRUNPARAM: b
 
     steps:
       - name: Checkout code
@@ -55,6 +58,9 @@ jobs:
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group octagon -s
 
+      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group affeq -s
+
       - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
@@ -67,6 +73,15 @@ jobs:
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
 
+      - name: Test incremental regression with cfg comparison
+        run: ruby scripts/update_suite.rb -c
+
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: suite_result
+          path: tests/suite_result/
+
   extraction:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
 
@@ -76,7 +91,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -114,7 +129,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
         node-version:
           - 14
@@ -150,3 +165,11 @@ jobs:
 
       - name: Build Gobview
         run: opam exec -- dune build gobview
+
+      - name: Install selenium
+        run: pip3 install selenium webdriver-manager
+
+      - name: Test Gobview
+        run: |
+          ./goblint --enable gobview tests/regression/00-sanity/01-assert.c
+          python3 scripts/test-gobview.py

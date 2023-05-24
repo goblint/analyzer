@@ -1,0 +1,23 @@
+diff --git tests/incremental/00-basic/14-struct.c tests/incremental/00-basic/14-struct.c
+index 6eadc7a57..568a90aed 100644
+--- tests/incremental/00-basic/14-struct.c
++++ tests/incremental/00-basic/14-struct.c
+@@ -1,5 +1,10 @@
+ #include <pthread.h>
+ 
++typedef struct foo_bar {
++	int x;
++	int y;
++} foo_bar_t;
++
+ typedef struct foo_struct {
+ 	union {
+ 		int i;
+@@ -12,6 +17,7 @@ typedef struct foo_struct {
+ foo_t str;
+ 
+ void *read(void *ptr){
++	int x = str.un.coin.head; // RACE!
+ 	int x = str.un.coin.head; // RACE!
+ 	int a = 32;
+ 	return NULL;

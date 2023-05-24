@@ -1,5 +1,3 @@
-open Prelude.Ana
-
 module NodeSet = Set.Make(Node)
 
 let print_nodeSet ns = NodeSet.fold (fun node acc -> (Node.show node)^"; "^acc) ns ""
@@ -15,16 +13,16 @@ class predominator_registration =
     val mutable loopHead2BackEdge: Node.t PredominatorMap.t = PredominatorMap.empty
 
     method update (prev_node:Node.t) (dest_node:Node.t) =
-      if (PredominatorMap.mem prev_node predominatorMap)&&(NodeSet.mem dest_node (PredominatorMap.find prev_node predominatorMap)) 
-      then loopHeads <- NodeSet.add dest_node loopHeads; 
+      if (PredominatorMap.mem prev_node predominatorMap)&&(NodeSet.mem dest_node (PredominatorMap.find prev_node predominatorMap))
+      then loopHeads <- NodeSet.add dest_node loopHeads;
       loopHead2BackEdge <- PredominatorMap.add dest_node prev_node loopHead2BackEdge;
       if self#isLoopHead dest_node then print_string ("We found a loop head: "^(Node.show dest_node)^"\n");
-      let prevNodePreDoms = 
-        if PredominatorMap.mem prev_node predominatorMap then PredominatorMap.find prev_node predominatorMap 
+      let prevNodePreDoms =
+        if PredominatorMap.mem prev_node predominatorMap then PredominatorMap.find prev_node predominatorMap
         else NodeSet.empty
-      in 
+      in
       let destNodePredDoms =
-        if PredominatorMap.mem dest_node predominatorMap then PredominatorMap.find dest_node predominatorMap 
+        if PredominatorMap.mem dest_node predominatorMap then PredominatorMap.find dest_node predominatorMap
         else NodeSet.empty
       in
       let newNodeSet = if PredominatorMap.mem dest_node predominatorMap then (NodeSet.inter (NodeSet.add dest_node prevNodePreDoms) destNodePredDoms)
@@ -50,7 +48,7 @@ class predominator_registration =
       match backEdgeNodeOp with None -> depNodes, []
                               | Some backEdgeNode ->(
                                   let rec loop nodeList nonPrio prio =
-                                    match nodeList with x::xs -> 
+                                    match nodeList with x::xs ->
                                       if (NodeSet.mem x (PredominatorMap.find backEdgeNode predominatorMap) )
                                       then (
                                         print_string ("x="^(Node.show x)^" is contained in predominator-set="^(print_nodeSet (PredominatorMap.find backEdgeNode predominatorMap))^"

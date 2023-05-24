@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: dec4db01-03ed-47dd-ae55-c84f8dcd51ed
+    creation_time: 2022-09-13T11:38:16Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g82e0e31ba-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''19-apron-unassume-strengthening.c''
+        ''--set'' ''ana.activated[+]'' ''apron'' ''--enable'' ''witness.yaml.enabled''
+        ''--set'' ''dbg.debug'' ''true'' ''--set'' ''printstats'' ''true'' ''--set''
+        ''goblint-dir'' ''.goblint-56-19'''
+    task:
+      input_files:
+      - 25-apron-unassume-strengthening.c
+      input_file_hashes:
+        25-apron-unassume-strengthening.c: b2a50e3b423ade600ec2de58fa8ace6ec9a08b85fdc016cbdb7fbe9a3ba80d83
+      data_model: LP64
+      language: C
+  location:
+    file_name: 25-apron-unassume-strengthening.c
+    file_hash: b2a50e3b423ade600ec2de58fa8ace6ec9a08b85fdc016cbdb7fbe9a3ba80d83
+    line: 8
+    column: 4
+    function: main
+  location_invariant:
+    string: x >= 0
+    type: assertion
+    format: C

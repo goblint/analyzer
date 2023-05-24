@@ -3,7 +3,6 @@
 module Pretty = GoblintCil.Pretty
 open Pretty
 module ME = Messages
-module GU = Goblintutil
 
 module type PS =
 sig
@@ -130,6 +129,8 @@ struct
   type value = Range.t
   type t = Range.t M.t (* key -> value  mapping *)
 
+  let name () = "map"
+
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal x y = x == y || for_all2 Range.equal x y
@@ -182,6 +183,11 @@ struct
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
+
+  let relift m =
+    M.fold (fun k v acc ->
+        M.add (Domain.relift k) (Range.relift v) acc
+      ) m M.empty
 end
 
 (* TODO: why is HashCached.hash significantly slower as a functor compared to being inlined into PMap? *)
@@ -230,7 +236,7 @@ struct
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
 
-  let relift x = x
+  let relift = lift_f' M.relift
 end
 
 (* TODO: this is very slow because every add/remove in a fold-loop relifts *)
@@ -379,17 +385,15 @@ struct
   let is_bot = is_empty
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
-    let p key value =
-      not (try Range.leq value (find key m2) with Not_found -> false)
-    in
-    let report key v1 v2 =
-      Pretty.dprintf "Map: %a =@?@[%a@]"
-        Domain.pretty key Range.pretty_diff (v1,v2)
-    in
-    let diff_key k v = function
-      | None   when p k v -> Some (report k v (find k m2))
-      | Some w when p k v -> Some (w++Pretty.line++report k v (find k m2))
-      | x -> x
+    let diff_key k v acc_opt =
+      match find k m2 with
+      | v2 when not (Range.leq v v2) ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[%a@]" Domain.pretty k Range.pretty_diff (v, v2))
+      | exception Lattice.BotValue ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[%a not leq bot@]" Domain.pretty k Range.pretty v)
+      | v2 -> acc_opt
     in
     match fold diff_key m1 None with
     | Some w -> w
@@ -443,17 +447,15 @@ struct
   let narrow = long_map2 Range.narrow
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
-    let p key value =
-      not (try Range.leq (find key m1) value with Not_found -> false)
-    in
-    let report key v1 v2 =
-      Pretty.dprintf "Map: %a =@?@[%a@]"
-        Domain.pretty key Range.pretty_diff (v1,v2)
-    in
-    let diff_key k v = function
-      | None   when p k v -> Some (report k (find k m1) v)
-      | Some w when p k v -> Some (w++Pretty.line++report k (find k m1) v)
-      | x -> x
+    let diff_key k v acc_opt =
+      match find k m1 with
+      | v1 when not (Range.leq v1 v) ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[%a@]" Domain.pretty k Range.pretty_diff (v1, v))
+      | exception Lattice.TopValue ->
+        let acc = BatOption.map_default (fun acc -> acc ++ line) Pretty.nil acc_opt in
+        Some (acc ++ dprintf "Map: %a =@?@[top not leq %a@]" Domain.pretty k Range.pretty v)
+      | v1 -> acc_opt
     in
     match fold diff_key m2 None with
     | Some w -> w

@@ -1,4 +1,0 @@
-(install
- (section (site (goblint lib_runtime_include)))
- (files
-  goblint.h))

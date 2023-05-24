@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 9589b9d4-edce-4043-8413-279703946762
+    creation_time: 2022-10-12T10:38:16Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g8b307fe1f
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''36-hh-ex2b.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''ana.sv-comp.functions'' ''--enable''
+        ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable'' ''dbg.timing.enabled''
+        ''--set'' ''goblint-dir'' ''.goblint-56-36'''
+    task:
+      input_files:
+      - 36-hh-ex2b.c
+      input_file_hashes:
+        36-hh-ex2b.c: e4a0ecee56af00cc83ce75411061e74f80edce8c562310a7ea11499eb606d133
+      data_model: LP64
+      language: C
+  location:
+    file_name: 36-hh-ex2b.c
+    file_hash: e4a0ecee56af00cc83ce75411061e74f80edce8c562310a7ea11499eb606d133
+    line: 6
+    column: 2
+    function: main
+  location_invariant:
+    string: 0 <= n && n <= 60
+    type: assertion
+    format: C

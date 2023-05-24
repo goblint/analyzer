@@ -1,4 +1,4 @@
-open Prelude
+open Batteries
 
 let basename = "compile_commands.json"
 
