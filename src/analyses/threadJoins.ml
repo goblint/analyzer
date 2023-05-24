@@ -1,4 +1,6 @@
-(** Joined threads analysis ([threadJoins]). *)
+(** Joined threads analysis ([threadJoins]).
+
+    @see <https://arxiv.org/abs/2301.06439> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces. Appendix F. *)
 
 open GoblintCil
 open Analyses
