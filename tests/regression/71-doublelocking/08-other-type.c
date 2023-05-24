@@ -55,7 +55,7 @@ int main(int argc, char const *argv[])
 #ifndef __APPLE__
     pthread_mutex_lock(&mut2); //NOWARN
     pthread_mutex_lock(&mut2); //NOWARN
-    pthread_mutex_unlock(&mut2);
+    pthread_mutex_unlock(&mut2); //NOWARN
     pthread_mutex_unlock(&mut2);
 #endif
 

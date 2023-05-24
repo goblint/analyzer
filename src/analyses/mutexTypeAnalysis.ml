@@ -64,7 +64,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.IsRecursiveMutex v -> ctx.global v = `Lifted (MAttr.MutexKind.Recursive)
+    | Queries.MutexType v -> (ctx.global v:MutexAttrDomain.t)
     | _ -> Queries.Result.top q
 end
 
