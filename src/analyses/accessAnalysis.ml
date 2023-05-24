@@ -31,22 +31,23 @@ struct
     let activated = get_string_list "ana.activated" in
     emit_single_threaded := List.mem (ModifiedSinceLongjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
+  let do_access ?(lval=None) ?(resolve=true) (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
-    let ls = ctx.ask reach_or_mpt in
+    let ls = BatOption.default (ctx.ask reach_or_mpt) lval in
     ctx.emit (Access {exp=e; lvals=ls; kind; reach})
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
-      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
-  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
+      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses.
+    If [lval] is passed, access is no ReachableFrom and MayPointTo queries are performed. *)
+  let access_one_top ?lval ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) then (
       if deref then
-        do_access ctx kind reach exp;
-      Access.distribute_access_exp (do_access ctx Read false) exp
+        do_access ~lval ctx kind reach exp;
+      Access.distribute_access_exp (do_access ~lval ctx Read false) exp
     );
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
@@ -115,20 +116,27 @@ struct
       !list
     in
     (* Convert to lvals *)
-    let address_to_lvals (ad: AD.t) : lval list =
-      let addr_to_lval (v, offs: varinfo * (fieldinfo, ID.t) Lval.offs) : lval =
+    let address_to_lvals (ad: AD.t) =
+      let addr_to_lval_and_exp (v, offs) =
+        let lhost = Var v in
         let offset = Offs.to_cil_offset offs in
-        let lval = GoblintCil.Var v, offset in
-        lval
+        let exp = AddrOf (lhost, offset) in
+
+        let offs = Lval.CilLval.of_ciloffs offset in
+        let lval = v, offs in
+
+        lval, exp
       in
       let addrs = AD.to_var_offset ad in
-      List.map addr_to_lval addrs
+      List.map addr_to_lval_and_exp addrs
     in
-    let lvals = List.concat_map address_to_lvals addresses in
-    let exps = List.map (fun lval -> AddrOf lval) lvals in
-    (* M.tracel "modular_call" "Creating %d accesses: %a\n" (List.length exps) (Pretty.d_list ", " CilType.Exp.pretty) exps; *)
+    let lvs_exps = List.concat_map address_to_lvals addresses in
     (* Trigger access events *)
-    List.iter (fun exp -> access_one_top ~deref:true ctx AccessKind.Write false exp) exps
+    let add_lval_event ((v, offs), exp) =
+      let ls = LS.of_list [v, offs] in
+      access_one_top ~lval:ls ~deref:true ctx AccessKind.Write false exp
+    in
+    List.iter add_lval_event lvs_exps
 
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
