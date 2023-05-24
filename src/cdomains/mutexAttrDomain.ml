@@ -2,6 +2,8 @@ module MutexKind =
 struct
   include Printable.StdLeaf
 
+  (* NonRec represents any of PTHREAD_MUTEX_ERRORCHECK / PTHREAD_MUTEX_NORMAL / PTHREAD_MUTEX_DEFAULT *)
+  (* Once Goblint supports the notion of failing lock operations, this should be replaced with more precise definitions *)
   type t = NonRec | Recursive [@@deriving eq, ord, hash, to_yojson]
   let name () = "mutexKind"
   let show x = match x with
