@@ -1,4 +1,4 @@
-(** Abstract reachibility graph. *)
+(** Abstract reachability graph. *)
 
 open MyCFG
 open GoblintCil
