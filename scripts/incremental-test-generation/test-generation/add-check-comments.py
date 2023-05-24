@@ -7,42 +7,37 @@ import argparse
 import sys
 import re
 
-def process_file(file_name, option):
+def process_file(file_path, option):
     if option == 'u':
         print("Add \"//UNDEFINED\" to the Goblint checks __goblint_check(exp);")
     elif option == 's':
         print("Add \"//SUCCESS\" to the Goblint checks __goblint_check(exp);")
 
-    try:
-        with open(file_name, 'r') as file:
-            lines = file.readlines()
-            modified_lines = []
-            
-            for line in lines:
-                if '__goblint_check(' in line:
-                    match = re.search(r'(__goblint_check\(.*?\);)', line)
-                    if match:
-                        modified_line = match.group(1)
-                        if option == '-u':
-                            modified_line += ' //UNDEFINED'
-                        elif option == '-s':
-                            modified_line += ' //SUCCESS'
-                        line = line.replace(match.group(1), modified_line)
-                modified_lines.append(line)
-            
-            if option == '-u':
-                new_file_name = file_name.rsplit('.', 1)[0] + '_u.c'
-                with open(new_file_name, 'w') as new_file:
-                    new_file.writelines(modified_lines)
-                print("Processing complete. Modified lines have been added to the new file:", new_file_name)
-            elif option == '-s':
-                with open(file_name, 'w') as file:
-                    file.writelines(modified_lines)
-                print("Processing complete. Modified lines have been added to the existing file:", file_name)
-    except FileNotFoundError:
-        print("Error: File not found.")
-    except:
-        print("An error occurred while processing the file.")
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        modified_lines = []
+        
+        for line in lines:
+            if '__goblint_check(' in line:
+                match = re.search(r'(__goblint_check\(.*?\);)', line)
+                if match:
+                    modified_line = match.group(1)
+                    if option == '-u':
+                        modified_line += ' //UNDEFINED'
+                    elif option == '-s':
+                        modified_line += ' //SUCCESS'
+                    line = line.replace(match.group(1), modified_line)
+            modified_lines.append(line)
+        
+        if option == '-u':
+            new_file_name = file_path.rsplit('.', 1)[0] + '_u.c'
+            with open(new_file_name, 'w') as new_file:
+                new_file.writelines(modified_lines)
+            print("Processing complete. Modified lines have been added to the new file:", new_file_name)
+        elif option == '-s':
+            with open(file_path, 'w') as file:
+                file.writelines(modified_lines)
+            print("Processing complete. Modified lines have been added to the existing file:", file_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
