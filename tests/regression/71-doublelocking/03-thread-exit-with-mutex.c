@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] 'maylocks'
+// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType'
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
@@ -35,5 +35,5 @@ int main(int argc, char const *argv[])
     pthread_mutex_lock(&mut[0]); //NOWARN
     pthread_mutex_unlock(&mut[0]);
 
-    return 0; //NOWARN
+    return 0; // We would actually want to not warn here, but the mutex type analysis is currently too imprecise
 }

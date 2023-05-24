@@ -20,7 +20,6 @@ struct
          | `Lifted MutexAttrDomain.MutexKind.NonRec -> (M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that may be already held"; ctx.local)
          | _  -> default ())
       | _ -> default ()
-
     else
       D.add l ctx.local
 
