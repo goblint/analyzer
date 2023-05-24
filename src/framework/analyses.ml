@@ -412,7 +412,7 @@ sig
       Used for empty loops. *)
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
-  (** A transfer function which, for a call to a _special_ function f "lval = f(args)" or "f(args)",
+  (** A transfer function which, for a call to a {e special} function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call *)
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
 
