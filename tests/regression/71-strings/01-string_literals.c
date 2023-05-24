@@ -11,7 +11,7 @@ char* hello_world() {
 void id(char* s) {
     char* ptr = NULL; // future usage of cmp should warn: workaround for macOS test
     #ifdef __APPLE__
-        #define ID int i = strcmp(cmp, "trigger warning")
+        #define ID int i = strcmp(ptr, "trigger warning")
     #else
         #define ID strcpy(s, s)
     #endif
@@ -69,7 +69,7 @@ int main() {
     /* the following portion fails on macOS because of a spurious warning:
      * see issue goblint/cil#143
      *
-     * remove #ifdef portions as soon as issue fixed */
+     * remove #ifdef's as soon as issue fixed */
     id(s2);
 
     cmp = NULL; // future usage of cmp should warn: workaround for macOS test
