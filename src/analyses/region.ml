@@ -172,14 +172,7 @@ struct
         | _ -> ctx.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      ctx.local
 
   let startstate v =
     `Lifted (RegMap.bot ())

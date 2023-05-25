@@ -6,7 +6,7 @@ open Analyses
 
 module M = Messages
 (* J: returns if a and b contain a value
-  if yes: return this x, otherwise nothing *)
+   if yes: return this x, otherwise nothing *)
 let (||?) a b = match a,b with Some x,_ | _, Some x -> Some x | _ -> None
 
 module TermDomain = struct
@@ -20,8 +20,8 @@ let show_location_id l =
   string_of_int l.line ^ "_" ^ string_of_int l.column
 
 (* J: the new variable is created here and inserted into the code
-  in the code the variable is set to 0 (before the loop) and incremented (after the loop)
-  is it ever checked if the newly created variable is really new???*)
+   in the code the variable is set to 0 (before the loop) and incremented (after the loop)
+   is it ever checked if the newly created variable is really new???*)
 (* J: ??? Who defines the Loop, what are the variables*)
 class loopCounterVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
@@ -32,7 +32,7 @@ class loopCounterVisitor (fd : fundec) = object(self)
         (* J: for location (10,5) it evaluates to: term10_5*)
         let name = "term"^show_location_id loc in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-        let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
+        let v = Cilfacade.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
         (* make an init stmt since the init above is apparently ignored *)
         let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
         (* increment it every iteration *)
@@ -95,9 +95,9 @@ class loopVarsVisitor (fd : fundec) = object
       | _ -> ()
     in
     (match s.skind with
-    (* J: map_default f x (Some v) returns f v and map_default f x None returns x.*)
-    (* J: If there exists a goto statement: call add_exit_cond e (SOME exits tb ||? exits fb)
-            If e is of arithmetic type: add the location to the loopVars hash table *)
+     (* J: map_default f x (Some v) returns f v and map_default f x None returns x.*)
+     (* J: If there exists a goto statement: call add_exit_cond e (SOME exits tb ||? exits fb)
+             If e is of arithmetic type: add the location to the loopVars hash table *)
      | If (e, tb, fb, loc, eloc) -> Option.map_default (add_exit_cond e) () (exits tb ||? exits fb)
      | _ -> ());
     DoChildren
@@ -108,7 +108,7 @@ let stripCastsDeep e =
   let v = object
     inherit nopCilVisitor
     (* J: ChangeTo: Replace the expression with the given one*)
-    (* J: Removes casts from this expression, but ignores casts within other expression constructs. 
+    (* J: Removes casts from this expression, but ignores casts within other expression constructs.
        So we delete the (A) and (B) casts from "(A)(B)(x + (C)y)", but leave the (C) cast.*)
     method! vexpr e = ChangeTo (stripCasts e)
   end
@@ -129,7 +129,7 @@ let makeVar fd loc name =
   (* J: when the variable is not found in the function definition then it is newly created and initialized with 0*)
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-    Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
+    Cilfacade.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
 (* J: creates an empty function with name "__goblint_assume" and makes a lvalue out of it*)
 let f_assume = Lval (var (emptyFunction "__goblint_assume").svar)
 (* J: creates an empty function with name "__goblint_check" and makes a lvalue out of it*)
@@ -141,7 +141,7 @@ class loopInstrVisitor (fd : fundec) = object(self)
   method! vstmt s =
     (* TODO: use Loop eloc? *)
     (match s.skind with
-    (* J: if the statement is a loop adjust the loop pointer*)
+     (* J: if the statement is a loop adjust the loop pointer*)
      | Loop (_, loc, eloc, _, _) ->
        cur_loop' := !cur_loop; (* J: set the nested loop to the current loop*)
        cur_loop := Some loc (* J: set the newly found loop as current loop*)
@@ -165,10 +165,10 @@ class loopInstrVisitor (fd : fundec) = object(self)
             if there is an instruction with an assignment: increment d1 and d2 if the assignment affects the loop var
             do this recursively for all children*)
       match s.skind with
-        (* J: if the statement is a loop, and when the location is bound in the hash table: 
-            - add the creational and initializational code for t, d1, d2 before the loop
-            - add the incrementational code for t, d1, d2 in the loop
-          *)
+      (* J: if the statement is a loop, and when the location is bound in the hash table:
+         - add the creational and initializational code for t, d1, d2 before the loop
+         - add the incrementational code for t, d1, d2 in the loop
+      *)
       | Loop (b, loc, eloc, Some continue, Some break) when Hashtbl.mem loopVars loc ->
         (* find loop var for current loop *)
         let x = Hashtbl.find loopVars loc in
@@ -192,21 +192,21 @@ class loopInstrVisitor (fd : fundec) = object(self)
         let e2 = BinOp (Eq, Lval t, BinOp (MinusA, Lval d2, Lval x, typ), typ) in (* J: t = (d2 - x) *)
         (* J: make a statement for e1 and e2*)
         (* J: ??? what happens with the call*)
-        let inv1 = mkStmtOneInstr @@ Call (None, f_assume, [e1], loc, eloc) in 
+        let inv1 = mkStmtOneInstr @@ Call (None, f_assume, [e1], loc, eloc) in
         let inv2 = mkStmtOneInstr @@ Call (None, f_assume, [e2], loc, eloc) in
         (match b.bstmts with (* J: we are still in a loop*)
          | cont :: cond :: ss ->
            (* changing succs/preds directly doesn't work -> need to replace whole stmts  *)
            (* from: cont :: cond :: ss
-              to:   cont :: 
-                    cond :: 
+              to:   cont ::
+                    cond ::
                     t = (x - d1) :: t = (d2 - x) :: (??? Is this correct with the call???)
                     d1 = d1 - 1 :: d2 = d2 + 1 :: t = t + 1 ::
                     ss
-              *)
+           *)
            b.bstmts <- cont :: cond :: inv1 :: inv2 :: d1_inc :: d2_inc :: t_inc :: ss; (* J: in the loop*)
            let nb = mkBlock [t_init; d1_init; d2_init; mkStmt s.skind] in (* J: make a block out of the init statements before the loop*)
-           s.skind <- Block nb; 
+           s.skind <- Block nb;
          | _ -> ());
         s (* J: return s with added code for init and increment*)
       (* J: if the variable in the loops is not bounded, it is not possible to continue*)
@@ -214,7 +214,7 @@ class loopInstrVisitor (fd : fundec) = object(self)
         print_endline @@ "WARN: Could not determine loop variable for loop at " ^ CilType.Location.show loc;
         s
       (* J: when the statement is not a loop and a loop ended:
-            - add t >= 0 in the code after the loop*)
+         - add t >= 0 in the code after the loop*)
       | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
         let loc = Hashtbl.find loopBreaks s.sid in (* J: holds the current binding of the number of the current function in the hash table*)
         let t = var @@ makeVar fd loc "t" in (* J: get the name for variable t = t__<line>_<column>*)
@@ -319,4 +319,4 @@ let _ =
   Hashtbl.clear loopBreaks; (* because the sids are now different *) (* J: delete entries in loopBreaks*)
   Cilfacade.register_preprocess (Spec.name ()) (new loopBreaksVisitor); (* J: newly set hash table loopBreaks with goto statements*)
   MCP.register_analysis (module Spec : MCPSpec) (* A: register this (termination) analysis withing the master control program, which
-  collects all active analyses and represents the combination of them as a new, single analysis to FromSpec *)
+                                                   collects all active analyses and represents the combination of them as a new, single analysis to FromSpec *)

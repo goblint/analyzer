@@ -226,7 +226,7 @@ struct
             let el = (locks, if write then locks else Mutexes.top ()) in
             ctx.sideg (V.protecting v) (G.create_protecting el);
 
-            if !GU.postsolving then (
+            if !AnalysisState.postsolving then (
               let held_locks = (if write then snd else fst) (G.protecting (ctx.global (V.protecting v))) in
               let vs_empty = VarSet.empty () in
               Mutexes.iter (fun addr ->
