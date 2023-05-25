@@ -11,7 +11,10 @@ struct
 
   let add ctx (l,r) =
     if D.mem l ctx.local then
-      let default () = (M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a (possibly non-recursive) mutex that may be already held"; ctx.local) in
+      let default () =
+        M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a (possibly non-recursive) mutex that may be already held";
+        ctx.local
+      in
       match D.Addr.to_var_must l with
       | Some v ->
         (let mtype = ctx.ask (Queries.MutexType v) in
