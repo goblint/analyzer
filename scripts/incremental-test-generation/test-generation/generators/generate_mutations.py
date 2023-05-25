@@ -46,6 +46,8 @@ def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
     if mutations.lcr:
         index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.lcr_s, index)
 
+    return index
+
 def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutation_name, index):
     print(seperator)
     print(f"[{generate_type_mutation}] {mutation_name}")
@@ -53,7 +55,7 @@ def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mut
     for lines in lineGroups:
         index += 1
         new_path = _make_copy(program_path, index)
-        if mutation_name == mutations.rt_s:
+        if mutation_name == Mutations().rt_s:
             # When Remove Thread create wrapper an then apply the mutations
             if len(lines) != 1:
                 # Needed to prevent conflicts on generating wrappers
@@ -142,7 +144,7 @@ def _get_thread_function_name(clang_tidy_path, lines, program_path, index):
     line_filter_json = json.dumps(line_filter)
     command = [
         clang_tidy_path,
-        "-checks=-*,readability-" + mutations.rt_s,
+        "-checks=-*,readability-" + Mutations().rt_s,
         "-line-filter=" + line_filter_json,
         program_path,
         "--"
@@ -154,8 +156,6 @@ def _get_thread_function_name(clang_tidy_path, lines, program_path, index):
         print(result.stderr)
         print("ERROR Running Clang")
         sys.exit(-1)
-
-    print(result.stdout)
 
     function_name_pattern = r"\[FUNCTION_NAME\]\[(.*?)\]"
     function_name = None
@@ -197,7 +197,7 @@ def _write_meta_data(meta_path, new_path, index, mutation_name, lines):
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
     yaml_data["n"] = index
-    yaml_data[name] = {
+    yaml_data[f"p_{index}"] = {
         "type": generate_type_mutation,
         "sub_type": mutation_name,
         "lines": lines

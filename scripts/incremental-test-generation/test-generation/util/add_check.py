@@ -22,7 +22,7 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
     file_path
     ]
 
-    result = subprocess.run(command)
+    result = subprocess.run(command, text=True, capture_output=True)
 
     compiling = result.returncode == 0
 
@@ -33,6 +33,8 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
         yaml.safe_dump(yaml_data, file)
     
     if not compiling :
+        print(result.stdout)
+        print(result.stderr)
         print(f"Error compiling program with index {index}.")
         sys.exit(-1)
 
