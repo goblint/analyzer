@@ -34,25 +34,32 @@ def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
         index: int = yaml_data["n"]
 
     if mutations.rfb:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rfb_s, index)
+        index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rfb_s, index)
     if mutations.uoi:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.uoi_s, index)
+        index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.uoi_s, index)
     if mutations.ror:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.ror_s, index)
+        index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.ror_s, index)
     if mutations.cr:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.cr_s, index)
+        index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.cr_s, index)
     if mutations.rt:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rt_s, index)
+        index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rt_s, index)
     if mutations.lcr:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.lcr_s, index)
+        index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.lcr_s, index)
 
-def _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutation_name, index):
+def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutation_name, index):
     print(seperator)
     print(f"[{generate_type_mutation}] {mutation_name}")
     lineGroups = _get_line_groups(clang_tidy_path, mutation_name, program_path)
     for lines in lineGroups:
         index += 1
         new_path = _make_copy(program_path, index)
+        if mutation_name == mutations.rt_s:
+            # When Remove Thread create wrapper an then apply the mutations
+            if len(lines) != 1:
+                # Needed to prevent conflicts on generating wrappers
+                print("ERROR When applying remove_thread there always should be exactly one line")
+            function_name = _get_thread_function_name(clang_tidy_path, lines, new_path, index)
+            _wrap_thread_function(clang_tidy_path, new_path, function_name, index)
         _apply_mutation(clang_tidy_path, mutation_name, lines, new_path, index)
         _write_meta_data(meta_path, new_path, index, mutation_name, lines)
     return index
@@ -75,6 +82,7 @@ def _get_line_groups(clang_tidy_path, mutation_name, program_path):
     print(f"[CHECK] Check mutation {mutation_name} with return code {result.returncode}")
     if result.returncode != 0:
         print(result.stdout)
+        print(result.stderr)
         print("ERROR Running Clang")
         sys.exit(-1)
 
@@ -124,6 +132,63 @@ def _apply_mutation(clang_tidy_path, mutation_name, lines, program_path, index):
     print(f"[{index}] Run mutation {mutation_name} on lines {lines} with return code {result.returncode}")
     if result.returncode != 0:
         print(result.stdout)
+        print(result.stderr)
+        print("ERROR Running Clang")
+        sys.exit(-1)
+
+def _get_thread_function_name(clang_tidy_path, lines, program_path, index):
+    lines_mapped = [[x,x] for x in lines]
+    line_filter = [{"name": program_path, "lines": lines_mapped}]
+    line_filter_json = json.dumps(line_filter)
+    command = [
+        clang_tidy_path,
+        "-checks=-*,readability-" + mutations.rt_s,
+        "-line-filter=" + line_filter_json,
+        program_path,
+        "--"
+    ]
+    result = subprocess.run(command, text=True, capture_output=True)
+    print(f"[{index}][WRAP] Check function name for wrapping thread function with return code {result.returncode}")
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr)
+        print("ERROR Running Clang")
+        sys.exit(-1)
+
+    print(result.stdout)
+
+    function_name_pattern = r"\[FUNCTION_NAME\]\[(.*?)\]"
+    function_name = None
+
+    for line in result.stdout.splitlines():
+        function_name_match = re.search(function_name_pattern, line)
+        if function_name_match:
+            function_name = function_name_match.group(1)
+            break
+
+    print(f"[{index}][WRAP RESULT] Found the thread function name {function_name}")
+    return function_name
+
+def _wrap_thread_function(clang_tidy_path, program_path, function_name, index):
+    if function_name == None:
+        print(f"[{index}][WRAP FIX] No function name was provided. Hope the program will compile without wrapping")
+        return
+
+    check_options = {"CheckOptions": {"readability-remove-thread-wrapper.WrapFunctionName": function_name}}
+    check_options_json = json.dumps(check_options)
+    command = [
+        clang_tidy_path,
+        "-checks=-*,readability-remove-thread-wrapper",
+        "-config=" + check_options_json,
+        "-fix",
+        program_path,
+        "--"
+    ]
+    result = subprocess.run(command, text=True, capture_output=True)
+    print(f"[{index}][WRAP FIX] Apply the wrapping of {function_name} with return code {result.returncode}")
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr)
         print("ERROR Running Clang")
         sys.exit(-1)
 
