@@ -20,7 +20,9 @@ struct
         (let mtype = ctx.ask (Queries.MutexType v) in
          match mtype with
          | `Lifted MutexAttrDomain.MutexKind.Recursive -> ctx.local
-         | `Lifted MutexAttrDomain.MutexKind.NonRec -> (M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that may be already held"; ctx.local)
+         | `Lifted MutexAttrDomain.MutexKind.NonRec ->
+           M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that may be already held";
+           ctx.local
          | _  -> default ())
       | _ -> default ()
     else
