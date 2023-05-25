@@ -8,7 +8,7 @@ import sys
 
 import yaml
 
-def process_file(file_path, index, goblint_path, meta_path):
+def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
     command = [
     goblint_path,
     "--enable",
@@ -49,4 +49,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Call the process_file function with the provided arguments
-    process_file(args.file, args.index, args.goblint, args.meta)
+    add_check(args.file, args.index, args.goblint, args.meta)
