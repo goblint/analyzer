@@ -1,3 +1,4 @@
+(** Simple intraprocedural integer constants analysis example ([constants]). *)
 
 open GoblintCil
 open Analyses

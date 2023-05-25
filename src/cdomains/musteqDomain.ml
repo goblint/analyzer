@@ -1,3 +1,5 @@
+(** Symbolic lvalue equalities domain. *)
+
 open GoblintCil
 open Pretty
 

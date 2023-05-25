@@ -1,3 +1,5 @@
+(** Domains for thread sets and their uniqueness. *)
+
 module ThreadSet = SetDomain.ToppedSet (ThreadIdDomain.Thread) (struct let topname = "All Threads" end)
 module MustThreadSet = SetDomain.Reverse(ThreadSet)
 

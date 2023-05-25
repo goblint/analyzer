@@ -1,3 +1,6 @@
+(** Lazy evaluation with a fixed function.
+    Allows marshaling. *)
+
 (* Lazy eval extracted here to avoid dependency cycle:
    Node -> CilType -> Printable -> Goblintutil -> GobConfig -> Tracing -> Node *)
 

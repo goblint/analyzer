@@ -1,3 +1,5 @@
+(** Events. *)
+
 open GoblintCil
 open Pretty
 

@@ -1,4 +1,4 @@
-(** Protecting mutex analysis. Must locksets locally and for globals. *)
+(** Must lockset and protecting lockset analysis ([mutex]). *)
 
 module M = Messages
 module Addr = ValueDomain.Addr

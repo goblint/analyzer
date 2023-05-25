@@ -1,3 +1,5 @@
+(** Intermediate data directory. *)
+
 open GobConfig
 
 let root () = Fpath.v (get_string "goblint-dir")

@@ -1,3 +1,5 @@
+(** Global flags for analysis state. *)
+
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false

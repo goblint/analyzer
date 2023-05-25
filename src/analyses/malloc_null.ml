@@ -1,4 +1,4 @@
-(** Path-sensitive analysis that verifies checking the result of the malloc function. *)
+(** Path-sensitive analysis of failed dynamic memory allocations ([malloc_null]). *)
 
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain

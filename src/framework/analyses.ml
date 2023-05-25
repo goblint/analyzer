@@ -1,4 +1,4 @@
-(** Signatures for analyzers, analysis specifications, and result output.  *)
+(** {{!Spec} Analysis specification} and {{!MonSystem} constraint system} signatures. *)
 
 open Batteries
 open GoblintCil

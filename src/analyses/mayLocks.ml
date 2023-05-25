@@ -1,4 +1,6 @@
-(** May lockset analysis (unused). *)
+(** May lockset analysis ([maylocks]). *)
+
+(* TODO: unused *)
 
 open Analyses
 

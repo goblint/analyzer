@@ -1,4 +1,4 @@
-(** Tracking of pthread lib code. Output to promela. *)
+(** Promela extraction analysis for Pthread programs ([extract-pthread]). *)
 
 open GoblintCil
 open Pretty
