@@ -44,7 +44,7 @@ def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
     if mutations.rt:
         index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rt_s, index)
     if mutations.lcr:
-        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rt_s, index)
+        index = _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.lcr_s, index)
 
 def _basic_mutation_generation(program_path, clang_tidy_path, meta_path, mutation_name, index):
     print(seperator)
@@ -80,11 +80,28 @@ def _get_line_groups(clang_tidy_path, mutation_name, program_path):
 
     line_groups = []
     pattern = r":(\d+):.*\[readability-" + mutation_name + r"\]"
+    macro_pattern = r"\[MACRO\]\[(.*?)\]"
+    macro_lines = {}
 
     for line in result.stdout.splitlines():
         match = re.search(pattern, line)
         if match:
-            line_groups.append([int(match.group(1))])
+            macro_match = re.search(macro_pattern, line)
+            if macro_match:
+                macro_name = macro_match.group(1)
+                line_number = int(match.group(1))
+                if macro_name not in macro_lines:
+                    macro_lines[macro_name] = [line_number]
+                else:
+                    macro_lines[macro_name].append(line_number)
+            else:
+                line_groups.append([int(match.group(1))])
+
+    for macro_name, lines in macro_lines.items():
+        line_groups.append(lines)
+
+    # Remove duplicate line groups
+    line_groups = [list(x) for x in set(tuple(x) for x in line_groups)]
 
     print(f"[CHECK RESULT] Mutation {mutation_name} can be applied to lines {line_groups}")
     return line_groups
