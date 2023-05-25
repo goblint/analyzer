@@ -1,17 +1,16 @@
 (** Multi-threadedness analysis. *)
 
-module GU = Goblintutil
 module LF = LibraryFunctions
 
 open GoblintCil
 open Analyses
 
 let is_currently_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization then false else
+  if !AnalysisState.global_initialization then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = false}))
 
 let has_ever_been_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization then false else
+  if !AnalysisState.global_initialization then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = true}))
 
 module Spec =

@@ -13,8 +13,8 @@ struct
   module C = FileDomain.Dom
 
   (* special variables *)
-  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let unclosed_var  = Goblintutil.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
+  let return_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let unclosed_var  = Cilfacade.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
 
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty

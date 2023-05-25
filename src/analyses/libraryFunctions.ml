@@ -255,8 +255,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
   ]
 
-let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
-let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
+let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
+let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console semaphore]" intType)))
 
 (** Linux kernel functions. *)
 let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -391,8 +391,8 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fpclassifyl", unknown [drop "x" []]);
   ]
 
-let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
-let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_var))
+let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
+let verifier_atomic = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_var))
 
 (** SV-COMP functions.
     Just the ones that require special handling and cannot be stubbed. *)

@@ -35,8 +35,6 @@ struct
   open S
   open Messages
 
-  module GU = Goblintutil
-
   let stack_d = ref 0
   let full_trace = false
   let start_c = 0
@@ -64,7 +62,7 @@ struct
   let stop_event () = ()
 
   let new_var_event x =
-    incr Goblintutil.vars;
+    incr SolverStats.vars;
     if tracing then trace "sol" "New %a\n" Var.pretty_trace x
 
   let get_var_event x =
@@ -72,7 +70,7 @@ struct
 
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    incr Goblintutil.evals;
+    incr SolverStats.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =
@@ -116,7 +114,7 @@ struct
     print_newline ();
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (GobSys.string_of_time ());
-    Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Printf.printf "vars: %d, evals: %d\n" !SolverStats.vars !SolverStats.evals;
     Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
@@ -124,9 +122,9 @@ struct
     print_newline ();
     (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
-    let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
+    let gc = GobGc.print_quick_stat Legacy.stdout in
     print_newline ();
-    Option.may (write_csv [GobSys.string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
+    Option.may (write_csv [GobSys.string_of_time (); string_of_int !SolverStats.vars; string_of_int !SolverStats.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
     (* print_string "Do you want to continue? [Y/n]"; *)
     flush stdout
     (* if read_line () = "n" then raise Break *)
@@ -135,7 +133,7 @@ struct
     let write_header = write_csv ["runtime"; "vars"; "evals"; "contexts"; "max_heap"] (* TODO @ !solver_stats_headers *) in
     Option.may write_header stats_csv;
     (* call print_stats on dbg.solver-signal *)
-    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
+    Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
     (* call print_stats every dbg.solver-stats-interval *)
     Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
     (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)

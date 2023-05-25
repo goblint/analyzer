@@ -66,7 +66,7 @@ struct
             if VH.mem v_ins v then
               VH.find v_ins v
             else
-              let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+              let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
               VH.replace v_ins v v_in;
               v_in
           in
@@ -87,7 +87,7 @@ struct
   let read_globals_to_locals_inv (ask: Queries.ask) getg st vs =
     let v_ins_inv = VH.create (List.length vs) in
     List.iter (fun v ->
-        let v_in = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+        let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
         VH.replace v_ins_inv v_in v;
       ) vs;
     let rel = RD.add_vars st.rel (List.map RV.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
@@ -139,7 +139,7 @@ struct
           {st with rel = f st v}
       )
       else (
-        let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
+        let v_out = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
         let st' = {st with rel = f st v_out} in (* g#out = e; *)
@@ -224,7 +224,7 @@ struct
 
   let assign ctx (lv:lval) e =
     let st = ctx.local in
-    if !GU.global_initialization && e = MyCFG.unknown_exp then
+    if !AnalysisState.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so env is empty... *)
     else (
       let simplified_e = replace_deref_exps ctx.ask e in
@@ -683,7 +683,7 @@ struct
 
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
-    if !GU.postsolving then begin
+    if !AnalysisState.postsolving then begin
       let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
       let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
 

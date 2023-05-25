@@ -237,7 +237,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    return_addr_ :=  Addr.from_var ~is_modular:false (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var ~is_modular:false (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

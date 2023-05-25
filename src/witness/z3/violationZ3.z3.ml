@@ -78,8 +78,8 @@ struct
     | e ->
       failwith @@ GobPretty.sprintf "exp_to_expr: %a" Cil.d_exp e
 
-  let get_arg_vname i = Goblintutil.create_var (Cil.makeVarinfo false ("_arg" ^ string_of_int i) Cil.intType) (* TODO: correct type in general *)
-  let return_vname = Goblintutil.create_var (Cil.makeVarinfo false "_return" Cil.intType) (* TODO: correct type in general *)
+  let get_arg_vname i = Cilfacade.create_var (Cil.makeVarinfo false ("_arg" ^ string_of_int i) Cil.intType) (* TODO: correct type in general *)
+  let return_vname = Cilfacade.create_var (Cil.makeVarinfo false "_return" Cil.intType) (* TODO: correct type in general *)
 
   let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
     | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->

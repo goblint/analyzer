@@ -23,7 +23,7 @@ class loopCounterVisitor (fd : fundec) = object(self)
         (* insert loop counter variable *)
         let name = "term"^show_location_id loc in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-        let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
+        let v = Cilfacade.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
         (* make an init stmt since the init above is apparently ignored *)
         let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
         (* increment it every iteration *)
@@ -91,7 +91,7 @@ let makeVar fd loc name =
   try List.find (fun v -> v.vname = id) fd.slocals
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-    Goblintutil.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
+    Cilfacade.create_var (makeLocalVar fd id ~init:(SingleInit zero) typ)
 let f_assume = Lval (var (emptyFunction "__goblint_assume").svar)
 let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 class loopInstrVisitor (fd : fundec) = object(self)

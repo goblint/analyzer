@@ -1,6 +1,6 @@
 open GoblintCil
 
-let create_var ?(typ=Cil.voidType) name = Goblintutil.create_var @@ makeGlobalVar name typ
+let create_var ?(typ=Cil.voidType) name = Cilfacade.create_var @@ makeGlobalVar name typ
 
 let single ~name =
   let vi = lazy (create_var ?typ:None name) in
