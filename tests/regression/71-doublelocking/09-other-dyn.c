@@ -24,7 +24,7 @@ void* f2(void* ptr) {
     pthread_mutex_unlock(mut);
 
     // To check that this is now actually removed from the may lockset
-    return NULL; //WARN
+    return NULL; //NOWARN
 }
 
 
