@@ -417,7 +417,6 @@ module WideningThresholds = WideningThresholds
 
 module VectorMatrix = VectorMatrix
 module SharedFunctions = SharedFunctions
-module UniqueType = UniqueType
 
 (** {2 Precision comparison} *)
 
