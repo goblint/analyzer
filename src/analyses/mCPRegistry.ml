@@ -1,3 +1,6 @@
+(** Registry of dynamically activatable analyses.
+    Analysis specification modules for the dynamic product. *)
+
 open Batteries
 open GoblintCil
 open Pretty

@@ -1,3 +1,5 @@
+(* TODO: unused *)
+
 module     Eq = IntDomain.MakeBooleans (struct let truename="==" let falsename="!=" end)
 module Method = IntDomain.MakeBooleans (struct let truename="guard" let falsename="assign" end)
 

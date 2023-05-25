@@ -1,4 +1,6 @@
-(** An analysis for checking correct use of file handles. *)
+(** Analysis of correct file handle usage ([file]).
+
+    @see <https://www2.in.tum.de/hp/file?fid=1323> Vogler, R. Verifying Regular Safety Properties of C Programs Using the Static Analyzer Goblint. Section 3.*)
 
 open Batteries
 open GoblintCil

@@ -1,3 +1,5 @@
+(** Abstract domains for C unions. *)
+
 open GoblintCil
 
 module type Arg =

@@ -1,4 +1,4 @@
-(** Master Control Program *)
+(** MCP analysis specification. *)
 
 open Batteries
 open GoblintCil

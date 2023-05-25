@@ -1,3 +1,5 @@
+(** Interactive server mode using JSON-RPC. *)
+
 open Batteries
 open Jsonrpc
 open GoblintCil

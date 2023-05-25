@@ -1,3 +1,5 @@
+(** Domains for disjoint heap regions. *)
+
 open GoblintCil
 open GobConfig
 

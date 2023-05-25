@@ -1,3 +1,5 @@
+(** Symbolic lockset domain. *)
+
 open GoblintCil
 
 module M = Messages

@@ -1,4 +1,4 @@
-(** Stack-trace "analyses". *)
+(** Call stack analyses ([stack_trace], [stack_trace_set], [stack_loc]). *)
 
 open GoblintCil
 open Analyses

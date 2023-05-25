@@ -1,3 +1,5 @@
+(** Call stack domains. *)
+
 module type S =
 sig
   include Lattice.S

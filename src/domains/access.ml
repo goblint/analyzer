@@ -1,3 +1,5 @@
+(** Memory accesses and their manipulation. *)
+
 open Batteries
 open GoblintCil
 open Pretty

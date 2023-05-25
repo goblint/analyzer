@@ -1,4 +1,6 @@
-(** Has been modified to work with any domain that uses the functions provided relationDomain. *)
+(** Relational thread-modular value analyses for {!RelationAnalysis}, i.e. {!ApronAnalysis} and {!AffineEqualityAnalysis}.
+
+    @see <https://doi.org/10.1007/978-3-031-30044-8_2> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces. *)
 
 open Batteries
 open GoblintCil
