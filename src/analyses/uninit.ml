@@ -16,14 +16,13 @@ struct
 
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
+  module P = IdentityP (D)
 
   type trans_in  = D.t
   type trans_out = D.t
   type transfer  = trans_in -> trans_out
 
   let name () = "uninit"
-
-  let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]

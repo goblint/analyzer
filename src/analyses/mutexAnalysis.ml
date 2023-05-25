@@ -84,7 +84,7 @@ struct
   let name () = "mutex"
 
   module D = Arg.D (* help type checker using explicit constraint *)
-  let should_join x y = D.equal x y
+  module P = IdentityP (D)
 
   module V = Arg.V
   module GProtecting = Arg.GProtecting

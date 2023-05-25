@@ -24,7 +24,6 @@ struct
   let exitstate _ = D.empty ()
 
   let context _ _ = ()
-  let should_join _ _ = false
 
   module Locator = WitnessUtil.Locator (Node)
 
