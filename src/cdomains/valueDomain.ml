@@ -168,6 +168,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Mutex
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -186,6 +187,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -219,6 +221,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.top ())
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
@@ -520,6 +523,7 @@ struct
     | (`Address x, `Thread y) -> true
     | (`JmpBuf x, `JmpBuf y) -> JmpBufs.leq x y
     | (`Mutex, `Mutex) -> true
+    | (`MutexAttr x, `MutexAttr y) -> MutexAttr.leq x y
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -553,6 +557,7 @@ struct
       `Thread y (* TODO: ignores address! *)
     | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.join x y)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.join x y)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -587,6 +592,7 @@ struct
       `Thread y (* TODO: ignores address! *)
     | (`Mutex, `Mutex) -> `Mutex
     | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.widen x y)
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.widen x y)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -646,6 +652,7 @@ struct
       `Address x (* TODO: ignores thread! *)
     | (`Mutex, `Mutex) -> `Mutex
     | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.meet x y)
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.meet x y)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -670,6 +677,7 @@ struct
     | (`Thread y, `Address x) ->
       `Address x (* TODO: ignores thread! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.narrow x y)
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
