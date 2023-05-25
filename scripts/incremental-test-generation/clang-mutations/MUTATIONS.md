@@ -69,13 +69,33 @@ int d = MY_MACRO_0;
 
 ## Remove Thread - RT
 **readability-remove-thread**<br>
-Replaces a `pthread_create` call with the function call itself. The arguments of the function call are kept. Symbols like `*` or `&` in front of the function name are ignored.
+Replaces a `pthread_create` call with the function call itself. Additionally `0;` is added for the case that the result was checked in the form `result = pthread_create()` The arguments of the function call are kept. Symbols like `*` or `&` in front of the function name are ignored.
 ```
-pthread_create(&thread, &attr, thread_function, NULL);
+result = pthread_create(&thread, &attr, thread_function, NULL);
 ```
 `clang-tidy -checks=-*,readability-remove-thread -fix pthread.c --`
 ```
-thread_function(NULL) /* [MUTATION][RT] Thread creation was substituted with function call */;
+result = 0; thread_function(NULL) /* [MUTATION][RT][FUNCTION_NAME][thread_function] Thread creation was substituted with function call */;
+```
+
+### Remove Thread Wrapper - RTW
+**readability-remove-thread-wrapper**<br>
+Wraps the given Function Name for a pthread_create call. This should be run before `remove-thread`. The function name has to be passed.
+```
+void *threadFunction(void *arg) {
+    //...
+}
+```
+`clang-tidy -checks=-*,readability-remove-thread-wrapper -config="{CheckOptions: {readability-remove-thread-wrapper.WrapFunctionName: 'threadFunction'}}" -fix pthread.c --`
+```
+void *threadFunction(void *arg) {
+    //...
+}
+int threadFunction_wrap(void *arg) {
+    /*[MUTATION][RTW] Wrapped function for remove-thread */
+    threadFunction(arg);
+    return 0;
+}
 ```
 
 ## Logical Connector Replacement - LCR

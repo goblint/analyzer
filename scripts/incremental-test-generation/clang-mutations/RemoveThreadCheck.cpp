@@ -35,8 +35,8 @@ void RemoveThreadCheck::check(const MatchFinder::MatchResult &Result) {
   // Get the argument
   std::string Argument = parseArgument(Arguments[3]);
   // Create the replacement
-  std::string Replacement = FunctionName + "(" + Argument + ") /* [MUTATION][RT] Thread creation was substituted with function call */";
-  diag(Start, "[MUTATION][RT] Thread creation was substituted with function call %0")
+  std::string Replacement = FunctionName + "_wrap(" + Argument + ") /* [MUTATION][RT][FUNCTION_NAME][" + FunctionName + "] Thread creation was substituted with function call */";
+  diag(Start, "[MUTATION][RT][FUNCTION_NAME][%0] Thread creation was substituted with function call %0_wrapper")
       << FunctionName
       << FixItHint::CreateReplacement(Range, Replacement);
 }
