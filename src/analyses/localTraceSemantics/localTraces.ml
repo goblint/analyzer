@@ -186,7 +186,7 @@ module LocTraceGraph = Persistent.Digraph.ConcreteBidirectionalLabeled (NodeImpl
 
 
 (* Module wrap for graph datastructure implementing necessary functions for analysis framework *)
-module LocalTraces =
+module LocalTrace =
 struct
   include Printable.Std
   type t = LocTraceGraph.t
@@ -674,7 +674,7 @@ struct
 end
 
 (* Set domain for analysis framework *)
-module GraphSet = SetDomain.Make(LocalTraces)
+module GraphSet = SetDomain.Make(LocalTrace)
 
 (* Converts a GraphSet.t to a list *)
 let graphSet_to_list graphSet =
