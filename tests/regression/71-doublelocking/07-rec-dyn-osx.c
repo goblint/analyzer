@@ -1,6 +1,6 @@
-// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType'
-// We are just testing we don't crash on the code OS X produces here.
-// There can be no meaningful asserts, as we set pthread_mutexattr_type to `2` which has different meanings between Linux and OS X.
+// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType' --set pre.cppflags[+] "-DGOBLINT_NO_PTHREAD_ONCE"
+// Here, we do not include pthread.h, so MutexAttr.recursive_int remains at `2`, emulating the behavior of OS X.
+#define GOBLINT_NO_PTHREAD_ONCE 1
 typedef signed char __int8_t;
 typedef unsigned char __uint8_t;
 typedef short __int16_t;
@@ -71,7 +71,7 @@ void* f1(void* ptr) {
     pthread_mutex_t* mut = (pthread_mutex_t*) ptr;
 
     pthread_mutex_lock(mut);
-    pthread_mutex_lock(mut);
+    pthread_mutex_lock(mut); //NOWARN
     pthread_mutex_unlock(mut);
     pthread_mutex_unlock(mut);
     return ((void *)0);
@@ -92,7 +92,7 @@ int main(int argc, char const *argv[])
 
 
     pthread_mutex_lock(&mut);
-    pthread_mutex_lock(&mut);
+    pthread_mutex_lock(&mut); //NOWARN
     pthread_mutex_unlock(&mut);
     pthread_mutex_unlock(&mut);
 
