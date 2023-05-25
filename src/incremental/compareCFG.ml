@@ -6,8 +6,15 @@ include CompareAST
 
 let eq_node (x, fun1) (y, fun2) =
   let empty_rename_mapping: rename_mapping = (StringMap.empty, VarinfoMap.empty) in
+  (* don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
+  let isPseudoReturn f sid =
+    let pid = CfgTools.get_pseudo_return_id f in
+    sid == pid in
   match x,y with
-  | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) ~rename_mapping:empty_rename_mapping
+  | Statement s1, Statement s2 ->
+    let p1 = isPseudoReturn fun1 s1.sid in
+    let p2 = isPseudoReturn fun2 s2.sid in
+    ((p1 && p2) || not (p1 || p2)) && eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) ~rename_mapping:empty_rename_mapping
   | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar ~rename_mapping:empty_rename_mapping
   | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar ~rename_mapping:empty_rename_mapping
   | _ -> false
@@ -62,7 +69,6 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
           | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
             let edgeList2 = to_edge_list locEdgeList2 in
-            (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
             if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
               begin
                 match NH.find_opt same.node1to2 toNode1 with

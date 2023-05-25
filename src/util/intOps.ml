@@ -53,8 +53,8 @@ sig
   val to_int64 : t -> int64
   val of_string : string -> t (* TODO: unused *)
   val to_string : t -> string
-  val of_bigint : Big_int_Z.big_int -> t
-  val to_bigint : t -> Big_int_Z.big_int
+  val of_bigint : Z.t -> t
+  val to_bigint : t -> Z.t
 end
 
 module type IntOps =
@@ -112,8 +112,8 @@ struct
   let to_int64 = Int64.of_int
   let of_string = int_of_string
   let to_string = string_of_int
-  let of_bigint = Big_int_Z.int_of_big_int
-  let to_bigint = Big_int_Z.big_int_of_int
+  let of_bigint = Z.to_int
+  let to_bigint = Z.of_int
 end
 
 module Int32OpsBase : IntOpsBase with type t = int32 =
@@ -157,8 +157,8 @@ struct
   let to_int64 = Int64.of_int32
   let of_string = Int32.of_string
   let to_string = Int32.to_string
-  let of_bigint = Big_int_Z.int32_of_big_int
-  let to_bigint = Big_int_Z.big_int_of_int32
+  let of_bigint = Z.to_int32
+  let to_bigint = Z.of_int32
 end
 
 module Int64OpsBase : IntOpsBase with type t = int64 =
@@ -202,37 +202,29 @@ struct
   let to_int64 x = x
   let of_string = Int64.of_string
   let to_string = Int64.to_string
-  let of_bigint = Big_int_Z.int64_of_big_int
-  let to_bigint = Big_int_Z.big_int_of_int64
+  let of_bigint = Z.to_int64
+  let to_bigint = Z.of_int64
 end
 
-module BigIntOpsBase : IntOpsBase with type t = Big_int_Z.big_int =
+module BigIntOpsBase : IntOpsBase with type t = Z.t =
 struct
-  type t = Big_int_Z.big_int
-  let zero = Big_int_Z.zero_big_int
-  let one = Big_int_Z.unit_big_int
+  type t = Z.t
+  let zero = Z.zero
+  let one = Z.one
   let upper_bound = None
   let lower_bound = None
 
-  let neg = Big_int_Z.minus_big_int
-  let abs = Big_int_Z.abs_big_int
-  let add = Big_int_Z.add_big_int
-  let sub = Big_int_Z.sub_big_int
-  let mul = Big_int_Z.mult_big_int
+  let neg = Z.neg
+  let abs = Z.abs
+  let add = Z.add
+  let sub = Z.sub
+  let mul = Z.mul
+  let div = Z.div
+  let rem = Z.rem
 
-  (* If the first operand of a div is negative, Zarith rounds the result away from zero.
-     We thus always transform this into a division with a non-negative first operand.
-  *)
-  let div a b = if Big_int_Z.lt_big_int a zero then Big_int_Z.minus_big_int (Big_int_Z.div_big_int (Big_int_Z.minus_big_int a) b) else Big_int_Z.div_big_int a b
-
-  (* Big_int_Z.mod_big_int computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
-     -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4
-  *)
-  let rem a b = Big_int_Z.sub_big_int a (mul b (div a b))
-
-  let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
-  let compare = Big_int_Z.compare_big_int
-  let equal = Big_int_Z.eq_big_int
+  let gcd = Z.gcd
+  let compare = Z.compare
+  let equal = Z.equal
   let hash = Z.hash
 
   let top_range _ _ = false
@@ -240,21 +232,21 @@ struct
   let max = Z.max
   let min = Z.min
 
-  let of_int = Big_int_Z.big_int_of_int
-  let to_int = Big_int_Z.int_of_big_int
-  let of_int64 x = Big_int_Z.big_int_of_int64 x
-  let to_int64 x = Big_int_Z.int64_of_big_int x
-  let of_string = Big_int_Z.big_int_of_string
-  let to_string = Big_int_Z.string_of_big_int
+  let of_int = Z.of_int
+  let to_int = Z.to_int
+  let of_int64 x = Z.of_int64 x
+  let to_int64 x = Z.to_int64 x
+  let of_string = Z.of_string
+  let to_string = Z.to_string
   let of_bigint x = x
   let to_bigint x = x
 
-  let shift_left = Big_int_Z.shift_left_big_int
-  let shift_right = Big_int_Z.shift_right_big_int
+  let shift_left = Z.shift_left
+  let shift_right = Z.shift_right
   let bitnot x = sub (neg x) one
-  let bitand = Big_int_Z.and_big_int
-  let bitor = Big_int_Z.or_big_int
-  let bitxor = Big_int_Z.xor_big_int
+  let bitand = Z.logand
+  let bitor = Z.logor
+  let bitxor = Z.logxor
 
 end
 
@@ -279,7 +271,10 @@ struct
   let ge x y = of_bool (compare x y >= 0)
 end
 
-module BigIntOps = IntOpsDecorator(BigIntOpsBase)
+module BigIntOps = struct
+  include IntOpsDecorator(BigIntOpsBase)
+  let trailing_zeros x = Z.trailing_zeros x
+end
 module NIntOps = IntOpsDecorator(NIntOpsBase)
 module Int32Ops = IntOpsDecorator(Int32OpsBase)
 module Int64Ops = IntOpsDecorator(Int64OpsBase)

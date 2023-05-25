@@ -1,4 +1,3 @@
-open Prelude
 open Unix
 
 let buff_size = 1024
@@ -63,7 +62,7 @@ let run_cilly (path: Fpath.t) ~all_cppflags =
     remove_comb_files path;
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
-    let cflags = if all_cppflags = [] then "" else " CFLAGS+=" ^ Filename.quote (String.join " " all_cppflags) in
+    let cflags = if all_cppflags = [] then "" else " CFLAGS+=" ^ Filename.quote (BatString.join " " all_cppflags) in
     let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"" ^cflags ^ " " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
     print_string output;

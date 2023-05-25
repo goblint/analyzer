@@ -1,0 +1,28 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: e9cde5db-0c69-4413-ad46-7a15b93f1834
+    creation_time: 2022-08-30T15:00:25Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-ge4b5d9f12-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''18-base-unassume-contra.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir'' ''.goblint-56-18'''
+    task:
+      input_files:
+      - 18-base-unassume-contra.c
+      input_file_hashes:
+        18-base-unassume-contra.c: e173c414639b0c08d00854dc6974f87ccf2ae29829c2e5542f984eb8a52929ce
+      data_model: LP64
+      language: C
+  location:
+    file_name: 18-base-unassume-contra.c
+    file_hash: e173c414639b0c08d00854dc6974f87ccf2ae29829c2e5542f984eb8a52929ce
+    line: 7
+    column: 2
+    function: main
+  location_invariant:
+    string: i + 1 <= i
+    type: assertion
+    format: C

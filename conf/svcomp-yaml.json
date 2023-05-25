@@ -1,0 +1,104 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "float": {
+      "interval": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins"
+    ],
+    "context": {
+      "widen": false
+    },
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
+      ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    },
+    "autotune": {
+      "enabled": false
+    }
+  },
+  "pre": {
+    "transform-paths": false
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "witness": {
+    "enabled": false,
+    "yaml": {
+      "enabled": true
+    },
+    "invariant": {
+      "exact": false,
+      "exclude-vars": [
+        "tmp\\(___[0-9]+\\)?",
+        "cond",
+        "RETURN",
+        "__\\(cil_\\)?tmp_?[0-9]*\\(_[0-9]+\\)?",
+        ".*____CPAchecker_TMP_[0-9]+",
+        "__VERIFIER_assert__cond",
+        "__ksymtab_.*",
+        "\\(ldv_state_variable\\|ldv_timer_state\\|ldv_timer_list\\|ldv_irq_\\(line_\\|data_\\)?[0-9]+\\|ldv_retval\\)_[0-9]+"
+      ]
+    }
+  },
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  }
+}

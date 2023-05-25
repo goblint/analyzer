@@ -1,4 +1,5 @@
-open Prelude
+open Batteries
+open GobPretty
 open Analyses
 open Constraints
 open PostSolvingFlag
@@ -20,10 +21,10 @@ module Make =
       let from_list = Fun.id
       let enqueue st elem =
         let stList = to_list st
-        in 
+        in
         if List.mem elem stList then (
           st
-        ) 
+        )
         else
           List.append st [elem]
       let peek = function [] -> raise Empty | x :: _ -> x
@@ -47,8 +48,8 @@ module Make =
         eval_rhs_event x;
         f get set
 
-    let solve _ st vs =
-      print_string ("solve wurde aufgerufen mit 
+    let solve st vs =
+      print_string ("solve wurde aufgerufen mit
       st=["^(List.fold (fun s_fold (a, b) -> "("^(Node.show (S.Var.node a))^",\n "^(S.Dom.show b)^");\n "^s_fold) "" st)^"]
       \nvs="^(List.fold (fun s_fold a -> (Node.show (S.Var.node a))^"; "^s_fold) "" vs)^"\n");
       let infl = HM.create 10 in
@@ -79,13 +80,13 @@ module Make =
           let xNode = S.Var.node x
           in
           if predominatorRegistration#isLoopHead xNode  then
-            let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem -> 
+            let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem ->
                 let svarNode = S.Var.node svElem
                 in
                 (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q)
 
             in
-            let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList 
+            let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList
             in
             predominatorRegistration#printOut ();
             (* prio und NonPrio mal ausgeben und gucken, ob das das ist, was ich erwarte *)
@@ -94,7 +95,7 @@ module Make =
       \nprio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" prio)^"\n");
       vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs prio;
             vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs nonPrio;
-          else 
+          else
             vs := (VS.fold VS.enqueue q !vs)
         end
       in
@@ -106,7 +107,7 @@ module Make =
         let x, vs' = VS.pop !vs in
         let _ = vs := vs' in
         set x (eq x (eval x) set);
-        if omitPostSolving#getFlag ()  then print_string "We have an error trace, so solver should stop right here\n" 
+        if omitPostSolving#getFlag ()  then print_string "We have an error trace, so solver should stop right here\n"
       done;
       if (omitPostSolving#getFlag () ) then Messages.warn_noloc "Program contains an error trace";
       stop_event ();

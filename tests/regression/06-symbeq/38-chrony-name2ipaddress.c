@@ -6,6 +6,8 @@
 #include <netdb.h>
 #include <pthread.h>
 #include <string.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
 
 void *
 Malloc(size_t size)

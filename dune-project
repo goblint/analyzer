@@ -1,6 +1,4 @@
-(lang dune 2.9)
-; cannot move to 3.0 due to ppx_blob: https://github.com/johnwhitington/ppx_blob/issues/23
-; need 2.9 for dune-site to work with opam install: https://github.com/ocaml/dune/issues/4212, https://github.com/ocaml/dune/pull/4645, https://github.com/ocaml/dune/pull/4774
+(lang dune 3.6)
 (using dune_site 0.1)
 (cram enable)
 (name goblint)
@@ -22,60 +20,48 @@
 (license MIT)
 
 (package
- (name goblint)
- (synopsis "Static analysis framework for C")
- (depends
-  (ocaml
-   (>= 4.10))
-  (dune
-   (>= 3.0)) ; 3.0 lower bound needed in tests/extraction ; 2.9.1 explicit lower bound needed for opam install (https://github.com/ocaml/dune/pull/4806), (lang dune 2.9.1) doesn't do this
-  (goblint-cil
-   (>= 2.0.0)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
-  (batteries
-   (>= 3.4.0))
-  (zarith
-   (>= 1.8))
-  (yojson
-   (>= 2.0.0))
-  (ocamlgraph
-   (>= 2.0.0))
-  qcheck-core
-  ppx_deriving
-  ppx_deriving_hash
-  (ppx_deriving_yojson
-   (>= 3.7.0))
-  (ppx_blob
-   (>= 0.6.0))
-  (ounit2 :with-test)
-  (qcheck-ounit :with-test)
-  (odoc :with-doc)
-  fpath
-  dune-site
-  json-data-encoding
-  (jsonrpc
-   (>= 1.12))
-  (sha
-   (>= 1.12))
-  cpu
-  arg-complete
-  yaml
-  uuidm
-  catapult
-  catapult-file
-  (conf-gmp
-   (>= 3)) ; only needed transitively, but they don't have lower bound, which is needed on MacOS
-  (conf-ruby :with-test)
-  (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
-  conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
+  (name goblint)
+  (synopsis "Static analysis framework for C")
+  (depends
+    (ocaml (>= 4.10))
+    (goblint-cil (>= 2.0.1)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
+    (batteries (>= 3.4.0))
+    (zarith (>= 1.8))
+    (yojson (>= 2.0.0))
+    (qcheck-core (>= 0.19))
+    ppx_deriving
+    ppx_deriving_hash
+    (ppx_deriving_yojson (>= 3.7.0))
+    (ounit2 :with-test)
+    (qcheck-ounit :with-test)
+    (odoc :with-doc)
+    (ocamlgraph (>= 2.0.0))
+    fpath
+    dune-site
+    dune-build-info
+    json-data-encoding
+    (jsonrpc (>= 1.12))
+    (sha (>= 1.12))
+    (fileutils (>= 0.6.4))
+    cpu
+    arg-complete
+    yaml
+    uuidm
+    catapult
+    catapult-file
+    (conf-gmp (>= 3)) ; only needed transitively, but they don't have lower bound, which is needed on MacOS
+    (conf-ruby :with-test)
+    (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
+    conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
+  )
+  (depopts
+    apron
+    z3
   )
   (conflicts
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
       )
   (sites
-    (share lib_stub_include)
-    (share lib_stub_src)
-    (share lib_runtime_include)
-    (share lib_runtime_src)
-    (share lib_runtime)
+    (share lib)
     (share conf))
 )

@@ -1,6 +1,7 @@
 (** Deadlock analysis. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open DeadlockDomain
 
@@ -23,7 +24,7 @@ struct
     module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
 
     let side_lock_event_pair ctx ((before_node, _, _) as before) ((after_node, _, _) as after) =
-      if !GU.should_warn then
+      if !AnalysisState.should_warn then
         ctx.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
     let part_access ctx: MCPAccess.A.t =

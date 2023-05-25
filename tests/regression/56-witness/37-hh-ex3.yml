@@ -1,0 +1,29 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: d834761a-d0d7-4fea-bf42-2ff2b9a19143
+    creation_time: 2022-10-12T10:59:25Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g8b307fe1f-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''37-hh-ex3.c''
+        ''--set'' ''ana.activated[+]'' ''apron'' ''--disable'' ''solvers.td3.remove-wpoint''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--enable''
+        ''dbg.timing.enabled'' ''--set'' ''goblint-dir'' ''.goblint-56-37'''
+    task:
+      input_files:
+      - 37-hh-ex3.c
+      input_file_hashes:
+        37-hh-ex3.c: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
+      data_model: LP64
+      language: C
+  location:
+    file_name: 37-hh-ex3.c
+    file_hash: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
+    line: 7
+    column: 4
+    function: main
+  location_invariant:
+    string: 0 <= i && i <= 3 && j == 0
+    type: assertion
+    format: C

@@ -19,10 +19,16 @@ let rec get_labelsLoc = function
 (** Following functions are similar to [Cil] versions, but return expression location instead of entire statement location, where possible. *)
 (* Ideally we would have both copies of the functions available, but UpdateCil would have to be adapted per-stmtkind/instr to store and update either one or two locations. *)
 
+let eloc_fallback ~eloc ~loc =
+  if eloc.line < 0 then (* unknown *)
+    loc
+  else
+    eloc
+
 (** Get expression location for [Cil.instr]. *)
 let get_instrLoc = function
-  | Set (_, _, _loc, eloc) -> eloc
-  | Call (_, _, _, _loc, eloc) -> eloc
+  | Set (_, _, loc, eloc) -> eloc_fallback ~eloc ~loc
+  | Call (_, _, _, loc, eloc) -> eloc_fallback ~eloc ~loc
   | Asm (_, _, _, _, _, loc) -> loc
   | VarDecl (_, loc) -> loc
 
@@ -41,7 +47,7 @@ let rec get_stmtLoc stmt =
   | ComputedGoto (_, loc) -> loc
   | Break loc -> loc
   | Continue loc -> loc
-  | If (_, _, _, _loc, eloc) -> eloc
-  | Switch (_, _, _, _loc, eloc) -> eloc
-  | Loop (_, _loc, eloc, _, _) -> eloc
+  | If (_, _, _, loc, eloc) -> eloc_fallback ~eloc ~loc
+  | Switch (_, _, _, loc, eloc) -> eloc_fallback ~eloc ~loc
+  | Loop (_, loc, eloc, _, _) -> eloc_fallback ~eloc ~loc
   | Block {bstmts = hd :: _; _} -> get_stmtLoc hd

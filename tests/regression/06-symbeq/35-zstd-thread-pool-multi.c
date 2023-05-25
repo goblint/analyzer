@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] mallocFresh
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] mallocFresh --set lib.activated[+] zstd
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -10,6 +10,7 @@
 
 #include<stdlib.h>
 #include<pthread.h>
+#include<goblint.h>
 #define ZSTD_pthread_mutex_t            pthread_mutex_t
 #define ZSTD_pthread_mutex_init(a, b)   pthread_mutex_init((a), (b))
 #define ZSTD_pthread_mutex_destroy(a)   pthread_mutex_destroy((a))

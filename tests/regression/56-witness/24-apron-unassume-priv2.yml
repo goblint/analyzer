@@ -1,0 +1,30 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 85b0932e-717e-47ea-b7a0-6ed5ca294047
+    creation_time: 2022-09-14T09:58:32Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-apron-0-gbb3e9f109-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''24-apron-unassume-priv2.c''
+        ''--set'' ''ana.activated[+]'' ''apron'' ''--enable'' ''witness.yaml.enabled''
+        ''--set'' ''dbg.debug'' ''true'' ''--set'' ''printstats'' ''true'' ''--set''
+        ''goblint-dir'' ''.goblint-56-21'''
+    task:
+      input_files:
+      - 24-apron-unassume-priv2.c
+      input_file_hashes:
+        24-apron-unassume-priv2.c: bc48bad1f602a9b79db764c73e42950810b763f19ebda683b33603c8941f2e80
+      data_model: LP64
+      language: C
+  location:
+    file_name: 24-apron-unassume-priv2.c
+    file_hash: bc48bad1f602a9b79db764c73e42950810b763f19ebda683b33603c8941f2e80
+    line: 11
+    column: 2
+    function: t_fun
+  location_invariant:
+    string: '0 <= g && g <= 10'
+    type: assertion
+    format: C
+

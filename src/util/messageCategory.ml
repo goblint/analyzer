@@ -12,6 +12,7 @@ type undefined_behavior =
   | NullPointerDereference
   | UseAfterFree
   | Uninitialized
+  | Other
 [@@deriving eq, ord, hash]
 
 type behavior =
@@ -27,6 +28,7 @@ type cast = TypeMismatch [@@deriving eq, ord, hash]
 type category =
   | Assert
   | Behavior of behavior
+  | Call
   | Integer of integer
   | Float
   | Race
@@ -61,6 +63,7 @@ struct
     let nullpointer_dereference: category = create @@ NullPointerDereference
     let use_after_free: category = create @@ UseAfterFree
     let uninitialized: category = create @@ Uninitialized
+    let other: category = create @@ Other
 
     module ArrayOutOfBounds =
     struct
@@ -95,6 +98,7 @@ struct
         | "nullpointer_dereference" -> nullpointer_dereference
         | "use_after_free" -> use_after_free
         | "uninitialized" -> uninitialized
+        | "other" -> other
         | _ -> Unknown
 
     let path_show (e: t) =
@@ -103,6 +107,7 @@ struct
       | NullPointerDereference -> ["NullPointerDereference"]
       | UseAfterFree -> ["UseAfterFree"]
       | Uninitialized -> ["Uninitialized"]
+      | Other -> ["Other"]
   end
 
   let from_string_list (s: string list): category =
@@ -167,6 +172,7 @@ let should_warn e =
     match e with
     | Assert -> "assert"
     | Behavior _ -> "behavior"
+    | Call -> "call"
     | Integer _ -> "integer"
     | Float -> "float"
     | Race -> "race"
@@ -186,6 +192,7 @@ let path_show e =
   match e with
   | Assert -> ["Assert"]
   | Behavior x -> "Behavior" :: Behavior.path_show x
+  | Call -> ["Call"]
   | Integer x -> "Integer" :: Integer.path_show x
   | Float -> ["Float"]
   | Race -> ["Race"]
@@ -208,13 +215,14 @@ let behaviorName = function
     |NullPointerDereference -> "NullPointerDereference"
     |UseAfterFree -> "UseAfterFree"
     |Uninitialized -> "Uninitialized"
+    |Other -> "Other"
     | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"
       | BeforeStart -> "BeforeStart"
       | Unknown -> "Unknown Aob"
 let categoryName = function
   | Assert -> "Assert"
-
+  | Call -> "Call"
   | Race -> "Race"
   | Deadlock -> "Deadlock"
   | Cast x -> "Cast"
@@ -239,6 +247,7 @@ let from_string_list (s: string list) =
   | h :: t -> match h with
     | "assert" -> Assert
     | "behavior" -> Behavior.from_string_list t
+    | "call" -> Call
     | "integer" -> Integer.from_string_list t
     | "float" -> Float
     | "race" -> Race

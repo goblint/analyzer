@@ -2,13 +2,6 @@
 (install
   (section (site (goblint conf)))
   (files
-    (examples/large-program.json as examples/large-program.json) ; must repeat directory, otherwise gets stripped from target
-    (examples/medium-program.json as examples/medium-program.json) ; must repeat directory, otherwise gets stripped from target
-    (examples/very-precise.json as examples/very-precise.json) ; must repeat directory, otherwise gets stripped from target
-    svcomp.json
-    svcomp21.json
-    svcomp22.json
-    svcomp23.json
-    ; no way to glob here...
+    (glob_files_rec *.json)
   )
 )

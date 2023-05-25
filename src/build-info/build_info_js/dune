@@ -1,0 +1,5 @@
+; goblint.build-info implementation which works with js_of_ocaml and doesn't use dune-build-info
+(library
+  (name goblint_build_info_js)
+  (public_name goblint.build-info.js)
+  (implements goblint.build-info))

@@ -134,11 +134,11 @@ struct
       match x with
       | [] -> []
       | [x] -> [x]
-      | (x::xs) -> x ++ (text ", ") :: separate xs
+      | (x::xs) -> x ++ (text "," ++ break) :: separate xs
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-    (text "{") ++ content ++ (text "}")
+    (text "{" ++ align) ++ content ++ (unalign ++ text "}")
 
   (** Short summary for sets. *)
   let show x : string =
@@ -160,7 +160,7 @@ module Make (Base: Printable.S): S with
   type elt = Base.t and
   type t = BatSet.Make (Base).t = (* TODO: remove, only needed in VarEq for some reason... *)
 struct
-  include Printable.Blank
+  include Printable.Std
   include BatSet.Make(Base)
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
@@ -174,10 +174,6 @@ struct
   let top () = unsupported "Make.top"
   let is_top _ = false
 
-  let map f s =
-    let add_to_it x s = add (f x) s in
-    fold add_to_it s (empty ())
-
   include Print (Base) (
     struct
       type nonrec t = t
@@ -186,10 +182,6 @@ struct
       let iter = iter
     end
     )
-
-  let equal x y =
-    cardinal x = cardinal y
-    && for_all (fun e -> exists (Base.equal e) y) x
 
   let hash x = fold (fun x y -> y + Base.hash x) x 0
 
@@ -449,6 +441,7 @@ sig
   val elems: t list
 end
 
+(* TODO: put elems into E *)
 module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
 struct
   module E =

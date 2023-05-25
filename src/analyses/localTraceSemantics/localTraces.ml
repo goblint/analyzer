@@ -1,9 +1,11 @@
-open Prelude.Ana
+open GobPretty
+open GoblintCil
 open Graph
+open Batteries
 
 (* Custom version of the Edge module in order to introduce one additional edge: DepMutex *)
 module CustomEdge =
-struct 
+struct
   (* copy paste from Edge module *)
   type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, ord, hash, to_yojson]
   type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, ord, hash, to_yojson]
@@ -25,8 +27,8 @@ struct
   let pretty () = function
     | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
     | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
-    | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
-    | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
+    | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (Pretty.d_list ", " dn_exp) args
+    | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (Pretty.d_list ", " dn_exp) args
     | Entry (f) -> Pretty.text "(body)"
     | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
     | Ret (None,f) -> Pretty.dprintf "return"
@@ -36,19 +38,19 @@ struct
     | DepMutex (mv) -> Pretty.text ("depMutex ("^(CilType.Varinfo.show mv)^")")
 
   let pretty_plain () = function
-    | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
-    | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
-    | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars
-    | Entry f -> dprintf "Entry %s" f.svar.vname
-    | Ret (None,fd) -> dprintf "Ret (None, %s)" fd.svar.vname
-    | Ret (Some r,fd) -> dprintf "Ret (Some %a, %s)" d_exp r fd.svar.vname
-    | Test (p,b) -> dprintf "Test (%a,%b)" d_exp p b
-    | ASM _ -> text "ASM ..."
-    | Skip -> text "Skip"
-    | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
-    | DepMutex (mv) -> dprintf "DepMutex (%a)" d_varinfo mv
+    | Assign (lv,rv) -> Pretty.dprintf "Assign '%a = %a' " d_lval lv d_exp rv
+    | Proc (None  ,f,ars) -> Pretty.dprintf "Proc '%a(%a)'" d_exp f (Pretty.d_list ", " d_exp) ars
+    | Proc (Some r,f,ars) -> Pretty.dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (Pretty.d_list ", " d_exp) ars
+    | Entry f -> Pretty.dprintf "Entry %s" f.svar.vname
+    | Ret (None,fd) -> Pretty.dprintf "Ret (None, %s)" fd.svar.vname
+    | Ret (Some r,fd) -> Pretty.dprintf "Ret (Some %a, %s)" d_exp r fd.svar.vname
+    | Test (p,b) -> Pretty.dprintf "Test (%a,%b)" d_exp p b
+    | ASM _ -> Pretty.text "ASM ..."
+    | Skip -> Pretty.text "Skip"
+    | VDecl v -> Pretty.dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
+    | DepMutex (mv) -> Pretty.dprintf "DepMutex (%a)" CilType.Varinfo.pretty mv
 
-end 
+end
 
 (* Explicit varinfo definition for custom compare-implementation *)
 module VarinfoImpl =
@@ -57,7 +59,7 @@ struct
 
   (* In order for inner and outter variables to be equal *)
   let compare vinfo1 vinfo2 =
-    if String.equal vinfo1.vname vinfo2.vname then 0 
+    if String.equal vinfo1.vname vinfo2.vname then 0
     else CilType.Varinfo.compare vinfo1 vinfo2
 
 end
@@ -67,18 +69,18 @@ module VarinfoSet = Set.Make(VarinfoImpl)
 
 (* Value domain for variables contained in sigma mapping.
    The supported types are: Integer and Thread IDs *)
-type varDomain = 
+type varDomain =
     Int of Cilint.cilint * Cilint.cilint * ikind
   (* | Address of varinfo   *)
-  | ThreadID of int 
-  | Error 
+  | ThreadID of int
+  | Error
 
 (* Calculates the middle of an interval s.t. it can be split into two intervals *)
 let middle_intersect_intervals l1 u1 l2 u2 = if u1 = l2 then u1 else if l1 = u2 then l1 else
     (  let l_intersect, u_intersect = if u1 > l2 then l2, u1 else l1, u2
-       in 
-       let delta = Big_int_Z.abs_big_int (Big_int_Z.sub_big_int u_intersect l_intersect) 
-       in Big_int_Z.add_big_int l_intersect (Big_int_Z.div_big_int delta (Big_int_Z.big_int_of_int 2))  ) 
+       in
+       let delta = Big_int_Z.abs_big_int (Big_int_Z.sub_big_int u_intersect l_intersect)
+       in Big_int_Z.add_big_int l_intersect (Big_int_Z.div_big_int delta (Big_int_Z.big_int_of_int 2))  )
 
 (* Helper functions for varDomain *)
 let equal_varDomain vd1 vd2 =
@@ -119,25 +121,25 @@ let make_custom_local_varinfo_name x = "__goblint__traces__"^x.vname
 
 (* Module wrap for node implementing necessary functions for ocamlgraph *)
 module NodeImpl =
-struct 
+struct
   type t = node
 
   let show_sigma s = (SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")
 
   let show_lockSet ls = VarinfoSet.fold (fun mutex s_fold -> (CilType.Varinfo.show mutex)^"; "^s_fold) ls ""
 
-  let equal_sigma s1 s2 = 
-    if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true 
+  let equal_sigma s1 s2 =
+    if (SigmaMap.is_empty s1) && (SigmaMap.is_empty s2) then true
     else if (SigmaMap.cardinal s1) != (SigmaMap.cardinal s2) then false
     else
       SigmaMap.fold (fun vinfo varDom b -> b && (if SigmaMap.mem vinfo s2 then equal_varDomain (SigmaMap.find vinfo s2) varDom else false)) s1 true
 
-  let show n = 
-    match n with {programPoint=p;sigma=s;id=id;tid=tid;lockSet=lockSet} -> "node:{programPoint="^(Node.show p)^"; id="^(string_of_int id)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")^"]; 
+  let show n =
+    match n with {programPoint=p;sigma=s;id=id;tid=tid;lockSet=lockSet} -> "node:{programPoint="^(Node.show p)^"; id="^(string_of_int id)^"; |sigma|="^(string_of_int (SigmaMap.cardinal s))^", sigma=["^(SigmaMap.fold (fun vinfo vd s -> s^"vinfo="^(CilType.Varinfo.show vinfo)^", ValueDomain="^(show_varDomain vd)^";") s "")^"];
     tid="^(string_of_int tid)^"; lockSet=["^(show_lockSet lockSet)^"]}"
 
-  let compare n1 n2 = match (n1, n2) with 
-      ({programPoint=p1;sigma=s1;id=id1;tid=tid1;lockSet=ls1},{programPoint=p2;sigma=s2;id=id2;tid=tid2;lockSet=ls2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2)&&(VarinfoSet.equal ls1 ls2) then Node.compare p1 p2 else -13 
+  let compare n1 n2 = match (n1, n2) with
+      ({programPoint=p1;sigma=s1;id=id1;tid=tid1;lockSet=ls1},{programPoint=p2;sigma=s2;id=id2;tid=tid2;lockSet=ls2}) -> if (equal_sigma s1 s2)&&(id1 = id2)&&(tid1 = tid2)&&(VarinfoSet.equal ls1 ls2) then Node.compare p1 p2 else -13
 
   let hash_sigma s = (SigmaMap.fold (fun vinfo vd i -> (CilType.Varinfo.hash vinfo) + (hash_varDomain vd) + i) s 0)
 
@@ -209,7 +211,7 @@ struct
 
   (* Helper function for equal *)
   let rec equal_helper2 (node_prev1, edge1, node_dest1) edgeList =
-    match edgeList with (node_prev2, edge2, node_dest2)::xs -> 
+    match edgeList with (node_prev2, edge2, node_dest2)::xs ->
       ((NodeImpl.equal node_prev1 node_prev2)&&(EdgeImpl.equal edge1 edge2)&&(NodeImpl.equal node_dest1 node_dest2)) || (equal_helper2 (node_prev1, edge1, node_dest1) xs )
                       | [] -> false
 
@@ -217,7 +219,7 @@ struct
     match edgeList1 with x::xs -> (equal_helper2 x edgeList2)&&(equal_helper1 xs edgeList2)
                        | [] -> true
 
-  let equal g1 g2 = 
+  let equal g1 g2 =
     if (LocTraceGraph.nb_edges g1 != LocTraceGraph.nb_edges g2) || (LocTraceGraph.nb_vertex g1 != LocTraceGraph.nb_vertex g2) then (false) else (
       let edgeList1 = get_all_edges g1
       in let edgeList2 = get_all_edges g2
@@ -225,7 +227,7 @@ struct
       let tmp = equal_helper1 (edgeList1) (edgeList2)
       in tmp)
 
-  let equal_edge (prev_node1, edge1, dest_node1) (prev_node2, edge2, dest_node2) = 
+  let equal_edge (prev_node1, edge1, dest_node1) (prev_node2, edge2, dest_node2) =
     (NodeImpl.equal prev_node1 prev_node2)&&(EdgeImpl.equal edge1 edge2)&&(NodeImpl.equal dest_node1 dest_node2)
 
   let hash g1 =
@@ -233,7 +235,7 @@ struct
     in
     (LocTraceGraph.nb_edges g1) + (LocTraceGraph.nb_vertex g1) + tmp
 
-  let compare g1 g2 =  
+  let compare g1 g2 =
     if equal g1 g2 then 0 else compare g1 g2
 
   (* Dummy to_yojson function *)
@@ -241,14 +243,14 @@ struct
 
   (* Adds an edge to a graph
      Explicit function for future improvements *)
-  let extend_by_gEdge gr gEdge = 
-    if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr)) 
-    then gr 
-    else let tmp = LocTraceGraph.add_edge_e gr gEdge in tmp 
+  let extend_by_gEdge gr gEdge =
+    if (List.fold (fun acc edge_fold -> (equal_edge edge_fold gEdge)||acc) false (get_all_edges gr))
+    then gr
+    else let tmp = LocTraceGraph.add_edge_e gr gEdge in tmp
 
   (* An error node. A trace ending here is a faulty one *)
-  let error_node : MyCFG.node = 
-    FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[])); 
+  let error_node : MyCFG.node =
+    FunctionEntry({svar=makeVarinfo false "__goblint__traces__error" (TInt(IInt,[]));
                    sformals=[];
                    slocals=[];
                    smaxid=0;
@@ -261,36 +263,36 @@ struct
 
   let branch_vinfo = makeVarinfo false "__goblint__traces__branch" (TInt(IInt,[]))
 
-  let get_predecessors_edges graph node = 
-    List.fold 
+  let get_predecessors_edges graph node =
+    List.fold
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node dest_node then edge::list else list)
       [] (get_all_edges graph)
 
   let get_predecessors_nodes graph node =
-    List.fold 
+    List.fold
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node dest_node then prev_node::list else list)
       [] (get_all_edges graph)
 
   let get_successors_edges graph node =
-    List.fold 
+    List.fold
       (fun list edge -> match edge with (prev_node, edgeLabel, dest_node) -> if NodeImpl.equal node prev_node then edge::list else list)
       [] (get_all_edges graph)
 
   (* Crucial function implementing the global search *)
-  let find_globvar_assign_node global graph node = 
+  let find_globvar_assign_node global graph node =
     (* As a worklist we use a queue. Thus, search is performed in a BFS-style:
        For a node, we check all preceeding edges for an assignment defining global.
        If we find nothing, then we add all predecessors to the queue and continue. *)
     let workQueue = Queue.create ()
     in Queue.add node workQueue;
     let rec loop visited = (let q = Queue.pop workQueue
-                            in let predecessors = 
+                            in let predecessors =
                                  get_predecessors_edges graph q
-                            in let tmp_result = 
-                                 List.fold (fun optionAcc (prev_node, (edge:CustomEdge.t), _) -> 
-                                     match edge with 
-                                     | (Assign((Var(edgevinfo),_), edgeExp)) -> 
-                                       if CilType.Varinfo.equal global edgevinfo 
+                            in let tmp_result =
+                                 List.fold (fun optionAcc (prev_node, (edge:CustomEdge.t), _) ->
+                                     match edge with
+                                     | (Assign((Var(edgevinfo),_), edgeExp)) ->
+                                       if CilType.Varinfo.equal global edgevinfo
                                        then Some(prev_node,edge) else optionAcc
                                      | _ -> optionAcc
                                    ) None predecessors
@@ -299,7 +301,7 @@ struct
                             in
                             match tmp_result with
                             | None -> List.iter (fun pred -> if List.mem pred visited then () else Queue.add pred workQueue) (get_predecessors_nodes graph q);
-                              if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}, skip_edge) 
+                              if Queue.is_empty workQueue then ({programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}, skip_edge)
                               else (
                                 loop (q::visited))
                             | Some(nodeGlobalAssignment) -> nodeGlobalAssignment
@@ -310,26 +312,26 @@ struct
   let get_succeeding_node prev_node edge_label graph =
     let edgeList = get_all_edges graph
     in let tmp =
-         List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) -> 
-             if (NodeImpl.equal prev_node prev_fold)&&(CustomEdge.equal edge_label edge_fold) 
+         List.fold (fun acc_node ((prev_fold:node), edge_fold, (dest_fold:node)) ->
+             if (NodeImpl.equal prev_node prev_fold)&&(CustomEdge.equal edge_label edge_fold)
              then dest_fold
              else acc_node
            ) {programPoint=error_node;sigma=SigmaMap.empty;id=(-1);tid= -1;lockSet=VarinfoSet.empty} edgeList
     in tmp
 
-  (* Finds the return endpoint of a calling node. 
+  (* Finds the return endpoint of a calling node.
      Since function calls can be nested, we use a saldo which indicates in what calling depth the computation is starting at prev_node. *)
   let find_returning_node prev_node edge_label graph =
     let node_start = get_succeeding_node prev_node edge_label graph
     in
     let rec find_returning_node_helper current_node current_saldo =(let succeeding_edges = get_successors_edges graph current_node
                                                                     in
-                                                                    List.fold (fun acc_node ((prev_fold:node), (edge_fold:CustomEdge.t), (dest_fold:node)) -> 
+                                                                    List.fold (fun acc_node ((prev_fold:node), (edge_fold:CustomEdge.t), (dest_fold:node)) ->
                                                                         if prev_fold.tid != dest_fold.tid then acc_node else
-                                                                          match edge_fold with 
-                                                                          | Proc(_, Lval(Var(fvinfo), NoOffset), _) -> 
+                                                                          match edge_fold with
+                                                                          | Proc(_, Lval(Var(fvinfo), NoOffset), _) ->
                                                                             (* check whether function is one of my supported special functions*)
-                                                                            if (String.equal fvinfo.vname "pthread_mutex_lock") 
+                                                                            if (String.equal fvinfo.vname "pthread_mutex_lock")
                                                                             || (String.equal fvinfo.vname "pthread_mutex_unlock")
                                                                             || (String.equal fvinfo.vname "pthread_create")
                                                                             || (String.equal fvinfo.vname "pthread_join")
@@ -346,15 +348,15 @@ struct
                                                                    )
     in find_returning_node_helper node_start 1
 
-  (* Interface for possible improvement: 
+  (* Interface for possible improvement:
      Instead of conducting each time a search for the last node, store it as a component at the local trace datastructure *)
 
   (* Searches for last node in a trace. It has to contain the programPoint, otherwise an error-node is returned *)
   let get_last_node_progPoint graph programPoint =
     let allNodes = get_all_nodes graph
-    in 
+    in
     let rec loop nodeList =
-      match nodeList with 
+      match nodeList with
       | x::xs -> if (List.is_empty (get_successors_edges graph x))&&(Node.equal x.programPoint programPoint) then x else loop xs
       | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
@@ -362,14 +364,14 @@ struct
   (* Searches for last node in a trace independently of the program point *)
   let get_last_node graph =
     let allNodes = get_all_nodes graph
-    in 
+    in
     let rec loop nodeList =
-      match nodeList with 
+      match nodeList with
       | x::xs -> if (List.is_empty (get_successors_edges graph x)) then x else loop xs
       | [] -> {programPoint=error_node;sigma=SigmaMap.empty; tid= -1; id= -1; lockSet=VarinfoSet.empty}
     in loop allNodes
 
-  (* Searches for the first node in a trace. 
+  (* Searches for the first node in a trace.
      As the last node, this too could be stored as a component. *)
   let get_first_node graph =
     let allNodes = get_all_nodes graph
@@ -383,9 +385,9 @@ struct
   (* Gets all nodes with corresponding program point. *)
   let get_all_nodes_progPoint graph programPoint=
     let allNodes = get_all_nodes graph
-    in 
+    in
     let rec loop nodeList acc =
-      match nodeList with 
+      match nodeList with
       | x::xs -> if (Node.equal x.programPoint programPoint) then loop xs (x::acc) else loop xs acc
       | [] -> acc
     in loop allNodes []
@@ -397,12 +399,12 @@ struct
     let allNodes = get_all_nodes_progPoint graph progPoint
     in
     let rec inner_loop node_candidate edgeList =
-      match edgeList with (_,e,_)::es -> 
+      match edgeList with (_,e,_)::es ->
         let tmp = find_returning_node node_candidate e graph
         in
         if NodeImpl.equal return_node tmp then node_candidate
         else inner_loop node_candidate es
-                        | [] -> 
+                        | [] ->
                           {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=VarinfoSet.empty}
     in
     let rec loop nodeList =
@@ -411,10 +413,10 @@ struct
           let succeedingEdgesList = get_successors_edges graph x
           in
           let tmp_result = inner_loop x succeedingEdgesList
-          in 
+          in
           if Node.equal tmp_result.programPoint error_node then loop xs else tmp_result
         )
-      | [] -> 
+      | [] ->
         {programPoint=error_node;sigma= SigmaMap.empty;id= -1; tid= -1;lockSet=VarinfoSet.empty}
     in loop allNodes
 
@@ -466,18 +468,18 @@ struct
 
   (* Merges two graphs into one. *)
   let merge_graphs graph1 graph2 =
-    List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)  
+    List.fold (fun graph_fold edge_fold -> extend_by_gEdge graph_fold edge_fold) graph2 (get_all_edges graph1)
 
   (* Checks whether a thread-ID was already joined into a trace. *)
   let is_already_joined tid graph =
     let allEdges = get_all_edges graph
     in
     let rec loop (edgeList: ((node * CustomEdge.t * node) list)) =
-      match edgeList with (prev_node, Proc(_, Lval(Var(v),_), _), dest_node)::xs -> 
+      match edgeList with (prev_node, Proc(_, Lval(Var(v),_), _), dest_node)::xs ->
         if (prev_node.tid = tid) && (dest_node.tid != tid)&&(String.equal v.vname "pthread_join") then true else loop xs
                         | (prev_node, edge, dest_node)::xs -> loop xs
                         | [] -> false
-    in loop allEdges  
+    in loop allEdges
 
   (* Checks whether node1 precedes node2 *)
   let precedes_other_node node1 node2 graph =
@@ -495,7 +497,7 @@ struct
                        then () else Queue.add node_iter workQueue
                      ) precedingNodes;
            loop (currentNode::visited))
-    in 
+    in
     Queue.add node2 workQueue;
     loop []
 
@@ -510,8 +512,8 @@ struct
         in
         let nextNode = List.fold (
             fun acc_fold node_fold ->
-              if Node.equal acc_fold.programPoint error_node then node_fold 
-              else if currentNode.tid = node_fold.tid then node_fold 
+              if Node.equal acc_fold.programPoint error_node then node_fold
+              else if currentNode.tid = node_fold.tid then node_fold
               else acc_fold
           ) {programPoint=error_node;tid= -1;id= -1;sigma=SigmaMap.empty;lockSet=VarinfoSet.empty} predecessors
         in
@@ -526,7 +528,7 @@ struct
     in
     let rec loop (edgeList:LocTraceGraph.edge list) =
       match edgeList with
-      | (_, Proc(None, Lval(Var(lvalVinfo), _),[AddrOf(Var(argVinfo), _)]), _) ::xs -> 
+      | (_, Proc(None, Lval(Var(lvalVinfo), _),[AddrOf(Var(argVinfo), _)]), _) ::xs ->
         if (String.equal lvalVinfo.vname "pthread_mutex_lock") && (CilType.Varinfo.equal mutexVinfo argVinfo) then true else loop xs
       | x::xs -> loop xs
       | [] -> false
@@ -538,7 +540,7 @@ struct
     in
     let rec loop (edgeList:LocTraceGraph.edge list) =
       match edgeList with
-      | (_, Proc(None, Lval(Var(lvalVinfo), _),[AddrOf(Var(argVinfo), _)]), _) ::xs -> 
+      | (_, Proc(None, Lval(Var(lvalVinfo), _),[AddrOf(Var(argVinfo), _)]), _) ::xs ->
         if (String.equal lvalVinfo.vname "pthread_mutex_unlock") && (CilType.Varinfo.equal mutexVinfo argVinfo) then true else loop xs
       | x::xs -> loop xs
       | [] -> false
@@ -547,29 +549,29 @@ struct
   let merge_edge_lists edgeList1 edgeList2 =
     List.fold (fun acc edge ->
         if (List.exists (fun edge_exists-> equal_edge edge edge_exists) acc) then acc else edge::acc
-      ) edgeList1 edgeList2 
+      ) edgeList1 edgeList2
 
   (* Helper functions for validity check of merged graphs *)
   module DepMutexCount = Map.Make(CilType.Varinfo)
   (* Checks whether from each node at most on DepMutex-edge per mutex exists *)
-  (* This needs to be reimplemented to the condition given in the paper: 
+  (* This needs to be reimplemented to the condition given in the paper:
      for a mutex a every lock is preceded by
      exactly one unlock (or it is the first lock, then by start) of a, and each unlock is directly
      followed by at most one lock
      Additionally, at a point a cycle check is needed  *)
   let check_no_multiple_depMutexes edgeList =
     let depCount = List.fold (fun count_fold (edge_fold:LocTraceGraph.edge) ->
-        match edge_fold with (prev_node,DepMutex(vinfo),dest_node) -> 
-          if DepMutexCount.mem vinfo count_fold 
-          then 
-            DepMutexCount.add vinfo ((DepMutexCount.find vinfo count_fold)+1) count_fold 
-          
-          else 
+        match edge_fold with (prev_node,DepMutex(vinfo),dest_node) ->
+          if DepMutexCount.mem vinfo count_fold
+          then
+            DepMutexCount.add vinfo ((DepMutexCount.find vinfo count_fold)+1) count_fold
+
+          else
             DepMutexCount.add vinfo 1 count_fold
-          
+
                            | _ -> count_fold
       ) DepMutexCount.empty edgeList
-    in 
+    in
     not (DepMutexCount.exists (fun vinfo_exists count_exists -> if count_exists > 1 then true else false) depCount)
 
   let maintains_depMutex_condition graph =
@@ -577,14 +579,14 @@ struct
     in let rec loop nodeList =
          match nodeList with node::xs ->
            let edgeList:(node* CustomEdge.t* node) list = get_successors_edges graph node
-           in 
+           in
            if not (check_no_multiple_depMutexes edgeList) then false else loop xs
                            | [] -> true
     in loop allNodes
 
   module NodeImplSet = Set.Make(NodeImpl)
   (* Checks whether the graph contains a cycle *)
-  let is_acyclic graph = 
+  let is_acyclic graph =
     let firstNode = get_first_node graph
     in
     let rec loop_nodes visited currentNode =
@@ -600,7 +602,7 @@ struct
     in loop_nodes NodeImplSet.empty firstNode
 
   (* Checks that every node has exactly one edge except some exceptions
-     this is not the optimal way, it would be better to ensure not to produce such kind of merged traces 
+     this is not the optimal way, it would be better to ensure not to produce such kind of merged traces
      this needs to be improved in some point in the future *)
   (* Here I assume that if one egde in the list is a pthread_create edge, then others are aswell*)
   let are_pthread_create_edges (edgeList : (node * CustomEdge.t * node) list) =
@@ -617,13 +619,13 @@ struct
     in
     loop allEdges 0
 
-  (* Checks whether nodes have a reasonable amount of successor edges 
+  (* Checks whether nodes have a reasonable amount of successor edges
      Either a node has at most one successor edges or the additional successor edges are create or dependency edges *)
-  let has_valid_edge_branching graph = 
-    let allNodes = get_all_nodes graph 
+  let has_valid_edge_branching graph =
+    let allNodes = get_all_nodes graph
     in
     let rec loop nodeList =
-      match nodeList with 
+      match nodeList with
       | node::xs -> let edgeList = get_successors_edges graph node
         in
         if List.length edgeList < 2 then loop xs
@@ -637,7 +639,7 @@ struct
 
   (* Crucial function. Performs post-checks on merged graph *)
   let is_valid_merged_graph graph =
-    (maintains_depMutex_condition graph) 
+    (maintains_depMutex_condition graph)
     && (is_acyclic graph)
     && (has_valid_edge_branching graph)
 
@@ -651,15 +653,15 @@ struct
                       | _ -> false
       ) successorEdge
 
-  let get_last_unlocking_node graph mutexVinfo = 
+  let get_last_unlocking_node graph mutexVinfo =
     let allEdges = get_all_edges graph
     in
     let rec loop (edgeList: (node * CustomEdge.t * node) list) =
-      match edgeList with 
+      match edgeList with
       | (_, Proc(_, Lval(Var(fvinfo), NoOffset), [AddrOf(Var(fMutex), _)]),dest_node)::xs ->
-        if (String.equal fvinfo.vname "pthread_mutex_unlock") && (String.equal mutexVinfo.vname fMutex.vname) then 
+        if (String.equal fvinfo.vname "pthread_mutex_unlock") && (String.equal mutexVinfo.vname fMutex.vname) then
           (
-            if has_succeeding_depMutex graph dest_node mutexVinfo then loop xs 
+            if has_succeeding_depMutex graph dest_node mutexVinfo then loop xs
             else dest_node
           )
         else loop xs
@@ -668,6 +670,7 @@ struct
       | [] -> {programPoint=error_node;sigma=SigmaMap.empty;id= -1;tid= -1;lockSet=VarinfoSet.empty}
     in loop allEdges
 
+  let relift x = x (* TODO: This data structure does currently not support marshalling in any meaningful way. *)
 end
 
 (* Set domain for analysis framework *)
@@ -682,7 +685,7 @@ module SideEffectDomain = struct
   type t = ThreadID of int | Mutex of varinfo
   let is_write_only _ = false
 
-  let equal (t1:t) (t2:t) = 
+  let equal (t1:t) (t2:t) =
     match t1, t2 with ThreadID(tid1), ThreadID(tid2) -> tid1 = tid2
                     | Mutex(m1), Mutex(m2) -> CilType.Varinfo.equal m1 m2
                     | _ -> false
@@ -697,7 +700,7 @@ module SideEffectDomain = struct
                                       | Mutex(m), ThreadID(tid) -> let tmp = (hash (Mutex m)) - (hash (ThreadID tid)) in if tmp > 0 then tmp else 1000
 
   let show t = match t with ThreadID(tid) -> "ThreadID of"^(string_of_int tid)
-                          | Mutex(m) -> "Mutex of "^(CilType.Varinfo.show m) 
+                          | Mutex(m) -> "Mutex of "^(CilType.Varinfo.show m)
 
   include Printable.SimpleShow (struct
       type nonrec t = t

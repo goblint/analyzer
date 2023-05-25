@@ -36,10 +36,14 @@
     },
     "apron": {
       "invariant": {
+        "diff-box": false
+      }
+    },
+    "relation" : {
+      "invariant": {
         "one-var": true,
         "local": true,
-        "global": true,
-        "diff-box": false
+        "global": true
       }
     }
   },

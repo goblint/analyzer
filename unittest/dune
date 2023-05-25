@@ -2,7 +2,7 @@
 
 (test
   (name mainTest)
-  (libraries ounit2 qcheck-ounit goblint.lib goblint.sites.dune)
+  (libraries ounit2 qcheck-ounit goblint.lib goblint.sites.dune goblint.build-info.dune)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall))
 
