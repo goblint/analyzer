@@ -7,8 +7,7 @@ int k = 0;
 
 void main() {
   srand(time(NULL));
-  int x;
-  int y = x;
+  int x = 3;
   while (k < 43) {
     while (k < 1) {
       if (1800000000 < x) {

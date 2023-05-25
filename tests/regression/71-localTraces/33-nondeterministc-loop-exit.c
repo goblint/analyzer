@@ -6,8 +6,7 @@
 
 void main() {
   srand(time(NULL));
-  int x;
-  int y = x;
+  int x = 3;
   int k = 0;
   while (1) {
     if (1900000000 < x) {

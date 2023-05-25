@@ -598,9 +598,7 @@ and after, we have:
       else if String.equal f.vname "rand" then (
         match lval with
         | Some(Var(var), NoOffset) ->
-          let randomValue = Big_int_Z.big_int_of_int (randomIntGenerator#getRandomValueFullCInt (LocalTraces.hash graph) var )
-          in
-          let newSigma = SigmaMap.add var (Int(randomValue, randomValue, IInt)) sigma
+          let newSigma = SigmaMap.remove var sigma
           in
           let myEdge = ({programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls}, EdgeImpl.convert_edge ctx.edge,
                         {programPoint=ctx.node;sigma=newSigma;id=(idGenerator#getID {programPoint=programPoint;sigma=sigma;id=id;tid=tid;lockSet=ls} (EdgeImpl.convert_edge ctx.edge) ctx.node newSigma tid ls);tid=tid;lockSet=ls})

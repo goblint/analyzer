@@ -12,8 +12,9 @@ void main() {
   while (k < 1) {
     if (1900000000 < x) {
       k = 42;
+    } else {
+      x = rand();
     }
-    x = rand();
   }
   x = x + 2147483647;  // WARN
 }
