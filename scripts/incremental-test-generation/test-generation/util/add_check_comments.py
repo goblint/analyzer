@@ -6,11 +6,12 @@
 import argparse
 import re
 
-def add_check_comments(file_path: str, undefined_instead_of_success: bool):
-    if undefined_instead_of_success:
-        print("Add \"//UNDEFINED\" to the Goblint checks __goblint_check(exp);")
-    else:
-        print("Add \"//SUCCESS\" to the Goblint checks __goblint_check(exp);")
+def add_check_comments(file_path: str, undefined_instead_of_success: bool, verbose = False):
+    if verbose:
+        if undefined_instead_of_success:
+            print("Add \"//UNDEFINED\" to the Goblint checks __goblint_check(exp);")
+        else:
+            print("Add \"//SUCCESS\" to the Goblint checks __goblint_check(exp);")
 
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -32,11 +33,13 @@ def add_check_comments(file_path: str, undefined_instead_of_success: bool):
             new_file_name = file_path.rsplit('.', 1)[0] + '_u.c'
             with open(new_file_name, 'w') as new_file:
                 new_file.writelines(modified_lines)
-            print("Processing complete. Modified lines have been added to the new file:", new_file_name)
+            if verbose:
+                print("Processing complete. Modified lines have been added to the new file:", new_file_name)
         else:
             with open(file_path, 'w') as file:
                 file.writelines(modified_lines)
-            print("Processing complete. Modified lines have been added to the existing file:", file_path)
+            if verbose:
+                print("Processing complete. Modified lines have been added to the existing file:", file_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -48,4 +51,4 @@ if __name__ == "__main__":
     if not (args.undefined or args.success):
         parser.error("Error: Invalid option. Provide -u for \"//UNDEFINED\" or -s for \"//SUCCESS\".")
 
-    add_check_comments(args.file, args.undefined)
+    add_check_comments(args.file, args.undefined, True)
