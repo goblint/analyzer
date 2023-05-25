@@ -38,6 +38,7 @@ let of_int z =
     `Lifted MutexKind.NonRec
   else
     let recursive_int = Lazy.force recursive_int in
-    match recursive_int with
-    | r when Z.equal z r -> `Lifted MutexKind.Recursive
-    | _ -> `Top
+    if Z.equal z recursive_int then
+      `Lifted MutexKind.Recursive
+    else
+      `Top
