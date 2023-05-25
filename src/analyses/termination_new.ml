@@ -59,6 +59,6 @@ end
 
 let () =
   (** Register the preprocessing *)
-  Cilfacade.register_preprocess (Spec.name ()) (new loopCounterVisitor);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor);
   (** Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)
