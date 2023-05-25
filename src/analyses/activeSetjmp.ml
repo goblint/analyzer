@@ -1,4 +1,4 @@
-(** Analysis tracking which setjmp(s) are currently active *)
+(** Analysis of active [setjmp] buffers ([activeSetjmp]). *)
 
 open GoblintCil
 open Analyses

@@ -1,3 +1,5 @@
+(** Deprecated top-down solver ([topdown_deprecated]). *)
+
 open Batteries
 open Analyses
 open Constraints

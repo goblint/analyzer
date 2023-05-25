@@ -1,3 +1,5 @@
+(** Domain for a single {!Base} analysis value. *)
+
 open GoblintCil
 open Pretty
 open PrecisionUtil

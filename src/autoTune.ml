@@ -1,3 +1,5 @@
+(** Autotuning of the configuration based on syntactic heuristics. *)
+
 open GobConfig
 open GoblintCil
 open AutoTune0

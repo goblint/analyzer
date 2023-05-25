@@ -1,3 +1,5 @@
+(** SARIF output of {!Messages}. *)
+
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
 open Batteries
 

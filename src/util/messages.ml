@@ -1,3 +1,5 @@
+(** Messages (e.g. warnings) from the analysis. *)
+
 module Pretty = GoblintCil.Pretty
 
 open GobConfig

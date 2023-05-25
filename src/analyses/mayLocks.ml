@@ -1,4 +1,5 @@
-(** May lockset analysis and analysis of double locking. *)
+(** May lockset analysis and analysis of double locking ([maylocks]). *)
+
 open Analyses
 open GoblintCil
 module LF = LibraryFunctions

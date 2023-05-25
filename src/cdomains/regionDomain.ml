@@ -1,3 +1,5 @@
+(** Domains for disjoint heap regions. *)
+
 open GoblintCil
 open GobConfig
 
@@ -141,15 +143,6 @@ struct
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
     let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
-    let rec do_offs deref def = function
-      | Field (fd, offs) -> begin
-          match UniqueType.find (TComp (fd.fcomp, [])) with
-          | Some v -> do_offs deref (Some (deref, (v, offsornot (Field (fd, offs))), [])) offs
-          | None -> do_offs deref def offs
-        end
-      | Index (_, offs) -> do_offs deref def offs
-      | NoOffset -> def
-    in
     (* The intuition for the offset computations is that we keep the static _suffix_ of an
      * access path. These can be used to partition accesses when fields do not overlap.
      * This means that for pointer dereferences and when obtaining the value from an lval
@@ -166,17 +159,11 @@ struct
       | _ -> None
     and eval_lval deref lval =
       match lval with
-      | (Var x, NoOffset) when UniqueType.find x.vtype <> None ->
-        begin match UniqueType.find x.vtype with
-          | Some v -> Some (deref, (v,[]), [])
-          | _ when x.vglob -> Some (deref, (x, []), [])
-          | _ -> None
-        end
-      | (Var x, offs) -> do_offs deref (Some (deref, (x, offsornot offs), [])) offs
+      | (Var x, offs) -> Some (deref, (x, offsornot offs), [])
       | (Mem exp,offs) ->
         match eval_rval true exp with
-        | Some (deref, v, _) -> do_offs deref (Some (deref, v, offsornot offs)) offs
-        | x -> do_offs deref x offs
+        | Some (deref, v, _) -> Some (deref, v, offsornot offs)
+        | x -> x
     in
     eval_rval false exp
 

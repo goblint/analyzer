@@ -1,3 +1,5 @@
+(** Domains for extraction of Pthread programs. *)
+
 open Batteries
 
 (** Thread ID *)

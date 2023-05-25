@@ -1,4 +1,4 @@
-(** Termination of loops. *)
+(** Termination analysis of loops using counter variables ([term]). *)
 
 open Batteries
 open GoblintCil

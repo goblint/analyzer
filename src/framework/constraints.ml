@@ -1,4 +1,5 @@
-(** How to generate constraints for a solver using specifications described in [Analyses]. *)
+(** Construction of a {{!Analyses.MonSystem} constraint system} from an {{!Analyses.Spec} analysis specification} and {{!MyCFG.CfgBackward} CFGs}.
+    Transformatons of analysis specifications as functors. *)
 
 open Batteries
 open GoblintCil

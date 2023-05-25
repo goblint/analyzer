@@ -1,3 +1,6 @@
+(** CFG edge.
+    Corresponds to a (primitive) program statement between program points (and their states). *)
+
 open GoblintCil
 open Pretty
 
