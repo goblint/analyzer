@@ -1,7 +1,7 @@
 (** Analysis which provides symbolic heap locations for dynamic memory allocations. ([mallocWrapper]).
 
-  Provided heap locations are based on the node and thread ID.
-  Considers [malloc] wrapper functions and a number of unique heap locations for additional precision. *)
+    Provided heap locations are based on the node and thread ID.
+    Considers [malloc] wrapper functions and a number of unique heap locations for additional precision. *)
 
 open GoblintCil
 open Analyses
