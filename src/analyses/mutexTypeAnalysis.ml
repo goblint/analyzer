@@ -6,12 +6,7 @@ open Analyses
 module MAttr = ValueDomain.MutexAttr
 module LF = LibraryFunctions
 
-(* Removing indexes here avoids complicated lookups inside the map for a varinfo, at the price that different types of mutexes in arrays are not dinstinguished *)
-let rec offs_no_index o =
-  match o with
-  | `NoOffset -> `NoOffset
-  | `Field (f,o) -> `Field (f, offs_no_index o)
-  | `Index (i,o) -> `Index (Lval.any_index_exp, offs_no_index o)
+
 
 module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
 struct
@@ -22,7 +17,8 @@ struct
   module D = Lattice.Unit
   module C = Lattice.Unit
 
-  module G = MapDomain.MapBot_LiftTop (Lval.CilLval) (MAttr)
+  (* Removing indexes here avoids complicated lookups inside the map for a varinfo, at the price that different types of mutexes in arrays are not dinstinguished *)
+  module G = MapDomain.MapBot_LiftTop (Lval.OffsetNoIdx) (MAttr)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -42,11 +38,10 @@ struct
              | Const (CInt (c, _, _)) -> MAttr.of_int c
              | _ -> `Top)
           in
-
-          let r = G.singleton ((v,o)) kind in
+          let r = G.singleton (o) kind in
           ctx.sideg v r;
           ctx.local
-        | Index (i,o') -> helper (replace_no_offset o (`Index (Lval.any_index_exp,`NoOffset))) (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
+        | Index (i,o') -> helper (replace_no_offset o (`Index (Lval.OffsetNoIdx.SomeIdx,`NoOffset))) (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
         | Field (f,o') -> helper (replace_no_offset o (`Field (f,`NoOffset)))  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
         | NoOffset -> ctx.local
       in
@@ -79,7 +74,7 @@ struct
       let attr = ctx.ask (Queries.EvalMutexAttr attr) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
       Queries.LS.iter (function (v, o) ->
-          let r = G.singleton (v, offs_no_index o) attr in
+          let r = G.singleton (Lval.OffsetNoIdx.of_offs o) attr in
           ctx.sideg v r) mutexes;
       ctx.local
     | _ -> ctx.local
@@ -91,7 +86,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.MutexType ((v,o):Lval.CilLval.t) -> let r = ctx.global v in (G.find (v,o) r:MutexAttrDomain.t)
+    | Queries.MutexType (v,o) -> let r = ctx.global v in (G.find o r:MutexAttrDomain.t)
     | _ -> Queries.Result.top q
 end
 

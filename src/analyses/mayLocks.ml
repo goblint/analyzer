@@ -17,7 +17,7 @@ struct
       in
       match D.Addr.to_var_offset l with
       | Some (v,o) ->
-        (let mtype = ctx.ask (Queries.MutexType (v, MutexTypeAnalysis.offs_no_index o)) in
+        (let mtype = ctx.ask (Queries.MutexType (v, Lval.OffsetNoIdx.of_offs o)) in
          match mtype with
          | `Lifted MutexAttrDomain.MutexKind.Recursive -> ctx.local
          | `Lifted MutexAttrDomain.MutexKind.NonRec ->
@@ -32,7 +32,7 @@ struct
     if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_var_offset l with
     | Some (v,o) ->
-      (let mtype = ctx.ask (Queries.MutexType (v, MutexTypeAnalysis.offs_no_index o)) in
+      (let mtype = ctx.ask (Queries.MutexType (v, Lval.OffsetNoIdx.of_offs o)) in
        match mtype with
        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
        | _ -> ctx.local (* we cannot remove them here *))

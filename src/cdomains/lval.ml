@@ -626,3 +626,32 @@ struct
     end
     )
 end
+
+module OffsetNoIdx =
+struct
+  type someidx = SomeIdx [@@deriving eq, ord, hash]
+
+  include Printable.StdLeaf
+  type t = (CilType.Fieldinfo.t, someidx) offs [@@deriving eq, ord, hash]
+
+  let name () = "offset without index"
+
+  let rec short_offs (o: (fieldinfo, _) offs) a =
+    match o with
+    | `NoOffset -> a
+    | `Field (f,o) -> short_offs o (a^"."^f.fname)
+    | `Index (_,o) -> short_offs o (a^"[?]")
+
+  let rec of_offs = function
+    | `NoOffset -> `NoOffset
+    | `Field (f,o) -> `Field (f, of_offs o)
+    | `Index (i,o) -> `Index (SomeIdx, of_offs o)
+
+  let show o = short_offs o ""
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
