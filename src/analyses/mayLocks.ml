@@ -15,9 +15,9 @@ struct
         M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a (possibly non-recursive) mutex that may be already held";
         ctx.local
       in
-      match D.Addr.to_var_must l with
-      | Some v ->
-        (let mtype = ctx.ask (Queries.MutexType v) in
+      match D.Addr.to_var_offset l with
+      | Some (v,o) ->
+        (let mtype = ctx.ask (Queries.MutexType (v, MutexTypeAnalysis.offs_no_index o)) in
          match mtype with
          | `Lifted MutexAttrDomain.MutexKind.Recursive -> ctx.local
          | `Lifted MutexAttrDomain.MutexKind.NonRec ->
@@ -30,9 +30,9 @@ struct
 
   let remove ctx l =
     if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
-    match D.Addr.to_var_must l with
-    | Some v ->
-      (let mtype = ctx.ask (Queries.MutexType v) in
+    match D.Addr.to_var_offset l with
+    | Some (v,o) ->
+      (let mtype = ctx.ask (Queries.MutexType (v, MutexTypeAnalysis.offs_no_index o)) in
        match mtype with
        | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
        | _ -> ctx.local (* we cannot remove them here *))

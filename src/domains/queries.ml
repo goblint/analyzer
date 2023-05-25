@@ -83,7 +83,7 @@ type _ t =
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
-  | MutexType: varinfo -> MutexAttrDomain.t t
+  | MutexType: Lval.CilLval.t -> MutexAttrDomain.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalMutexAttr: exp -> MutexAttrDomain.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
@@ -321,7 +321,7 @@ struct
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
-      | Any (MutexType v1), Any (MutexType v2) -> CilType.Varinfo.compare v1 v2
+      | Any (MutexType v1), Any (MutexType v2) -> Lval.CilLval.compare v1 v2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
@@ -358,7 +358,7 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
-    | Any (MutexType v) -> CilType.Varinfo.hash v
+    | Any (MutexType v) -> Lval.CilLval.hash v
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
