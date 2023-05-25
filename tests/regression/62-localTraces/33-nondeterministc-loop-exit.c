@@ -1,5 +1,6 @@
 // NONTERM
-// PARAM:  --set "ana.activated[+]" localTraces --set solver "WLLocTrac" --set warn_at "early" --set verify false
+// PARAM:  --set "ana.activated[+]" localTraces --set solver "WLLocTrac" --set
+// warn_at "early" --set verify false
 #include <stdlib.h>
 #include <time.h>
 
@@ -12,16 +13,8 @@ void main() {
     if (1900000000 < x) {
       x = x + 2147483647;  // WARN
     }
-    if (x < -3) {
-      if (-5 < x) {
-        // no new value for trace containing x=-4 --> at least one trace stays
-        // in loop
-      } else {
-        x = rand();
-      }
-    } else {
-      x = rand();
-    }
+    x = rand();
+
     k++;
   }
 }
