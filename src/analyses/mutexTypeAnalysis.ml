@@ -26,16 +26,30 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
+    (* replaces the rightmost offset with r *)
+    let rec replace_no_offset o r = match o with
+      | `NoOffset -> r
+      | `Field (f,o) -> `Field (f, replace_no_offset o r)
+      | `Index (i,o) -> `Index (i, replace_no_offset o r)
+    in
     match lval with
-    | Var v, Field ({fname = "__data"; _}, Field ({fname = "__kind"; _}, NoOffset)) when ValueDomain.Compound.is_mutex_type v.vtype ->
-      let kind =
-        (match Cil.constFold true rval with
-         | Const (CInt (c, _, _)) -> MAttr.of_int c
-         | _ -> `Top)
+    | (Var v, o) ->
+      let rec helper o t = function
+        | Field ({fname = "__data"; _}, Field ({fname = "__kind"; _}, NoOffset)) when ValueDomain.Compound.is_mutex_type t ->
+          let kind =
+            (match Cil.constFold true rval with
+             | Const (CInt (c, _, _)) -> MAttr.of_int c
+             | _ -> `Top)
+          in
+
+          let r = G.singleton ((v,o)) kind in
+          ctx.sideg v r;
+          ctx.local
+        | Index (i,o') -> helper (replace_no_offset o (`Index (Lval.any_index_exp,`NoOffset))) (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
+        | Field (f,o') -> helper (replace_no_offset o (`Field (f,`NoOffset)))  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
+        | NoOffset -> ctx.local
       in
-      let r = G.singleton ((v,`NoOffset)) kind in
-      ctx.sideg v r;
-      ctx.local
+      helper `NoOffset v.vtype o
     | _ -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
