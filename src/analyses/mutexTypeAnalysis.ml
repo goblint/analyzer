@@ -34,6 +34,7 @@ struct
     in
     match lval with
     | (Var v, o) ->
+      (* There's no way to use the PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP etc for accesses via pointers *)
       let rec helper o t = function
         | Field ({fname = "__data"; _}, Field ({fname = "__kind"; _}, NoOffset)) when ValueDomain.Compound.is_mutex_type t ->
           let kind =
