@@ -35,7 +35,7 @@ struct
         | `Right _ -> true
     end
 
-    module MakeG (G0: Lattice.S) = struct
+    module MakeP (G0: Lattice.S) = struct
       module ReadWrite =
       struct
         include G0
@@ -61,8 +61,13 @@ struct
         if write then w else rw
     end
 
-    module GProtecting = struct
-      include MakeG (LockDomain.Simple)
+    (** Collects information about which variables are protected by which mutexes *)
+    module GProtecting: sig
+      include Lattice.S
+      val make: write:bool -> recovered:bool -> Mutexes.t -> t
+      val get: write:bool -> protection -> t -> Mutexes.t
+    end = struct
+      include MakeP (LockDomain.Simple)
 
       let make ~write ~recovered locks =
         (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
@@ -74,8 +79,14 @@ struct
           ((locks, wlocks), (locks, wlocks))
     end
 
-    module GProtected = struct
-      include MakeG (VarSet)
+
+    (** Collects information about which mutex protects which variable *)
+    module GProtected: sig
+      include Lattice.S
+      val make: write:bool -> VarSet.t -> t
+      val get: write:bool -> protection -> t -> VarSet.t
+    end = struct
+      include MakeP (VarSet)
 
       let make ~write vs =
         let vs_empty = VarSet.empty () in
@@ -191,7 +202,7 @@ struct
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem (LockDomain.Addr.from_var LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
-      let protected = GProtecting.get ~write Strong (G.protected (ctx.global (V.protected m))) in
+      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
           Queries.LS.add (v, `NoOffset) acc
         ) protected (Queries.LS.empty ())
@@ -208,7 +219,7 @@ struct
           )
         | `Right m -> (* protected *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let protected = GProtecting.get ~write:false Strong (G.protected (ctx.global g)) in (* readwrite protected *)
+            let protected = GProtected.get ~write:false Strong (G.protected (ctx.global g)) in (* readwrite protected *)
             let s = VarSet.cardinal protected in
             max_protected := max !max_protected s;
             sum_protected := !sum_protected + s;
