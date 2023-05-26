@@ -7,6 +7,9 @@ from generators.generate_mutations import *
 from util.add_check import *
 from util.add_check_comments import *
 
+# Run for example with:
+# python3 generate_programs.py ../../sample-files/threads.c test ~/BA/Clang-Repo/llvm-project/build/bin/clang-tidy ~/BA/Goblint-Repo/analyzer/goblint --enable-mutations
+
 generate_type_source = "SOURCE"
 
 def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, git_url, mutations, enable_mutations, enable_ml,  enable_git):
