@@ -6,8 +6,6 @@ open Analyses
 module MAttr = ValueDomain.MutexAttr
 module LF = LibraryFunctions
 
-
-
 module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
 struct
   include Analyses.IdentitySpec
@@ -17,8 +15,10 @@ struct
   module C = Lattice.Unit
 
   (* Removing indexes here avoids complicated lookups and allows to have the LVals as vars here, at the price that different types of mutexes in arrays are not dinstinguished *)
+  module O = Lval.OffsetNoIdx
+
   module V = struct
-    include Printable.Prod(CilType.Varinfo)(Lval.OffsetNoIdx)
+    include Printable.Prod(CilType.Varinfo)(O)
     let is_write_only _ = false
   end
 
@@ -26,12 +26,6 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* replaces the rightmost offset with r *)
-    let rec replace_no_offset o r = match o with
-      | `NoOffset -> r
-      | `Field (f,o) -> `Field (f, replace_no_offset o r)
-      | `Index (i,o) -> `Index (i, replace_no_offset o r)
-    in
     match lval with
     | (Var v, o) ->
       (* There's no way to use the PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP etc for accesses via pointers *)
@@ -44,8 +38,8 @@ struct
           in
           ctx.sideg (v,o) kind;
           ctx.local
-        | Index (i,o') -> helper (replace_no_offset o (`Index (Lval.OffsetNoIdx.SomeIdx,`NoOffset))) (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
-        | Field (f,o') -> helper (replace_no_offset o (`Field (f,`NoOffset)))  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
+        | Index (i,o') -> helper (O.add_offset o (`Index (O.SomeIdx,`NoOffset))) (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
+        | Field (f,o') -> helper (O.add_offset o (`Field (f,`NoOffset)))  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
         | NoOffset -> ctx.local
       in
       helper `NoOffset v.vtype o
@@ -55,12 +49,10 @@ struct
     let desc = LF.find f in
     match desc.special arglist with
     | MutexInit {mutex = mutex; attr = attr} ->
-      let mutexes = ctx.ask (Queries.MayPointTo mutex) in
       let attr = ctx.ask (Queries.EvalMutexAttr attr) in
+      let mutexes = ctx.ask (Queries.MayPointTo mutex) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
-      Queries.LS.iter (function (v, o) ->
-          let o' = Lval.OffsetNoIdx.of_offs o in
-          ctx.sideg (v,o') attr) mutexes;
+      Queries.LS.iter (function (v, o) -> ctx.sideg (v,O.of_offs o) attr) mutexes;
       ctx.local
     | _ -> ctx.local
 

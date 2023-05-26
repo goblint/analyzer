@@ -649,6 +649,12 @@ struct
     | `Field (f,o) -> `Field (f, of_offs o)
     | `Index (i,o) -> `Index (SomeIdx, of_offs o)
 
+  let rec add_offset o1 o2 =
+    match o1 with
+    | `NoOffset -> o2
+    | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
+    | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
+
   let show o = short_offs o ""
   include Printable.SimpleShow (
     struct
