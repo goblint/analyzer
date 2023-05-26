@@ -34,10 +34,21 @@ module MustBool = BoolDomain.MustBool
 
 module Unit = Lattice.Unit
 
+(** Different notions of protection for a global variables g by a mutex m
+    m protects g strongly if:
+    - whenever g is accessed after the program went multi-threaded for the first time, m is held
+
+    m protects g weakly if:
+    - whenever g is accessed and there are any threads other than the main thread that are created but not joined yet, m is held
+*)
+module Protection = struct
+  type t = Strong | Weak [@@deriving ord, hash]
+end
+
 (* Helper definitions for deriving complex parts of Any.compare below. *)
-type maybepublic = {global: CilType.Varinfo.t; write: bool; recoverable: bool} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; recoverable: bool} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; recoverable: bool} [@@deriving ord, hash]
+type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
 type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} [@@deriving ord, hash]
 type access =

@@ -393,6 +393,7 @@ end
 
 module PerMutexMeetTIDPriv: S =
 struct
+  open Queries.Protection
   include PerMutexMeetPrivBase
   include PerMutexTidCommon(struct
       let exclude_not_started () = GobConfig.get_bool "ana.base.priv.not-started"
@@ -426,7 +427,7 @@ struct
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
-    let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
+    let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
           CPA.join acc (CPA.filter is_in_Gm v)
@@ -441,7 +442,7 @@ struct
         get_m
       else
         let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-        let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
+        let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
         let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
         CPA.join get_m get_mutex_inits'
     in
@@ -452,7 +453,7 @@ struct
     let lm = LLock.global x in
     let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg x in
     let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
-    if is_unprotected ask ~recoverable:true x then
+    if is_unprotected ask ~protection:Weak x then
       (* We can not rely upon the old value here, it may be too small due to reuse at widening points (and or nice bot/top confusion) in Base *)
       CPA.find x (CPA.join tmp local_m)
     else
@@ -460,14 +461,14 @@ struct
 
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ~recoverable:true ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" CilType.Varinfo.pretty x (is_unprotected ~protection:Weak ask x) CPA.pretty st.cpa VD.pretty v;
     v
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let w,lmust,l = st.priv in
     let lm = LLock.global x in
     let cpa' =
-      if is_unprotected ask ~recoverable:true x then
+      if is_unprotected ask ~protection:Weak x then
         st.cpa
       else
         CPA.add x v st.cpa
@@ -492,7 +493,7 @@ struct
       let lm = LLock.mutex m in
       let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
       let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
-      let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
+      let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
       let local_m = CPA.filter is_in_Gm local_m in
       let r = CPA.join get_m local_m in
       let meet = long_meet st.cpa r in
@@ -504,18 +505,18 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let w,lmust,l = st.priv in
     let cpa' = CPA.fold (fun x v cpa ->
-        if is_protected_by ~recoverable:true ask m x && is_unprotected_without ~recoverable:true ask x m then
+        if is_protected_by ~protection:Weak ask m x && is_unprotected_without ~protection:Weak ask x m then
           CPA.remove x cpa
         else
           cpa
       ) st.cpa st.cpa
     in
-    let w' = W.filter (fun v -> not (is_unprotected_without ~recoverable:true ask v m)) w in
-    let side_needed = W.exists (fun v -> is_protected_by ~recoverable:true ask m v) w in
+    let w' = W.filter (fun v -> not (is_unprotected_without ~protection:Weak ask v m)) w in
+    let side_needed = W.exists (fun v -> is_protected_by ~protection:Weak ask m v) w in
     if not side_needed then
       {st with cpa = cpa'; priv = (w',lmust,l)}
     else
-      let is_in_Gm x _ = is_protected_by ~recoverable:true ask m x in
+      let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid (CPA.filter is_in_Gm st.cpa) in
       sideg (V.mutex m) (G.create_mutex sidev);
@@ -603,7 +604,7 @@ struct
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
-    let unprotected_after x = ask.f (Q.MayBePublic {global=x; write=true; recoverable=true}) in
+    let unprotected_after x = ask.f (Q.MayBePublic {global=x; write=true; protection=Weak}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
       let cpa' = CPA.fold (fun x v cpa ->
