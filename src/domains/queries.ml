@@ -321,11 +321,7 @@ struct
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
-      | Any (MutexType (v1,o1)), Any (MutexType (v2,o2)) -> let r = CilType.Varinfo.compare v1 v2 in
-        if r <> 0 then
-          r
-        else
-          Lval.OffsetNoIdx.compare o1 o2
+      | Any (MutexType (v1,o1)), Any (MutexType (v2,o2)) -> [%ord: CilType.Varinfo.t * Lval.OffsetNoIdx.t] (v1,o1) (v2,o2)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
