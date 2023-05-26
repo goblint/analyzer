@@ -596,8 +596,9 @@ struct
     {st with cpa= cpa_local }
 
   let threadenter ask (st: BaseComponents (D).t): BaseComponents (D).t =
-    (* We cannot copy over protected things, the thread may start with things privatized that are overwritten before becoming public *)
     let _,lmust,l = st.priv in
+    (* Thread starts without any mutexes, so the local state cannot contain any privatized things. The locals of the created thread are added later, *)
+    (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
