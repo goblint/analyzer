@@ -7,6 +7,6 @@ int main() {
 
     free(ptr);
 
-    *ptr = 43; // UAF
-    free(ptr); // Double free
+    *ptr = 43; // Should report "Use After Free (CWE-416)"
+    free(ptr); // Should report "Double Free (CWE-415)"
 }
