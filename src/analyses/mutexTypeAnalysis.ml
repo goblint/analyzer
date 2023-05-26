@@ -38,8 +38,12 @@ struct
           in
           ctx.sideg (v,o) kind;
           ctx.local
-        | Index (i,o') -> helper (O.add_offset o (`Index (O.SomeIdx,`NoOffset))) (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
-        | Field (f,o') -> helper (O.add_offset o (`Field (f,`NoOffset)))  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
+        | Index (i,o') ->
+          let o'' = O.of_offs (`Index (i, `NoOffset)) in
+          helper (O.add_offset o o'') (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
+        | Field (f,o') ->
+          let o'' = O.of_offs (`Field (f, `NoOffset)) in
+          helper (O.add_offset o o'')  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
         | NoOffset -> ctx.local
       in
       helper `NoOffset v.vtype o

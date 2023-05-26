@@ -443,32 +443,38 @@ struct
   end
 end
 
-(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: IntDomain.Z) =
-struct
-  include NormalLat (Idx)
-
+(* Helper for offsets without abstract values for index offsets, i.e. with unit index offsets.*)
+module NoIdxOffsetBase = struct
   module UnitIdxDomain =
   struct
     include Lattice.Unit
     let equal_to _ _ = `Top
     let to_int _ = None
   end
+
+  let rec of_offs = function
+    | `NoOffset -> `NoOffset
+    | `Field (f,o) -> `Field (f, of_offs o)
+    | `Index (i,o) -> `Index (UnitIdxDomain.top (), of_offs o)
+end
+
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IntDomain.Z) =
+struct
+  include NormalLat (Idx)
+
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
+    open NoIdxOffsetBase
 
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
     include Normal (UnitIdxDomain)
 
-    let rec of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs =
-      function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+    let of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs = of_offs
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
@@ -631,35 +637,8 @@ end
 
 module OffsetNoIdx =
 struct
-  type someidx = SomeIdx [@@deriving eq, ord, hash]
-
-  include Printable.StdLeaf
-  type t = (CilType.Fieldinfo.t, someidx) offs [@@deriving eq, ord, hash]
+  include NoIdxOffsetBase
+  include Offset(UnitIdxDomain)
 
   let name () = "offset without index"
-
-  let rec short_offs (o: (fieldinfo, _) offs) a =
-    match o with
-    | `NoOffset -> a
-    | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (_,o) -> short_offs o (a^"[?]")
-
-  let rec of_offs = function
-    | `NoOffset -> `NoOffset
-    | `Field (f,o) -> `Field (f, of_offs o)
-    | `Index (i,o) -> `Index (SomeIdx, of_offs o)
-
-  let rec add_offset o1 o2 =
-    match o1 with
-    | `NoOffset -> o2
-    | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
-    | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
-
-  let show o = short_offs o ""
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
 end
