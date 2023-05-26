@@ -141,6 +141,7 @@ struct
   let to_modular = map (LD.to_modular)
   let to_non_modular = map (LD.to_non_modular)
 
+  let remove_non_modular = map (LD.remove_non_modular)
 
   let unlift x =
     match x with

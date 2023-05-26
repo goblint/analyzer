@@ -191,6 +191,7 @@ end
 
 module D (S: PostSpec) = struct
   include Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  let remove_non_modular (x, y) = (S.D.remove_non_modular x, y)
   let to_modular (x, y) = (S.D.to_modular x, y)
   let to_non_modular (x, y) = (S.D.to_non_modular x, y)
 end
@@ -358,6 +359,7 @@ struct
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
+    let remove_non_modular (x, y) = S.D.remove_non_modular x, y
     let to_modular (x, y) = S.D.to_modular x, y
     let to_non_modular (x, y) = S.D.to_non_modular x, y
   end
@@ -680,7 +682,7 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.branch ctx e tv) !r !spawns
 
-  let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
+  let tf_normal_call ?(modular=false) ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a\n" S.D.pretty cd;
       if M.tracing then M.trace "combine" "function: %a\n" S.D.pretty fd;
@@ -733,17 +735,45 @@ struct
       if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
       r
     in
-    let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
-    (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
-    (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
-    let paths = List.map (Tuple3.map2 Option.some) paths in
-    if M.tracing then M.traceli "combine" "combining\n";
-    let paths = List.map combine paths in
-    let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    let enter ctx =
+      S.enter ctx lv f args
+    in
+    let create_contexts =
+      List.map (fun (c,v) -> (c, S.context f v, v))
+    in
+    let side_effect_start_states =
+      List.iter (fun (c,fc,v) ->
+          let v = if modular then S.D.remove_non_modular v else v in
+          if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v)
+    in
+    let get_return_states =
+      List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc)))
+    in
+    let combine paths =
+      let to_modular paths =
+        let to_modular_single (c,fc,v) = (S.D.to_modular c, fc, S.D.to_modular v) in
+        List.map to_modular_single paths
+      in
+      let paths = if modular then to_modular paths else paths in
+      let paths = List.map (Tuple3.map2 Option.some) paths in
+      if M.tracing then M.traceli "combine" "combining\n";
+      List.map combine paths
+    in
+    let join_paths =
+      List.fold_left D.join (D.bot ())
+    in
+    let trace_result r =
+      if M.tracing then M.traceu "combine" "combined: %a\n" S.D.pretty r;
+    in
+    let paths = enter ctx  in
+    let paths = create_contexts paths in
+    side_effect_start_states paths;
+    let paths = get_return_states paths in
+
+    (* We don't filter bot paths, otherwise LongjmpLifter is not called. *)
+    let paths = combine paths in
+    let r = join_paths paths in
+    trace_result r;
     r
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
@@ -782,9 +812,8 @@ struct
                 (* Then analyze with non-modular analyses *)
                 (* otherwise just analyze the function modularly *)
                 if ModularUtil.is_modular_fun f then begin
-                  let local = S.D.to_modular ctx.local in
-                  let ctx_modular = {ctx with local = local } in
-                  let local_modular = tf_normal_call ctx_modular lv e fd args getl sidel getg sideg in
+                  let ctx_modular = ctx in
+                  let local_modular = tf_normal_call ~modular:true ctx_modular lv e fd args getl sidel getg sideg in
                   let local = S.D.to_non_modular ctx.local in
                   let ctx = {ctx with local = local } in
                   (* TODO: Deal with pathsensitivity here like in tf_normal_call? *)
@@ -1227,6 +1256,7 @@ struct
     module J = SetDomain.Joined (Spec.D)
     include DisjointDomain.PairwiseSet (Spec.D) (J) (C)
 
+    let remove_non_modular x = map Spec.D.to_modular x
     let to_modular x = map Spec.D.to_modular x
     let to_non_modular x = map Spec.D.to_non_modular x
     let name () = "PathSensitive (" ^ name () ^ ")"

@@ -39,6 +39,7 @@ end
 module type T =
 sig
   include S
+  val remove_non_modular : t -> t
   val to_modular: t -> t
   val to_non_modular: t -> t
 end
@@ -169,6 +170,7 @@ struct
   let bot () = lift (Base.bot ())
 
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
+  let remove_non_modular x = lift (lift_f Base.remove_non_modular x)
 
   let to_modular x = lift (lift_f Base.to_modular x)
   let to_non_modular x = lift (lift_f Base.to_non_modular x)

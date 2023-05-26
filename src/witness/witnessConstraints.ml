@@ -16,6 +16,7 @@ struct
   module I =
   struct
     include Spec.D
+    let remove_non_modular = Spec.D.remove_non_modular
     let to_modular = Spec.D.to_modular
     let to_non_modular = Spec.D.to_non_modular
     (* assumes Hashcons inside PathSensitive *)
@@ -31,18 +32,21 @@ struct
   end
   module VI = struct
     include Printable.Prod3 (Node) (CC) (I)
+    let remove_non_modular (n, c, i) = (n, c, I.remove_non_modular i)
     let to_modular (n, c, i) = (n, c, I.to_modular i)
     let to_non_modular (n, c, i) = (n, c, I.to_non_modular i)
 
   end
   module VIE = struct
     include Printable.Prod (VI) (MyARG.InlineEdgePrintable)
+    let remove_non_modular (vi, m) = VI.remove_non_modular vi, m
     let to_modular (vi, m) = VI.to_modular vi, m
     let to_non_modular (vi, m) = VI.to_non_modular vi, m
   end
   module VIES = struct
     module VIES = SetDomain.Make (VIE)
     include VIES
+    let remove_non_modular s = VIES.map VIE.remove_non_modular s
     let to_modular s = VIES.map VIE.to_modular s
     let to_non_modular s = VIES.map VIE.to_non_modular s
   end
@@ -66,6 +70,7 @@ struct
     module J = MapDomain.Joined (Spec.D) (R)
     module SpecDMap = DisjointDomain.PairwiseMap (Spec.D) (R) (J) (C)
     include SpecDMap
+    let remove_non_modular x = SpecDMap.map R.remove_non_modular x
     let to_modular (x: t) = SpecDMap.map R.to_modular x
     let to_non_modular (x: t) = SpecDMap.map R.to_non_modular x
   end
@@ -101,6 +106,7 @@ struct
     (* new predecessors are always the right ones for the latest evaluation *)
     let widen x y = y
     let narrow x y = y
+    let remove_non_modular x = map Spec.D.remove_non_modular x
     let to_modular x = map Spec.D.to_modular x
     let to_non_modular x = map Spec.D.to_non_modular x
   end
@@ -108,6 +114,7 @@ struct
   module D =
   struct
     include Lattice.Prod (Dom) (Sync)
+    let remove_non_modular (d, s) = Dom.remove_non_modular d, s
     let to_modular (d, s) = Dom.to_modular d, s
     let to_non_modular (d, s) = Dom.to_non_modular d, s
 

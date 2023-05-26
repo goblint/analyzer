@@ -10,24 +10,109 @@ struct
 
   let name () = S.name ()
   module V = S.V
+
+  module Either = struct
+    include Printable.Either (S.D) (S.D)
+    module Base1 = S.D
+    module Base2 = S.D
+
+    type domain = Left | Right
+    let chosen_domain = Right
+
+    let unop_to_t unop_left unop_right u =
+      match chosen_domain with
+      | Left -> `Left (unop_left u)
+      | Right -> `Right (unop_right u)
+
+    let binop_error = "Binary opration on Either received values where not the same component is set"
+
+    let unop_of_t unop_left unop_right u =
+      match u with
+      | `Left x -> (unop_left x)
+      | `Right x -> (unop_right x)
+
+    let unop_on_t unop_left unop_right u =
+      match u with
+      | `Left x -> `Left (unop_left x)
+      | `Right x -> `Right (unop_right x)
+
+    let binop_to_t binop_left binop_right x y  =
+      match x, y with
+      | `Left x, `Left y -> `Left (binop_left x y)
+      | `Right x, `Right y -> `Right (binop_right x y)
+      | _ -> failwith binop_error
+
+    let binop binop_left binop_right x y  =
+      match x, y with
+      | `Left x, `Left y -> binop_left x y
+      | `Right x, `Right y -> binop_right x y
+      | _ -> failwith binop_error
+
+    let bot () =
+      unop_to_t Base1.bot Base2.bot ()
+
+    let top () =
+      unop_to_t Base1.top Base2.top ()
+
+    let leq =
+      binop Base1.leq Base2.leq
+
+    let join =
+      binop_to_t Base1.join Base2.join
+
+    let meet =
+      binop_to_t Base1.meet Base2.meet
+
+    let widen =
+      binop_to_t Base1.widen Base2.widen
+
+    let narrow =
+      binop_to_t Base1.narrow Base2.narrow
+
+    let is_top =
+      unop_of_t Base1.is_top Base2.is_top
+
+    let is_bot =
+      unop_of_t Base1.is_bot Base2.is_bot
+
+    let pretty_diff () (x, y) =
+      match x, y with
+      | `Left x, `Left y -> Base1.pretty_diff () (x, y)
+      | `Right x, `Right y -> Base2.pretty_diff () (x, y)
+      | `Left x, `Right y -> Pretty.dprintf "%s: %a not leq %a" (name ()) Base1.pretty x Base2.pretty y
+      | `Right x, `Left y -> Pretty.dprintf "%s: %a not leq %a" (name ()) Base2.pretty x Base1.pretty y
+
+  end
   module D = struct
-    include Lattice.Option (S.D)
-    let to_modular x =
+    include Lattice.Option (Either)
+
+    let right_to_left = function
+      | Some (`Right x) -> Some (`Left x)
+      | x -> x
+
+    let remove_non_modular x =
       match S.modular_support () with
       | Modular
       | Both -> x
       | NonModular -> None
 
+    let to_modular x =
+      match S.modular_support () with
+      | Modular
+      | Both -> x
+      | NonModular -> right_to_left x
+
     let to_non_modular x =
       match S.modular_support () with
       | NonModular -> x
       | Both
-      | Modular -> None
+      | Modular -> right_to_left x
   end
 
   (* Extend G to the Lattice.T signature *)
   module G = struct
     include S.G
+    let remove_non_modular x = x
     let to_modular x = x
     let to_non_modular x = x
   end
@@ -43,56 +128,70 @@ struct
       BatOption.map_default A.should_print false x
   end
 
-  let context (f: fundec) (v: D.t) = Option.map (S.context f) v
+  let wrap_default x = Some (`Right x)
+
+  let context (f: fundec) (v: D.t) = match v with
+    | Some (`Right d) -> Some (S.context f d)
+    | _ -> None
+
+  let some_ctx_to_analysis_ctx ctx local =
+    { ask = ctx.ask
+    ; emit = ctx.emit
+    ; node = ctx.node
+    ; prev_node = ctx.prev_node
+    ; control_context = ctx.control_context
+    ; context = (fun () -> Option.get (ctx.context ()))
+    ; edge = ctx.edge
+    ; local
+    ; global = ctx.global
+    ; spawn = ctx.spawn
+    ; split = (fun d events -> ctx.split (wrap_default d) events)
+    ; sideg = ctx.sideg
+    }
 
   let to_analysis_ctx (ctx: (D.t, S.G.t, C.t, S.V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx option =
     match ctx.local with
-    | Some local ->
-      Some { ask = ctx.ask
-           ; emit = ctx.emit
-           ; node = ctx.node
-           ; prev_node = ctx.prev_node
-           ; control_context = ctx.control_context
-           ; context = (fun () -> Option.get (ctx.context ()))
-           ; edge = ctx.edge
-           ; local
-           ; global = ctx.global
-           ; spawn = ctx.spawn
-           ; split = (fun d events -> ctx.split (Some d) events)
-           ; sideg = ctx.sideg
-           }
+    | Some (`Right local) ->
+      Some (some_ctx_to_analysis_ctx ctx local)
     | _ ->
       None
 
+  let to_query_ctx (ctx: (D.t, S.G.t, C.t, S.V.t) ctx) : (S.D.t, S.G.t, S.C.t, S.V.t) ctx option =
+    match ctx.local with
+    | Some (`Right local)
+    | Some (`Left local) ->
+      Some (some_ctx_to_analysis_ctx ctx local)
+    | _ ->
+      None
   let map_ctx f ctx =
     match to_analysis_ctx ctx with
-    | Some ctx -> Some (f ctx)
+    | Some ctx -> wrap_default (f ctx)
     | None -> None
 
   let map_ctx_fs_fc f ~ctx ~fs ~fc =
     match to_analysis_ctx ctx, fs, fc with
     | _, _, Some None -> None (* Means no-context is not active, but there is still not context; do not continue *)
-    | Some ctx, Some fs, Some ((Some _) as fc) (* matches regular "no-context" case *)
-    | Some ctx, Some fs, (None as fc)
+    | Some ctx, Some (`Right fs), Some ((Some _) as fc) (* matches regular "no-context" case *)
+    | Some ctx, Some (`Right fs), (None as fc)
       ->
-      Some (f ctx fs fc)
+      wrap_default (f ctx fs fc)
     | _ ->
       None
 
   let map_ctx_fctx f ~ctx ~fctx =
     match to_analysis_ctx ctx, to_analysis_ctx fctx with
-    | Some ctx, Some fctx -> Some (f ctx fctx)
+    | Some ctx, Some fctx -> wrap_default (f ctx fctx)
     | _ -> None
 
 
   let map_ctx_list f ctx =
     match to_analysis_ctx ctx with
-    | Some ctx -> List.map Option.some (f ctx)
+    | Some ctx -> List.map (fun x -> Option.some (`Right x)) (f ctx)
     | None -> [None]
 
   let map_ctx_tuple_list f ctx =
     match to_analysis_ctx ctx with
-    | Some ctx -> List.map (Batteries.Tuple2.mapn Option.some) (f ctx)
+    | Some ctx -> List.map (Batteries.Tuple2.mapn wrap_default) (f ctx)
     | None -> [None, None]
 
 
@@ -122,7 +221,7 @@ struct
     map_ctx (fun ctx -> S.special ctx lval f arglist) ctx
 
   let startstate v =
-    Some (S.startstate v)
+    wrap_default (S.startstate v)
 
   let threadenter ctx lval f args =
     map_ctx_list (fun ctx -> S.threadenter ctx lval f args) ctx
@@ -131,22 +230,27 @@ struct
     map_ctx_fctx (fun ctx fctx -> S.threadspawn ctx lval f args fctx) ~ctx ~fctx
 
   let exitstate v =
-    Some (S.exitstate v)
+    wrap_default (S.exitstate v)
 
   let access (ctx: (D.t, G.t, C.t, V.t) ctx) (a: Queries.access) : A.t =
     match to_analysis_ctx ctx with
     | Some ctx -> Some (S.access ctx a)
     | None -> None
 
-  let morphstate v d =
+  let morphstate v (d : D.t) =
     match d with
-    | Some d -> Some (S.morphstate v d)
+    | Some (`Right d) -> wrap_default (S.morphstate v d)
+    | Some (`Left _)
     | None -> None
 
   let should_join d1 d2 =
     match d1, d2 with
-    | Some d1, Some d2 ->
+    | Some (`Right d1), Some (`Right d2)
+    | Some (`Left d1), Some (`Left d2) ->
       S.should_join d1 d2
+    | Some (`Left _), Some (`Right _)
+    | Some (`Right _), Some (`Left _) ->
+      failwith Either.binop_error
     | Some _, None
     | None, Some _ -> true
     | None, None -> true
@@ -155,7 +259,7 @@ struct
     map_ctx (fun ctx -> S.sync ctx reason) ctx
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match to_analysis_ctx ctx with
+    match to_query_ctx ctx with
     | Some ctx -> (fun ctx -> S.query ctx q) ctx
     | None -> Queries.Result.top q
 

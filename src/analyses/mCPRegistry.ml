@@ -327,6 +327,9 @@ struct
   let unop_map f x =
     List.rev @@ unop_fold (fun a n s d -> (n, f s d) :: a) [] x
 
+  let remove_non_modular =
+    unop_map (fun (module S: Lattice.T) x -> Obj.repr (S.remove_non_modular (Obj.obj x)))
+
   let to_modular =
     unop_map (fun (module S: Lattice.T) x -> Obj.repr (S.to_modular (Obj.obj x)))
 

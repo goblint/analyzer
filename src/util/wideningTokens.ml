@@ -97,6 +97,7 @@ struct
   struct
     include Dom (S.D)
 
+    let remove_non_modular (d, ts) = S.D.remove_non_modular d, ts
     let to_modular (d, ts) = S.D.to_modular d, ts
     let to_non_modular (d, ts) = S.D.to_non_modular d, ts
 
