@@ -11,7 +11,7 @@ int write(int *p){
 
 void *thread1(void *p){
 	pthread_mutex_lock(&m);
-	write(p); // RACE
+	write(p); // NORACE
 	pthread_mutex_unlock(&m);
 	return NULL;
 }
@@ -19,7 +19,7 @@ void *thread1(void *p){
 void *thread2(void *p){
 	int *ip = (int *) p;
 	pthread_mutex_lock(&m);
-	*ip = 12; // RACE
+	*ip = 12; // NORACE
 	pthread_mutex_unlock(&m);
 	return NULL;
 }
