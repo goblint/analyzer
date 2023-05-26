@@ -1,4 +1,4 @@
-(** Variable equalities necessary for per-element patterns. *)
+(** Symbolic expression equalities analysis ([var_eq]). *)
 
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs

@@ -1,3 +1,5 @@
+(** Main internal functionality: analysis of the program by abstract interpretation via constraint solving. *)
+
 (** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *)
 
 open Batteries

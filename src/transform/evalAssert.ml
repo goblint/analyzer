@@ -1,3 +1,5 @@
+(** Transformation for instrumenting the program with computed invariants as assertions ([assert]). *)
+
 open GoblintCil
 open Formatcil
 

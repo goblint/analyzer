@@ -1,3 +1,5 @@
+(** Printables and domains for some common types. *)
+
 open GoblintCil
 
 

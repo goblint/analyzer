@@ -1,4 +1,6 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
+
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
 
 open Batteries
 open GoblintCil
@@ -172,14 +174,7 @@ struct
         | _ -> ctx.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match UniqueType.find t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      ctx.local
 
   let startstate v =
     `Lifted (RegMap.bot ())

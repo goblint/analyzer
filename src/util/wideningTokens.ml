@@ -1,4 +1,5 @@
 (** Widening tokens are a generic and dynamic mechanism for delaying widening.
+
     All abstract elements carry a set of tokens, which analyses can add into.
     Lifted abstract elements are only widened if the token set does not increase,
     i.e. adding a widening token delays a widening.
@@ -109,14 +110,17 @@ struct
   end
   module C = S.C
   module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
 
   let name () = S.name ()^" with widening tokens"
 
   type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
-
-  let should_join (x, _) (y, _) = S.should_join x y
 
   let startstate v = (S.startstate v, TS.bot ())
   let exitstate  v = (S.exitstate  v, TS.bot ())

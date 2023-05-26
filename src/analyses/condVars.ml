@@ -1,4 +1,4 @@
-(** Must equality between variables and logical expressions. *)
+(** Symbolic variable - logical expression equalities analysis ([condvars]). *)
 (* TODO: unused, what is this analysis? *)
 
 open Batteries

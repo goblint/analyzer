@@ -1,4 +1,6 @@
-(** Interfaces/implementations that generalize the apronDomain and affineEqualityDomain. *)
+(** Signatures for relational value domains.
+
+    See {!ApronDomain} and {!AffineEqualityDomain}. *)
 
 open Batteries
 open GoblintCil

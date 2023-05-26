@@ -1,3 +1,5 @@
+(** Simple interprocedural taint analysis template ([taint]). *)
+
 (** An analysis specification for didactic purposes. *)
 (* Helpful link on CIL: https://goblint.in.tum.de/assets/goblint-cil/ *)
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)

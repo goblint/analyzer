@@ -1,4 +1,4 @@
-(** Data race analysis. *)
+(** Data race analysis ([race]). *)
 
 open GoblintCil
 open Analyses

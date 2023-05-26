@@ -1,3 +1,5 @@
+(** SV-COMP specification strings and files. *)
+
 open Batteries
 
 type t =
