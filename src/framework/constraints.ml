@@ -754,6 +754,7 @@ struct
         [v]
       | _ ->
         (* Depends on base for query. *)
+        M.debug ~category:Program "Dynamic function call through %a" d_exp e;
         let ls = ctx.ask (Queries.EvalFunvar e) in
         Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
     in
