@@ -1,4 +1,4 @@
-(** Deadlock analysis. *)
+(** Deadlock analysis ([deadlock]). *)
 
 open Batteries
 open GoblintCil

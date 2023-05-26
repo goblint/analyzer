@@ -1,3 +1,5 @@
+(** Basic analysis utilities. *)
+
 open GoblintCil
 
 val is_global: Queries.ask -> varinfo -> bool

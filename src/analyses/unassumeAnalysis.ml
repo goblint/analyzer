@@ -1,6 +1,7 @@
-(** Unassume analysis.
+(** Unassume analysis ([unassume]).
 
     Emits unassume events for other analyses based on YAML witness invariants. *)
+
 open Analyses
 
 module Cil = GoblintCil.Cil
@@ -23,7 +24,6 @@ struct
   let exitstate _ = D.empty ()
 
   let context _ _ = ()
-  let should_join _ _ = false
 
   module Locator = WitnessUtil.Locator (Node)
 

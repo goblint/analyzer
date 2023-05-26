@@ -1,4 +1,5 @@
-(** Some things are not quite lattices ... *)
+(** Signature for comparable and outputtable elements.
+    Functors for common printables. *)
 
 module Pretty = GoblintCil.Pretty
 open Pretty

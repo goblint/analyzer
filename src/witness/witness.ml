@@ -1,3 +1,5 @@
+(** Output of ARG as GraphML. *)
+
 open MyCFG
 open Graphml
 open Svcomp

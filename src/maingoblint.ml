@@ -1,4 +1,4 @@
-(** This is the main program! *)
+(** Main external executable functionality: command-line, front-end and analysis execution. *)
 
 open Batteries
 open GobConfig

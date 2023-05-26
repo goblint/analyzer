@@ -1,3 +1,5 @@
+(** Comparison of CIL files. *)
+
 open GoblintCil
 open MyCFG
 open CilMaps

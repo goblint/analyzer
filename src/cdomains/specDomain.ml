@@ -1,3 +1,5 @@
+(** Domains for finite automaton specification file analysis. *)
+
 open Batteries
 
 module D = LvalMapDomain

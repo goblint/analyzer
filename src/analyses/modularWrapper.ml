@@ -128,6 +128,17 @@ struct
       BatOption.map_default A.should_print false x
   end
 
+  module P = struct
+    module E = Printable.Either (S.P) (S.P)
+    include Printable.Option (E) (struct let name = S.P.name () end)
+    let of_elt (x: D.t) : t =
+      (* TODO: Fix of_elt *)
+      match x with
+      | Some (`Right x) -> Some (`Right (S.P.of_elt x))
+      | Some (`Left _)
+      | None -> None
+  end
+
   let wrap_default x = Some (`Right x)
 
   let context (f: fundec) (v: D.t) = match v with
@@ -242,18 +253,6 @@ struct
     | Some (`Right d) -> wrap_default (S.morphstate v d)
     | Some (`Left _)
     | None -> None
-
-  let should_join d1 d2 =
-    match d1, d2 with
-    | Some (`Right d1), Some (`Right d2)
-    | Some (`Left d1), Some (`Left d2) ->
-      S.should_join d1 d2
-    | Some (`Left _), Some (`Right _)
-    | Some (`Right _), Some (`Left _) ->
-      failwith Either.binop_error
-    | Some _, None
-    | None, Some _ -> true
-    | None, None -> true
 
   let sync ctx reason =
     map_ctx (fun ctx -> S.sync ctx reason) ctx

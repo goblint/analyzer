@@ -1,4 +1,4 @@
-(** Analysis of must-received pthread_signals. *)
+(** Must received signals analysis for Pthread condition variables ([pthreadSignals]). *)
 
 open GoblintCil
 open Analyses

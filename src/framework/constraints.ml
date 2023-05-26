@@ -1,4 +1,5 @@
-(** How to generate constraints for a solver using specifications described in [Analyses]. *)
+(** Construction of a {{!Analyses.MonSystem} constraint system} from an {{!Analyses.Spec} analysis specification} and {{!MyCFG.CfgBackward} CFGs}.
+    Transformatons of analysis specifications as functors. *)
 
 open Batteries
 open GoblintCil
@@ -20,6 +21,11 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt x = of_elt (D.unlift x)
+  end
 
 
   let name () = S.name () ^" hashconsed"
@@ -27,8 +33,6 @@ struct
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
-
-  let should_join x y = S.should_join (D.unlift x) (D.unlift y)
 
   let startstate v = D.lift (S.startstate v)
   let exitstate  v = D.lift (S.exitstate  v)
@@ -107,14 +111,13 @@ struct
   module G = S.G
   module C = Printable.HConsed (S.C)
   module V = S.V
+  module P = S.P
 
   let name () = S.name () ^" context hashconsed"
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
-
-  let should_join = S.should_join
 
   let startstate = S.startstate
   let exitstate  = S.exitstate
@@ -207,6 +210,11 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
 
   let name () = S.name ()^" level sliced"
 
@@ -219,8 +227,6 @@ struct
     S.init marshal
 
   let finalize = S.finalize
-
-  let should_join (x,_) (y,_) = S.should_join x y
 
   let startstate v = (S.startstate v, !start_level)
   let exitstate  v = (S.exitstate  v, !start_level)
@@ -366,13 +372,18 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module P =
+  struct
+    include S.P
+    let of_elt (x, _) = of_elt x
+  end
+
+
   let name () = S.name ()^" with widened contexts"
 
   type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
-
-  let should_join (x,_) (y,_) = S.should_join x y
 
   let inj f x = f x, M.bot ()
 
@@ -440,17 +451,20 @@ struct
   module G = S.G
   module C = S.C
   module V = S.V
+  module P =
+  struct
+    include Printable.Option (S.P) (struct let name = "None" end)
+
+    let of_elt = function
+      | `Lifted x -> Some (S.P.of_elt x)
+      | _ -> None
+  end
 
   let name () = S.name ()^" lifted"
 
   type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
-
-  let should_join x y =
-    match x, y with
-    | `Lifted a, `Lifted b -> S.should_join a b
-    | _ -> true
 
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
@@ -1248,13 +1262,13 @@ struct
   module D =
   struct
     (* TODO is it really worth it to check every time instead of just using sets and joining later? *)
-    module C =
+    module R =
     struct
+      include Spec.P
       type elt = Spec.D.t
-      let cong = Spec.should_join
     end
     module J = SetDomain.Joined (Spec.D)
-    include DisjointDomain.PairwiseSet (Spec.D) (J) (C)
+    include DisjointDomain.ProjectiveSet (Spec.D) (J) (R)
 
     let remove_non_modular x = map Spec.D.to_modular x
     let to_modular x = map Spec.D.to_modular x
@@ -1271,14 +1285,13 @@ struct
   module G = Spec.G
   module C = Spec.C
   module V = Spec.V
+  module P = UnitP
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
   type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
-
-  let should_join x y = true
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)

@@ -1,3 +1,5 @@
+(** {!Analyses.Spec.branch} refinement for {!Base} analysis. *)
+
 open GoblintCil
 
 module M = Messages

@@ -1,4 +1,4 @@
-(** Thread creation and uniqueness analyses. *)
+(** Created threads and their uniqueness analysis ([thread]). *)
 
 open GoblintCil
 open Analyses
@@ -19,8 +19,7 @@ struct
     include T
     include StdV
   end
-
-  let should_join = D.equal
+  module P = IdentityP (D)
 
   (* transfer functions *)
 

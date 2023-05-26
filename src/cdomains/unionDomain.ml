@@ -1,3 +1,4 @@
+(** Abstract domains for C unions. *)
 
 open GoblintCil
 

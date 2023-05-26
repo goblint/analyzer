@@ -1,14 +1,14 @@
-(** Stack-trace "analyses". *)
+(** Call stack analyses ([stack_trace], [stack_trace_set], [stack_loc]). *)
 
 open GoblintCil
 open Analyses
 module LF = LibraryFunctions
 
-module Spec (D: StackDomain.S) (P: sig val name : string end)=
+module Spec (D: StackDomain.S) (N: sig val name : string end)=
 struct
   include Analyses.IdentitySpec
 
-  let name () = P.name
+  let name () = N.name
   module D = D
   module C = D
 

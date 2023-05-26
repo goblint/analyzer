@@ -1,3 +1,5 @@
+(** Printables for CIL types. *)
+
 open GoblintCil
 open Pretty
 

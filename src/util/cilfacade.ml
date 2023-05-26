@@ -1,4 +1,4 @@
-(** Helpful functions for dealing with [Cil]. *)
+(** {!GoblintCil} utilities. *)
 
 open GobConfig
 open GoblintCil
