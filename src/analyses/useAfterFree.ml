@@ -43,17 +43,25 @@ struct
     | Lval (Var v, _) -> Some v
     | _ -> None
 
-  let warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (lval:lval) ctx =
+  let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (lval:lval) ctx =
     let state = ctx.local in
     let cwe_number = if is_double_free then 415 else 416 in
+    let rec offset_might_contain_freed offset =
+      match offset with
+      | NoOffset -> ()
+      | Field (f, o) -> offset_might_contain_freed o
+      | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name e ctx; offset_might_contain_freed o
+    in
     match lval with
     (* Case: lval is a variable *)
-    | (Var v, _) ->
+    | (Var v, o) ->
+      offset_might_contain_freed o;
       if D.mem v state then
         M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval in \"%s\" is a maybe freed pointer" transfer_fn_name
       else ()
     (* Case: lval is an object whose address is in a pointer *)
-    | (Mem e, _) ->
+    | (Mem e, o) ->
+      offset_might_contain_freed o;
       begin match get_concrete_exp e with
         | Some v ->
           if D.mem v state then
@@ -73,7 +81,7 @@ struct
       | _ -> ()
       end *)
 
-  let rec warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (exp:exp) ctx =
+  and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (exp:exp) ctx =
     match exp with
     (* Base recursion cases *)
     | Const _
