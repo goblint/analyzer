@@ -159,7 +159,7 @@ struct
       else if res > 0 then
         Idx.starting IInt Z.one
       else
-        Idx.ending IInt (Z.neg (Z.one)) in
+        Idx.ending IInt Z.minus_one in
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
     if List.mem None x' || List.mem None y' then
