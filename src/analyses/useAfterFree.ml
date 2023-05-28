@@ -130,44 +130,76 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
+  (* Took inspiration from malloc_null. Does it make sense? *)
+  let freed_var_at_return_ = ref dummyFunDec.svar
+  let freed_var_at_return () = !freed_var_at_return_
+
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let state = ctx.local in
     may (fun x -> warn_exp_might_contain_freed "return" x ctx) exp;
-    state
+    (* Intuition:
+     * Check if the return expression has a maybe freed var
+     * If yes, then add the dummyFunDec's varinfo to the state
+     * Else, don't change the state  
+    *)
+    match exp with
+    | Some ret ->
+      begin match get_concrete_exp ret with
+        | Some v ->
+          if D.mem v state then
+            D.add (freed_var_at_return ()) state
+          else state
+        | None -> state
+      end
+    | None -> state
 
-  (* TODO: FINISH *)
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
-    (* TODO: Decided to keep callee_state the same as caller_state for now. Discuss this. *)
-    let callee_state = caller_state in
     may (fun x -> warn_lval_might_contain_freed "enter" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" arg ctx) args;
+    (* Intuition for computing callee_state:
+     * 1. Take all global variables which are maybe freed
+     * 2. Take all actual parameters of the callee and take only the ones (if any) which are maybe freed in the caller_state
+     * 3. callee_state is the union of the sets from 1. and 2. above
+    *)
+    let glob_freed_vars = D.filter (fun x -> x.vglob) caller_state in
+    let args_to_vars = List.filter_map (fun x -> get_concrete_exp x) args in
+    let caller_freed_vars_in_args = D.of_list (List.filter (fun x -> D.mem x caller_state) args_to_vars) in
+    let callee_state = D.union glob_freed_vars caller_freed_vars_in_args in
     [caller_state, callee_state]
 
-  (* TODO: FINISH *)
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
-    callee_local
+    (* Intuition for computing the caller_state:
+     * 1. Remove all local vars of the callee, which are maybe freed, from the callee_local state
+     * 2. Set the caller_state as the callee_local state without the callee local maybe freed vars (the result of 1.)
+    *)
+    let freed_callee_local_vars = D.filter (fun x -> List.mem x f.slocals) callee_local in
+    let caller_state = D.diff callee_local freed_callee_local_vars in
+    caller_state
 
-  (* TODO: FINISH *)
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    let state = ctx.local in
+    let caller_state = ctx.local in
     may (fun x -> warn_lval_might_contain_freed "combine_assign" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "combine_assign" arg ctx) args;
-    state
+    match lval, D.mem (freed_var_at_return ()) callee_local with
+    | Some lv, true ->
+      begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
+        | Some v -> D.add v caller_state
+        | None -> caller_state
+      end
+    | _ -> caller_state
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
-    may (fun x -> warn_lval_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) x ctx) lval;
+    may (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) arg ctx) arglist;
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Free ptr ->
       begin match get_concrete_exp ptr with
         | Some v ->
-          if D.mem v state then
-            state
-          else
-            D.add v state
+          if D.mem v state then state
+          else D.add v state
         | None -> state
       end
     | _ -> state
