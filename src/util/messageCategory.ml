@@ -213,14 +213,14 @@ let path_show e =
 let show x = String.concat " > " (path_show x)
 
 let behaviorName = function
-  |Machine -> "Machine";
-  |Implementation -> "Implementation"
-  |Undefined u -> match u with
-    |NullPointerDereference -> "NullPointerDereference"
-    |UseAfterFree -> "UseAfterFree"
-    |DoubleFree -> "DoubleFree"
-    |Uninitialized -> "Uninitialized"
-    |Other -> "Other"
+  | Machine -> "Machine"
+  | Implementation -> "Implementation"
+  | Undefined u -> match u with
+    | NullPointerDereference -> "NullPointerDereference"
+    | UseAfterFree -> "UseAfterFree"
+    | DoubleFree -> "DoubleFree"
+    | Uninitialized -> "Uninitialized"
+    | Other -> "Other"
     | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"
       | BeforeStart -> "BeforeStart"
