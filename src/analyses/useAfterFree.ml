@@ -45,6 +45,7 @@ struct
 
   let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (lval:lval) ctx =
     let state = ctx.local in
+    let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
     let cwe_number = if is_double_free then 415 else 416 in
     let rec offset_might_contain_freed offset =
       match offset with
@@ -57,7 +58,7 @@ struct
     | (Var v, o) ->
       offset_might_contain_freed o;
       if D.mem v state then
-        M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" is a maybe freed pointer" v.vname transfer_fn_name
+        M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" is a maybe freed pointer" v.vname transfer_fn_name
       else ()
     (* Case: lval is an object whose address is in a pointer *)
     | (Mem e, o) ->
@@ -65,7 +66,7 @@ struct
       begin match get_concrete_exp e with
         | Some v ->
           if D.mem v state then
-            M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed pointer" v.vname transfer_fn_name
+            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed pointer" v.vname transfer_fn_name
           else ()
         | None -> ()
       end
