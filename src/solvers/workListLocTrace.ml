@@ -20,8 +20,7 @@ module Make =
       let to_list = Fun.id
       let from_list = Fun.id
       let enqueue st elem =
-        let stList = to_list st
-        in
+        let stList = to_list st in
         if List.mem elem stList then (
           st
         )
@@ -58,8 +57,7 @@ module Make =
       let init x =
         new_var_event x;
         HM.replace rho x (bot ());
-        HM.replace infl x VS.empty;
-      in
+        HM.replace infl x VS.empty; in
       let eval x y =
         get_var_event y;
         HM.replace infl y (VS.enqueue (try HM.find infl y with Not_found -> VS.empty) x);
@@ -68,8 +66,7 @@ module Make =
           new_var_event y;
           HM.replace rho y (bot ());
           vs := VS.enqueue !vs y;
-          bot ()
-      in
+          bot () in
       let set x d =
         let old = try HM.find rho x with Not_found -> init x; bot () in
         if not (leq d old) then begin
@@ -77,28 +74,22 @@ module Make =
           HM.replace rho x (join old d);
           let q = try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
-          let xNode = S.Var.node x
-          in
+          let xNode = S.Var.node x in
           if predominatorRegistration#isLoopHead xNode  then
             let qList, qMap = List.fold (fun (listAcc, mapAcc) svElem ->
-                let svarNode = S.Var.node svElem
-                in
-                (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q)
-
-            in
-            let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList
-            in
+                let svarNode = S.Var.node svElem in
+                (svarNode::listAcc, SVarMap.add svarNode svElem mapAcc)) ([], SVarMap.empty) (VS.to_list q) in
+            let nonPrio, prio = predominatorRegistration#getPriorityNodePartition xNode qList in
             predominatorRegistration#printOut ();
             (* prio und NonPrio mal ausgeben und gucken, ob das das ist, was ich erwarte *)
             print_string ("qList:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" qList)^"
       \nnonPrio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" nonPrio)^"
       \nprio:"^(List.fold (fun acc node -> (Node.show node)^"; "^acc) "" prio)^"\n");
-      vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs prio;
+            vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs prio;
             vs := List.fold ( fun acc node -> VS.enqueue acc (SVarMap.find node qMap)) !vs nonPrio;
           else
             vs := (VS.fold VS.enqueue q !vs)
-        end
-      in
+        end in
       start_event ();
       (* das scheinen initialen rho-Werte zu sein *)
       let _ = List.iter (fun (x,d) -> HM.add rho x d) st in

@@ -19,15 +19,12 @@ class predominator_registration =
       if self#isLoopHead dest_node then print_string ("We found a loop head: "^(Node.show dest_node)^"\n");
       let prevNodePreDoms =
         if PredominatorMap.mem prev_node predominatorMap then PredominatorMap.find prev_node predominatorMap
-        else NodeSet.empty
-      in
+        else NodeSet.empty in
       let destNodePredDoms =
         if PredominatorMap.mem dest_node predominatorMap then PredominatorMap.find dest_node predominatorMap
-        else NodeSet.empty
-      in
+        else NodeSet.empty in
       let newNodeSet = if PredominatorMap.mem dest_node predominatorMap then (NodeSet.inter (NodeSet.add dest_node prevNodePreDoms) destNodePredDoms)
-        else (NodeSet.add dest_node prevNodePreDoms)
-      in
+        else (NodeSet.add dest_node prevNodePreDoms) in
       predominatorMap <- PredominatorMap.add dest_node newNodeSet predominatorMap
 
     method isBackedgeOf (prev_node:Node.t) (dest_node:Node.t) =
@@ -43,8 +40,7 @@ class predominator_registration =
 
     (* Returns a partition of the dependency nodes: (non-priority nodes, priority nodes) *)
     method getPriorityNodePartition (loopHead:Node.t) (depNodes: Node.t list) : Node.t list * Node.t list =
-      let backEdgeNodeOp = self#getBackEdgeNode loopHead
-      in
+      let backEdgeNodeOp = self#getBackEdgeNode loopHead in
       match backEdgeNodeOp with None -> depNodes, []
                               | Some backEdgeNode ->(
                                   let rec loop nodeList nonPrio prio =
@@ -57,8 +53,7 @@ class predominator_registration =
                                       else (
                                         loop xs nonPrio (x::prio)
                                       )
-                                                      | [] -> nonPrio, prio
-                                  in
+                                                      | [] -> nonPrio, prio in
                                   if (PredominatorMap.mem backEdgeNode predominatorMap)
                                   then loop depNodes [] [] else depNodes, [])
 
