@@ -81,7 +81,6 @@ struct
       else ()
       | _ -> ()
       end *)
-
   and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (exp:exp) ctx =
     match exp with
     (* Base recursion cases *)
@@ -158,28 +157,31 @@ struct
     let caller_state = ctx.local in
     may (fun x -> warn_lval_might_contain_freed "enter" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" arg ctx) args;
-    (* Intuition for computing callee_state:
-     * 1. Take all global variables which are maybe freed
-     * 2. Take all actual parameters of the callee and take only the ones (if any) which are maybe freed in the caller_state
-     * 3. callee_state is the union of the sets from 1. and 2. above
-    *)
-    let glob_freed_vars = D.filter (fun x -> x.vglob) caller_state in
-    let args_to_vars = List.filter_map (fun x -> get_concrete_exp x) args in
-    let caller_freed_vars_in_args = D.of_list (List.filter (fun x -> D.mem x caller_state) args_to_vars) in
-    let callee_state = D.union glob_freed_vars caller_freed_vars_in_args in
+    let glob_maybe_freed_vars = D.filter (fun x -> x.vglob) caller_state in
+    let zipped = List.combine f.sformals args in
+    let callee_state = List.fold_left (fun acc (f, a) ->
+        match get_concrete_exp a with
+        | Some v ->
+          if D.mem v caller_state then D.add f acc else acc
+        | None -> acc
+      ) glob_maybe_freed_vars zipped in
     [caller_state, callee_state]
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
-    (* Intuition for computing the caller_state:
-     * 1. Remove all local vars of the callee, which are maybe freed, from the callee_local state
-     * 2. Set the caller_state as the callee_local state without the callee local maybe freed vars (the result of 1.)
-    *)
-    let freed_callee_local_vars = D.filter (fun x -> List.mem x f.slocals) callee_local in
-    let caller_state = D.diff callee_local freed_callee_local_vars in
+    let glob_maybe_freed_vars = D.filter (fun x -> x.vglob) callee_local in
+    let zipped = List.combine f.sformals args in
+    let caller_state = List.fold_left (fun acc (f, a) ->
+        match get_concrete_exp a with
+        | Some v ->
+          if D.mem f callee_local then D.add v acc else acc
+        | None -> acc
+      ) glob_maybe_freed_vars zipped in
     caller_state
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     let caller_state = ctx.local in
+
+    (* TODO: Should we actually warn here? It seems to clutter the output a bit. *)
     may (fun x -> warn_lval_might_contain_freed "combine_assign" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "combine_assign" arg ctx) args;
     match lval, D.mem (freed_var_at_return ()) callee_local with
