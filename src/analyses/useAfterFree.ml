@@ -57,7 +57,7 @@ struct
     | (Var v, o) ->
       offset_might_contain_freed o;
       if D.mem v state then
-        M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval in \"%s\" is a maybe freed pointer" transfer_fn_name
+        M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" is a maybe freed pointer" v.vname transfer_fn_name
       else ()
     (* Case: lval is an object whose address is in a pointer *)
     | (Mem e, o) ->
@@ -65,7 +65,7 @@ struct
       begin match get_concrete_exp e with
         | Some v ->
           if D.mem v state then
-            M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval in \"%s\" points to a maybe freed pointer" transfer_fn_name
+            M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed pointer" v.vname transfer_fn_name
           else ()
         | None -> ()
       end
