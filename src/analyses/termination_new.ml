@@ -12,7 +12,7 @@ let loopCounters : varinfo list ref = ref []
 let loopExit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
 
 let is_loop_counter_var (x : varinfo) =
-  false (* TODO: Actually detect loop counter variables *)
+  List.mem x !loopCounters
 
 let is_loop_exit_indicator (x : varinfo) =
   false (* TODO: Actually detect loop exit indicators *)
@@ -59,12 +59,12 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     print_endline @@ ""^(!loopExit.vname);
     let open Queries in
-    match q with 
+    match q with
     | Queries.MustTermLoop v when check_bounded ctx v ->
       true (* TODO should we use the checl_bound function?*)
-    | Queries.MustTermProg -> 
+    | Queries.MustTermProg ->
       true (*TODO check if all values in the domain are true -> true*)
-    | _ -> Result.top q 
+    | _ -> Result.top q
 
 end
 
