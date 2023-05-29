@@ -1,4 +1,4 @@
-(** Part of the wrapper function analysis. Seperate out the modules for counting
+(** Part of the wrapper function analysis. Separate out the modules for counting
     unique calls: Chain alone is a functor, yet we need the resulting module to
     define queries over it. Since the wrapper function analysis also references
     those queries, we would have a circular dependency otherwise. *)

@@ -83,8 +83,8 @@ struct
   let startstate v = D.bot ()
 
   let threadenter ctx lval f args =
-    (* The new thread receives a fresh counter *)
-    [D.bot ()]
+    (* The new thread receives the same wrapper node and counter *)
+    [ctx.local]
 
   let exitstate v = D.top ()
 
