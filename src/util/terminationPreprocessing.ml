@@ -18,7 +18,7 @@ let extract_file_name s =                    (*There still may be a need to filt
    s'   
 
 let show_location_id l =
-   string_of_int l.line ^ "_" ^ string_of_int l.column ^ "_" ^ "file" ^ "_" ^  extract_file_name l.file
+   string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
 class loopCounterVisitor (fd : fundec) = object(self)
    inherit nopCilVisitor
