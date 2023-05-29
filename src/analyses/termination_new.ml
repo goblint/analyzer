@@ -6,6 +6,8 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
+let loopCounters : varinfo list ref = ref []
+
 (*
 let _ = WitnessUtil.find_loop_heads
 
@@ -59,6 +61,6 @@ end
 
 let () =
   (** Register the preprocessing *)
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters);
   (** Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)
