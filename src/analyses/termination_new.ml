@@ -3,6 +3,7 @@
 open Analyses
 open GoblintCil
 open TerminationPreprocessing
+open Printf
 
 exception PreProcessing of string
 
@@ -51,9 +52,21 @@ struct
        *)
     ctx.local (* TODO *)
 
+  let terminates ctx =
+    ctx.ask Queries.MustTermProg
+  
+  (* provides information to Goblint*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
-    Result.top q (* TODO *)
+    match q with 
+    | Queries.MustTermLoop v when check_bounded ctx v -> 
+      printf "Termination analysis loop\n";
+      true (* TODO*)
+    | Queries.MustTermProg -> 
+      printf "Termination analysis prog\n";
+      let b = terminates ctx in 
+      true (*TODO*)
+    | _ -> Result.top q 
 
 end
 
