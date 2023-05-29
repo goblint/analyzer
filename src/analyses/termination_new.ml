@@ -10,7 +10,7 @@ exception PreProcessing of string
 let loopCounters : varinfo list ref = ref []
 
 let is_loop_counter_var (x : varinfo) =
-  false (* TODO: Actually detect loop counter variables *)
+  List.mem x !loopCounters
 
 let is_loop_exit_indicator (x : varinfo) =
   false (* TODO: Actually detect loop exit indicators *)
@@ -56,12 +56,12 @@ struct
   (* provides information to Goblint*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
-    match q with 
+    match q with
     | Queries.MustTermLoop v when check_bounded ctx v ->
       true (* TODO should we use the checl_bound function?*)
-    | Queries.MustTermProg -> 
+    | Queries.MustTermProg ->
       true (*TODO check if all values in the domain are true -> true*)
-    | _ -> Result.top q 
+    | _ -> Result.top q
 
 end
 
