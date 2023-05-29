@@ -6,10 +6,11 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
-let visited = Stack.create () (* TODO: Is this allowed? *)
-
 let is_loop_counter_var (x : varinfo) =
   false (* TODO: Actually detect loop counter variables *)
+
+let is_loop_exit_indicator (x : varinfo) =
+  false (* TODO: Actually detect loop exit indicators *)
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =
@@ -27,7 +28,7 @@ struct
   module D = MapDomain.MapBot (Basetype.Variables) (BoolDomain.MustBool)
   module C = D
 
-  let startstate _ = D.bot () (* TODO *)
+  let startstate _ = D.bot ()
   let exitstate = startstate (* TODO *)
 
   (** Provides some default implementations *)
@@ -38,16 +39,15 @@ struct
     match lval, rval with
     (* Assume that the following loop does not terminate *)
       (Var x, NoOffset), zero when is_loop_counter_var x ->
-      (* Remember the lcv *)
-      (*
-      let () = Stack.push x visited in
-      let () = enter_loop in
-         *)
       D.add x false ctx.local
+    (* Loop exit: Check whether loop counter variable is bounded *)
+    | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
+      let is_bounded = check_bounded ctx x in
+      D.add x is_bounded ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp : exp) (tv : bool) =
-    ctx.local (* TODO *)
+    ctx.local (* TODO: Do we actually need a branch transfer function? *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
