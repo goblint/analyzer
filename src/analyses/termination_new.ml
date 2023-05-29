@@ -7,6 +7,8 @@ open Printf
 
 exception PreProcessing of string
 
+let loopCounters : varinfo list ref = ref []
+
 let is_loop_counter_var (x : varinfo) =
   false (* TODO: Actually detect loop counter variables *)
 
@@ -65,6 +67,6 @@ end
 
 let () =
   (** Register the preprocessing *)
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters);
   (** Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)

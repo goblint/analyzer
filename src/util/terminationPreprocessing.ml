@@ -20,7 +20,7 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor (fd : fundec) = object(self)
+class loopCounterVisitor lc (fd : fundec) = object(self)
    inherit nopCilVisitor
    method! vstmt s =
       let action s = match s.skind with
@@ -34,6 +34,7 @@ class loopCounterVisitor (fd : fundec) = object(self)
             | cont :: cond :: ss ->
             b.bstmts <- cont :: inc_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
             | _ -> ());
+         lc := List.append !lc ([v] : varinfo list);
          let nb = mkBlock [init_stmt; mkStmt s.skind] in
          s.skind <- Block nb;
          s
