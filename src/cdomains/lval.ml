@@ -1,7 +1,8 @@
+(** Domains for offsets and lvalues. *)
+
 open GoblintCil
 open Pretty
 
-module GU = Goblintutil
 module M = Messages
 
 (** Special index expression for some unknown index.

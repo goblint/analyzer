@@ -1,8 +1,6 @@
-(** Structures for the querying subsystem. *)
+(** Queries and their result lattices. *)
 
 open GoblintCil
-
-module GU = Goblintutil
 
 module VDQ = ValueDomainQueries
 

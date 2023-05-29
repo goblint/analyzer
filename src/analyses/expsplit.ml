@@ -1,3 +1,5 @@
+(** Path-sensitive analysis according to values of arbitrary given expressions ([expsplit]). *)
+
 open Batteries
 open GoblintCil
 open Analyses

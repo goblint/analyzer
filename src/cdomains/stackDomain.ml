@@ -1,4 +1,4 @@
-module GU = Goblintutil
+(** Call stack domains. *)
 
 module type S =
 sig

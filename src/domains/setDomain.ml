@@ -1,4 +1,5 @@
-(** Abstract domains representing sets. *)
+(** Set domains. *)
+
 module Pretty = GoblintCil.Pretty
 open Pretty
 

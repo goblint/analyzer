@@ -1,4 +1,4 @@
-(** Path-sensitive analysis that verifies checking the result of the malloc function. *)
+(** Path-sensitive analysis of failed dynamic memory allocations ([malloc_null]). *)
 
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
@@ -237,7 +237,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var (Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

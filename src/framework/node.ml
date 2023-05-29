@@ -1,3 +1,6 @@
+(** CFG node.
+    Corresponds to a program point between program statements. *)
+
 open GoblintCil
 open Pretty
 

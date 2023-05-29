@@ -1,3 +1,5 @@
+(** Thread ID domains. *)
+
 open GoblintCil
 open FlagHelper
 
