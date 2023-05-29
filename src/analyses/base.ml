@@ -536,6 +536,7 @@ struct
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
     | `Float _ -> empty
+    | `MutexAttr _ -> empty
     | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
     | `JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | `Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
@@ -677,6 +678,7 @@ struct
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
         | `Float _ -> (empty, TS.bot (), false)
+        | `MutexAttr _ -> (empty, TS.bot (), false)
         | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | `JmpBuf _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | `Mutex -> (empty, TS.bot (), false) (* TODO: is this right? *)
@@ -1254,6 +1256,12 @@ struct
       end
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
+    | Q.EvalMutexAttr e -> begin
+        let e:exp = Lval (Cil.mkMem ~addr:e ~off:NoOffset) in
+        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `MutexAttr a -> a
+        | v -> MutexAttrDomain.top ()
+      end
     | Q.EvalLength e -> begin
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
@@ -2095,6 +2103,26 @@ struct
         | _ -> ()
       end;
       raise Deadcode
+    | MutexAttrSetType {attr = attr; typ = mtyp}, _ ->
+      begin
+        let get_type lval =
+          let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
+          AD.get_type address
+        in
+        let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
+        let dest_typ = get_type dst_lval in
+        let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dst_lval in
+        match eval_rv (Analyses.ask_of_ctx ctx) gs st mtyp with
+        | `Int x ->
+          begin
+            match ID.to_int x with
+            | Some z ->
+              if M.tracing then M.tracel "attr" "setting\n";
+              set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.of_int z))
+            | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.top ()))
+          end
+        | _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (`MutexAttr (ValueDomain.MutexAttr.top ()))
+      end
     | Identity e, _ ->
       begin match lv with
         | Some x -> assign ctx x e
