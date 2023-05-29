@@ -14,8 +14,7 @@ struct
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-
-  let should_join x y = D.equal x y
+  module P = IdentityP (D)
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with Lval.any_index_exp on all non-concrete cases. *)

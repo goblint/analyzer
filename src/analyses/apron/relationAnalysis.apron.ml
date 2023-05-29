@@ -25,6 +25,12 @@ struct
     include Priv.V
     include StdV
   end
+  module P =
+  struct
+    include Priv.P
+
+    let of_elt {priv; _} = of_elt priv
+  end
 
   module RV = RD.V
 
@@ -32,8 +38,6 @@ struct
 
   (* Result map used for comparison of results for relational traces paper. *)
   let results = PCU.RH.create 103
-
-  let should_join = Priv.should_join
 
   let context fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
