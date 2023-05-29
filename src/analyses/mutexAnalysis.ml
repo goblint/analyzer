@@ -8,7 +8,6 @@ module LF = LibraryFunctions
 open GoblintCil
 open Analyses
 open Batteries
-open Queries.Protection
 
 module VarSet = SetDomain.Make (Basetype.Variables)
 
@@ -55,7 +54,7 @@ struct
 
       let get ~write protection (s,w) =
         let (rw, w) = match protection with
-          | Strong -> s
+          | Queries.Protection.Strong -> s
           | Weak -> w
         in
         if write then w else rw
@@ -65,7 +64,7 @@ struct
     module GProtecting: sig
       include Lattice.S
       val make: write:bool -> recovered:bool -> Mutexes.t -> t
-      val get: write:bool -> protection -> t -> Mutexes.t
+      val get: write:bool -> Queries.Protection.t -> t -> Mutexes.t
     end = struct
       include MakeP (LockDomain.Simple)
 
@@ -84,7 +83,7 @@ struct
     module GProtected: sig
       include Lattice.S
       val make: write:bool -> VarSet.t -> t
-      val get: write:bool -> protection -> t -> VarSet.t
+      val get: write:bool -> Queries.Protection.t -> t -> VarSet.t
     end = struct
       include MakeP (VarSet)
 
