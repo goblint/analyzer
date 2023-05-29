@@ -9,6 +9,8 @@ exception PreProcessing of string
 
 let loopCounters : varinfo list ref = ref []
 
+let loopExit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
+
 let is_loop_counter_var (x : varinfo) =
   false (* TODO: Actually detect loop counter variables *)
 
@@ -55,6 +57,7 @@ struct
 
   (* provides information to Goblint*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
+    print_endline @@ ""^(!loopExit.vname);
     let open Queries in
     match q with 
     | Queries.MustTermLoop v when check_bounded ctx v ->
@@ -67,6 +70,6 @@ end
 
 let () =
   (** Register the preprocessing *)
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters loopExit);
   (** Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)

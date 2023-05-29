@@ -20,8 +20,13 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor lc (fd : fundec) = object(self)
+class loopCounterVisitor lc le (fd : fundec) = object(self)
    inherit nopCilVisitor
+   method! vfunc (f:fundec) =
+      let exit_name = "term_exit-" in
+      let typ = Cil.intType in 
+      le := Cil.makeLocalVar fd exit_name typ;
+      DoChildren;     (* function definition *)
    method! vstmt s =
       let action s = match s.skind with
          | Loop (b, loc, eloc, _, _) ->
@@ -30,12 +35,13 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
          let v = (Cil.makeLocalVar fd name typ) in
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
+         let exit_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
          (match b.bstmts with
             | cont :: cond :: ss ->
             b.bstmts <- cont :: inc_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
             | _ -> ());
          lc := List.append !lc ([v] : varinfo list);
-         let nb = mkBlock [init_stmt; mkStmt s.skind] in
+         let nb = mkBlock [init_stmt; mkStmt s.skind; exit_stmt] in
          s.skind <- Block nb;
          s
          | _ -> s
