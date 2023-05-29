@@ -1,3 +1,5 @@
+(** Combination of CIL files using comparison results. *)
+
 open GoblintCil
 open CompareCIL
 open MaxIdUtil

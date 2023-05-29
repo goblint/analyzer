@@ -1,3 +1,8 @@
+(** Incremental/interactive terminating top-down solver, which supports space-efficiency and caching ([td3]).
+
+    @see <https://doi.org/10.1017/S0960129521000499> Seidl, H., Vogler, R. Three improvements to the top-down solver.
+    @see <https://arxiv.org/abs/2209.10445> Interactive Abstract Interpretation: Reanalyzing Whole Programs for Cheap. *)
+
 (** Incremental terminating top down solver that optionally only keeps values at widening points and restores other values afterwards. *)
 (* Incremental: see paper 'Incremental Abstract Interpretation' https://link.springer.com/chapter/10.1007/978-3-030-41103-9_5 *)
 (* TD3: see paper 'Three Improvements to the Top-Down Solver' https://dl.acm.org/doi/10.1145/3236950.3236967

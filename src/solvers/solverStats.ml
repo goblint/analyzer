@@ -1,3 +1,4 @@
+(** Statistics for solvers. *)
 
 let vars = ref 0
 let evals = ref 0

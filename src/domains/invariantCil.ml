@@ -1,3 +1,5 @@
+(** Invariant manipulation related to CIL transformations. *)
+
 open GoblintCil
 
 

@@ -1,3 +1,5 @@
+(** Detection of suitable C preprocessor. *)
+
 open Batteries
 
 let bad_cpp_version_regexp = Str.regexp_case_fold "clang\\|apple\\|darwin"

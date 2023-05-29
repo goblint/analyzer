@@ -1,4 +1,4 @@
-(** Thread returning analysis. *)
+(** Thread returning analysis which abstracts a thread's call stack by a boolean, indicating whether it is at the topmost call stack frame or not ([threadreturn]). *)
 
 open GoblintCil
 open Analyses

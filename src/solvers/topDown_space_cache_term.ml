@@ -1,5 +1,5 @@
-(** Terminating top down solver that only keeps values at widening points and restores other values afterwards. *)
-(* This is superseded by td3 but kept as a simpler version without the incremental parts. *)
+(** Terminating top-down solver, which supports space-efficiency and caching ([topdown_space_cache_term]).
+    Simpler version of {!Td3} without incremental. *)
 
 open Batteries
 open Analyses

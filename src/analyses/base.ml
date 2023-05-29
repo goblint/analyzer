@@ -1,4 +1,4 @@
-(** Value analysis.  *)
+(** Non-relational value analysis aka {e base analysis} ([base]). *)
 
 open Batteries
 open GoblintCil

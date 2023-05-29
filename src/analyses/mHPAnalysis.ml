@@ -1,4 +1,5 @@
-(** MHP access analysis. *)
+(** May-happen-in-parallel (MHP) analysis for memory accesses ([mhp]). *)
+
 open Analyses
 
 module Spec =
