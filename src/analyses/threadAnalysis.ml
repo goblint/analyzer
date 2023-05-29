@@ -19,11 +19,9 @@ struct
     include T
     include StdV
   end
-
-  let should_join = D.equal
+  module P = IdentityP (D)
 
   (* transfer functions *)
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
