@@ -20,8 +20,8 @@ let get_current_unlift ask: Thread.t =
 module VNI =
   Printable.Prod3
     (CilType.Varinfo)
-    (Node)
-    (Printable.Option
+    (Node) (
+    Printable.Option
       (WrapperFunctionAnalysis0.ThreadCreateUniqueCount)
       (struct let name = "no index" end))
 
