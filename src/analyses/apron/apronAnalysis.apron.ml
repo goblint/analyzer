@@ -39,7 +39,6 @@ let after_config () =
   
 
 let _ =
-  Cilfacade.register_preprocess_cil ("apron") (new loopCounterVisitor);
   AfterConfig.register after_config
 
 
