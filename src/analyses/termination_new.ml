@@ -50,20 +50,15 @@ struct
   let branch ctx (exp : exp) (tv : bool) =
     ctx.local (* TODO: Do we actually need a branch transfer function? *)
 
-  let terminates ctx =
-    ctx.ask Queries.MustTermProg
-  
+
   (* provides information to Goblint*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with 
-    | Queries.MustTermLoop v when check_bounded ctx v -> 
-      printf "Termination analysis loop\n";
-      true (* TODO*)
+    | Queries.MustTermLoop v when check_bounded ctx v ->
+      true (* TODO should we use the checl_bound function?*)
     | Queries.MustTermProg -> 
-      printf "Termination analysis prog\n";
-      let b = terminates ctx in 
-      true (*TODO*)
+      true (*TODO check if all values in the domain are true -> true*)
     | _ -> Result.top q 
 
 end
