@@ -1,6 +1,11 @@
-(** An analysis that handles the case when an interesting function is called
-    from a wrapper function all over the code. Currently handles the [malloc]-
-    family of memory allocation functions, as well as [pthread_create] *)
+(** Family of analyses which provide symbolic locations for special library functions.
+    Provides symbolic heap locations for dynamic memory allocations and symbolic thread
+    identifiers for thread creation ([mallocWrapper], [threadCreateWrapper]).
+
+    Provided heap locations are based on the node and thread ID.
+    Provided thread identifiers are based solely the node.
+    Considers wrapper functions and a number of unique heap locations
+    or thread identifiers for additional precision. *)
 
 open GoblintCil
 open Analyses
