@@ -7,14 +7,11 @@ open Printf
 
 exception PreProcessing of string
 
-(*
-let _ = WitnessUtil.find_loop_heads
+let is_loop_counter_var (x : varinfo) =
+  false (* TODO: Actually detect loop counter variables *)
 
-let check_loop_head ctx = false
-   *)
-
-let get_prepr_var () : varinfo =
-  raise (PreProcessing "No loop variable") (* TODO *)
+let is_loop_exit_indicator (x : varinfo) =
+  false (* TODO: Actually detect loop exit indicators *)
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =
@@ -29,28 +26,29 @@ struct
 
   let name () = "termination"
 
-  module D = Lattice.Unit (* TODO *)
-  module C = D (* TODO *)
+  module D = MapDomain.MapBot (Basetype.Variables) (BoolDomain.MustBool)
+  module C = D
 
-  let startstate _ = D.bot () (* TODO *)
+  let startstate _ = D.bot ()
   let exitstate = startstate (* TODO *)
 
   (** Provides some default implementations *)
   include Analyses.IdentitySpec
 
   let assign ctx (lval : lval) (rval : exp) =
-    (* Detect preprocessing variable assignment to 0 *)
+    (* Detect loop counter variable assignment to 0 *)
     match lval, rval with
-      (Var get_prepr_var, NoOffset), zero -> ctx.local (* TODO *)
+    (* Assume that the following loop does not terminate *)
+      (Var x, NoOffset), zero when is_loop_counter_var x ->
+      D.add x false ctx.local
+    (* Loop exit: Check whether loop counter variable is bounded *)
+    | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
+      let is_bounded = check_bounded ctx x in
+      D.add x is_bounded ctx.local
     | _ -> ctx.local
 
   let branch ctx (exp : exp) (tv : bool) =
-    (*
-    let is_loop_head = check_loop_head ctx in
-    if is_loop_head then
-      enter_loop ctx;
-       *)
-    ctx.local (* TODO *)
+    ctx.local (* TODO: Do we actually need a branch transfer function? *)
 
   let terminates ctx =
     ctx.ask Queries.MustTermProg

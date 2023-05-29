@@ -71,6 +71,7 @@ struct
       D.add l ctx.local
 
     let remove ctx l =
+      if not (D.mem (l,true) ctx.local || D.mem (l,false) ctx.local) then M.warn "unlocking mutex which may not be held";
       D.remove (l, true) (D.remove (l, false) ctx.local)
 
     let remove_all ctx =
@@ -78,13 +79,14 @@ struct
            ctx.emit (MustUnlock m)
          ) (D.export_locks ctx.local); *)
       (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
+      M.warn "unlocking unknown mutex which may not be held";
       D.empty ()
   end
   include LocksetAnalysis.MakeMust (Arg)
   let name () = "mutex"
 
   module D = Arg.D (* help type checker using explicit constraint *)
-  let should_join x y = D.equal x y
+  module P = IdentityP (D)
 
   module V = Arg.V
   module GProtecting = Arg.GProtecting

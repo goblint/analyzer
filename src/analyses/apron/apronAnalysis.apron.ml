@@ -1,5 +1,4 @@
-(** {{!RelationAnalysis} Relational integer value analysis} using {!Apron} domains ([apron]). *)
-
+(** Analysis using Apron for integer variables. *)
 open Analyses
 open TerminationPreprocessing
 open Cilfacade
@@ -39,7 +38,6 @@ let after_config () =
   
 
 let _ =
-  Cilfacade.register_preprocess_cil ("apron") (new loopCounterVisitor);
   AfterConfig.register after_config
 
 
