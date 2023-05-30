@@ -40,7 +40,7 @@ struct
         include G0
         let name () = "readwrite"
       end
-
+      
       module Write =
       struct
         include G0
