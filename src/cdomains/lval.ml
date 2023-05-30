@@ -353,13 +353,8 @@ module Fields =
 struct
   module F = CilType.Fieldinfo
   module I = Basetype.CilExp
-  module FI = Printable.Either (F) (I)
 
   include Offset.Exp
-
-  let listify: offset -> t = of_cil
-  let to_offs': t -> t = Fun.id
-
 
   let rec kill v (fds: t): t = match fds with
     | `Index (x, xs) when I.occurs v x -> `NoOffset
@@ -367,11 +362,7 @@ struct
     | `Field (x, xs) -> `Field (x, kill v xs)
     | `NoOffset -> `NoOffset
 
-  let rec replace x exp ofs =
-    match ofs with
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, replace x exp o)
-    | `Index (e, o) -> `Index (I.replace x exp e, replace x exp o)
+  let replace x exp = map_indices (I.replace x exp)
 
   let top () = `NoOffset
   let is_top x = x = `NoOffset
@@ -413,11 +404,7 @@ struct
 
   (* TODO: use the type information to do this properly. Currently, this assumes
    * there are no nested arrays, so all indexing is eliminated. *)
-  let rec real_region (fd:t) typ: bool =
-    match fd with
-    | `NoOffset -> true
-    | `Field (_, xs) -> real_region xs typ
-    | `Index (i, _) -> false
+  let real_region (fd:t) typ: bool = not (contains_index fd)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y

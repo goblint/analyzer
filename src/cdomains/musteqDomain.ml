@@ -14,8 +14,6 @@ struct
     | `NoOffset, ys -> Some ys
     | _ -> None
 
-  let append x y: t = add_offset x y
-
   let rec occurs v fds = match fds with
     | `Field (x, xs) -> occurs v xs
     | `Index (x, xs) -> I.occurs v x || occurs v xs
@@ -84,7 +82,7 @@ struct
       if List.exists (EquAddr.equal (v,fd)) addrs then addrs else
         let f (x,y) fd' acc =
           if V.equal v x then
-            helper (y, F.append fd' fd) acc
+            helper (y, F.add_offset fd' fd) acc
           else if V.equal v y then
             (match F.prefix fd' fd with
              | Some rest -> helper (x,rest) acc
@@ -99,7 +97,7 @@ struct
     match rv with
     | Lval (Var x, NoOffset) -> Some (x, `NoOffset)
     | AddrOf (Var x, ofs)
-    | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, F.listify ofs)
+    | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, F.of_cil ofs)
     | _ -> None
 
   let eval_lv lv =
@@ -118,9 +116,9 @@ struct
         | Lval   (Var y, NoOffset) when y.vname.[0] = '{' -> st
         | AddrOf (Var y, NoOffset) when y.vname.[0] = '{' -> st
         | Lval (Var y, NoOffset) -> add_eq (x,y) st
-        | AddrOf (Var y, ofs) -> add (x,y) (F.listify ofs) st
+        | AddrOf (Var y, ofs) -> add (x,y) (F.of_cil ofs) st
         | AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) ->
-          add (x,y) (F.listify ofs) st
+          add (x,y) (F.of_cil ofs) st
         | _ -> st
       end
     | _ -> st

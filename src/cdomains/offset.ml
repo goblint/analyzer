@@ -143,10 +143,12 @@ struct
     | `Field (_, os) -> contains_index os
     | `Index _ -> true
 
-  let rec top_indices: t -> t = function
-    | `Index (x, o) -> `Index (Idx.top (), top_indices o)
-    | `Field (x, o) -> `Field (x, top_indices o)
+  let rec map_indices g: t -> t = function
     | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, map_indices g o)
+    | `Index (i, o) -> `Index (g i, map_indices g o)
+
+  let top_indices = map_indices (fun _ -> Idx.top ())
 end
 
 module MakeLattice (Idx: IntDomain.Z) =

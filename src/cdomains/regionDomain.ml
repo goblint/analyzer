@@ -142,7 +142,7 @@ struct
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
-    let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else `NoOffset in
+    let offsornot offs = if (get_bool "exp.region-offsets") then F.of_cil offs else `NoOffset in
     (* The intuition for the offset computations is that we keep the static _suffix_ of an
      * access path. These can be used to partition accesses when fields do not overlap.
      * This means that for pointer dereferences and when obtaining the value from an lval
