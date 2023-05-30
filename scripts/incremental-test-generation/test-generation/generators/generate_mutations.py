@@ -9,29 +9,13 @@ import shutil
 import subprocess
 import sys
 import yaml
-
-generate_type_mutation = "MUTATION"
-seperator = "--------------------"
-
-class Mutations:
-    def __init__(self, rfb=False, uoi=False, ror=False, cr=False, rt=False, lcr=False):
-        self.rfb = rfb
-        self.rfb_s = "remove-function-body"
-        self.uoi = uoi
-        self.uoi_s = "unary-operator-inversion"
-        self.ror = ror
-        self.ror_s = "relational-operator-replacement"
-        self.cr = cr
-        self.cr_s = "constant-replacement"
-        self.rt = rt
-        self.rt_s = "remove-thread"
-        self.lcr = lcr
-        self.lcr_s = "logical-connector-replacement"
+sys.path.append("..")
+from util import *
 
 def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
-        index: int = yaml_data["n"]
+        index: int = yaml_data[META_N]
 
     if mutations.rfb:
         index = _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutations.rfb_s, index)
@@ -49,8 +33,8 @@ def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
     return index
 
 def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutation_name, index):
-    print(seperator)
-    print(f"[{generate_type_mutation}] {mutation_name}")
+    print(SEPERATOR)
+    print(f"[{Generate_Type.MUTATION.value}] {mutation_name}")
     lineGroups = _get_line_groups(clang_tidy_path, mutation_name, program_path)
     for lines in lineGroups:
         index += 1
@@ -196,11 +180,11 @@ def _write_meta_data(meta_path, new_path, index, mutation_name, lines):
     name = os.path.basename(new_path)
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
-    yaml_data["n"] = index
+    yaml_data[META_N] = index
     yaml_data[f"p_{index}"] = {
-        "type": generate_type_mutation,
-        "sub_type": mutation_name,
-        "lines": lines
+        META_TYPE: Generate_Type.MUTATION.value,
+        META_SUB_TYPE: mutation_name,
+        META_LINES: lines
     }
     with open(meta_path, 'w') as file:
         yaml.safe_dump(yaml_data, file, sort_keys=False)

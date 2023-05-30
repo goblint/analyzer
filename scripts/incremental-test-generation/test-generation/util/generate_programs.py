@@ -4,8 +4,7 @@ import shutil
 import sys
 sys.path.append("..")
 from generators.generate_mutations import *
-from util.add_check import *
-from util.add_check_comments import *
+from util import *
 
 # Run for example with:
 # python3 generate_programs.py ../../sample-files/threads.c test ~/BA/Clang-Repo/llvm-project/build/bin/clang-tidy ~/BA/Goblint-Repo/analyzer/goblint --enable-mutations
@@ -18,9 +17,9 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir)
     # Create Meta file
-    meta_path = os.path.join(temp_dir,'meta.yaml')
+    meta_path = os.path.join(temp_dir, META_FILENAME)
     with open(meta_path, 'w') as outfile:
-        yaml.dump({'n': 0, 'p_0': {'type': generate_type_source}}, outfile)
+        yaml.dump({'n': 0, 'p_0': {META_TYPE: generate_type_source}}, outfile)
     # Copy the source program into the temp dir
     program_path = os.path.join(temp_dir, 'p.c')
     shutil.copy2(source_path, program_path)
@@ -38,7 +37,7 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
         pass
 
     # Add checks with comments
-    print(seperator)
+    print(SEPERATOR)
     index += 1
     for i in range(index):
         if i % 9 == 0:
@@ -52,14 +51,14 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
     print(f"Generating goblint checks [DONE]")
 
     # Check how many and which files were not compiling
-    print(seperator)
+    print(SEPERATOR)
     print("Check if the files compiled...")
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
     failed_count = 0
     failed_compilation_keys = []
     for key, value in yaml_data.items():
-        if isinstance(value, dict) and 'compilation' in value and value['compilation'] is False:
+        if isinstance(value, dict) and META_COMPILING in value and value[META_COMPILING] is False:
             failed_count += 1
             failed_compilation_keys.append(key)
     if failed_count == 0:

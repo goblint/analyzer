@@ -5,8 +5,9 @@
 import argparse
 import subprocess
 import sys
-
 import yaml
+sys.path.append("..")
+from util import *
 
 def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
     command = [
@@ -28,7 +29,7 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
 
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
-        yaml_data["p_" + str(index)]['compilation'] = compiling
+        yaml_data["p_" + str(index)][META_COMPILING] = compiling
     with open(meta_path, 'w') as file:
         yaml.safe_dump(yaml_data, file)
     
