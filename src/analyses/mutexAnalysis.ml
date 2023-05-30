@@ -7,7 +7,7 @@ module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
 open GoblintCil
 open Analyses
-
+open Batteries
 
 module VarSet = SetDomain.Make (Basetype.Variables)
 
@@ -21,7 +21,7 @@ struct
 
     (* Two global invariants:
        1. varinfo -> set of mutexes  --  used for protecting locksets (M[g])
-       2. mutex -> set of varinfos  --  used for protected variables (G_m), only collected during postsolving *)
+       2. mutex -> set of varinfos  --  used for protected variables (G_m), only collected during postsolving (!) *)
 
     module V =
     struct
@@ -34,23 +34,67 @@ struct
         | `Right _ -> true
     end
 
-    module MakeG (G0: Lattice.S) =
-    struct
+    module MakeP (G0: Lattice.S) = struct
       module ReadWrite =
       struct
         include G0
         let name () = "readwrite"
       end
+      
       module Write =
       struct
         include G0
         let name () = "write"
       end
-      include Lattice.Prod (ReadWrite) (Write)
+
+      module P = Lattice.Prod (ReadWrite) (Write)
+      include Lattice.Prod (P) (P)
+
+      let name () = "strong protection * weak protection"
+
+      let get ~write protection (s,w) =
+        let (rw, w) = match protection with
+          | Queries.Protection.Strong -> s
+          | Weak -> w
+        in
+        if write then w else rw
     end
 
-    module GProtecting = MakeG (LockDomain.Simple)
-    module GProtected = MakeG (VarSet)
+    (** Collects information about which variables are protected by which mutexes *)
+    module GProtecting: sig
+      include Lattice.S
+      val make: write:bool -> recovered:bool -> Mutexes.t -> t
+      val get: write:bool -> Queries.Protection.t -> t -> Mutexes.t
+    end = struct
+      include MakeP (LockDomain.Simple)
+
+      let make ~write ~recovered locks =
+        (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
+        let wlocks = if write then locks else Mutexes.top () in
+        if recovered then
+          (* If we are in single-threaded mode again, this does not need to be added to set of mutexes protecting in mt-mode only *)
+          ((locks, wlocks), (Mutexes.top (), Mutexes.top ()))
+        else
+          ((locks, wlocks), (locks, wlocks))
+    end
+
+
+    (** Collects information about which mutex protects which variable *)
+    module GProtected: sig
+      include Lattice.S
+      val make: write:bool -> VarSet.t -> t
+      val get: write:bool -> Queries.Protection.t -> t -> VarSet.t
+    end = struct
+      include MakeP (VarSet)
+
+      let make ~write vs =
+        let vs_empty = VarSet.empty () in
+        if write then
+          ((vs_empty, vs), (vs_empty, vs))
+        else
+          ((vs, vs_empty), (vs, vs_empty))
+    end
+
     module G =
     struct
       include Lattice.Lift2 (GProtecting) (GProtected) (Printable.DefaultNames)
@@ -71,6 +115,7 @@ struct
       D.add l ctx.local
 
     let remove ctx l =
+      if not (D.mem (l,true) ctx.local || D.mem (l,false) ctx.local) then M.warn "unlocking mutex which may not be held";
       D.remove (l, true) (D.remove (l, false) ctx.local)
 
     let remove_all ctx =
@@ -78,6 +123,7 @@ struct
            ctx.emit (MustUnlock m)
          ) (D.export_locks ctx.local); *)
       (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
+      M.warn "unlocking unknown mutex which may not be held";
       D.empty ()
   end
   include LocksetAnalysis.MakeMust (Arg)
@@ -114,39 +160,36 @@ struct
       `Index (i_exp, conv_offset_inv o)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let check_fun ~write ls =
-      let locks = Lockset.export_locks ls in
-      if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
-    in
-    let non_overlapping locks1 locks2 =
-      let intersect = GProtecting.join locks1 locks2 in
-      GProtecting.is_top intersect
-    in
+    (* get the set of mutexes protecting the variable v in the given mode *)
+    let protecting ~write mode v = GProtecting.get ~write mode (G.protecting (ctx.global (V.protecting v))) in
+    let non_overlapping locks1 locks2 = Mutexes.is_empty @@ Mutexes.inter locks1 locks2 in
     match q with
     | Queries.MayBePublic _ when Lockset.is_bot ctx.local -> false
-    | Queries.MayBePublic {global=v; write} ->
-      let held_locks: GProtecting.t = check_fun ~write (Lockset.filter snd ctx.local) in
+    | Queries.MayBePublic {global=v; write; protection} ->
+      let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
+      let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks ctx.local) then
         false
       else *)
-      non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
+      non_overlapping held_locks protecting
     | Queries.MayBePublicWithout _ when Lockset.is_bot ctx.local -> false
-    | Queries.MayBePublicWithout {global=v; write; without_mutex} ->
-      let held_locks: GProtecting.t = check_fun ~write (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
+    | Queries.MayBePublicWithout {global=v; write; without_mutex; protection} ->
+      let held_locks = Lockset.export_locks (Lockset.remove (without_mutex, true) (Lockset.filter snd ctx.local)) in
+      let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
-      non_overlapping held_locks (G.protecting (ctx.global (V.protecting v)))
-    | Queries.MustBeProtectedBy {mutex; global; write} ->
-      let mutex_lockset = Lockset.singleton (mutex, true) in
-      let held_locks: GProtecting.t = check_fun ~write mutex_lockset in
+      non_overlapping held_locks protecting
+    | Queries.MustBeProtectedBy {mutex; global=v; write; protection} ->
+      let mutex_lockset = Lockset.export_locks @@ Lockset.singleton (mutex, true) in
+      let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex verifier_atomic then
         true
       else *)
-      GProtecting.leq (G.protecting (ctx.global (V.protecting global))) held_locks
+      Mutexes.leq mutex_lockset protecting
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
@@ -160,7 +203,7 @@ struct
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem (LockDomain.Addr.from_var LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
-      let protected = (if write then snd else fst) (G.protected (ctx.global (V.protected m))) in
+      let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
           Queries.LS.add (v, `NoOffset) acc
         ) protected (Queries.LS.empty ())
@@ -171,13 +214,13 @@ struct
       begin match g with
         | `Left g' -> (* protecting *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let (protecting, _) = G.protecting (ctx.global g) in (* readwrite protecting *)
+            let protecting = GProtecting.get ~write:false Strong (G.protecting (ctx.global g)) in (* readwrite protecting *)
             let s = Mutexes.cardinal protecting in
             M.info_noloc ~category:Race "Variable %a read-write protected by %d mutex(es): %a" CilType.Varinfo.pretty g' s Mutexes.pretty protecting
           )
         | `Right m -> (* protected *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let (protected, _) = G.protected (ctx.global g) in (* readwrite protected *)
+            let protected = GProtected.get ~write:false Strong (G.protected (ctx.global g)) in (* readwrite protected *)
             let s = VarSet.cardinal protected in
             max_protected := max !max_protected s;
             sum_protected := !sum_protected + s;
@@ -210,6 +253,7 @@ struct
   let event ctx e octx =
     match e with
     | Events.Access {exp; lvals; kind; _} when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
+      let is_recovered_to_st = not (ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx)) in
       (* must use original (pre-assign, etc) ctx queries *)
       let old_access var_opt offs_opt =
         (* TODO: this used to use ctx instead of octx, why? *)
@@ -223,22 +267,19 @@ struct
               | Read -> false
               | Spawn -> false (* TODO: nonsense? *)
             in
-            let el = (locks, if write then locks else Mutexes.top ()) in
-            ctx.sideg (V.protecting v) (G.create_protecting el);
+            let s = GProtecting.make ~write ~recovered:is_recovered_to_st locks in
+            ctx.sideg (V.protecting v) (G.create_protecting s);
 
             if !AnalysisState.postsolving then (
-              let held_locks = (if write then snd else fst) (G.protecting (ctx.global (V.protecting v))) in
-              let vs_empty = VarSet.empty () in
-              Mutexes.iter (fun addr ->
-                  let vs = VarSet.singleton v in
-                  let protected =
-                    if write then
-                      (vs_empty, vs)
-                    else
-                      (vs, vs_empty)
-                  in
-                  ctx.sideg (V.protected addr) (G.create_protected protected)
-                ) held_locks
+              let protecting mode = GProtecting.get ~write mode (G.protecting (ctx.global (V.protecting v))) in
+              let held_strong = protecting Strong in
+              let held_weak = protecting Weak in
+              let vs = VarSet.singleton v in
+              let protected = G.create_protected @@ GProtected.make ~write vs in
+              Mutexes.iter (fun addr -> ctx.sideg (V.protected addr) protected) held_strong;
+              (* If the mutex set here is top, it is actually not accessed *)
+              if is_recovered_to_st && not @@ Mutexes.is_top held_weak then
+                Mutexes.iter (fun addr -> ctx.sideg (V.protected addr) protected) held_weak;
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
