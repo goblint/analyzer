@@ -163,6 +163,11 @@ struct
     | `NoOffset -> `NoOffset
     | `Field (f,o) -> `Field (f, of_offs o)
     | `Index (i,o) -> `Index ((), of_offs o)
+
+  let rec of_cil: offset -> t = function
+    | NoOffset    -> `NoOffset
+    | Index (i,o) -> `Index ((), of_cil o)
+    | Field (f,o) -> `Field (f, of_cil o)
 end
 
 module Exp =
