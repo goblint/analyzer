@@ -8,7 +8,7 @@ import yaml
 import sys
 import datetime
 sys.path.append("..")
-from util import *
+from util.util import *
 
 def generate_tests(temp_dir, target_dir, precision_test):
     # Check the name of the target_dir

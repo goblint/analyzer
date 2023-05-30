@@ -10,7 +10,7 @@ import subprocess
 import sys
 import yaml
 sys.path.append("..")
-from util import *
+from util.util import *
 
 def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
     with open(meta_path, 'r') as file:

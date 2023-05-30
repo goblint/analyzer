@@ -7,7 +7,7 @@ import subprocess
 import sys
 import yaml
 sys.path.append("..")
-from util import *
+from util.util import *
 
 def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
     command = [

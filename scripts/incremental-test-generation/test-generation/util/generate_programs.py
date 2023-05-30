@@ -4,7 +4,9 @@ import shutil
 import sys
 sys.path.append("..")
 from generators.generate_mutations import *
-from util import *
+from util.util import *
+from util.add_check import add_check
+from util.add_check_comments import add_check_comments
 
 # Run for example with:
 # python3 generate_programs.py ../../sample-files/threads.c test ~/BA/Clang-Repo/llvm-project/build/bin/clang-tidy ~/BA/Goblint-Repo/analyzer/goblint --enable-mutations
