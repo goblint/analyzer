@@ -20,15 +20,29 @@ type 'i t = [
 
 type 'i offs = 'i t [@@deriving eq, ord, hash]
 
-(** Subinterface of IntDomain.Z which is sufficient for Printable (but not Lattice) Offset. *)
-module type IdxPrintable =
-sig
-  include Printable.S
-  val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
-  val to_int: t -> IntOps.BigIntOps.t option
+module Index =
+struct
+
+  (** Subinterface of IntDomain.Z which is sufficient for Printable (but not Lattice) Offset. *)
+  module type Printable =
+  sig
+    include Printable.S
+    val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
+    val to_int: t -> IntOps.BigIntOps.t option
+  end
+
+  module type Lattice = IntDomain.Z
+
+
+  module Unit: Printable with type t = unit =
+  struct
+    include Printable.Unit
+    let equal_to _ _ = `Top
+    let to_int _ = None
+  end
 end
 
-module MakePrintable (Idx: IdxPrintable) =
+module MakePrintable (Idx: Index.Printable) =
 struct
   type t = Idx.t offs [@@deriving eq, ord, hash]
   include Printable.StdLeaf
@@ -116,4 +130,15 @@ struct
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
+end
+
+module Unit =
+struct
+  include MakePrintable (Index.Unit)
+
+  (* TODO: rename to of_poly? *)
+  let rec of_offs: 'i offs -> t = function
+    | `NoOffset -> `NoOffset
+    | `Field (f,o) -> `Field (f, of_offs o)
+    | `Index (i,o) -> `Index ((), of_offs o)
 end

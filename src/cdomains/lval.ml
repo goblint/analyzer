@@ -8,7 +8,7 @@ module M = Messages
 type ('f, 'i) offs = 'i Offset.t [@@deriving eq, ord, hash]
 
 
-module OffsetLatWithSemanticEqual (Idx: IntDomain.Z) =
+module OffsetLatWithSemanticEqual (Idx: Offset.Index.Lattice) =
 struct
   include Offset.MakeLattice (Idx)
 
@@ -119,7 +119,7 @@ struct
     )
 end
 
-module Normal (Idx: Offset.IdxPrintable) =
+module Normal (Idx: Offset.Index.Printable) =
 struct
   type field = fieldinfo
   type idx = Idx.t
@@ -224,7 +224,7 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Idx: IntDomain.Z) =
+module NormalLat (Idx: Offset.Index.Lattice) =
 struct
   include Normal (Idx)
   module Offs = OffsetLatWithSemanticEqual (Idx)
@@ -308,7 +308,7 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module BaseAddrRepr (Idx: IntDomain.Z) =
+module BaseAddrRepr (Idx: Offset.Index.Lattice) =
 struct
   include NormalLat (Idx)
 
@@ -330,23 +330,8 @@ struct
   end
 end
 
-(* Helper for offsets without abstract values for index offsets, i.e. with unit index offsets.*)
-module NoIdxOffsetBase = struct
-  module UnitIdxDomain =
-  struct
-    include Lattice.Unit
-    let equal_to _ _ = `Top
-    let to_int _ = None
-  end
-
-  let rec of_offs = function
-    | `NoOffset -> `NoOffset
-    | `Field (f,o) -> `Field (f, of_offs o)
-    | `Index (i,o) -> `Index (UnitIdxDomain.top (), of_offs o)
-end
-
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: IntDomain.Z) =
+module NormalLatRepr (Idx: Offset.Index.Lattice) =
 struct
   include NormalLat (Idx)
 
@@ -354,14 +339,14 @@ struct
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
-    open NoIdxOffsetBase
+    open Offset.Unit
 
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
-    include Normal (UnitIdxDomain)
+    include Normal (Offset.Index.Unit)
 
-    let of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs = of_offs
+    let of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, unit) offs = of_offs
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
@@ -520,12 +505,4 @@ struct
       let show = show
     end
     )
-end
-
-module OffsetNoIdx =
-struct
-  include NoIdxOffsetBase
-  include Offset.MakePrintable (UnitIdxDomain)
-
-  let name () = "offset without index"
 end
