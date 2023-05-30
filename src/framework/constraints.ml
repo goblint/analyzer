@@ -101,6 +101,8 @@ struct
 
   let event ctx e octx =
     D.lift @@ S.event (conv ctx) e (conv octx)
+
+  let merge = D.join
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -188,6 +190,7 @@ struct
 
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let event ctx e octx = S.event (conv ctx) e (conv octx)
+  let merge = D.join
 end
 
 (* see option ana.opt.equal *)
@@ -195,7 +198,7 @@ module OptEqual (S: PostSpec) = struct
   module D = struct include S.D let equal x y = x == y || equal x y end
   module G = struct include S.G let equal x y = x == y || equal x y end
   module C = struct include S.C let equal x y = x == y || equal x y end
-  include (S : Spec with module D := D and module G := G and module C := C)
+  include (S : PostSpec with module D := D and module G := G and module C := C)
 end
 
 module D (S: PostSpec) = struct
@@ -328,6 +331,8 @@ struct
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
+
+  let merge = D.join
 end
 
 
@@ -445,6 +450,8 @@ struct
 
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
+
+  let merge = D.join
 end
 
 
@@ -518,6 +525,8 @@ struct
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
 
   let event (ctx:(D.t,G.t,C.t,V.t) ctx) (e:Events.t) (octx:(D.t,G.t,C.t,V.t) ctx):D.t = lift_fun ctx D.lift S.event ((|>) (conv octx) % (|>) e) `Bot
+
+  let merge = D.join
 end
 
 module type Increment =
@@ -740,7 +749,7 @@ struct
           let combine_enved_modular = S.combine_env cdm_ctx lv e f args fcm fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
           let combine_enved_non_modular = S.modular_combine_env cdn_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
 
-          let combine_enved = S.D.join combine_enved_modular combine_enved_non_modular in
+          let combine_enved = S.merge combine_enved_modular combine_enved_non_modular in
           let combine_enved_modular = S.D.to_modular combine_enved in
           let combine_enved_non_modular = S.D.to_non_modular combine_enved in
 
@@ -750,7 +759,7 @@ struct
 
           let combine_assign_ctx = build_ctx cdn_ctx combine_enved_non_modular in
           let combine_assigned_non_modular = S.modular_combine_assign combine_assign_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
-          let combine_assigned = S.D.join combine_assigned_modular combine_assigned_non_modular in
+          let combine_assigned = S.merge combine_assigned_modular combine_assigned_non_modular in
           S.D.join acc combine_assigned
         ) (S.D.bot ()) (S.paths_as_set fd_ctx)
       in
@@ -1394,6 +1403,15 @@ struct
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
+
+  (** Pairwise join of paths in first and second list *)
+  let merge x y =
+    let xs = D.elements x in
+    let ys = D.elements y in
+    assert (List.length xs = List.length ys);
+    let result = List.map2 Spec.D.join xs ys in
+    D.of_list result
+
 end
 
 module DeadBranchLifter (S: PostSpec): PostSpec =

@@ -490,6 +490,7 @@ module type PostSpec =
 sig
   module D: Lattice.T
   include Spec with module D := D
+  val merge: D.t -> D.t -> D.t
 end
 
 module type MCPPostSpec =

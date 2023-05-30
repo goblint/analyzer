@@ -35,10 +35,11 @@ struct
 
   let name () = "MCP2"
 
+  let merge = D.join
+
   let path_sens = ref []
   let cont_inse = ref []
   let base_id   = ref (-1)
-
 
   let topo_sort deps circ_msg =
     let rec f res stack = function

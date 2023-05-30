@@ -126,6 +126,8 @@ struct
   module V = Spec.V
   module P = UnitP
 
+  let merge = D.join
+
   let name () = "PathSensitive3("^Spec.name ()^")"
 
   type marshal = Spec.marshal
