@@ -67,6 +67,19 @@ struct
         | `Lifted tid -> Thread.is_unique tid
         | _ -> Queries.MustBool.top ()
       end
+    | Queries.MustBeSingleThreaded {since_start} ->
+      begin match fst ctx.local with
+        | `Lifted tid when Thread.is_main tid ->
+          let created = created ctx.local in
+          if since_start then
+            ConcDomain.ThreadSet.is_empty created
+          else if ctx.ask Queries.ThreadsJoinedCleanly then
+            let joined = ctx.ask Queries.MustJoinedThreads in
+            ConcDomain.ThreadSet.is_empty (ConcDomain.ThreadSet.diff created joined)
+          else
+            false
+        | _ -> false
+      end
     | _ -> Queries.Result.top x
 
   module A =
