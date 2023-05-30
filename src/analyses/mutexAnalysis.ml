@@ -40,7 +40,7 @@ struct
         include G0
         let name () = "readwrite"
       end
-      
+
       module Write =
       struct
         include G0
@@ -155,7 +155,7 @@ struct
       let i_exp =
         match ValueDomain.IndexDomain.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> Lval.any_index_exp
+        | None -> Offset.any_index_exp
       in
       `Index (i_exp, conv_offset_inv o)
 

@@ -85,7 +85,7 @@ struct
       let rec unknown_index = function
         | `NoOffset -> `NoOffset
         | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (Lval.any_index_exp, unknown_index os) (* forget specific indices *)
+        | `Index (i, os) -> `Index (Offset.any_index_exp, unknown_index os) (* forget specific indices *)
       in
       Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 

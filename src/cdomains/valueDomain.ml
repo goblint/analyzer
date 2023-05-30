@@ -5,7 +5,7 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Lval.OffsetLat (IndexDomain)
+module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
