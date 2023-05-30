@@ -462,6 +462,33 @@ struct
   let narrow = op_scheme Base1.narrow Base2.narrow Base3.narrow
 end
 
+module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) =
+struct
+  include Printable.Prod4 (Base1) (Base2) (Base3) (Base4)
+
+  let bot () = (Base1.bot (), Base2.bot (), Base3.bot (), Base4.bot ())
+  let is_bot (x1,x2,x3,x4) = Base1.is_bot x1 && Base2.is_bot x2 && Base3.is_bot x3 && Base4.is_bot x4
+  let top () = (Base1.top (), Base2.top (), Base3.top (), Base4.top ())
+  let is_top (x1,x2,x3,x4) = Base1.is_top x1 && Base2.is_top x2 && Base3.is_top x3 && Base4.is_top x4
+  let leq (x1,x2,x3,x4) (y1,y2,y3,y4) = Base1.leq x1 y1 && Base2.leq x2 y2 && Base3.leq x3 y3 && Base4.leq x4 y4
+
+  let pretty_diff () ((x1,x2,x3,x4:t),(y1,y2,y3,y4:t)): Pretty.doc =
+    if not (Base1.leq x1 y1) then
+      Base1.pretty_diff () (x1,y1)
+    else if not (Base2.leq x2 y2) then
+      Base2.pretty_diff () (x2,y2)
+    else if not (Base3.leq x3 y3) then
+      Base3.pretty_diff () (x3,y3)
+    else
+      Base4.pretty_diff () (x4,y4)
+
+  let op_scheme op1 op2 op3 op4 (x1,x2,x3,x4) (y1,y2,y3,y4): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3, op4 x4 y4)
+  let join = op_scheme Base1.join Base2.join Base3.join Base4.join
+  let meet = op_scheme Base1.meet Base2.meet Base3.meet Base4.meet
+  let widen = op_scheme Base1.widen Base2.widen Base3.widen Base4.widen
+  let narrow = op_scheme Base1.narrow Base2.narrow Base3.narrow Base4.narrow
+end
+
 module LiftBot (Base : S) =
 struct
   include Printable.LiftBot (Base)

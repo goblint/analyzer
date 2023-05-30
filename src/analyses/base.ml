@@ -1104,6 +1104,7 @@ struct
       | `Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | `Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
+      | exception (IntDomain.ArithmeticOnIntegerBot _) when not !AnalysisState.should_warn -> Queries.ID.top () (* for some privatizations, values can intermediately be bot because side-effects have not happened yet *)
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
@@ -2439,7 +2440,7 @@ struct
       | None -> ()
     end;
     (* D.join ctx.local @@ *)
-    ctx.local
+    Priv.threadspawn (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local
 
   let unassume (ctx: (D.t, _, _, _) ctx) e uuids =
     (* TODO: structural unassume instead of invariant hack *)
