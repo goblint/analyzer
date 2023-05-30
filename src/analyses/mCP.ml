@@ -477,16 +477,34 @@ struct
     let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let modular_call (ctx:(D.t, G.t, C.t, V.t) ctx) r f a f_ask =
+  let modular_combine_env (ctx:(D.t, G.t, C.t, V.t) ctx) r f a f_ask =
     (* TODO: Deduplicate with special *)
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "modular_call" ~spawns ~sides ~emits ctx in
+    let ctx'' = outer_ctx "modular_combine_env" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPPostSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "modular_call" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.modular_call ctx' r f a f_ask
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "modular_combine_env" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.modular_combine_env ctx' r f a f_ask
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let modular_combine_assign (ctx:(D.t, G.t, C.t, V.t) ctx) r f a f_ask =
+    (* TODO: Deduplicate with special *)
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "modular_combine_assign" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPPostSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "modular_combine_assign" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.modular_combine_assign ctx' r f a f_ask
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

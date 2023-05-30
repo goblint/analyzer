@@ -427,9 +427,13 @@ sig
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
 
 
-  (** Handle a call to a function that is analyzed modularly.
+  (** Combine environment for call to a function that is analyzed modularly.
       Only needs to be implemented for anylses that do not support the modular analysis mode. *)
-  val modular_call : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> Queries.ask -> D.t
+  val modular_combine_env : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> Queries.ask -> D.t
+
+  (** Combine return value assignment for call to a function that is analyzed modularly.
+      Only needs to be implemented for anylses that do not support the modular analysis mode. *)
+  val modular_combine_assign : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> Queries.ask -> D.t
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
@@ -696,7 +700,8 @@ struct
   let access _ _ = ()
 
   let modular_support () = NonModular
-  let modular_call ctx _ _ _ _ = ctx.local
+  let modular_combine_env ctx _ _ _ _ = ctx.local
+  let modular_combine_assign ctx _ _ _ _ = ctx.local
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

@@ -180,7 +180,8 @@ struct
   let asm ctx         = lift_fun ctx lift'   S.asm    identity
   let skip ctx        = lift_fun ctx lift'   S.skip   identity
   let special ctx r f args       = lift_fun ctx lift' S.special ((|>) args % (|>) f % (|>) r)
-  let modular_call ctx r f args f_ask      = lift_fun ctx lift' S.modular_call ((|>) f_ask % (|>) args % (|>) f % (|>) r)
+  let modular_combine_env ctx r f args f_ask      = lift_fun ctx lift' S.modular_combine_env ((|>) f_ask % (|>) args % (|>) f % (|>) r)
+  let modular_combine_assign ctx r f args f_ask      = lift_fun ctx lift' S.modular_combine_assign ((|>) f_ask % (|>) args % (|>) f % (|>) r)
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 
