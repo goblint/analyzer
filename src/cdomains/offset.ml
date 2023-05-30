@@ -104,8 +104,6 @@ struct
 
   let name () = "Offset"
 
-  let from_offset x = x
-
   let rec is_definite: t -> bool = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o

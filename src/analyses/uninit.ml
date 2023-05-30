@@ -33,7 +33,7 @@ struct
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
     | a when not (Queries.LS.is_top a) ->
-      let to_extra (v,o) xs = (v, Base.Offs.from_offset (Addr.Offs.of_exp o), write) :: xs  in
+      let to_extra (v,o) xs = (v, Addr.Offs.of_exp o, write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
       M.info ~category:Unsound "Access to unknown address could be global"; []
