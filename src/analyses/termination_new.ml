@@ -15,7 +15,7 @@ let is_loop_counter_var (x : varinfo) =
   List.mem x !loopCounters
 
 let is_loop_exit_indicator (x : varinfo) =
-  false (* TODO: Actually detect loop exit indicators *)
+  x = !loopExit
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =
