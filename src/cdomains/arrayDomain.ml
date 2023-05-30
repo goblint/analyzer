@@ -1353,11 +1353,64 @@ struct
           (MustNulls.filter (Z.leq (Z.of_int num)) must_nulls_set2, MayNulls.filter (Z.leq (Z.of_int num)) may_nulls_set2) in
       compute_concat must_nulls_set2' may_nulls_set2'
 
-  (* TODO -- can I even do something useful at all? Might as well leave out substring_extraction and string_comparison *)
-  let substring_extraction _ _ = Some (top ())
+  let substring_extraction haystack (must_nulls_set_needle, may_nulls_set_needle, size_needle) =
+    (* if needle is empty string, i.e. certain null byte at index 0, return haystack as string *)
+    if MustNulls.mem Z.zero must_nulls_set_needle then
+      to_string haystack
+    else
+      let haystack_len = to_string_length haystack in
+      let needle_len = to_string_length (must_nulls_set_needle, may_nulls_set_needle, size_needle) in      
+      match Idx.maximal haystack_len, Idx.minimal needle_len with
+      | Some haystack_max, Some needle_min ->
+        (* if strlen(haystack) < strlen(needle), needle can never be substring of haystack => return null pointer -- TODO: how to do that? *)
+        if Z.lt haystack_max needle_min then
+          (MustNulls.top (), MayNulls.top (), Idx.of_int !Cil.kindOfSizeOf Z.zero)
+        else
+          (MustNulls.top (), MayNulls.top (), Idx.top_of !Cil.kindOfSizeOf)
+      | _ -> (MustNulls.top (), MayNulls.top (), Idx.top_of !Cil.kindOfSizeOf)
 
-  (* TODO *)
-  let string_comparison _ _ _ = Idx.top_of IInt
+  let string_comparison (must_nulls_set1, may_nulls_set1, _) (must_nulls_set2, may_nulls_set2, _) = function
+    (* strcmp *)
+    | None ->
+      (* if s1 = s2 = empty string, i.e. certain null byte at index 0, return 0 *)
+      if MustNulls.mem Z.zero must_nulls_set1 && (MustNulls.mem Z.zero must_nulls_set2) then
+        Idx.of_int IInt Z.zero
+      (* if only s1 = empty string, return negative integer *)
+      else if MustNulls.mem Z.zero must_nulls_set1 && not (MustNulls.mem Z.zero must_nulls_set2) then
+        Idx.ending IInt Z.minus_one
+      (* if only s2 = empty string, return positive integer *)
+      else if MustNulls.mem Z.zero must_nulls_set2 then
+        Idx.starting IInt Z.one
+      else 
+        (* if first null bytes are certain and have different indexes, return integer <> 0 *)
+        (try if Z.equal (MustNulls.min_elt must_nulls_set1) (MayNulls.min_elt may_nulls_set1) 
+            && Z.equal (MustNulls.min_elt must_nulls_set2) (MayNulls.min_elt may_nulls_set2)
+            && not (Z.equal (MustNulls.min_elt must_nulls_set1) (MustNulls.min_elt must_nulls_set2)) then
+          Idx.join (Idx.ending IInt Z.minus_one) (Idx.starting IInt Z.one)
+        else
+          Idx.top_of IInt
+        with Not_found -> Idx.top_of IInt)
+    (* strncmp *)
+    | Some num ->
+      (* if s1 = empty and s2 = empty string or n = 0, return 0 *)
+      if MustNulls.mem Z.zero must_nulls_set1 && ((MustNulls.mem Z.zero must_nulls_set2) || Z.equal Z.zero (Z.of_int num)) then
+        Idx.of_int IInt Z.zero
+      (* if only s1 = empty string, return negative integer *)
+      else if MustNulls.mem Z.zero must_nulls_set1 && not (MustNulls.mem Z.zero must_nulls_set2) then
+        Idx.ending IInt Z.minus_one
+      (* if only s2 = empty string, return positive integer *)
+      else if MustNulls.mem Z.zero must_nulls_set2 then
+        Idx.starting IInt Z.one
+      else 
+        (* if first null bytes are certain, have different indexes and are before index n for s2, return integer <> 0 *)
+        (try if Z.equal (MustNulls.min_elt must_nulls_set1) (MayNulls.min_elt may_nulls_set1) 
+            && Z.equal (MustNulls.min_elt must_nulls_set2) (MayNulls.min_elt may_nulls_set2)
+            && Z.lt (MustNulls.min_elt must_nulls_set2) (Z.of_int num)
+            && not (Z.equal (MustNulls.min_elt must_nulls_set1) (MustNulls.min_elt must_nulls_set2)) then
+          Idx.join (Idx.ending IInt Z.minus_one) (Idx.starting IInt Z.one)
+        else
+          Idx.top_of IInt
+        with Not_found -> Idx.top_of IInt)
 
   let update_length _ x = x
 
