@@ -612,21 +612,8 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
 
   (* TODO: Lval *)
-  let convertToQueryLval x =
-    let rec offsNormal o =
-      let ik = Cilfacade.ptrdiff_ikind () in
-      let toInt i =
-        match IdxDom.to_int @@ ID.cast_to ik i with
-        | Some x -> Const (CInt (x,ik, None))
-        | _ -> Offset.any_index_exp
-      in
-      match o with
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f,offsNormal o)
-      | `Index (i,o) -> `Index (toInt i,offsNormal o)
-    in
-    match x with
-    | ValueDomain.AD.Addr.Addr (v,o) ->[v,offsNormal o]
+  let convertToQueryLval = function
+    | ValueDomain.AD.Addr.Addr (v,o) -> [v, Addr.Offs.to_exp o]
     | _ -> []
 
   let addrToLvalSet a =

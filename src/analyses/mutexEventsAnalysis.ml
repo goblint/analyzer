@@ -19,16 +19,8 @@ struct
   let name () = "mutexEvents"
 
   (* TODO: Lval *)
-  (* Currently we care only about concrete indexes. *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
   let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
+    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v, Addr.Offs.of_exp o) :: b in
     match a.f (Queries.MayPointTo exp) with
     | a when Queries.LS.is_top a ->
       [Addr.UnknownPtr]

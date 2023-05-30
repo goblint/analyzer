@@ -16,16 +16,6 @@ struct
   module C = ValueDomain.AddrSetDomain
   module P = IdentityP (D)
 
-  (* TODO: Lval *)
-  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with Lval.any_index_exp on all non-concrete cases. *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
-    | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
   (*
     Addr set functions:
   *)
@@ -58,7 +48,7 @@ struct
         begin match a.f (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
           | a when not (Queries.LS.is_top a)
                          && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-            Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
+            Queries.LS.iter (fun (v,o) -> warn_lval st (v, Offs.of_exp o)) a
           | _ -> ()
         end
       | _ -> ()
@@ -118,7 +108,7 @@ struct
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a)  ->
-          let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
+          let to_extra (v,o) xs = AD.from_var_offset (v, Offs.of_exp o) :: xs  in
           Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
@@ -139,7 +129,7 @@ struct
     | a when Queries.LS.cardinal a = 1
                    && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let v, o = Queries.LS.choose a in
-      Some (Var v, conv_offset o)
+      Some (Var v, Offs.of_exp o)
     | _ -> None
 
   let get_concrete_exp (exp:exp) gl (st:D.t) =
@@ -152,7 +142,7 @@ struct
     match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let one_addr_might (v,o) =
-        D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
+        D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of (v, Offs.of_exp o) x) (Addr.to_var_offset x)) st
       in
       Queries.LS.exists one_addr_might a
     | _ -> false

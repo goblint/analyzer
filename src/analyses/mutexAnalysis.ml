@@ -148,18 +148,6 @@ struct
     num_mutexes := 0;
     sum_protected := 0
 
-  (* TODO: Lval *)
-  let rec conv_offset_inv = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, conv_offset_inv o)
-    | `Index (i, o) ->
-      let i_exp =
-        match ValueDomain.IndexDomain.to_int i with
-        | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> Offset.any_index_exp
-      in
-      `Index (i_exp, conv_offset_inv o)
-
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     (* get the set of mutexes protecting the variable v in the given mode *)
     let protecting ~write mode v = GProtecting.get ~write mode (G.protecting (ctx.global (V.protecting v))) in
@@ -195,7 +183,7 @@ struct
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
           match Addr.to_var_offset addr with
-          | Some (var, offs) -> Queries.LS.add (var, conv_offset_inv offs) ls
+          | Some (var, offs) -> Queries.LS.add (var, Addr.Offs.to_exp offs) ls
           | None -> ls
         ) held_locks (Queries.LS.empty ())
       in

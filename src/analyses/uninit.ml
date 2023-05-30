@@ -30,19 +30,10 @@ struct
   let exitstate  v : D.t = D.empty ()
 
   (* TODO: Lval *)
-  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with Lval.any_index_exp on all non-concrete cases. *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
-    | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
     | a when not (Queries.LS.is_top a) ->
-      let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
+      let to_extra (v,o) xs = (v, Base.Offs.from_offset (Addr.Offs.of_exp o), write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
       M.info ~category:Unsound "Access to unknown address could be global"; []
@@ -192,7 +183,7 @@ struct
     match a.f (Queries.MayPointTo (AddrOf lv)) with
     | a when Queries.LS.cardinal a = 1 ->  begin
         let var, ofs = Queries.LS.choose a in
-        init_vo var (conv_offset ofs)
+        init_vo var (Addr.Offs.of_exp ofs)
       end
     | _ -> st
 
@@ -217,7 +208,7 @@ struct
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a) ->
-          let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
+          let to_extra (v,o) xs = AD.from_var_offset (v, Addr.Offs.of_exp o) :: xs  in
           Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []

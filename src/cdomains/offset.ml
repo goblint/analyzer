@@ -122,11 +122,21 @@ struct
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
 
-  let rec to_cil_offset (x:t) =
+  let rec to_cil_offset (x:t) = (* TODO: rename/move *)
     match x with
     | `NoOffset -> NoOffset
     | `Field(f,o) -> Field(f, to_cil_offset o)
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+
+  let rec to_exp: t -> exp offs = function
+    | `NoOffset    -> `NoOffset
+    | `Index (i,o) ->
+      let i_exp = match Idx.to_int i with
+        | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
+        | None -> any_index_exp
+      in
+      `Index (i_exp, to_exp o)
+    | `Field (f,o) -> `Field (f, to_exp o)
 
   let rec contains_index = function
     | `NoOffset -> false
@@ -162,6 +172,14 @@ struct
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
+
+  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
+     element) answers with any_index_exp on all non-concrete cases. *)
+  let rec of_exp: exp offs -> t = function
+    | `NoOffset    -> `NoOffset
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (Idx.of_int ik i, of_exp o)
+    | `Index (_,o) -> `Index (Idx.top (), of_exp o)
+    | `Field (f,o) -> `Field (f, of_exp o)
 end
 
 module Unit =
