@@ -23,9 +23,11 @@ let show_location_id l =
 class loopCounterVisitor lc le (fd : fundec) = object(self)
    inherit nopCilVisitor
    method! vfunc (f:fundec) =
-      let exit_name = "term_exit-" in
-      let typ = Cil.intType in 
-      le := Cil.makeLocalVar fd exit_name typ;
+      if !le.vname <> "term_exit-" then begin
+         let exit_name = "term_exit-" in
+         let typ = Cil.intType in 
+         le := Cil.makeGlobalVar exit_name typ;
+      end;
       DoChildren;     (* function definition *)
    method! vstmt s =
       let action s = match s.skind with
