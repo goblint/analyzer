@@ -253,7 +253,7 @@ struct
     | _                      -> x = y
 
   let drop_ints = function
-    | Addr (x, o) -> Addr (x, Offs.drop_ints o)
+    | Addr (x, o) -> Addr (x, Offs.top_indices o)
     | x -> x
 
   let join_string_ptr x y = match x, y with

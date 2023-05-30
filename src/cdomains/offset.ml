@@ -29,6 +29,7 @@ struct
     include Printable.S
     val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
     val to_int: t -> IntOps.BigIntOps.t option
+    val top: unit -> t
   end
 
   module type Lattice = IntDomain.Z
@@ -36,7 +37,7 @@ struct
 
   module Unit: Printable with type t = unit =
   struct
-    include Printable.Unit
+    include Lattice.Unit
     let equal_to _ _ = `Top
     let to_int _ = None
   end
@@ -61,6 +62,7 @@ struct
 
     let equal_to _ _ = `Top (* TODO: more precise for definite indices *)
     let to_int _ = None (* TODO: more precise for definite indices *)
+    let top () = any_index_exp
   end
 end
 
@@ -142,6 +144,11 @@ struct
     | `NoOffset -> false
     | `Field (_, os) -> contains_index os
     | `Index _ -> true
+
+  let rec top_indices = function
+    | `Index (x, o) -> `Index (Idx.top (), top_indices o)
+    | `Field (x, o) -> `Field (x, top_indices o)
+    | `NoOffset -> `NoOffset
 end
 
 module MakeLattice (Idx: IntDomain.Z) =
@@ -167,11 +174,6 @@ struct
   let meet x y = merge `Meet x y
   let widen x y = merge `Widen x y
   let narrow x y = merge `Narrow x y
-
-  let rec drop_ints = function
-    | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
-    | `Field (x, o) -> `Field (x, drop_ints o)
-    | `NoOffset -> `NoOffset
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with any_index_exp on all non-concrete cases. *)

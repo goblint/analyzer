@@ -82,13 +82,8 @@ struct
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
-      (* TODO: Offset *)
-      let rec unknown_index = function
-        | `NoOffset -> `NoOffset
-        | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (Offset.any_index_exp, unknown_index os) (* forget specific indices *)
-      in
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+      (* forget specific indices *)
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

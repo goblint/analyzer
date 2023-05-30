@@ -302,6 +302,7 @@ struct
 
     let equal_to _ _ = `Top
     let to_int _ = None
+    let top () = Unknown
   end
 
   include Lval.Normal (Idx)
