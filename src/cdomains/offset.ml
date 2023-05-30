@@ -40,6 +40,28 @@ struct
     let equal_to _ _ = `Top
     let to_int _ = None
   end
+
+  module Exp: Printable with type t = exp =
+  struct
+    include CilType.Exp
+
+    (* Override output *)
+    let pretty () x =
+      if equal x any_index_exp then
+        Pretty.text "?"
+      else
+        dn_exp () x
+
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
+
+    let equal_to _ _ = `Top (* TODO: more precise for definite indices *)
+    let to_int _ = None (* TODO: more precise for definite indices *)
+  end
 end
 
 module MakePrintable (Idx: Index.Printable) =
@@ -141,4 +163,19 @@ struct
     | `NoOffset -> `NoOffset
     | `Field (f,o) -> `Field (f, of_offs o)
     | `Index (i,o) -> `Index ((), of_offs o)
+end
+
+module Exp =
+struct
+  include MakePrintable (Index.Exp)
+
+  let rec of_cil: offset -> t = function
+    | NoOffset    -> `NoOffset
+    | Index (i,o) -> `Index (i, of_cil o)
+    | Field (f,o) -> `Field (f, of_cil o)
+
+  let rec to_cil: t -> offset = function
+    | `NoOffset    -> NoOffset
+    | `Index (i,o) -> Index (i, to_cil o)
+    | `Field (f,o) -> Field (f, to_cil o)
 end

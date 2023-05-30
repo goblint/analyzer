@@ -457,13 +457,28 @@ struct
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
+module Exp =
+struct
+  include Printable.StdLeaf
+  type t = CilType.Varinfo.t * Offset.Exp.t [@@deriving eq, ord, hash]
+
+  let name () = "lval with exp indices"
+
+  let show ((v, o): t): string = CilType.Varinfo.show v ^ Offset.Exp.show o
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+
+  let to_cil ((v, o): t): lval = (Var v, Offset.Exp.to_cil o)
+  let to_cil_exp lv = Lval (to_cil lv)
+end
 
 module CilLval =
 struct
-  include Printable.StdLeaf
-  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
-
-  let name () = "simplified lval"
+  include Exp
 
   let class_tag (v,o) =
     match v with
@@ -472,44 +487,5 @@ struct
     | _ when Cilfacade.is_varinfo_formal v -> `Parameter
     | _ -> `Local
 
-  (* TODO: Offset *)
-  let rec short_offs (o: (fieldinfo, exp) offs) a =
-    match o with
-    | `NoOffset -> a
-    | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) when CilType.Exp.equal e Offset.any_index_exp -> short_offs o (a^"[?]")
-    | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
-
-  (* TODO: Offset *)
-  let rec of_ciloffs x =
-    match x with
-    | NoOffset    -> `NoOffset
-    | Index (i,o) -> `Index (i, of_ciloffs o)
-    | Field (f,o) -> `Field (f, of_ciloffs o)
-
-  (* TODO: Offset *)
-  let rec to_ciloffs x =
-    match x with
-    | `NoOffset    -> NoOffset
-    | `Index (i,o) -> Index (i, to_ciloffs o)
-    | `Field (f,o) -> Field (f, to_ciloffs o)
-
-  let to_lval (v,o) = Var v, to_ciloffs o
-  let to_exp (v,o) = Lval (Var v, to_ciloffs o)
-
-  (* TODO: Offset *)
-  let rec has_index_offs =
-    function
-    | `NoOffset    -> false
-    | `Index _     -> true
-    | `Field (_,o) -> has_index_offs o
-  let has_index (v,o) = has_index_offs o
-
-  let show (v,o) = short_offs o v.vname
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  let to_exp = to_cil_exp (* TODO: remove *)
 end

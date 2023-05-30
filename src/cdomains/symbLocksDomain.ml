@@ -99,11 +99,11 @@ struct
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
-    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Offset.Exp.to_cil offs))
     | Lval (Mem e,o)                       -> Lval (Mem (replace_base (v,offs) q e), o)
-    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
-    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
+    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
 

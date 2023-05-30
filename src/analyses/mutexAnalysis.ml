@@ -289,7 +289,7 @@ struct
       let on_lvals ls =
         let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
         let f (var, offs) =
-          let coffs = Lval.CilLval.to_ciloffs offs in
+          let coffs = Offset.Exp.to_cil offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
             old_access None (Some coffs)
           else

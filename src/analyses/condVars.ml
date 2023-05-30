@@ -45,7 +45,7 @@ module Domain = struct
     if mem k d && V.cardinal (find k d) = 1 then
       let s = find k d in
       match V.choose s with
-      | Lval (Var v, offs) -> get (v, Lval.CilLval.of_ciloffs offs) d (* transitive lookup *)
+      | Lval (Var v, offs) -> get (v, Offset.Exp.of_cil offs) d (* transitive lookup *)
       | _ -> Some s
     else None
   let get_elt k d = Option.map V.choose @@ get k d

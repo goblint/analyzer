@@ -239,7 +239,7 @@ struct
     in
     let m = SpecCheck.check ctx get_key matches in
     let key_from_exp = function
-      | Lval (Var v,o) -> Some (v, Lval.CilLval.of_ciloffs o)
+      | Lval (Var v,o) -> Some (v, Offset.Exp.of_cil o)
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* TODO for now we just care about Lval assignments -> should use Queries.MayPointTo *)

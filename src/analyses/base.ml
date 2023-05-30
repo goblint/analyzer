@@ -1352,9 +1352,7 @@ struct
           (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
           begin match unrollType (Cilfacade.typeOf e) with
             | TPtr(TInt(IChar, _), _) ->
-              let v, offs = Q.LS.choose @@ addrToLvalSet a in
-              let ciloffs = Lval.CilLval.to_ciloffs offs in
-              let lval = Var v, ciloffs in
+              let lval = Lval.Exp.to_cil @@ Q.LS.choose @@ addrToLvalSet a in
               (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
             | _ -> (* what about ISChar and IUChar? *)
@@ -2322,7 +2320,7 @@ struct
     let ask = (Analyses.ask_of_ctx ctx) in
     Q.LS.fold (fun (v, o) st ->
         if CPA.mem v fun_st.cpa then
-          let lval = Lval.CilLval.to_lval (v,o) in
+          let lval = Lval.Exp.to_cil (v,o) in
           let address = eval_lv ask ctx.global st lval in
           let lval_type = (AD.get_type address) in
           if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;

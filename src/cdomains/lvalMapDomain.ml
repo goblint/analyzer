@@ -274,8 +274,8 @@ struct
   (* getting keys from Cil Lvals *)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
-    | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
-    | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
+    | Var v1, o1 -> v1, Offset.Exp.of_cil o1
+    | Mem Lval(Var v1, o1), o2 -> v1, Offset.Exp.of_cil (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
     | _ -> Cilfacade.create_var @@ Cil.makeVarinfo false ("?"^CilType.Lval.show lval) Cil.voidType, `NoOffset (* TODO *)
 
