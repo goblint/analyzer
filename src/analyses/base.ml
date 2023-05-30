@@ -404,22 +404,12 @@ struct
     | _, `Bot -> `Bot
     | _ -> VD.top ()
 
-  (* TODO: move to Offset *)
-  (* Auxiliary function to append an additional offset to a given offset. *)
-  let rec add_offset ofs add =
-    match ofs with
-    | `NoOffset -> add
-    | `Field (fld, `NoOffset) -> `Field (fld, add)
-    | `Field (fld, ofs) -> `Field (fld, add_offset ofs add)
-    | `Index (exp, `NoOffset) -> `Index (exp, add)
-    | `Index (exp, ofs) -> `Index (exp, add_offset ofs add)
-
   (* TODO: move to Lval *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
   let add_offset_varinfo add ad =
     match Addr.to_var_offset ad with
-    | Some (x,ofs) -> Addr.from_var_offset (x, add_offset ofs add)
+    | Some (x,ofs) -> Addr.from_var_offset (x, Addr.Offs.add_offset ofs add)
     | None -> ad
 
 
@@ -904,11 +894,7 @@ struct
         * to its first element [&a[0]]. *)
       | StartOf lval ->
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
-        let array_start ad =
-          match Addr.to_var_offset ad with
-          | Some (x, offs) -> Addr.from_var_offset (x, add_offset offs array_ofs)
-          | None -> ad
-        in
+        let array_start = add_offset_varinfo array_ofs in
         `Address (AD.map array_start (eval_lv a gs st lval))
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv a gs st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->

@@ -184,12 +184,6 @@ let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (va
 
 let add_propagate side e kind conf ty ls a =
   (* ignore (printf "%a:\n" d_exp e); *)
-  (* TODO: Offset *)
-  let rec only_fields = function
-    | `NoOffset -> true
-    | `Field (_,os) -> only_fields os
-    | `Index _ -> false
-  in
   let struct_inv (f:offs) =
     let fi =
       match f with
@@ -208,7 +202,7 @@ let add_propagate side e kind conf ty ls a =
   in
   add_struct side e kind conf ty None a;
   match ty with
-  | `Struct (c,os) when only_fields os && os <> `NoOffset ->
+  | `Struct (c,os) when Offset.Unit.contains_index os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
     struct_inv  os
   | _ ->

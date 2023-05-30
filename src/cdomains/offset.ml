@@ -110,18 +110,28 @@ struct
     | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
 
   (* append offset o2 to o1 *)
-  (* TODO: unused *)
   let rec add_offset o1 o2 =
     match o1 with
     | `NoOffset -> o2
     | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
+  let rec remove_offset = function
+    | `NoOffset -> `NoOffset
+    | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
+    | `Index (i,o) -> `Index (i, remove_offset o)
+    | `Field (f,o) -> `Field (f, remove_offset o)
+
   let rec to_cil_offset (x:t) =
     match x with
     | `NoOffset -> NoOffset
     | `Field(f,o) -> Field(f, to_cil_offset o)
     | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+
+  let rec contains_index = function
+    | `NoOffset -> false
+    | `Field (_, os) -> contains_index os
+    | `Index _ -> true
 end
 
 module MakeLattice (Idx: IntDomain.Z) =

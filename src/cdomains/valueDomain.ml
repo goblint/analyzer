@@ -361,7 +361,7 @@ struct
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
-        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o) (Some true)
+        else if Addr.is_zero_offset o then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
@@ -370,13 +370,13 @@ struct
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               M.tracel "casta" "cast struct to its first field\n";
-              adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
             | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
           end
     in

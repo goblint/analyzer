@@ -199,21 +199,10 @@ struct
     | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
-  (* TODO: Offset *)
-  let rec add_offsets x y = match x with
-    | `NoOffset    -> y
-    | `Index (i,x) -> `Index (i, add_offsets x y)
-    | `Field (f,x) -> `Field (f, add_offsets x y)
   (* TODO: unused *)
   let add_offset x o = match x with
-    | Addr (v, u) -> Addr (v, add_offsets u o)
+    | Addr (v, u) -> Addr (v, Offs.add_offset u o)
     | x -> x
-  (* TODO: Offset *)
-  let rec remove_offset = function
-    | `NoOffset -> `NoOffset
-    | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
-    | `Index (i,o) -> `Index (i, remove_offset o)
-    | `Field (f,o) -> `Field (f, remove_offset o)
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
