@@ -17,6 +17,7 @@ struct
   module C = MustSignals
   module G = SetDomain.ToppedSet (MHP) (struct let topname = "All Threads" end)
 
+  (* TODO: Lval *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset

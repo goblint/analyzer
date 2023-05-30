@@ -82,6 +82,7 @@ struct
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
+      (* TODO: Offset *)
       let rec unknown_index = function
         | `NoOffset -> `NoOffset
         | `Field (f, os) -> `Field (f, unknown_index os)

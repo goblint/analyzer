@@ -52,19 +52,23 @@ let reset () =
   Hashtbl.clear typeIncl
 
 
+(* TODO: Offset *)
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
 
+(* TODO: Offset *)
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
   | Index (_,o) -> `Index (remove_idx o)
   | Field (f,o) -> `Field (f, remove_idx o)
 
+(* TODO: Offset *)
 let rec addOffs os1 os2 : offs =
   match os1 with
   | `NoOffset -> os2
   | `Index os -> `Index (addOffs os os2)
   | `Field (f,os) -> `Field (f, addOffs os os2)
 
+(* TODO: Offset *)
 let rec d_offs () : offs -> doc = function
   | `NoOffset -> nil
   | `Index o -> dprintf "[?]%a" d_offs o
@@ -200,6 +204,7 @@ let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (va
 
 let add_propagate side e kind conf ty ls a =
   (* ignore (printf "%a:\n" d_exp e); *)
+  (* TODO: Offset *)
   let rec only_fields = function
     | `NoOffset -> true
     | `Field (_,os) -> only_fields os

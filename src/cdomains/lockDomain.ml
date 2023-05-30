@@ -45,6 +45,7 @@ struct
 
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
 
+  (* TODO: Offset *)
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
     | `NoOffset , `NoOffset -> true

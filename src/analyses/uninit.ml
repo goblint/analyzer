@@ -29,6 +29,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
+  (* TODO: Lval *)
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =

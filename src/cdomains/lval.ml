@@ -186,6 +186,7 @@ struct
 
   (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
+    (* TODO: Offset *)
     let rec to_cil c =
       match c with
       | `NoOffset -> NoOffset
@@ -198,6 +199,7 @@ struct
     | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
+  (* TODO: Offset *)
   let rec add_offsets x y = match x with
     | `NoOffset    -> y
     | `Index (i,x) -> `Index (i, add_offsets x y)
@@ -206,6 +208,7 @@ struct
   let add_offset x o = match x with
     | Addr (v, u) -> Addr (v, add_offsets u o)
     | x -> x
+  (* TODO: Offset *)
   let rec remove_offset = function
     | `NoOffset -> `NoOffset
     | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
@@ -469,6 +472,7 @@ struct
     | _ when Cilfacade.is_varinfo_formal v -> `Parameter
     | _ -> `Local
 
+  (* TODO: Offset *)
   let rec short_offs (o: (fieldinfo, exp) offs) a =
     match o with
     | `NoOffset -> a
@@ -476,12 +480,14 @@ struct
     | `Index (e,o) when CilType.Exp.equal e Offset.any_index_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
+  (* TODO: Offset *)
   let rec of_ciloffs x =
     match x with
     | NoOffset    -> `NoOffset
     | Index (i,o) -> `Index (i, of_ciloffs o)
     | Field (f,o) -> `Field (f, of_ciloffs o)
 
+  (* TODO: Offset *)
   let rec to_ciloffs x =
     match x with
     | `NoOffset    -> NoOffset
@@ -491,6 +497,7 @@ struct
   let to_lval (v,o) = Var v, to_ciloffs o
   let to_exp (v,o) = Lval (Var v, to_ciloffs o)
 
+  (* TODO: Offset *)
   let rec has_index_offs =
     function
     | `NoOffset    -> false

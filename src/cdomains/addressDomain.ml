@@ -57,6 +57,7 @@ struct
 
   type field = Addr.field
   type idx = Idx.t
+  (* TODO: Offset *)
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
   let null_ptr       = singleton Addr.NullPtr

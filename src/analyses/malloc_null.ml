@@ -16,6 +16,7 @@ struct
   module C = ValueDomain.AddrSetDomain
   module P = IdentityP (D)
 
+  (* TODO: Lval *)
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =

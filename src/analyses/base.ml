@@ -404,6 +404,7 @@ struct
     | _, `Bot -> `Bot
     | _ -> VD.top ()
 
+  (* TODO: move to Offset *)
   (* Auxiliary function to append an additional offset to a given offset. *)
   let rec add_offset ofs add =
     match ofs with
@@ -413,6 +414,7 @@ struct
     | `Index (exp, `NoOffset) -> `Index (exp, add)
     | `Index (exp, ofs) -> `Index (exp, add_offset ofs add)
 
+  (* TODO: move to Lval *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
   let add_offset_varinfo add ad =
@@ -619,6 +621,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
 
+  (* TODO: Lval *)
   let convertToQueryLval x =
     let rec offsNormal o =
       let ik = Cilfacade.ptrdiff_ikind () in

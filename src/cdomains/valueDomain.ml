@@ -1261,6 +1261,7 @@ struct
         | Addr.UnknownPtr ->
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+          (* TODO: Offset *)
           let rec offs_to_offset = function
             | `NoOffset -> NoOffset
             | `Field (f, offs) -> Field (f, offs_to_offset offs)

@@ -148,6 +148,7 @@ struct
     num_mutexes := 0;
     sum_protected := 0
 
+  (* TODO: Lval *)
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset_inv o)

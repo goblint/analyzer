@@ -125,6 +125,7 @@ struct
 
   module MustLockset = SetDomain.Reverse (Lockset)
 
+  (* TODO: Lval *)
   let rec conv_offset = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset o)
