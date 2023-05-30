@@ -87,7 +87,7 @@ struct
     | `Field (x, o) ->
       if is_first_field x then cmp_zero_offset o else `MustNonzero
 
-  let rec show = function
+  let rec show: t -> string = function
     | `NoOffset -> ""
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
@@ -106,19 +106,19 @@ struct
 
   let from_offset x = x
 
-  let rec is_definite = function
+  let rec is_definite: t -> bool = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
     | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
 
   (* append offset o2 to o1 *)
-  let rec add_offset o1 o2 =
+  let rec add_offset (o1: t) (o2: t): t =
     match o1 with
     | `NoOffset -> o2
     | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
-  let rec remove_offset = function
+  let rec remove_offset: t -> t = function
     | `NoOffset -> `NoOffset
     | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
     | `Index (i,o) -> `Index (i, remove_offset o)
@@ -140,12 +140,12 @@ struct
       `Index (i_exp, to_exp o)
     | `Field (f,o) -> `Field (f, to_exp o)
 
-  let rec contains_index = function
+  let rec contains_index: t -> bool = function
     | `NoOffset -> false
     | `Field (_, os) -> contains_index os
     | `Index _ -> true
 
-  let rec top_indices = function
+  let rec top_indices: t -> t = function
     | `Index (x, o) -> `Index (Idx.top (), top_indices o)
     | `Field (x, o) -> `Field (x, top_indices o)
     | `NoOffset -> `NoOffset
