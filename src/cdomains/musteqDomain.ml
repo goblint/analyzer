@@ -9,16 +9,17 @@ struct
   include Lval.Fields
 
   let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
-    | [], ys -> Some ys
+    | `Index (x, xs), `Index (y, ys) when I.equal x y -> prefix xs ys
+    | `Field (x, xs), `Field (y, ys) when F.equal x y -> prefix xs ys
+    | `NoOffset, ys -> Some ys
     | _ -> None
 
-  let append x y: t = x @ y
+  let append x y: t = add_offset x y
 
   let rec occurs v fds = match fds with
-    | (`Left x::xs) -> occurs v xs
-    | (`Right x::xs) -> I.occurs v x || occurs v xs
-    | [] -> false
+    | `Field (x, xs) -> occurs v xs
+    | `Index (x, xs) -> I.occurs v x || occurs v xs
+    | `NoOffset -> false
 end
 
 module EquAddr =
@@ -65,7 +66,7 @@ struct
         in
         fold f d (add_old (x,y) fd d)
       in
-      if fd = [] then add_closure (y,x) [] (add_closure (x,y) [] d)
+      if fd = `NoOffset then add_closure (y,x) `NoOffset (add_closure (x,y) `NoOffset d)
       else add_closure (x,y) fd d
 
   let kill x d =
@@ -96,7 +97,7 @@ struct
 
   let eval_rv rv: EquAddr.t option =
     match rv with
-    | Lval (Var x, NoOffset) -> Some (x, [])
+    | Lval (Var x, NoOffset) -> Some (x, `NoOffset)
     | AddrOf (Var x, ofs)
     | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, F.listify ofs)
     | _ -> None
@@ -106,7 +107,7 @@ struct
     | Var x, NoOffset -> Some x
     | _ -> None
 
-  let add_eq (x,y) d = add (x,y) [] d
+  let add_eq (x,y) d = add (x,y) `NoOffset d
 
   let assign lval rval st =
     match lval with

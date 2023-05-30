@@ -354,93 +354,70 @@ struct
   module F = CilType.Fieldinfo
   module I = Basetype.CilExp
   module FI = Printable.Either (F) (I)
-  include Printable.Liszt (FI)
 
-  let rec show x = match x with
-    | [] -> ""
-    | (`Left x :: xs) -> "." ^ F.show x ^ show xs
-    | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
+  include Offset.Exp
 
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  let listify: offset -> t = of_cil
+  let to_offs': t -> t = Fun.id
 
-  let rec printInnerXml f = function
-    | [] -> ()
-    | (`Left x :: xs) ->
-      BatPrintf.fprintf f ".%s%a" (F.show x) printInnerXml xs
-    | (`Right x :: xs) ->
-      BatPrintf.fprintf f "[%s]%a" (I.show x) printInnerXml xs
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
-
-  let rec listify ofs: t =
-    match ofs with
-    | NoOffset -> []
-    | Field (x,ofs) -> `Left x :: listify ofs
-    | Index (i,ofs) -> `Right i :: listify ofs
-
-  let rec to_offs' (ofs:t) = match ofs with
-    | (`Left x::xs) -> `Field (x, to_offs' xs)
-    | (`Right x::xs) -> `Index (x, to_offs' xs)
-    | [] -> `NoOffset
 
   let rec kill v (fds: t): t = match fds with
-    | (`Right x::xs) when I.occurs v x -> []
-    | (x::xs) -> x :: kill v xs
-    | [] -> []
+    | `Index (x, xs) when I.occurs v x -> `NoOffset
+    | `Index (x, xs) -> `Index (x, kill v xs)
+    | `Field (x, xs) -> `Field (x, kill v xs)
+    | `NoOffset -> `NoOffset
 
-  let replace x exp ofs =
-    let f o = match o with
-      | `Right e -> `Right (I.replace x exp e)
-      | x -> x
-    in
-    List.map f ofs
+  let rec replace x exp ofs =
+    match ofs with
+    | `NoOffset -> `NoOffset
+    | `Field (f, o) -> `Field (f, replace x exp o)
+    | `Index (e, o) -> `Index (I.replace x exp e, replace x exp o)
 
-  let top () = []
-  let is_top x = x = []
+  let top () = `NoOffset
+  let is_top x = x = `NoOffset
   let bot () = failwith "Bottom offset list!"
   let is_bot x = false
 
   let rec leq x y =
     match x,y with
-    | _, [] -> true
-    | x::xs, y::ys when FI.equal x y -> leq xs ys
+    | _, `NoOffset -> true
+    | `Index (x, xs), `Index (y, ys) when I.equal x y -> leq xs ys
+    | `Field (x, xs), `Field (y, ys) when F.equal x y -> leq xs ys
     | _ -> false
 
   let rec meet x y =
     match x,y with
-    | [], x | x, [] -> x
-    | x::xs, y::ys when FI.equal x y -> x :: meet xs ys
+    | `NoOffset, x | x, `NoOffset -> x
+    | `Index (x, xs), `Index (y, ys) when I.equal x y -> `Index (x, meet xs ys)
+    | `Field (x, xs), `Field (y, ys) when F.equal x y -> `Field (x, meet xs ys)
     | _ -> failwith "Arguments do not meet"
 
   let narrow = meet
 
   let rec join x y =
     match x,y with
-    | x::xs, y::ys when FI.equal x y -> x :: join xs ys
-    | _ -> []
+    | `Index (x, xs), `Index (y, ys) when I.equal x y -> `Index (x, join xs ys)
+    | `Field (x, xs), `Field (y, ys) when F.equal x y -> `Field (x, join xs ys)
+    | _ -> `NoOffset
 
   let widen = join
 
   let rec collapse x y =
     match x,y with
-    | [], x | x, [] -> true
-    | x :: xs, y :: ys when FI.equal x y -> collapse xs ys
-    | `Left x::xs, `Left y::ys -> false
-    | `Right x::xs, `Right y::ys -> true
+    | `NoOffset, x | x, `NoOffset -> true
+    | `Index (x, xs), `Index (y, ys) when I.equal x y -> collapse xs ys
+    | `Field (x, xs), `Field (y, ys) when F.equal x y -> collapse xs ys
+    | `Field (x, xs), `Field (y, ys) -> false
+    | `Index (x, xs), `Index (y, ys) -> true
     | _ -> failwith "Type mismatch!"
 
   (* TODO: use the type information to do this properly. Currently, this assumes
    * there are no nested arrays, so all indexing is eliminated. *)
   let rec real_region (fd:t) typ: bool =
     match fd with
-    | [] -> true
-    | `Left _ :: xs -> real_region xs typ
-    | `Right i :: _ -> false
+    | `NoOffset -> true
+    | `Field (_, xs) -> real_region xs typ
+    | `Index (i, _) -> false
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
