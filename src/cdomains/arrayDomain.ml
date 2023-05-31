@@ -874,7 +874,7 @@ end
 
 module type LatticeWithNull =
 sig
-  include Lattice.S
+  include LatticeWithSmartOps
   val null: unit -> t
   val not_null: unit -> t
   val is_null: t -> bool
@@ -1186,9 +1186,7 @@ struct
     (* else return interval [minimal may null, minimal must null] *)
     else
       Idx.of_interval !Cil.kindOfSizeOf (MustNulls.min_elt must_nulls_set, MayNulls.min_elt may_nulls_set)
-
-  (* TODO: copy and resize
-   * filter out any index before size of string src, then union and keep size of dest *)
+      
   let string_copy (must_nulls_set1, may_nulls_set1, size1) ar2 = function
     (* strcpy *)
     | None ->
@@ -1417,11 +1415,12 @@ struct
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
 
-module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
+module AttributeConfiguredArrayDomain(Val: LatticeWithNull) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
 struct
   module P = PartitionedWithLength(Val)(Idx)
   module T = TrivialWithLength(Val)(Idx)
   module U = UnrollWithLength(Val)(Idx)
+  module N = NullByte(Val)(Idx)
 
   type idx = Idx.t
   type value = Val.t
@@ -1439,6 +1438,7 @@ struct
 
   module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
   include LatticeFlagHelper (P) (I) (K)
+  (* include Lattice.Prod (LatticeFlagHelper (P) (I) (K)) (N) *)
 
   let domain_of_t = function
     | (Some p, None) -> PartitionedDomain
