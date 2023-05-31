@@ -2,7 +2,7 @@
 #include <pthread.h>
 #include <stdio.h>
 
-// not marked as a wrapper this time
+// not marked as a wrapper
 int my_pthread_create(
   pthread_t *restrict thread,
   const pthread_attr_t *restrict attr,
