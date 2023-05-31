@@ -48,14 +48,15 @@ struct
     match x,y with
     | `Right (), `Right () -> true
     | `Left x, `Left y -> VF.leq x y
-    | `Left _, _ -> false
-    | _, `Left _ -> true
+    (* | `Left _, _ -> false
+    | _, `Left _ -> true *)
+    | _, _ -> assert false
 
   let join (x:t) (y:t) :t =
     match x,y with
-    | `Right (), _ -> y
-    | _, `Right () -> x
+    | `Right (), `Right () -> `Right ()
     | `Left x, `Left y -> `Left (VF.join x y)
+    | _, _ -> assert false
 
   let lift f y = match y with
     | `Left y -> `Left (f y)
