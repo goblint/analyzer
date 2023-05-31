@@ -2,7 +2,6 @@
 
 #include <goblint.h>
 #include <string.h>
-#include <stdlib.h>
 
 char* hello_world() {
     return "Hello world!";
@@ -22,7 +21,6 @@ int main() {
     char* s1 = "abcde";
     char* s2 = "abcdfg";
     char* s3 = hello_world();
-    char* edge_case = "hello\0world";
     
     int i = strlen(s1);
     __goblint_check(i == 5);
@@ -32,9 +30,6 @@ int main() {
 
     i = strlen(s3);
     __goblint_check(i == 12);
-
-    i = strlen(edge_case);
-    __goblint_check(i == 5);
 
     i = strcmp(s1, s2);
     __goblint_check(i < 0);

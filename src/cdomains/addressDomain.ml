@@ -118,8 +118,8 @@ struct
 
   let substring_extraction haystack needle =
     (* map all StrPtr elements in input address sets to contained strings *)
-    let haystack' = List.map Addr.to_string (elements haystack) in
-    let needle' = List.map Addr.to_string (elements needle) in
+    let haystack' = List.map Addr.to_c_string (elements haystack) in
+    let needle' = List.map Addr.to_c_string (elements needle) in
 
     (* helper functions *)
     let extract_lval_string = function
@@ -144,8 +144,8 @@ struct
 
   let string_comparison x y n =
     let f = match n with
-      | Some num -> Addr.to_n_string num
-      | None -> Addr.to_string in
+      | Some num -> Addr.to_n_c_string num
+      | None -> Addr.to_c_string in
 
     (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
     let x' = List.map f (elements x) in 
@@ -172,7 +172,7 @@ struct
 
   let string_writing_defined dest =
     (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
-    if List.exists Option.is_some (List.map Addr.to_string (elements dest)) then
+    if List.exists Option.is_some (List.map Addr.to_c_string (elements dest)) then
       (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
        false)
     else

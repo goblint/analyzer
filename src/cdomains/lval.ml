@@ -256,8 +256,17 @@ struct
   let to_string = function
     | StrPtr (Some x) -> Some x
     | _        -> None
-  let to_n_string n = function
-    | StrPtr (Some x) -> 
+  (* only keep part before first null byte *)
+  let to_c_string = function
+    | StrPtr (Some x) ->
+      begin match String.split_on_char '\x00' x with
+        | s::_ -> Some s
+        | [] -> None
+      end
+    | _ -> None
+  let to_n_c_string n x = 
+    match to_c_string x with
+    | Some x -> 
       if n > String.length x then
         Some x
       else if n < 0 then
@@ -265,12 +274,9 @@ struct
       else
         Some (String.sub x 0 n)
     | _ -> None
-  let to_string_length = function
-    | StrPtr (Some x) -> 
-      begin match String.split_on_char '\x00' x with
-        | s::_ -> Some (String.length s)
-        | [] -> None
-      end
+  let to_string_length x = 
+    match to_c_string x with
+    | Some x -> Some (String.length x)
     | _ -> None
 
   (* exception if the offset can't be followed completely *)
