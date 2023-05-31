@@ -1,8 +1,8 @@
-open Cil
-open Pretty
+(** Domains for disjoint heap regions. *)
+
+open GoblintCil
 open GobConfig
 
-module GU = Goblintutil
 module V = Basetype.Variables
 module B = Printable.UnitConf (struct let name = "•" end)
 module F = Lval.Fields
@@ -10,22 +10,20 @@ module F = Lval.Fields
 module VF =
 struct
   include Printable.ProdSimple (V) (F)
-  let short w (v,fd) =
-    let v_str = V.short w v in let w = w - String.length v_str in
-    let fd_str = F.short w fd in
+  let show (v,fd) =
+    let v_str = V.show v in
+    let fd_str = F.show fd in
     v_str ^ fd_str
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (show x)
 
   let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (Goblintutil.escape (V.short 80 v)) F.printInnerXml fi
+    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi
 
   (* Indicates if the two var * offset pairs should collapse or not. *)
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
   (* Joins the fields, assuming the vars are equal. *)
   let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let is_glob (v,f) = v.vglob
   let kill x (v,f) = v, F.kill x f
   let replace x exp (v,fd) = v, F.replace x exp fd
 end
@@ -105,7 +103,12 @@ module RegPart = struct
 
   let add r p = if real_region r then add r p else p
 end
-module RegMap = MapDomain.MapBot (VF) (RS)
+
+module RegMap =
+struct
+  include MapDomain.MapBot (VF) (RS)
+  let name () = "regmap"
+end
 
 module Reg =
 struct
@@ -141,9 +144,14 @@ struct
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
     let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
+    (* The intuition for the offset computations is that we keep the static _suffix_ of an
+     * access path. These can be used to partition accesses when fields do not overlap.
+     * This means that for pointer dereferences and when obtaining the value from an lval
+     * (but not under AddrOf), we drop the offsets because we land somewhere
+     * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
-      | Lval lval -> eval_lval deref lval
+      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, [])) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)
@@ -178,16 +186,24 @@ struct
 
   let assign (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
-    if isPointerType (typeOf rval) then begin
+    let t = Cilfacade.typeOf rval in
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
-      | Some (deref_x, x,_), Some (deref_y,y,_) ->
+      (* TODO: should offs_x matter? *)
+      | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
         if VF.equal x y then st else
           let (p,m) = st in begin
+            let append_offs_y = RS.map (function
+                | `Left (v, offs) -> `Left (v, offs @ offs_y)
+                | `Right () -> `Right ()
+              )
+            in
             match is_global x, deref_x, is_global y with
             | false, false, true  ->
-              p, RegMap.add x (RegPart.closure p (RS.single_vf y)) m
+              p, RegMap.add x (append_offs_y (RegPart.closure p (RS.single_vf y))) m
             | false, false, false ->
-              p, RegMap.add x (RegMap.find y m) m
+              p, RegMap.add x (append_offs_y (RegMap.find y m)) m
+            (* TODO: use append_offs_y also in the following cases? *)
             | false, true , true ->
               add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
             | false, true , false ->
@@ -198,7 +214,7 @@ struct
               add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
           end
       | _ -> st
-    end else if isIntegralType (typeOf rval) then begin
+    end else if isIntegralType t then begin
       match lval with
       | Var x, NoOffset -> update x rval st
       | _ -> st
@@ -222,23 +238,12 @@ struct
         else
           RegMap.find vfd m
       in
-      (*           Messages.report ("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd)));  *)
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []
-    | None -> Messages.warn "Access to unknown address could be global"; []
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
 
-module Equ = MusteqDomain.Equ
-module LD  = Lattice.Prod (Equ) (RegMap)
-module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
-module Var = Basetype.Variables
-module Vars= SetDomain.Make (Printable.Prod (Var) (RegPart))
-
-module RegionDom =
-struct
-  include Lattice.Prod (Lif) (Vars)
-  let short n (x,_:t) = Lif.short n x
-  let toXML_f sf (x,_:t) = Lif.toXML_f (fun x -> sf max_int (x,Vars.empty ())) x
-  let toXML x = toXML_f short x
-end
+(* TODO: remove Lift *)
+module RegionDom = Lattice.Lift (RegMap) (struct let top_name = "Unknown" let bot_name = "Error" end)

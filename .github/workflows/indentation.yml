@@ -1,0 +1,36 @@
+name: indentation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  indentation:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.14.x
+
+    runs-on: ${{ matrix.os }}
+
+    if: ${{ !github.event.forced && github.event.before != '0000000000000000000000000000000000000000' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install ocp-indent
+        run: opam install -y ocp-indent
+
+      - name: Run pre-commit hook on changes since last push
+        run: git reset --soft ${{ github.event.before }} && eval $(opam env) && ./scripts/hooks/pre-commit

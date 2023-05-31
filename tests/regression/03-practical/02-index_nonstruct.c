@@ -1,4 +1,5 @@
-#include<assert.h>
+#include<stdlib.h>
+#include <goblint.h>
 
 typedef struct _s {
   int i;
@@ -10,7 +11,7 @@ int main(){
   s * K = malloc(sizeof(s));
   K->i = 1;
   l = K->i;
-  assert(l == 17); // FAIL
+  __goblint_check(l == 17); // FAIL
   return 0;
 }
 

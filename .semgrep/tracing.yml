@@ -1,0 +1,14 @@
+rules:
+  - id: trace-not-in-tracing
+    patterns:
+      - pattern-either:
+        - pattern: Messages.trace
+        - pattern: Messages.tracel
+        - pattern: Messages.tracei
+        - pattern: Messages.tracec
+        - pattern: Messages.traceu
+        - pattern: Messages.traceli
+      - pattern-not-inside: if Messages.tracing then ...
+    message: trace functions should only be called if tracing is enabled at compile time
+    languages: [ocaml]
+    severity: WARNING

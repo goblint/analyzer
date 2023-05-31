@@ -1,0 +1,246 @@
+rules:
+  - id: big_int_z-zero
+    pattern: Big_int_Z.zero_big_int
+    fix: Z.zero
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-to_float
+    pattern: Big_int_Z.float_of_big_int
+    fix: Z.to_float
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-of_int
+    pattern: Big_int_Z.big_int_of_int
+    fix: Z.of_int
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-t
+    pattern: Big_int_Z.big_int
+    fix: Z.t
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-mul
+    pattern: Big_int_Z.mult_big_int
+    fix: Z.mul
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-of_int64
+    pattern: Big_int_Z.big_int_of_int64
+    fix: Z.of_int64
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-to_int
+    pattern: Big_int_Z.int_of_big_int
+    fix: Z.to_int
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-to_int32
+    pattern: Big_int_Z.int32_of_big_int
+    fix: Z.to_int32
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-of_int32
+    pattern: Big_int_Z.big_int_of_int32
+    fix: Z.of_int32
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-to_int64
+    pattern: Big_int_Z.int64_of_big_int
+    fix: Z.to_int64
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-one
+    pattern: Big_int_Z.unit_big_int
+    fix: Z.one
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-neg
+    pattern: Big_int_Z.minus_big_int
+    fix: Z.neg
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-abs
+    pattern: Big_int_Z.abs_big_int
+    fix: Z.abs
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-add
+    pattern: Big_int_Z.add_big_int
+    fix: Z.add
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-sub
+    pattern: Big_int_Z.sub_big_int
+    fix: Z.sub
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-ediv
+    pattern: Big_int_Z.div_big_int
+    fix: Z.ediv
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-gcd
+    pattern: Big_int_Z.gcd_big_int
+    fix: Z.gcd
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-compare
+    pattern: Big_int_Z.compare_big_int
+    fix: Z.compare
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-of_string
+    pattern: Big_int_Z.big_int_of_string
+    fix: Z.of_string
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-to_string
+    pattern: Big_int_Z.string_of_big_int
+    fix: Z.to_string
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-logand
+    pattern: Big_int_Z.and_big_int
+    fix: Z.logand
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-logor
+    pattern: Big_int_Z.or_big_int
+    fix: Z.logor
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-logxor
+    pattern: Big_int_Z.xor_big_int
+    fix: Z.logxor
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-shift_left
+    pattern: Big_int_Z.shift_left_big_int
+    fix: Z.shift_left
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-shift_right
+    pattern: Big_int_Z.shift_right_big_int
+    fix: Z.shift_right
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-lt
+    pattern: Big_int_Z.lt_big_int
+    fix: Z.lt
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-gt
+    pattern: Big_int_Z.gt_big_int
+    fix: Z.gt
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-equal
+    pattern: Big_int_Z.eq_big_int
+    fix: Z.equal
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-pow-int
+    pattern: Big_int_Z.power_int_positive_int $X $Y
+    fix: Z.pow (Z.of_int $X) $Y
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z
+    pattern: Big_int_Z.$X
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: big_int_z-open
+    pattern: open Big_int_Z
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-add-one
+    pattern-either:
+      - pattern: Z.add $X Z.one
+      - pattern: Z.add Z.one $X
+      - pattern: Z.add Z.one @@ $X
+    fix: Z.succ $X
+    message: use Z.succ instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-sub-one
+    pattern: Z.sub $X Z.one
+    fix: Z.pred $X
+    message: use Z.pred instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-of_int-0
+    pattern: Z.of_int 0
+    fix: Z.zero
+    message: use Z.zero instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: z-of_int-1
+    pattern: Z.of_int 1
+    fix: Z.one
+    message: use Z.one instead
+    languages: [ocaml]
+    severity: WARNING

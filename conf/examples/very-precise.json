@@ -1,0 +1,71 @@
+{
+  "ana": {
+    "int": {
+      "def_exc": true,
+      "enums": true,
+      "interval": true,
+      "congruence": true,
+      "refinement": "fixpoint",
+      "interval_threshold_widening" : true,
+      "def_exc_widen_by_join" : true
+    },
+    "path_sens" : [ "mutex", "malloc_null", "uninit","threadflag" ],
+    "apron" : {
+      "domain": "octagon",
+      "threshold_widening": true,
+      "strengthening": true
+    },
+    "relation" : {
+      "privatization": "mutex-meet-tid-cluster12"
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "apron"
+    ],
+    "context": {
+      "widen": false
+    },
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+        "ldv_malloc",
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc"
+      ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      },
+      "structs" : {
+        "domain" : "combined-sk"
+      },
+      "limit-string-addresses": false
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3"
+}

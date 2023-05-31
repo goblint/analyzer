@@ -15,7 +15,7 @@ void *t_fun(void *arg) {
 }
 
 int add1 (int x) {
-  return x+1; // NOWARN!
+  return x+1;
 }
 
 int main(void) {

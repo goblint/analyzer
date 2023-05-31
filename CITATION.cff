@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+
+message: "If you use this software, please cite it using the metadata from this file." # message required
+
+title: "Goblint"
+abstract: "Static analysis framework for C"
+authors: # same authors as in .zenodo.json and dune-project
+  - given-names: Simmo
+    family-names: Saan
+    affiliation: "University of Tartu"
+    orcid: "https://orcid.org/0000-0003-4553-1350"
+  - given-names: Michael
+    family-names: Schwarz
+    affiliation: "Technische Universität München"
+  - given-names: Julian
+    family-names: Erhard
+    affiliation: "Technische Universität München"
+  - given-names: Sarah
+    family-names: Tilscher
+    affiliation: "Technische Universität München"
+  - given-names: Ralf
+    family-names: Vogler
+    affiliation: "Technische Universität München"
+  - given-names: Kalmer
+    family-names: Apinis
+    affiliation: "University of Tartu"
+  - given-names: Vesal
+    family-names: Vojdani
+    affiliation: "University of Tartu"
+
+license: MIT
+repository-code: "https://github.com/goblint/analyzer"
+url: "https://goblint.in.tum.de"
+doi: 10.5281/zenodo.5735006

@@ -1,5 +1,0 @@
-sut:
-  build: .
-  environment:
-    LC_ALL: C.UTF-8
-  command: ./make.sh nat headers testci

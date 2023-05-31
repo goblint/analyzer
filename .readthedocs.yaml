@@ -1,0 +1,23 @@
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+version: 2
+
+mkdocs:
+  configuration: mkdocs.yml
+
+python:
+  install:
+    - requirements: docs/requirements.txt
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.8"
+  jobs:
+    post_install:
+      - pip install json-schema-for-humans
+    post_build:
+      - mkdir _readthedocs/html/jsfh/
+      - generate-schema-doc --config-file jsfh.yml src/util/options.schema.json _readthedocs/html/jsfh/

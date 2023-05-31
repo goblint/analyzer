@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 
 struct s {
@@ -9,11 +9,11 @@ struct s {
 extern struct s *get_s();
 
 void *t_fun(void *arg) {
-  struct s *s; 
+  struct s *s;
   s = get_s();
   pthread_mutex_lock(&s->mutex);
-  s = get_s(); 
-  s->data = 5; // RACE
+  s = get_s();
+  s->data = 5; // RACE!
   pthread_mutex_lock(&s->mutex);
   return NULL;
 }
@@ -31,7 +31,7 @@ int main () {
   pthread_create(&id,NULL,t_fun,NULL);
 
   pthread_mutex_lock(m);
-  *d = 8; // RACE
+  *d = 8; // RACE!
   pthread_mutex_unlock(m);
 
   return 0;

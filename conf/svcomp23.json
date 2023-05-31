@@ -1,0 +1,96 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "float": {
+      "interval": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins"
+    ],
+    "context": {
+      "widen": false
+    },
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
+      ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
+        "wideningThresholds",
+        "loopUnrollHeuristic"
+      ]
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
+  }
+}

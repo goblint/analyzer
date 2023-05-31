@@ -1,56 +1,40 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
 
-open Prelude.Ana
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
-module Equ = MusteqDomain.Equ
 module RegMap = RegionDomain.RegMap
 module RegPart = RegionDomain.RegPart
 module Reg = RegionDomain.Reg
-module BS  = Base.Main
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module LD     = RegionDomain.LD
-  module Lif    = RegionDomain.Lif
-  module Var    = RegionDomain.Var
-  module Vars   = RegionDomain.Vars
-  module D =
-  struct
-    include RegionDomain.RegionDom
-    let toXML_f sf x =
-      match toXML x with
-      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Region Analysis"], elems)
-      | x -> x
-
-    let toXML s  = toXML_f short s
-  end
+  module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "partitions" end)
+    include StdV
+  end
 
-  let partition_varstore = ref dummyFunDec.svar
-  let partition_varinfo () = !partition_varstore
-
-  let get_regpart gf = gf (partition_varinfo ())
-
-  let sync ctx =
-    let (e,x) = ctx.local in
-    (e, Vars.empty ()), Vars.elements x
-
-  let regions exp part (st,_) : Lval.CilLval.t list =
+  let regions exp part st : Lval.CilLval.t list =
     match st with
-    | `Lifted (equ,reg) ->
+    | `Lifted reg ->
       let ev = Reg.eval_exp exp in
       let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
       List.map to_exp (Reg.related_globals ev (part,reg))
-    | `Top -> Messages.warn "Region state is broken :("; []
+    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
-  let is_bullet exp part (st,_) : bool =
+  let is_bullet exp part st : bool =
     match st with
-    | `Lifted (equ,reg) ->
+    | `Lifted reg ->
       begin match Reg.eval_exp exp with
         | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
         | _ -> false
@@ -59,57 +43,61 @@ struct
     | `Bot -> true
 
   let get_region ctx e =
-    let regpart = get_regpart ctx.global in
+    let regpart = ctx.global () in
     if is_bullet e regpart ctx.local then
       None
     else
       Some (regions e regpart ctx.local)
 
-  let part_access ctx e _ _ = (*todo: remove regions that cannot be reached from the var*)
-    let open Access in
-    let e' = match e with
-      | AddrOf lv -> Lval lv
-      | _ -> e
-    in
-    let rec pretty_offs () = function
-      | `NoOffset     -> dprintf ""
-      | `Field (f,os) -> dprintf ".%s%a" f.fname pretty_offs os
-      | `Index (_,os) -> dprintf "[?]%a" pretty_offs os
-    in
-    let show (v,os) =
-      v.vname ^ sprint pretty_offs os
-    in
-    let es = LSSet.empty () in
-    let add_region xs r =
-      LSSet.add("region", show r) xs
-    in
-    match get_region ctx e' with
-    | None -> (LSSSet.empty (),es)
-    | Some xs ->
-      let ps = List.fold_left add_region (LSSet.empty ()) xs in
-      (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
-      (LSSSet.singleton ps, es)
-
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
-    let regpart = get_regpart ctx.global in
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Regions e ->
-      if is_bullet e regpart ctx.local then `Bot else
+      let regpart = ctx.global () in
+      if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
-        `LvalSet ls
-    | _ -> Queries.Result.top ()
+        ls
+    | _ -> Queries.Result.top q
+
+  module Lvals = SetDomain.Make (Lval.CilLval)
+  module A =
+  struct
+    include Printable.Option (Lvals) (struct let name = "no region" end)
+    let name () = "region"
+    let may_race r1 r2 = match r1, r2 with
+      | None, _
+      | _, None -> false
+      (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
+      | Some r1, _ when Lvals.is_empty r1 -> true
+      | _, Some r2 when Lvals.is_empty r2 -> true
+      | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
+      | _, _ -> true
+    let should_print r = match r with
+      | Some r when Lvals.is_empty r -> false
+      | _ -> true
+  end
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
+      Some (Lvals.empty ())
+    | Memory {exp = e; _} ->
+      (* TODO: remove regions that cannot be reached from the var*)
+      let rec unknown_index = function
+        | `NoOffset -> `NoOffset
+        | `Field (f, os) -> `Field (f, unknown_index os)
+        | `Index (i, os) -> `Index (Lval.any_index_exp, unknown_index os) (* forget specific indices *)
+      in
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match ctx.local with
-    | `Lifted (equ,reg), gd ->
-      let old_regpart = get_regpart ctx.global in
-      let equ = Equ.assign lval rval equ in
+    | `Lifted reg ->
+      let old_regpart = ctx.global () in
       let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
-      if RegPart.leq regpart old_regpart
-      then `Lifted (equ,reg), gd
-      else `Lifted (equ,reg), Vars.add (partition_varinfo (), regpart) gd
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
     | x -> x
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -121,96 +109,84 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let locals = f.sformals @ f.slocals in
     match ctx.local with
-    | `Lifted (equ,reg), gd ->
-      let equ = Equ.kill_vars locals equ in
-      let old_regpart = get_regpart ctx.global in
-      let part, reg = match exp with
-        | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
-        | None -> old_regpart, reg in
-      let part, reg = Reg.kill_vars locals (Reg.remove_vars locals (part, reg)) in
-      if RegPart.leq part old_regpart
-      then `Lifted (equ,reg), gd
-      else `Lifted (equ,reg), Vars.add (partition_varinfo (), part) gd
+    | `Lifted reg ->
+      let old_regpart = ctx.global () in
+      let regpart, reg = match exp with
+        | Some exp ->
+          let module BS = (val Base.get_main ()) in
+          Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
+        | None -> (old_regpart, reg)
+      in
+      let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
     | x -> x
 
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
     let rec fold_right2 f xs ys r =
       match xs, ys with
       | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
       | _ -> r
     in
     match ctx.local with
-    | `Lifted (equ,reg), gd ->
-      let fundec = Cilfacade.getdec f in
-      let f x r eq = Equ.assign (var x) r eq in
-      let equ  = fold_right2 f fundec.sformals args equ in
+    | `Lifted reg ->
       let f x r reg = Reg.assign (var x) r reg in
-      let old_regpart = get_regpart ctx.global in
+      let old_regpart = ctx.global () in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
-      if RegPart.leq regpart old_regpart
-      then [ctx.local,(`Lifted (equ,reg),gd)]
-      else [ctx.local,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      [ctx.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
-    | `Lifted (equ, reg), gd -> begin
-        let old_regpart = get_regpart ctx.global in
-        match lval with
-        | None ->
-          let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (old_regpart, reg) in
-          if RegPart.leq regpart old_regpart
-          then `Lifted (equ,reg), gd
-          else `Lifted (equ,reg), Vars.add (partition_varinfo (), regpart) gd
-        | Some lval ->
-          let reg = Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg) in
-          let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] reg in
-          if RegPart.leq regpart old_regpart
-          then `Lifted (equ,reg), gd
-          else `Lifted (equ,reg), Vars.add (partition_varinfo (), regpart) gd
+    | `Lifted reg -> begin
+      let old_regpart = ctx.global () in
+      let module BS = (val Base.get_main ()) in
+      let regpart, reg = match lval with
+        | None -> (old_regpart, reg)
+        | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
+      in
+      let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        ctx.sideg () regpart;
+      `Lifted reg
       end
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match f.vname with
-    | "malloc" | "calloc" | "kmalloc"| "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | Malloc _ | Calloc _ | Realloc _ -> begin
         match ctx.local, lval with
-        | (`Lifted (equ,reg), gd), Some lv ->
-          let old_regpart = get_regpart ctx.global in
+        | `Lifted reg, Some lv ->
+          let old_regpart = ctx.global () in
+          (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
-          let gd =
-            if RegPart.leq regpart old_regpart
-            then gd
-            else Vars.add (partition_varinfo (), regpart) gd
-          in
-          `Lifted (equ, reg), gd
+          if not (RegPart.leq regpart old_regpart) then
+            ctx.sideg () regpart;
+          `Lifted reg
         | _ -> ctx.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      ctx.local
 
   let startstate v =
-    `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()
+    `Lifted (RegMap.bot ())
 
-  let otherstate v =
-    `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()
+  let threadenter ctx lval f args =
+    [`Lifted (RegMap.bot ())]
+  let threadspawn ctx lval f args fctx = ctx.local
 
-  let exitstate = otherstate
+  let exitstate v = `Lifted (RegMap.bot ())
 
-  let name = "region"
-
-  let init () =
-    partition_varstore := makeVarinfo false "REGION_PARTITIONS" voidType
-
+  let name () = "region"
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

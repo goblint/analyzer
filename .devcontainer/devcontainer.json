@@ -1,0 +1,21 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.202.5/containers/docker-existing-dockerfile
+{
+    "name": "Goblint",
+
+    "build": {
+        "dockerfile": "./Dockerfile",
+        "context": ".."
+    },
+    "remoteUser": "opam",
+    "postCreateCommand": "make setup; make dev",
+
+    "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
+
+    "extensions": [
+		"ocamllabs.ocaml-platform",
+		"hackwaly.ocamlearlybird"
+	],
+
+    "settings": {},
+}

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','uninit']"
+// PARAM: --set ana.activated[+] uninit
 typedef union {
 	int i;
 	int j;

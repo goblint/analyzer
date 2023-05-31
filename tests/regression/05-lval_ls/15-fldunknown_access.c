@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 #include <stdio.h>
 #include <pthread.h>
 
@@ -12,7 +14,7 @@ void *t_fun(void *arg) {
 }
 
 int main() {
-  int *i,j;
+  int *i,j = __VERIFIER_nondet_int();
   pthread_t id;
   if (j) i = &data.x;
   else i = &data.y;

@@ -1,0 +1,52 @@
+{
+  "ana": {
+    "activated": [
+      "base"
+    ],
+    "int": {
+      "interval": false,
+      "def_exc": true
+    },
+    "opt": {
+      "hashcons": true
+    },
+    "base": {
+      "context": {
+        "non-ptr": false
+      }
+    },
+    "context": {
+      "widen": true
+    }
+  },
+  "exp": {
+    "earlyglobs": true
+  },
+  "dbg": {
+    "verbose": true,
+    "trace": {
+      "context": true
+    },
+    "timing": {
+      "enabled": true
+    }
+  },
+  "warn": {
+    "debug": true
+  },
+  "result": "none",
+  "solver": "td3",
+  "solvers": {
+    "td3": {
+      "term": true,
+      "space": true,
+      "space_cache": true,
+      "space_restore": true
+    }
+  },
+  "verify": true,
+  "incremental": {
+    "load": true,
+    "save": true
+  }
+}

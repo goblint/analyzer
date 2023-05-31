@@ -1,220 +1,165 @@
-open Cil
-open Deriving.Cil
+(** Domains for offsets and lvalues. *)
+
+open GoblintCil
 open Pretty
 
-module GU = Goblintutil
+module M = Messages
+
+(** Special index expression for some unknown index.
+    Weakly updates array in assignment.
+    Used for exp.fast_global_inits. *)
+let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+
+(** Special index expression for all indices.
+    Strongly updates array in assignment.
+    Used for Goblint-specific witness invariants. *)
+let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
+
 
 type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving to_yojson]
-
-type ('a,'b) offs_uk = [
-  | `NoOffset
-  | `UnknownOffset
-  | `Field of 'a * ('a,'b) offs
-  | `Index of 'b * ('a,'b) offs
-] [@@deriving to_yojson]
+] [@@deriving eq, ord, hash]
 
 
-let rec listify ofs =
-  match ofs with
-  | `NoOffset -> []
-  | `Field (x,ofs) -> x :: listify ofs
-  | _ -> Messages.bailwith "Indexing not supported here!"
+(** Subinterface of IntDomain.Z which is sufficient for Printable (but not Lattice) Offset. *)
+module type IdxPrintable =
+sig
+  include Printable.S
+  val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
+  val to_int: t -> IntOps.BigIntOps.t option
+end
 
-module Offset (Idx: IntDomain.S) =
+module Offset (Idx: IdxPrintable) =
 struct
-  type t = Offs of ((fieldinfo, Idx.t) offs) | Bot [@@deriving to_yojson]
-  include Printable.Std
-  include Lattice.StdCousot
+  type t = (CilType.Fieldinfo.t, Idx.t) offs [@@deriving eq, ord, hash]
+  include Printable.StdLeaf
 
-  let equal x y =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> eq o1 o2
-      | _ -> false
-    in
-    match x, y with
-    | Bot, Bot -> true
-    | Bot, Offs _ | Offs _, Bot -> false
-    | Offs x, Offs y -> eq x y
+  let name () = "offset"
 
-  let short _ x =
-    let rec offs_short x =
-      match x with
-      | `NoOffset -> ""
-      | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (offs_short o)
-      | `Field (x,o) -> "." ^ (x.fname) ^ (offs_short o)
-    in
-    match x with
-    | Offs x -> offs_short x
-    | Bot -> "Erronous offset"
+  let is_first_field x = match x.fcomp.cfields with
+    | [] -> false
+    | f :: _ -> CilType.Fieldinfo.equal f x
 
-  let pretty_f sf () x = text (sf 80 x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[])
+  let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
+    | `NoOffset -> `MustZero
+    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
+      | `MustNonzero, _
+      | _, `Neq -> `MustNonzero
+      | `MustZero, `Eq -> `MustZero
+      | _, _ -> `MayZero)
+    | `Field (x, o) ->
+      if is_first_field x then cmp_zero_offset o else `MustNonzero
 
-  let pretty = pretty_f short
-  let toXML = toXML_f short
+  let rec show = function
+    | `NoOffset -> ""
+    | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
+    | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
+
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let hash _ = 35166
   let name () = "Offset"
 
-  let from_offset x = Offs x
-  let to_offset x =
-    match x with
-    | Offs x -> [x]
-    | _ -> []
-
-  (* what is this used for? seems unsound *)
-  let definite o =
-    let rec def o =
-      match o with
-      | `Index (i,o) when Idx.is_int i && Idx.to_int i <> Some GU.inthack -> `Index (i,def o)
-      | `Field (f,o) -> `Field (f,def o)
-      | _ -> `NoOffset
-    in
-    match o with
-    | Offs o -> Offs (def o)
-    | Bot -> Bot
+  let from_offset x = x
 
   let rec is_definite = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
-    | `Index (i,o) ->  Idx.is_int i && is_definite o
+    | `Index (i,o) ->  Idx.to_int i <> None && is_definite o
 
-  let top () = Offs `NoOffset
-  let bot () = Bot
-
-  let is_bot x =
-    match x with
-    | Bot -> true
-    | _ -> false
-
-  let is_top x =
-    match x with
-    | Offs `NoOffset -> true
-    | _ -> false
-
-  let equal x y =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> eq o1 o2
-      | _ -> false
-    in
-    match x, y with
-    | Offs x, Offs y -> eq x y
-    | Bot, Bot -> true
-    | _ -> false
-
+  (* append offset o2 to o1 *)
+  (* TODO: unused *)
   let rec add_offset o1 o2 =
     match o1 with
     | `NoOffset -> o2
     | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
-  (* The following compare is same as the Pervasives one, but that depends on the exact definition
-     of ('a,'b) offs. We need leq a b ==> b <= a *)
-  let compare x y =
-    let rec comp x y =
-      match x,y with
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> comp o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> comp o1 o2
-      | _ -> compare (Offs x) (Offs y)
-    in
-    match x,y with
-    | Offs x, Offs y -> comp x y
-    | _ -> compare x y
+  let rec to_cil_offset (x:t) =
+    match x with
+    | `NoOffset -> NoOffset
+    | `Field(f,o) -> Field(f, to_cil_offset o)
+    | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+end
+
+module OffsetLat (Idx: IntDomain.Z) =
+struct
+  include Offset (Idx)
 
   let rec leq x y =
     match x, y with
-    | Bot, _ -> true
-    | Offs _, Offs `NoOffset -> true
-    | Offs `Index (i1,o1), Offs `Index (i2,o2)  when Idx.leq i1 i2 -> leq (Offs o1) (Offs o2)
-    | Offs `Field (f1,o1), Offs `Field (f2,o2) when f1.fname = f2.fname -> leq (Offs o1) (Offs o2)
+    | `NoOffset, `NoOffset -> true
+    | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
+    | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
 
-  let rec perel_leq x y =
+  let rec merge cop x y =
+    let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
-    | Bot, _ -> true
-    | Offs _, Offs `NoOffset -> true
-    | Offs `Index (i1,o1), Offs `Index (i2,o2)
-      when Idx.to_int i2 = Some (GU.inthack) || Idx.leq i1 i2
-      -> perel_leq (Offs o1) (Offs o2)
-    | Offs `Field (f1,o1), Offs `Field (f2,o2)
-      when f1.fname = f2.fname
-      -> perel_leq (Offs o1) (Offs o2)
-    | _ -> false
+    | `NoOffset, `NoOffset -> `NoOffset
+    | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
+    | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
+    | _ -> raise Lattice.Uncomparable (* special case not used for AddressDomain any more due to splitting *)
 
-  let isSimple x = true
+  let join x y = merge `Join x y
+  let meet x y = merge `Meet x y
+  let widen x y = merge `Widen x y
+  let narrow x y = merge `Narrow x y
 
-  let meet x y =
-    let rec offs_meet x y  =
-      match x, y with
-      | `NoOffset, x -> x
-      | x, `NoOffset -> x
-      | `Field (x1,y1), `Field (x2,y2) when x1 == x2
-        -> `Field (x1, offs_meet y1 y2)
-      | `Index (x1,y1), `Index (x2,y2) when Idx.equal x1 x2
-        -> `Index (x1, offs_meet y1 y2)
-      | _ -> `NoOffset
+  let rec drop_ints = function
+    | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
+    | `Field (x, o) -> `Field (x, drop_ints o)
+    | `NoOffset -> `NoOffset
+end
+
+module OffsetLatWithSemanticEqual (Idx: IntDomain.Z) =
+struct
+  include OffsetLat (Idx)
+
+  let ikind () = Cilfacade.ptrdiff_ikind ()
+
+  let offset_to_index_offset typ offs =
+    let idx_of_int x =
+      Idx.of_int (ikind ()) (Z.of_int x)
     in
-    match x, y with
-    | Bot, _ -> Bot
-    | _, Bot -> Bot
-    | Offs (`Field x), Offs (`Index y) -> Bot
-    | Offs (`Index x), Offs (`Field y) -> Bot
-    | Offs x, Offs y -> Offs (offs_meet x y)
-
-  let join x y =
-    let rec offs_join x y =
-      match x, y with
-      | `NoOffset, x -> `NoOffset
-      | x, `NoOffset -> `NoOffset
-      | `Field (x1,y1), `Field (x2,y2) when x1 == x2
-        -> `Field (x1, offs_join y1 y2)
-      | `Index (x1,y1), `Index (x2,y2) when Idx.equal x1 x2
-        -> `Index (x1, offs_join y1 y2)
-      | _ -> `NoOffset
+    let rec offset_to_index_offset ?typ offs = match offs with
+      | `NoOffset -> idx_of_int 0
+      | `Field (field, o) ->
+        let field_as_offset = Field (field, NoOffset) in
+        let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
+        let bits_offset = idx_of_int bits_offset in
+        let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
+        Idx.add bits_offset remaining_offset
+      | `Index (x, o) ->
+        let (item_typ, item_size_in_bits) =
+          match Option.map unrollType typ with
+          | Some TArray(item_typ, _, _) ->
+            let item_size_in_bits = bitsSizeOf item_typ in
+            (Some item_typ, idx_of_int item_size_in_bits)
+          | _ ->
+            (None, Idx.top ())
+        in
+        let bits_offset = Idx.mul item_size_in_bits x in
+        let remaining_offset = offset_to_index_offset ?typ:item_typ o in
+        Idx.add bits_offset remaining_offset
     in
-    match x, y with
-    | Bot, x -> x
-    | x, Bot -> x
-    | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset
-    | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
-    | Offs x, Offs y -> Offs (offs_join x y)
+    offset_to_index_offset ~typ offs
 
-  let perelem_join x y =
-    let rec offs_join x y =
-      match x, y with
-      | `NoOffset, `NoOffset -> `NoOffset
-      | `NoOffset, x -> `NoOffset
-      | x, `NoOffset -> `NoOffset
-      | `Field (x1,y1), `Field (x2,y2) when x1 == x2
-        -> `Field (x1, offs_join y1 y2)
-      | `Index (x1,y1), `Index (x2,y2)
-        when Idx.to_int x1 = Some (GU.inthack) || Idx.to_int x2 = Some (GU.inthack)
-        -> `Index (Idx.of_int GU.inthack, offs_join y1 y2)
-      | `Index (x1,y1), `Index (x2,y2)
-        -> `Index (Idx.join x1 x2, offs_join y1 y2)
-      | _ -> `NoOffset
-    in
-    match x, y with
-    | Bot, Bot -> Bot
-    | Bot, x -> x
-    | x, Bot -> x
-    | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset
-    | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
-    | Offs x, Offs y -> Offs (offs_join x y)
+  let semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs =
+    let x_index = offset_to_index_offset xtyp xoffs in
+    let y_index = offset_to_index_offset ytyp yoffs in
+    if M.tracing then M.tracel "addr" "xoffs=%a xtyp=%a xindex=%a yoffs=%a ytyp=%a yindex=%a\n" pretty xoffs d_plaintype xtyp Idx.pretty x_index pretty yoffs d_plaintype ytyp Idx.pretty y_index;
+    Idx.to_bool (Idx.eq x_index y_index)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
 
 module type S =
@@ -227,99 +172,102 @@ sig
   val str_ptr: unit -> t
   val is_null: t -> bool
   val get_location: t -> location
-  val classify: t -> int
-  val class_name: int -> string
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
+
   val from_var_offset: (varinfo * (field,idx) offs) -> t
   (** Creates an address from a variable and offset. *)
+
   val to_var_offset: t -> (varinfo * (field,idx) offs) list
   (** Get the offset *)
+
   val to_var: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+
   val get_type: t -> typ
   (** Finds the type of the address location. *)
 end
 
-(* TODO functor for type info *)
-
-module Normal (Idx: IntDomain.S) =
+module PreNormal (Offset: Printable.S) =
 struct
-  type field = fieldinfo [@@deriving to_yojson]
-  type idx = Idx.t [@@deriving to_yojson]
-  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr | Top | Bot [@@deriving to_yojson]
-  include Printable.Std
+  include Printable.StdLeaf
+  type t =
+    | Addr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
+    | NullPtr (** NULL pointer. *)
+    | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
+  [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+
+  let hash x = match x with
+    | StrPtr _ ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        13859
+      else
+        hash x
+    | _ -> hash x
+
+  let show_addr (x, o) =
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ Offset.show o
+    else x.vname ^ Offset.show o
+
+  let show = function
+    | Addr (x, o)-> show_addr (x, o)
+    | StrPtr (Some x)   -> "\"" ^ x ^ "\""
+    | StrPtr None -> "(unknown string)"
+    | UnknownPtr -> "?"
+    | NullPtr    -> "NULL"
+
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
+
+module Normal (Idx: IdxPrintable) =
+struct
+  type field = fieldinfo
+  type idx = Idx.t
+  module Offs = Offset (Idx)
+  include PreNormal (Offs)
+
   let name () = "Normal Lvals"
 
-  let null_ptr () = NullPtr
-  let str_ptr () = SafePtr
-  let safe_ptr () = SafePtr
-  let unknown_ptr () = UnknownPtr
-  let is_unknown = function UnknownPtr -> true | _ -> false
-
-  let is_null a = a = NullPtr
-
-  let get_location = function
-    | Addr (x,_) -> x.vdecl
-    | _ -> builtinLoc
-
-  let classify = function
-    | Addr (x,_) when x.vglob -> 2
-    | Addr (x,_) when x.vdecl.line = -1 -> -1
-    | Addr (x,_) when x.vdecl.line = -3 -> 5
-    | Addr (x,_) when x.vdecl.line = -4 -> 4
-    | _ -> 1
-
-  let class_name = function
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  type group = Basetype.Variables.group
+  let show_group = Basetype.Variables.show_group
+  let to_group = function
+    | Addr (x,_) -> Basetype.Variables.to_group x
+    | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
-  let from_var_offset x = Addr x
+  let from_var_offset (x, o) = Addr (x, o)
 
   let to_var = function
-    | Addr (x,_) -> [x]
-    | _          -> []
+    | Addr (x,_) -> Some x
+    | _          -> None
   let to_var_may = function
-    | Addr (x,_) -> [x]
-    | _          -> []
+    | Addr (x,_) -> Some x
+    | _          -> None
   let to_var_must = function
-    | Addr (x,`NoOffset) -> [x]
-    | _                  -> []
+    | Addr (x,`NoOffset) -> Some x
+    | _                  -> None
   let to_var_offset = function
-    | Addr x -> [x]
-    | _      -> []
+    | Addr (x, o) -> Some (x, o)
+    | _      -> None
 
   (* strings *)
-  let from_string x = StrPtr x
+  let from_string x = StrPtr (Some x)
   let to_string = function
-    | StrPtr x -> [x]
-    | _        -> []
-
-  let rec short_offs = function
-    | `NoOffset -> ""
-    | `Field (fld, o) -> "." ^ fld.fname ^ short_offs o
-    | `Index (v, o) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ short_offs o
-
-  let short_addr (x, o) =
-    GU.demangle x.vname ^ short_offs o
-
-  let short _ = function
-    | Addr x     -> short_addr x
-    | StrPtr x   -> x
-    | UnknownPtr -> "?"
-    | SafePtr    -> "SAFE"
-    | NullPtr    -> "NULL"
-    | Bot        -> "bot"
-    | Top        -> "top"
+    | StrPtr (Some x) -> Some x
+    | _        -> None
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -331,78 +279,25 @@ struct
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
         with Not_found ->
-          let s = sprint ~width:0 @@ dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
+          let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
           raise (Type_offset (t, s))
       in type_offset fi.ftype o
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
-      let s = sprint ~width:0 @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
+      let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t Offs.pretty o in
       raise (Type_offset (t, s))
 
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
 
   let get_type = function
-    | Addr x   -> get_type_addr x
-    | StrPtr _  (* TODO Cil.charConstPtrType? *)
-    | SafePtr  -> charPtrType
+    | Addr (x, o) -> get_type_addr (x, o)
+    | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
-    | Bot      -> voidType
-    | Top | UnknownPtr -> voidPtrType
+    | UnknownPtr -> voidPtrType
 
-  let copy x = x
-  let isSimple _  = true
+  let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
-  let rec hash_offset = function
-    | `NoOffset -> 1
-    | `Index(i,o) -> Idx.hash i * 35 * hash_offset o
-    | `Field(f,o) -> Hashtbl.hash f.fname * hash_offset o
-  let hash = function
-    | Addr (v,o) -> v.vid * hash_offset o
-    | x -> Hashtbl.hash x
-
-  let rec is_zero_offset =
-    let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname in
-    let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false in
-    function
-    | `Field (x,o) -> is_first_field x && is_zero_offset o
-    | `Index (x,o) -> Idx.to_int x = Some 0L && is_zero_offset o
-    | `NoOffset -> true
-
-  let equal x y =
-    let rec eq_offs x y =
-      match x, y with
-      | `NoOffset, `NoOffset -> true
-      | `Index (i,x), `Index (o,y) -> Idx.equal i o && eq_offs x y
-      | `Field (i,x), `Field (o,y) -> i.fcomp.ckey=o.fcomp.ckey && i.fname = o.fname && eq_offs x y
-      | `NoOffset, o
-      | o, `NoOffset -> is_zero_offset o
-      | _ -> false
-    in
-    match x, y with
-    | Addr (v,o), Addr (u,p) -> v.vid = u.vid && eq_offs o p
-    | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
-    | UnknownPtr, UnknownPtr
-    | SafePtr   , SafePtr
-    | NullPtr   , NullPtr
-    | Bot       , Bot
-    | Top       , Top        -> true
-    | _ -> false
-
-  let toXML_f_addr sf (x,y) =
-    let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
-    let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
-    Xml.Element ("Leaf", [("text", esc (sf max_int (Addr (x,y)))); ("info", info)],[])
-
-  let toXML_f sf = function
-    | Addr x  -> toXML_f_addr sf x
-    | x -> Xml.Element ("Leaf", [("text", short max_int x)],[])
-
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-
-  let toXML = toXML_f short
-  let pretty = pretty_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
@@ -411,17 +306,16 @@ struct
       | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
     in
     match x with
-    | Addr (v,o) -> Lval (Var v, to_cil o)
-    | StrPtr x -> mkString x
-    | SafePtr -> mkString "a safe pointer/string"
+    | Addr (v,o) -> AddrOf (Var v, to_cil o)
+    | StrPtr (Some x) -> mkString x
+    | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
-    | UnknownPtr
-    | Top     -> raise Lattice.TopValue
-    | Bot     -> raise Lattice.BotValue
+    | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
     | `NoOffset    -> y
     | `Index (i,x) -> `Index (i, add_offsets x y)
     | `Field (f,x) -> `Field (f, add_offsets x y)
+  (* TODO: unused *)
   let add_offset x o = match x with
     | Addr (v, u) -> Addr (v, add_offsets u o)
     | x -> x
@@ -431,179 +325,193 @@ struct
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
-module NormalLat (Idx: IntDomain.S) =
+(** Lvalue lattice.
+
+    Actually a disjoint union of lattices without top or bottom.
+    Lvalues are grouped as follows:
+
+    - Each {!Addr}, modulo precise index expressions in offset, is a sublattice with ordering induced by {!Offset}.
+    - {!NullPtr} is a singleton sublattice.
+    - {!UnknownPtr} is a singleton sublattice.
+    - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
+module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
+  module Offs = OffsetLatWithSemanticEqual (Idx)
 
-  let is_top = function
-    | Top -> true
-    | _   -> false
+  (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
+  let semantic_equal x y = match x, y with
+    | Addr (x, xoffs), Addr (y, yoffs) ->
+      if CilType.Varinfo.equal x y then
+        let xtyp = x.vtype in
+        let ytyp = y.vtype in
+        Offs.semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs
+      else
+        Some false
+    | StrPtr None, StrPtr _
+    | StrPtr _, StrPtr None -> Some true
+    | StrPtr (Some a), StrPtr (Some b) -> if a = b then None else Some false
+    | NullPtr, NullPtr -> Some true
+    | UnknownPtr, UnknownPtr
+    | UnknownPtr, Addr _
+    | Addr _, UnknownPtr
+    | UnknownPtr, StrPtr _
+    | StrPtr _, UnknownPtr -> None
+    | _, _ -> Some false
 
-  let is_bot = function
-    | Bot -> true
-    | _   -> false
-
-  let top () = Top
-  let bot () = Bot
-
-  (* include Lattice.StdCousot *)
-  (*  *)
-  (* let widen x y = *)
-  (*   if equal x y then y else *)
-  (*     match x,y with *)
-  (*     | Addr _, Addr _ -> y *)
-  (*     | _ -> failwith "no" *)
-
-  module OffsI = Offset (Idx)
   let is_definite = function
-    | NullPtr | StrPtr _ -> true
-    | Addr (v,o) when OffsI.is_definite o -> true
+    | NullPtr -> true
+    | Addr (v,o) when Offs.is_definite o -> true
     | _ -> false
 
-  let leq x y =
-    let rec leq_offs x y =
-      match x, y with
-      | _           , `NoOffset    -> true
-      | `Index (i,x), `Index (o,y) -> Idx.leq i o && leq_offs x y
-      | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname &&  leq_offs x y
-      | _                          -> false
-    in
-    match x, y with
-    | _         , Top           -> true
-    | Top       , _             -> false
-    | Bot       , _             -> true
-    | _         , Bot           -> false
-    | UnknownPtr, UnknownPtr    -> true
-    | NullPtr   , NullPtr       -> true
-    | SafePtr   , SafePtr       -> true
-    | StrPtr a  , StrPtr b      -> a = b (* TODO *)
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
-    | _                      -> false
-
-  let rec merge_offs op x y =
-    match x, y with
-    | `Index (i,x), `Index (o,y) -> `Index (op i o, merge_offs op x y)
-    | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname
-      -> `Field (f,merge_offs op x y)
-    | _ -> `NoOffset
-
-  let rec drop_ints_offs = function
-    | `Index (i, x) -> `Index (Idx.top (), drop_ints_offs x)
-    | `Field (i, x) -> `Field (i, drop_ints_offs x)
-    | x -> x
+  let leq x y = match x, y with
+    | StrPtr _, StrPtr None -> true
+    | StrPtr a, StrPtr b   -> a = b
+    | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
+    | _                      -> x = y
 
   let drop_ints = function
-    | Addr (x, o) -> Addr (x, drop_ints_offs o)
+    | Addr (x, o) -> Addr (x, Offs.drop_ints o)
     | x -> x
 
-  let merge_up op x y =
+  let join_string_ptr x y = match x, y with
+    | None, _
+    | _, None -> None
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        None
+      else
+        raise Lattice.Uncomparable
+
+  let meet_string_ptr x y = match x, y with
+    | None, a
+    | a, None -> a
+    | Some a, Some b when a = b -> Some a
+    | Some a, Some b (* when a <> b *) ->
+      if GobConfig.get_bool "ana.base.limit-string-addresses" then
+        raise Lattice.BotValue
+      else
+        raise Lattice.Uncomparable
+
+  let merge cop x y =
     match x, y with
-    | Top       , _       -> Top
-    | _         , Top     -> Top
-    | Bot       , y       -> y
-    | x         , Bot     -> x
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | SafePtr   , SafePtr -> SafePtr
-    | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,merge_offs op o u)
-    | _ -> Top
+    | StrPtr a, StrPtr b ->
+      StrPtr
+        begin match cop with
+          |`Join | `Widen -> join_string_ptr a b
+          |`Meet | `Narrow -> meet_string_ptr a b
+        end
+    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
+    | _ -> raise Lattice.Uncomparable
 
-  let join = merge_up Idx.join
-  let widen = merge_up Idx.widen
+  let join = merge `Join
+  let widen = merge `Widen
+  let meet = merge `Meet
+  let narrow = merge `Narrow
 
-  let merge_down op x y =
-    match x, y with
-    | Bot       , _          -> Bot
-    | _         , Bot        -> Bot
-    | Top       , y          -> y
-    | x         , Top        -> x
-    | UnknownPtr, UnknownPtr -> UnknownPtr
-    | NullPtr   , NullPtr    -> NullPtr
-    | SafePtr   , SafePtr    -> SafePtr
-    | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, merge_offs op o u)
-    | UnknownPtr, StrPtr a
-    | StrPtr a  , UnknownPtr -> StrPtr a
-    | UnknownPtr, Addr a
-    | Addr a    , UnknownPtr -> Addr a
-    | _ -> Bot
+  include Lattice.NoBotTop
 
-  let meet = merge_down Idx.meet
-  let narrow = merge_down Idx.narrow
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module Stateless (Idx: Printable.S) =
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module BaseAddrRepr (Idx: IntDomain.Z) =
 struct
-  type field = fieldinfo
-  type idx = Idx.t
-  type t = bool * varinfo * (field, idx) offs_uk
-  include Printable.Std
+  include NormalLat (Idx)
 
-  let isSimple _  = true
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    type elt = t
 
-  let short _ (dest, x, offs) =
-    let rec off_str ofs =
-      match ofs with
-      | `NoOffset -> ""
-      | `UnknownOffset -> "?"
-      | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
-    in
-    (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
+    module AnyOffset = Printable.UnitConf (struct let name = "" end)
+    include PreNormal (AnyOffset)
 
-  let toXML_f sf (d,x,y) =
-    let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
-    let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
-    Xml.Element ("Leaf", [("text", esc (sf max_int (d,x,y))); ("info", info)],[])
+    let name () = "BaseAddrRepr.R"
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
+    let of_elt (x: elt): t = match x with
+      | Addr (v, o) -> Addr (v, ())
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
+      | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
+      | NullPtr -> NullPtr
+      | UnknownPtr -> UnknownPtr
+  end
+end
 
-  let toXML x = toXML_f short x
-  let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+(* Helper for offsets without abstract values for index offsets, i.e. with unit index offsets.*)
+module NoIdxOffsetBase = struct
+  module UnitIdxDomain =
+  struct
+    include Lattice.Unit
+    let equal_to _ _ = `Top
+    let to_int _ = None
+  end
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let rec of_offs = function
+    | `NoOffset -> `NoOffset
+    | `Field (f,o) -> `Field (f, of_offs o)
+    | `Index (i,o) -> `Index (UnitIdxDomain.top (), of_offs o)
+end
+
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IntDomain.Z) =
+struct
+  include NormalLat (Idx)
+
+  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+  module R: DisjointDomain.Representative with type elt = t =
+  struct
+    type elt = t
+    open NoIdxOffsetBase
+
+    (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
+       Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
+       since different integer domains may be active at different program points. *)
+    include Normal (UnitIdxDomain)
+
+    let of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs = of_offs
+
+    let of_elt (x: elt): t = match x with
+      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
+      | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
+      | NullPtr -> NullPtr
+      | UnknownPtr -> UnknownPtr
+  end
 end
 
 module Fields =
 struct
-  module F = Basetype.CilField
+  module F = CilType.Fieldinfo
   module I = Basetype.CilExp
   module FI = Printable.Either (F) (I)
   include Printable.Liszt (FI)
-  include Lattice.StdCousot
 
-  let rec short w x = match x with
+  let rec show x = match x with
     | [] -> ""
-    | (`Left x :: xs) -> "." ^ F.short w x ^ short w xs
-    | (`Right x :: xs) -> "[" ^ I.short w x ^ "]" ^ short w xs
+    | (`Left x :: xs) -> "." ^ F.show x ^ show xs
+    | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
 
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   let rec printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
-      BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
+      BatPrintf.fprintf f ".%s%a" (F.show x) printInnerXml xs
     | (`Right x :: xs) ->
-      BatPrintf.fprintf f "[%a]%a" I.printXml x printXml xs
+      BatPrintf.fprintf f "[%s]%a" (I.show x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
-
-  let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
-    | [], ys -> Some ys
-    | _ -> None
-
-  let append x y: t = x @ y
 
   let rec listify ofs: t =
     match ofs with
@@ -611,33 +519,17 @@ struct
     | Field (x,ofs) -> `Left x :: listify ofs
     | Index (i,ofs) -> `Right i :: listify ofs
 
-  let rec to_offs (ofs:t) tv = match ofs with
-    | (`Left x::xs) -> `Field (x, to_offs xs tv)
-    | (`Right x::xs) -> `Index (tv, to_offs xs tv)
-    | [] -> `NoOffset
-
   let rec to_offs' (ofs:t) = match ofs with
     | (`Left x::xs) -> `Field (x, to_offs' xs)
     | (`Right x::xs) -> `Index (x, to_offs' xs)
     | [] -> `NoOffset
 
-  let rec occurs v fds = match fds with
-    | (`Left x::xs) -> occurs v xs
-    | (`Right x::xs) -> I.occurs v x || occurs v xs
-    | [] -> false
-
-  let rec occurs_where v (fds: t): t option = match fds with
-    | (`Right x::xs) when I.occurs v x -> Some []
-    | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))
-    | [] -> None
-
-  (* Same as the above, but always returns something. *)
   let rec kill v (fds: t): t = match fds with
     | (`Right x::xs) when I.occurs v x -> []
     | (x::xs) -> x :: kill v xs
     | [] -> []
 
-  let rec replace x exp ofs =
+  let replace x exp ofs =
     let f o = match o with
       | `Right e -> `Right (I.replace x exp e)
       | x -> x
@@ -661,10 +553,14 @@ struct
     | x::xs, y::ys when FI.equal x y -> x :: meet xs ys
     | _ -> failwith "Arguments do not meet"
 
+  let narrow = meet
+
   let rec join x y =
     match x,y with
     | x::xs, y::ys when FI.equal x y -> x :: join xs ys
     | _ -> []
+
+  let widen = join
 
   let rec collapse x y =
     match x,y with
@@ -681,42 +577,32 @@ struct
     | [] -> true
     | `Left _ :: xs -> real_region xs typ
     | `Right i :: _ -> false
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
 
 module CilLval =
 struct
-  include Printable.Std
-  type t = varinfo * (fieldinfo, exp) offs [@@deriving to_yojson]
+  include Printable.StdLeaf
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
 
-  let equal  (x1,o1) (x2,o2) =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Expcompare.compareExp i1 i2 -> eq o1 o2
-      | _ -> false
-    in
-    x1.vid=x2.vid && eq o1 o2
-
-  let hash    = Hashtbl.hash
-  let compare = Pervasives.compare
   let name () = "simplified lval"
-  let isSimple _ = true
 
   let class_tag (v,o) =
     match v with
     | _ when v.vglob -> `Global
     | _ when v.vdecl.line = -1 -> `Temp
-    | _ when v.vdecl.line = -3 -> `Parameter
-    | _ when v.vdecl.line = -4 -> `Context
+    | _ when Cilfacade.is_varinfo_formal v -> `Parameter
     | _ -> `Local
 
   let rec short_offs (o: (fieldinfo, exp) offs) a =
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) -> short_offs o (a^"["^Pretty.sprint 80 (dn_exp () e)^"]")
+    | `Index (e,o) when CilType.Exp.equal e any_index_exp -> short_offs o (a^"[?]")
+    | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
     match x with
@@ -740,13 +626,19 @@ struct
     | `Field (_,o) -> has_index_offs o
   let has_index (v,o) = has_index_offs o
 
-  let short _ (v,o) = short_offs o (GU.demangle v.vname)
+  let show (v,o) = short_offs o v.vname
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
+end
 
-  let pretty_f sf () x = text (sf 80 x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])
-  let pretty  = pretty_f short
-  let toXML = toXML_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+module OffsetNoIdx =
+struct
+  include NoIdxOffsetBase
+  include Offset(UnitIdxDomain)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let name () = "offset without index"
 end

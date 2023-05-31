@@ -9,17 +9,20 @@ struct {
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&m.x);
-  glob++; // NOWARN!
+  glob++; // NORACE
   pthread_mutex_unlock(&m.x);
   return NULL;
 }
 
 int main() {
+  pthread_mutex_init(&m.x, NULL);
+  pthread_mutex_init(&m.y, NULL);
+
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m.x);
-  glob++; // NOWARN!
-  pthread_mutex_lock(&m.x);
+  glob++; // NORACE
+  pthread_mutex_unlock(&m.x);
   return 0;
 }
 

@@ -1,3 +1,5 @@
+(* TODO: unused *)
+
 module     Eq = IntDomain.MakeBooleans (struct let truename="==" let falsename="!=" end)
 module Method = IntDomain.MakeBooleans (struct let truename="guard" let falsename="assign" end)
 
@@ -10,11 +12,10 @@ end
 module P =
 struct
   include Lattice.Flat (Printable.Prod3 (Method) (Eq) (IntDomain.FlatPureIntegers)) (L_names)
-  let short w x = match x with
-    | `Lifted (m,b,e) -> Method.short 1 m ^"ed "^ Eq.short 1 b ^ " " ^ IntDomain.FlatPureIntegers.short w e
+  let show x = match x with
+    | `Lifted (m,b,e) -> Method.show m ^"ed "^ Eq.show b ^ " " ^ IntDomain.FlatPureIntegers.show e
     | `Top -> top_name
     | `Bot -> bot_name
-  let toXML = toXML_f short
 
   let join x y = match x,y with
     | `Bot , z | z , `Bot -> z
@@ -25,7 +26,6 @@ struct
     | `Lifted (true,false,c1),`Lifted (true, true, c2) when not(c1=c2) -> x
     | _ -> `Top
 
-  let meet x y = failwith "Unsupported 'meet' on flagModeDomainlattice"
 
   let leq (x:t) (y:t) = match x,y with
     | `Bot , _  -> true
@@ -49,11 +49,4 @@ struct
   include MapDomain.MapTop_LiftBot (Basetype.Variables) (P)
 
   (*   let find k x = if mem k x then find k x else P.top() *)
-
-  let toXML_f s x =
-    match toXML_f s x with
-    | Xml.Element ("Node",_,[]) ->  Xml.Element ("Leaf",["text","Flag Modes"],[])
-    | Xml.Element ("Node",_,xs) ->  Xml.Element ("Node",["text","Flag Modes";"id","map"],xs)
-    | x -> x
-  let toXML = toXML_f short
 end

@@ -1,0 +1,12 @@
+{
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": true,
+                "fuel": 1,
+                "fuel-only-global": true
+            },
+            "write-only": false
+        }
+    }
+}

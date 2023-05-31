@@ -1,38 +1,46 @@
-open Prelude
+(** Solver, which delegates at runtime to the configured solver. *)
+
+open Batteries
 open Analyses
 open GobConfig
 
 (* Registered solvers. *)
-let solvers =
-  ref ["effectWCon", (module EffectWCon.Make2 : GenericGlobSolver)]
+let solvers = ref []
 
 (** Register your solvers here!!! *)
 let add_solver x = solvers := x::!solvers
 
+(** Dynamically choose the solver. *)
+let choose_solver solver =
+  try List.assoc solver !solvers
+  with Not_found ->
+    raise @@ ConfigError ("Solver '"^solver^"' not found. Abort!")
+
 (** The solver that actually uses the implementation based of [GobConfig.get_string "solver"]. *)
 module Make =
-  functor (S:GlobConstrSys) ->
-  functor (LH:Hash.H with type key=S.LVar.t) ->
-  functor (GH:Hash.H with type key=S.GVar.t) ->
+  functor (Arg: IncrSolverArg) ->
+  functor (S:EqConstrSys) ->
+  functor (VH:Hashtbl.S with type key = S.v) ->
   struct
+    type marshal = Obj.t (* cannot use Sol.marshal because cannot unpack first-class module in applicative functor *)
 
-    (** Dynamically choose the solver. *)
-    let choose_solver solver =
-      try List.assoc solver !solvers
-      with Not_found ->
-        raise @@ ConfigError ("Solver '"^solver^"' not found. Abort!")
+    let copy_marshal (marshal: marshal) =
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqIncrSolver) in
+      let module F = Sol (Arg) (S) (VH) in
+      Obj.repr (F.copy_marshal (Obj.obj marshal))
 
-    (** You wont belive this! It really works! *)
-    let solve =
-      (* Watch and learn! *)
-      let dark_magic (module SOL : GenericGlobSolver) =
-        let module F = SOL (S) (LH) (GH) in F.solve
-      in
-      (* Did you see! *)
-      dark_magic (choose_solver (get_string "solver"))
+    let relift_marshal (marshal: marshal) =
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqIncrSolver) in
+      let module F = Sol (Arg) (S) (VH) in
+      Obj.repr (F.relift_marshal (Obj.obj marshal))
 
+    let solve xs vs (old_data: marshal option) =
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqIncrSolver) in
+      let module F = Sol (Arg) (S) (VH) in
+      let (vh, marshal) = F.solve xs vs (Option.map Obj.obj old_data) in
+      (vh, Obj.repr marshal)
   end
 
 let _ =
-  let module T1 : GenericGlobSolver = Make in
+  let module T1 : GenericEqIncrSolver = Make in
   ()

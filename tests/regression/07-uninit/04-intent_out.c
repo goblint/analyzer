@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','escape','uninit']"
+// PARAM: --set ana.activated[+] uninit
 void some_function(int* x){
 	*x = 0;
 }

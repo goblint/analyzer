@@ -1,4 +1,4 @@
-// PARAM: --set exp.failing-locks true
+// PARAM: --set sem.lock.fail true
 #include <pthread.h>
 #include <stdio.h>
 
@@ -20,7 +20,7 @@ int main(void) {
   if (pthread_mutex_lock(&mutex1)) {
     printf("Locking failed!");
     myglobal=myglobal+1; // RACE!
-  } else 
+  } else
     pthread_mutex_unlock(&mutex1);
   pthread_join (id, NULL);
   return 0;

@@ -1,13 +1,13 @@
-// SKIP PARAM: --sets otherfun "['f']" --set ana.activated "['base','escape']"
+// SKIP PARAM: --set otherfun "['f']"
 
 int glob1 = 5;
 
 int g() {
-  assert(glob1 == 5);
+  __goblint_check(glob1 == 5);
   return 0;
 }
 
 int main() {
-  assert(glob1 == 5);
+  __goblint_check(glob1 == 5);
   return 0;
 }

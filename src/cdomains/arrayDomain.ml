@@ -1,8 +1,43 @@
+open GoblintCil
 open Pretty
-open Messages
+open GobConfig
+open FlagHelper
 
+module M = Messages
 module A = Array
-module GU = Goblintutil
+module BI = IntOps.BigIntOps
+module VDQ = ValueDomainQueries
+
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
+
+(* determines the domain based on variable, type and flag *)
+let get_domain ~varAttr ~typAttr =
+  let domain_from_string = function
+    | "partitioned" -> PartitionedDomain
+    | "trivial" -> TrivialDomain
+    | "unroll" ->  UnrolledDomain
+    | _ -> failwith "AttributeConfiguredArrayDomain: invalid option for domain"
+  in
+  (*TODO add options?*)
+  (*TODO let attribute determine unrolling factor?*)
+  let from_attributes = List.find_map (
+      fun (Attr (s,ps) )->
+        if s = "goblint_array_domain" then (
+          List.find_map (fun p -> match p with
+              | AStr x -> Some x
+              | _ -> None
+            ) ps
+        )
+        else None
+    ) in
+  if get_bool "annotation.goblint_array_domain" then
+    match from_attributes varAttr, from_attributes typAttr with
+    | Some x, _ -> domain_from_string x
+    | _, Some x -> domain_from_string x
+    | _ -> domain_from_string @@ get_string "ana.base.arrays.domain"
+  else domain_from_string @@ get_string "ana.base.arrays.domain"
+
+let can_recover_from_top x = x <> TrivialDomain
 
 module type S =
 sig
@@ -10,1049 +45,1020 @@ sig
   type idx
   type value
 
-  val get: t -> idx -> value
-  val set: t -> idx -> value -> t
-  val make: int -> value -> t
-  val length: t -> int option
+  val domain_of_t: t -> domain
+
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+  val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
+  val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
+  val length: t -> idx option
+
+  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val get_vars_in_e: t -> Cil.varinfo list
+  val map: (value -> value) -> t -> t
+  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+  val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
+  val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
+  val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
+  val update_length: idx -> t -> t
+  val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
+end
+
+module type LatticeWithSmartOps =
+sig
+  include Lattice.S
+  val smart_join: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
+  val smart_widen: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> bool
 end
 
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  let name () = "trivial arrays"
   include Val
+  let name () = "trivial arrays"
   type idx = Idx.t
   type value = Val.t
 
-  let short w x = "Array: " ^ Val.short (w - 7) x
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let domain_of_t _ = TrivialDomain
+
+  let show x = "Array: " ^ Val.show x
+  let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let toXML m = toXML_f short m
-  let get a i = a
-  let set a i v = join a v
-  let make i v = v
+  let get ?(checkBounds=true) (ask: VDQ.t) a i = a
+  let set (ask: VDQ.t) a (ie, i) v =
+    match ie with
+    | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      v
+    | _ ->
+      join a v
+  let make ?(varAttr=[]) ?(typAttr=[])  i v = v
   let length _ = None
 
-  let set_inplace = set
-  let copy a = a
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let map f x = f x
+  let fold_left f a x = f a x
+
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+  let update_length _ x = x
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset when get_bool "witness.invariant.goblint" ->
+      let i_lval = Cil.addOffsetLval (Index (Lval.all_index_exp, NoOffset)) lval in
+      value_invariant ~offset ~lval:i_lval x
+    | NoOffset ->
+      Invariant.none
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      value_invariant ~offset ~lval x
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
 end
 
-(* TODO make this work with ppx? *)
-(*
-module WithLength (Val: S) =
+let factor () =
+  match get_int "ana.base.arrays.unrolling-factor" with
+  | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
+  | x -> x
+
+module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
-  module Length = IntDomain.Flattened
-  include Lattice.Prod (Val) (Length)
-  let make l x = Val.make l x, Length.of_int (Int64.of_int l)
-  let length (_,l) = Length.to_int l
-  (* lift rest *)
-end
-*)
+  module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
+  module Base = Lattice.ProdList (Val) (Factor)
+  include Lattice.ProdSimple(Base) (Val)
 
-module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+  let name () = "unrolled arrays"
+  type idx = Idx.t
+  type value = Val.t
+
+  let domain_of_t _ = UnrolledDomain
+
+  let join_of_all_parts (xl, xr) = List.fold_left Val.join xr xl
+  let show (xl, xr) =
+    let rec show_list xlist = match xlist with
+      | [] -> " --- "
+      | hd::tl -> (Val.show hd ^ " - " ^ (show_list tl)) in
+    "Array (unrolled to " ^ (Stdlib.string_of_int (factor ())) ^ "): " ^
+    (show_list xl) ^ Val.show xr ^ ")"
+  let pretty () x = text "Array: " ++ text (show x)
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let extract x default = match x with
+    | Some c -> c
+    | None -> default
+  let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) =
+    let search_unrolled_values min_i max_i =
+      let rec subjoin l i = match l with
+        | [] -> Val.bot ()
+        | hd::tl ->
+          begin
+            match Z.gt i max_i, Z.lt i min_i with
+            | false,true -> subjoin tl (Z.succ i)
+            | false,false -> Val.join hd (subjoin tl (Z.succ i))
+            | _,_ -> Val.bot ()
+          end in
+      subjoin xl Z.zero in
+    let f = Z.of_int (factor ()) in
+    let min_i = extract (Idx.minimal i) Z.zero in
+    let max_i = extract (Idx.maximal i) f in
+    if Z.geq min_i f then xr
+    else if Z.lt max_i f then search_unrolled_values min_i max_i
+    else Val.join xr (search_unrolled_values min_i (Z.of_int ((factor ())-1)))
+  let set (ask: VDQ.t) (xl,xr) (_,i) v =
+    let update_unrolled_values min_i max_i =
+      let rec weak_update l i = match l with
+        | [] -> []
+        | hd::tl ->
+          if Z.lt i min_i then hd::(weak_update tl (Z.succ i))
+          else if Z.gt i max_i then (hd::tl)
+          else (Val.join hd v)::(weak_update tl (Z.succ i)) in
+      let rec full_update l i = match l with
+        | [] -> []
+        | hd::tl ->
+          if Z.lt i min_i then hd::(full_update tl (Z.succ i))
+          else v::tl in
+      if Z.equal min_i max_i then full_update xl Z.zero
+      else weak_update xl Z.zero in
+    let f = Z.of_int (factor ()) in
+    let min_i = extract(Idx.minimal i) Z.zero in
+    let max_i = extract(Idx.maximal i) f in
+    if Z.geq min_i f then (xl, (Val.join xr v))
+    else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
+    else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
+  let set ask (xl, xr) (ie, i) v =
+    match ie with
+    | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      (* TODO: Doesn't seem to work for unassume because unrolled elements are top-initialized, not bot-initialized. *)
+      (BatList.make (factor ()) v, v)
+    | _ ->
+      set ask (xl, xr) (ie, i) v
+
+  let make ?(varAttr=[]) ?(typAttr=[]) _ v =
+    let xl = BatList.make (factor ()) v in
+    (xl,Val.bot ())
+  let length _ = None
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let map f (xl, xr) = ((List.map f xl), f xr)
+  let fold_left f a x = f a (join_of_all_parts x)
+  let printXml f (xl,xr) = BatPrintf.fprintf f "<value>\n<map>\n
+  <key>unrolled array</key>\n
+  <key>xl</key>\n%a\n\n
+  <key>xm</key>\n%a\n\n
+  </map></value>\n" Base.printXml xl Val.printXml xr
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+  let update_length _ x = x
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval ((xl, xr) as x) =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset ->
+      let i_all =
+        if Val.is_bot xr then
+          Invariant.top ()
+        else if get_bool "witness.invariant.goblint" then (
+          let i_lval = Cil.addOffsetLval (Index (Lval.all_index_exp, NoOffset)) lval in
+          value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
+        )
+        else
+          Invariant.top ()
+      in
+      BatList.fold_lefti (fun acc i x ->
+          let i_lval = Cil.addOffsetLval (Index (Cil.integer i, NoOffset)) lval in
+          let i = value_invariant ~offset ~lval:i_lval x in
+          Invariant.(acc && i)
+        ) i_all xl
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none (* TODO: look up *)
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
+end
+
+(** Special signature so that we can use the _with_length functions from PartitionedWithLength but still match the interface *
+  * defined for array domains *)
+module type SPartitioned =
+sig
+  include S
+  val set_with_length: idx option -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
+  val smart_join_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
+  val smart_widen_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option)  -> t -> t-> t
+  val smart_leq_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
+  val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+end
+
+module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): SPartitioned with type value = Val.t and type idx = Idx.t =
+struct
+  include Printable.Std
+
+  type t = Joint of Val.t | Partitioned of (CilType.Exp.t * (Val.t * Val.t * Val.t)) [@@deriving eq, ord, hash]
+
+  type idx = Idx.t
+  type value = Val.t
+
+  let domain_of_t _ = PartitionedDomain
+
+  let name () = "partitioned array"
+
+  let relift = function
+    | Joint v -> Joint (Val.relift v)
+    | Partitioned (e, (l, m, r)) -> Partitioned (CilType.Exp.relift e, (Val.relift l, Val.relift m, Val.relift r))
+
+  let join_of_all_parts = function
+    | Joint v -> v
+    | Partitioned (e, (xl, xm, xr)) -> Val.join xl (Val.join xm xr)
+
+  (** Ensures an array where all three Val are equal, is represented by an unpartitioned array *)
+  let normalize = function
+    | Joint v -> Joint v
+    | (Partitioned (e, (xl, xm, xr)) as p) ->
+      if Val.equal xl xm && Val.equal xm xr then Joint xl
+      else p
+
+  let leq (x:t) (y:t) =
+    match x, y with
+    | Joint x, Joint y -> Val.leq x y
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Val.leq xl y && Val.leq xm y && Val.leq xr y
+    | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
+      CilType.Exp.equal e e' && Val.leq xl yl && Val.leq xm ym && Val.leq xr yr
+    | Joint x, Partitioned (e, (xl, xm, xr)) -> Val.leq x xl && Val.leq x xm && Val.leq x xr
+
+  let bot () = Joint (Val.bot ())
+  let is_bot (x:t) = Val.is_bot (join_of_all_parts x)
+  let top () = Joint (Val.top ())
+  let is_top = function
+    | Joint x -> Val.is_top x
+    | _-> false
+
+  let join (x:t) (y:t) = normalize @@
+    match x, y with
+    | Joint x, Joint y -> Joint (Val.join x y)
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.join xl y, Val.join xm y, Val.join xr y))
+    | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.join x yl, Val.join x ym, Val.join x yr))
+    | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
+      if CilType.Exp.equal e e' then Partitioned (e,(Val.join xl yl, Val.join xm ym, Val.join xr yr))
+      else Joint (Val.join (join_of_all_parts x) (join_of_all_parts y))
+
+  let widen (x:t) (y:t) = normalize @@ match x,y with
+    | Joint x, Joint y -> Joint (Val.widen x y)
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
+    | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
+    | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
+      if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
+      else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
+
+  let show = function
+    | Joint x ->  "Array (no part.): " ^ Val.show x
+    | Partitioned (e,(xl, xm, xr)) ->
+      "Array (part. by " ^ CilType.Exp.show e ^ "): (" ^
+      Val.show xl ^ " -- " ^
+      Val.show xm ^ " -- " ^
+      Val.show xr ^ ")"
+
+  let pretty () x = text "Array: " ++ text (show x)
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let printXml f = function
+    | Joint x -> BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
+    | Partitioned (e,(xl, xm, xr)) ->
+      BatPrintf.fprintf f "<value>\n<map>\n
+          <key>Partitioned By</key>\n%a\n
+          <key>l</key>\n%a\n\n
+          <key>m</key>\n%a\n\n
+          <key>r</key>\n%a\n\n
+        </map></value>\n" CilType.Exp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
+
+  let to_yojson = function
+    | Joint x -> `Assoc [ ("any", Val.to_yojson x) ]
+    | Partitioned (e,(xl, xm, xr)) ->
+      `Assoc [ ("partitioned_by", CilType.Exp.to_yojson e);
+               ("l", Val.to_yojson xl);
+               ("m", Val.to_yojson xm);
+               ("r", Val.to_yojson xr) ]
+
+  let get ?(checkBounds=true) (ask:VDQ.t) (x:t) (i,_) =
+    match x, i with
+    | Joint v, _ -> v
+    | Partitioned (e, (xl, xm, xr)), Some i' ->
+      begin
+        if VDQ.must_be_equal ask.eval_int e i' then xm
+        else
+          begin
+            let contributionLess = match VDQ.may_be_less ask.eval_int i' e with        (* (may i < e) ? xl : bot *)
+              | false -> Val.bot ()
+              | _ -> xl in
+            let contributionEqual = match VDQ.may_be_equal ask.eval_int i' e with      (* (may i = e) ? xm : bot *)
+              | false -> Val.bot ()
+              | _ -> xm in
+            let contributionGreater =  match VDQ.may_be_less ask.eval_int e i' with    (* (may i > e) ? xr : bot *)
+              | false -> Val.bot ()
+              | _ -> xr in
+            Val.join (Val.join contributionLess contributionEqual) contributionGreater
+          end
+      end
+    | _ -> join_of_all_parts x
+
+  let get_vars_in_e = function
+    | Partitioned (e, _) -> Basetype.CilExp.get_vars e
+    | _ -> []
+
+  (* expressions containing globals or array accesses are not suitable for partitioning *)
+  let not_allowed_for_part e =
+    let rec contains_array_access e =
+      let rec offset_contains_array_access offs =
+        match offs with
+        | NoOffset -> false
+        | Index _ -> true
+        | Field (_, o) -> offset_contains_array_access o
+      in
+      match e with
+      |	Const _
+      |	SizeOf _
+      |	SizeOfE _
+      |	SizeOfStr _
+      |	AlignOf _
+      |	AlignOfE _ -> false
+      | Question(e1, e2, e3, _) ->
+        contains_array_access e1 || contains_array_access e2 || contains_array_access e3
+      |	CastE(_, e)
+      |	UnOp(_, e , _)
+      | Real e
+      | Imag e -> contains_array_access e
+      |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
+      | AddrOf _
+      | AddrOfLabel _
+      | StartOf _ -> false
+      | Lval(Mem e, o) -> offset_contains_array_access o || contains_array_access e
+      | Lval(Var _, o) -> offset_contains_array_access o
+    in
+    let vars = Basetype.CilExp.get_vars e in
+    List.exists (fun x -> x.vglob) vars || contains_array_access e
+
+
+  let map f = function
+    | Joint v -> Joint (f v)
+    | Partitioned (e,(xl, xm, xr)) -> normalize @@ Partitioned (e,(f xl, f xm, f xr))
+
+  let fold_left f a = function
+    | Joint x -> f a x
+    | Partitioned (_, (xl,xm,xr)) -> f (f (f a xl) xm) xr
+
+  let move_if_affected_with_length ?(replace_with_const=false) length (ask:VDQ.t) x (v:varinfo) (movement_for_exp: exp -> int option) =
+    normalize @@
+    let move (i:int option) (e, (xl,xm, xr)) =
+      match i with
+      | Some 0   ->
+        Partitioned (e, (xl, xm, xr))
+      | Some 1   ->
+        Partitioned (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
+      | Some -1  ->
+        Partitioned (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
+      | Some x when x > 1 ->
+        Partitioned (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
+      | Some x when x < -1 ->
+        Partitioned (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
+      | _ ->
+        begin
+          let nval = join_of_all_parts x in
+          let default = Joint nval in
+          if replace_with_const then
+            let n = ask.eval_int e in
+            match VDQ.ID.to_int n with
+            | Some i ->
+              Partitioned ((Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i), (xl, xm, xr))
+            | _ -> default
+          else
+            default
+        end
+    in
+    match x with
+    | Partitioned (e, (xl,xm, xr)) ->
+      let is_affected = Basetype.CilExp.occurs v e in
+      if not is_affected then
+        x
+      else
+        (* check if one part covers the entire array, so we can drop partitioning *)
+        begin
+          let e_must_bigger_max_index =
+            match length with
+            | Some l ->
+              begin
+                match Idx.to_int l with
+                | Some i ->
+                  let b = VDQ.may_be_less ask.eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
+                  not b (* !(e <_{may} length) => e >=_{must} length *)
+                | None -> false
+              end
+            | _ -> false
+          in
+          let e_must_less_zero =
+            VDQ.eval_int_binop (module BoolDomain.MustBool) Lt ask.eval_int e Cil.zero (* TODO: untested *)
+          in
+          if e_must_bigger_max_index then
+            (* Entire array is covered by left part, dropping partitioning. *)
+            Joint xl
+          else if e_must_less_zero then
+            (* Entire array is covered by right value, dropping partitioning. *)
+            Joint xr
+          else
+            (* If we can not drop partitioning, move *)
+            move (movement_for_exp e) (e, (xl,xm, xr))
+        end
+    | _ -> x (* If the array is not partitioned, nothing to do *)
+
+  let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
+
+  let set_with_length length (ask:VDQ.t) x (i,_) a =
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a\n" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
+    match i with
+    | Some ie when CilType.Exp.equal ie Lval.all_index_exp ->
+      (* TODO: Doesn't seem to work for unassume. *)
+      Joint a
+    | Some i when CilType.Exp.equal i Lval.any_index_exp ->
+      (assert !AnalysisState.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
+       (* the join is needed here! see e.g 30/04 *)
+       let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in
+       let r =  Val.join o a in
+       Joint r)
+    | _ ->
+      normalize @@
+      let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
+      let exp_value e =
+        let n = ask.eval_int e in
+        Option.map BI.of_bigint (VDQ.ID.to_int n)
+      in
+      let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
+      let equals_maxIndex e =
+        match length with
+        | Some l ->
+          begin
+            match Idx.to_int l with
+            | Some i -> BatOption.map_default (BI.equal (BI.sub i BI.one)) false (exp_value e)
+            | None -> false
+          end
+        | _ -> false
+      in
+      let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
+      match x with
+      | Joint v ->
+        (match i with
+         | Some i when not @@ not_allowed_for_part i ->
+           let l = if equals_zero i then Val.bot () else join_of_all_parts x in
+           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
+           Partitioned (i, (l, a, r))
+         | _ -> Joint (Val.join v a)
+        )
+      | Partitioned (e, (xl, xm, xr)) ->
+        let isEqual = VDQ.must_be_equal ask.eval_int in
+        match i with
+        | Some i' when not use_last || not_allowed_for_part i' -> begin
+            let default =
+              let left =
+                match VDQ.may_be_less ask.eval_int i' e with     (* (may i < e) ? xl : bot *) (* TODO: untested *)
+                | false -> xl
+                | _ -> lubIfNotBot xl in
+              let middle =
+                match VDQ.may_be_equal ask.eval_int i' e with    (* (may i = e) ? xm : bot *)
+                | false -> xm
+                | _ -> Val.join xm a in
+              let right =
+                match VDQ.may_be_less ask.eval_int e i' with     (* (may i > e) ? xr : bot *) (* TODO: untested *)
+                | false -> xr
+                | _ -> lubIfNotBot xr in
+              Partitioned (e, (left, middle, right))
+            in
+            if isEqual e i' then
+              (*  e = _{must} i => update strongly *)
+              Partitioned (e, (xl, a, xr))
+            else if Cil.isConstant e && Cil.isConstant i' then
+              match Cil.getInteger e, Cil.getInteger i' with
+              | Some (e'': Cilint.cilint), Some i'' ->
+                if BI.equal  i'' (BI.add e'' BI.one) then
+                  (* If both are integer constants and they are directly adjacent, we change partitioning to maintain information *)
+                  Partitioned (i', (Val.join xl xm, a, xr))
+                else if BI.equal e'' (BI.add i'' BI.one) then
+                  Partitioned (i', (xl, a, Val.join xm xr))
+                else
+                  default
+              | _ ->
+                default
+            else
+              default
+          end
+        | Some i' ->
+          if isEqual e i' then
+            Partitioned (e, (xl, a, xr))
+          else
+            let left = if equals_zero i' then Val.bot () else Val.join xl @@ Val.join
+                  (match VDQ.may_be_equal ask.eval_int e i' with (* TODO: untested *)
+                   | false -> Val.bot()
+                   | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
+                  (
+                    let t = Cilfacade.typeOf e in
+                    let ik = Cilfacade.get_ikind t in
+                    match VDQ.must_be_equal ask.eval_int (BinOp(PlusA, e, Cil.kinteger ik 1, t)) i' with
+                    | true -> xm
+                    | _ ->
+                      begin
+                        match VDQ.may_be_less ask.eval_int e i' with (* TODO: untested *)
+                        | false-> Val.bot()
+                        | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
+                      end
+                  )
+            in
+            let right = if equals_maxIndex i' then Val.bot () else  Val.join xr @@  Val.join
+                  (match VDQ.may_be_equal ask.eval_int e i' with (* TODO: untested *)
+                   | false -> Val.bot()
+                   | _ -> xm)
+
+                  (
+                    let t = Cilfacade.typeOf e in
+                    let ik = Cilfacade.get_ikind t in
+                    match VDQ.must_be_equal ask.eval_int (BinOp(PlusA, e, Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
+                    | true -> xm
+                    | _ ->
+                      begin
+                        match VDQ.may_be_less ask.eval_int i' e with (* TODO: untested *)
+                        | false -> Val.bot()
+                        | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
+                      end
+                  )
+            in
+            (* The new thing is partitioned according to i so we can strongly update *)
+            Partitioned (i',(left, a, right))
+        | _ ->
+          (* If the expression used to write is not known, all segments except the empty ones will be affected *)
+          Partitioned (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
+
+  let set = set_with_length None
+
+
+  let make ?(varAttr=[]) ?(typAttr=[]) i v:t =
+    if Idx.to_int i = Some BI.one  then
+      Partitioned ((Cil.integer 0), (v, v, v))
+    else if Val.is_bot v then
+      Joint (Val.bot ())
+    else
+      Joint v
+
+  let length _ = None
+
+  let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 x1_eval_int x2_eval_int =
+    normalize @@
+    let must_be_length_minus_one v = match length with
+      | Some l ->
+        begin
+          match Idx.to_int l with
+          | Some i ->
+            v = Some (BI.sub i BI.one)
+          | None -> false
+        end
+      | None -> false
+    in
+    let must_be_zero v = v = Some BI.zero in
+    let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
+    match x1, x2 with
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) when Basetype.CilExp.equal e1 e2 ->
+      Partitioned (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if get_string "ana.base.partition-arrays.keep-expr" = "last" || get_bool "ana.base.partition-arrays.smart-join" then
+        let op = Val.join in (* widen between different components isn't called validly *)
+        let over_all_x1 = op (op xl1 xm1) xr1 in
+        let over_all_x2 = op (op xl2 xm2) xr2 in
+        let e1_in_state_of_x2 = x2_eval_int e1 in
+        let e2_in_state_of_x1 = x1_eval_int e2 in
+        (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
+        (* It is mostly SOME order to ensure commutativity of join *)
+        let e1_is_better = (not (Cil.isConstant e1) && Cil.isConstant e2) || Basetype.CilExp.compare e1 e2 < 0 in
+        if e1_is_better then (* first try if the result can be partitioned by e1e *)
+          if must_be_zero e1_in_state_of_x2  then
+            Partitioned (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+          else if must_be_length_minus_one e1_in_state_of_x2  then
+            Partitioned (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+          else if must_be_zero e2_in_state_of_x1 then
+            Partitioned (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+          else if must_be_length_minus_one e2_in_state_of_x1 then
+            Partitioned (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+          else
+            Joint op_over_all
+        else  (* first try if the result can be partitioned by e2e *)
+        if must_be_zero e2_in_state_of_x1 then
+          Partitioned (e2, (xl2, op over_all_x1 xm2, op over_all_x1 xr2))
+        else if must_be_length_minus_one e2_in_state_of_x1 then
+          Partitioned (e2, (op over_all_x1 xl2, op over_all_x1 xm2, xr2))
+        else if must_be_zero e1_in_state_of_x2 then
+          Partitioned (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
+        else if must_be_length_minus_one e1_in_state_of_x2 then
+          Partitioned (e1, (op xl1 over_all_x2, op xm1 over_all_x2, xr1))
+        else
+          Joint op_over_all
+      else
+        Joint op_over_all
+    | Joint _, Joint _ ->
+      Joint op_over_all
+    | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
+      if must_be_zero (x1_eval_int e2) then
+        Partitioned (e2, (xl2, op x1 xm2, op x1 xr2))
+      else if must_be_length_minus_one (x1_eval_int e2) then
+        Partitioned (e2, (op x1 xl2, op x1 xm2, xr2))
+      else
+        Joint op_over_all
+    | Partitioned (e1, (xl1, xm1, xr1)), Joint x2 ->
+      if must_be_zero (x2_eval_int e1) then
+        Partitioned (e1, (xl1, op xm1 x2, op xr1 x2))
+      else if must_be_length_minus_one (x2_eval_int e1) then
+        Partitioned (e1, (op xl1 x2, op xm1 x2, xr1))
+      else
+        Joint op_over_all
+
+  let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
+    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+
+  let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
+    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+
+  let smart_leq_with_length length x1_eval_int x2_eval_int x1 x2 =
+    let leq' = Val.smart_leq x1_eval_int x2_eval_int in
+    let must_be_zero v = (v = Some BI.zero) in
+    let must_be_length_minus_one v =  match length with
+      | Some l ->
+        begin
+          match Idx.to_int l with
+          | Some i ->
+            v = Some (BI.sub i BI.one)
+          | None -> false
+        end
+      | None -> false
+    in
+    match x1, x2 with
+    | Joint x1, Joint x2 ->
+      leq' x1 x2
+    | Partitioned (e1, (xl1, xm1, xr1)), Joint x2 ->
+      (* leq' (Val.join xl1 (Val.join xm1 xr1)) (Val.join xl2 (Val.join xm2 xr2)) *)
+      leq' xl1 x2 && leq' xm1 x2 && leq' xr1 x2
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
+        leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
+      else if must_be_zero (x1_eval_int e2) then
+        (* A read will never be from xl2 -> we can ignore that here *)
+        let l = join_of_all_parts x1 in
+        leq' l xm2 && leq' l xr2
+      else if must_be_length_minus_one (x1_eval_int e2) then
+        (* A read will never be from xr2 -> we can ignore that here *)
+        let l = join_of_all_parts x1 in
+        leq' l xl2 && leq' l xm2
+      else
+        false
+    | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
+      if must_be_zero (x1_eval_int e2) then
+        leq' x1 xm2 && leq' x1 xr2
+      else if must_be_length_minus_one (x1_eval_int e2) then
+        leq' x1 xl2 && leq' x1 xm2
+      else
+        leq' x1 xl2 && leq' x1 xr2 && leq' x1 xm2 && leq' x1 xr2
+
+  let smart_join = smart_join_with_length None
+  let smart_widen = smart_widen_with_length None
+  let smart_leq = smart_leq_with_length None
+
+  let meet x y = normalize @@ match x,y with
+    | Joint x, Joint y -> Joint (Val.meet x y)
+    | Joint x, Partitioned (e, (xl, xm, xr))
+    | Partitioned (e, (xl, xm, xr)), Joint x ->
+      Partitioned (e, (Val.meet x xl, Val.meet x xm, Val.meet x xr))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
+        Partitioned (e1, (Val.meet xl1 xl2, Val.meet xm1 xm2, Val.meet xr1 xr2))
+      else
+        (* partitioned according to two different expressions -> meet can not be element-wise *)
+        (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+        (* TODO: do smart things if the relationship between e1e and e2e is known *)
+        x
+
+  let narrow x y = normalize @@ match x,y with
+    | Joint x, Joint y -> Joint (Val.narrow x y)
+    | Joint x, Partitioned (e, (xl, xm, xr))
+    | Partitioned (e, (xl, xm, xr)), Joint x ->
+      Partitioned (e, (Val.narrow x xl, Val.narrow x xm, Val.narrow x xr))
+    | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
+      if Basetype.CilExp.equal e1 e2 then
+        Partitioned (e1, (Val.narrow xl1 xl2, Val.narrow xm1 xm2, Val.narrow xr1 xr2))
+      else
+        (* partitioned according to two different expressions -> narrow can not be element-wise *)
+        (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+        x
+
+  let update_length _ x = x
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval x =
+    match offset with
+    (* invariants for all indices *)
+    | NoOffset when get_bool "witness.invariant.goblint" ->
+      let i_lval = Cil.addOffsetLval (Index (Lval.all_index_exp, NoOffset)) lval in
+      value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
+    | NoOffset ->
+      Invariant.none
+    (* invariant for one index *)
+    | Index (i, offset) ->
+      Invariant.none (* TODO: look up *)
+    (* invariant for one field *)
+    | Field (f, offset) ->
+      Invariant.none
+end
+
+(* This is the main array out of bounds check *)
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+  if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    (* For an explanation of the warning types check the Pull Request #255 *)
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+    | Some true, None ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+    | Some false, Some true ->
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+    | None, Some true ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+    | _ ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+  else ()
+
+
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (x,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set (x,l) i v = Base.set x i v, l
-  let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
-  let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+
+  let domain_of_t _ = TrivialDomain
+
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
+  let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
+  let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
+  let length (_,l) = Some l
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x
+  let get_vars_in_e _ = []
+
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
+  let update_length newl (x, l) = (x, newl)
+
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
+
+module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
-  include Printable.Std
-  include Lattice.StdCousot
+  module Base = Partitioned (Val) (Idx)
+  include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
-  type value = Base.t
-  and t = value array [@@deriving to_yojson]
+  type value = Val.t
 
-  let name () = "native arrays"
-  let hash = Hashtbl.hash
-  let compare = Pervasives.compare (* NB! is not guaranteed to terminate on cyclic data *)
+  let domain_of_t _ = PartitionedDomain
 
-  let for_all2 f i o =
-    let len_i = Array.length i in
-    let len_o = Array.length o in
-    if (len_i!=len_o) then
-      false
-    else
-      let tt = ref true in
-      let id = ref 0 in
-      while (!tt && !id < len_i) do
-        tt := f i.(!id) o.(!id);
-        id := succ !id
-      done;
-      !tt
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
+  let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
+  let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
+  let length (_,l) = Some l
 
-  let equal i o =
-    for_all2 Base.equal i o
+  let move_if_affected ?replace_with_const ask (x,l) v i =
+    (Base.move_if_affected_with_length ?replace_with_const (Some l) ask x v i), l
 
-  let leq a b =
-    ((A.length a) == (A.length b))&&
-    let barr = A.mapi (fun i v -> Base.leq v (A.get b i)) a in
-    A.fold_left (&&) true barr
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x
+  let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
-  let isSimple a = A.length a <3
+  let smart_join x_eval_int y_eval_int (x,xl) (y,yl) =
+    let l = Idx.join xl yl in
+    (Base.smart_join_with_length (Some l) x_eval_int y_eval_int x y , l)
 
-  let bot () = raise (Lattice.Unsupported "array bot?")
-  let is_top _ = false
-  let top () = raise (Lattice.Unsupported "array top?")
-  let is_bot _ = false
+  let smart_widen x_eval_int y_eval_int (x,xl) (y,yl) =
+    let l = Idx.join xl yl in
+    (Base.smart_widen_with_length (Some l) x_eval_int y_eval_int x y, l)
 
-  let map_arrays f a b =
-    let a_length = A.length a in
-    let b_length = A.length b in
-    if (a_length = b_length) then
-      let items n = f a.(n) b.(n) in
-      A.init a_length items
-    else
-      failwith "Arrays have different lengths"
+  let smart_leq x_eval_int y_eval_int (x,xl) (y,yl)  =
+    let l = Idx.join xl yl in
+    Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_eval_int y_eval_int x y
 
-  let join a b =
-    map_arrays Base.join a b
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
+  let update_length newl (x, l) = (x, newl)
 
-  let meet a b =
-    map_arrays Base.meet a b
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
-  let short w x =
-    let itemlist = Array.to_list x in
-    let strlist  = List.map (Base.short max_int) itemlist in
-    Printable.get_short_list "Array: {" "}" (w-9) strlist
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
 
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
 
-  let toXML_f _ a =
-    let text = short Goblintutil.summary_length a in
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = string_of_int i ^ " -> " ^ attrib in
-      match a with
-        Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-      | _ -> a in
-    let indexed_children = A.to_list (A.mapi add_index (A.map Base.toXML a)) in
-    Xml.Element ("Node", [("text", text)], indexed_children )
-
-
-  let pretty_f _ () x =
-    let pretty_index i e = num i ++ text " -> " ++ (Base.pretty () e) in
-    let content = A.to_list (A.mapi pretty_index x) in
-    let rec separate x =
-      match x with
-      | [] -> []
-      | [x] -> [x]
-      | (x::xs) -> x ++ line :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-    (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
-
-  let pretty ()  x = pretty_f short () x
-  let toXML s = toXML_f short s
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let get a i =
-    let folded () =
-      Array.fold_left Base.join (Base.bot ()) a in
-    let get_index i =
-      if (i >= 0 && i < Array.length a) then
-        A.get a i
-      else begin
-        warn "Array index out of bounds";
-        folded ()
-      end
-    in
-    if Idx.is_int i then
-      match  Idx.to_int i with
-      | Some ix -> get_index (Int64.to_int ix)
-      | _       -> failwith "Can't get an index value"
-    else
-      (* If an index is unknown, return the upper bound of
-         all possible elements *)
-      folded ()
-
-  let set a i v =
-    let set_inplace a i v =
-      let top_value () =
-        Array.map (fun x -> Base.top ()) a in
-      let joined_value () =
-        Array.map (Base.join v) a in
-      let set_index i =
-        A.set a i v;
-        a in
-      if Idx.is_int i then
-        match Idx.to_int i with
-        | Some ix -> set_index (Int64.to_int ix)
-        | _  -> warn "Array set with unknown index";
-          top_value ()
-      else
-        joined_value () in
-    set_inplace (A.copy a) i v
-
-  let make i v =
-    A.make i v
-
-  let length a =
-    Some (A.length a)
-
-  let printXml f xs =
-    let print_one k v =
-      BatPrintf.fprintf f "<key>\n%d</key>\n%a" k Base.printXml v
-    in
-    BatPrintf.fprintf f "<value>\n<map>\n";
-    Array.iteri print_one xs ;
-    BatPrintf.fprintf f "</map>\n</value>\n"
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-(*
-module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
+module UnrollWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
-  module A = NativeArray (Base) (Idx)
+  module Base = Unroll (Val) (Idx)
+  include Lattice.Prod (Base) (Idx)
+  type idx = Idx.t
+  type value = Val.t
+
+  let domain_of_t _ = UnrolledDomain
+
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
+  let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
+  let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
+  let length (_,l) = Some l
+
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x
+  let get_vars_in_e _ = []
+
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
+  let update_length newl (x, l) = (x, newl)
+
+  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  let invariant ~value_invariant ~offset ~lval (x, _) =
+    Base.invariant ~value_invariant ~offset ~lval x
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
+end
+
+module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
+struct
+  module P = PartitionedWithLength(Val)(Idx)
+  module T = TrivialWithLength(Val)(Idx)
+  module U = UnrollWithLength(Val)(Idx)
 
   type idx = Idx.t
-  type value = Base.t
-
-  include Lattice.Lift (A) (struct let bot_name = "array bot"
-                                   let top_name = "array top" end)
-
-  let get x i =
-    match x with
-      | `Top -> Base.top ()
-      | `Bot -> Base.top ()
-      | `Lifted a -> A.get a i
-
-  let set x i v =
-    match x with
-      | `Top -> `Top
-      | `Bot -> `Bot
-      | `Lifted a -> `Lifted (A.set a i v)
-
-  let make (i:int) v = `Lifted (A.make i v)
-
-  let length x =
-    match x with
-      | `Lifted a -> A.length a
-      | _ -> None
-
-end
-
-
-module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
-struct
-  module Array = NativeArray (Base) (Idx)
-  include Printable.Std
-  include Lattice.StdCousot
-
-  let name () = "collapsing arrays"
-  type idx = Idx.t
-  type value = Base.t
-
-  type t = Value  of value
-     | Array of Array.t
-
-  let hash  = Hashtbl.hash
-
-  let equal x y =
-    match (x,y) with
-      | (Value v1,Value v2) -> Base.equal v1 v2
-      | (Array v1,Array v2) -> Array.equal v1 v2
-      | _ -> false
-
-
-  let compare a b =
-    match (a,b) with
-      | Value v1, Value v2 ->  Base.compare v1 v2
-      | Array v1, Array v2 -> Array.compare v1 v2
-      | Array v1, Value v2 -> -1
-      | Value v1, Array v2 ->  1
-
-  let isSimple (a:t) =
-    match a with
-  Value v -> true
-      | Array v -> Array.isSimple v
-
-  let leq a b =
-    match (a,b) with
-      | Value v1, Value v2 -> Base.leq v1 v2
-      | Array v1, Array v2 -> Array.leq v1 v2
-      | Array v1, Value v2 -> not (Base.equal (Base.bot ()) v2)
-      | Value v1, Array v2 -> Base.equal v1 (Base.bot ())
-
-  let join a b =
-    let arr_len a =
-      match Array.length a with
-        | Some v -> v
-        | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = Array.make (arr_len ar) va in
-      match (a,b) with
-    (Value v1, Value v2) -> Value (Base.join v1 v2)
-  | (Array v1, Array v2) -> Array (Array.join v1 v2)
-  | (Array v1, Value v2) -> Array (Array.join v1 (value_array v1 v2))
-  | (Value v1, Array v2) -> Array (Array.join v2 (value_array v2 v1))
-
-
-  let meet a b =
-     let arr_len a =
-      match Array.length a with
-        | Some v -> v
-        | None -> failwith "Cannot get length of native array." in
-    let value_array ar va = Array.make (arr_len ar) va in
-      match (a,b) with
-    (Value v1, Value v2) -> Value (Base.meet v1 v2)
-  | (Array v1, Array v2) -> Array (Array.meet v1 v2)
-  | (Array v1, Value v2) -> Array (Array.meet v1 (value_array v1 v2))
-  | (Value v1, Array v2) -> Array (Array.meet v2 (value_array v2 v1))
-
-
-  let short w x =
-    match x with
-  Value v -> "Array: {" ^ (Base.short (w - 9) v) ^ "}"
-      | Array v -> Array.short w v
-
-  let valueToXML a =
-    let add_prefix x =
-      let text = Base.short (Goblintutil.summary_length - 9) a in
-      let new_attr = "Array: {" ^ text ^ "}" in
-  match x with
-      Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-    | _ -> x in
-      add_prefix (Base.toXML a)
-
-  let toXML_f _ a =
-    match a with
-  Value v -> valueToXML v
-      | Array v -> Array.toXML v
-
-
-  let bot () = Value (Base.bot ())
-  let is_bot a =
-    match a with
-      | Array _ -> false
-      | Value v -> Base.is_bot v
-
-  let top () = Value (Base.top ())
-  let is_top a =
-    match a with
-      | Array _ -> false
-      | Value v -> Base.is_top v
-
-
-  let pretty_f _ () x =
-    match x with
-  Value v -> text "Array: " ++ Base.pretty () v
-      | Array v -> Array.pretty () v
-
-
-  let get a i =
-    match a with
-  Value v -> v
-      | Array v -> Array.get v i
-
-
-  let set a i n =
-    match a with
-  Value v -> Value (Base.join v n)
-      | Array v -> Array (Array.set v i n)
-
-  let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let make i v =
-    if i > 25 then
-      Value v
-    else
-      Array (Array.make i v)
-
-  let length x =
-    match x with
-      | Array a -> Array.length a
-      | _ -> None
-
-end
-
-
-module MapArray (I: sig val n : int option end) (Base: Lattice.S) (Idx: IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
-struct
-  include Printable.Std
-  include Lattice.StdCousot
-
-  module M = Map.Make (Idx)
-
-  type t =
-    | Mapping of Base.t M.t
-    | Bot
-
-  type value = Base.t
-  type idx = Idx.t
-
-  let equal x y = match x,y with
-    | Mapping a, Mapping b -> M.equal Base.equal a b
-    | Bot, Bot -> true
-    | _ -> false
-
-  let compare x y =
-    match x,y with
-      | Bot, Bot -> 0
-      | Bot, _   -> -1
-      | _  , Bot -> 1
-      | Mapping a, Mapping b -> M.compare Base.compare a b
-
-  let leq x y =
-    match x,y with
-      | Bot, _   -> true
-      | _  , Bot -> false
-      | Mapping a, Mapping b -> M.equal Base.equal a b
-
-  let hash  = Hashtbl.hash
-  let name () = "map array"
-
-  let top () = Mapping M.empty
-  let is_top x =
-    match x with
-      | Bot -> false
-      | Mapping m -> M.is_empty m
-
-  let bot () = Bot
-  let is_bot = (=) Bot
-
-  let isSimple x =
-    match x with
-      | Bot -> true
-      | Mapping a -> M.is_empty a
-
-  let short w a =
-    match a with
-      | Bot -> "Erronous array"
-      | Mapping x when is_top a -> "Unknown array"
-      | Mapping a ->
-        let strlist =
-          M.fold (fun x y l ->
-            ((Idx.short max_int x) ^  " -> " ^
-            (Base.short max_int y))::l) a ([]:string list) in
-        Printable.get_short_list "Array: {" "}" (w-9) strlist
-
-  let pretty_f _ () a =
-    match a with
-      | Bot -> text "Erronous array"
-      | Mapping x ->
-    let content =
-      M.fold (fun x y l ->
-        (text (Idx.short max_int x) ++ text " -> " ++
-        text (Base.short max_int y)) :: l) x [] in
-    let rec separate x =
-      match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ line :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-      (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
-
-  let pretty () = pretty_f short ()
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let toXML_f s x =
-    let text = s Goblintutil.summary_length x in
-    match x with
-      | Bot -> Xml.Element ("Node", [("text", text)],[])
-      | Mapping a ->
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = (Idx.short max_int i) ^ " -> " ^ attrib in
-      match a with
-        | Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-        | _ -> a in
-    let transform i v l : Xml.xml list =
-      (add_index i (Base.toXML v)) :: l in
-    let indexed_children = M.fold transform a [] in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-  let toXML = toXML_f short
-
-  let meet x y =
-    let meet_base2 key a b map =
-      let m = Base.meet a b in
-      M.add key m map in
-    let meet_base key a map =
-      match M.mem key map with
-        | false -> M.add key a map
-        | true  -> meet_base2 key a (M.find key map) map in
-    let meet_mappings a b =
-      M.fold meet_base a b in
-    match x, y with
-      | Bot, _   -> Bot
-      | _  , Bot -> Bot
-      | Mapping a, Mapping b -> Mapping (meet_mappings a b)
-
-  let join x y =
-    let join_base2 key a b map =
-      let m = Base.join a b in
-      if Base.is_top m then
-        M.remove key map
-      else
-        M.add key m map in
-    let join_base key a map =
-      match M.mem key map with
-        | false -> M.add key a map
-        | true  -> join_base2 key a (M.find key map) map in
-    let join_mappings a b =
-      M.fold join_base a b in
-    match x, y with
-      | Bot, a   -> a
-      | a  , Bot -> a
-      | Mapping a, Mapping b -> Mapping (join_mappings a b)
-
-  let get x i =
-    match x with
-      | Bot -> Base.top ()
-      | Mapping map when M.mem i map -> M.find i map
-      | Mapping map -> Base.top ()
-
-  let set x i v =
-    let add_map  map i v = M.add i v map in
-    let join_map map v = M.map (Base.join v) map in
-    match x with
-      | Bot when Idx.is_int i -> Mapping (add_map M.empty i v)
-      | Bot -> top ()
-      | Mapping m when Idx.is_int i -> Mapping (add_map m i v)
-      | Mapping m -> Mapping (join_map m v)
-
-  let make i v =
-    let rec add_items cur mx map =
-      if cur = mx then
-        map
-      else
-        add_items (cur+1) mx (set map (Idx.of_int (Int64.of_int cur)) v) in
-    match I.n with
-      | Some n -> add_items 0 (min i n) (top ())
-      | None -> top ()
-
-  let length _ = None
-end
-
-
-(*
-  Spec for CountingMap:
-
-  * drop_one   -- removes one item from map (length > 0)
-  * length     -- number of items in map (-top index?)
-  * drop_while -- drop map item while predicate is true
-  * find       -- returns item or top
-  * standard map, fold
-  * standard make, add
-
-  - does not care about non-int indeces
-
- *)
-module CountingMap (Base: Lattice.S) (Idx: IntDomain.S) =
-struct
-  module M = Map.Make (Idx)
-
-  type scmap = (int ref) M.t
-  type t = Base.t M.t (*map*) * scmap (*index map*) * int ref (*pos*) * int (*len*)
-
-  let set_use (map, index, _, len) pos = (map, index, ref pos, len)
-
-  let get_use ( _, _, pos, _) = !pos
-
-  let get_item_use ( _, index, _, _) key =
-    try !(M.find key index) with Not_found -> 0
-
-  let make element : t =
-    (M.add (Idx.top ()) element M.empty, M.empty,ref 0, 0)
-
-  let add (map,index,pos,len) key value =
-    let top_index = Idx.top () in
-    let top_value = M.find top_index map in
-
-    let try_insert () =
-      let item_added = M.add key value map in
-      let index_added = M.add key (ref !pos) index in
-      let new_len = if M.mem key map then len else len+1 in
-      (item_added, index_added, ref (!pos+1), new_len) in
-
-    let try_erase () =
-      if M.mem key map then
-        let erase_map = M.remove key map in
-        let erase_index = M.remove key index in
-        (erase_map, erase_index, pos, len-1)
-      else
-        (map, index, pos, len) in
-
-    let handle_nontop_key () =
-      if (Base.equal top_value value) then
-        try_erase ()
-      else
-        try_insert () in
-
-    if (Idx.is_top key) then (* special case -- really set top key*)
-      let new_map = M.add key value map in
-      (new_map, index, pos, len)
-    else (* default case -- try to add item *)
-      handle_nontop_key ()
-
-  let add_w_use emap key value use =
-    let (map, index, pos, len) = add emap key value in
-    (map, M.add key (ref use) index, pos, len)
-
-  module Rev_int =
-  struct
-    type t = int * Idx.t
-    let compare (a,_) (b,_) = Pervasives.compare a b
-    let value (_,i) = i
-    let make i v = (i,v)
+  type value = Val.t
+
+  module K = struct
+    let msg = "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
+    let name = "AttributeConfiguredArrayDomain"
   end
 
-  module RISet = Set.Make(Rev_int)
+  let to_t = function
+    | (Some p, None, None) -> (Some p, None)
+    | (None, Some t, None) -> (None, Some (Some t, None))
+    | (None, None, Some u) -> (None, Some (None, Some u))
+    | _ -> failwith "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
 
-  let drop ((map,index,pos,len) as emap) (n:int) =
-    if n <= 0 then
-      emap
-    else
-      let f_insert key value set = RISet.add (Rev_int.make !value key) set in
-      let set = M.fold f_insert index RISet.empty in
-      let drop_fn (_,v) (m,i,n) =
-        if n <= 0 then
-          (m,i,n)
-        else
-          let idx = Idx.top () in
-          let rest  = M.find idx m in
-          let value = M.find v   m in
-          let join_top = M.add idx (Base.join rest value) m in
-          (M.remove v join_top, M.remove v i, n-1) in
-      let (newmap, newindex, _) = RISet.fold drop_fn set (map,index,n) in
-      (newmap, newindex, pos, len - n)
+  module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
+  include LatticeFlagHelper (P) (I) (K)
 
+  let domain_of_t = function
+    | (Some p, None) -> PartitionedDomain
+    | (None, Some (Some t, None)) -> TrivialDomain
+    | (None, Some (None, Some u)) -> UnrolledDomain
+    | _ -> failwith "Array of invalid domain"
 
-  let map (map,index,pos,len) fn =
-    (M.map fn map, index, pos, len)
+  let binop' opp opt opu = binop opp (I.binop opt opu)
+  let unop' opp opt opu = unop opp (I.unop opt opu)
+  let binop_to_t' opp opt opu = binop_to_t opp (I.binop_to_t opt opu)
+  let unop_to_t' opp opt opu = unop_to_t opp (I.unop_to_t opt opu)
 
-  let mapi (map,index,pos,len) fn =
-    (M.mapi fn map, index, pos, len)
-
-  let drop_while ((map,index,pos,len) as emap) (fn: Idx.t -> Base.t -> bool): t =
-    let rest_index = Idx.top () in
-    let rest = M.find rest_index map in
-
-    let drop_on_pred key value (rest,(map,index,pos,len)) =
-      if ((not (Idx.is_top key)) && fn key value) then
-        let new_rest = Base.join value rest in
-        let remove_from_map = M.remove key map in
-        let remove_from_idx = M.remove key index in
-        (new_rest, (remove_from_map, remove_from_idx, pos,len-1))
+  (* Simply call appropriate function for component that is not None *)
+  let get ?(checkBounds=true) a x (e,i) = unop' (fun x ->
+      if e = None then
+        let e' = BatOption.map (fun x -> Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x) (Idx.to_int i) in
+        P.get ~checkBounds a x (e', i)
       else
-        (rest,(map, index, pos, len)) in
-    let new_rest, new_map = M.fold drop_on_pred map (rest,emap) in
-    let result = add new_map rest_index new_rest in
-    result
+        P.get ~checkBounds a x (e, i)
+    ) (fun x -> T.get ~checkBounds a x (e,i)) (fun x -> U.get ~checkBounds a x (e,i)) x
+  let set (ask:VDQ.t) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
+  let length = unop' P.length T.length U.length
+  let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
+  let fold_left f s = unop' (P.fold_left f s) (T.fold_left f s) (U.fold_left f s)
 
-  let remove ((map,index,pos,len) as emap) key =
-    let key_in = M.mem key map in
-    if key_in then
-      (M.remove key map, M.remove key index, pos, len-1)
-    else emap
+  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
+  let get_vars_in_e = unop' P.get_vars_in_e T.get_vars_in_e U.get_vars_in_e
+  let smart_join f g = binop_to_t' (P.smart_join f g) (T.smart_join f g) (U.smart_join f g)
+  let smart_widen f g =  binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)
+  let smart_leq f g = binop' (P.smart_leq f g) (T.smart_leq f g) (U.smart_leq f g)
+  let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
+  let name () = "AttributeConfiguredArrayDomain"
 
-  let find ((map,index,pos,len):t) key =
-    if M.mem key map then
-      M.find key map
-    else
-      M.find (Idx.top ()) map
+  let bot () = to_t @@ match get_domain ~varAttr:[] ~typAttr:[] with
+    | PartitionedDomain -> (Some (P.bot ()), None, None)
+    | TrivialDomain -> (None, Some (T.bot ()), None)
+    | UnrolledDomain ->  (None, None, Some (U.bot ()))
 
-  let length (_,_,_,len) = len
+  let top () = to_t @@ match get_domain ~varAttr:[] ~typAttr:[] with
+    | PartitionedDomain -> (Some (P.top ()), None, None)
+    | TrivialDomain -> (None, Some (T.top ()), None)
+    | UnrolledDomain -> (None, None, Some (U.top ()))
 
-  let fold (map,_,_,_) f = M.fold f map
+  let make ?(varAttr=[]) ?(typAttr=[]) i v = to_t @@  match get_domain ~varAttr ~typAttr with
+    | PartitionedDomain -> (Some (P.make i v), None, None)
+    | TrivialDomain -> (None, Some (T.make i v), None)
+    | UnrolledDomain -> (None, None, Some (U.make i v))
 
-  let mem (map,_,_,_) key = M.mem key map
+  (* convert to another domain *)
+  let index_as_expression i = (Some (Cil.integer i), Idx.of_int IInt (BI.of_int i))
 
-  let equal (map1,_,_,len1) (map2,_,_,len2) =
-    (len1 == len2) && (M.equal Base.equal map1 map2)
+  let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
 
-  let compare (map1,_,_,len1) (map2,_,_,len2) =
-    if len1 == len2 then
-      M.compare Base.compare map1 map2
-    else
-      Pervasives.compare len1 len2
+  let partitioned_of_unroll ask u =
+    (* We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly useful? *)
+    let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ()))) in
+    let p = P.make (Option.value (U.length u) ~default:(Idx.top ())) rest in
+    let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i)) in
+    let set_i p (i,v) =  P.set ask p (index_as_expression i) v in
+    List.fold_left set_i p @@ List.init (factor ()) get_i
 
-  let leq (a:t) (b:t) : bool =
-    (fold (mapi a (fun (i:Idx.t) (v:Base.t)  -> Base.leq v (find b i))) (fun _ -> (&&)) true) &&
-    (fold (mapi b (fun (i:Idx.t) (v:Base.t)  -> Base.leq (find a i) v)) (fun _ -> (&&)) true)
+  let trivial_of_partitioned ask p =
+    let element = (P.get ~checkBounds:false ask p (None, Idx.top ()))
+    in T.make (Option.value (P.length p) ~default:(Idx.top ())) element
 
+  let trivial_of_unroll ask u =
+    let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) in
+    let element = List.fold_left Val.join (get_i (factor ())) @@ List.init (factor ()) get_i in (*join all single elements and the element at  *)
+    T.make (Option.value (U.length u) ~default:(Idx.top ())) element
 
-  let hash (map,_,_,_) = Hashtbl.hash map
+  let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
 
-  let use_key (map,index,pos,len) key =
-    if M.mem key index then
-      let use = M.find key index in
-      use := !pos;
-      incr pos
-     else ()
+  let unroll_of_partitioned ask p =
+    let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i))) in
+    (* This could be more precise if we were able to compare this with the partition index, but we can not access it here *)
+    let rest = (P.get ~checkBounds:false ask p (None, Idx.top ())) in
+    let u = U.make (Option.value (P.length p) ~default:(Idx.top ())) (Val.bot ()) in
+    let set_i u (i,v) =  U.set ask u (index_as_expression i) v in
+    set_i (List.fold_left set_i u unrolledValues) (factor (), rest)
 
+  let project ?(varAttr=[]) ?(typAttr=[]) ask (t:t) =
+    match get_domain ~varAttr ~typAttr, t with
+    | PartitionedDomain, (Some x, None) -> to_t @@ (Some x, None, None)
+    | PartitionedDomain, (None, Some (Some x, None)) -> to_t @@ (Some (partitioned_of_trivial ask x), None, None)
+    | PartitionedDomain, (None, Some (None, Some x)) -> to_t @@ (Some (partitioned_of_unroll ask x), None, None)
+    | TrivialDomain, (Some x, None) -> to_t @@ (None, Some (trivial_of_partitioned ask x), None)
+    | TrivialDomain, (None, Some (Some x, None)) -> to_t @@ (None, Some x, None)
+    | TrivialDomain, (None, Some (None, Some x)) -> to_t @@ (None, Some (trivial_of_unroll ask x), None)
+    | UnrolledDomain, (Some x, None) -> to_t @@ (None, None, Some (unroll_of_partitioned ask x) )
+    | UnrolledDomain, (None, Some (Some x, None)) -> to_t @@ (None, None, Some (unroll_of_trivial ask x) )
+    | UnrolledDomain, (None, Some (None, Some x)) -> to_t @@ (None, None, Some x)
+    | _ ->  failwith "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
+
+  let invariant ~value_invariant ~offset ~lval =
+    unop'
+      (P.invariant ~value_invariant ~offset ~lval)
+      (T.invariant ~value_invariant ~offset ~lval)
+      (U.invariant ~value_invariant ~offset ~lval)
 end
-
-(* Majority of code in *MapArrayDomains is shared.
-  Functions that differ are name, meet?, join, set (and maybe make?) *)
-module SharedMapArrayParts (Base:Lattice.S) (Idx:IntDomain.S) =
-struct
-
-  include Lattice.StdCousot
-
-  module M = CountingMap(Base)(Idx)
-
-  type t = M.t * int
-  type value = Base.t
-  type idx = Idx.t
-
-  let get ((map:M.t),len) index : Base.t=
-    let join_values key value other = Base.join value other in
-    let joined_items () = M.fold map join_values (Base.bot ()) in
-    if Idx.is_int index then begin
-      M.use_key map index;
-      M.find map index
-    end else
-      joined_items ()
-
-  let equal (map1,len1) (map2,len2) =
-    (len1 == len2) && (M.equal map1 map2)
-
-  let hash (map,len) =
-    Hashtbl.hash ((M.hash map), len)
-
-  let compare (map1,length1) (map2,length2) =
-    if length1 == length2 then
-      M.compare map1 map2
-    else
-      Pervasives.compare length1 length2
-
-  let leq (map1,length1) (map2,length2) =
-    (length1 == length2) && M.leq map1 map2
-
-  let length (map,len) = Some len
-
-  let make length value =
-    (M.make value, length)
-
-  let copy p = p
-
-  let top () = failwith "*MapArray's should be uses in conjunction with Lattice.Lift"
-  let bot () = failwith "*MapArray's should be uses in conjunction with Lattice.Lift"
-
-  let is_top _ = false
-  let is_bot _ = false
-
-  let isSimple x = false
-
-  let short w (map,_) =
-    let strlist =
-      M.fold map (fun x y l ->
-        ((Idx.short max_int x) ^  " -> " ^
-         (Base.short max_int y)(* ^ " (" ^
-         (string_of_int (M.get_item_use map x)) ^ ")"*))::l) ([]:string list)  in
-    Printable.get_short_list "Array: {" "}" (w-9) strlist
-
-  let pretty_f _ () (map,_) =
-    let content =
-      M.fold map (fun x y l ->
-        (text (Idx.short max_int x) ++ text " -> " ++
-        (Base.pretty () y)) :: l) [] in
-    let rec separate x =
-      match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ line :: separate xs
-    in
-    let separated = separate content in
-    let content = List.fold_left (++) nil separated in
-      (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
-
-  let pretty () = pretty_f short ()
-
-  let toXML_f s (((map:M.t), length) as a) =
-    let text = s Goblintutil.summary_length a in
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = (Idx.short max_int i) ^ " -> " ^ attrib in
-      match a with
-        | Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-        | _ -> a in
-    let transform i v l : Xml.xml list =
-      (add_index i (Base.toXML v)) :: l in
-    let indexed_children = M.fold map transform [] in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-  let toXML = toXML_f short
-
-end
-
-module PreciseMapArray
-  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
-struct
-  include Printable.Std
-  include SharedMapArrayParts(Base)(Idx)
-
-  let conform (map, length) :t =
-    match I.n with
-      | Some n -> (M.drop map ((M.length map)-n), length)
-      | None   -> (map, length)
-
-  let map2 fn (a,i) (b,_) =
-    let a_top = M.find a (Idx.top ()) in
-    let b_top = M.find b (Idx.top ()) in
-    let t_rest = fn a_top b_top in
-    let map_first key value map = (* handle indeces that are in a *)
-      let current_value = M.find b key in
-      let new_value = fn value current_value in
-      if Base.equal new_value t_rest then
-        map else
-        let use = (M.get_item_use a key)+(M.get_item_use b key) in
-        M.add_w_use map key new_value use in
-    let map_rest key value map =  (* handle indeces that are only in b*)
-      if M.mem a key then
-        map else begin
-        let new_val = fn value a_top in
-        if Base.equal new_val t_rest then
-          map else
-          let use = M.get_item_use b key in
-          M.add_w_use map key (fn value a_top) use
-        end
-    in
-    let handle_first= M.fold a map_first (M.make t_rest) in
-    let handle_rest = M.fold b map_rest  handle_first in
-    let use = (M.get_use a) + (M.get_use b) in
-    conform (M.set_use handle_rest use,i)
-
-  let join a b =
-    if equal a b
-      then a
-      else map2 Base.join a b
-
-  let meet a b =
-    if equal a b
-      then a
-      else map2 Base.meet a b
-
-  let set ((map,len) as emap) index value =
-    if Idx.is_int index then begin
-      let rest = M.find map (Idx.top ()) in
-      if Base.equal value rest then begin
-        if M.mem map index
-          then (M.remove map index, len )
-          else emap end
-        else
-        let map_with_item = M.add map index value in
-        conform (map_with_item, len)
-    end else
-      let joined_map = M.map map (Base.join value) in
-      let rest = M.find joined_map (Idx.top ()) in
-      let normalized = M.drop_while joined_map (fun _ -> Base.equal rest) in
-      (normalized, len)
-
-
-  let name () = "strict map based arrays"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-end
-
-module LooseMapArray
-  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
-struct
-  include Printable.Std
-  include SharedMapArrayParts(Base)(Idx)
-
-  let conform (map, length) :t =
-    match I.n with
-      | Some n -> (M.drop map ((M.length map)-n), length)
-      | None   -> (map, length)
-
-  let map2 fn (a,i) (b,_) =
-(*    let rest_index = Idx.top () in
-    let a_rest = M.find a rest_index in
-    let b_rest = M.find b rest_index in
-
-    let fn_if_not_in map key value o_value =
-      if M.mem map key then
-        o_value else
-        Base.join value o_value in
-
-    let new_rest_a = M.fold a (fn_if_not_in b) a_rest in
-    let new_rest_b = M.fold b (fn_if_not_in a) b_rest in
-    let new_rest = fn new_rest_a new_rest_b in
-
-    let map_union_b key value new_map =
-      if M.mem b key then begin
-(*        let old_value = M.find b key in*)
-        let new_value = fn value (M.find b key) in
-          if (Idx.is_top key) || Base.equal new_rest new_value then
-            new_map else
-            let use = (M.get_item_use b key)+(M.get_item_use a key) in
-            M.add_w_use new_map key new_value use
-      end else
-        new_map in
-
-    let result_map = M.fold a map_union_b (M.make (new_rest)) in
-    let use = (M.get_use a)+(M.get_use b) in
-(*      print_endline "--------------";
-      print_endline (short 80 (a,i));
-      print_endline (short 80 (b,i));
-      print_endline (short 80 (result_map,i));
-      print_endline "--------------";  *)
-      (M.set_use result_map use, i)
-*)
-    let not_in_map map key _ = not (M.mem map key) in
-    let new_a : M.t = M.drop_while a (not_in_map b) in
-    let new_b : M.t = M.drop_while b (not_in_map a) in
-    let rest_index = Idx.top () in
-    let rest = Base.join (M.find new_a rest_index) (M.find new_b rest_index) in
-    let fold_a key value map:M.t =
-      let old_val = M.find new_b key in
-      let new_val = fn old_val value in
-      if (Base.equal new_val rest) then
-        map else
-        M.add map key new_val in
-    let joined_maps = M.fold new_a fold_a (M.make rest) in
-    (joined_maps, i)
-
-(*
-    let rest =
-      let rest_index = Idx.top () in
-      let rest = fn (M.find a rest_index) (M.find b rest_index) in
-      let is_not_in x key value rest =
-        if M.mem x key then
-          rest
-        else
-          Base.join rest value in
-      let rest = M.fold a (is_not_in b) rest in
-      let rest = M.fold b (is_not_in a) rest in
-      rest in
-    let map_match_idxs omap key value map =
-      if M.mem omap key then begin
-        let other_value = M.find omap key in
-        let new_value = fn value other_value in
-        if Base.equal new_value rest then
-          map else
-          M.add map key new_value
-      end else
-        map in
-    let new_map = M.fold a (map_match_idxs b) (M.make rest) in
-    let new_map = M.fold b (map_match_idxs a) new_map in
-    (new_map,i)
-*)
-
-  let join a b =
-    if equal a b
-      then a
-      else map2 Base.join a b
-
-  let meet a b =
-    if equal a b
-      then a
-      else map2 Base.meet a b
-
-  let set ((map,len) as emap) index value =
-    if Idx.is_int index then begin
-      let rest = M.find map (Idx.top ()) in
-      if Base.equal value rest then begin
-        if M.mem map index
-          then (M.remove map index, len )
-          else emap end
-        else
-        let map_with_item = M.add map index value in
-        conform (map_with_item, len)
-    end else
-      let joined_map = M.map map (Base.join value) in
-      let rest = M.find joined_map (Idx.top ()) in
-      let normalized = M.drop_while joined_map (fun _ -> Base.equal rest) in
-      (normalized, len)
-
-
-  (*let set (map,len) index value =
-    if Idx.is_int index then
-      let map_with_item = M.add map index value in
-      conform (map_with_item, len)
-    else
-      let old_joined = M.fold map (fun _ -> Base.join) (Base.bot ()) in
-      let new_joined = Base.join old_joined value in
-      make len new_joined
-*)
-
-  let name () = "loose map based arrays"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-end
-
-
-module PreciseMapArrayDomain
-  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
-struct
-
-  module A = PreciseMapArray(I)(Base)(Idx)
-
-  type idx = Idx.t
-  type value = Base.t
-
-  include Lattice.Lift (A) (struct let bot_name = "array bot"
-                                   let top_name = "array top" end)
-
-  let set a i v :t =
-    match a with
-      | `Lifted l -> `Lifted (A.set l i v)
-      | z -> z
-
-  let get a i =
-    match a with
-      | `Lifted l -> A.get l i
-      | _ -> Base.top ()
-
-  let length a =
-    match a with
-      | `Lifted l -> A.length l
-      | _ -> None
-
-  let make i v = `Lifted (A.make i v)
-
-end
-
-
-module LooseMapArrayDomain
-  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
-  : S with type value = Base.t and type idx = Idx.t =
-struct
-
-  module A = LooseMapArray(I)(Base)(Idx)
-
-  type idx = Idx.t
-  type value = Base.t
-
-  include Lattice.Lift (A) (struct let bot_name = "array bot"
-                                   let top_name = "array top" end)
-
-  let set a i v :t =
-    match a with
-      | `Lifted l -> `Lifted (A.set l i v)
-      | z -> z
-
-  let get a i =
-    match a with
-      | `Lifted l -> A.get l i
-      | _ -> Base.top ()
-
-  let length a =
-    match a with
-      | `Lifted l -> A.length l
-      | _ -> None
-
-  let make i v = `Lifted (A.make i v)
-
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-end
-*)

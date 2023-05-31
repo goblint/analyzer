@@ -6,11 +6,11 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex1);
-  g1++; // NORACE!
+  g1++; // NORACE
   pthread_mutex_unlock(&mutex1);
 
   pthread_mutex_lock(&mutex2);
-  g2++; // NORACE!
+  g2++; // NORACE
   pthread_mutex_unlock(&mutex2);
   return NULL;
 }
@@ -24,9 +24,9 @@ int main(void) {
     pthread_mutex_unlock(&mutex1);
     pthread_mutex_lock(&mutex1);
   }
-  
-  g1=g2+1; // NORACE!
-  
+
+  g1=g2+1; // NORACE
+
   pthread_mutex_unlock(&mutex2);
   pthread_mutex_unlock(&mutex1);
 

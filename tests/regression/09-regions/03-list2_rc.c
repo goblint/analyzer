@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'region'" 
+// PARAM: --set ana.activated[+] "'region'"
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -18,11 +18,11 @@ pthread_mutex_t B_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A_mutex);
-  A->next->datum++; // RACE
+  A->next->datum++; // RACE!
   pthread_mutex_unlock(&A_mutex);
 
   pthread_mutex_lock(&B_mutex);
-  B->next->datum++; // RACE
+  B->next->datum++; // RACE!
   pthread_mutex_unlock(&B_mutex);
   return NULL;
 }
@@ -41,15 +41,15 @@ int main () {
   B->next = p;
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&A_mutex);
-  p = A->next; 
-  printf("%d\n", p->datum); // RACE
+  p = A->next;
+  printf("%d\n", p->datum); // RACE!
   pthread_mutex_unlock(&A_mutex);
 
   pthread_mutex_lock(&B_mutex);
-  p = B->next; 
-  printf("%d\n", p->datum); // RACE
+  p = B->next;
+  printf("%d\n", p->datum); // RACE!
   pthread_mutex_unlock(&B_mutex);
   return 0;
 }

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --sets solver slr3t
+// PARAM: --enable ana.int.interval --set solver slr3t
 #include <pthread.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

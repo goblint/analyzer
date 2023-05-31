@@ -1,6 +1,6 @@
 (* types used by specParser and functions for handling the constructed types *)
 
-open Prelude
+open Batteries
 
 exception Endl
 exception Eof
@@ -57,7 +57,7 @@ let get_lval stmt =
   in
   Option.map f stmt.lval
 
-let rec get_exp = function
+let get_exp = function
   | Regex x   -> `Regex x
   | String x  -> `String x
   | Bool x    -> `Bool x

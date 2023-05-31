@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.9.dtd">
+<benchmark tool="ultimateautomizer" timelimit="15 min" hardtimelimit="16 min" memlimit="7 GB" cpuCores="2">
+
+  <resultfiles>**.graphml</resultfiles>
+
+  <option name="--full-output"/>
+
+<rundefinition name="SV-COMP21_no-overflow">
+  <requiredfiles>RESULTSDIR/LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml</requiredfiles>
+  <option name="--validate">RESULTSDIR/LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml</option>
+
+  <tasks name="NoOverflows-BitVectors">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoOverflows-BitVectors.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/no-overflow.prp</propertyfile>
+  </tasks>
+  <tasks name="NoOverflows-Other">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoOverflows-Other.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/no-overflow.prp</propertyfile>
+  </tasks>
+
+  <tasks name="SoftwareSystems-BusyBox-NoOverflows">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-BusyBox-NoOverflows.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/no-overflow.prp</propertyfile>
+  </tasks>
+  <tasks name="SoftwareSystems-uthash-NoOverflows">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-uthash-NoOverflows.set</includesfile>
+    <propertyfile expectedverdict="true">/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/no-overflow.prp</propertyfile>
+  </tasks>
+</rundefinition>
+
+
+</benchmark>

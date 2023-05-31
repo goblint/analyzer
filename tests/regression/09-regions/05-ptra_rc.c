@@ -1,4 +1,6 @@
-// PARAM: --set ana.activated[+] "'region'" 
+// PARAM: --set ana.activated[+] "'region'"
+extern void* __VERIFIER_nondet_pointer();
+
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -21,10 +23,10 @@ pthread_mutex_t B_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   int *ip;
-  struct s *t, *sp;
+  struct s *t, *sp = __VERIFIER_nondet_pointer();
   struct s *p = malloc(sizeof(struct s));
   init(p,7);
-  
+
   pthread_mutex_lock(&B_mutex);
   t = A->next;
   A->next = sp; // RACE!
@@ -47,12 +49,12 @@ int main () {
   init(B,5);
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   ip = &p->datum;
   sp = list_entry(ip, struct s, datum);
 
   pthread_mutex_lock(&A_mutex);
-  p = A->next; // RACE
+  p = A->next; // RACE!
   printf("%d\n", p->datum);
   pthread_mutex_unlock(&A_mutex);
   return 0;

@@ -1,11 +1,11 @@
-// PARAM: --sets ana.activated[+] thread
+// PARAM: --set ana.activated[+] thread
 #include <pthread.h>
 #include <stdio.h>
 
 int myglobal;
 
 void *t_fun(void *arg) {
-  myglobal=42; //RACE!
+  myglobal=42; // RACE!
   return NULL;
 }
 

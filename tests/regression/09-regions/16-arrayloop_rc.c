@@ -1,4 +1,4 @@
-// SKIP! PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
+// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set exp.region-offsets true
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -40,18 +40,18 @@ int main () {
   int j;
   struct s *p;
   pthread_t t1;
- 
+
   for (j=0; j<N; j++) {
     pthread_mutex_init(&mutex[j],NULL);
     slot[j] = new(j);
   }
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   for (j=0; j<N; j++) {
     pthread_mutex_lock(&mutex[j]);
     list_add(new(j), slot[j]);
-    p = slot[j]->next; // RACE
+    p = slot[j]->next; // RACE!
     printf("%d\n", p->datum);
     pthread_mutex_unlock(&mutex[j]);
   }

@@ -17,14 +17,14 @@ int inc(int x) {
 }
 void glob() {
   pthread_mutex_lock(&B_mutex);
-  x++; // RACE
+  x++; // RACE!
   pthread_mutex_unlock(&B_mutex);
   return;
 }
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A_mutex);
-  x++; // RACE
+  x++; // RACE!
   pthread_mutex_unlock(&A_mutex);
   return NULL;
 }

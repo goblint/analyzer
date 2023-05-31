@@ -1,10 +1,10 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 #include<pthread.h>
 
-void *http_get(void *arg ) { 
+void *http_get(void *arg ) {
   int x = (int) arg;
-  assert(x == 43);
+  __goblint_check(x == 43);
   return  NULL;
 }
 

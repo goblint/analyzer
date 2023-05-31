@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -8,7 +8,7 @@
  */
 
 void f(void) {
-  assert(0); // FAIL!
+  __goblint_check(0); // FAIL!
   printf("hello, this is \"void f(void)\"\n");
 }
 

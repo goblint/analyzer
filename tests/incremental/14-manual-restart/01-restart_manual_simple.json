@@ -1,0 +1,13 @@
+{
+    "exp": {
+        "earlyglobs": true
+    },
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": false
+            },
+            "list": []
+        }
+    }
+}

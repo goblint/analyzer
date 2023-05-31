@@ -1,0 +1,17 @@
+<?xml version="1.0" ?>
+<!DOCTYPE table PUBLIC "+//IDN sosy-lab.org//DTD BenchExec table 1.10//EN" "https://www.sosy-lab.org/benchexec/table-1.10.dtd">
+<table>
+
+  <result filename="goblint*.results.*reachsafety.xml.bz2">
+  <!-- <result filename="goblint*.results.*ReachSafety.xml.bz2"> -->
+  <!-- <result filename="goblint*.results.*.xml.bz2"> -->
+    <column title="status"/>
+    <column title="score"/>
+    <!-- <column title="witness" href="./LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml"/> -->
+    <!-- <column title="witness" href="./LOGDIR/sv-comp20_prop-reachsafety/${taskdef_name}/witness.graphml">witness</column> -->
+    <column title="cputime"/>
+    <column title="walltime"/>
+    <column title="memory" sourceUnit="B" displayUnit="MB"/>
+  </result>
+
+</table>

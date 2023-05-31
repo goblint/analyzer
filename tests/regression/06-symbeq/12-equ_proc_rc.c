@@ -9,13 +9,13 @@ struct s {
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&B.mutex);
-  A.datum = 5; //RACE
-  pthread_mutex_lock(&B.mutex);
+  A.datum = 5; // RACE!
+  pthread_mutex_unlock(&B.mutex);
   return NULL;
 }
 
 void update(int *p) {
-  *p = 8; //RACE
+  *p = 8; // RACE!
 }
 
 int main () {
@@ -27,9 +27,9 @@ int main () {
 
   pthread_mutex_t *m;
 
-  if (x) 
-    s = &A; 
-  else 
+  if (x)
+    s = &A;
+  else
     s = &B;
 
   m = &s->mutex;

@@ -1,0 +1,10 @@
+{
+    "warn": {
+        "debug": true
+    },
+    "incremental" : {
+        "postsolver": {
+            "enabled":  true
+        }
+    }
+}

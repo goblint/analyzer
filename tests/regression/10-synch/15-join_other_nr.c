@@ -1,11 +1,11 @@
-// SKIP PARAM: --sets ana.activated[+] thread
+// PARAM: --set ana.activated[+] mhp --set ana.activated[+] threadJoins
 #include <pthread.h>
 #include <stdio.h>
 
 int myglobal;
 
 void *t2_fun(void *arg) {
-  myglobal=42; //NOWARN
+  myglobal=42; // NORACE
   return NULL;
 }
 
@@ -18,9 +18,9 @@ void *t1_fun(void *arg) {
 
 int main(void) {
   pthread_t t1, t2;
-  myglobal = 1; //NOWARN
+  myglobal = 1; // NORACE
   pthread_create(&t1, NULL, t1_fun, NULL);
   pthread_join(t1, NULL);
-  myglobal = 3; //NOWARN
+  myglobal = 3; // NORACE
   return 0;
 }

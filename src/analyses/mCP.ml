@@ -1,230 +1,39 @@
-(** Master Control Program *)
+(** MCP analysis specification. *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open GobConfig
 open Analyses
 
-type spec_modules = { spec : (module Spec)
-                    ; dom  : (module Lattice.S)
-                    ; glob : (module Lattice.S)
-                    ; cont : (module Printable.S) }
-
-let analyses_list  : (int * spec_modules) list ref = ref []
-let analyses_list' : (int * spec_modules) list ref = ref []
-let dep_list       : (int * (int list)) list ref   = ref []
-let dep_list'      : (int * (string list)) list ref= ref []
-
-let analyses_table = ref []
-
-let register_analysis =
-  let count = ref 0 in
-  fun ?(dep=[]) (module S:Spec) ->
-    let s = { spec = (module S : Spec)
-            ; dom  = (module S.D : Lattice.S)
-            ; glob = (module S.G : Lattice.S)
-            ; cont = (module S.C : Printable.S)
-            }
-    in
-    let n = S.name in
-    analyses_table := (!count,n) :: !analyses_table;
-    analyses_list' := (!count,s) :: !analyses_list';
-    dep_list'      := (!count,dep) :: !dep_list';
-    count := !count + 1
-
-
-type unknown = Obj.t
-
-module type DomainListPrintableSpec =
-sig
-  val assoc_dom : int -> (module Printable.S)
-  val domain_list : unit -> (int * (module Printable.S)) list
-end
-
-module type DomainListLatticeSpec =
-sig
-  val assoc_dom : int -> (module Lattice.S)
-  val domain_list : unit -> (int * (module Lattice.S)) list
-end
-
-module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpec =
-struct
-  let assoc_dom n =
-    let f (module L:Lattice.S) = (module L : Printable.S)
-    in
-    f (D.assoc_dom n)
-
-  let domain_list () =
-    let f (module L:Lattice.S) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
-end
-
-exception DomListBroken of string
-
-module DomListPrintable (DLSpec : DomainListPrintableSpec)
-  (*  : Printable.S with type t = (string * unknown) list *)
-=
-struct
-  open DLSpec
-  open List
-  open Obj
-
-  type t = (int * unknown) list
-
-  let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
-
-  let pretty_f _ () x =
-    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
-    let xs = unop_fold f [] x in
-    match xs with
-    | [] -> text "[]"
-    | x :: [] -> x
-    | x :: y ->
-      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
-
-  let short w x =
-    let w2 = let n = List.length x in if n=0 then w else w / n in
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
-
-  let to_yojson x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
-    [%to_yojson: Printable.json list] xs
-
-  let pretty = pretty_f short
-
-  let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
-
-  let binop_map_rev (f: (module Printable.S) -> Obj.t -> Obj.t -> Obj.t) =
-    binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) []
-
-  let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
-  let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
-
-  let hashmul x y = if x=0 then y else if y=0 then x else x*y
-
-  let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
-  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
-
-  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) @@ map fst @@ domain_list ())
-
-  let toXML_f sf x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in
-    let esc = Goblintutil.escape in
-    let node_leaf = if xs = [] then "Leaf" else "Node" in
-    Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], xs)
-
-  let toXML = toXML_f short
-
-  let pretty_diff () (x,y) = text "Please override me!"
-
-  let printXml f xs =
-    let print_one a n (module S : Printable.S) x : unit =
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
-      S.printXml f (obj x);
-      BatPrintf.fprintf f "</analysis>\n"
-    in
-    unop_fold print_one () xs
-
-end
-
-let _ =
-  let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (int * unknown) list = DomListPrintable  in
-  ()
-
-module DomListLattice (DLSpec : DomainListLatticeSpec)
-  : Lattice.S with type t = (int * unknown) list
-=
-struct
-  open DLSpec
-  open List
-  open Obj
-
-  include DomListPrintable (PrintableOfLatticeSpec (DLSpec))
-
-  let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
-
-  let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
-    List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
-
-  let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
-
-  let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
-  let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
-  let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
-  let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
-
-  let leq    = binop_fold (fun a n (module S : Lattice.S) x y -> a && S.leq (obj x) (obj y)) true
-
-  let is_top = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_top (obj x)) true
-  let is_bot = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_bot (obj x)) true
-
-  let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
-  let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
-
-  let pretty_diff () (x,y) =
-    let f a n (module S : Lattice.S) x y =
-      if S.leq (obj x) (obj y) then a
-      else a ++ S.pretty_diff () (obj x, obj y) ++ text ". "
-    in
-    binop_fold f nil x y
-end
-
-module LocalDomainListSpec : DomainListLatticeSpec =
-struct
-  open Tuple4
-  let assoc_dom n = (List.assoc n !analyses_list).dom
-  let domain_list () = List.map (fun (n,p) -> n, p.dom) !analyses_list
-end
-
-module GlobalDomainListSpec : DomainListLatticeSpec =
-struct
-  open Tuple4
-  let assoc_dom n = (List.assoc n !analyses_list).glob
-  let domain_list () = List.map (fun (n,p) -> n, p.glob) !analyses_list
-end
-
-module ContextListSpec : DomainListPrintableSpec =
-struct
-  open Tuple4
-  let assoc_dom n = (List.assoc n !analyses_list).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
-end
+include MCPRegistry
 
 module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
-   and module G = DomListLattice (GlobalDomainListSpec)
-   and module C = DomListPrintable (ContextListSpec) =
+   and module G = DomVariantLattice (GlobalDomainListSpec)
+   and module C = DomListPrintable (ContextListSpec)
+   and module V = DomVariantSysVar (VarListSpec)
+   and module P = DomListRepresentative (PathListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
-  module G = DomListLattice (GlobalDomainListSpec)
+  module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
+  module V = DomVariantSysVar (VarListSpec)
+  module P = DomListRepresentative (PathListSpec)
 
   open List open Obj
+  let v_of n v = (n, repr v)
+  let g_of n g = `Lifted (n, repr g)
+  let g_to n = function
+    | `Lifted (n', g) ->
+      assert (n = n');
+      g
+    | `Bot ->
+      let module S = (val GlobalDomainListSpec.assoc_dom n) in
+      repr (S.bot ())
+    | `Top ->
+      failwith "MCP2.g_to: top"
 
-  let name = "MCP2"
+  let name () = "MCP2"
 
   let path_sens = ref []
   let cont_inse = ref []
@@ -240,94 +49,87 @@ struct
     in rev % f [] []
 
   let topo_sort_an xs =
-    let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^assoc x !analyses_table^".") in
-    let deps (y,_) = map (fun x -> x, assoc x xs) @@ assoc y !dep_list in
+    let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^find_spec_name x^".") in
+    let deps (y,_) = map (fun x -> x, assoc x xs) @@ map find_id @@ (find_spec y).dep in
     topo_sort deps msg xs
 
   let check_deps xs =
-    let check_dep x y =
+    let check_dep x yn =
+      let y = find_id yn in
       if not (exists (fun (y',_) -> y=y') xs) then begin
-        let xn = assoc x !analyses_table in
-        let yn = assoc y !analyses_table in
-        Legacy.Printf.fprintf !Messages.warn_out "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
-        raise Goblintutil.BailFromMain
+        let xn = find_spec_name x in
+        Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        raise Stdlib.Exit
       end
     in
-    let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
+    let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
-  let init () =
+
+  type marshal = Obj.t list
+  let init marshal =
     let map' f =
       let f x =
-        try Some (f x)
+        try f x
         with Not_found -> raise @@ ConfigError ("Analysis '"^x^"' not found. Abort!")
       in
-      List.filter_map f
+      List.map f
     in
-    let xs = map Json.string @@ get_list "ana.activated" in
-    let xs = map' (flip assoc_inv !analyses_table) xs in
-    base_id := assoc_inv "base" !analyses_table;
-    analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-    path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
-    cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
-    dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
-    check_deps !analyses_list;
-    analyses_list := topo_sort_an !analyses_list;
-    (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
-      Printf.printf "\n";
-      iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
-      Printf.printf "\n";*)
-    iter (fun (_,{spec=(module S:Spec)}) -> S.init ()) !analyses_list
+    let xs = get_string_list "ana.activated" in
+    let xs = map' find_id xs in
+    base_id := find_id "base";
+    activated := map (fun s -> s, find_spec s) xs;
+    path_sens := map' find_id @@ get_string_list "ana.path_sens";
+    cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
+    check_deps !activated;
+    activated := topo_sort_an !activated;
+    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
+    activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
+    match marshal with
+    | Some marshal ->
+      iter2 (fun (_,{spec=(module S:MCPSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal
+    | None ->
+      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !activated
 
-  let finalize () = iter (fun (_,{spec=(module S:Spec)}) -> S.finalize ()) !analyses_list
+  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !activated
 
-  let spec x = (assoc x !analyses_list).spec
+  let spec x = (find_spec x).spec
   let spec_list xs =
     map (fun (n,x) -> (n,spec n,x)) xs
-  let spec_name (n:int) : string = assoc n !analyses_table
+  let spec_list2 xs ys =
+    map2 (fun (n,x) (n',y) -> assert (n = n'); (n,spec n,(x,y))) xs ys
 
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,(module S:Spec),d) = try f xs (n,(module S:Spec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
+    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let val_of = identity
-  let context x =
-    let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
+  let context fd x =
     let x = spec_list x in
-    map (fun (n,(module S:Spec),d) -> n, repr @@ S.context (obj d)) x
+    filter_map (fun (n,(module S:MCPSpec),d) ->
+        if mem n !cont_inse then
+          None
+        else
+          Some (n, repr @@ S.context fd (obj d))
+      ) x
 
-  let should_join x y =
-    let xs = filter (fun (x,_) -> mem x !path_sens) x in
-    let ys = filter (fun (x,_) -> mem x !path_sens) y in
-    D.equal xs ys
-
-  let otherstate v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.otherstate v) !analyses_list
-  let exitstate  v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.exitstate  v) !analyses_list
-  let startstate v = map (fun (n,{spec=(module S:Spec)}) -> n, repr @@ S.startstate v) !analyses_list
-  let morphstate v x = map (fun (n,(module S:Spec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
-
-  let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:Spec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
-
+  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
+  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
+  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let rec assoc_replace (n,c) = function
     | [] -> failwith "assoc_replace"
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
 
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
-  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+  let assoc_split_eq eq (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function
       | [] -> a, b
-      | (k',v)::xs when k=k' -> f (v::a) b xs
+      | (k',v)::xs when eq k k' -> f (v::a) b xs
       | x::xs -> f a (x::b) xs
     in
     f [] [] xs
-
-  let assoc_split k xs = assoc_split_eq (=) k xs
-
 
   (** [group_assoc_eq (=) [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
   let group_assoc_eq eq (xs: ('a * 'b) list) : ('a * ('b list)) list  =
@@ -338,416 +140,366 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  (** [group_assoc [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
-  let group_assoc xs = group_assoc_eq (=) xs
-
-  let filter_presubs n xs =
-    let f n =
-      let x = try assoc n !analyses_table with Not_found -> Printf.eprintf "filter_presubs: Analysis '%d' not registered.\n" n; failwith "filter_presubs" in
-      let y = try assoc n xs with Not_found ->
-        (*iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) xs;*)
-        Printf.eprintf "filter_presubs: Analysis '%s' (%d) not found.\n" x n; failwith "filter_presubs" in
-      x, y
-    in
-    map f (assoc n !dep_list)
-
-  let do_spawns ctx (xs:(varinfo * (int * Obj.t)) list) =
+  let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
     let spawn_one v d =
-      let join_vals (n,(module S:Spec),d) =
-        n, repr @@ fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
-      in
-      let otherstates = List.filter (fun (n,_) -> not (mem_assoc n d)) (otherstate v) in
-      ctx.spawn v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstates)
+      List.iter (fun (lval, args) -> ctx.spawn lval v args) d
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
-  let do_sideg ctx (xs:(varinfo * (int * Obj.t)) list) =
-    let side_one v d =
-      let join_vals (n,(module S:Spec),d) =
-        n, repr @@ fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
+  let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
+    let side_one v dts =
+      let side_one_ts ts d =
+        (* Do side effects with the tokens that were active at the time.
+           Transfer functions have exited the with_side_token wrappers by now. *)
+        let old_side_tokens = !WideningTokens.side_tokens in
+        WideningTokens.side_tokens := ts;
+        Fun.protect (fun () ->
+            ctx.sideg v @@ fold_left G.join (G.bot ()) d
+          ) ~finally:(fun () ->
+            WideningTokens.side_tokens := old_side_tokens
+          )
       in
-      ctx.sideg v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
+      iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokens.TS.equal dts
     in
-    iter (uncurry side_one) @@ group_assoc_eq Basetype.Variables.equal xs
+    iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let do_assigns ctx assigns (xs:(int * Obj.t) list) =
-    if List.is_empty assigns then xs (* nothing to do *)
-    else
-      let spec_assign n d : Obj.t =
-        (* spec of current analysis *)
-        let (module S:Spec) = spec n in
-        let assign_one d (lval, exp, name, ctx) =
-          match name with
-          | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
-          | _ ->
-            let ctx' = {(obj ctx) with local = obj d} in
-            S.assign ctx' lval exp
-        in
-        let get_lval (lval, exp, name, ctx) = lval in
-        (* group by assigns on the same lval -> only those must be joined *)
-        List.group (compareBy get_lval) assigns
-        |> List.fold_left (fun d xs -> List.map (assign_one d) xs |> List.reduce S.D.join |> repr) d
-      in
-      List.map (fun (n,d) -> n, spec_assign n d) xs
-
-  let finalize () =
-    finalize ();
-    Access.print_result ()
-
-  let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
-    let split_one n (d,e,tv) =
+  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) emits =
+    let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
-      ctx.split (branch {ctx with local = nv} e tv) one true
+      (* Do split-specific emits before general emits.
+         [emits] and [do_emits] are in reverse order.
+         [emits'] is in normal order. *)
+      ctx.split (do_emits ctx (emits @ List.rev emits') nv false) []
     in
     iter (uncurry split_one) xs
 
-  and branch (ctx:(D.t, G.t) ctx) (e:exp) (tv:bool) =
+  and do_emits ctx emits xs dead =
+    let octx = ctx in
+    let ctx_with_local ctx local' =
+      (* let rec ctx' =
+        { ctx with
+          local = local';
+          ask = ask
+        }
+      and ask q = query ctx' q
+      in
+      ctx' *)
+      {ctx with local = local'}
+    in
+    let do_emit ctx = function
+      | Events.SplitBranch (exp, tv) ->
+        ctx_with_local ctx (branch ctx exp tv)
+      | Events.Assign {lval; exp} ->
+        ctx_with_local ctx (assign ctx lval exp)
+      | e ->
+        let spawns = ref [] in
+        let splits = ref [] in
+        let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
+        let emits = ref [] in
+        let ctx'' = outer_ctx "do_emits" ~spawns ~sides ~emits ctx in
+        let octx'' = outer_ctx "do_emits" ~spawns ~sides ~emits octx in
+        let f post_all (n,(module S:MCPSpec),(d,od)) =
+          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
+          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
+          n, repr @@ S.event ctx' e octx'
+        in
+        if M.tracing then M.traceli "event" "%a\n  before: %a\n" Events.pretty e D.pretty ctx.local;
+        let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
+        if M.tracing then M.traceu "event" "%a\n  after:%a\n" Events.pretty e D.pretty d;
+        do_sideg ctx !sides;
+        do_spawns ctx !spawns;
+        do_splits ctx d !splits !emits;
+        let d = do_emits ctx !emits d q in
+        if q then raise Deadcode else ctx_with_local ctx d
+    in
+    if M.tracing then M.traceli "event" "do_emits:\n";
+    let emits =
+      if dead then
+        List.filter Events.emit_on_deadcode emits
+      else
+        emits
+    in
+    (* [emits] is in reverse order. *)
+    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) (List.rev emits) in
+    if M.tracing then M.traceu "event" "\n";
+    ctx'.local
+
+  and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
-    let sides  = ref [] in
-    let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
-        }
-      in
+    let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
+    let emits = ref [] in
+    let ctx'' = outer_ctx "branch" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "branch" ~splits ~post_all ctx'' n d in
       n, repr @@ S.branch ctx' e tv
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  and query (ctx:(D.t, G.t) ctx) q =
-    let sides  = ref [] in
-    let f a (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
-        }
-      in
-      Queries.Result.meet a @@ S.query ctx' q
-    in
-    match q with
-    | Queries.PrintFullState ->
-      ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      `Bot
-    | Queries.Access(e,b,reach,conf) ->
-      if reach || b then do_access ctx b reach conf e;
-      Access.distribute_access_exp (do_access ctx) false false conf e;
-      `Bot
-    | _ ->
-      let x = fold_left f `Top @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      x
-
-  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
-    let open Access in
-    let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
-    let sides  = ref [] in
-    let f (po,lo) (n, (module S: Spec), d) : part =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v         -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d       -> failwith "part_access::spawn")
-        ; split  = (fun d e tv    -> failwith "part_access::split")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "part_access::assign")
-        }
-      in
-      let (pd, ld) = S.part_access ctx' e vo w in
-      let ln = LSSet.union lo ld in
-      let mult_po s = LSSSet.union (LSSSet.map (LSSet.union s) po) in
-      let pn = LSSSet.fold mult_po pd (LSSSet.empty ())  in
-      do_sideg ctx !sides;
-      (* printf "e=%a po=%a pd=%a pn=%a\n" d_exp e LSSSet.pretty po LSSSet.pretty pd LSSSet.pretty pn; *)
-      (pn, ln)
-      (* (LSSSet.map (LSSet.add pn) po, LSSet.union lo ln) *)
-    in
-    List.fold_left f start (spec_list ctx.local)
-
-  and do_access (ctx: (D.t, G.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
-    let open Queries in
-    let open Access in
-    let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd)
-    in
-    let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
-    in
-    let has_escaped g =
-      match ctx.ask (Queries.MayEscape g) with
-      | `Bool false -> false
-      | _ -> true
-    in
-    let reach_or_mpt =
-      if reach then
-        ReachableFrom (mkAddrOf (Mem e,NoOffset))
-      else
-        MayPointTo (mkAddrOf (Mem e,NoOffset))
-    in
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
-          add_access conf None (Some coffs)
+  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
+  and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
+    let anyq = Queries.Any q in
+    if M.tracing then M.traceli "query" "query %a\n" Queries.Any.pretty anyq;
+    let r = match Queries.Hashtbl.find_option querycache anyq with
+      | Some r ->
+        if M.tracing then M.trace "query" "cached\n";
+        Obj.obj r
+      | None ->
+        let module Result = (val Queries.Result.lattice q) in
+        if Queries.Set.mem anyq asked then (
+          if M.tracing then M.trace "query" "cycle\n";
+          Result.top () (* query cycle *)
+        )
         else
-          add_access conf (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
-    match ctx.ask reach_or_mpt with
-    | `Bot -> ()
-    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->      
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
-        | `Bot -> ()
-        | `TypeSet ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | `TypeSet ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
-            | _ -> ()
+          let asked' = Queries.Set.add anyq asked in
+          let sides = ref [] in
+          let ctx'' = outer_ctx "query" ~sides ctx in
+          let f ~q a (n,(module S:MCPSpec),d) =
+            let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
+            (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
+               See https://github.com/goblint/analyzer/pull/214. *)
+            let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+              { ctx' with
+                ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
+              }
+            in
+            (* meet results so that precision from all analyses is combined *)
+            Result.meet a @@ S.query ctx' q
           in
-          Queries.TS.iter f ts
-        | _ ->
-          includes_uk := true
-      end;
-      on_lvals ls !includes_uk
-    | _ -> 
-      add_access (conf - 60) None None
+          match q with
+          | Queries.WarnGlobal g ->
+            (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+          | Queries.InvariantGlobal g ->
+            (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+          | Queries.PartAccess a ->
+            Obj.repr (access ctx a)
+          | Queries.IterSysVars (vq, fi) ->
+            (* IterSysVars is special: argument function is lifted for each analysis *)
+            iter (fun ((n,(module S:MCPSpec),d) as t) ->
+                let fi' x = fi (Obj.repr (v_of n x)) in
+                let q' = Queries.IterSysVars (vq, fi') in
+                f ~q:q' () t
+              ) @@ spec_list ctx.local
+          (* | EvalInt e ->
+             (* TODO: only query others that actually respond to EvalInt *)
+             (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
+             f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+          | Queries.DYojson ->
+            `Lifted (D.to_yojson ctx.local)
+          | _ ->
+            let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
+            do_sideg ctx !sides;
+            Queries.Hashtbl.replace querycache anyq (Obj.repr r);
+            r
+    in
+    if M.tracing then (
+      let module Result = (val Queries.Result.lattice q) in
+      M.traceu "query" "-> %a\n" Result.pretty r
+    );
+    r
 
-  let assign (ctx:(D.t, G.t) ctx) l e =
+  and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+    let querycache = Queries.Hashtbl.create 13 in
+    query' ~querycache Queries.Set.empty ctx q
+
+  and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
+    let ctx'' = outer_ctx "access" ctx in
+    let f (n, (module S: MCPSpec), d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "access" ctx'' n d in
+      (n, repr (S.access ctx' a))
+    in
+    BatList.map f (spec_list ctx.local) (* map without deadcode *)
+
+  and outer_ctx tfname ?spawns ?sides ?emits ctx =
+    let spawn = match spawns with
+      | Some spawns -> (fun l v a  -> spawns := (v,(l,a)) :: !spawns)
+      | None -> (fun v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
+    in
+    let sideg = match sides with
+      | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
+      | None -> (fun v g       -> failwith ("Cannot \"sideg\" in " ^ tfname ^ " context."))
+    in
+    let emit = match emits with
+      | Some emits -> (fun e -> emits := e :: !emits) (* [emits] is in reverse order. *)
+      | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
+    in
+    let querycache = Queries.Hashtbl.create 13 in
+    (* TODO: make rec? *)
+    { ctx with
+      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
+    ; emit
+    ; spawn
+    ; sideg
+    }
+
+  (* Explicitly polymorphic type required here for recursive call in branch. *)
+  and inner_ctx: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) ctx -> int -> Obj.t -> (d, g, c, v) ctx = fun tfname ?splits ?(post_all=[]) ctx n d ->
+    let split = match splits with
+      | Some splits -> (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+      | None -> (fun _ _    -> failwith ("Cannot \"split\" in " ^ tfname ^ " context."))
+    in
+    { ctx with
+      local  = obj d
+    ; context = (fun () -> ctx.context () |> assoc n |> obj)
+    ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
+    ; split
+    ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
+    }
+
+  and assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
-        }
-      in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "assign" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "assign" ~splits ~post_all ctx'' n d in
       n, repr @@ S.assign ctx' l e
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let body (ctx:(D.t, G.t) ctx) f =
+
+  let vdecl (ctx:(D.t, G.t, C.t, V.t) ctx) v =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
-        }
-      in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "vdecl" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "vdecl" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.vdecl ctx' v
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let body (ctx:(D.t, G.t, C.t, V.t) ctx) f =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "body" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "body" ~splits ~post_all ctx'' n d in
       n, repr @@ S.body ctx' f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let return (ctx:(D.t, G.t) ctx) e f =
+  let return (ctx:(D.t, G.t, C.t, V.t) ctx) e f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
-        }
-      in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "return" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "return" ~splits ~post_all ctx'' n d in
       n, repr @@ S.return ctx' e f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t) ctx) =
+
+  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
-        }
-      in
-      n, repr @@ S.intrpt ctx'
+    let emits = ref [] in
+    let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.asm ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let special (ctx:(D.t, G.t) ctx) r f a =
+  let skip (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
-        }
-      in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "skip" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "skip" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.skip ctx'
+    in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let special (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "special" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "special" ~splits ~post_all ctx'' n d in
       n, repr @@ S.special ctx' r f a
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
-  let sync (ctx:(D.t, G.t) ctx) =
+  let sync (ctx:(D.t, G.t, C.t, V.t) ctx) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f (n,(module S:Spec),d) (dl,cs) =
-      let ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
-        }
-      in
-      let d, ds = S.sync ctx' in
-      (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
+    let emits = ref [] in
+    let ctx'' = outer_ctx "sync" ~spawns ~sides ~emits ctx in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "sync" ~splits ~post_all ctx'' n d in
+      n, repr @@ S.sync ctx' reason
     in
-    let d,cs = fold_right f (spec_list ctx.local) ([],[]) in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    d, cs
+    do_splits ctx d !splits !emits;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
 
-  let enter (ctx:(D.t, G.t) ctx) r f a =
+  let enter (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
     let spawns = ref [] in
     let sides  = ref [] in
-    let f (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in enter context.")
-        }
-      in
+    let ctx'' = outer_ctx "enter" ~spawns ~sides ctx in
+    let f (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "enter" ctx'' n d in
       map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
     in
     let css = map f @@ spec_list ctx.local in
@@ -755,31 +507,94 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t) ctx) r fe f a fd =
+  let combine_env (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
     let spawns = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; context = ctx.context
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
-        }
-      in
-      n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
+    let emits = ref [] in
+    let ctx'' = outer_ctx "combine_env" ~spawns ~sides ~emits ctx in
+    (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
+       Due to context-insensitivity, second list is optional and may only contain a subset of analyses
+       in the same order, so some skipping needs to happen to align the three lists.
+       See https://github.com/goblint/analyzer/pull/578/files#r794376508. *)
+    let rec spec_list3_rev_acc acc l1 l2_opt l3 = match l1, l2_opt, l3 with
+      | [], _, [] -> acc
+      | (n, x) :: l1, Some ((n', y) :: l2), (n'', z) :: l3 when n = n' -> (* context-sensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, Some y, z)) :: acc) l1 (Some l2) l3
+      | (n, x) :: l1, l2_opt, (n'', z) :: l3 -> (* context-insensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
+      | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
+    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_env" ~post_all ctx'' n d in
+      n, repr @@ S.combine_env ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
+    in
+    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d q in
     if q then raise Deadcode else d
 
+  let combine_assign (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
+    let spawns = ref [] in
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "combine_assign" ~spawns ~sides ~emits ctx in
+    (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
+       Due to context-insensitivity, second list is optional and may only contain a subset of analyses
+       in the same order, so some skipping needs to happen to align the three lists.
+       See https://github.com/goblint/analyzer/pull/578/files#r794376508. *)
+    let rec spec_list3_rev_acc acc l1 l2_opt l3 = match l1, l2_opt, l3 with
+      | [], _, [] -> acc
+      | (n, x) :: l1, Some ((n', y) :: l2), (n'', z) :: l3 when n = n' -> (* context-sensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, Some y, z)) :: acc) l1 (Some l2) l3
+      | (n, x) :: l1, l2_opt, (n'', z) :: l3 -> (* context-insensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
+      | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
+    in
+    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_assign" ~post_all ctx'' n d in
+      n, repr @@ S.combine_assign ctx' r fe f a (Option.map obj fc) (obj fd) f_ask
+    in
+    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
+    let f (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
+      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
+    in
+    let css = map f @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    (* TODO: this do_emits is now different from everything else *)
+    map (fun d -> do_emits ctx !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
+
+  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
+    let sides  = ref [] in
+    let emits = ref [] in
+    let ctx'' = outer_ctx "threadspawn" ~sides ~emits ctx in
+    let fctx'' = outer_ctx "threadspawn" ~sides ~emits fctx in
+    let f post_all (n,(module S:MCPSpec),(d,fd)) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
+      let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
+      n, repr @@ S.threadspawn ctx' lval f a fctx'
+    in
+    let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
+    do_sideg ctx !sides;
+    let d = do_emits ctx !emits d q in
+    if q then raise Deadcode else d
+
+  let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
+
+  (* Just to satisfy signature *)
+  let paths_as_set ctx = [ctx.local]
 end

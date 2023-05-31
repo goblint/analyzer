@@ -1,4 +1,0 @@
-<src> or <src/**>: include
-true: package(findlib), package(ppx_import), package(cil), package(cil.all-features), package(batteries), package(xml-light), package(ppx_deriving.std), package(ppx_deriving_yojson), package(ppx_distr_guards)
-<src/extract/*.*>: package(ppx_monadic)
-true: bin_annot

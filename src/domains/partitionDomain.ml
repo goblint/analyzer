@@ -1,9 +1,5 @@
 (** Partitioning domains. *)
 
-open Pretty
-
-module GU = Goblintutil
-
 module type Collapse = sig
   include Printable.S
   val collapse: t -> t -> bool
@@ -40,6 +36,8 @@ struct
     fold f s2 false
 
   let add e s = join s (singleton e)
+
+  let widen = join
 end
 
 module type CollapseSet = sig
@@ -54,9 +52,7 @@ struct
   type set = S.t
   type elem = S.elt
 
-  let short w _ = "Partitions"
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
+  let show _ = "Partitions"
 
   let leq x y =
     for_all (fun p -> exists (S.leq p) y) x
@@ -73,7 +69,7 @@ struct
 
   let meet xs ys =
     let f (x: set) (zs: t): t =
-      let p z = not (S.is_empty (S.inter x z)) in
+      let p z = not (S.disjoint x z) in
       let joinem = filter p ys in
       let joined = fold S.inter joinem x in
       if S.is_empty joined then zs else add joined zs
@@ -94,6 +90,8 @@ struct
 
   let add (s:set) (p:t): t = join p (singleton s)
 
+  let widen = join
+  let narrow = meet
 end
 
 
@@ -105,9 +103,7 @@ struct
   type set = B.t
   type partition = t
 
-  let short w _ = "Partitions"
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
+  let show _ = "Partitions"
 
   let top = E.bot
   let bot = E.top
@@ -117,9 +113,24 @@ struct
   let leq y x = if is_bot y then true else if is_bot x then false else
       for_all (fun p -> exists (B.leq p) y) x
 
+  let pretty_diff () (y, x) =
+    (* based on DisjointDomain.PairwiseSet *)
+    let x_not_leq = filter (fun p ->
+        not (exists (fun q -> B.leq p q) y)
+      ) x
+    in
+    let p_not_leq = choose x_not_leq in
+    GoblintCil.Pretty.(
+      dprintf "%a:\n" B.pretty p_not_leq
+      ++
+      fold (fun q acc ->
+          dprintf "not leq %a because %a\n" B.pretty q B.pretty_diff (p_not_leq, q) ++ acc
+        ) y nil
+    )
+
   let meet xs ys = if is_bot xs || is_bot ys then bot () else
       let f (x: set) (zs: partition): partition =
-        let p z = B.is_empty (B.inter x z) in
+        let p z = B.disjoint x z in
         let (rest, joinem) = partition p zs in
         let joined = fold B.union joinem x in
         add joined rest
@@ -128,7 +139,7 @@ struct
 
   let join xs ys = if is_bot xs then ys else if is_bot ys then xs else
       let f (x: set) (zs: partition): partition =
-        let p z = not (B.is_empty (B.inter x z)) in
+        let p z = not (B.disjoint x z) in
         let joinem = filter p ys in
         if is_empty joinem then
           zs
@@ -138,6 +149,7 @@ struct
       in
       fold f xs (empty ())
 
+  (* TODO: unused *)
   let remove x ss = if is_bot ss then ss else
       let f (z: set) (zz: partition) =
         let res = B.remove x z in
@@ -159,6 +171,16 @@ struct
   let find_class (x: Base.t) (ss: t): set option =
     try Some (E.choose (E.filter (B.mem x) ss)) with Not_found -> None
 
+  let widen = join
+  let narrow = meet
+
+  let printXml f (xs:t) =
+    match xs with
+    | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+    | `Lifted n ->
+      BatPrintf.fprintf f "<value>\n<map>\n";
+      iter (BatPrintf.fprintf f  "<key>\nCluster\n</key>\n%a" B.printXml) xs;
+      BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
-module ExpPartitions = SetSet (Exp.Exp)
+module ExpPartitions = SetSet (CilType.Exp)

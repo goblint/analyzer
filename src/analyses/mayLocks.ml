@@ -1,78 +1,63 @@
-(** May-lockset analysis. *)
+(** May lockset analysis and analysis of double locking ([maylocks]). *)
 
-open Prelude.Ana
 open Analyses
-open GobConfig
+open GoblintCil
+module LF = LibraryFunctions
+
+module Arg:LocksetAnalysis.MayArg =
+struct
+  module D = LockDomain.MayLocksetNoRW
+  module G = DefaultSpec.G
+  module V = DefaultSpec.V
+
+  let add ctx (l,r) =
+    if D.mem l ctx.local then
+      let default () =
+        M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a (possibly non-recursive) mutex that may be already held";
+        ctx.local
+      in
+      match D.Addr.to_var_offset l with
+      | Some (v,o) ->
+        (let mtype = ctx.ask (Queries.MutexType (v, Lval.OffsetNoIdx.of_offs o)) in
+         match mtype with
+         | `Lifted MutexAttrDomain.MutexKind.Recursive -> ctx.local
+         | `Lifted MutexAttrDomain.MutexKind.NonRec ->
+           M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that may be already held";
+           ctx.local
+         | _  -> default ())
+      | _ -> default ()
+    else
+      D.add l ctx.local
+
+  let remove ctx l =
+    if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
+    match D.Addr.to_var_offset l with
+    | Some (v,o) ->
+      (let mtype = ctx.ask (Queries.MutexType (v, Lval.OffsetNoIdx.of_offs o)) in
+       match mtype with
+       | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
+       | _ -> ctx.local (* we cannot remove them here *))
+    | None -> ctx.local (* we cannot remove them here *)
+end
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include LocksetAnalysis.MakeMay (Arg)
+  let name () = "maylocks"
 
-  let name = "maylocks"
-  module D = LockDomain.MayLockset
-  module C = LockDomain.MayLockset
-  module G = Lattice.Unit
+  let exitstate  v = D.top () (* TODO: why? *)
 
-  (* transfer functions : usual operation just propagates the value *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
-  let body ctx (f:fundec) : D.t = ctx.local
-  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = au
+  let return ctx exp fundec =
+    if not (D.is_bot ctx.local) && ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then M.warn "Exiting thread while still holding a mutex!";
+    ctx.local
 
-  (* Helper function to convert query-offsets to valuedomain-offsets *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
-  (* Query the value (of the locking argument) to a list of locks. *)
-  let eval_exp_addr a exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | `Bot -> []
-    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
-
-  (* locking logic -- add all locks we can add *)
-  let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =
-    let add_one ls e = D.add (e,rw) ls in
-    let nls = List.fold_left add_one ls (List.concat (List.map (eval_exp_addr a) arglist)) in
-    match lv with
-    | None -> nls
-    | Some lv ->
-      ctx.split nls (Lval lv) return_value_on_success;
-      if may_fail then ctx.split ls (Lval lv) (not return_value_on_success);
-      raise Analyses.Deadcode
-
-  (* transfer function to handle library functions --- for us locking & unlocking *)
-  let special ctx (lv: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let remove_rw x st = D.remove (x,true) (D.remove (x,false) st) in
-    (* unlocking logic *)
-    let unlock remove_fn =
-      match arglist with
-      | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
-          | [x] -> remove_fn x ctx.local
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
-    in
-    match (LibraryFunctions.classify f.vname arglist, f.vname) with
-    | `Lock (failing, rw, return_value_on_success), _
-      -> lock ctx rw failing return_value_on_success ctx.ask lv arglist ctx.local
-    | `Unlock, _
-      -> unlock remove_rw
-
-    | _ -> ctx.local
-
-  let startstate v = D.empty ()
-  let otherstate v = D.empty ()
-  let exitstate  v = D.top ()
+  let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
+    (match(LF.find f).special args with
+     | ThreadExit _ -> if not @@ D.is_bot ctx.local then M.warn "Exiting thread while still holding a mutex!"
+     | _ -> ())
+    ;
+    ctx.local
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis ~dep:["mutexEvents"] (module Spec : MCPSpec)

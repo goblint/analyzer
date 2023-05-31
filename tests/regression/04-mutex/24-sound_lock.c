@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <stdio.h>
 
@@ -13,7 +15,7 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  int i;
+  int i = __VERIFIER_nondet_int();
   pthread_t id;
   pthread_mutex_t *m = &mutex1;
   if (i) m = &mutex2;

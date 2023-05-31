@@ -1,0 +1,14 @@
+; dune build lib/goblint/runtime/libgoblint.a
+(copy_files
+ (mode (promote (until-clean)))
+ (files src/libgoblint.a))
+
+(copy_files
+ (mode (promote (until-clean)))
+ (files src/dllgoblint.so))
+
+(install
+ (section (site (goblint lib)))
+ (files
+  (libgoblint.a as runtime/libgoblint.a)
+  (dllgoblint.so as runtime/dllgoblint.so)))

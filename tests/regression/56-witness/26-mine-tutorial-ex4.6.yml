@@ -1,0 +1,27 @@
+- entry_type: location_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 0e84a9de-b9f6-44dd-ab8d-ebdeca941482
+    creation_time: 2022-10-07T09:14:31Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g1e981de3d-dirty
+      command_line: '''../../../goblint'' ''--enable'' ''ana.int.interval'' ''26-mine-tutorial-ex4.6.c''
+        ''--html'' ''--set'' ''exp.g2html_path'' ''../../..'' ''--enable'' ''witness.yaml.enabled'''
+    task:
+      input_files:
+      - 26-mine-tutorial-ex4.6.c
+      input_file_hashes:
+        26-mine-tutorial-ex4.6.c: e119cc77f5ce2a60d7c2b65c5dfbe8037f877b5621deab62b9580c5bbdebd97b
+      data_model: LP64
+      language: C
+  location:
+    file_name: 26-mine-tutorial-ex4.6.c
+    file_hash: e119cc77f5ce2a60d7c2b65c5dfbe8037f877b5621deab62b9580c5bbdebd97b
+    line: 5
+    column: 2
+    function: main
+  location_invariant:
+    string: 0 <= x && x <= 40
+    type: assertion
+    format: C

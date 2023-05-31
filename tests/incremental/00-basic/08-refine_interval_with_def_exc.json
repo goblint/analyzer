@@ -1,0 +1,9 @@
+{
+    "ana": {
+        "int": {
+            "interval": true,
+            "refinement": "once"
+        }
+    },
+    "solver": "td3"
+}

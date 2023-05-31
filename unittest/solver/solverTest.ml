@@ -1,6 +1,7 @@
-open OUnit
+open Goblint_lib
+open OUnit2
+open GoblintCil
 open Pretty
-open Cil
 
 (* variables are strings *)
 module StringVar =
@@ -8,46 +9,62 @@ struct
   type t = string
   let equal (a:t) (b:t) = a = b
   let pretty_trace () x = text x
+  let compare = compare
   let hash (x:t) = Hashtbl.hash x
-  let is_global (x:t) = false
+  let printXml _ _ = ()
+  let var_id x = x
+  let node _ = failwith "no node"
+  let relift x = x
+  let is_write_only _ = false
 end
 
 (* domain is (reversed) integers *)
-module Int  = IntDomain.Trier
+module Ikind = struct let ikind () = Cil.ILong end
+module Int  = IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
 module IntR = Lattice.Reverse(Int)
 
-(* globals are varinfo -> IntR *)
-module WhatGlob = Global.Make (IntR)
+module ConstrSys = struct
+  module LVar = StringVar
+  module GVar = StringVar
+  module D = Int
+  module G = IntR
 
-(* solver for that *)
-module Solver = EffectWCon.Make (StringVar) (IntR) (WhatGlob)
+  (*
+    1. x := g
+    2. y := 8
+    3. z := y
+    4. w := w + 1 [also g := 42; _ := z]
+    *)
+  let system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option = function
+    | "x" -> Some (fun loc _ glob gside -> glob "g")
+    | "y" -> Some (fun loc _ glob gside -> (ignore (loc "x"); Int.of_int (Z.of_int64 8L)))
+    | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
+    | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
+    | _   -> None
 
-(* generate a global *)
-let g: Solver.global = makeGlobalVar "g" (TInt (IInt, []))
+  let iter_vars _ _ _ _ _ = ()
+  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []; restart = []}
+end
 
-(* 
-  1. x := g
-  2. y := 8
-  3. z := y
-  4. z := z + 1 [also g := 42]
-   *)
-let system1 (v: Solver.lhs): Solver.rhs list = 
-  match v with
-    | "x" -> [(fun (loc, glob) -> (                  glob g                           ,[]                  ,[]))]
-    | "y" -> [(fun (loc, glob) -> (ignore (loc "x"); Int.of_int 8L                    ,[]                  ,[]))]
-    | "z" -> [(fun (loc, glob) -> (ignore (loc "y"); loc "y"                          ,[]                  ,[]))]
-    | "w" -> [(fun (loc, glob) -> (ignore (loc "z"); Int.add (loc "w") (Int.of_int 1L),[(g,Int.of_int 42L)],[]))]
-    | _   -> []
+module LH = BatHashtbl.Make (ConstrSys.LVar)
+module GH = BatHashtbl.Make (ConstrSys.GVar)
+module PostSolverArg =
+struct
+  let should_prune = false
+  let should_verify = false
+  let should_warn = false
+  let should_save_run = false
+end
+module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
 
-let test1 () = 
+let test1 _ =
   let id x = x in
-  let sol, gsol = Solver.solve system1 ["w"] in
-  assert_equal ~printer:id "42" (Int.short 80 (Solver.GMap.find gsol g));
-  assert_equal ~printer:id "42" (Int.short 80 (Solver.VMap.find sol "x"));
-  assert_equal ~printer:id "8"  (Int.short 80 (Solver.VMap.find sol "y"));
-  assert_equal ~printer:id "8"  (Int.short 80 (Solver.VMap.find sol "z"));
-  assert_equal ~printer:id "Unknown int" (Int.short 80 (Solver.VMap.find sol "w"))
+  let ((sol, gsol), _) = Solver.solve [] [] ["w"] None in
+  assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));
+  assert_equal ~printer:id "42" (Int.show (LH.find sol "x"));
+  assert_equal ~printer:id "8"  (Int.show (LH.find sol "y"));
+  assert_equal ~printer:id "8"  (Int.show (LH.find sol "z"));
+  assert_equal ~printer:id "Unknown int([-63,63])" (Int.show (LH.find sol "w"))
 
 let test () = "solverTest" >:::
   [ "system1" >:: test1 ]
-  

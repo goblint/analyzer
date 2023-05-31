@@ -1,0 +1,20 @@
+--- tests/incremental/11-restart/11-paper-example.c
++++ tests/incremental/11-restart/11-paper-example.c
+@@ -20,7 +20,7 @@ void* consumer(void *arg) {
+         res = fp();
+     }
+     pthread_mutex_unlock(&mutex);
+-    __goblint_check(res >= 0); // UNKNOWN before, success after
++    __goblint_check(res >= 0); // unknown before, SUCCESS after
+     res = 0;
+     // change absorbed
+     return NULL;
+@@ -29,7 +29,7 @@ void* consumer(void *arg) {
+ void* producer(void *arg) {
+     int res = 0;
+     pthread_mutex_lock(&mutex);
+-    fp = bad;
++    fp = good;
+     pthread_mutex_unlock(&mutex);
+     return NULL;
+ }

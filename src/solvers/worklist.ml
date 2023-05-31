@@ -1,14 +1,15 @@
-open Prelude
+(** Worklist solver ([WL]). *)
+
+open Batteries
 open Analyses
 open Constraints
-open Messages
 
 module Make =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
-    include Generic.SolverStats (S)
+    include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
     open S.Dom
@@ -20,7 +21,7 @@ module Make =
         eval_rhs_event x;
         f get set
 
-    let solve _ st vs =
+    let solve st vs =
       let infl = HM.create 10 in
       let rho  = HM.create 10 in
       let vs   = ref (VS.of_enum (List.enum vs)) in
@@ -62,5 +63,4 @@ module Make =
 
 
 let _ =
-  let module S = GlobSolverFromIneqSolver (SLR.JoinContr (Make)) in
-  Selector.add_solver ("WL",  (module S : GenericGlobSolver));
+  Selector.add_solver ("WL",  (module EqIncrSolverFromEqSolver (Make)));

@@ -1,0 +1,6 @@
+rules:
+  - id: fun-id
+    pattern: fun $X -> $X
+    message: use Fun.id instead
+    languages: [ocaml]
+    severity: WARNING

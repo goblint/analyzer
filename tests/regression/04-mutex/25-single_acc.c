@@ -3,7 +3,7 @@
 int x;
 
 void *t_fun(void *arg) {
-  x++; // RACE
+  x++; // RACE!
   return NULL;
 }
 
@@ -12,6 +12,6 @@ int main() {
 
   pthread_create(&id1, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun, NULL);
-  
+
   return 0;
 }

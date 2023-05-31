@@ -1,4 +1,10 @@
 // PARAM: --set ana.activated[+] "'region'"  --set exp.region-offsets true
+extern int __VERIFIER_nondet_int();
+extern void abort(void);
+void assume_abort_if_not(int cond) {
+  if(!cond) {abort();}
+}
+
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -25,7 +31,8 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 struct s *slot[10];
 
 void *t_fun(void *arg) {
-  int i;
+  int i = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= i && i < 10);
   pthread_mutex_lock(&mutex);
   list_add(new(3), slot[i]);
   pthread_mutex_unlock(&mutex);
@@ -33,7 +40,8 @@ void *t_fun(void *arg) {
 }
 
 int main () {
-  int j;
+  int j = __VERIFIER_nondet_int();
+  assume_abort_if_not(0 <= j && j < 10);
   pthread_t t1;
   struct s *p;
 
@@ -41,7 +49,7 @@ int main () {
   list_add(new(2), slot[j]);
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  
+
   pthread_mutex_lock(&mutex);
   p = slot[j]->next; // NORACE
   printf("%d\n", p->datum);

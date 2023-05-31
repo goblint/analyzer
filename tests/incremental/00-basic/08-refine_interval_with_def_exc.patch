@@ -1,0 +1,13 @@
+diff --git tests/incremental/00-basic/08-refine_interval_with_def_exc.c tests/incremental/00-basic/08-refine_interval_with_def_exc.c
+index da6cb9dd6..13501dd4f 100644
+--- tests/incremental/00-basic/08-refine_interval_with_def_exc.c
++++ tests/incremental/00-basic/08-refine_interval_with_def_exc.c
+@@ -21,7 +21,7 @@ char *input_get_line(input_state *state )
+       state->valid = (newline - state->buf) + 2;
+     } else {
+       if (state->valid < 511) {
+-        if (n <= 0) {
++        if (n == 0) {
+           result = (char *)((void *)0);
+         }
+       }

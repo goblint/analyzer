@@ -1,8 +1,7 @@
-// PARAM: --set ana.activated "['base','escape']"
-#include <assert.h>
+#include <goblint.h>
 
 /**
- * foo /migh/ call the argument function
+ * foo /might/ call the argument function
  */
 extern void foo(void (*)(void));
 
@@ -18,6 +17,6 @@ int main()
 {
   glob = 0;
   foo(reset_glob);
-  assert(glob == 0); // UNKNOWN
+  __goblint_check(glob == 0); // UNKNOWN
   return 0;
 }

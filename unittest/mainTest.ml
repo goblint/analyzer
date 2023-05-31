@@ -1,25 +1,16 @@
-open OUnit
+open OUnit2
 
-module U = Testutils
-
-let all_tests _ = ("Tests for goblin" >:::
-  [ NativeArrayDomainTest.test ();
-    CollapsingArrayDomainTest.test ();
-    IntDomainTest.test ();
+let all_tests = ("" >:::
+  [ IntDomainTest.test ();
+    FloatDomainTest.test ();
     MapDomainTest.test ();
-    PMapArrayDomainTest.test ();
-    LMapArrayDomainTest.test ();
     SolverTest.test ();
+    LvalTest.test ();
+    CompilationDatabaseTest.tests;
+    LibraryDslTest.tests;
     (* etc *)
+    "domaintest" >::: QCheck_ounit.to_ounit2_test_list Maindomaintest.all_testsuite;
+    IntOpsTest.tests;
   ])
 
-
-let _ =
-  let verbose = ref false in
-  let set_verbose _ = verbose := true in
-  Arg.parse
-    [("-verbose", Arg.Unit set_verbose, "Run the test in verbose mode.");]
-    (fun x -> raise (Arg.Bad ("Bad argument : " ^ x)))
-    ("usage: " ^ Sys.argv.(0) ^ " [-verbose]");
-  if not (U.was_successful (run_test_tt ~verbose:!verbose (all_tests ()))) then
-    exit 1
+let () = run_test_tt_main all_tests
