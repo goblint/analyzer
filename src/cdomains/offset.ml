@@ -141,6 +141,16 @@ struct
       `Index (i_exp, to_exp o)
     | `Field (f,o) -> `Field (f, to_exp o)
 
+  let rec to_cil: t -> offset = function
+    | `NoOffset    -> NoOffset
+    | `Index (i,o) ->
+      let i_exp = match Idx.to_int i with
+        | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
+        | None -> any_index_exp
+      in
+      Index (i_exp, to_cil o)
+    | `Field (f,o) -> Field (f, to_cil o)
+
   let rec contains_index: t -> bool = function
     | `NoOffset -> false
     | `Field (_, os) -> contains_index os
@@ -245,6 +255,7 @@ struct
     | Index (i,o) -> `Index (i, of_cil o)
     | Field (f,o) -> `Field (f, of_cil o)
 
+  (* Overrides MakePrintable.to_cil. *)
   let rec to_cil: t -> offset = function
     | `NoOffset    -> NoOffset
     | `Index (i,o) -> Index (i, to_cil o)

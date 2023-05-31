@@ -1261,17 +1261,8 @@ struct
         | Addr.UnknownPtr ->
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-          (* TODO: Offset *)
-          let rec offs_to_offset = function
-            | `NoOffset -> NoOffset
-            | `Field (f, offs) -> Field (f, offs_to_offset offs)
-            | `Index (i, offs) ->
-              (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-              let i_definite = BatOption.get (IndexDomain.to_int i) in
-              let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-              Index (i_exp, offs_to_offset offs)
-          in
-          let offset = offs_to_offset offs in
+          (* Addr.Offs.is_definite implies to_cil doesn't contain Offset.any_index_exp. *)
+          let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
             Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
