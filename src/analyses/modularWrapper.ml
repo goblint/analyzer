@@ -220,7 +220,12 @@ struct
     map_ctx (fun ctx -> S.return ctx exp f) ctx
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    map_ctx_tuple_list (fun ctx -> S.enter ctx lval f args) ctx
+    let is_modular = ModularUtil.is_modular_fun f.svar in
+    let entered = map_ctx_tuple_list (fun ctx -> S.enter ctx lval f args) ctx in
+    if S.modular_support () = NonModular && is_modular then
+      List.map (fun (caller, callee) -> caller, None) entered
+    else
+      entered
 
   let combine_env ctx lval fexp f args fc fs f_ask =
     map_ctx_fs_fc (fun ctx fs fc -> S.combine_env ctx lval fexp f args fc fs f_ask) ~ctx ~fs ~fc
