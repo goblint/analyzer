@@ -209,9 +209,11 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: CompareCIL.global_col) _ _ _ = match glob.def with
-    | Some (Fun fdec) when CompareCIL.should_reanalyze fdec -> CompareCIL.ForceReanalyze fdec, None
-    | _ -> Unchanged, None
+  let eq ?(matchVars=true) ?(matchFuns=true) ?(renameDetection=false) _ _ _ gc_old (gc_new: CompareCIL.global_col) ((change_info : CompareCIL.change_info), final_matches) = (match gc_new.def with
+      | Some (Fun fdec) when CompareCIL.should_reanalyze fdec ->
+        change_info.exclude_from_rel_destab <- CompareCIL.VarinfoSet.add fdec.svar change_info.exclude_from_rel_destab
+      | _ -> change_info.unchanged <- {old = gc_old; current= gc_new} :: change_info.unchanged);
+    change_info, final_matches
   in
   CompareCIL.compareCilFiles ~eq file file
 

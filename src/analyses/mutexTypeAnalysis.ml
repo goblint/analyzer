@@ -1,4 +1,4 @@
-(** An analysis tracking the type of a mutex. *)
+(** An analysis tracking the type of a mutex ([pthreadMutexType]). *)
 
 open GoblintCil
 open Analyses
