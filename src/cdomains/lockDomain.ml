@@ -44,15 +44,11 @@ struct
 
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
 
-  (* TODO: Offset *)
   let rec may_be_same_offset of1 of2 =
-    match of1, of2 with
-    | `NoOffset , `NoOffset -> true
-    | `Field (x1,y1) , `Field (x2,y2) -> CilType.Compinfo.equal x1.fcomp x2.fcomp && may_be_same_offset y1 y2 (* TODO: why not fieldinfo equal? *)
-    | `Index (x1,y1) , `Index (x2,y2)
-      -> ((IdxDom.to_int x1 = None) || (IdxDom.to_int x2 = None))
-         || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
-    | _ -> false
+    (* Only reached with definite of2 and indefinite of1. *)
+    (* TODO: Currently useless, because MayPointTo query doesn't return index offset ranges, so not enough information to ever return false. *)
+    (* TODO: Use Addr.Offs.semantic_equal. *)
+    true
 
   let add (addr,rw) set =
     match (Addr.to_var_offset addr) with
