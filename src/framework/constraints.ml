@@ -715,9 +715,9 @@ struct
     common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ?(modular=false) ctx lv e (f:fundec) args getl sidel getg sideg =
-    let combine (cdn, fcn, fdn) (cdm, fcm, fdm) =
-      if M.tracing then M.traceli "combine" "local, non-modular: %a\nlocal, modular: %a\n" S.D.pretty cdn S.D.pretty cdm;
-      if M.tracing then M.trace "combine" "function, non-modular: %a\n, function, modular: %a\n" S.D.pretty fdn S.D.pretty fdm;
+    let combine (cdm, fcm, fdm) (cdn, fcn, fdn) =
+      if M.tracing then M.traceli "combining" "local, non-modular: %a\nlocal, modular: %a\n" S.D.pretty cdn S.D.pretty cdm;
+      if M.tracing then M.trace "combining" "function, non-modular: %a\n, function, modular: %a\n" S.D.pretty fdn S.D.pretty fdm;
 
       let build_ctx ?(prev_node=None) ctx local =
         let prev_node = Option.default ctx.prev_node prev_node in
@@ -746,19 +746,19 @@ struct
               local = fd1;
             }
           in
+
+          (* combine environment *)
           let combine_enved_modular = S.combine_env cdm_ctx lv e f args fcm fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
           let combine_enved_non_modular = S.modular_combine_env cdn_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
-
           let combine_enved = S.merge combine_enved_modular combine_enved_non_modular in
           let combine_enved_modular = S.D.to_modular combine_enved in
           let combine_enved_non_modular = S.D.to_non_modular combine_enved in
 
-          (* Combine combine_enved_modular and combine_enved_non_modular, split result again for combine_assign *)
-          let combine_assign_ctx = build_ctx cdm_ctx combine_enved_modular in
-          let combine_assigned_modular = S.combine_assign combine_assign_ctx lv e f args fcm fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
-
-          let combine_assign_ctx = build_ctx cdn_ctx combine_enved_non_modular in
-          let combine_assigned_non_modular = S.modular_combine_assign combine_assign_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
+          (* combine assign *)
+          let combine_assign_modular_ctx = build_ctx cdm_ctx combine_enved_modular in
+          let combine_assign_non_modular_ctx = build_ctx cdn_ctx combine_enved_non_modular in
+          let combine_assigned_modular = S.combine_assign combine_assign_modular_ctx lv e f args fcm fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
+          let combine_assigned_non_modular = S.modular_combine_assign combine_assign_non_modular_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
           let combine_assigned = S.merge combine_assigned_modular combine_assigned_non_modular in
           S.D.join acc combine_assigned
         ) (S.D.bot ()) (S.paths_as_set fd_ctx)
@@ -783,9 +783,7 @@ struct
       List.map create_contexts ctx_pair
     in
     let side_effect_start_states paths =
-      List.iter (fun p -> ignore @@ Tuple2.mapn (fun (c,fc,v) ->
-          (* TODO: Check whether this check is the right thing to do here! *)
-          let v = if modular then S.D.remove_non_modular v else v in
+      List.iter (fun p -> ignore @@ Tuple2.map1 (fun (c,fc,v) ->
           if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) p) paths
     in
     let get_return_states paths =
