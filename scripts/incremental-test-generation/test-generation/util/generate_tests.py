@@ -47,7 +47,7 @@ def generate_tests(temp_dir, target_dir, precision_test):
             print(f"Generating test files [{i}/{n}]")
         if type == Generate_Type.MUTATION.value:
             sub_type = yaml_data[generated_id][META_SUB_TYPE]
-            test_name = _format_number(i-1) + '-' + type + '_' + sub_type
+            test_name = _format_number(i) + '-' + type + '_' + sub_type + '_' + _format_number(i)
             # Copy mutated code as the original code
             shutil.copy2(generated_program, os.path.join(target_dir, test_name + '.c'))
             # Create a patch file
