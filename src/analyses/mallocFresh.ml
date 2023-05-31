@@ -13,9 +13,10 @@ struct
     include Lattice.Prod (DF) (DF)
 
     let join (df1, dnf1) (df2, dnf2) =
-      let dnf = DF.union dnf1 dnf2 in
-      let df = DF.diff (DF.union df1 df2) dnf in
-      (df, dnf)
+      let df_both = DF.meet df1 df2 in
+      let dnf_any = DF.union dnf1 dnf2 in
+      let df_one = DF.diff (DF.union df1 df2) dnf_any in
+      (DF.union df_both df_one, dnf_any)
 
     let leq x y = equal (join x y) y
 
