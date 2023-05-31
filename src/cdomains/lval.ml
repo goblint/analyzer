@@ -349,67 +349,6 @@ struct
   end
 end
 
-module Fields =
-struct
-  module F = CilType.Fieldinfo
-  module I = Basetype.CilExp
-
-  include Offset.Exp
-
-  let rec kill v (fds: t): t = match fds with
-    | `Index (x, xs) when I.occurs v x -> `NoOffset
-    | `Index (x, xs) -> `Index (x, kill v xs)
-    | `Field (x, xs) -> `Field (x, kill v xs)
-    | `NoOffset -> `NoOffset
-
-  let replace x exp = map_indices (I.replace x exp)
-
-  let top () = `NoOffset
-  let is_top x = x = `NoOffset
-  let bot () = failwith "Bottom offset list!"
-  let is_bot x = false
-
-  let rec leq x y =
-    match x,y with
-    | _, `NoOffset -> true
-    | `Index (x, xs), `Index (y, ys) when I.equal x y -> leq xs ys
-    | `Field (x, xs), `Field (y, ys) when F.equal x y -> leq xs ys
-    | _ -> false
-
-  let rec meet x y =
-    match x,y with
-    | `NoOffset, x | x, `NoOffset -> x
-    | `Index (x, xs), `Index (y, ys) when I.equal x y -> `Index (x, meet xs ys)
-    | `Field (x, xs), `Field (y, ys) when F.equal x y -> `Field (x, meet xs ys)
-    | _ -> failwith "Arguments do not meet"
-
-  let narrow = meet
-
-  let rec join x y =
-    match x,y with
-    | `Index (x, xs), `Index (y, ys) when I.equal x y -> `Index (x, join xs ys)
-    | `Field (x, xs), `Field (y, ys) when F.equal x y -> `Field (x, join xs ys)
-    | _ -> `NoOffset
-
-  let widen = join
-
-  let rec collapse x y =
-    match x,y with
-    | `NoOffset, x | x, `NoOffset -> true
-    | `Index (x, xs), `Index (y, ys) when I.equal x y -> collapse xs ys
-    | `Field (x, xs), `Field (y, ys) when F.equal x y -> collapse xs ys
-    | `Field (x, xs), `Field (y, ys) -> false
-    | `Index (x, xs), `Index (y, ys) -> true
-    | _ -> failwith "Type mismatch!"
-
-  (* TODO: use the type information to do this properly. Currently, this assumes
-   * there are no nested arrays, so all indexing is eliminated. *)
-  let real_region (fd:t) typ: bool = not (contains_index fd)
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
-end
-
 module Exp =
 struct
   include Printable.StdLeaf
