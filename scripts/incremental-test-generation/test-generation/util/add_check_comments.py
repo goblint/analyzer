@@ -23,7 +23,7 @@ def add_check_comments(file_path: str, undefined_instead_of_success: bool, verbo
                 if match:
                     modified_line = match.group(1)
                     if undefined_instead_of_success:
-                        modified_line += ' //UNDEFINED'
+                        modified_line += ' //UNKNOWN //SUCCESS'
                     else:
                         modified_line += ' //SUCCESS'
                     line = line.replace(match.group(1), modified_line)
