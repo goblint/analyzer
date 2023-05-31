@@ -1,4 +1,4 @@
-(** Local variable initialization analysis. *)
+(** Analysis of initialized local variables ([uninit]). *)
 
 module M = Messages
 module AD = ValueDomain.AD
@@ -16,6 +16,7 @@ struct
 
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
+  module P = IdentityP (D)
 
   type trans_in  = D.t
   type trans_out = D.t
@@ -23,15 +24,13 @@ struct
 
   let name () = "uninit"
 
-  let should_join x y = D.equal x y
-
   let startstate v : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
+     element) answers with Lval.any_index_exp on all non-concrete cases. *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset

@@ -1,3 +1,8 @@
+(** Incremental/interactive terminating top-down solver, which supports space-efficiency and caching ([td3]).
+
+    @see <https://doi.org/10.1017/S0960129521000499> Seidl, H., Vogler, R. Three improvements to the top-down solver.
+    @see <https://arxiv.org/abs/2209.10445> Interactive Abstract Interpretation: Reanalyzing Whole Programs for Cheap. *)
+
 (** Incremental terminating top down solver that optionally only keeps values at widening points and restores other values afterwards. *)
 (* Incremental: see paper 'Incremental Abstract Interpretation' https://link.springer.com/chapter/10.1007/978-3-030-41103-9_5 *)
 (* TD3: see paper 'Three Improvements to the Top-Down Solver' https://dl.acm.org/doi/10.1145/3236950.3236967
@@ -300,7 +305,7 @@ module Base =
             | Some d when narrow_reuse ->
               (* Do not reset deps for reuse of eq *)
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
-              incr Goblintutil.narrow_reuses;
+              incr SolverStats.narrow_reuses;
               d
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
@@ -837,7 +842,7 @@ module Base =
           HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Timing.wrap "restore" restore ();
-        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !SolverStats.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing && cache then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );

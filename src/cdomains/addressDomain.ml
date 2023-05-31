@@ -1,7 +1,8 @@
+(** Domains for addresses/pointers. *)
+
 open GoblintCil
 open IntOps
 
-module GU = Goblintutil
 module M = Messages
 
 module type S =

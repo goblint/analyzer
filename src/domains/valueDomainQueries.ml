@@ -1,3 +1,5 @@
+(** Queries within {!ValueDomain}. *)
+
 open GoblintCil
 open BoolDomain
 

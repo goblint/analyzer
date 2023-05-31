@@ -162,6 +162,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
     ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
+    ("pthread_mutexattr_settype", special [__ "attr" []; __ "type" []] @@ fun attr typ -> MutexAttrSetType {attr; typ});
+    ("pthread_mutex_init", special [__ "mutex" []; __ "attr" []] @@ fun mutex attr -> MutexInit {mutex; attr});
     ("pthread_attr_destroy", unknown [drop "attr" [f]]);
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
@@ -270,8 +272,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
   ]
 
-let big_kernel_lock = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType)))
-let console_sem = AddrOf (Cil.var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType)))
+let big_kernel_lock = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[big kernel lock]" intType)))
+let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console semaphore]" intType)))
 
 (** Linux kernel functions. *)
 let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -406,8 +408,8 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fpclassifyl", unknown [drop "x" []]);
   ]
 
-let verifier_atomic_var = Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
-let verifier_atomic = AddrOf (Cil.var (Goblintutil.create_var verifier_atomic_var))
+let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType)
+let verifier_atomic = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_var))
 
 (** SV-COMP functions.
     Just the ones that require special handling and cannot be stubbed. *)

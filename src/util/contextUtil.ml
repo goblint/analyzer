@@ -1,3 +1,5 @@
+(** Goblint-specific C attribute handling. *)
+
 open GoblintCil
 
 (** Definition of Goblint specific user defined C attributes and their alternatives via options **)

@@ -1,3 +1,5 @@
+(** {!Apron} domains. *)
+
 open Batteries
 open GoblintCil
 open Pretty

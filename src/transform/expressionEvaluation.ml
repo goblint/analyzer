@@ -1,3 +1,6 @@
+(** Transformation for evaluating expressions on the analysis results ([expeval]).
+    {e Hack for Gobview}. *)
+
 open Batteries
 open GoblintCil
 open Syntacticsearch
