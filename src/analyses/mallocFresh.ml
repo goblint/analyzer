@@ -7,7 +7,7 @@ struct
   include Analyses.IdentitySpec
 
   (* must fresh (or may not fresh) variables *)
-  module DF = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
+  module DF = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All variables" end)
   module D =
   struct 
     include Lattice.Prod (DF) (DF)

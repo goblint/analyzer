@@ -1,4 +1,4 @@
 module EscapedVars  =
 struct
-  include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  include SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All Variables" end)
 end
