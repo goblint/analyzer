@@ -63,10 +63,10 @@ struct
     if M.tracing then M.tracel "escape" "assign vs: %a\n" D.pretty vs;
     if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
       let escaped = reachable ask rval in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let escaped = D.filter (fun v -> not v.vglob || ctx.ask (IsHeapVar v)) escaped in
       if M.tracing then M.tracel "escape" "assign vs: %a | %a\n" D.pretty vs D.pretty escaped;
       if not (D.is_empty escaped) && ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
+        ctx.emit (Events.Escape {escaped; escaped_to=vs});
       D.iter (fun v ->
           ctx.sideg v escaped;
         ) vs;
@@ -75,14 +75,16 @@ struct
     else
       ctx.local
 
+  (* TODO: why is there no combine_assign? *)
+
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
     | _, "pthread_setspecific" , [key; pt_value] ->
       let escaped = reachable (Analyses.ask_of_ctx ctx) pt_value in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let escaped = D.filter (fun v -> not v.vglob || ctx.ask (IsHeapVar v)) escaped in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
+        ctx.emit (Events.Escape {escaped; escaped_to = D.top ()});
       let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
       D.join ctx.local (D.join escaped extra)
     | _ -> ctx.local
@@ -94,9 +96,9 @@ struct
     match args with
     | [ptc_arg] ->
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let escaped = D.filter (fun v -> not v.vglob || ctx.ask (IsHeapVar v)) escaped in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
+        ctx.emit (Events.Escape {escaped; escaped_to = D.top ()});
       let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
       [D.join ctx.local (D.join escaped extra)]
     | _ -> [ctx.local]
@@ -107,10 +109,10 @@ struct
       | [ptc_arg] ->
         (* not reusing fctx.local to avoid unnecessarily early join of extra *)
         let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
-        let escaped = D.filter (fun v -> not v.vglob) escaped in
+        let escaped = D.filter (fun v -> not v.vglob || ctx.ask (IsHeapVar v)) escaped in
         if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
         if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-          ctx.emit (Events.Escape escaped);
+          ctx.emit (Events.Escape {escaped; escaped_to = D.top ()});
         escaped
       | _ -> D.bot ()
 
@@ -119,7 +121,7 @@ struct
     | Events.EnterMultiThreaded ->
       let escaped = ctx.local in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
+        ctx.emit (Events.Escape {escaped; escaped_to = D.top ()});
       ctx.local
     | _ -> ctx.local
 end

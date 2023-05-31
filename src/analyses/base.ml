@@ -2584,7 +2584,7 @@ struct
       WideningTokens.with_local_side_tokens (fun () ->
           Priv.unlock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
         )
-    | Events.Escape escaped ->
+    | Events.Escape {escaped; _} ->
       Priv.escape (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st escaped
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st

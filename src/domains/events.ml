@@ -4,7 +4,7 @@ open Pretty
 type t =
   | Lock of LockDomain.Lockset.Lock.t
   | Unlock of LockDomain.Addr.t
-  | Escape of EscapeDomain.EscapedVars.t
+  | Escape of {escaped_to: EscapeDomain.EscapedVars.t; escaped: EscapeDomain.EscapedVars.t}
   | EnterMultiThreaded
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
@@ -35,7 +35,7 @@ let emit_on_deadcode = function
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
   | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
-  | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
+  | Escape {escaped_to; escaped} -> dprintf "Escaped {escaped_to=%a; escaped=%a}" EscapeDomain.EscapedVars.pretty escaped_to EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv
   | AssignSpawnedThread (lval, tid) -> dprintf "AssignSpawnedThread (%a, %a)" d_lval lval ThreadIdDomain.Thread.pretty tid
