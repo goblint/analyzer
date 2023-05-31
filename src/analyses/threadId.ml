@@ -34,6 +34,7 @@ struct
 
   module D = Lattice.Prod3 (N) (ThreadLifted) (TD)
   module C = D
+  module P = IdentityP (D)
 
   let tids = ref (Hashtbl.create 20)
 
