@@ -143,6 +143,10 @@ struct
 
   let remove_non_modular = map (LD.remove_non_modular)
 
+  let merge x y = match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (LD.merge x y)
+    | a, b -> join a  b
+
   let unlift x =
     match x with
     | `Lifted x -> x
@@ -490,7 +494,6 @@ module type PostSpec =
 sig
   module D: Lattice.T
   include Spec with module D := D
-  val merge: D.t -> D.t -> D.t
 end
 
 module type MCPPostSpec =

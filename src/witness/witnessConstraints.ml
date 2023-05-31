@@ -60,7 +60,7 @@ struct
     let narrow x y = y
   end
 
-  module SpecDMap (V: Lattice.T) =
+  module SpecDMap (V: Lattice.S) =
   struct
     module R =
     struct
@@ -69,9 +69,10 @@ struct
     end
     module J = MapDomain.Joined (Spec.D) (V)
     include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
-    let remove_non_modular x = map V.remove_non_modular x
-    let to_modular (x: t) = map V.to_modular x
-    let to_non_modular (x: t) = map V.to_non_modular x
+    let remove_non_modular x = failwith "remove_non_modular not implemented for PathSensitive3"
+    let to_modular (x: t) = failwith "to_modular not implemented for PathSensitive3"
+    let to_non_modular (x: t) = failwith "to_non_modular not implemented for PathSensitive3"
+    let merge (x: t) (y: t) = failwith "merge not implemented for PathSensitive3"
   end
 
   module Dom =
@@ -117,6 +118,11 @@ struct
     let remove_non_modular (d, s) = Dom.remove_non_modular d, s
     let to_modular (d, s) = Dom.to_modular d, s
     let to_non_modular (d, s) = Dom.to_non_modular d, s
+
+    let merge (d1, s1) (d2, s2) =
+      let d = Dom.merge d1 d2 in
+      let s = Sync.join s1 s2 in
+      (d, s)
 
     let printXml f (d, _) = Dom.printXml f d
   end

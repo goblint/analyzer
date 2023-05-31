@@ -203,6 +203,7 @@ end
 
 module D (S: PostSpec) = struct
   include Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  let merge (x1, y1) (x2, y2) = (S.D.merge x1 x2, IntDomain.Lifted.join y1 y2)
   let remove_non_modular (x, y) = (S.D.remove_non_modular x, y)
   let to_modular (x, y) = (S.D.to_modular x, y)
   let to_non_modular (x, y) = (S.D.to_non_modular x, y)
@@ -380,6 +381,7 @@ struct
     let remove_non_modular (x, y) = S.D.remove_non_modular x, y
     let to_modular (x, y) = S.D.to_modular x, y
     let to_non_modular (x, y) = S.D.to_non_modular x, y
+    let merge (x1, y1) (x2, y2) = S.D.merge x1 x2, M.join y1 y2
   end
   module G = S.G
   module C = S.C
@@ -450,8 +452,6 @@ struct
 
   let combine_env ctx r fe f args fc es f_ask = lift_fun ctx S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
-
-  let merge = D.join
 end
 
 
@@ -715,7 +715,7 @@ struct
     common_join ctx (S.branch ctx e tv) !r !spawns
 
   let tf_normal_call ?(modular=false) ctx lv e (f:fundec) args getl sidel getg sideg =
-    let combine (cdm, fcm, fdm) (cdn, fcn, fdn) =
+    let combine (cdm, fcm, fdm) (cdn, _, fdn) =
       if M.tracing then M.traceli "combining" "local, non-modular: %a\nlocal, modular: %a\n" S.D.pretty cdn S.D.pretty cdm;
       if M.tracing then M.trace "combining" "function, non-modular: %a\n, function, modular: %a\n" S.D.pretty fdn S.D.pretty fdm;
 
@@ -739,7 +739,7 @@ struct
         let rec fd_ctx = build_ctx sync_ctx synced in
         fd_ctx
       in
-      let r = List.fold_left (fun acc fd1 ->
+      let handle_function_path acc fd1 =
           let rec fd1_ctx =
             { fd_ctx with
               ask = (fun (type a) (q: a Queries.t) -> S.query fd1_ctx q);
@@ -750,7 +750,9 @@ struct
           (* combine environment *)
           let combine_enved_modular = S.combine_env cdm_ctx lv e f args fcm fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
           let combine_enved_non_modular = S.modular_combine_env cdn_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
-          let combine_enved = S.merge combine_enved_modular combine_enved_non_modular in
+
+          let combine_enved = S.D.merge combine_enved_modular combine_enved_non_modular in
+
           let combine_enved_modular = S.D.to_modular combine_enved in
           let combine_enved_non_modular = S.D.to_non_modular combine_enved in
 
@@ -759,16 +761,17 @@ struct
           let combine_assign_non_modular_ctx = build_ctx cdn_ctx combine_enved_non_modular in
           let combine_assigned_modular = S.combine_assign combine_assign_modular_ctx lv e f args fcm fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
           let combine_assigned_non_modular = S.modular_combine_assign combine_assign_non_modular_ctx lv f args (Analyses.ask_of_ctx fd1_ctx) in
-          let combine_assigned = S.merge combine_assigned_modular combine_assigned_non_modular in
+          let combine_assigned = S.D.merge combine_assigned_modular combine_assigned_non_modular in
+
           S.D.join acc combine_assigned
-        ) (S.D.bot ()) (S.paths_as_set fd_ctx)
       in
-      if M.tracing then M.traceu "combine" "combined local: %a\n" S.D.pretty r;
+      let paths_set = (S.paths_as_set fd_ctx) in
+      let r = List.fold_left handle_function_path (S.D.bot ()) paths_set in
       r
     in
     let split_modular lds =
       List.map (fun ld ->
-          let ld_modular =Tuple2.mapn S.D.to_modular ld in
+          let ld_modular = Tuple2.mapn S.D.to_modular ld in
           let ld_non_modular = Tuple2.mapn S.D.to_non_modular ld in
           ld_modular, ld_non_modular
         ) lds
@@ -1279,6 +1282,15 @@ struct
     let remove_non_modular x = map Spec.D.to_modular x
     let to_modular x = map Spec.D.to_modular x
     let to_non_modular x = map Spec.D.to_non_modular x
+    (** Pairwise join of paths in first and second list *)
+    let merge x y =
+      M.tracel "combine_enved" "Merging paths\n";
+      let xs = elements x in
+      let ys = elements y in
+      assert (1 = List.length xs && 1 = List.length ys);
+      let result = List.map2 Spec.D.join xs ys in
+      of_list result
+
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
@@ -1402,13 +1414,6 @@ struct
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
 
-  (** Pairwise join of paths in first and second list *)
-  let merge x y =
-    let xs = D.elements x in
-    let ys = D.elements y in
-    assert (List.length xs = List.length ys);
-    let result = List.map2 Spec.D.join xs ys in
-    D.of_list result
 
 end
 

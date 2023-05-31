@@ -19,6 +19,11 @@ struct
     type domain = Left | Right
     let chosen_domain = Right
 
+    let merge x y = match x, y with
+      | `Left x, `Left y -> `Left (Base1.join x y)
+      | `Right x, `Right y -> `Right (Base2.join x y)
+      | _ -> failwith "Either.merge: incompatible arguments"
+
     let unop_to_t unop_left unop_right u =
       match chosen_domain with
       | Left -> `Left (unop_left u)
@@ -86,6 +91,12 @@ struct
   module D = struct
     include Lattice.Option (Either)
 
+    let merge x y = match x, y with
+      | Some x, Some y -> Some (Either.merge x y)
+      | Some x, None
+      | None, Some x -> Some x
+      | _ -> None
+
     let right_to_left = function
       | Some (`Right x) -> Some (`Left x)
       | x -> x
@@ -115,6 +126,7 @@ struct
     let remove_non_modular x = x
     let to_modular x = x
     let to_non_modular x = x
+    let merge = S.G.join
   end
 
   module C = Printable.Option (S.C) (struct let name = S.C.name () end)

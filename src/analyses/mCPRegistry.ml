@@ -392,6 +392,8 @@ struct
   let to_non_modular =
     unop_map (fun (module S: Lattice.T) x -> Obj.repr (S.to_non_modular (Obj.obj x)))
 
+  let merge  = binop_map (fun (module S : Lattice.T) x y -> repr @@ S.merge  (obj x) (obj y))
+
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
