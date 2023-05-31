@@ -52,9 +52,9 @@ struct
     (* other unary operators are not implemented on float values *)
     | _ -> (fun c -> FD.top_of (FD.get_fkind c))
 
-  let is_some_bot x =
+  let is_some_bot (x:VD.t) =
     match x with
-    | VD.Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
+    | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | _ -> VD.is_bot_value x
 
   let apply_invariant oldv newv =
@@ -126,7 +126,7 @@ struct
   let invariant_fallback ctx a (gs:V.t -> G.t) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
-    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool) =
+    let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): (lval * VD.t) option =
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
@@ -134,7 +134,7 @@ struct
         (match value with
          | Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-           Some (x, VD.Int (ID.cast_to ikind n))
+           Some (x, Int (ID.cast_to ikind n))
          | _ -> Some(x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
@@ -204,9 +204,9 @@ struct
         None
     in
     if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
-    let null_val typ =
+    let null_val (typ:typ):VD.t =
       match Cil.unrollType typ with
-      | TPtr _                    -> VD.Address AD.null_ptr
+      | TPtr _                    -> Address AD.null_ptr
       | TEnum({ekind=_;_},_)
       | _                         -> Int (ID.of_int (Cilfacade.get_ikind typ) BI.zero)
     in
