@@ -2,31 +2,9 @@
 
 open GoblintCil
 open GobConfig
+open MusteqDomain
 
-module V = Basetype.Variables
 module B = Printable.UnitConf (struct let name = "•" end)
-module F = MusteqDomain.F
-
-module VF =
-struct
-  include Printable.ProdSimple (V) (F)
-  let show (v,fd) =
-    let v_str = V.show v in
-    let fd_str = F.show fd in
-    v_str ^ fd_str
-  let pretty () x = Pretty.text (show x)
-
-  let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printXml fi
-
-  (* Indicates if the two var * offset pairs should collapse or not. *)
-  let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
-  let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
-  (* Joins the fields, assuming the vars are equal. *)
-  let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let kill x (v,f) = v, F.kill x f
-  let replace x exp (v,fd) = v, F.replace x exp fd
-end
 
 module VFB =
 struct

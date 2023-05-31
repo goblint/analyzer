@@ -76,14 +76,25 @@ struct
     | `NoOffset -> false
 end
 
-module EquAddr =
+module VF =
 struct
   include Printable.ProdSimple (V) (F)
   let show (v,fd) =
     let v_str = V.show v in
     let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = text (show x)
+  let pretty () x = Pretty.text (show x)
+
+  let printXml f (v,fi) =
+    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printXml fi
+
+  (* Indicates if the two var * offset pairs should collapse or not. *)
+  let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
+  let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
+  (* Joins the fields, assuming the vars are equal. *)
+  let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
+  let kill x (v,f) = v, F.kill x f
+  let replace x exp (v,fd) = v, F.replace x exp fd
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
     if V.equal v1 v2 then F.prefix fd1 fd2 else None
@@ -135,7 +146,7 @@ struct
   (* Function to find all addresses equal to { vfd } in { eq }. *)
   let other_addrs vfd eq =
     let rec helper (v,fd) addrs =
-      if List.exists (EquAddr.equal (v,fd)) addrs then addrs else
+      if List.exists (VF.equal (v,fd)) addrs then addrs else
         let f (x,y) fd' acc =
           if V.equal v x then
             helper (y, F.add_offset fd' fd) acc
@@ -149,7 +160,7 @@ struct
     in
     helper vfd []
 
-  let eval_rv rv: EquAddr.t option =
+  let eval_rv rv: VF.t option =
     match rv with
     | Lval (Var x, NoOffset) -> Some (x, `NoOffset)
     | AddrOf (Var x, ofs)
