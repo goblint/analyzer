@@ -295,11 +295,11 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module BaseAddrRepr (Offs: OffsT) =
+module NormalLatRepr (Offs: OffsT) =
 struct
   include NormalLat (Offs)
 
-  module R: DisjointDomain.Representative with type elt = t =
+  module R0: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
 
@@ -314,12 +314,6 @@ struct
       | NullPtr -> NullPtr
       | UnknownPtr -> UnknownPtr
   end
-end
-
-(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Offs: OffsT) =
-struct
-  include NormalLat (Offs)
 
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
@@ -361,7 +355,6 @@ end
 module AddressSet (Idx: IntDomain.Z) =
 struct
   module Offs = Offset.MakeLattice (Idx)
-  module BaseAddr = BaseAddrRepr (Offs)
   module Addr = NormalLatRepr (Offs)
   module J = (struct
     include SetDomain.Joined (Addr)
@@ -372,7 +365,7 @@ struct
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  module AddressSet : SetDomain.S with type elt = Addr.t = DisjointDomain.ProjectiveSet (BaseAddr) (OffsetSplit) (BaseAddr.R)
+  module AddressSet : SetDomain.S with type elt = Addr.t = DisjointDomain.ProjectiveSet (Addr) (OffsetSplit) (Addr.R0)
   include AddressSet
 
   (* short-circuit with physical equality,
