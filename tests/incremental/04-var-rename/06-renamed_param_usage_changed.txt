@@ -1,2 +1,0 @@
-function parameters a and b and swapped in the function header. But the function body stays the same.
-Semantic changes.
