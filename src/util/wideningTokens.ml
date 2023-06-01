@@ -101,7 +101,6 @@ struct
     let remove_non_modular (d, ts) = S.D.remove_non_modular d, ts
     let to_modular (d, ts) = S.D.to_modular d, ts
     let to_non_modular (d, ts) = S.D.to_non_modular d, ts
-    let merge (d1, t1) (d2, t2) = S.D.merge d1 d2, TS.join t1 t2
 
     let printXml f (d, t) =
       BatPrintf.fprintf f "\n%a<path><analysis name=\"tokens\">%a</analysis></path>" S.D.printXml d TS.printXml t

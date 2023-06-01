@@ -43,7 +43,6 @@ sig
   val remove_non_modular : t -> t
   val to_modular: t -> t
   val to_non_modular: t -> t
-  val merge: t -> t -> t
 end
 
 exception TopValue
@@ -176,7 +175,6 @@ struct
 
   let to_modular x = lift (lift_f Base.to_modular x)
   let to_non_modular x = lift (lift_f Base.to_non_modular x)
-  let merge x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.merge x y)
 end
 
 module HashCached (M: S) =

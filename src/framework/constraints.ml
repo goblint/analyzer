@@ -101,8 +101,6 @@ struct
 
   let event ctx e octx =
     D.lift @@ S.event (conv ctx) e (conv octx)
-
-  let merge = D.join
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -190,9 +188,10 @@ struct
 
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let event ctx e octx = S.event (conv ctx) e (conv octx)
-  let merge = D.join
 end
 
+(* Adds special handling for calls to functions that are to be analyzed modularly.
+   Needs to be applied before PathSensitiveFunctors, so that the [S.D.join] operation does not result in multiple paths *)
 module ModularCallLifter (S:PostSpec)
   : PostSpec with module D = S.D
               and module G = S.G
@@ -232,7 +231,7 @@ struct
 
       let combine_enved_modular = S.combine_env ctx_modular lv fe f args fc fd f_ask in
       let combine_enved_non_modular = S.modular_combine_env ctx_non_modular lv f args f_ask in
-      let combine_enved = S.D.merge combine_enved_modular combine_enved_non_modular in
+      let combine_enved = S.D.join combine_enved_modular combine_enved_non_modular in
       combine_enved
     end else
       S.combine_env ctx lv fe f args fc fd f_ask
@@ -247,7 +246,7 @@ struct
 
       let combine_assigned_modular = S.combine_assign ctx_modular lv fe f args fc es f_ask in
       let combine_assigned_non_modular = S.modular_combine_assign ctx_non_modular lv f args f_ask in
-      let combine_assigned = S.D.merge combine_assigned_modular combine_assigned_non_modular in
+      let combine_assigned = S.D.join combine_assigned_modular combine_assigned_non_modular in
       combine_assigned
     end else
       S.combine_assign ctx lv fe f args fc es f_ask
@@ -273,7 +272,6 @@ end
 
 module D (S: PostSpec) = struct
   include Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
-  let merge (x1, y1) (x2, y2) = (S.D.merge x1 x2, IntDomain.Lifted.join y1 y2)
   let remove_non_modular (x, y) = (S.D.remove_non_modular x, y)
   let to_modular (x, y) = (S.D.to_modular x, y)
   let to_non_modular (x, y) = (S.D.to_non_modular x, y)
@@ -402,8 +400,6 @@ struct
       else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
-
-  let merge = D.join
 end
 
 
@@ -451,7 +447,6 @@ struct
     let remove_non_modular (x, y) = S.D.remove_non_modular x, y
     let to_modular (x, y) = S.D.to_modular x, y
     let to_non_modular (x, y) = S.D.to_non_modular x, y
-    let merge (x1, y1) (x2, y2) = S.D.merge x1 x2, M.join y1 y2
   end
   module G = S.G
   module C = S.C
@@ -595,8 +590,6 @@ struct
   let threadspawn ctx lval f args fctx = lift_fun ctx D.lift S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval) `Bot
 
   let event (ctx:(D.t,G.t,C.t,V.t) ctx) (e:Events.t) (octx:(D.t,G.t,C.t,V.t) ctx):D.t = lift_fun ctx D.lift S.event ((|>) (conv octx) % (|>) e) `Bot
-
-  let merge = D.join
 end
 
 module type Increment =
@@ -1314,14 +1307,6 @@ struct
     let remove_non_modular x = map Spec.D.to_modular x
     let to_modular x = map Spec.D.to_modular x
     let to_non_modular x = map Spec.D.to_non_modular x
-    (** Pairwise join of paths in first and second list *)
-    let merge x y =
-      M.tracel "combine_enved" "Merging paths\n";
-      let xs = elements x in
-      let ys = elements y in
-      assert (1 = List.length xs && 1 = List.length ys);
-      let result = List.map2 Spec.D.join xs ys in
-      of_list result
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
