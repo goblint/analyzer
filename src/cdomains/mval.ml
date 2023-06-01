@@ -22,6 +22,8 @@ struct
     )
 end
 
+module Unit = MakePrintable (Offset.Unit)
+
 module Exp =
 struct
   include MakePrintable (Offset.Exp)

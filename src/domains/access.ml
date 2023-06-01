@@ -126,7 +126,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     end
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
-let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
+let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:Mval.Unit.t option) a: unit =
   if is_ignorable lv then () else begin
     let loc = Option.get !Node.current_node in
     side ty lv (conf, kind, loc, e, a)
@@ -149,7 +149,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
+let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: Mval.Unit.t option) a: unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
