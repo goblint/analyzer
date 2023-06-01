@@ -80,4 +80,5 @@ struct
     | `Array a ->
       `Array (CArrays.map (map_back ~reachable) a)
     | `Blob _ -> failwith "Blob not yet implemented"
+    | `MutexAttr _ -> `MutexAttr (MutexAttr.top ())
 end
