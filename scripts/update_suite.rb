@@ -165,6 +165,8 @@ class Tests
                     when /^\[Error\]/                then "warn"
                     when /^\[Info\]/                 then "warn"
                     when /^\[Success\]/              then "success"
+                    when /^\[Terminating\]/          then "term"
+                    when /^\[Nonterminating\]/       then "noterm"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
@@ -298,6 +300,10 @@ class Project
         tests[i] = "fail"
       elsif obj =~ /UNKNOWN/ then
         tests[i] = "unknown"
+      elsif obj =~ /NON?TERM/ then
+        tests[i] = "noterm"
+      elsif obj =~ /TERM/ then
+        tests[i] = "term"
       elsif obj =~ /(assert|__goblint_check).*\(/ then
         if obj =~ /FAIL/ then
           tests[i] = "fail"
