@@ -158,25 +158,25 @@ struct
     in
     List.iter add_lval_event lvs_exps
 
-  let modular_combine_assign ctx lv f arglist (f_ask: Queries.ask) : D.t =
+  let write_lval_option ctx lval =
+    match lval with
+    | None -> ()
+    | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval);
     ctx.local
+
+  let modular_combine_assign ctx lv f arglist (f_ask: Queries.ask) : D.t =
+    write_lval_option ctx lv
 
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    (* These should be in enter, but enter cannot emit events, nor has fexp argument *)
     access_one_top ctx Read false fexp;
     List.iter (access_one_top ctx Read false) args;
     au
 
   let combine_assign ctx lv fexp f args fc al f_ask =
-    begin match lv with
-      | None      -> ()
-      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
-    end;
-    ctx.local
-
+    write_lval_option ctx lv
 
   let threadspawn ctx lval f args fctx =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
