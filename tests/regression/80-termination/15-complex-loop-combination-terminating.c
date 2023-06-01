@@ -130,7 +130,7 @@ int main()
         }
     }
 
-    // Loop with a label and goto statement
+    /* // Loop with a label and goto statement
     int w = 1;
 start:
     if (w <= 5)
@@ -138,7 +138,7 @@ start:
         printf("Loop with Label and Goto: %d\n", w);
         w++;
         goto start; // TERM
-    }
+    } */
 
     return 0;
 }
