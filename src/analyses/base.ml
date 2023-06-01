@@ -924,7 +924,7 @@ struct
         match a with
         | Addr (x, o) ->
           begin
-            let at = get_type_addr (x, o) in
+            let at = Addr.Mval.get_type_addr (x, o) in
             if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
             if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
               true
@@ -932,7 +932,7 @@ struct
               match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
               | Some i1, Some i2 -> Z.compare i1 i2 <= 0
               | _ ->
-                if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                if contains_vla t || contains_vla (Addr.Mval.get_type_addr (x, o)) then
                   begin
                     (* TODO: Is this ok? *)
                     M.info ~category:Unsound "Casting involving a VLA is assumed to work";

@@ -79,6 +79,7 @@ sig
   val add_offset: t -> t -> t
   val type_offset: typ -> t -> typ
   exception Type_offset of typ * string
+  val to_cil: t -> offset
 end
 
 module type OffsT =
@@ -100,7 +101,8 @@ struct
   type field = fieldinfo
   type idx = Offs.idx
   (* module Offs = Offset.MakePrintable (Idx) *)
-  include PreNormal (Mval.MakePrintable (Offs))
+  module Mval = Mval.MakePrintable (Offs)
+  include PreNormal (Mval)
 
   let name () = "Normal Lvals"
 
@@ -154,33 +156,22 @@ struct
     | Some x -> Some (String.length x)
     | _ -> None
 
-  let get_type_addr (v,o) = try Offs.type_offset v.vtype o with Offs.Type_offset (t,_) -> t
-
   let get_type = function
-    | Addr (x, o) -> get_type_addr (x, o)
+    | Addr (x, o) -> Mval.get_type_addr (x, o)
     | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
 
-
   (* TODO: seems to be unused *)
-  let to_exp (f:Offs.idx -> exp) x =
-    (* TODO: Offset *)
-    let rec to_cil c =
-      match c with
-      | `NoOffset -> NoOffset
-      | `Field (fld, ofs) -> Field (fld  , to_cil ofs)
-      | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
-    in
-    match x with
-    | Addr (v,o) -> AddrOf (Var v, to_cil o)
+  let to_exp = function
+    | Addr m -> AddrOf (Mval.to_cil m)
     | StrPtr (Some x) -> mkString x
     | StrPtr None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
   (* TODO: unused *)
   let add_offset x o = match x with
-    | Addr (v, u) -> Addr (v, Offs.add_offset u o)
+    | Addr m -> Addr (Mval.add_offset m o)
     | x -> x
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)

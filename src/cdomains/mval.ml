@@ -6,7 +6,17 @@ open Pretty
 
 module M = Messages
 
-module MakePrintable (Offs: Printable.S) =
+module type OffsS =
+sig
+  type idx
+  include Printable.S with type t = idx Offset.t
+  val add_offset: t -> t -> t
+  val type_offset: typ -> t -> typ
+  exception Type_offset of typ * string
+  val to_cil: t -> offset
+end
+
+module MakePrintable (Offs: OffsS) =
 struct
   include Printable.StdLeaf
   (* TODO: version with Basetype.Variables and RichVarinfo for AddressDomain *)
@@ -21,14 +31,15 @@ struct
       let show = show
     end
     )
+
+  let add_offset (v, o) o' = (v, Offs.add_offset o o')
+
+  let get_type_addr (v,o) = try Offs.type_offset v.vtype o with Offs.Type_offset (t,_) -> t
+
+
+  let to_cil ((v, o): t): lval = (Var v, Offs.to_cil o)
+  let to_cil_exp lv = Lval (to_cil lv)
 end
 
 module Unit = MakePrintable (Offset.Unit)
-
-module Exp =
-struct
-  include MakePrintable (Offset.Exp)
-
-  let to_cil ((v, o): t): lval = (Var v, Offset.Exp.to_cil o)
-  let to_cil_exp lv = Lval (to_cil lv)
-end
+module Exp = MakePrintable (Offset.Exp)
