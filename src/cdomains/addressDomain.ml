@@ -295,9 +295,9 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module BaseAddrRepr (Idx: Offset.Index.Lattice) =
+module BaseAddrRepr (Offs: OffsT) =
 struct
-  include NormalLat (Offset.MakeLattice (Idx))
+  include NormalLat (Offs)
 
   module R: DisjointDomain.Representative with type elt = t =
   struct
@@ -317,9 +317,9 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: Offset.Index.Lattice) =
+module NormalLatRepr (Offs: OffsT) =
 struct
-  include NormalLat (Offset.MakeLattice (Idx))
+  include NormalLat (Offs)
 
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
@@ -332,7 +332,7 @@ struct
        since different integer domains may be active at different program points. *)
     include Normal (Offset.Unit)
 
-    let of_elt_offset: Idx.t Offset.t -> Offset.Unit.t = of_offs
+    let of_elt_offset: Offs.idx Offset.t -> Offset.Unit.t = of_offs
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
@@ -360,8 +360,9 @@ end
 
 module AddressSet (Idx: IntDomain.Z) =
 struct
-  module BaseAddr = BaseAddrRepr (Idx)
-  module Addr = NormalLatRepr (Idx)
+  module Offs = Offset.MakeLattice (Idx)
+  module BaseAddr = BaseAddrRepr (Offs)
+  module Addr = NormalLatRepr (Offs)
   module J = (struct
     include SetDomain.Joined (Addr)
     let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
