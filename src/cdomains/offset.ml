@@ -91,6 +91,8 @@ struct
     | `Field (x, o) ->
       if is_first_field x then cmp_zero_offset o else `MustNonzero
 
+  let is_zero_offset x = cmp_zero_offset x = `MustZero
+
   let rec show: t -> string = function
     | `NoOffset -> ""
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
@@ -163,6 +165,24 @@ struct
     | `Index (i, o) -> `Index (g i, map_indices g o)
 
   let top_indices = map_indices (fun _ -> Idx.top ())
+
+  (* exception if the offset can't be followed completely *)
+  exception Type_offset of typ * string
+  (* tries to follow o in t *)
+  let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
+    | t, `NoOffset -> t
+    | TArray (t,_,_), `Index (i,o)
+    | TPtr (t,_), `Index (i,o) -> type_offset t o
+    | TComp (ci,_), `Field (f,o) ->
+      let fi = try getCompField ci f.fname
+        with Not_found ->
+          let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
+          raise (Type_offset (t, s))
+      in type_offset fi.ftype o
+    | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
+    | t,o ->
+      let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t pretty o in
+      raise (Type_offset (t, s))
 end
 
 module MakeLattice (Idx: Index.Lattice) =

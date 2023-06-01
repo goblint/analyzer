@@ -348,7 +348,7 @@ struct
       | t -> t
     in
     let rec adjust_offs v o d =
-      let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
+      let ta = try Addr.Offs.type_offset v.vtype o with Addr.Offs.Type_offset (t,s) -> raise (CastError s) in
       let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
@@ -361,7 +361,7 @@ struct
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
-        else if Addr.is_zero_offset o then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
+        else if Addr.Offs.is_zero_offset o then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
@@ -377,7 +377,7 @@ struct
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
               adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.is_zero_offset o)
           end
     in
     let one_addr = let open Addr in function

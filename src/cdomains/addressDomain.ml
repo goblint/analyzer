@@ -75,7 +75,10 @@ sig
   type idx
   include Printable.S with type t = idx Offset.t
   val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero]
+  val is_zero_offset: t -> bool
   val add_offset: t -> t -> t
+  val type_offset: typ -> t -> typ
+  exception Type_offset of typ * string
 end
 
 module type OffsT =
@@ -151,25 +154,7 @@ struct
     | Some x -> Some (String.length x)
     | _ -> None
 
-  (* exception if the offset can't be followed completely *)
-  exception Type_offset of typ * string
-  (* tries to follow o in t *)
-  let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
-    | t, `NoOffset -> t
-    | TArray (t,_,_), `Index (i,o)
-    | TPtr (t,_), `Index (i,o) -> type_offset t o
-    | TComp (ci,_), `Field (f,o) ->
-      let fi = try getCompField ci f.fname
-        with Not_found ->
-          let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
-          raise (Type_offset (t, s))
-      in type_offset fi.ftype o
-    | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
-    | t,o ->
-      let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t Offs.pretty o in
-      raise (Type_offset (t, s))
-
-  let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
+  let get_type_addr (v,o) = try Offs.type_offset v.vtype o with Offs.Type_offset (t,_) -> t
 
   let get_type = function
     | Addr (x, o) -> get_type_addr (x, o)
@@ -177,7 +162,6 @@ struct
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
 
-  let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
   (* TODO: seems to be unused *)
   let to_exp (f:Offs.idx -> exp) x =
