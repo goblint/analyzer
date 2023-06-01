@@ -103,18 +103,38 @@ struct
       List.iter (access_one_top ctx Read false) arglist; (* always read all argument expressions without dereferencing *)
       ctx.local
 
-  let modular_call ctx lv f arglist (f_ask: Queries.ask) : D.t =
+  let modular_combine_env ctx lv f args (f_ask: Queries.ask) : D.t =
     let open ValueDomain in
     let open WrittenDomain in
     (* TODO: Handle values that are read in modular functions *)
     let written = f_ask.f Queries.Written in
-    (* M.tracel "modular_call" "written: %d\n" (Written.cardinal written); *)
     (* Collect all addreses that were written to. *)
     let addresses =
       let list = ref [] in
       Written.iter (fun a _ -> list := a :: !list) written;
       !list
     in
+    let get_reachable e =
+      match ctx.ask (Queries.ReachableAddressesFrom e) with
+      | `Top -> failwith "ReachableAddressesFrom returned `Top."
+      | `Lifted a -> a
+    in
+    let used_globals = ModularUtil.get_callee_globals f_ask in
+    let effective_args = args @ used_globals in
+    let reachable =
+      List.fold_left (fun acc arg -> AD.join acc (get_reachable arg) ) (AD.bot ()) effective_args
+    in
+    let map_back a = ModularUtil.ValueDomainExtension.map_back a ~reachable in
+    let map_back a =
+      let address = `Address a in
+      match map_back address with
+      | `Address maped_back ->
+        maped_back
+      | _ ->
+        M.warn "map_back failed for %a" AD.pretty a;
+        AD.bot ()
+    in
+    let addresses = List.map map_back addresses in
     (* Convert to lvals *)
     let address_to_lvals (ad: AD.t) =
       let addr_to_lval_and_exp (v, offs) =
@@ -137,6 +157,9 @@ struct
       access_one_top ~lval:ls ~deref:true ctx AccessKind.Write false exp
     in
     List.iter add_lval_event lvs_exps
+
+  let modular_combine_assign ctx lv f arglist (f_ask: Queries.ask) : D.t =
+    ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
