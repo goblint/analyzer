@@ -47,13 +47,13 @@ struct
   let leq x y =
     match x,y with
     | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false
+    | `Right (), _ | _, `Right () -> false (* incomparable according to collapse *)
     | `Left x, `Left y -> VF.leq x y
 
   let join (x:t) (y:t) :t =
     match x,y with
-    | `Right (), _ -> `Right ()
-    | _, `Right () -> `Right ()
+    | `Right (), `Right () -> `Right ()
+    | `Right (), _ | _, `Right () -> raise Lattice.Uncomparable (* incomparable according to collapse *)
     | `Left x, `Left y -> `Left (VF.join x y)
 
   let lift f y = match y with
