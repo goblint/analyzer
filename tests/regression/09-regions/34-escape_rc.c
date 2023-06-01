@@ -17,6 +17,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   int i;
+  // TODO: make AddrOf(i) owner, for consistency?
   pthread_create(&id, NULL, t_fun, (void *) &i);
   pthread_mutex_lock(&mutex2);
   i++; // RACE!

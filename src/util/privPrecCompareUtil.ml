@@ -1,4 +1,5 @@
-open Prelude
+(** {!BasePriv} precison comparison. *)
+
 open GoblintCil
 open PrecCompareUtil
 

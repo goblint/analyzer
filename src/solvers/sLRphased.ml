@@ -1,4 +1,6 @@
-open Prelude
+(** Two-phased terminating SLR3 solver ([slr3tp]). *)
+
+open Batteries
 open Analyses
 open Constraints
 open Messages
@@ -22,7 +24,7 @@ module Make =
 
     let narrow = narrow S.Dom.narrow
 
-    let solve box st vs =
+    let solve st vs =
       let key    = HM.create 10 in
       let module H = Heap.Make (struct
           type t = S.Var.t

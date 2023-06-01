@@ -1,3 +1,5 @@
+(** Unified interface for floating-point types. *)
+
 type round_mode =
   | Nearest
   | ToZero
@@ -15,7 +17,7 @@ module type CFloatType = sig
 
   val of_float: round_mode -> float -> t
   val to_float: t -> float option
-  val to_big_int: t -> Big_int_Z.big_int
+  val to_big_int: t -> Z.t
 
   val is_finite: t -> bool
   val pred: t -> t

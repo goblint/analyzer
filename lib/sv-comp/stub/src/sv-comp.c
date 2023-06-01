@@ -13,7 +13,7 @@ void __VERIFIER_assume(int expression) { if (!expression) { LOOP: goto LOOP; }; 
 // #define __VERIFIER_nondet(X) X __VERIFIER_nondet_##X() { X val; return val; }
 #define __VERIFIER_nondet2(X, Y) \
     X __VERIFIER_nondet_##Y() __attribute__((goblint_stub)); \
-    X __VERIFIER_nondet_##Y() { X val; return val; }
+    X __VERIFIER_nondet_##Y() { X val __attribute__((goblint_stub)); return val; }
 #define __VERIFIER_nondet(X) __VERIFIER_nondet2(X, X)
 
 __VERIFIER_nondet2(_Bool, bool)

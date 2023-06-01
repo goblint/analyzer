@@ -1,5 +1,8 @@
-(** Thread join analysis. *)
-open Prelude.Ana
+(** Joined threads analysis ([threadJoins]).
+
+    @see <https://arxiv.org/abs/2301.06439> Schwarz, M., Saan, S., Seidl, H., Erhard, J., Vojdani, V. Clustered Relational Thread-Modular Abstract Interpretation with Local Traces. Appendix F. *)
+
+open GoblintCil
 open Analyses
 
 module TID  = ThreadIdDomain.Thread
@@ -86,6 +89,9 @@ struct
     match q with
     | Queries.MustJoinedThreads -> (ctx.local:ConcDomain.MustThreadSet.t) (* type annotation needed to avoid "would escape the scope of its equation" *)
     | _ ->  Queries.Result.top q
+
+  let combine_env ctx lval fexp f args fc au f_ask =
+    D.union ctx.local au
 
   let startstate v = D.top ()
   let exitstate  v = D.top ()

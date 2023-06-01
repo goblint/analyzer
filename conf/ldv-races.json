@@ -25,9 +25,11 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
-      "mhp"
+      "mhp",
+      "assert"
     ],
     "malloc": {
       "wrappers": [

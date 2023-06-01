@@ -155,7 +155,7 @@
     "gobview": {
       "title": "gobview",
       "description":
-        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
+        "Include additional information for GobView (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
       "type": "boolean",
       "default": false
     },
@@ -176,6 +176,12 @@
       "description": "Preprocessing options",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "pre.enabled",
+          "description": "Run the C preprocessor.",
+          "type": "boolean",
+          "default": true
+        },
         "keep": {
           "title": "pre.keep",
           "description":
@@ -242,6 +248,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "transform-paths": {
+          "title": "pre.transform-paths",
+          "description": "Normalize and relativize paths in parsed CIL locations. Can cause issues locating YAML witness invariants due to differing paths.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false
@@ -334,7 +346,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -342,6 +354,21 @@
           "type": "array",
           "items": { "type": "string" },
           "default": [ "stack_loc", "stack_trace_set" ]
+        },
+        "setjmp" : {
+          "title": "ana.setjmp",
+          "description": "Setjmp/Longjmp analysis",
+          "type": "object",
+          "properties": {
+            "split": {
+              "title": "ana.setjmp.split",
+              "description": "Split returns of setjmp",
+              "type": "string",
+              "enum": ["none", "coarse", "precise"],
+              "default": "precise"
+            }
+          },
+          "additionalProperties": false
         },
         "int": {
           "title": "ana.int",
@@ -357,7 +384,13 @@
             "interval": {
               "title": "ana.int.interval",
               "description":
-                "Use IntDomain.Interval32: (int64 * int64) option.",
+                "Use IntDomain.Interval32: (Z.t * Z.t) option.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_set": {
+              "title": "ana.int.interval_set",
+              "description": "Use IntDomain.IntervalSet: (Z.t * Z.t) list.",
               "type": "boolean",
               "default": false
             },
@@ -515,7 +548,7 @@
             },
             "activated": {
               "title": "ana.autotune.activated",
-              "description": "Lists of activated tuning options. By default all are activated",
+              "description": "Lists of activated tuning options.",
               "type": "array",
               "items": { "type": "string" },
               "default": [
@@ -587,6 +620,13 @@
                   "title": "ana.base.context.interval",
                   "description":
                     "Integer values of the Interval domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "interval_set": {
+                  "title": "ana.base.context.interval_set",
+                  "description":
+                    "Integer values of the IntervalSet domain in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -736,6 +776,13 @@
                   "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
                   "type": "boolean",
                   "default": false
+                },
+                "unassume": {
+                  "title": "ana.base.invariant.unassume",
+                  "description": "How many times to unassume an invariant: once or until fixpoint (at least twice as expensive).",
+                  "type": "string",
+                  "enum": ["once", "fixpoint"],
+                  "default": "once"
                 }
               },
               "additionalProperties": false
@@ -784,12 +831,6 @@
           "title": "ana.apron",
           "type": "object",
           "properties": {
-            "context": {
-              "title": "ana.apron.context",
-              "description": "Entire relation in function contexts.",
-              "type": "boolean",
-              "default": true
-            },
             "strengthening": {
               "title": "ana.apron.strengthening",
               "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
@@ -801,7 +842,7 @@
               "description":
                 "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
               "type": "string",
-              "enum": ["octagon", "interval", "polyhedra"],
+              "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
             "threshold_widening": {
@@ -819,27 +860,53 @@
               "enum": ["all", "comparisons"],
               "default": "all"
             },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "relation": {
+          "title": "ana.relation",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "ana.relation.context",
+              "description": "Entire relation in function contexts.",
+              "type": "boolean",
+              "default": true
+            },
             "privatization": {
-              "title": "ana.apron.privatization",
+              "title": "ana.relation.privatization",
               "description":
-                "Which apron privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+                "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
               "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
-              "title": "ana.apron.priv",
+              "title": "ana.relation.priv",
               "type": "object",
               "properties": {
                 "not-started": {
-                  "title": "ana.apron.priv.not-started",
+                  "title": "ana.relation.priv.not-started",
                   "description":
                     "Exclude writes from threads that may not be started yet",
                   "type": "boolean",
                   "default": true
                 },
                 "must-joined": {
-                  "title": "ana.apron.priv.must-joined",
+                  "title": "ana.relation.priv.must-joined",
                   "description":
                     "Exclude writes from threads that must have been joined",
                   "type": "boolean",
@@ -849,32 +916,26 @@
               "additionalProperties": false
             },
             "invariant": {
-              "title": "ana.apron.invariant",
+              "title": "ana.relation.invariant",
               "type": "object",
               "properties": {
                 "one-var": {
-                  "title": "ana.apron.invariant.one-var",
+                  "title": "ana.relation.invariant.one-var",
                   "description": "Generate invariants with only one variable",
                   "type": "boolean",
                   "default": false
                 },
                 "local": {
-                  "title": "ana.apron.invariant.local",
+                  "title": "ana.relation.invariant.local",
                   "description": "Keep local variables in invariants",
                   "type": "boolean",
                   "default": true
                 },
                 "global": {
-                  "title": "ana.apron.invariant.global",
+                  "title": "ana.relation.invariant.global",
                   "description": "Keep global variables in invariants",
                   "type": "boolean",
                   "default": true
-                },
-                "diff-box": {
-                  "title": "ana.apron.invariant.diff-box",
-                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
-                  "type": "boolean",
-                  "default": false
                 }
               },
               "additionalProperties": false
@@ -914,6 +975,20 @@
                 "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
+            },
+            "wrappers": {
+              "title": "ana.thread.wrappers",
+              "description":
+                "Loads a list of known thread spawn (pthread_create) wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "unique_thread_id_count": {
+              "title": "ana.thread.unique_thread_id_count",
+              "description": "Number of unique thread IDs allocated for each pthread_create node.",
+              "type": "integer",
+              "default": 0
             }
           },
           "additionalProperties": false
@@ -971,6 +1046,32 @@
               "description": "Ignores any assigns in POSIX programs.",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "widen": {
+          "title": "ana.widen",
+          "type": "object",
+          "properties": {
+            "tokens": {
+              "title": "ana.widen.tokens",
+              "description": "Delay widenings using widening tokens.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "unassume": {
+          "title": "ana.unassume",
+          "type": "object",
+          "properties": {
+            "precheck": {
+              "title": "ana.unassume.precheck",
+              "description": "Check if invariant contradicts reached state before unassuming.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1039,14 +1140,6 @@
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",
               "default": false
-            },
-            "compare": {
-              "title": "incremental.reluctant.compare",
-              "description":
-                "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
-              "type": "string",
-              "enum": ["leq", "equal"],
-              "default": "equal"
             }
           },
           "additionalProperties": false
@@ -1058,6 +1151,12 @@
           "type": "string",
           "enum": ["ast", "cfg"],
           "default": "ast"
+        },
+        "detect-renames": {
+          "title": "incremental.detect-renames",
+          "description": "If Goblint should try to detect renamed local variables, function parameters, functions and global variables",
+          "type":"boolean",
+          "default": true
         },
         "force-reanalyze": {
           "title": "incremental.force-reanalyze",
@@ -1152,6 +1251,45 @@
       },
       "additionalProperties": false
     },
+    "lib": {
+      "title": "Library functions",
+      "description": "Options for library functions",
+      "type": "object",
+      "properties": {
+        "activated": {
+          "title": "lib.activated",
+          "description": "List of activated libraries.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "c",
+              "posix",
+              "pthread",
+              "gcc",
+              "glibc",
+              "linux-userspace",
+              "linux-kernel",
+              "goblint",
+              "sv-comp",
+              "ncurses",
+              "zstd"
+            ]
+          },
+          "default": [
+            "c",
+            "posix",
+            "pthread",
+            "gcc",
+            "glibc",
+            "linux-userspace",
+            "goblint",
+            "ncurses"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "sem": {
       "title": "Semantics",
       "description": "Options for semantics",
@@ -1214,6 +1352,21 @@
               "title": "sem.builtin_unreachable.dead_code",
               "description":
                 "__builtin_unreachable is assumed to be dead code",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "noreturn": {
+          "title": "sem.noreturn",
+          "description": "Handling of C11 _Noreturn function specifier.",
+          "type": "object",
+          "properties": {
+            "dead_code": {
+              "title": "sem.noreturn.dead_code",
+              "description":
+                "For the purposes of detecting dead code, assume that functions marked noreturn don't return.",
               "type": "boolean",
               "default": false
             }
@@ -1303,7 +1456,10 @@
           "description":
             "Lists of activated transformations. Transformations happen after analyses.",
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string",
+            "enum": ["partial", "expeval", "assert", "remove_dead_code"]
+          },
           "default": []
         },
         "expeval": {
@@ -1376,7 +1532,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "apron.no-context", "apron.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -1399,9 +1555,9 @@
           "type": "boolean",
           "default": false
         },
-        "goblint_apron_track": {
-          "title": "annotation.goblint_apron_track",
-          "description": "Let apron track variables only if they have the attribute goblint_apron_track",
+        "goblint_relation_track": {
+          "title": "annotation.goblint_relation_track",
+          "description": "Let relation track variables only if they have the attribute goblint_relation_track",
           "type": "boolean",
           "default": false
         }
@@ -1426,13 +1582,13 @@
           "type": "boolean",
           "default": false
         },
-        "apron": {
-          "title": "exp.apron",
+        "relation": {
+          "title": "exp.relation",
           "type": "object",
           "properties": {
             "prec-dump": {
-              "title": "exp.apron.prec-dump",
-              "description": "File to dump apron precision data to.",
+              "title": "exp.relation.prec-dump",
+              "description": "File to dump relation precision data to.",
               "type": "string",
               "default": ""
             }
@@ -1515,9 +1671,9 @@
         },
         "g2html_path": {
           "title": "exp.g2html_path",
-          "description": "Location of the g2html.jar file.",
+          "description": "Location of the g2html.jar file. If empty, then goblint executable directory is used.",
           "type": "string",
-          "default": "."
+          "default": ""
         },
         "extraspecials": {
           "title": "exp.extraspecials",
@@ -1543,7 +1699,7 @@
         "fast_global_inits": {
           "title": "exp.fast_global_inits",
           "description":
-            "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
+            "Only generate one 'a[any_index] = x' for all assignments a[...] = x for a global array a[n].",
           "type": "boolean",
           "default": true
         },
@@ -1580,6 +1736,18 @@
           "description": "Hide standard extern globals (e.g. `stdout`) from cluttering local states.",
           "type": "boolean",
           "default": true
+        },
+        "arg": {
+          "title": "exp.arg",
+          "description": "Construct abstract reachability graph (ARG).",
+          "type": "boolean",
+          "default": false
+        },
+        "argdot": {
+          "title": "exp.argdot",
+          "description": "Output ARG as dot file.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1589,12 +1757,6 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
-        "debug": {
-          "title": "dbg.debug",
-          "description": "Debug mode: for testing the analyzer itself.",
-          "type": "boolean",
-          "default": false
-        },
         "verbose": {
           "title": "dbg.verbose",
           "description": "Prints some status information.",
@@ -1662,14 +1824,14 @@
         "solver-signal": {
           "title": "dbg.solver-signal",
           "description":
-            "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
+            "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in gobSys.ml).",
           "type": "string",
           "default": "sigusr1"
         },
         "backtrace-signal": {
           "title": "dbg.backtrace-signal",
           "description":
-            "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
+            "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in gobSys.ml).",
           "type": "string",
           "default": "sigusr2"
         },
@@ -2022,6 +2184,12 @@
               "type": "boolean",
               "default": true
             },
+            "skip-unchanged-rhs" : {
+              "title" : "solvers.td3.skip-unchanged-rhs",
+              "description" : "Skip evaluation of RHS if all dependencies are unchanged - INCOMPATIBLE WITH RESTARTING",
+              "type" : "boolean",
+              "default": false
+            },
             "restart": {
               "title": "solvers.td3.restart",
               "type": "object",
@@ -2140,6 +2308,37 @@
                 "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
               "type": "boolean",
               "default": true
+            },
+            "exact": {
+              "title": "witness.invariant.exact",
+              "description": "Emit exact invariants. They are useless for unassuming.",
+              "type": "boolean",
+              "default": true
+            },
+            "inexact-type-bounds": {
+              "title": "witness.invariant.inexact-type-bounds",
+              "description": "Emit inexact invariants matching type bounds.",
+              "type": "boolean",
+              "default": false
+            },
+            "exclude-vars": {
+              "title": "witness.invariant.exclude-vars",
+              "description": "OCaml Str regexes for variables to exclude from invariants.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "tmp\\(___[0-9]+\\)?",
+                "cond",
+                "RETURN"
+              ]
+            },
+            "goblint": {
+              "title": "witness.invariant.goblint",
+              "description": "Emit non-standard Goblint-specific invariants. Currently array invariants with all_index offsets.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -2179,6 +2378,29 @@
               "type": "boolean",
               "default": false
             },
+            "entry-types": {
+              "title": "witness.yaml.entry-types",
+              "description": "YAML witness entry types to output/input.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "location_invariant",
+                  "loop_invariant",
+                  "flow_insensitive_invariant",
+                  "precondition_loop_invariant",
+                  "loop_invariant_certificate",
+                  "precondition_loop_invariant_certificate"
+                ]
+              },
+              "default": [
+                "location_invariant",
+                "loop_invariant",
+                "flow_insensitive_invariant",
+                "loop_invariant_certificate",
+                "precondition_loop_invariant_certificate"
+              ]
+            },
             "path": {
               "title": "witness.yaml.path",
               "description": "YAML witness output path",
@@ -2191,11 +2413,17 @@
               "type": "string",
               "default": ""
             },
+            "unassume": {
+              "title": "witness.yaml.unassume",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
             "certificate": {
               "title": "witness.yaml.certificate",
               "description": "YAML witness certificate output path",
               "type": "string",
-              "default": "witness.certificate.yml"
+              "default": ""
             }
           },
           "additionalProperties": false

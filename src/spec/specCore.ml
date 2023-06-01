@@ -1,6 +1,6 @@
 (* types used by specParser and functions for handling the constructed types *)
 
-open Prelude
+open Batteries
 
 exception Endl
 exception Eof

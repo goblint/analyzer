@@ -1,4 +1,6 @@
-open Prelude.Ana
+(** Path-sensitive analysis using an {!ObserverAutomaton}. *)
+
+open GoblintCil
 open Analyses
 open MyCFG
 
@@ -29,8 +31,7 @@ struct
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
   module C = D
-
-  let should_join x y = D.equal x y (* fully path-sensitive *)
+  module P = IdentityP (D) (* fully path-sensitive *)
 
   let step d prev_node node =
     match d with
@@ -65,8 +66,11 @@ struct
     (* ctx.local doesn't matter here? *)
     [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f)]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    step au (Function f) ctx.node
+  let combine_env ctx lval fexp f args fc au f_ask =
+    ctx.local (* Don't yet consider call edge done before assign. *)
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    step au (Function f) ctx.node (* Consider call edge done after entire call-assign. *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     step_ctx ctx

@@ -1,4 +1,6 @@
-open Prelude
+(** Input program from a real-world project using a compilation database. *)
+
+open Batteries
 
 let basename = "compile_commands.json"
 

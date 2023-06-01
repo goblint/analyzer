@@ -1,4 +1,6 @@
-open Prelude
+(** Domains for file handles. *)
+
+open Batteries
 
 module D = LvalMapDomain
 
@@ -58,7 +60,7 @@ struct
 
   let fopen k loc filename mode m =
     if is_unknown k m then m else
-      let mode = match String.lowercase mode with "r" -> Val.Read | _ -> Val.Write in
+      let mode = match String.lowercase_ascii mode with "r" -> Val.Read | _ -> Val.Write in
       let v = V.make k loc (Val.Open(filename, mode)) in
       add' k v m
   let fclose k loc m =

@@ -1,6 +1,9 @@
-(** An analysis for checking correct use of file handles. *)
+(** Analysis of correct file handle usage ([file]).
 
-open Prelude.Ana
+    @see <https://www2.in.tum.de/hp/file?fid=1323> Vogler, R. Verifying Regular Safety Properties of C Programs Using the Static Analyzer Goblint. Section 3.*)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module Spec =
@@ -12,8 +15,8 @@ struct
   module C = FileDomain.Dom
 
   (* special variables *)
-  let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let unclosed_var  = Goblintutil.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
+  let return_var    = Cilfacade.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let unclosed_var  = Cilfacade.create_var @@ Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
 
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
@@ -84,7 +87,7 @@ struct
       | Lval lval, Const (CInt(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
         let k = D.key_from_lval lval in
-        if Cilint.compare_cilint i Cilint.zero_cilint = 0 && tv then (
+        if Z.compare i Z.zero = 0 && tv then (
           (* ignore(printf "error-branch\n"); *)
           D.error k m
         )else
@@ -163,12 +166,15 @@ struct
       D.extend_value unclosed_var (mustOpen, mayOpen) m
     ) else m
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine_env ctx lval fexp f args fc au f_ask =
     let m = ctx.local in
     (* pop the last location off the stack *)
     let m = D.edit_callstack List.tl m in (* TODO could it be problematic to keep this in the caller instead of callee domain? if we only add the stack for the callee in enter, then there would be no need to pop a location anymore... *)
     (* TODO add all globals from au to m (since we remove formals and locals on return, we can just add everything except special vars?) *)
-    let m = D.without_special_vars au |> D.add_all m in
+    D.without_special_vars au |> D.add_all m
+
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    let m = ctx.local in
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
@@ -203,7 +209,7 @@ struct
     (* fold possible keys on domain *)
     let ret_all f lval =
       let xs = D.keys_from_lval lval (Analyses.ask_of_ctx ctx) in (* get all possible keys for a given lval *)
-      if xs = [] then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
+      if xs = [] then (D.warn @@ GobPretty.sprintf "could not resolve %a" CilType.Lval.pretty lval; m)
       else if List.compare_length_with xs 1 = 0 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
       else
@@ -243,7 +249,7 @@ struct
             | _ -> D.warn "[Unsound]unknown filename"; D.fopen k loc "???" mode m
            )
          | xs ->
-           let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
+           let args = (String.concat ", " (List.map CilType.Exp.show xs)) in
            M.debug ~category:Analyzer "fopen args: %s" args;
            (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
            D.warn @@ "[Program]fopen needs two strings as arguments, given: "^args; m

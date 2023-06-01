@@ -1,6 +1,6 @@
-(** Variables that escape threads using the last argument from pthread_create. *)
+(** Escape analysis for thread-local variables ([escape]). *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module M = Messages
@@ -14,7 +14,7 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
@@ -59,36 +59,21 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
-    let lvs = mpt ask (AddrOf lval) in
-    if M.tracing then M.tracel "escape" "assign lvs: %a\n" D.pretty lvs;
-    if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
+    let vs = mpt ask (AddrOf lval) in
+    if M.tracing then M.tracel "escape" "assign vs: %a\n" D.pretty vs;
+    if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
       let escaped = reachable ask rval in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
-      if M.tracing then M.tracel "escape" "assign lvs: %a | %a\n" D.pretty lvs D.pretty escaped;
-      if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
+      if M.tracing then M.tracel "escape" "assign vs: %a | %a\n" D.pretty vs D.pretty escaped;
+      if not (D.is_empty escaped) && ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
-      D.iter (fun lv ->
-          ctx.sideg lv escaped
-        ) lvs;
+      D.iter (fun v ->
+          ctx.sideg v escaped;
+        ) vs;
       D.join ctx.local escaped
     )
     else
       ctx.local
-
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local,ctx.local]
-
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    au
 
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in

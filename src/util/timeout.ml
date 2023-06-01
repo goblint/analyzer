@@ -1,3 +1,5 @@
+(** Timeout utilities. *)
+
 module Unix = struct
   let timeout f arg tsecs timeout_fn =
     let oldsig = Sys.signal Sys.sigprof (Sys.Signal_handle (fun _ -> timeout_fn ())) in
@@ -13,6 +15,9 @@ module Js = struct
   (* TODO: Implement this *)
 end
 
-let timeout = match Sys.backend_type with
+let wrap = match Sys.backend_type with
   | Other "js_of_ocaml" -> Js.timeout
   | _ -> Unix.timeout
+
+
+exception Timeout

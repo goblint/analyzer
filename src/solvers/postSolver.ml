@@ -1,4 +1,6 @@
-open Prelude
+(** Extra constraint system evaluation pass for warning generation, verification, pruning, etc. *)
+
+open Batteries
 open Analyses
 open GobConfig
 module Pretty = GoblintCil.Pretty
@@ -35,6 +37,8 @@ module Unit: F =
 (** Sequential composition of two postsolvers. *)
 module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
 struct
+  (* Assumes PS1 and PS2 have actually same modules!
+     Module constraint only gives type-wise equality. *)
   module S = PS1.S
   module VH = PS1.VH
 
@@ -59,7 +63,7 @@ module Prune: F =
     include Unit (S) (VH)
 
     let finalize ~vh ~reachable =
-      if get_bool "dbg.debug" then
+      if get_bool "dbg.verbose" then
         print_endline "Pruning result";
 
       VH.filteri_inplace (fun x _ ->
@@ -74,14 +78,14 @@ module Verify: F =
     include Unit (S) (VH)
 
     let init () =
-      Goblintutil.verified := Some true
+      AnalysisState.verified := Some true
 
     let complain_constraint x ~lhs ~rhs =
-      Goblintutil.verified := Some false;
+      AnalysisState.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]" S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let complain_side x y ~lhs ~rhs =
-      Goblintutil.verified := Some false;
+      AnalysisState.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =
@@ -106,11 +110,11 @@ module Warn: F =
     let old_should_warn = ref None
 
     let init () =
-      old_should_warn := Some !Goblintutil.should_warn;
-      Goblintutil.should_warn := true
+      old_should_warn := Some !AnalysisState.should_warn;
+      AnalysisState.should_warn := true
 
     let finalize ~vh ~reachable =
-      Goblintutil.should_warn := Option.get !old_should_warn
+      AnalysisState.should_warn := Option.get !old_should_warn
   end
 
 (** Postsolver for save_run option. *)
@@ -127,7 +131,7 @@ module SaveRun: F =
       let save_run = Fpath.v save_run_str in
       let solver = Fpath.(save_run / solver_file) in
       if get_bool "dbg.verbose" then
-        Format.printf "Saving the solver result to %a" Fpath.pp solver;
+        Format.printf "Saving the solver result to %a\n" Fpath.pp solver;
       GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end
@@ -187,7 +191,7 @@ struct
     in
     let module S = EqConstrSysFromStartEqConstrSys (StartS) in
 
-    Goblintutil.postsolving := true;
+    AnalysisState.postsolving := true;
     PS.init ();
 
     let reachable = PS.init_reachable ~vh in
@@ -215,7 +219,7 @@ struct
     (Timing.wrap "postsolver_iter" (List.iter one_var)) vs;
 
     PS.finalize ~vh ~reachable;
-    Goblintutil.postsolving := false
+    AnalysisState.postsolving := false
 
   let post xs vs vh =
     Timing.wrap "postsolver" (post xs vs) vh

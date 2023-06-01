@@ -1,4 +1,7 @@
-open Prelude.Ana
+(** Thread-modular value analysis utilities for {!BasePriv} and {!RelationPriv}. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 open BaseUtil
 module Q = Queries
@@ -38,22 +41,23 @@ end
 
 module Protection =
 struct
-  let is_unprotected ask x: bool =
-    let multi = ThreadFlag.is_multi ask in
-    (!GU.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
+  open Q.Protection
+  let is_unprotected ask ?(protection=Strong) x: bool =
+    let multi = if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask in
+    (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
-      ask.f (Q.MayBePublic {global=x; write=true})
+      ask.f (Q.MayBePublic {global=x; write=true; protection})
     )
 
-  let is_unprotected_without ask ?(write=true) x m: bool =
-    ThreadFlag.is_multi ask &&
-    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
+  let is_unprotected_without ask ?(write=true) ?(protection=Strong) x m: bool =
+    (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
+    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m; protection})
 
-  let is_protected_by ask m x: bool =
+  let is_protected_by ask ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
     let module VS = Set.Make (CilType.Varinfo) in
@@ -85,6 +89,7 @@ struct
   struct
     (* TODO: Either3? *)
     include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    let name () = "MutexGlobals"
     let mutex x: t = `Left (`Left x)
     let mutex_inits: t = `Left (`Right ())
     let global x: t = `Right x
@@ -128,7 +133,7 @@ struct
 
   let current_lockset (ask: Q.ask): Lockset.t =
     (* TODO: remove this global_init workaround *)
-    if !GU.global_initialization then
+    if !AnalysisState.global_initialization then
       Lockset.empty ()
     else
       let ls = ask.f Queries.MustLockset in

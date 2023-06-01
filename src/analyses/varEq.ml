@@ -1,11 +1,11 @@
-(** Variable equalities necessary for per-element patterns. *)
+(** Symbolic expression equalities analysis ([var_eq]). *)
 
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
 module Exp = CilType.Exp
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 
@@ -55,13 +55,13 @@ struct
 
       method! vexpr e =
         if Cilfacade.isFloatType (Cilfacade.typeOf e) then
-          raise Exit;
+          raise Stdlib.Exit;
         DoChildren
     end
     in
     match Cil.visitCilExpr visitor e with
     | _ -> false
-    | exception Exit -> true
+    | exception Stdlib.Exit -> true
   let exp_equal e1 e2 =
     CilType.Exp.equal e1 e2 && not (contains_float_subexp e1)
 
@@ -336,7 +336,7 @@ struct
     | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
-      Some (v.vglob || (ask.f (Queries.IsMultiple v)))
+      Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
@@ -429,13 +429,26 @@ struct
     | true -> raise Analyses.Deadcode
     | false -> [ctx.local,nst]
 
-  let combine ctx lval fexp f args fc st2 =
+  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+    let tainted = f_ask.f Queries.MayBeTainted in
+    let d_local =
+      (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
+         TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
+      if Queries.LS.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
+        D.top ()
+      else
+        let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in
+        D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
+    in
+    let d = D.meet au d_local in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
-    | false ->
-      match lval with
-      | Some lval -> remove (Analyses.ask_of_ctx ctx) lval st2
-      | None -> st2
+    | false -> d
+
+  let combine_assign ctx lval fexp f args fc st2 (f_ask : Queries.ask) =
+    match lval with
+    | Some lval -> remove (Analyses.ask_of_ctx ctx) lval ctx.local
+    | None -> ctx.local
 
   let remove_reachable ~deep ask es st =
     match reachables ~deep ask es with
@@ -542,11 +555,33 @@ struct
       let r = eq_set_clos e ctx.local in
       if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
-    | Queries.Invariant context ->
+    | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec ctx.node in
       D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
+  let event ctx e octx =
+    match e with
+    | Events.Unassume {exp; _} ->
+      (* Unassume must forget equalities,
+         otherwise var_eq may still have a numeric first iteration equality
+         while base has unassumed, causing unnecessary extra evals. *)
+      Basetype.CilExp.get_vars exp
+      |> List.map Cil.var
+      |> List.fold_left (fun st lv ->
+          remove (Analyses.ask_of_ctx ctx) lv st
+        ) ctx.local
+    | Events.Escape vars ->
+      if EscapeDomain.EscapedVars.is_top vars then
+        D.top ()
+      else
+        let ask = Analyses.ask_of_ctx ctx in
+        let remove_var st v =
+          remove ask (Cil.var v) st
+        in
+        List.fold_left remove_var ctx.local (EscapeDomain.EscapedVars.elements vars)
+    | _ ->
+      ctx.local
 end
 
 let _ =

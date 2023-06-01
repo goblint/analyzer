@@ -1,3 +1,4 @@
+(** SARIF format types. *)
 
 module Invocation =
 struct

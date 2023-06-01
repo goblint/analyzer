@@ -1,4 +1,6 @@
-open Prelude
+(** Serialization/deserialization of incremental analysis data. *)
+
+open Batteries
 
 (* TODO: GoblintDir *)
 let incremental_data_file_name = "analysis.data"
@@ -26,7 +28,7 @@ let marshal obj fileName  =
 
 let unmarshal fileName =
   if GobConfig.get_bool "dbg.verbose" then
-    (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+    (* Do NOT replace with Printf because of GobView: https://github.com/goblint/gobview/issues/10 *)
     print_endline ("Unmarshalling " ^ Fpath.to_string fileName ^ "... If type of content changed, this will result in a segmentation fault!");
   Marshal.input (open_in_bin (Fpath.to_string fileName))
 

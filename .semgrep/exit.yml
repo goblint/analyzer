@@ -1,0 +1,17 @@
+rules:
+  - id: raise-exit
+    pattern: raise Exit
+    fix: raise Stdlib.Exit
+    message: explictly use Stdlib.Exit instead of accidentally different Pervasives.Exit
+    languages: [ocaml]
+    severity: ERROR
+
+  - id: catch-exit
+    pattern-either:
+      - pattern: try ... with Exit -> ...
+      - pattern: try ... with | Exit -> ...
+      - pattern: try ... with ... | Exit -> ...
+      - pattern: exception Exit
+    message: explictly use Stdlib.Exit instead of accidentally different Pervasives.Exit
+    languages: [ocaml]
+    severity: ERROR

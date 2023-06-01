@@ -1,3 +1,5 @@
+(** Process pool for running processes in parallel. *)
+
 type task = {
   command: string;
   cwd: Fpath.t option;
@@ -22,7 +24,7 @@ let run ~jobs ?(terminated=fun _ _ -> ()) tasks =
           Unix.open_process task.command
       in
       let pid = Unix.process_pid proc in
-      Catapult.Tracing.a_begin ~id:(string_of_int pid) "ProcessPool" ~args:[("command", `String task.command)];
+      Catapult.Tracing.a_begin ~id:(string_of_int pid) ~cat:[] "ProcessPool" ~args:[("command", `String task.command)];
       Hashtbl.replace procs pid (task, proc);
       run tasks
     | [] when Hashtbl.length procs = 0 ->
@@ -36,7 +38,7 @@ let run ~jobs ?(terminated=fun _ _ -> ()) tasks =
           close_in proc_in;
           close_out proc_out;
           Hashtbl.remove procs pid;
-          Catapult.Tracing.a_exit ~id:(string_of_int pid) "ProcessPool";
+          Catapult.Tracing.a_exit ~id:(string_of_int pid) ~cat:[] "ProcessPool";
           terminated task status
         | None -> (* unrelated process *)
           ()

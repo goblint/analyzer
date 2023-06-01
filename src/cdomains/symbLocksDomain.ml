@@ -1,5 +1,6 @@
+(** Symbolic lockset domain. *)
+
 open GoblintCil
-open Pretty
 
 module M = Messages
 
@@ -54,7 +55,7 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Z.compare i1 i2 = 0
     |	CStr (s1,_)        , CStr (s2,_)         -> s1=s2
     |	CWStr (s1,_)       , CWStr (s2,_)        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
@@ -113,7 +114,7 @@ struct
     | Index (i,o) -> isConstant i && conc o
     | Field (_,o) -> conc o
 
-  let star = Lval (Cil.var (Goblintutil.create_var (makeGlobalVar "*" intType)))
+  let star = Lval (Cil.var (Cilfacade.create_var (makeGlobalVar "*" intType)))
 
   let rec one_unknown_array_index exp =
     let rec separate_fields_index o =
@@ -162,12 +163,8 @@ end
 
 module LockingPattern =
 struct
-  include Printable.Std
-  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, hash, to_yojson]
+  include Printable.Prod3 (Exp) (Exp) (Exp)
   let name () = "Per-Element locking triple"
-
-  let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
-  let show (x,y,z) = sprint ~width:max_int (dprintf "(%a,%a,%a)" d_exp x d_exp y d_exp z)
 
   type ee = EVar of varinfo
           | EAddr
@@ -276,7 +273,6 @@ struct
         Some (elem, fromEl a dummy, fromEl l dummy)
       | _ -> None
     with Invalid_argument _ -> None
-  let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
 end
 
 (** Index-based symbolic lock *)
@@ -286,7 +282,7 @@ struct
   (** Index in index-based symbolic lock *)
   module Idx =
   struct
-    include Printable.Std
+    include Printable.StdLeaf
     type t =
       | Unknown (** Unknown index. Mutex index not synchronized with access index. *)
       | Star (** Star index. Mutex index synchronized with access index. Corresponds to star_0 in ASE16 paper, multiple star indices not supported in this implementation. *)

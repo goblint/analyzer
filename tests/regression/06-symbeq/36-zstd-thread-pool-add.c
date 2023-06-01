@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq --set exp.extraspecials[+] ZSTD_customMalloc --set exp.extraspecials[+] ZSTD_customCalloc
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq --set lib.activated[+] zstd --set exp.extraspecials[+] ZSTD_customMalloc --set exp.extraspecials[+] ZSTD_customCalloc
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.

@@ -1,10 +1,12 @@
+(** Simple interprocedural taint analysis template ([taint]). *)
+
 (** An analysis specification for didactic purposes. *)
 (* Helpful link on CIL: https://goblint.in.tum.de/assets/goblint-cil/ *)
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
 
-open Prelude.Ana
+open GoblintCil
 open Analyses
 
 module VarinfoSet = SetDomain.Make(CilType.Varinfo)
@@ -85,7 +87,7 @@ struct
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
-      In [enter], the caller state can usually be returned unchanged, as [combine] (below)
+      In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
@@ -102,9 +104,16 @@ struct
     [caller_state, callee_state]
 
   (** For a function call "lval = f(args)" or "f(args)",
-      computes the state of the caller after the call.
+      computes the global environment state of the caller after the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
+  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+    (* Nothing needs to be done *)
+    ctx.local
+
+  (** For a function call "lval = f(args)" or "f(args)",
+      computes the state of the caller after assigning the return value from the call.
+      Argument [callee_local] is the state of [f] at its return node. *)
+  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     let caller_state = ctx.local in
     (* TODO: Record whether lval was tainted. *)
     caller_state
