@@ -74,7 +74,7 @@ module type OffsS =
 sig
   type idx
   include Printable.S with type t = idx Offset.t
-  val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero]
+  (* val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero] *)
   val is_zero_offset: t -> bool
   val add_offset: t -> t -> t
   val type_offset: typ -> t -> typ
@@ -192,6 +192,7 @@ end
 module type MvalT =
 sig
   include MvalS
+  module Offs: OffsT
   val semantic_equal: t -> t -> bool option
   val is_definite: t -> bool
   val leq: t -> t -> bool
@@ -346,14 +347,14 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Offs: OffsT) (ID: IntDomain.Z) =
+module AddressSet (Mval: MvalT) (ID: IntDomain.Z) =
 struct
   (* module Offs = Offset.MakeLattice (Idx) *)
-  module Mval = Mval.MakeLattice (Offs)
+  (* module Mval = Mval.MakeLattice (Offs) *)
   module Addr =
   struct
+    module Offs = Mval.Offs
     include NormalLatRepr (Mval)
-    module Offs = Offs
   end
   module J = (struct
     include SetDomain.Joined (Addr)

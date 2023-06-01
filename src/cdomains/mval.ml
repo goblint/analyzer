@@ -15,6 +15,7 @@ sig
   exception Type_offset of typ * string
   val to_cil: t -> offset
   val prefix: t -> t -> t option
+  val is_zero_offset: t -> bool
 end
 
 module MakePrintable (Offs: OffsS) =
@@ -65,6 +66,7 @@ end
 module MakeLattice (Offs: OffsT) =
 struct
   include MakePrintable (Offs)
+  module Offs = Offs
 
   let semantic_equal (x, xoffs) (y, yoffs) =
     if CilType.Varinfo.equal x y then
