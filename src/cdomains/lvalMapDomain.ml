@@ -13,7 +13,7 @@ exception Error
 module type S =
 sig
   include Lattice.S
-  type k = Lval.CilLval.t (* key *)
+  type k = Lval.Exp.t (* key *)
   type s (* state is defined by Impl *)
   type r (* record *)
 
@@ -68,7 +68,7 @@ module Value (Impl: sig
     val string_of_state: s -> string
   end) : S with type s = Impl.s =
 struct
-  type k = Lval.CilLval.t [@@deriving eq, ord, hash]
+  type k = Lval.Exp.t [@@deriving eq, ord, hash]
   type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
     include Printable.StdLeaf
@@ -76,7 +76,7 @@ struct
     let name () = "LValMapDomainValue"
 
     let pretty () {key; loc; state} =
-      Pretty.dprintf "{key=%a; loc=%a; state=%s}" Lval.CilLval.pretty key (Pretty.d_list ", " Node.pretty) loc (Impl.string_of_state state)
+      Pretty.dprintf "{key=%a; loc=%a; state=%s}" Lval.Exp.pretty key (Pretty.d_list ", " Node.pretty) loc (Impl.string_of_state state)
 
     include Printable.SimplePretty (
       struct
@@ -104,7 +104,7 @@ struct
   let get_alias (x,y) = (May.choose y).key
 
   (* Printing *)
-  let string_of_key k = Lval.CilLval.show k
+  let string_of_key k = Lval.Exp.show k
   let string_of_loc xs = String.concat ", " (List.map (CilType.Location.show % Node.location) xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =
@@ -157,9 +157,9 @@ end
 
 module Domain (V: S) =
 struct
-  module K = Lval.CilLval
+  module K = Lval.Exp
   module V = V
-  module MD = MapDomain.MapBot (Lval.CilLval) (V)
+  module MD = MapDomain.MapBot (Lval.Exp) (V)
   include MD
 
   (* Map functions *)
@@ -273,7 +273,7 @@ struct
 
   (* getting keys from Cil Lvals *)
 
-  let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
+  let key_from_lval lval = match lval with (* TODO try to get a Lval.Exp from Cil.Lval *)
     | Var v1, o1 -> v1, Offset.Exp.of_cil o1
     | Mem Lval(Var v1, o1), o2 -> v1, Offset.Exp.of_cil (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)

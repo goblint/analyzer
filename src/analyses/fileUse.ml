@@ -223,7 +223,7 @@ struct
         (* let m' = Option.map_default (fun v -> List.fold_left (fun m k -> D.add' k v m) m xs) m v in *)
         (* then check each key *)
         (* List.iter (fun k -> ignore(f k m')) xs; *)
-        (* get CilLval from lval *)
+        (* get Lval.Exp from lval *)
         let k' = D.key_from_lval lval in
         (* add joined value for that key *)
         let m' = Option.map_default (fun v -> D.add' k' v m) m v in

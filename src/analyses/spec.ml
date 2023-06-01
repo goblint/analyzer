@@ -182,7 +182,7 @@ struct
                 let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
                 let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in (* TODO what should be used to specify the key? *)
                 (* TODO this somehow also prints the expression!? why?? *)
-                let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
+                let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_cil_exp var))] in (* use Fl for Lval instead? *)
                 (* TODO encode key in exp somehow *)
                 (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
                 ctx.split new_m [Events.SplitBranch (c_exp, true)];

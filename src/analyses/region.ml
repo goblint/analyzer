@@ -23,7 +23,7 @@ struct
     include StdV
   end
 
-  let regions exp part st : Lval.CilLval.t list =
+  let regions exp part st : Lval.Exp.t list =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
@@ -58,7 +58,7 @@ struct
         ls
     | _ -> Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Lval.CilLval)
+  module Lvals = SetDomain.Make (Lval.Exp)
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)

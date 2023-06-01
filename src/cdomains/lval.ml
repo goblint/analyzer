@@ -28,12 +28,3 @@ struct
   let to_cil ((v, o): t): lval = (Var v, Offset.Exp.to_cil o)
   let to_cil_exp lv = Lval (to_cil lv)
 end
-
-
-
-module CilLval =
-struct
-  include Exp
-
-  let to_exp = to_cil_exp (* TODO: remove *)
-end

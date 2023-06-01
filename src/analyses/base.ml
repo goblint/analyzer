@@ -2030,7 +2030,7 @@ struct
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value in
     (* for string functions *)
     let eval_n = function
-      (* if only n characters of a given string are needed, evaluate expression n to an integer option *) 
+      (* if only n characters of a given string are needed, evaluate expression n to an integer option *)
       | Some n ->
         begin match eval_rv (Analyses.ask_of_ctx ctx) gs st n with
           | `Int i ->
@@ -2041,10 +2041,10 @@ struct
           | _ -> Some (-1)
         end
       (* do nothing if all characters are needed *)
-      | _ -> None 
+      | _ -> None
     in
     let string_manipulation s1 s2 lv all op =
-      let s1_a, s1_typ = addr_type_of_exp s1 in 
+      let s1_a, s1_typ = addr_type_of_exp s1 in
       let s2_a, s2_typ = addr_type_of_exp s2 in
       match lv, op with
       | Some lv_val, Some f ->
@@ -2101,11 +2101,11 @@ struct
         | None -> failwith "already handled in case above"
       end
     | Strcat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ, value = string_manipulation dst src None false None in 
+      let dest_a, dest_typ, value = string_manipulation dst src None false None in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
-      begin match lv with 
-        | Some lv_val -> 
+      begin match lv with
+        | Some lv_val ->
           let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
           let dest_typ = Cilfacade.typeOfLval lv_val in
           let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
@@ -2117,7 +2117,7 @@ struct
     | Strstr { haystack; needle }, _ ->
       begin match lv with
         | Some _ ->
-          (* when haystack, needle and dest type coincide, check if needle is a substring of haystack: 
+          (* when haystack, needle and dest type coincide, check if needle is a substring of haystack:
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
           let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> `Address(AD.substring_extraction h_a n_a))) in
@@ -2367,7 +2367,7 @@ struct
           let lval = Lval.Exp.to_cil (v,o) in
           let address = eval_lv ask ctx.global st lval in
           let lval_type = (AD.get_type address) in
-          if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.CilLval.pretty (v, o) d_type lval_type;
+          if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Lval.Exp.pretty (v, o) d_type lval_type;
           match (CPA.find_opt v (fun_st.cpa)), lval_type with
           | None, _ -> st
           (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
