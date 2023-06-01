@@ -187,6 +187,16 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
+module type MvalT =
+sig
+  include MvalS
+  val semantic_equal: t -> t -> bool option
+  val is_definite: t -> bool
+  val leq: t -> t -> bool
+  val top_indices: t -> t
+  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
+end
+
 (** Lvalue lattice.
 
     Actually a disjoint union of lattices without top or bottom.
@@ -196,12 +206,12 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Offs: OffsT) =
+module NormalLat (Mval0: MvalT) =
 struct
-  open struct module Mval0 = Mval.MakeLattice (Offs) end
+  (* open struct module Mval0 = Mval.MakeLattice (Offs) end *)
   include Normal (Mval0)
   module Mval = Mval0
-  module Offs = Offs
+  (* module Offs = Offs *)
 
   (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
   let semantic_equal x y = match x, y with
@@ -280,7 +290,8 @@ module NormalLatRepr (Offs: OffsT) =
 struct
   open struct module Mval0 = Mval end
 
-  include NormalLat (Offs)
+  include NormalLat (Mval.MakeLattice (Offs))
+  module Offs = Offs
 
   module R0: DisjointDomain.Representative with type elt = t =
   struct
@@ -309,10 +320,8 @@ struct
        since different integer domains may be active at different program points. *)
     include Normal (Mval0.Unit)
 
-    let of_elt_offset: Offs.idx Offset.t -> Offset.Unit.t = of_offs
-
     let of_elt (x: elt): t = match x with
-      | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
+      | Addr (v, o) -> Addr (v, of_offs o) (* addrs grouped by var and part of offset *)
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
