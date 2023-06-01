@@ -123,7 +123,6 @@ let special_of_old classify_name = fun args ->
   | `Malloc e -> Malloc e
   | `Calloc (count, size) -> Calloc { count; size; }
   | `Realloc (ptr, size) -> Realloc { ptr; size; }
-  | `Free ptr -> Free ptr
   | `Lock (try_, write, return_on_success) ->
     begin match args with
       | [lock] -> Lock { lock ; try_; write; return_on_success; }
