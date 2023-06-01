@@ -455,7 +455,6 @@ type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
   | `Realloc      of exp * exp
-  | `Free         of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
