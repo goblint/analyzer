@@ -18,6 +18,7 @@ end
 
 module MakePrintable (Offs: OffsS) =
 struct
+  type idx = Offs.idx
   include Printable.StdLeaf
   (* TODO: version with Basetype.Variables and RichVarinfo for AddressDomain *)
   type t = CilType.Varinfo.t * Offs.t [@@deriving eq, ord, hash]

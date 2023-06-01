@@ -96,13 +96,23 @@ sig
   val to_exp: t -> exp Offset.t
 end
 
-module Normal (Offs: OffsS) =
+module type MvalS =
+sig
+  type idx
+  include Printable.S with type t = varinfo * idx Offset.t
+  val get_type_addr: t -> typ
+  val add_offset: t -> idx Offset.t -> t
+  val to_cil: t -> lval
+end
+
+module Normal (Mval: MvalS) =
 struct
   type field = fieldinfo
-  type idx = Offs.idx
+  type idx = Mval.idx
   (* module Offs = Offset.MakePrintable (Idx) *)
-  module Mval = Mval.MakePrintable (Offs)
+  (* module Mval = Mval.MakePrintable (Offs) *)
   include PreNormal (Mval)
+  module Mval = Mval
 
   let name () = "Normal Lvals"
 
@@ -188,7 +198,7 @@ end
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
 module NormalLat (Offs: OffsT) =
 struct
-  include Normal (Offs)
+  include Normal (Mval.MakePrintable (Offs))
   module Offs = Offs
 
   (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
@@ -272,6 +282,8 @@ end
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
 module NormalLatRepr (Offs: OffsT) =
 struct
+  open struct module Mval0 = Mval end
+
   include NormalLat (Offs)
 
   module R0: DisjointDomain.Representative with type elt = t =
@@ -299,7 +311,7 @@ struct
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
-    include Normal (Offset.Unit)
+    include Normal (Mval0.Unit)
 
     let of_elt_offset: Offs.idx Offset.t -> Offset.Unit.t = of_offs
 
