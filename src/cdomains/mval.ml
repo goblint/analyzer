@@ -42,5 +42,44 @@ struct
   let to_cil_exp lv = Lval (to_cil lv)
 end
 
+module type OffsT =
+sig
+  include OffsS
+  val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
+  val is_definite: t -> bool
+  val leq: t -> t -> bool
+  val top_indices: t -> t
+  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
+  val remove_offset: t -> t
+  val to_cil: t -> offset
+  val of_exp: exp Offset.t -> t
+  val to_exp: t -> exp Offset.t
+end
+
+module MakeLattice (Offs: OffsT) =
+struct
+  include MakePrintable (Offs)
+
+  let semantic_equal (x, xoffs) (y, yoffs) =
+    if CilType.Varinfo.equal x y then
+      let xtyp = x.vtype in
+      let ytyp = y.vtype in
+      Offs.semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs
+    else
+      Some false
+
+  let is_definite (_, o) = Offs.is_definite o
+
+  let leq (x,o) (y,u) = CilType.Varinfo.equal x y && Offs.leq o u
+  let top_indices (x, o) = (x, Offs.top_indices o)
+  let merge cop (x,o) (y,u) =
+    if CilType.Varinfo.equal x y then
+      (x, Offs.merge cop o u)
+    else
+      raise Lattice.Uncomparable
+end
+
+
+
 module Unit = MakePrintable (Offset.Unit)
 module Exp = MakePrintable (Offset.Exp)

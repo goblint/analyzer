@@ -198,18 +198,14 @@ end
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
 module NormalLat (Offs: OffsT) =
 struct
-  include Normal (Mval.MakePrintable (Offs))
+  open struct module Mval0 = Mval.MakeLattice (Offs) end
+  include Normal (Mval0)
+  module Mval = Mval0
   module Offs = Offs
 
   (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
   let semantic_equal x y = match x, y with
-    | Addr (x, xoffs), Addr (y, yoffs) ->
-      if CilType.Varinfo.equal x y then
-        let xtyp = x.vtype in
-        let ytyp = y.vtype in
-        Offs.semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs
-      else
-        Some false
+    | Addr x, Addr y -> Mval.semantic_equal x y
     | StrPtr None, StrPtr _
     | StrPtr _, StrPtr None -> Some true
     | StrPtr (Some a), StrPtr (Some b) -> if a = b then None else Some false
@@ -223,17 +219,17 @@ struct
 
   let is_definite = function
     | NullPtr -> true
-    | Addr (v,o) when Offs.is_definite o -> true
+    | Addr m -> Mval.is_definite m
     | _ -> false
 
   let leq x y = match x, y with
     | StrPtr _, StrPtr None -> true
     | StrPtr a, StrPtr b   -> a = b
-    | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
+    | Addr x, Addr y -> Mval.leq x y
     | _                      -> x = y
 
   let drop_ints = function
-    | Addr (x, o) -> Addr (x, Offs.top_indices o)
+    | Addr x -> Addr (Mval.top_indices x)
     | x -> x
 
   let join_string_ptr x y = match x, y with
@@ -266,7 +262,7 @@ struct
           |`Join | `Widen -> join_string_ptr a b
           |`Meet | `Narrow -> meet_string_ptr a b
         end
-    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
+    | Addr x, Addr y -> Addr (Mval.merge cop x y)
     | _ -> raise Lattice.Uncomparable
 
   let join = merge `Join
