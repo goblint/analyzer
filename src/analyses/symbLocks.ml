@@ -184,7 +184,7 @@ struct
         (match ctx.ask (Queries.Regions e) with
          | ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
            -> let add_exp x xs =
-                try Queries.ES.add (Lval.Exp.to_cil_exp x) xs
+                try Queries.ES.add (Mval.Exp.to_cil_exp x) xs
                 with Lattice.BotValue -> xs
            in begin
              try Queries.LS.fold add_exp ls (Queries.ES.singleton e)

@@ -11,7 +11,7 @@ struct
   include Analyses.IdentitySpec
 
   let name () = "taintPartialContexts"
-  module D = SetDomain.ToppedSet (Lval.Exp) (struct let topname = "All" end)
+  module D = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
   module C = Lattice.Unit
 
   let rec resolve (offs : offset) : Basetype.CilExp.t  Offset.t =

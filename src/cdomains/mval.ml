@@ -1,4 +1,5 @@
-(** Domains for lvalues. *)
+(** Domains for mvalues: simplified lvalues, which start with a {!GoblintCil.varinfo}.
+    Mvalues are the result of resolving {{!GoblintCil.Mem} pointer dereferences} in lvalues. *)
 
 open GoblintCil
 open Pretty

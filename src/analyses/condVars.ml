@@ -7,7 +7,7 @@ open Analyses
 
 module Domain = struct
   module V =  Queries.ES
-  include MapDomain.MapBot (Lval.Exp) (V)
+  include MapDomain.MapBot (Mval.Exp) (V)
   let rec var_in_lval p (lh,offs) = var_in_offs p offs && match lh with
     | Var v -> p v
     | Mem e -> var_in_expr p e
@@ -75,7 +75,7 @@ struct
       Queries.LS.elements a'
     | _ -> []
 
-  let mustPointTo ctx exp = (* this is just to get Lval.Exp *)
+  let mustPointTo ctx exp = (* this is just to get Mval.Exp *)
     match mayPointTo ctx exp with
     | [clval] -> Some clval
     | _ -> None
@@ -108,7 +108,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Lval.Exp.pretty clval d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a\n" Mval.Exp.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in

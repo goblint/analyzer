@@ -1128,7 +1128,7 @@ module Spec : Analyses.MCPSpec = struct
           let ls = ctx.ask (Queries.ReachableFrom func) in
           Queries.LS.filter
             (fun lv ->
-               let lval = Lval.Exp.to_cil lv in
+               let lval = Mval.Exp.to_cil lv in
                isFunctionType (typeOfLval lval))
             ls
         in

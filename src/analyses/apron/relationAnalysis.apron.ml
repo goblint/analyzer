@@ -163,7 +163,7 @@ struct
          st
        | `Lifted s ->
          let lvals = Queries.LS.elements r in
-         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Lval.Exp.to_cil lv) f) lvals in
+         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Mval.Exp.to_cil lv) f) lvals in
          List.fold_right D.join ass' (D.bot ())
       )
     (* Ignoring all other assigns *)
@@ -219,7 +219,7 @@ struct
       | Lval (Mem e, NoOffset) ->
         (match ask (Queries.MayPointTo e) with
          | a when not (Queries.LS.is_top a || Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) && (Queries.LS.cardinal a) = 1 ->
-           Lval.Exp.to_cil_exp (Queries.LS.choose a)
+           Mval.Exp.to_cil_exp (Queries.LS.choose a)
          (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
          (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
          | _ -> Lval (Mem e, NoOffset))
@@ -453,7 +453,7 @@ struct
         |> List.map Cil.var
       | Some rs ->
         Queries.LS.elements rs
-        |> List.map Lval.Exp.to_cil
+        |> List.map Mval.Exp.to_cil
     in
     List.fold_left (fun st lval ->
         invalidate_one ask ctx st lval
@@ -507,7 +507,7 @@ struct
         let s = ask.f (Queries.MayPointTo e) in
         match s with
         | `Top -> []
-        | `Lifted _ -> List.map Lval.Exp.to_cil (Queries.LS.elements s)
+        | `Lifted _ -> List.map Mval.Exp.to_cil (Queries.LS.elements s)
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
       let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
