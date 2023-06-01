@@ -37,11 +37,11 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module PreNormal (Offset: Printable.S) =
+module PreNormal (Mval: Printable.S) =
 struct
   include Printable.StdLeaf
   type t =
-    | Addr of CilType.Varinfo.t * Offset.t (** Pointer to offset of a variable. *)
+    | Addr of Mval.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
     | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
@@ -55,14 +55,8 @@ struct
         hash x
     | _ -> hash x
 
-  let show_addr (x, o) =
-    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
-      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ Offset.show o
-    else x.vname ^ Offset.show o
-
   let show = function
-    | Addr (x, o)-> show_addr (x, o)
+    | Addr m -> Mval.show m
     | StrPtr (Some x)   -> "\"" ^ x ^ "\""
     | StrPtr None -> "(unknown string)"
     | UnknownPtr -> "?"
@@ -81,7 +75,7 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = Offset.MakePrintable (Idx)
-  include PreNormal (Offs)
+  include PreNormal (Mval.MakePrintable (Offs))
 
   let name () = "Normal Lvals"
 
@@ -287,13 +281,12 @@ struct
   struct
     type elt = t
 
-    module AnyOffset = Printable.UnitConf (struct let name = "" end)
-    include PreNormal (AnyOffset)
+    include PreNormal (Basetype.Variables)
 
     let name () = "BaseAddrRepr.R"
 
     let of_elt (x: elt): t = match x with
-      | Addr (v, o) -> Addr (v, ())
+      | Addr (v, o) -> Addr v
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr

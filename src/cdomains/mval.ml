@@ -9,6 +9,7 @@ module M = Messages
 module MakePrintable (Offs: Printable.S) =
 struct
   include Printable.StdLeaf
+  (* TODO: version with Basetype.Variables and RichVarinfo for AddressDomain *)
   type t = CilType.Varinfo.t * Offs.t [@@deriving eq, ord, hash]
 
   let name () = Format.sprintf "lval (%s)" (Offs.name ())
