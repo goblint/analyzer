@@ -26,6 +26,7 @@ let spec_module: (module PostSpec) Lazy.t = lazy (
             |> lift arg_enabled (module HashconsLifter)
             |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
             |> lift (not arg_enabled) (module PathSensitive2)
+            |> lift true (module ModularCallLifter)
             |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
