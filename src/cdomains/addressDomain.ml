@@ -70,44 +70,7 @@ struct
     )
 end
 
-module type OffsS =
-sig
-  type idx
-  include Printable.S with type t = idx Offset.t
-  (* val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero] *)
-  val is_zero_offset: t -> bool
-  val add_offset: t -> t -> t
-  val type_offset: typ -> t -> typ
-  exception Type_offset of typ * string
-  val to_cil: t -> offset
-end
-
-module type OffsT =
-sig
-  include OffsS
-  val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
-  val is_definite: t -> bool
-  val leq: t -> t -> bool
-  val top_indices: t -> t
-  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
-  val remove_offset: t -> t
-  val to_cil: t -> offset
-  val of_exp: exp Offset.t -> t
-  val to_exp: t -> exp Offset.t
-  val prefix: t -> t -> t option
-end
-
-module type MvalS =
-sig
-  type idx
-  include Printable.S with type t = varinfo * idx Offset.t
-  val get_type_addr: t -> typ
-  val add_offset: t -> idx Offset.t -> t
-  val to_cil: t -> lval
-  val prefix: t -> t -> idx Offset.t option
-end
-
-module Normal (Mval: MvalS) =
+module Normal (Mval: Mval.Printable) =
 struct
   type field = fieldinfo
   (* type idx = Mval.idx *)
@@ -189,17 +152,6 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
-module type MvalT =
-sig
-  include MvalS
-  module Offs: OffsT
-  val semantic_equal: t -> t -> bool option
-  val is_definite: t -> bool
-  val leq: t -> t -> bool
-  val top_indices: t -> t
-  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
-end
-
 (** Lvalue lattice.
 
     Actually a disjoint union of lattices without top or bottom.
@@ -209,7 +161,7 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Mval0: MvalT) =
+module NormalLat (Mval0: Mval.Lattice) =
 struct
   (* open struct module Mval0 = Mval.MakeLattice (Offs) end *)
   include Normal (Mval0)
@@ -289,7 +241,7 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Mval1: MvalT) =
+module NormalLatRepr (Mval1: Mval.Lattice) =
 struct
   open struct module Mval0 = Mval end
 
@@ -347,7 +299,7 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Mval: MvalT) (ID: IntDomain.Z) =
+module AddressSet (Mval: Mval.Lattice) (ID: IntDomain.Z) =
 struct
   (* module Offs = Offset.MakeLattice (Idx) *)
   (* module Mval = Mval.MakeLattice (Offs) *)

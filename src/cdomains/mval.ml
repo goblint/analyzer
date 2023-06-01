@@ -6,19 +6,31 @@ open Pretty
 
 module M = Messages
 
-module type OffsS =
+module type Printable =
 sig
   type idx
-  include Printable.S with type t = idx Offset.t
-  val add_offset: t -> t -> t
-  val type_offset: typ -> t -> typ
-  exception Type_offset of typ * string
-  val to_cil: t -> offset
-  val prefix: t -> t -> t option
-  val is_zero_offset: t -> bool
+  type t = varinfo * idx Offset.t
+  include Printable.S with type t := t
+  include MapDomain.Groupable with type t := t
+  val get_type_addr: t -> typ
+  val add_offset: t -> idx Offset.t -> t
+  val to_cil: t -> lval
+  val to_cil_exp: t -> exp
+  val prefix: t -> t -> idx Offset.t option
 end
 
-module MakePrintable (Offs: OffsS) =
+module type Lattice =
+sig
+  include Printable
+  module Offs: Offset.Lattice with type idx = idx
+  val semantic_equal: t -> t -> bool option
+  val is_definite: t -> bool
+  val leq: t -> t -> bool
+  val top_indices: t -> t
+  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
+end
+
+module MakePrintable (Offs: Offset.Printable): Printable with type idx = Offs.idx =
 struct
   type idx = Offs.idx
   include Printable.StdLeaf
@@ -49,21 +61,7 @@ struct
   let to_cil_exp lv = Lval (to_cil lv)
 end
 
-module type OffsT =
-sig
-  include OffsS
-  val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
-  val is_definite: t -> bool
-  val leq: t -> t -> bool
-  val top_indices: t -> t
-  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
-  val remove_offset: t -> t
-  val to_cil: t -> offset
-  val of_exp: exp Offset.t -> t
-  val to_exp: t -> exp Offset.t
-end
-
-module MakeLattice (Offs: OffsT) =
+module MakeLattice (Offs: Offset.Lattice): Lattice with type idx = Offs.idx =
 struct
   include MakePrintable (Offs)
   module Offs = Offs

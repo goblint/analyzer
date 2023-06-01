@@ -69,7 +69,41 @@ struct
   end
 end
 
-module MakePrintable (Idx: Index.Printable) =
+module type Printable =
+sig
+  type idx
+  include Printable.S with type t = idx offs
+  val add_offset: t -> t -> t
+  val type_offset: typ -> t -> typ
+  exception Type_offset of typ * string
+  val to_cil: t -> offset
+  val prefix: t -> t -> t option
+  val is_zero_offset: t -> bool
+  val map_indices: (idx -> idx) -> t -> t
+  val is_definite: t -> bool
+  val remove_offset: t -> t
+  val to_exp: t -> exp offs
+  val top_indices: t -> t
+  val contains_index: t -> bool
+  val to_cil_offset: t -> offset
+end
+
+module type Lattice =
+sig
+  include Printable
+  val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
+  val is_definite: t -> bool
+  val leq: t -> t -> bool
+  val top_indices: t -> t
+  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
+  val remove_offset: t -> t
+  val to_cil: t -> offset
+  val of_exp: exp offs -> t
+  val to_exp: t -> exp offs
+  val prefix: t -> t -> t option
+end
+
+module MakePrintable (Idx: Index.Printable): Printable with type idx = Idx.t =
 struct
   type idx = Idx.t
   type t = Idx.t offs [@@deriving eq, ord, hash]
@@ -191,7 +225,7 @@ struct
     | _ -> None
 end
 
-module MakeLattice (Idx: Index.Lattice) =
+module MakeLattice (Idx: Index.Lattice): Lattice with type idx = Idx.t =
 struct
   include MakePrintable (Idx)
 
