@@ -93,14 +93,7 @@ sig
   include Printable
   include Lattice.S with type t := t
   val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
-  val is_definite: t -> bool
-  val leq: t -> t -> bool
-  val top_indices: t -> t
-  val remove_offset: t -> t
-  val to_cil: t -> offset
   val of_exp: exp offs -> t
-  val to_exp: t -> exp offs
-  val prefix: t -> t -> t option
 end
 
 module MakePrintable (Idx: Index.Printable): Printable with type idx = Idx.t =
