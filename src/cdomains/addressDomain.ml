@@ -68,6 +68,36 @@ struct
       let show = show
     end
     )
+
+  (* strings *)
+  let from_string x = StrPtr (Some x)
+  let to_string = function
+    | StrPtr (Some x) -> Some x
+    | _        -> None
+  (* only keep part before first null byte *)
+  let to_c_string = function
+    | StrPtr (Some x) ->
+      begin match String.split_on_char '\x00' x with
+        | s::_ -> Some s
+        | [] -> None
+      end
+    | _ -> None
+  let to_n_c_string n x =
+    match to_c_string x with
+    | Some x ->
+      if n > String.length x then
+        Some x
+      else if n < 0 then
+        None
+      else
+        Some (String.sub x 0 n)
+    | _ -> None
+  let to_string_length x =
+    match to_c_string x with
+    | Some x -> Some (String.length x)
+    | _ -> None
+
+  let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
 module Normal (Mval: Mval.Printable) =
@@ -103,34 +133,6 @@ struct
     | Addr (x, o) -> Some (x, o)
     | _      -> None
 
-  (* strings *)
-  let from_string x = StrPtr (Some x)
-  let to_string = function
-    | StrPtr (Some x) -> Some x
-    | _        -> None
-  (* only keep part before first null byte *)
-  let to_c_string = function
-    | StrPtr (Some x) ->
-      begin match String.split_on_char '\x00' x with
-        | s::_ -> Some s
-        | [] -> None
-      end
-    | _ -> None
-  let to_n_c_string n x =
-    match to_c_string x with
-    | Some x ->
-      if n > String.length x then
-        Some x
-      else if n < 0 then
-        None
-      else
-        Some (String.sub x 0 n)
-    | _ -> None
-  let to_string_length x =
-    match to_c_string x with
-    | Some x -> Some (String.length x)
-    | _ -> None
-
   let get_type = function
     | Addr (x, o) -> Mval.get_type_addr (x, o)
     | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
@@ -149,7 +151,11 @@ struct
     | Addr m -> Addr (Mval.add_offset m o)
     | x -> x
 
-  let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
+
+  let is_definite = function
+    | NullPtr -> true
+    | Addr m -> Mval.is_definite m
+    | _ -> false
 end
 
 (** Lvalue lattice.
@@ -181,11 +187,6 @@ struct
     | UnknownPtr, StrPtr _
     | StrPtr _, UnknownPtr -> None
     | _, _ -> Some false
-
-  let is_definite = function
-    | NullPtr -> true
-    | Addr m -> Mval.is_definite m
-    | _ -> false
 
   let leq x y = match x, y with
     | StrPtr _, StrPtr None -> true

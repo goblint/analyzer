@@ -17,6 +17,7 @@ sig
   val to_cil: t -> lval
   val to_cil_exp: t -> exp
   val prefix: t -> t -> idx Offset.t option
+  val is_definite: t -> bool
 end
 
 module type Lattice =
@@ -25,7 +26,6 @@ sig
   include Lattice.S with type t := t
   module Offs: Offset.Lattice with type idx = idx
   val semantic_equal: t -> t -> bool option
-  val is_definite: t -> bool
   val leq: t -> t -> bool
   val top_indices: t -> t
 end
@@ -59,6 +59,8 @@ struct
 
   let to_cil ((v, o): t): lval = (Var v, Offs.to_cil o)
   let to_cil_exp lv = Lval (to_cil lv)
+
+  let is_definite (_, o) = Offs.is_definite o
 end
 
 module MakeLattice (Offs: Offset.Lattice): Lattice with type idx = Offs.idx =
@@ -74,7 +76,6 @@ struct
     else
       Some false
 
-  let is_definite (_, o) = Offs.is_definite o
 
   let leq (x,o) (y,u) = CilType.Varinfo.equal x y && Offs.leq o u
   let top_indices (x, o) = (x, Offs.top_indices o)
