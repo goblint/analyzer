@@ -28,7 +28,6 @@ sig
   val is_definite: t -> bool
   val leq: t -> t -> bool
   val top_indices: t -> t
-  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
 end
 
 module MakePrintable (Offs: Offset.Printable): Printable with type idx = Offs.idx =
@@ -79,16 +78,16 @@ struct
 
   let leq (x,o) (y,u) = CilType.Varinfo.equal x y && Offs.leq o u
   let top_indices (x, o) = (x, Offs.top_indices o)
-  let merge cop (x,o) (y,u) =
+  let merge op (x,o) (y,u) =
     if CilType.Varinfo.equal x y then
-      (x, Offs.merge cop o u)
+      (x, op o u)
     else
       raise Lattice.Uncomparable
 
-  let join x y = merge `Join x y
-  let meet x y = merge `Meet x y
-  let widen x y = merge `Widen x y
-  let narrow x y = merge `Narrow x y
+  let join = merge Offs.join
+  let meet = merge Offs.meet
+  let widen = merge Offs.widen
+  let narrow = merge Offs.narrow
 
   include Lattice.NoBotTop
 

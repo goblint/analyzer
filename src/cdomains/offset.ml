@@ -96,7 +96,6 @@ sig
   val is_definite: t -> bool
   val leq: t -> t -> bool
   val top_indices: t -> t
-  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
   val remove_offset: t -> t
   val to_cil: t -> offset
   val of_exp: exp offs -> t

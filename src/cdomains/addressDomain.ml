@@ -217,23 +217,18 @@ struct
       else
         raise Lattice.Uncomparable
 
-  let merge cop x y =
+  let merge mop sop x y =
     match x, y with
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | StrPtr a, StrPtr b ->
-      StrPtr
-        begin match cop with
-          |`Join | `Widen -> join_string_ptr a b
-          |`Meet | `Narrow -> meet_string_ptr a b
-        end
-    | Addr x, Addr y -> Addr (Mval.merge cop x y)
+    | StrPtr a, StrPtr b -> StrPtr (sop a b)
+    | Addr x, Addr y -> Addr (mop x y)
     | _ -> raise Lattice.Uncomparable
 
-  let join = merge `Join
-  let widen = merge `Widen
-  let meet = merge `Meet
-  let narrow = merge `Narrow
+  let join = merge Mval.join join_string_ptr
+  let widen = merge Mval.widen join_string_ptr
+  let meet = merge Mval.meet meet_string_ptr
+  let narrow = merge Mval.narrow meet_string_ptr
 
   include Lattice.NoBotTop
 
