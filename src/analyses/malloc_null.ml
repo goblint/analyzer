@@ -91,11 +91,6 @@ struct
       warn_deref_exp a st t;
       warn_deref_exp a st f
 
-  let may (f: 'a -> 'b) (x: 'a option) : unit =
-    match x with
-    | Some x -> f x
-    | None -> ()
-
   (* Generate addresses to all points in an given varinfo. (Depends on type) *)
   let to_addrs (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
@@ -195,7 +190,7 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
+    Option.iter (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
     [ctx.local,nst]
 
@@ -213,7 +208,7 @@ struct
     | _ -> ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
+    Option.iter (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
     let desc = LibraryFunctions.find f in
     match desc.special arglist, lval with
