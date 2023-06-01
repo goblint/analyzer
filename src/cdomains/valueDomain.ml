@@ -423,7 +423,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x -> AD.to_int (module ID) x
+              | `Address x -> AD.to_int x
               | `Float x -> FD.to_int ik x
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -639,7 +639,7 @@ struct
     | (`Int x, `Int y) -> `Int (ID.meet x y)
     | (`Float x, `Float y) -> `Float (FD.meet x y)
     | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
-    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
     | (`Union x, `Union y) -> `Union (Unions.meet x y)
@@ -664,7 +664,7 @@ struct
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
     | (`Float x, `Float y) -> `Float (FD.narrow x y)
     | (`Int _, `Address _) -> narrow x (cast IntDomain.Size.top_typ y)
-    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int y))
     | (`Address x, `Address y) -> `Address (AD.narrow x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
     | (`Union x, `Union y) -> `Union (Unions.narrow x y)

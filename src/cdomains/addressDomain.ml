@@ -345,7 +345,7 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: IntDomain.Z) =
+module AddressSet (Idx: IntDomain.Z) (ID: IntDomain.Z) =
 struct
   module Offs = Offset.MakeLattice (Idx)
   module Mval = Mval.MakeLattice (Offs)
@@ -401,7 +401,7 @@ struct
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x  = mem Addr.UnknownPtr x
 
-  let of_int (type a) (module ID : IntDomain.Z with type t = a) i =
+  let of_int i =
     match ID.to_int i with
     | x when GobOption.exists BigIntOps.(equal (zero)) x -> null_ptr
     | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null
@@ -409,7 +409,7 @@ struct
       | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
 
-  let to_int (type a) (module ID : IntDomain.Z with type t = a) x =
+  let to_int x =
     let ik = Cilfacade.ptr_ikind () in
     if equal x null_ptr then
       ID.of_int ik Z.zero
@@ -440,12 +440,12 @@ struct
   let to_string_length x =
     let transform elem =
       match Addr.to_string_length elem with
-      | Some x -> Idx.of_int !Cil.kindOfSizeOf (Z.of_int x)
-      | None -> Idx.top_of !Cil.kindOfSizeOf in
+      | Some x -> ID.of_int !Cil.kindOfSizeOf (Z.of_int x)
+      | None -> ID.top_of !Cil.kindOfSizeOf in
     (* maps any StrPtr to the length of its content, otherwise maps to top *)
     List.map transform (elements x)
     (* and returns the least upper bound of computed IntDomain values *)
-    |> List.fold_left Idx.join (Idx.bot_of !Cil.kindOfSizeOf)
+    |> List.fold_left ID.join (ID.bot_of !Cil.kindOfSizeOf)
 
   let substring_extraction haystack needle =
     (* map all StrPtr elements in input address sets to contained strings *)
@@ -486,20 +486,20 @@ struct
     let compare s1 s2 =
       let res = String.compare s1 s2 in
       if res = 0 then
-        Idx.of_int IInt Z.zero
+        ID.of_int IInt Z.zero
       else if res > 0 then
-        Idx.starting IInt Z.one
+        ID.starting IInt Z.one
       else
-        Idx.ending IInt Z.minus_one in
+        ID.ending IInt Z.minus_one in
 
     (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
     if List.mem None x' || List.mem None y' then
-      Idx.top_of IInt
+      ID.top_of IInt
     else
       (* else compare every string of x' with every string of y' and return the least upper bound *)
       BatList.cartesian_product x' y'
       |> List.map (fun (s1, s2) -> compare (Option.get s1) (Option.get s2))
-      |> List.fold_left Idx.join (Idx.bot_of IInt)
+      |> List.fold_left ID.join (ID.bot_of IInt)
 
   let string_writing_defined dest =
     (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)

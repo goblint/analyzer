@@ -686,7 +686,7 @@ struct
         begin match c_typed with
           | `Int c ->
             let c' = match t with
-              | TPtr _ -> `Address (AD.of_int (module ID) c)
+              | TPtr _ -> `Address (AD.of_int c)
               | TInt (ik, _)
               | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
               | TFloat (fk, _) -> `Float (FD.of_int fk c)

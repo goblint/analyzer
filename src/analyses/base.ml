@@ -1030,7 +1030,7 @@ struct
     | Index (exp, ofs) ->
       match eval_rv a gs st exp with
       | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
-      | `Address add -> `Index (AD.to_int (module IdxDom) add, convert_offset a gs st ofs)
+      | `Address add -> `Index (AD.to_int add, convert_offset a gs st ofs)
       | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
       | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
       | _ -> failwith "Index not an integer value"
