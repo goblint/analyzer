@@ -78,6 +78,20 @@ sig
   val add_offset: t -> t -> t
 end
 
+module type OffsT =
+sig
+  include OffsS
+  val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
+  val is_definite: t -> bool
+  val leq: t -> t -> bool
+  val top_indices: t -> t
+  val merge: [`Join | `Widen | `Meet | `Narrow] -> t -> t -> t
+  val remove_offset: t -> t
+  val to_cil: t -> offset
+  val of_exp: exp Offset.t -> t
+  val to_exp: t -> exp Offset.t
+end
+
 module Normal (Offs: OffsS) =
 struct
   type field = fieldinfo
@@ -197,10 +211,10 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Idx: Offset.Index.Lattice) =
+module NormalLat (Offs: OffsT) =
 struct
-  include Normal (Offset.MakePrintable (Idx))
-  module Offs = Offset.MakeLattice (Idx)
+  include Normal (Offs)
+  module Offs = Offs
 
   (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
   let semantic_equal x y = match x, y with
@@ -283,7 +297,7 @@ end
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
 module BaseAddrRepr (Idx: Offset.Index.Lattice) =
 struct
-  include NormalLat (Idx)
+  include NormalLat (Offset.MakeLattice (Idx))
 
   module R: DisjointDomain.Representative with type elt = t =
   struct
@@ -305,7 +319,7 @@ end
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
 module NormalLatRepr (Idx: Offset.Index.Lattice) =
 struct
-  include NormalLat (Idx)
+  include NormalLat (Offset.MakeLattice (Idx))
 
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
