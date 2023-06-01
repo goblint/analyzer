@@ -20,10 +20,10 @@ sig
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
 
-  val from_var_offset: (varinfo * (field,idx) offs) -> t
+  val from_var_offset: (varinfo * idx Offset.t) -> t
   (** Creates an address from a variable and offset. *)
 
-  val to_var_offset: t -> (varinfo * (field,idx) offs) list
+  val to_var_offset: t -> (varinfo * idx Offset.t) list
   (** Get the offset *)
 
   val to_var: t -> varinfo list
@@ -317,7 +317,7 @@ struct
        since different integer domains may be active at different program points. *)
     include Normal (Offset.Index.Unit)
 
-    let of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, unit) offs = of_offs
+    let of_elt_offset: Idx.t Offset.t -> Offset.Unit.t = of_offs
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
@@ -336,8 +336,8 @@ sig
   type field
 
   val from_var: varinfo -> t
-  val from_var_offset: (varinfo * (idx,field) Lval.offs) -> t
-  val to_var_offset: t -> (varinfo * (idx,field) Lval.offs) list
+  val from_var_offset: (varinfo * idx Offset.t) -> t
+  val to_var_offset: t -> (varinfo * idx Offset.t) list
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   val get_type: t -> typ

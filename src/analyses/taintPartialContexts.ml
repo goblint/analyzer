@@ -14,7 +14,7 @@ struct
   module D = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
   module C = Lattice.Unit
 
-  let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
+  let rec resolve (offs : offset) : Basetype.CilExp.t  Offset.t =
     match offs with
     | NoOffset -> `NoOffset
     | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))

@@ -5,8 +5,6 @@ open Pretty
 
 module M = Messages
 
-type ('f, 'i) offs = 'i Offset.t [@@deriving eq, ord, hash]
-
 module MakePrintable (Offs: Printable.S) =
 struct
   include Printable.StdLeaf

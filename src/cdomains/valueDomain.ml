@@ -90,7 +90,7 @@ module rec Compound: S with type t = [
     | `Mutex
     | `MutexAttr of MutexAttr.t
     | `Bot
-  ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
+  ] and type offs = IndexDomain.t Offset.t =
 struct
   type t = [
     | `Top
@@ -252,7 +252,7 @@ struct
   include Printable.Std
   let name () = "compound"
 
-  type offs = (fieldinfo,IndexDomain.t) Lval.offs
+  type offs = IndexDomain.t Offset.t
 
 
   let bot () = `Bot
