@@ -103,12 +103,13 @@ sig
   val get_type_addr: t -> typ
   val add_offset: t -> idx Offset.t -> t
   val to_cil: t -> lval
+  val prefix: t -> t -> idx Offset.t option
 end
 
 module Normal (Mval: MvalS) =
 struct
   type field = fieldinfo
-  type idx = Mval.idx
+  (* type idx = Mval.idx *)
   (* module Offs = Offset.MakePrintable (Idx) *)
   (* module Mval = Mval.MakePrintable (Offs) *)
   include PreNormal (Mval)
@@ -386,7 +387,7 @@ struct
     r
 
   type field = Addr.field
-  type idx = Idx.t
+  (* type idx = Idx.t *)
 
   let null_ptr       = singleton Addr.NullPtr
   let unknown_ptr    = singleton Addr.UnknownPtr

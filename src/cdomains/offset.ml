@@ -183,6 +183,12 @@ struct
     | t,o ->
       let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t pretty o in
       raise (Type_offset (t, s))
+
+  let rec prefix (x: t) (y: t): t option = match x,y with
+    | `Index (x, xs), `Index (y, ys) when Idx.equal x y -> prefix xs ys
+    | `Field (x, xs), `Field (y, ys) when CilType.Fieldinfo.equal x y -> prefix xs ys
+    | `NoOffset, ys -> Some ys
+    | _ -> None
 end
 
 module MakeLattice (Idx: Index.Lattice) =

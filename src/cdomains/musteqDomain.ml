@@ -64,18 +64,13 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 
-  let rec prefix x y = match x,y with
-    | `Index (x, xs), `Index (y, ys) when I.equal x y -> prefix xs ys
-    | `Field (x, xs), `Field (y, ys) when F.equal x y -> prefix xs ys
-    | `NoOffset, ys -> Some ys
-    | _ -> None
-
   let rec occurs v fds = match fds with
     | `Field (x, xs) -> occurs v xs
     | `Index (x, xs) -> I.occurs v x || occurs v xs
     | `NoOffset -> false
 end
 
+(* TODO: Mval *)
 module VF =
 struct
   include Printable.ProdSimple (V) (F)

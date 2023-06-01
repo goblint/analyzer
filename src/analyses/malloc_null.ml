@@ -19,18 +19,10 @@ struct
   (*
     Addr set functions:
   *)
-  let is_prefix_of (v1,ofs1: varinfo * Addr.idx Offset.t) (v2,ofs2: varinfo * Addr.idx Offset.t) : bool =
-    let rec is_offs_prefix_of pr os =
-      match (pr, os) with
-      | (`NoOffset, `NoOffset) -> true
-      | (`NoOffset, _) -> false
-      | (`Field (f1, o1), `Field (f2,o2)) -> f1 == f2 && is_offs_prefix_of o1 o2
-      | (_, _) -> false
-    in
-    CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
+  let is_prefix_of m1 m2 = Option.is_some (Addr.Mval.prefix m1 m2)
 
   (* We just had to dereference an lval --- warn if it was null *)
-  let warn_lval (st:D.t) (v :varinfo * Addr.idx Offset.t) : unit =
+  let warn_lval (st:D.t) (v :Addr.Mval.t) : unit =
     try
       if D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then

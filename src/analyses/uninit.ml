@@ -85,15 +85,7 @@ struct
   let vars a (rval:exp) : Addr.t list =
     List.map Addr.from_var_offset (varoffs a rval)
 
-  let is_prefix_of (v1,ofs1: varinfo * Addr.idx Offset.t) (v2,ofs2: varinfo * Addr.idx Offset.t) : bool =
-    let rec is_offs_prefix_of pr os =
-      match (pr, os) with
-      | (`NoOffset, _) -> true
-      | (`Field (f1, o1), `Field (f2,o2)) -> CilType.Fieldinfo.equal f1 f2 && is_offs_prefix_of o1 o2
-      | (_, _) -> false
-    in
-    CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
-
+  let is_prefix_of m1 m2 = Option.is_some (Addr.Mval.prefix m1 m2)
 
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
@@ -110,15 +102,15 @@ struct
         t in
     List.fold_left will_addr_init true raw_vars
 
-  let remove_if_prefix (pr: varinfo * Addr.idx Offset.t) (uis: D.t) : D.t =
+  let remove_if_prefix (pr: Addr.Mval.t) (uis: D.t) : D.t =
     let f ad =
       let vals = Addr.to_var_offset ad in
       GobOption.for_all (fun a -> not (is_prefix_of pr a)) vals
     in
     D.filter f uis
 
-  type lval_offs = Addr.idx Offset.t
-  type var_offs  = varinfo * lval_offs
+  type lval_offs = Addr.Offs.t
+  type var_offs  = Addr.Mval.t
 
   (* Call to [get_pfx v cx] returns initialized prefixes ... *)
   let rec get_pfx (v:varinfo) (cx:lval_offs) (ofs:lval_offs) (target:typ) (other:typ) : var_offs list =

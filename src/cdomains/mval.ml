@@ -14,6 +14,7 @@ sig
   val type_offset: typ -> t -> typ
   exception Type_offset of typ * string
   val to_cil: t -> offset
+  val prefix: t -> t -> t option
 end
 
 module MakePrintable (Offs: OffsS) =
@@ -37,6 +38,11 @@ struct
 
   let get_type_addr (v,o) = try Offs.type_offset v.vtype o with Offs.Type_offset (t,_) -> t
 
+  let prefix (v1,ofs1) (v2,ofs2) =
+    if CilType.Varinfo.equal v1 v2 then
+      Offs.prefix ofs1 ofs2
+    else
+      None
 
   let to_cil ((v, o): t): lval = (Var v, Offs.to_cil o)
   let to_cil_exp lv = Lval (to_cil lv)
