@@ -71,6 +71,7 @@ end
 
 module MakePrintable (Idx: Index.Printable) =
 struct
+  type idx = Idx.t
   type t = Idx.t offs [@@deriving eq, ord, hash]
   include Printable.StdLeaf
 

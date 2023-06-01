@@ -305,7 +305,7 @@ struct
     let top () = Unknown
   end
 
-  include AddressDomain.Normal (Idx)
+  include AddressDomain.Normal (Offset.MakePrintable (Idx))
 
   let rec conv_const_offset x =
     match x with

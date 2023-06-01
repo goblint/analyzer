@@ -70,11 +70,19 @@ struct
     )
 end
 
-module Normal (Idx: Offset.Index.Printable) =
+module type OffsS =
+sig
+  type idx
+  include Printable.S with type t = idx Offset.t
+  val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero]
+  val add_offset: t -> t -> t
+end
+
+module Normal (Offs: OffsS) =
 struct
   type field = fieldinfo
-  type idx = Idx.t
-  module Offs = Offset.MakePrintable (Idx)
+  type idx = Offs.idx
+  (* module Offs = Offset.MakePrintable (Idx) *)
   include PreNormal (Mval.MakePrintable (Offs))
 
   let name () = "Normal Lvals"
@@ -158,7 +166,7 @@ struct
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
   (* TODO: seems to be unused *)
-  let to_exp (f:idx -> exp) x =
+  let to_exp (f:Offs.idx -> exp) x =
     (* TODO: Offset *)
     let rec to_cil c =
       match c with
@@ -191,7 +199,7 @@ end
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
 module NormalLat (Idx: Offset.Index.Lattice) =
 struct
-  include Normal (Idx)
+  include Normal (Offset.MakePrintable (Idx))
   module Offs = Offset.MakeLattice (Idx)
 
   (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
@@ -308,7 +316,7 @@ struct
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
-    include Normal (Offset.Index.Unit)
+    include Normal (Offset.Unit)
 
     let of_elt_offset: Idx.t Offset.t -> Offset.Unit.t = of_offs
 
