@@ -35,12 +35,5 @@ module CilLval =
 struct
   include Exp
 
-  let class_tag (v,o) =
-    match v with
-    | _ when v.vglob -> `Global
-    | _ when v.vdecl.line = -1 -> `Temp
-    | _ when Cilfacade.is_varinfo_formal v -> `Parameter
-    | _ -> `Local
-
   let to_exp = to_cil_exp (* TODO: remove *)
 end
