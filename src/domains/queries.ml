@@ -14,6 +14,11 @@ module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
 
+module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
+module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
+
+module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
+
 module VI = Lattice.Flat (Basetype.Variables) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
@@ -37,10 +42,21 @@ module MustBool = BoolDomain.MustBool
 
 module Unit = Lattice.Unit
 
+(** Different notions of protection for a global variables g by a mutex m
+    m protects g strongly if:
+    - whenever g is accessed after the program went multi-threaded for the first time, m is held
+
+    m protects g weakly if:
+    - whenever g is accessed and there are any threads other than the main thread that are created but not joined yet, m is held
+*)
+module Protection = struct
+  type t = Strong | Weak [@@deriving ord, hash]
+end
+
 (* Helper definitions for deriving complex parts of Any.compare below. *)
-type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
 type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} [@@deriving ord, hash]
 type access =
@@ -71,6 +87,7 @@ type _ t =
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
+  | ThreadCreateIndexedNode: ThreadNodeLattice.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -87,8 +104,10 @@ type _ t =
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | IsMultiple: varinfo -> MustBool.t t
+  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | MutexType: varinfo * Lval.OffsetNoIdx.t -> MutexAttrDomain.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | EvalMutexAttr: exp -> MutexAttrDomain.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
   | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
@@ -142,9 +161,11 @@ struct
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | EvalLval _ -> (module AD)
+    | EvalMutexAttr _ -> (module MutexAttrDomain)
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
+    | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
@@ -153,6 +174,7 @@ struct
     | DYojson -> (module FlatYojson)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
+    | MutexType _ -> (module MutexAttrDomain)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | EvalJumpBuf _ -> (module JmpBufDomain.JmpBufSet)
     | ActiveJumpBuf -> (module JmpBufDomain.ActiveLongjmps)
@@ -199,6 +221,7 @@ struct
     | MayBePublicWithout _ -> MayBool.top ()
     | MayBeThreadReturn -> MayBool.top ()
     | IsHeapVar _ -> MayBool.top ()
+    | MutexType _ -> MutexAttrDomain.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
     | MustBeSingleThreaded _ -> MustBool.top ()
@@ -206,9 +229,11 @@ struct
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | EvalLval _ -> AD.top ()
+    | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
+    | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
@@ -290,12 +315,14 @@ struct
     | Any ActiveJumpBuf -> 46
     | Any ValidLongJmp -> 47
     | Any (MayBeModifiedSinceSetjmp _) -> 48
-    | Any Written -> 49
-    | Any (EvalLval _) -> 50
-    | Any AccessedGlobals -> 51
-    | Any (ReachableAddressesFrom _) -> 52
-    | Any (IsModular) -> 53
-
+    | Any (MutexType _) -> 49
+    | Any (EvalMutexAttr _ ) -> 50
+    | Any ThreadCreateIndexedNode -> 51
+    | Any Written -> 52
+    | Any (EvalLval _) -> 53
+    | Any AccessedGlobals -> 54
+    | Any (ReachableAddressesFrom _) -> 55
+    | Any (IsModular) -> 56
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -316,6 +343,7 @@ struct
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
       | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
@@ -336,6 +364,7 @@ struct
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
+      | Any (MutexType (v1,o1)), Any (MutexType (v2,o2)) -> [%ord: CilType.Varinfo.t * Lval.OffsetNoIdx.t] (v1,o1) (v2,o2)
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (EvalLval e1), Any (EvalLval e2) -> CilType.Lval.compare e1 e2
@@ -361,6 +390,7 @@ struct
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalLval l) -> CilType.Lval.hash l
+    | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (EvalValue e) -> CilType.Exp.hash e
     | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
@@ -374,6 +404,7 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
+    | Any (MutexType (v,o)) -> 31*CilType.Varinfo.hash v + Lval.OffsetNoIdx.hash o
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
@@ -402,6 +433,7 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
+    | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
@@ -429,6 +461,8 @@ struct
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
+    | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
+    | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"

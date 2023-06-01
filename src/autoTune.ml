@@ -204,7 +204,7 @@ let activateLongjmpAnalysesWhenRequired () =
   let isLongjmp = function
     | LibraryDesc.Longjmp _ -> true
     | _ -> false
-in
+  in
   if hasFunction isLongjmp  then (
     print_endline @@ "longjmp -> enabling longjmp analyses \"" ^ (String.concat ", " longjmpAnalyses) ^ "\"";
     enableAnalyses longjmpAnalyses;

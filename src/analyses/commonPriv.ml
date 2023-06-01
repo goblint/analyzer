@@ -41,22 +41,23 @@ end
 
 module Protection =
 struct
-  let is_unprotected ask x: bool =
-    let multi = ThreadFlag.has_ever_been_multi ask in
+  open Q.Protection
+  let is_unprotected ask ?(protection=Strong) x: bool =
+    let multi = if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask in
     (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
-      ask.f (Q.MayBePublic {global=x; write=true})
+      ask.f (Q.MayBePublic {global=x; write=true; protection})
     )
 
-  let is_unprotected_without ask ?(write=true) x m: bool =
-    ThreadFlag.has_ever_been_multi ask &&
-    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m})
+  let is_unprotected_without ask ?(write=true) ?(protection=Strong) x m: bool =
+    (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
+    ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m; protection})
 
-  let is_protected_by ask m x: bool =
+  let is_protected_by ask ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
     let module VS = Set.Make (CilType.Varinfo) in

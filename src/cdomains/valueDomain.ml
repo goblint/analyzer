@@ -8,6 +8,7 @@ include PreValueDomain
 module Offs = Lval.OffsetLat (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
+module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
 module LS = VDQ.LS
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
@@ -29,6 +30,7 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
+  val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
   val init_value: ?varAttr:attributes -> typ -> t
@@ -87,6 +89,7 @@ module rec Compound: S with type t = [
     | `Thread of Threads.t
     | `JmpBuf of JmpBufs.t
     | `Mutex
+    | `MutexAttr of MutexAttr.t
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
 struct
@@ -102,9 +105,13 @@ struct
     | `Thread of Threads.t
     | `JmpBuf of JmpBufs.t
     | `Mutex
+    | `MutexAttr of MutexAttrDomain.t
     | `Bot
   ] [@@deriving eq, ord, hash]
 
+  let is_mutexattr_type (t:typ): bool = match t with
+    | TNamed (info, attr) -> info.tname = "pthread_mutexattr_t"
+    | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
     | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t"
@@ -139,6 +146,7 @@ struct
       let len = array_length_idx (IndexDomain.bot ()) length in
       `Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.bot ())
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.Bufs.empty (), false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
@@ -155,6 +163,7 @@ struct
     | `Thread x -> Threads.is_bot x
     | `JmpBuf x -> JmpBufs.is_bot x
     | `Mutex -> true
+    | `MutexAttr x -> MutexAttr.is_bot x
     | `Bot -> true
     | `Top -> false
 
@@ -162,6 +171,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Mutex
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -180,6 +190,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.top_of fkind)
     | TPtr _ -> `Address AD.top_ptr
@@ -253,6 +264,7 @@ struct
     | `Array x -> CArrays.is_top x
     | `Blob x -> Blobs.is_top x
     | `Thread x -> Threads.is_top x
+    | `MutexAttr x -> MutexAttr.is_top x
     | `JmpBuf x -> JmpBufs.is_top x
     | `Mutex -> true
     | `Top -> true
@@ -262,6 +274,7 @@ struct
     match t with
     | _ when is_mutex_type t -> `Mutex
     | t when is_jmp_buf_type t -> `JmpBuf (JmpBufs.top ())
+    | t when is_mutexattr_type t -> `MutexAttr (MutexAttrDomain.top ())
     | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> `Float (FD.of_const fkind 0.0)
     | TPtr _ -> `Address AD.null_ptr
@@ -286,7 +299,7 @@ struct
     | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `JmpBuf _ -> "JmpBuf" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `MutexAttr _ -> "MutexAttr" | `JmpBuf _ -> "JmpBuf" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -311,6 +324,7 @@ struct
     | `Array n ->  CArrays.pretty () n
     | `Blob n ->  Blobs.pretty () n
     | `Thread n -> Threads.pretty () n
+    | `MutexAttr n -> MutexAttr.pretty () n
     | `JmpBuf n -> JmpBufs.pretty () n
     | `Mutex -> text "mutex"
     | `Bot -> text bot_name
@@ -328,6 +342,7 @@ struct
     | `Thread n -> Threads.show n
     | `JmpBuf n -> JmpBufs.show n
     | `Mutex -> "mutex"
+    | `MutexAttr x -> MutexAttr.show x
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -450,6 +465,7 @@ struct
     | `Bot
     | `Thread _
     | `Mutex
+    | `MutexAttr _
     | `JmpBuf _ ->
       v
     | _ ->
@@ -561,6 +577,7 @@ struct
     | (`Address x, `Thread y) -> true
     | (`JmpBuf x, `JmpBuf y) -> JmpBufs.leq x y
     | (`Mutex, `Mutex) -> true
+    | (`MutexAttr x, `MutexAttr y) -> MutexAttr.leq x y
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -592,6 +609,7 @@ struct
       `Thread y (* TODO: ignores address! *)
     | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.join x y)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.join x y)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -624,6 +642,7 @@ struct
       `Thread y (* TODO: ignores address! *)
     | (`Mutex, `Mutex) -> `Mutex
     | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.widen x y)
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.widen x y)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -678,6 +697,7 @@ struct
       `Address x (* TODO: ignores thread! *)
     | (`Mutex, `Mutex) -> `Mutex
     | (`JmpBuf x, `JmpBuf y) -> `JmpBuf (JmpBufs.meet x y)
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.meet x y)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -702,6 +722,7 @@ struct
     | (`Thread y, `Address x) ->
       `Address x (* TODO: ignores thread! *)
     | (`Mutex, `Mutex) -> `Mutex
+    | (`MutexAttr x, `MutexAttr y) -> `MutexAttr (MutexAttr.narrow x y)
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
@@ -1201,6 +1222,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `Thread n -> Threads.printXml f n
+    | `MutexAttr n -> MutexAttr.printXml f n
     | `JmpBuf n -> JmpBufs.printXml f n
     | `Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
@@ -1215,6 +1237,7 @@ struct
     | `Array n -> CArrays.to_yojson n
     | `Blob n -> Blobs.to_yojson n
     | `Thread n -> Threads.to_yojson n
+    | `MutexAttr n -> MutexAttr.to_yojson n
     | `JmpBuf n -> JmpBufs.to_yojson n
     | `Mutex -> `String "mutex"
     | `Bot -> `String "⊥"
@@ -1269,6 +1292,7 @@ struct
     | `Blob n -> `Blob (Blobs.relift n)
     | `Thread n -> `Thread (Threads.relift n)
     | `JmpBuf n -> `JmpBuf (JmpBufs.relift n)
+    | `MutexAttr n -> `MutexAttr (MutexAttr.relift n)
     | `Mutex -> `Mutex
     | `Bot -> `Bot
     | `Top -> `Top
