@@ -22,6 +22,7 @@ end
 module type Lattice =
 sig
   include Printable
+  include Lattice.S with type t := t
   module Offs: Offset.Lattice with type idx = idx
   val semantic_equal: t -> t -> bool option
   val is_definite: t -> bool
@@ -83,6 +84,16 @@ struct
       (x, Offs.merge cop o u)
     else
       raise Lattice.Uncomparable
+
+  let join x y = merge `Join x y
+  let meet x y = merge `Meet x y
+  let widen x y = merge `Widen x y
+  let narrow x y = merge `Narrow x y
+
+  include Lattice.NoBotTop
+
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not equal %a" (name ()) pretty x pretty y
 end
 
 

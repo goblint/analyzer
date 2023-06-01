@@ -91,6 +91,7 @@ end
 module type Lattice =
 sig
   include Printable
+  include Lattice.S with type t := t
   val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
   val is_definite: t -> bool
   val leq: t -> t -> bool
@@ -289,6 +290,11 @@ struct
     let y_index = offset_to_index_offset ytyp yoffs in
     if M.tracing then M.tracel "addr" "xoffs=%a xtyp=%a xindex=%a yoffs=%a ytyp=%a yindex=%a\n" pretty xoffs d_plaintype xtyp Idx.pretty x_index pretty yoffs d_plaintype ytyp Idx.pretty y_index;
     Idx.to_bool (Idx.eq x_index y_index)
+
+  include Lattice.NoBotTop
+
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not equal %a" (name ()) pretty x pretty y
 end
 
 module Unit =
