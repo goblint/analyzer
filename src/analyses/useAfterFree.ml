@@ -22,13 +22,6 @@ struct
 
   (* HELPER FUNCTIONS *)
 
-  (* Took inspiration from malloc_null *)
-  let may (f:'a -> 'b) (x:'a option) : unit =
-    match x with
-    | Some x -> f x
-    | None -> ()
-
-  (* Also took inspiration from malloc_null *)
   let get_concrete_lval (ask:Queries.ask) (lval:lval) =
     match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
     | a when Queries.LS.cardinal a = 1 && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
@@ -36,7 +29,6 @@ struct
       Some v
     | _ -> None
 
-  (* And also took inspiration from malloc_null *)
   let get_concrete_exp (exp:exp) =
     match constFold true exp with
     | CastE (_, Lval (Var v, _))
@@ -136,7 +128,7 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let state = ctx.local in
-    may (fun x -> warn_exp_might_contain_freed "return" x ctx) exp;
+    Option.iter (fun x -> warn_exp_might_contain_freed "return" x ctx) exp;
     (* Intuition:
      * Check if the return expression has a maybe freed var
      * If yes, then add the dummyFunDec's varinfo to the state
@@ -155,7 +147,7 @@ struct
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
-    may (fun x -> warn_lval_might_contain_freed "enter" x ctx) lval;
+    Option.iter (fun x -> warn_lval_might_contain_freed "enter" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" arg ctx) args;
     let glob_maybe_freed_vars = D.filter (fun x -> x.vglob) caller_state in
     let zipped = List.combine f.sformals args in
@@ -182,7 +174,7 @@ struct
     let caller_state = ctx.local in
 
     (* TODO: Should we actually warn here? It seems to clutter the output a bit. *)
-    may (fun x -> warn_lval_might_contain_freed "combine_assign" x ctx) lval;
+    Option.iter (fun x -> warn_lval_might_contain_freed "combine_assign" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "combine_assign" arg ctx) args;
     match lval, D.mem (freed_var_at_return ()) callee_local with
     | Some lv, true ->
@@ -194,7 +186,7 @@ struct
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
-    may (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) x ctx) lval;
+    Option.iter (fun x -> warn_lval_might_contain_freed ("special: " ^ f.vname) x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed ~is_double_free:(f.vname = "free") ("special: " ^ f.vname) arg ctx) arglist;
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
