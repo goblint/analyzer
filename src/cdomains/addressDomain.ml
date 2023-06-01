@@ -94,6 +94,7 @@ sig
   val to_cil: t -> offset
   val of_exp: exp Offset.t -> t
   val to_exp: t -> exp Offset.t
+  val prefix: t -> t -> t option
 end
 
 module type MvalS =
@@ -345,9 +346,9 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: IntDomain.Z) (ID: IntDomain.Z) =
+module AddressSet (Offs: OffsT) (ID: IntDomain.Z) =
 struct
-  module Offs = Offset.MakeLattice (Idx)
+  (* module Offs = Offset.MakeLattice (Idx) *)
   module Mval = Mval.MakeLattice (Offs)
   module Addr =
   struct
