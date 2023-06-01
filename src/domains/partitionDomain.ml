@@ -27,7 +27,8 @@ struct
       let (s1', res) = fold f s2 (s1, empty ()) in
       union s1' res
 
-  let meet a b = a (* inter is unsound *)
+  (* TODO: inter-based meet is unsound? *)
+  let meet _ _ = failwith "PartitonDomain.Set.meet: unsound"
 
   let collapse (s1:t) (s2:t): bool =
     let f vf2 res =
