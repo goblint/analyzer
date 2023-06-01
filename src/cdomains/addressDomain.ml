@@ -286,12 +286,12 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Offs: OffsT) =
+module NormalLatRepr (Mval1: MvalT) =
 struct
   open struct module Mval0 = Mval end
 
-  include NormalLat (Mval.MakeLattice (Offs))
-  module Offs = Offs
+  include NormalLat (Mval1)
+  (* module Offs = Offs *)
 
   module R0: DisjointDomain.Representative with type elt = t =
   struct
@@ -347,7 +347,12 @@ end
 module AddressSet (Idx: IntDomain.Z) =
 struct
   module Offs = Offset.MakeLattice (Idx)
-  module Addr = NormalLatRepr (Offs)
+  module Mval = Mval.MakeLattice (Offs)
+  module Addr =
+  struct
+    include NormalLatRepr (Mval)
+    module Offs = Offs
+  end
   module J = (struct
     include SetDomain.Joined (Addr)
     let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
