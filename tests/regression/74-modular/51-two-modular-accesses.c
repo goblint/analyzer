@@ -4,6 +4,8 @@
 
 
 int g = 0;
+int h = 0;
+int i = 0;
 
 int value(){
 	return 23;
@@ -12,11 +14,14 @@ int value(){
 void *thread1(void *p){
 	// Race on g
 	g = value();  // RACE
+	i = value(); // NORACE
 	return NULL;
 }
 
 void *thread2(void *p){
-	g = 12; // RACE
+	// Race on g
+	g = value();  // RACE
+	h = value(); // NORACE
 	return NULL;
 }
 
