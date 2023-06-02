@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.modular.funs "['value']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'"
+// PARAM: --set ana.modular.funs "['value']" --set ana.activated[+] "'modular_queries'" --set ana.activated[+] "'is_modular'" --set ana.activated[+] "'written'" --set ana.activated[+] "'used_globals'"
 #include<stdlib.h>
 #include<pthread.h>
 
