@@ -73,15 +73,7 @@ end
 (* TODO: Mval *)
 module VF =
 struct
-  include Printable.ProdSimple (V) (F)
-  let show (v,fd) =
-    let v_str = V.show v in
-    let fd_str = F.show fd in
-    v_str ^ fd_str
-  let pretty () x = Pretty.text (show x)
-
-  let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printXml fi
+  include Mval.MakePrintable (F)
 
   (* Indicates if the two var * offset pairs should collapse or not. *)
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
@@ -90,9 +82,6 @@ struct
   let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
   let kill x (v,f) = v, F.kill x f
   let replace x exp (v,fd) = v, F.replace x exp fd
-
-  let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
-    if V.equal v1 v2 then F.prefix fd1 fd2 else None
 end
 
 module P = Printable.ProdSimple (V) (V)
