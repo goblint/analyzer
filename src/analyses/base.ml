@@ -1154,7 +1154,7 @@ struct
         Invariant.none
     in
 
-    if CilLval.Set.is_top context.Invariant.lvals then (
+    if Lval.Set.is_top context.Invariant.lvals then (
       if !earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
           CPA.fold (fun k v a ->
@@ -1179,7 +1179,7 @@ struct
       )
     )
     else (
-      CilLval.Set.fold (fun k a ->
+      Lval.Set.fold (fun k a ->
           let i =
             match k with
             | (Var v, offset) when not (InvariantCil.var_is_heap v) ->

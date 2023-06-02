@@ -231,7 +231,7 @@ module PthreadDomain = PthreadDomain
 module Basetype = Basetype
 module Offset = Offset
 module Mval = Mval
-module CilLval = CilLval
+module Lval = Lval
 module Access = Access
 module AccessDomain = AccessDomain
 
