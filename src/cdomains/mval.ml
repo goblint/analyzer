@@ -1,33 +1,10 @@
-(** Domains for mvalues: simplified lvalues, which start with a {!GoblintCil.varinfo}.
-    Mvalues are the result of resolving {{!GoblintCil.Mem} pointer dereferences} in lvalues. *)
+include Mval_intf
 
 open GoblintCil
 open Pretty
 
 module M = Messages
 
-module type Printable =
-sig
-  type idx
-  type t = varinfo * idx Offset.t
-  include Printable.S with type t := t
-  include MapDomain.Groupable with type t := t
-  val get_type_addr: t -> typ
-  val add_offset: t -> idx Offset.t -> t
-  val to_cil: t -> lval
-  val to_cil_exp: t -> exp
-  val prefix: t -> t -> idx Offset.t option
-  val is_definite: t -> bool
-  val top_indices: t -> t
-end
-
-module type Lattice =
-sig
-  include Printable
-  include Lattice.S with type t := t
-  module Offs: Offset.Lattice with type idx = idx
-  val semantic_equal: t -> t -> bool option
-end
 
 module MakePrintable (Offs: Offset.Printable): Printable with type idx = Offs.idx =
 struct
@@ -94,8 +71,6 @@ struct
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not equal %a" (name ()) pretty x pretty y
 end
-
-
 
 module Unit = MakePrintable (Offset.Unit)
 module Exp = MakePrintable (Offset.Exp)
