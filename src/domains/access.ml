@@ -20,6 +20,7 @@ let is_ignorable_type (t: typ): bool =
 
 let is_ignorable = function
   | None -> false
+  | Some (v,os) when hasAttribute "thread" v.vattr -> true (* Thread-Local Storage *)
   | Some (v,os) ->
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
