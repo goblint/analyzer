@@ -646,7 +646,7 @@ struct
         | Top -> (empty, TS.top (), true)
         | Bot -> (empty, TS.bot (), false)
         | Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
-        | Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
+        | Address adrs -> (adrs,TS.bot (), AD.may_be_unknown adrs)
         | Union (t,e) -> with_field (reachable_from_value e) t
         | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) a (None, ValueDomain.ArrIdxDomain.top ()))
         | Blob (e,_,_) -> reachable_from_value e

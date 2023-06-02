@@ -265,14 +265,14 @@ struct
   let null_ptr       = singleton Addr.NullPtr
   let unknown_ptr    = singleton Addr.UnknownPtr
   let not_null       = unknown_ptr
-  let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
-  let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
+  let top_ptr        = of_list Addr.[UnknownPtr; NullPtr]
+
   let is_element a x = cardinal x = 1 && Addr.equal (choose x) a
-  let is_null x      = is_element Addr.NullPtr x
-  let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
-  let may_be_null x = exists (fun e -> e = Addr.NullPtr) x
+  let is_null x = is_element Addr.NullPtr x
+  let may_be_null x = mem Addr.NullPtr x
+  let is_not_null x = not (may_be_null x)
+  let may_be_unknown x = mem Addr.UnknownPtr x
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
-  let has_unknown x  = mem Addr.UnknownPtr x
 
   let of_int i =
     match ID.to_int i with
@@ -301,9 +301,7 @@ struct
   let to_var_may x = List.filter_map Addr.to_var_may (elements x)
   let to_var_must x = List.filter_map Addr.to_var_must (elements x)
   let to_mval x = List.filter_map Addr.to_mval (elements x)
-  let is_definite x = match elements x with
-    | [x] when Addr.is_definite x -> true
-    | _ -> false
+  let is_definite x = cardinal x = 1 && Addr.is_definite (choose x)
 
   (* strings *)
   let of_string x = singleton (Addr.of_string x)
@@ -420,8 +418,8 @@ struct
       | false, false -> join x y
   *)
 
-  (* TODO: overrides is_top, but not top? *)
-  let is_top a = mem Addr.UnknownPtr a
+  let is_top = may_be_unknown
+  let top () = top_ptr
 
   let merge uop cop x y =
     let no_null x y =

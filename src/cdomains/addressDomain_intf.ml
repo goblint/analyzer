@@ -91,9 +91,8 @@ sig
     val is_null: t -> bool
     val is_not_null: t -> bool
     val may_be_null: t -> bool
-    val is_definite: t -> bool
-    val has_unknown: t -> bool
     val may_be_unknown: t -> bool
+    val is_definite: t -> bool
     val is_element: Addr.t -> t -> bool
 
     val of_var: GoblintCil.varinfo -> t
