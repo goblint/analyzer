@@ -4,4 +4,9 @@ module IndexDomain = IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIki
 module Offs = Offset.MakeLattice (IndexDomain)
 module Mval = Mval.MakeLattice (Offs)
 module AD = AddressDomain.AddressSet (Mval) (ID)
-module Addr = AD.Addr
+module Addr =
+struct
+  include AD.Addr
+  module Offs = Offs
+  module Mval = Mval
+end

@@ -1,50 +1,22 @@
-(** Domains for addresses/pointers. *)
+include AddressDomain_intf
 
 open GoblintCil
 open IntOps
 
 module M = Messages
 
-module type AddressS =
-sig
-  type field
-  type idx
-  include Printable.S
-
-  val null_ptr: unit -> t
-  val str_ptr: unit -> t
-  val is_null: t -> bool
-  val get_location: t -> location
-
-  val from_var: varinfo -> t
-  (** Creates an address from variable. *)
-
-  val from_var_offset: (varinfo * idx Offset.t) -> t
-  (** Creates an address from a variable and offset. *)
-
-  val to_var_offset: t -> (varinfo * idx Offset.t) list
-  (** Get the offset *)
-
-  val to_var: t -> varinfo list
-  (** Strips the varinfo out of the address representation. *)
-
-  val to_var_may: t -> varinfo list
-  val to_var_must: t -> varinfo list
-  (** Strips the varinfo out of the address representation. *)
-
-  val get_type: t -> typ
-  (** Finds the type of the address location. *)
-end
 
 module AddressBase (Mval: Printable.S) =
 struct
   include Printable.StdLeaf
   type t =
-    | Addr of Mval.t (** Pointer to offset of a variable. *)
-    | NullPtr (** NULL pointer. *)
-    | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
-    | StrPtr of string option (** String literal pointer. [StrPtr None] abstracts any string pointer *)
+    | Addr of Mval.t
+    | NullPtr
+    | UnknownPtr
+    | StrPtr of string option
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+
+  let name () = "address"
 
   let hash x = match x with
     | StrPtr _ ->
@@ -157,15 +129,6 @@ struct
     | _ -> false
 end
 
-(** Lvalue lattice.
-
-    Actually a disjoint union of lattices without top or bottom.
-    Lvalues are grouped as follows:
-
-    - Each {!Addr}, modulo precise index expressions in offset, is a sublattice with ordering induced by {!Offset}.
-    - {!NullPtr} is a singleton sublattice.
-    - {!UnknownPtr} is a singleton sublattice.
-    - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
 module AddressLattice (Mval0: Mval.Lattice) =
 struct
   (* open struct module Mval0 = Mval.MakeLattice (Offs) end *)
@@ -173,7 +136,6 @@ struct
   module Mval = Mval0
   (* module Offs = Offs *)
 
-  (** Semantic equal. [Some true] if definitely equal,  [Some false] if definitely not equal, [None] otherwise *)
   let semantic_equal x y = match x, y with
     | Addr x, Addr y -> Mval.semantic_equal x y
     | StrPtr None, StrPtr _
@@ -235,7 +197,6 @@ struct
   let pretty_diff () (x,y) = Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
 module AddressLatticeRepr (Mval1: Mval.Lattice) =
 struct
   open struct module Mval0 = Mval end
@@ -259,7 +220,6 @@ struct
       | UnknownPtr -> UnknownPtr
   end
 
-  (** Representatives for lvalue sublattices as defined by {!AddressLattice}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
@@ -277,21 +237,6 @@ struct
       | NullPtr -> NullPtr
       | UnknownPtr -> UnknownPtr
   end
-end
-
-
-module type S =
-sig
-  include Lattice.S
-  type idx
-  type field
-
-  val from_var: varinfo -> t
-  val from_var_offset: (varinfo * idx Offset.t) -> t
-  val to_var_offset: t -> (varinfo * idx Offset.t) list
-  val to_var_may: t -> varinfo list
-  val to_var_must: t -> varinfo list
-  val get_type: t -> typ
 end
 
 module AddressSet (Mval: Mval.Lattice) (ID: IntDomain.Z) =
