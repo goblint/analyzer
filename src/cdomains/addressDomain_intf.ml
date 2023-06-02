@@ -73,9 +73,9 @@ sig
   sig
     include module type of AddressLattice (Mval) (** @closed *)
 
-    module R0: DisjointDomain.Representative with type elt = t
+    module VariableRepr: DisjointDomain.Representative with type elt = t
 
-    module R: DisjointDomain.Representative with type elt = t
+    module UnitOffsetRepr: DisjointDomain.Representative with type elt = t
     (** Representatives for lvalue sublattices as defined by {!AddressLattice}. *)
   end
 

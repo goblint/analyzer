@@ -17,7 +17,7 @@ struct
     | StrPtr of string option
   [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
 
-  let name () = "address"
+  let name () = Format.sprintf "address (%s)" (Mval.name ())
 
   let hash x = match x with
     | StrPtr _ ->
@@ -75,8 +75,6 @@ end
 module AddressPrintable (Mval: Mval.Printable) =
 struct
   include AddressBase (Mval)
-
-  let name () = "Normal Lvals"
 
   type group = Basetype.Variables.group
   let show_group = Basetype.Variables.show_group
@@ -194,13 +192,11 @@ module AddressLatticeRepr (Mval: Mval.Lattice) =
 struct
   include AddressLattice (Mval)
 
-  module R0: DisjointDomain.Representative with type elt = t =
+  module VariableRepr: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
 
     include AddressBase (Basetype.Variables)
-
-    let name () = "BaseAddrRepr.R"
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr v
@@ -210,7 +206,7 @@ struct
       | UnknownPtr -> UnknownPtr
   end
 
-  module R: DisjointDomain.Representative with type elt = t =
+  module UnitOffsetRepr: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
 
@@ -236,13 +232,15 @@ struct
     include SetDomain.Joined (Addr)
     let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
   end
-  module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.R)
+  module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.UnitOffsetRepr)
 
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:
      https://github.com/goblint/analyzer/pull/808 *)
-  module AddressSet : SetDomain.S with type elt = Addr.t = DisjointDomain.ProjectiveSet (Addr) (OffsetSplit) (Addr.R0)
+  module AddressSet: SetDomain.S with type elt = Addr.t = DisjointDomain.ProjectiveSet (Addr) (OffsetSplit) (Addr.VariableRepr)
   include AddressSet
+
+  let name () = Format.sprintf "address set (%s)" (Mval.name ())
 
   (* short-circuit with physical equality,
      makes a difference at long-scale: https://github.com/goblint/analyzer/pull/809#issuecomment-1206174751 *)

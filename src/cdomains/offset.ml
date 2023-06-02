@@ -16,6 +16,7 @@ struct
   module Unit: Printable with type t = unit =
   struct
     include Lattice.Unit
+    let name () = "unit index"
     let equal_to _ _ = `Top
     let to_int _ = None
   end
@@ -23,6 +24,7 @@ struct
   module Exp: Printable with type t = exp =
   struct
     include CilType.Exp
+    let name () = "exp index"
 
     (* Override output *)
     let pretty () x =
@@ -52,7 +54,7 @@ struct
   type t = Idx.t offs [@@deriving eq, ord, hash]
   include Printable.StdLeaf
 
-  let name () = "offset"
+  let name () = Format.sprintf "offset (%s)" (Idx.name ())
 
   let is_first_field x = match x.fcomp.cfields with
     | [] -> false
