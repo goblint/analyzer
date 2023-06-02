@@ -5,7 +5,7 @@ open IntOps
 
 module M = Messages
 
-module type SAddr =
+module type AddressS =
 sig
   type field
   type idx
@@ -36,7 +36,7 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module PreNormal (Mval: Printable.S) =
+module AddressBase (Mval: Printable.S) =
 struct
   include Printable.StdLeaf
   type t =
@@ -99,13 +99,13 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
-module Normal (Mval: Mval.Printable) =
+module AddressPrintable (Mval: Mval.Printable) =
 struct
   type field = fieldinfo
   (* type idx = Mval.idx *)
   (* module Offs = Offset.MakePrintable (Idx) *)
   (* module Mval = Mval.MakePrintable (Offs) *)
-  include PreNormal (Mval)
+  include AddressBase (Mval)
   module Mval = Mval
 
   let name () = "Normal Lvals"
@@ -166,10 +166,10 @@ end
     - {!NullPtr} is a singleton sublattice.
     - {!UnknownPtr} is a singleton sublattice.
     - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
-module NormalLat (Mval0: Mval.Lattice) =
+module AddressLattice (Mval0: Mval.Lattice) =
 struct
   (* open struct module Mval0 = Mval.MakeLattice (Offs) end *)
-  include Normal (Mval0)
+  include AddressPrintable (Mval0)
   module Mval = Mval0
   (* module Offs = Offs *)
 
@@ -236,18 +236,18 @@ struct
 end
 
 (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Mval1: Mval.Lattice) =
+module AddressLatticeRepr (Mval1: Mval.Lattice) =
 struct
   open struct module Mval0 = Mval end
 
-  include NormalLat (Mval1)
+  include AddressLattice (Mval1)
   (* module Offs = Offs *)
 
   module R0: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
 
-    include PreNormal (Basetype.Variables)
+    include AddressBase (Basetype.Variables)
 
     let name () = "BaseAddrRepr.R"
 
@@ -259,7 +259,7 @@ struct
       | UnknownPtr -> UnknownPtr
   end
 
-  (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
+  (** Representatives for lvalue sublattices as defined by {!AddressLattice}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
@@ -268,7 +268,7 @@ struct
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
-    include Normal (Mval0.Unit)
+    include AddressPrintable (Mval0.Unit)
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_offs o) (* addrs grouped by var and part of offset *)
@@ -301,7 +301,7 @@ struct
   module Addr =
   struct
     module Offs = Mval.Offs
-    include NormalLatRepr (Mval)
+    include AddressLatticeRepr (Mval)
   end
   module J = (struct
     include SetDomain.Joined (Addr)

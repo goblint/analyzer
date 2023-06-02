@@ -4,7 +4,7 @@ open GoblintCil
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
 module Offs = Offset.MakeLattice (ID)
-module LV = AddressDomain.NormalLat (Mval.MakeLattice (Offs))
+module LV = AddressDomain.AddressLattice (Mval.MakeLattice (Offs))
 
 let ikind = IntDomain.PtrDiffIkind.ikind ()
 
