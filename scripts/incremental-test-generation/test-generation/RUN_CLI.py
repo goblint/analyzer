@@ -29,7 +29,7 @@ logo = '''Use -h to see the command line options
 
         '''
 
-def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, create_precision, is_run_tests):
+def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, create_precision, is_run_tests, api_key_path, ml_count):
     # Make paths absolute
     goblint_path = os.path.abspath(os.path.expanduser(goblint_path))
     llvm_path = os.path.abspath(os.path.expanduser(llvm_path))
@@ -39,7 +39,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     goblint_executable_path = os.path.join(goblint_path, 'goblint')
     clang_tidy_path = os.path.join(llvm_path, 'build', 'bin', 'clang-tidy')
     temp_path = os.path.abspath(os.path.join(os.path.curdir, 'temp'))
-    gernerate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, 'TODO API KEY PATH', input_path, mutations, is_mutation, is_ml, is_git)
+    gernerate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, input_path, mutations, is_mutation, is_ml, is_git, ml_count)
 
     #Write out custom test files
     print(SEPERATOR)
@@ -66,24 +66,28 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
 
     #TODO Print link to html result and give summary
 
-def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, input):
+def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, input, ml_count):
     # Check config file
-    config_path = Path("config.yaml")
+    config_path = Path(CONFIG_FILENAME)
     config = {}
     if not config_path.is_file():
         print(f'Config file "{config_path}" not found. Please provide the paths:')
         goblint_path = questionary.text('Enter the path to the goblint repository: ', default="~/Goblint-Repo/analyzer").ask()
         llvm_path = questionary.text('Enter the path to the llvm repository with the modified clang-tidy: ', default="~/Clang-Repo/llvm-project").ask()
-        config.update({"goblint-path": goblint_path, "llvm-path": llvm_path})
+        config.update({CONFIG_GOBLINT: goblint_path, CONFIG_LLVM: llvm_path, CONFIG_LAST_INPUT_MUTATION: '', CONFIG_LAST_INPUT_GIT: ''})
+        last_input_mutation = ''
+        last_input_git = ''
         with open(config_path, 'w') as outfile:
             yaml.dump(config, outfile)
     else:
         with open(config_path, 'r') as stream:
             config = yaml.safe_load(stream)
-            goblint_path = config["goblint-path"]
-            llvm_path = config["llvm-path"]
-            print(f'Using goblint-path (change in ./config.yaml): {goblint_path}')
-            print(f'Using llvm-path (change in ./config.yaml): {llvm_path}')
+            goblint_path = config[CONFIG_GOBLINT]
+            llvm_path = config[CONFIG_LLVM]
+            last_input_mutation = config[CONFIG_LAST_INPUT_MUTATION]
+            last_input_git = config[CONFIG_LAST_INPUT_GIT]
+            print(f'Using goblint-path (change in ./{CONFIG_FILENAME}): {goblint_path}')
+            print(f'Using llvm-path (change in ./{CONFIG_FILENAME}): {llvm_path}')
 
     # Handle Questions
     if not (enable_mutations or enable_ml or enable_git):
@@ -92,7 +96,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 'Select one or more generator types (When git is checked no other can be checked!):',
                 choices=[
                     questionary.Choice('Mutations', checked=True),
-                    questionary.Choice('ML', checked=True),
+                    'ML',
                     'Git'
                 ]).ask()
 
@@ -102,7 +106,12 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 continue
             else:
                 break
-        if 'Mutations' in generators:
+
+        enable_mutations = 'Mutations' in generators
+        enable_ml = 'ML' in generators
+        enable_git = 'Git' in generators
+        
+        if enable_mutations:
             selected_mutations = questionary.checkbox(
             'Select one or more mutation types:',
             choices=[
@@ -121,20 +130,67 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 rt='remove-thread (RT)' in selected_mutations,
                 lcr='logical-connector-replacement (LCR)' in selected_mutations
             )
-        enable_mutations = 'Mutations' in generators
-        enable_ml = 'ML' in generators
-        enable_git = 'Git' in generators
+    
+    # Check for API Key
+    if enable_ml:
+        key_path = Path(APIKEY_FILENAME)
+        key_data = {}
+        if not key_path.is_file():
+            print(f'Api key file "{key_path}" for OpenAi not found. Please provide the informations:')
+            print('Be aware that the information is stored unencrypted. Do not remove the file from .gitignore!')
+            print('Create an account here: https://openai.com/blog/openai-api')
+            print('Create an API Key here: https://platform.openai.com/account/api-keys')
+            print('Get your organization id here: https://platform.openai.com/account/org-settings')
+            key = questionary.text('Enter the api key:').ask()
+            org = questionary.text('Enter the organisation id:').ask()
+            key_data.update({APIKEY_APIKEY: key, APIKEY_ORGANISATION: org})
+            with open(key_path, 'w') as outfile:
+                yaml.dump(key_data, outfile)
+        else:
+            with open(key_path, 'r') as stream:
+                key_data = yaml.safe_load(stream)
+                key = key_data[APIKEY_APIKEY]
+                org = key_data[APIKEY_ORGANISATION]
+                print(f'Using api-key for ML (change in ./{APIKEY_FILENAME}): ...{key[-4:]}')
+                print(f'Using organisation id for ML (change in ./{APIKEY_FILENAME}): ...{org[-4:]}')
+        key_path = os.path.abspath(key_path)
+    else:
+        key_path = None
+
+    if ml_count == None:
+        while True:
+            ml_count = questionary.text('How many different programs should be generated with ML?', default=str(DEFAULT_ML_COUNT)).ask()
+            if not ml_count.strip('\n').isdigit():
+                print("Please enter a valid number.")
+                continue
+            ml_count = int(ml_count.strip('\n'))
+            if ml_count <= 0:
+                print("Please enter a number greater zero.")
+                continue
+            break
+
     if precision == None:
         precision = questionary.confirm('Create precision test files?', default=False).ask()
+
     if running == None:
         running = questionary.confirm('Run the tests?').ask()
-    if input == None:
-        if enable_mutations or enable_ml:
-            input = questionary.text('Enter the path to the c program for the mutations: ', default="input.c").ask()
-        else:
-            input = questionary.text('Enter the path or URL to the git repository for the mutations: ', default="repo").ask()
 
-    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, precision, running)
+    if input == None:
+        while True:
+            if enable_mutations or enable_ml:
+                input = questionary.text('Enter the path to the c program for the mutations: ', default=last_input_mutation).ask()
+                config.update({CONFIG_LAST_INPUT_MUTATION: input})
+            else:
+                input = questionary.text('Enter the path to the git repository for the mutations: ', default=last_input_git).ask()
+                config.update({CONFIG_LAST_INPUT_GIT: input})
+            if not os.path.exists(input):
+                print("Please enter a valid path.")
+                continue
+            with open(config_path, 'w') as outfile:
+                yaml.dump(config, outfile)
+            break
+
+    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, precision, running, key_path, ml_count)
 
 
 if __name__ == "__main__":
@@ -152,6 +208,9 @@ if __name__ == "__main__":
     
     # Add mutation options
     add_mutation_options(parser)
+
+    # Add ML options
+    parser.add_argument('-c', '--ml-count', type=int, default=-1,  help='How many different programs should be generated with ML?')
 
     args = parser.parse_args()
 
@@ -187,4 +246,10 @@ if __name__ == "__main__":
     else:
         running = None
 
-    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, precision, running, args.input)
+    if args.ml_count > 0:
+        ml_count = args.ml_count
+    else:
+        ml_count = None
+    
+
+    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, precision, running, args.input, ml_count)

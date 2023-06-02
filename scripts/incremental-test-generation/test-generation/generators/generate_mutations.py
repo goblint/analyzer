@@ -35,10 +35,10 @@ def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
 def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mutation_name, index):
     print(SEPERATOR)
     print(f"[{Generate_Type.MUTATION.value}] {mutation_name}")
-    lineGroups = _get_line_groups(clang_tidy_path, mutation_name, program_path)
+    lineGroups = _get_line_groups(clang_tidy_path, mutation_name, program_path, index)
     for lines in lineGroups:
         index += 1
-        new_path = _make_copy(program_path, index)
+        new_path = make_program_copy(program_path, index)
         if mutation_name == Mutations().rt_s:
             # When Remove Thread create wrapper an then apply the mutations
             if len(lines) != 1:
@@ -50,12 +50,7 @@ def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mut
         _write_meta_data(meta_path, new_path, index, mutation_name, lines)
     return index
 
-def _make_copy(program_path, index):
-    new_path = program_path.rsplit('.', 1)[0] + '_' + str(index) + '.c'
-    shutil.copy2(program_path, new_path)
-    return new_path
-
-def _get_line_groups(clang_tidy_path, mutation_name, program_path):
+def _get_line_groups(clang_tidy_path, mutation_name, program_path, index):
     #TODO Handle [MACRO] tags
     command = [
     clang_tidy_path,
@@ -65,7 +60,7 @@ def _get_line_groups(clang_tidy_path, mutation_name, program_path):
     ]
 
     result = subprocess.run(command, text=True, capture_output=True)
-    print(f"[CHECK] Check mutation {mutation_name} with return code {result.returncode}")
+    print(f"[MUTATION][CHECK] Check mutation {mutation_name} with return code {result.returncode}")
     if result.returncode != 0:
         print(result.stdout)
         print(result.stderr)
@@ -97,7 +92,7 @@ def _get_line_groups(clang_tidy_path, mutation_name, program_path):
     # Remove duplicate line groups
     line_groups = [list(x) for x in set(tuple(x) for x in line_groups)]
 
-    print(f"[CHECK RESULT] Mutation {mutation_name} can be applied to lines {line_groups}")
+    print(f"[MUTATION][CHECK RESULT] Mutation {mutation_name} can be applied to lines {line_groups}")
     return line_groups
 
 def _apply_mutation(clang_tidy_path, mutation_name, lines, program_path, index):

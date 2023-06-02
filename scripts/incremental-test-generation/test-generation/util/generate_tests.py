@@ -45,9 +45,12 @@ def generate_tests(temp_dir, target_dir, precision_test):
             continue
         if (i-1) % 9 == 0:
             print(f"Generating test files [{i}/{n}]")
-        if type == Generate_Type.MUTATION.value:
+        if type == Generate_Type.MUTATION.value or type == Generate_Type.ML.value:
             sub_type = yaml_data[generated_id][META_SUB_TYPE]
-            test_name = _format_number(i) + '-' + type + '_' + sub_type + '_' + _format_number(i)
+            if type == Generate_Type.MUTATION.value:
+                test_name = _format_number(i) + '-' + type + '_' + sub_type + '_' + _format_number(i)
+            else:
+                test_name = _format_number(i) + '-' + type + '_' + _format_number(i)
             # Copy mutated code as the original code
             shutil.copy2(generated_program, os.path.join(target_dir, test_name + '.c'))
             # Create a patch file
@@ -73,12 +76,11 @@ def generate_tests(temp_dir, target_dir, precision_test):
             data = {}
             with open(os.path.join(target_dir, test_name + '.json'), 'w') as f:
                 json.dump(data, f)
-        if type == Generate_Type.ML.value:
-            #TODO
-            print ('[ERROR] Generating ML Tests not implemented')
-        if type == Generate_Type.GIT.value:
+        elif type == Generate_Type.GIT.value:
             #TODO
             print ('[ERROR] Generating GIT Tests not implemented')
+        else:
+            print ('[ERROR] Generating Unknown Tests not implemented')
     print(f"Generating test files [DONE]")
 
     with open(meta_path, 'w') as file:

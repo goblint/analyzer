@@ -33,11 +33,14 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
     with open(meta_path, 'w') as file:
         yaml.safe_dump(yaml_data, file)
     
-    if not compiling :
-        print(result.stdout)
-        print(result.stderr)
+    if not compiling:
         print(f"Error compiling program with index {index}.")
-        sys.exit(-1)
+        if index == 0:
+            print("The original program did not compile. Stopping program!")
+            sys.exit(-1)
+        return False
+    else:
+        return True
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate __goblint_check() for a C file. When not compiling write [NOT COMPILING] in the meta file')

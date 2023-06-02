@@ -1,4 +1,5 @@
 from enum import Enum
+import shutil
 
 
 class Mutations:
@@ -32,3 +33,19 @@ META_TYPE = 'type'
 META_SUB_TYPE = 'sub_type'
 META_LINES = 'lines'
 
+CONFIG_FILENAME = 'config.yaml'
+CONFIG_GOBLINT = "goblint-path"
+CONFIG_LLVM = "llvm-path"
+CONFIG_LAST_INPUT_MUTATION = "last-input-mutation"
+CONFIG_LAST_INPUT_GIT = "last-input-git"
+
+APIKEY_FILENAME = 'api-key.yaml'
+APIKEY_APIKEY = 'api-key'
+APIKEY_ORGANISATION = 'organisation'
+
+DEFAULT_ML_COUNT = 5
+
+def make_program_copy(program_path, index):
+    new_path = program_path.rsplit('.', 1)[0] + '_' + str(index) + '.c'
+    shutil.copy2(program_path, new_path)
+    return new_path

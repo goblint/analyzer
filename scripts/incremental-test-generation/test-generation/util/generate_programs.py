@@ -4,6 +4,7 @@ import shutil
 import sys
 sys.path.append("..")
 from generators.generate_mutations import *
+from generators.generate_ml import *
 from util.util import *
 from util.add_check import add_check
 from util.add_check_comments import add_check_comments
@@ -13,7 +14,7 @@ from util.add_check_comments import add_check_comments
 
 generate_type_source = "SOURCE"
 
-def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, git_url, mutations, enable_mutations, enable_ml,  enable_git):
+def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, git_url, mutations, enable_mutations, enable_ml,  enable_git, ml_count):
     # Clean working directory
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -33,7 +34,11 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
         index = generate_mutations(program_path, clang_tidy_path, meta_path, mutations)
 
     if enable_ml:
-        pass
+        #TODO Allow user to specify how many lines to select
+        NUM_SELECTED_LINES = 25
+        #TODO Allow user to specify which part of the program is intresting
+        INTRESTING_LINES = []
+        index = generate_ml(program_path, apikey_path, meta_path, ml_count, NUM_SELECTED_LINES, INTRESTING_LINES)
 
     if enable_git:
         pass
@@ -45,7 +50,9 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
         if i % 9 == 0:
             print(f"Generating goblint checks [{i+1}/{index}]")
         file_path = os.path.join(temp_dir, f"p_{i}.c")
-        add_check(file_path, i, goblint_path, meta_path)
+        compiling = add_check(file_path, i, goblint_path, meta_path)
+        if not compiling:
+            continue
         file_path = os.path.join(temp_dir, f"p_{i}_c.c")
         if i == 0:
             add_check_comments(file_path, True)
