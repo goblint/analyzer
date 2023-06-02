@@ -1,42 +1,17 @@
-(** Domains for offsets. *)
+include Offset_intf
 
 open GoblintCil
 
 module M = Messages
 
-
-(** Special index expression for some unknown index.
-    Weakly updates array in assignment.
-    Used for exp.fast_global_inits. *)
 let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
 
-(** Special index expression for all indices.
-    Strongly updates array in assignment.
-    Used for Goblint-specific witness invariants. *)
 let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
 
-type 'i t = [
-  | `NoOffset
-  | `Field of CilType.Fieldinfo.t * 'i t
-  | `Index of 'i * 'i t
-] [@@deriving eq, ord, hash]
-
-type 'i offs = 'i t [@@deriving eq, ord, hash]
 
 module Index =
 struct
-
-  (** Subinterface of IntDomain.Z which is sufficient for Printable (but not Lattice) Offset. *)
-  module type Printable =
-  sig
-    include Printable.S
-    val equal_to: IntOps.BigIntOps.t -> t -> [`Eq | `Neq | `Top]
-    val to_int: t -> IntOps.BigIntOps.t option
-    val top: unit -> t
-  end
-
-  module type Lattice = IntDomain.Z
-
+  include Index
 
   module Unit: Printable with type t = unit =
   struct
@@ -69,35 +44,7 @@ struct
   end
 end
 
-module type Printable =
-sig
-  type idx
-  include Printable.S with type t = idx offs
-  val add_offset: t -> t -> t
-  val type_offset: typ -> t -> typ
-  exception Type_offset of typ * string
-  val to_cil: t -> offset
-  val prefix: t -> t -> t option
-  val is_zero_offset: t -> bool
-  val map_indices: (idx -> idx) -> t -> t
-  val is_definite: t -> bool
-  val remove_offset: t -> t
-  val to_exp: t -> exp offs
-  val top_indices: t -> t
-  val contains_index: t -> bool
-  val to_cil_offset: t -> offset
-  val is_first_field: fieldinfo -> bool
-  val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero]
-end
 
-module type Lattice =
-sig
-  include Printable
-  include Lattice.S with type t := t
-  val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
-  val of_exp: exp offs -> t
-  val offset_to_index_offset: typ -> t -> idx
-end
 
 module MakePrintable (Idx: Index.Printable): Printable with type idx = Idx.t =
 struct
