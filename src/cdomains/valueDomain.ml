@@ -78,20 +78,20 @@ module Threads = ConcDomain.ThreadSet
 module JmpBufs = JmpBufDomain.JmpBufSetTaint
 
 module rec Compound: sig
-  type t = | Top
-           | Int of ID.t
-           | Float of FD.t
-           | Address of AD.t
-           | Struct of Structs.t
-           | Union of Unions.t
-           | Array of CArrays.t
-           | Blob of Blobs.t
-           | Thread of Threads.t
-           | JmpBuf of JmpBufs.t
-           | Mutex
-           | MutexAttr of MutexAttrDomain.t
-           | Bot
-  [@@deriving eq, ord, hash]
+  type t =
+    | Top
+    | Int of ID.t
+    | Float of FD.t
+    | Address of AD.t
+    | Struct of Structs.t
+    | Union of Unions.t
+    | Array of CArrays.t
+    | Blob of Blobs.t
+    | Thread of Threads.t
+    | JmpBuf of JmpBufs.t
+    | Mutex
+    | MutexAttr of MutexAttrDomain.t
+    | Bot
   include S with type t := t and type offs = (fieldinfo,IndexDomain.t) Lval.offs
 end =
 struct
