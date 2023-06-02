@@ -9,6 +9,12 @@ int write(int *p){
 
 void *thread1(void *p){
 	write(p); // RACE
+	int z = 23;
+	write(&z); // NORACE
+
+	int *i = malloc(sizeof(int));
+	write(i); // NORACE
+
 	return NULL;
 }
 
