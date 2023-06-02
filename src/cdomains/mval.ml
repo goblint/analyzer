@@ -9,8 +9,8 @@ module MakePrintable (Offs: Offset.Printable): Printable with type idx = Offs.id
 struct
   type idx = Offs.idx
   include Printable.StdLeaf
-  (* TODO: version with Basetype.Variables and RichVarinfo for AddressDomain *)
-  type t = CilType.Varinfo.t * Offs.t [@@deriving eq, ord, hash]
+  (* Use Basetype.Variables to print with RichVarinfo. *)
+  type t = Basetype.Variables.t * Offs.t [@@deriving eq, ord, hash]
 
   let name () = Format.sprintf "lval (%s)" (Offs.name ())
 
