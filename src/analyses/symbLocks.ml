@@ -155,7 +155,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ILock.from_var_offset (v, o) in
+        let lock = ILock.of_mval (v, o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";

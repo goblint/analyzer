@@ -25,7 +25,7 @@ struct
   let reachable (ask: Queries.ask) e: D.t =
     match ask.f (Queries.ReachableFrom e) with
     | a when not (Queries.LS.is_top a) ->
-      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
+      (* let to_extra (v,o) set = D.add (Addr.of_mval (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -36,7 +36,7 @@ struct
   let mpt (ask: Queries.ask) e: D.t =
     match ask.f (Queries.MayPointTo e) with
     | a when not (Queries.LS.is_top a) ->
-      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
+      (* let to_extra (v,o) set = D.add (Addr.of_mval (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)

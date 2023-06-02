@@ -10,7 +10,7 @@ sig
     include Printable.S with type t := t (** @closed *)
     include MapDomain.Groupable with type t := t (** @closed *)
 
-    val from_string: string -> t
+    val of_string: string -> t
     val to_string: t -> string option
     val to_c_string: t -> string option
     val to_n_c_string: int -> t -> string option
@@ -25,11 +25,10 @@ sig
     val is_definite: t -> bool
     val add_offset: t -> Mval.idx Offset.t -> t
 
-    (* TODO: rename to of_* *)
-    val from_var: GoblintCil.varinfo -> t
+    val of_var: GoblintCil.varinfo -> t
     (** Creates an address from variable. *)
 
-    val from_var_offset: Mval.t -> t
+    val of_mval: Mval.t -> t
     (** Creates an address from a variable and offset. *)
 
     val to_var: t -> GoblintCil.varinfo option
@@ -39,7 +38,7 @@ sig
     val to_var_must: t -> GoblintCil.varinfo option
     (** Strips the varinfo out of the address representation. *)
 
-    val to_var_offset: t -> Mval.t option
+    val to_mval: t -> Mval.t option
     (** Get the offset *)
 
     val to_exp: t -> GoblintCil.exp
@@ -97,19 +96,19 @@ sig
     val may_be_unknown: t -> bool
     val is_element: Addr.t -> t -> bool
 
-    val from_var: GoblintCil.varinfo -> t
-    val from_var_offset: Mval.t -> t
+    val of_var: GoblintCil.varinfo -> t
+    val of_mval: Mval.t -> t
     val of_int: ID.t -> t
 
     val to_var_may: t -> GoblintCil.varinfo list
     val to_var_must: t -> GoblintCil.varinfo list
-    val to_var_offset: t -> Mval.t list
+    val to_mval: t -> Mval.t list
     val to_int: t -> ID.t
     val to_bool: t -> bool option
 
     val type_of: t -> GoblintCil.typ
 
-    val from_string: string -> t
+    val of_string: string -> t
     val to_string: t -> string list
     val to_string_length: t -> ID.t
     val substring_extraction: t -> t -> t

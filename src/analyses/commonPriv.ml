@@ -62,7 +62,7 @@ struct
   let protected_vars (ask: Q.ask): varinfo list =
     let module VS = Set.Make (CilType.Varinfo) in
     Q.LS.fold (fun (v, _) acc ->
-        let m = ValueDomain.Addr.from_var v in (* TODO: don't ignore offsets *)
+        let m = ValueDomain.Addr.of_var v in (* TODO: don't ignore offsets *)
         Q.LS.fold (fun l acc ->
             VS.add (fst l) acc (* always `NoOffset from mutex analysis *)
           ) (ask.f (Q.MustProtectedVars {mutex = m; write = true})) acc
@@ -132,7 +132,7 @@ struct
     else
       let ls = ask.f Queries.MustLockset in
       Q.LS.fold (fun (var, offs) acc ->
-          Lockset.add (Lock.from_var_offset (var, Lock.Offs.of_exp offs)) acc
+          Lockset.add (Lock.of_mval (var, Lock.Offs.of_exp offs)) acc
         ) ls (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)

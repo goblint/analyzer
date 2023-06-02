@@ -19,7 +19,7 @@ struct
 
   (* TODO: Lval *)
   let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v, ValueDomain.Addr.Offs.of_exp o) :: b in
+    let gather_addr (v,o) b = ValueDomain.Addr.of_mval (v, ValueDomain.Addr.Offs.of_exp o) :: b in
     match a.f (Queries.MayPointTo exp) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
@@ -65,7 +65,7 @@ struct
       end
       in
       let open Signalled in
-      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.from_var a) ctx.local | _ -> ctx.local in
+      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.of_var a) ctx.local | _ -> ctx.local in
       let conds = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
       (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
        | PossiblySignalled -> add_if_singleton conds

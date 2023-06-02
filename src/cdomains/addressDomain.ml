@@ -42,7 +42,7 @@ struct
     )
 
   (* strings *)
-  let from_string x = StrPtr (Some x)
+  let of_string x = StrPtr (Some x)
   let to_string = function
     | StrPtr (Some x) -> Some x
     | _        -> None
@@ -82,8 +82,8 @@ struct
     | Addr (x,_) -> Basetype.Variables.to_group x
     | _ -> Some Basetype.Variables.Local
 
-  let from_var x = Addr (x, `NoOffset)
-  let from_var_offset (x, o) = Addr (x, o)
+  let of_var x = Addr (x, `NoOffset)
+  let of_mval (x, o) = Addr (x, o)
 
   let to_var = function
     | Addr (x,_) -> Some x
@@ -94,7 +94,7 @@ struct
   let to_var_must = function
     | Addr (x,`NoOffset) -> Some x
     | _                  -> None
-  let to_var_offset = function
+  let to_mval = function
     | Addr (x, o) -> Some (x, o)
     | _      -> None
 
@@ -296,17 +296,17 @@ struct
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
     | _ -> voidType
 
-  let from_var x = singleton (Addr.from_var x)
-  let from_var_offset x = singleton (Addr.from_var_offset x)
+  let of_var x = singleton (Addr.of_var x)
+  let of_mval x = singleton (Addr.of_mval x)
   let to_var_may x = List.filter_map Addr.to_var_may (elements x)
   let to_var_must x = List.filter_map Addr.to_var_must (elements x)
-  let to_var_offset x = List.filter_map Addr.to_var_offset (elements x)
+  let to_mval x = List.filter_map Addr.to_mval (elements x)
   let is_definite x = match elements x with
     | [x] when Addr.is_definite x -> true
     | _ -> false
 
   (* strings *)
-  let from_string x = singleton (Addr.from_string x)
+  let of_string x = singleton (Addr.of_string x)
 
   let to_string x = List.filter_map Addr.to_string (elements x)
 
@@ -327,7 +327,7 @@ struct
 
     (* helper functions *)
     let extract_lval_string = function
-      | Some s -> from_string s
+      | Some s -> of_string s
       | None -> null_ptr in
     let compute_substring s1 s2 =
       try

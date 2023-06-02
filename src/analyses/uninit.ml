@@ -83,20 +83,20 @@ struct
     List.fold_left f [] (access_one_byval a false rval)
 
   let vars a (rval:exp) : Addr.t list =
-    List.map Addr.from_var_offset (varoffs a rval)
+    List.map Addr.of_mval (varoffs a rval)
 
   let is_prefix_of m1 m2 = Option.is_some (Addr.Mval.prefix m1 m2)
 
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
     let variables = vars a expr in
-    let raw_vars = List.filter_map Addr.to_var_offset variables in
+    let raw_vars = List.filter_map Addr.to_mval variables in
     let will_addr_init (t:bool) a =
       let f addr =
-        GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
+        GobOption.exists (is_prefix_of a) (Addr.to_mval addr)
       in
       if D.exists f st then begin
-        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
+        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.of_mval a);
         false
       end else
         t in
@@ -104,7 +104,7 @@ struct
 
   let remove_if_prefix (pr: Addr.Mval.t) (uis: D.t) : D.t =
     let f ad =
-      let vals = Addr.to_var_offset ad in
+      let vals = Addr.to_mval ad in
       GobOption.for_all (fun a -> not (is_prefix_of pr a)) vals
     in
     D.filter f uis
@@ -129,7 +129,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
+        M.info ~category:Unsound "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.of_mval (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -157,7 +157,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
+      M.info ~category:Unsound "Failed to analyze union at point %a" Addr.pretty (Addr.of_mval (v,rev cx));
       []
 
 
@@ -181,12 +181,12 @@ struct
       | f :: fs ->
         match unrollType f.ftype with
         | TComp ({cfields=ffs; _},_) -> add_fields base fs (List.rev_append (add_fields (f::base) ffs []) acc)
-        | _                       -> add_fields base fs ((Addr.from_var_offset (v,make_offs (f::base))) :: acc)
+        | _                       -> add_fields base fs ((Addr.of_mval (v,make_offs (f::base))) :: acc)
 
     in
     match unrollType v.vtype with
     | TComp ({cfields=fs; _},_) -> add_fields [] fs []
-    | _ -> [Addr.from_var v]
+    | _ -> [Addr.of_var v]
 
 
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
@@ -194,7 +194,7 @@ struct
       let do_exp e =
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a) ->
-          let to_extra (v,o) xs = AD.from_var_offset (v, Addr.Offs.of_exp o) :: xs  in
+          let to_extra (v,o) xs = AD.of_mval (v, Addr.Offs.of_exp o) :: xs  in
           Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
