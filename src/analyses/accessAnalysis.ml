@@ -126,9 +126,9 @@ struct
     in
     let map_back a = ModularUtil.ValueDomainExtension.map_back a ~reachable in
     let map_back a =
-      let address = `Address a in
+      let address = VD.Address a in
       match map_back address with
-      | `Address maped_back ->
+      | Address maped_back ->
         maped_back
       | _ ->
         M.warn "map_back failed for %a" AD.pretty a;

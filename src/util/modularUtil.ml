@@ -53,14 +53,14 @@ struct
         AD.map (fun a -> Addr.add_offset a offs) addr
     in
     match can_v with
-    | `Top
-    | `Int _
-    | `Float _
-    | `Mutex
-    | `Thread _
-    | `JmpBuf _
-    | `Bot -> can_v
-    | `Address ad ->
+    | Top
+    | Int _
+    | Float _
+    | Mutex
+    | Thread _
+    | JmpBuf _
+    | Bot -> can_v
+    | Address ad ->
       begin
         let map_back (a: Addr.t) =
           match Addr.to_var_offset a with
@@ -71,14 +71,14 @@ struct
             AD.singleton a
         in
         let addrs = AD.fold (fun a acc -> AD.join acc (map_back a)) ad (AD.bot ()) in
-        `Address addrs
+        Address addrs
       end
-    | `Struct s ->
-      `Struct (Structs.map (map_back ~reachable) s)
-    | `Union u ->
-      `Union (Unions.map (fun _ -> map_back ~reachable) u)
-    | `Array a ->
-      `Array (CArrays.map (map_back ~reachable) a)
-    | `Blob _ -> failwith "Blob not yet implemented"
-    | `MutexAttr _ -> `MutexAttr (MutexAttr.top ())
+    | Struct s ->
+      Struct (Structs.map (map_back ~reachable) s)
+    | Union u ->
+      Union (Unions.map (fun _ -> map_back ~reachable) u)
+    | Array a ->
+      Array (CArrays.map (map_back ~reachable) a)
+    | Blob _ -> failwith "Blob not yet implemented"
+    | MutexAttr _ -> MutexAttr (MutexAttr.top ())
 end

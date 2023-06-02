@@ -67,8 +67,8 @@ struct
   let combine_env ctx lval fexp f args fc au f_ask =
     let reachable = get_reachable ctx args f_ask in
     let translate_and_insert (k: AD.t) (v: VD.t) (map: D.t) =
-      let k' = match ModularUtil.ValueDomainExtension.map_back (`Address k) ~reachable with
-        | `Address a -> a
+      let k' = match ModularUtil.ValueDomainExtension.map_back (Address k) ~reachable with
+        | Address a -> a
         | _ -> failwith "map_back yielded a non-address value for address input."
       in
       let v' = ModularUtil.ValueDomainExtension.map_back v ~reachable in
