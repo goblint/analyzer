@@ -552,7 +552,7 @@ struct
       (* trying to improve variables in an expression so it is bottom means dead code *)
       if VD.is_bot_value c_typed then contra st else
       match exp, c_typed with
-        | UnOp (LNot, e, _), Int c ->
+      | UnOp (LNot, e, _), Int c ->
         let ikind = Cilfacade.get_ikind_exp e in
         let c' =
           match ID.to_bool (unop_ID LNot c) with
@@ -564,12 +564,12 @@ struct
           | _ -> ID.top_of ikind
         in
         inv_exp (Int c') e st
-        | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
-        | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
+      | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
+      | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
-        | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
-          inv_exp (Int c) (BinOp (op, e1, e2, t)) st
-        | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
+      | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
+        inv_exp (Int c) (BinOp (op, e1, e2, t)) st
+      | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
         (* copied & modified from eval_rv_base... *)
         let (let*) = Option.bind in
         (* split nested LOr Eqs to equality pairs, if possible *)
@@ -651,8 +651,8 @@ struct
           | None ->
             st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
         end
-        | (BinOp (op, e1, e2, _) as e, Float _)
-        | (BinOp (op, e1, e2, _) as e, Int _) ->
+      | (BinOp (op, e1, e2, _) as e, Float _)
+      | (BinOp (op, e1, e2, _) as e, Int _) ->
         let invert_binary_op c pretty c_int c_float =
           if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
           (match eval e1 st, eval e2 st with
@@ -680,7 +680,7 @@ struct
             | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
             | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
             | _ -> failwith "unreachable")
-        | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
+      | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
         let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
         let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
         begin match c_typed with
