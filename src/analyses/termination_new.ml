@@ -43,7 +43,7 @@ struct
     (* Detect loop counter variable assignment to 0 *)
     match lval, rval with
     (* Assume that the following loop does not terminate *)
-      (Var x, NoOffset), zero when is_loop_counter_var x ->
+      (Var x, NoOffset), _ when is_loop_counter_var x ->
       D.add x false ctx.local
     (* Loop exit: Check whether loop counter variable is bounded *)
     | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
