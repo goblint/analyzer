@@ -42,7 +42,6 @@ end
 module MakeLattice (Offs: Offset.Lattice): Lattice with type idx = Offs.idx =
 struct
   include MakePrintable (Offs)
-  module Offs = Offs
 
   let semantic_equal (x, xoffs) (y, yoffs) =
     if CilType.Varinfo.equal x y then

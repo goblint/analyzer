@@ -21,8 +21,6 @@ sig
   include Printable (** @closed *)
   include Lattice.S with type t := t (** @closed *)
 
-  module Offs: Offset.Lattice with type idx = idx (* TODO: remove *)
-
   val semantic_equal: t -> t -> bool option
 end
 
