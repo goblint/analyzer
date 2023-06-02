@@ -104,7 +104,80 @@ struct
 
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
+      
   let to_string x = List.filter_map Addr.to_string (elements x)
+      
+  let to_string_length x =
+    let transform elem =
+      match Addr.to_string_length elem with
+      | Some x -> Idx.of_int !Cil.kindOfSizeOf (Z.of_int x)
+      | None -> Idx.top_of !Cil.kindOfSizeOf in 
+    (* maps any StrPtr to the length of its content, otherwise maps to top *)
+    List.map transform (elements x)
+    (* and returns the least upper bound of computed IntDomain values *)
+    |> List.fold_left Idx.join (Idx.bot_of !Cil.kindOfSizeOf)
+
+  let substring_extraction haystack needle =
+    (* map all StrPtr elements in input address sets to contained strings *)
+    let haystack' = List.map Addr.to_c_string (elements haystack) in
+    let needle' = List.map Addr.to_c_string (elements needle) in
+
+    (* helper functions *)
+    let extract_lval_string = function
+      | Some s -> from_string s
+      | None -> null_ptr in
+    let compute_substring s1 s2 =
+      try 
+        let i = Str.search_forward (Str.regexp_string s2) s1 0 in
+        Some (String.sub s1 i (String.length s1 - i))
+      with Not_found -> None in
+
+    (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    if List.mem None haystack' || List.mem None needle' then
+      top_ptr
+    else
+      (* else try to find the first occurrence of all strings in needle' in all strings s of haystack',
+         collect s starting from that occurrence or if there is none, collect a NULL pointer,
+         and return the least upper bound *)
+      BatList.cartesian_product haystack' needle'
+      |> List.map (fun (s1, s2) -> extract_lval_string (compute_substring (Option.get s1) (Option.get s2)))
+      |> List.fold_left join (bot ())
+
+  let string_comparison x y n =
+    let f = match n with
+      | Some num -> Addr.to_n_c_string num
+      | None -> Addr.to_c_string in
+
+    (* map all StrPtr elements in input address sets to contained strings / n-substrings *)
+    let x' = List.map f (elements x) in 
+    let y' = List.map f (elements y) in 
+
+    (* helper functions *)
+    let compare s1 s2 =
+      let res = String.compare s1 s2 in
+      if res = 0 then
+        Idx.of_int IInt Z.zero
+      else if res > 0 then
+        Idx.starting IInt Z.one
+      else
+        Idx.ending IInt Z.minus_one in
+
+    (* if any of the input address sets contains an element that isn't a StrPtr, return top *)
+    if List.mem None x' || List.mem None y' then
+      Idx.top_of IInt
+    else
+      (* else compare every string of x' with every string of y' and return the least upper bound *)
+      BatList.cartesian_product x' y'
+      |> List.map (fun (s1, s2) -> compare (Option.get s1) (Option.get s2))
+      |> List.fold_left Idx.join (Idx.bot_of IInt)
+
+  let string_writing_defined dest =
+    (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
+    if List.exists Option.is_some (List.map Addr.to_c_string (elements dest)) then
+      (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
+       false)
+    else
+      true
 
   (* add an & in front of real addresses *)
   module ShortAddr =

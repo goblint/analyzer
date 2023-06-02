@@ -79,7 +79,6 @@ module CondVars = CondVars
 
     Analyses related to the heap. *)
 
-module MallocWrapperAnalysis = MallocWrapperAnalysis
 module Region = Region
 module MallocFresh = MallocFresh
 module Malloc_null = Malloc_null
@@ -94,6 +93,7 @@ module Malloc_null = Malloc_null
 
 module MutexEventsAnalysis = MutexEventsAnalysis
 module LocksetAnalysis = LocksetAnalysis
+module MutexTypeAnalysis = MutexTypeAnalysis
 module MutexAnalysis = MutexAnalysis
 module MayLocks = MayLocks
 module SymbLocks = SymbLocks
@@ -153,6 +153,7 @@ module Spec = Spec
     Analyses which only support other analyses. *)
 
 module AccessAnalysis = AccessAnalysis
+module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
@@ -212,6 +213,7 @@ module AffineEqualityDomain = AffineEqualityDomain
 
 (** {3 Concurrency} *)
 
+module MutexAttrDomain = MutexAttrDomain
 module LockDomain = LockDomain
 module SymbLocksDomain = SymbLocksDomain
 module DeadlockDomain = DeadlockDomain
