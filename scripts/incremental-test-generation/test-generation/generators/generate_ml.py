@@ -2,10 +2,13 @@ import argparse
 import ast
 import os
 import random
-import shutil
 import sys
+import time
 import openai
 import yaml
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Lock
+
 sys.path.append("..")
 from util.util import *
 
@@ -38,17 +41,19 @@ def generate_ml(program_path, apikey_path, meta_path, ml_count, num_selected_lin
     
     print(SEPERATOR)
     interesting_lines_string = 'Start lines are randomly choosen from all lines.' if interesting_lines == [] else f' Start lines are randomly choosen from {interesting_lines}.'
-    print(f'[ML] Start making {ml_count} requests with ML. {num_selected_lines} from {max_line} lines will be selected. {interesting_lines_string}')
-    for _ in range(ml_count):
-        index = _iterative_mutation_generation(program_path, meta_path, interesting_lines, num_selected_lines, max_line, index)
+    print(f'[ML] Start making {ml_count} requests with ML. {ML_WORKERS} are executed in parallel. {num_selected_lines} from {max_line} lines will be selected. {interesting_lines_string}')
+    file_lock = Lock()
+    with ThreadPoolExecutor(max_workers=ML_WORKERS) as executor:
+        for i in range(ml_count):
+            executor.submit(_iterative_mutation_generation, program_path, meta_path, interesting_lines, num_selected_lines, max_line, index + i + 1, file_lock)
 
-    return index
+    return index + ml_count
 
-def _iterative_mutation_generation(program_path, meta_path, interesting_lines, num_selected_lines, max_line, index):
-    index += 1
+def _iterative_mutation_generation(program_path, meta_path, interesting_lines, num_selected_lines, max_line, index, lock):
+    time.sleep((index * 50)/1000)
     new_path = make_program_copy(program_path, index)
     (explanation, selected_lines) = _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, index)
-    _write_meta_data(meta_path, new_path, selected_lines, explanation, index)
+    _write_meta_data(meta_path, new_path, selected_lines, explanation, index, lock)
     return index
 
 def _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, index):
@@ -102,18 +107,19 @@ def _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, i
     return (explanation, selected_lines)
     
 
-def _write_meta_data(meta_path, new_path, selected_lines, explanation, index):
-    name = os.path.basename(new_path)
-    with open(meta_path, 'r') as file:
-        yaml_data = yaml.safe_load(file)
-    yaml_data[META_N] = index
-    yaml_data[f"p_{index}"] = {
-        META_TYPE: Generate_Type.ML.value,
-        META_SUB_TYPE: explanation,
-        META_LINES: f'[{selected_lines.start}, {selected_lines.stop}]'
-    }
-    with open(meta_path, 'w') as file:
-        yaml.safe_dump(yaml_data, file, sort_keys=False)
+def _write_meta_data(meta_path, new_path, selected_lines, explanation, index, lock):
+    with lock:
+        name = os.path.basename(new_path)
+        with open(meta_path, 'r') as file:
+            yaml_data = yaml.safe_load(file)
+        yaml_data[META_N] = index
+        yaml_data[f"p_{index}"] = {
+            META_TYPE: Generate_Type.ML.value,
+            META_SUB_TYPE: explanation,
+            META_LINES: f'[{selected_lines.start}, {selected_lines.stop}]'
+        }
+        with open(meta_path, 'w') as file:
+            yaml.safe_dump(yaml_data, file, sort_keys=False)
 
 def _make_gpt_request(snippet):
     prompt = f'''
@@ -125,7 +131,7 @@ def _make_gpt_request(snippet):
 
         The code you generate should be a self-contained snippet that could directly replace the provided excerpt in the original, complete program. It should preserve the overall functionality of the program and must not cause any compilation errors when reintegrated into the larger code base. Please consider the dependencies and interactions with other parts of the program when generating the previous version of the code. Your generated code should be able to interact correctly with the rest of the program just like the original excerpt does. You do not have to add import statements or function declarations or closing brackets when these are cut off in the snippet, but when they are in the snippet you need to add them to preserve the whole program.
 
-        I use keywords ({SEPERATOR_EXPLANATION_START}, {SEPERATOR_EXPLANATION_END}, {SEPERATOR_CODE_START}, {SEPERATOR_CODE_END}) to interpret you answer. You answer should have the following structure for better identifying the different parts of the response: {SEPERATOR_EXPLANATION_START} (Explain what you have changed in one or two sentences) {SEPERATOR_EXPLANATION_END} {SEPERATOR_CODE_START} (the previous version of the code) {SEPERATOR_CODE_END}
+        Use these keywords (\"{SEPERATOR_EXPLANATION_START}\", \"{SEPERATOR_EXPLANATION_END}\", \"{SEPERATOR_CODE_START}\", \"{SEPERATOR_CODE_END}\") to structure you answer. You answer should have the following structure for better identifying the different parts of the response: {SEPERATOR_EXPLANATION_START} (Explain what you have changed in one or two sentences) {SEPERATOR_EXPLANATION_END} {SEPERATOR_CODE_START} (the previous version of the code) {SEPERATOR_CODE_END}
 
         ```c
             {snippet}

@@ -44,6 +44,7 @@ APIKEY_APIKEY = 'api-key'
 APIKEY_ORGANISATION = 'organisation'
 
 DEFAULT_ML_COUNT = 5
+ML_WORKERS = 10
 
 def make_program_copy(program_path, index):
     new_path = program_path.rsplit('.', 1)[0] + '_' + str(index) + '.c'

@@ -35,7 +35,7 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
 
     if enable_ml:
         #TODO Allow user to specify how many lines to select
-        NUM_SELECTED_LINES = 25
+        NUM_SELECTED_LINES = 50
         #TODO Allow user to specify which part of the program is intresting
         INTRESTING_LINES = []
         index = generate_ml(program_path, apikey_path, meta_path, ml_count, NUM_SELECTED_LINES, INTRESTING_LINES)
