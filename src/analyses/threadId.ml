@@ -34,6 +34,7 @@ struct
 
   module D = Lattice.Prod3 (N) (ThreadLifted) (TD)
   module C = D
+  module P = IdentityP (D)
 
   let tids = ref (Hashtbl.create 20)
 
@@ -74,6 +75,19 @@ struct
       begin match Tuple3.second ctx.local with
         | `Lifted tid -> Thread.is_unique tid
         | _ -> Queries.MustBool.top ()
+      end
+    | Queries.MustBeSingleThreaded {since_start} ->
+      begin match Tuple3.second ctx.local with
+        | `Lifted tid when Thread.is_main tid ->
+          let created = created ctx.local in
+          if since_start then
+            ConcDomain.ThreadSet.is_empty created
+          else if ctx.ask Queries.ThreadsJoinedCleanly then
+            let joined = ctx.ask Queries.MustJoinedThreads in
+            ConcDomain.ThreadSet.is_empty (ConcDomain.ThreadSet.diff created joined)
+          else
+            false
+        | _ -> false
       end
     | _ -> Queries.Result.top x
 

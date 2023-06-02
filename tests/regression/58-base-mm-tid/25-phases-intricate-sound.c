@@ -11,7 +11,7 @@ void *t_benign(void *arg) {
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
   g = 10;
-  __goblint_check(g == 10); //TODO
+  __goblint_check(g == 10);
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
   return NULL;
@@ -21,7 +21,7 @@ void *t_benign2(void *arg) {
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
   g = 10;
-  __goblint_check(g == 10); //TODO
+  __goblint_check(g == 10);
   pthread_mutex_unlock(&B);
   pthread_mutex_unlock(&A);
   return NULL;
