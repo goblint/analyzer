@@ -82,11 +82,6 @@ struct
     end
     )
 
-  let pretty_diff () (x,y) =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let name () = "Offset"
-
   let rec is_definite: t -> bool = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o

@@ -1,7 +1,6 @@
 include Mval_intf
 
 open GoblintCil
-open Pretty
 
 module M = Messages
 

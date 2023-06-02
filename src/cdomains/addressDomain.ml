@@ -2,7 +2,6 @@
 
 open GoblintCil
 open IntOps
-open Mval
 
 module M = Messages
 
