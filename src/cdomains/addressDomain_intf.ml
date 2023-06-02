@@ -44,7 +44,7 @@ sig
 
     val to_exp: t -> GoblintCil.exp
 
-    val get_type: t -> GoblintCil.typ
+    val type_of: t -> GoblintCil.typ
     (** Finds the type of the address location. *)
   end
 
@@ -107,7 +107,7 @@ sig
     val to_int: t -> ID.t
     val to_bool: t -> bool option
 
-    val get_type: t -> GoblintCil.typ
+    val type_of: t -> GoblintCil.typ
 
     val from_string: string -> t
     val to_string: t -> string list

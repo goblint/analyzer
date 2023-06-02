@@ -24,7 +24,7 @@ struct
 
   let add_offset (v, o) o' = (v, Offs.add_offset o o')
 
-  let get_type_addr (v,o) = try Offs.type_offset v.vtype o with Offs.Type_offset (t,_) -> t
+  let type_of (v,o) = try Offs.type_of ~base:v.vtype o with Offset.Type_of_error (t,_) -> t
 
   let prefix (v1,ofs1) (v2,ofs2) =
     if CilType.Varinfo.equal v1 v2 then
@@ -45,9 +45,9 @@ struct
 
   let semantic_equal (x, xoffs) (y, yoffs) =
     if CilType.Varinfo.equal x y then
-      let xtyp = x.vtype in
-      let ytyp = y.vtype in
-      Offs.semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs
+      let typ1 = x.vtype in
+      let typ2 = y.vtype in
+      Offs.semantic_equal ~typ1 xoffs ~typ2 yoffs
     else
       Some false
 

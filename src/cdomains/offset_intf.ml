@@ -23,6 +23,9 @@ struct
   module type Lattice = IntDomain.Z
 end
 
+exception Type_of_error of GoblintCil.typ * string
+(** exception if the offset can't be followed completely *)
+
 module type Printable =
 sig
   type idx
@@ -42,12 +45,9 @@ sig
   val to_cil_offset: t -> GoblintCil.offset
   (** Version of {!to_cil} which drops indices for {!ArrayDomain}. *)
 
-  val is_first_field: GoblintCil.fieldinfo -> bool
   val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero]
-  val is_zero_offset: t -> bool
 
-  exception Type_offset of GoblintCil.typ * string
-  val type_offset: GoblintCil.typ -> t -> GoblintCil.typ
+  val type_of: base:GoblintCil.typ -> t -> GoblintCil.typ
 end
 
 module type Lattice =
@@ -57,8 +57,8 @@ sig
 
   val of_exp: GoblintCil.exp offs -> t
 
-  val offset_to_index_offset: GoblintCil.typ -> t -> idx
-  val semantic_equal: xtyp:GoblintCil.typ -> xoffs:t -> ytyp:GoblintCil.typ -> yoffs:t -> bool option
+  val to_index: ?typ:GoblintCil.typ -> t -> idx
+  val semantic_equal: typ1:GoblintCil.typ -> t -> typ2:GoblintCil.typ -> t -> bool option
 end
 
 module type Offset =
@@ -76,6 +76,8 @@ sig
 
     module Exp: Printable with type t = GoblintCil.exp
   end
+
+  exception Type_of_error of GoblintCil.typ * string
 
   module type Printable = Printable
   module type Lattice = Lattice

@@ -452,7 +452,7 @@ struct
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
   let rec get ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
-    let at = AD.get_type addrs in
+    let at = AD.type_of addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
@@ -501,7 +501,7 @@ struct
         M.info ~category:Unsound "Unknown address given as function argument"; acc
       | Address adrs when AD.to_var_may adrs = [] -> acc
       | Address adrs ->
-        let typ = AD.get_type adrs in
+        let typ = AD.type_of adrs in
         if isFunctionType typ then acc else adrs :: acc
       | Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
@@ -538,7 +538,7 @@ struct
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
-    let res = reachable_from_value ask gs st (get ask gs st adr None) (AD.get_type adr) (AD.show adr) in
+    let res = reachable_from_value ask gs st (get ask gs st adr None) (AD.type_of adr) (AD.show adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -924,7 +924,7 @@ struct
         match a with
         | Addr (x, o) ->
           begin
-            let at = Addr.Mval.get_type_addr (x, o) in
+            let at = Addr.Mval.type_of (x, o) in
             if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
             if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
               true
@@ -932,7 +932,7 @@ struct
               match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
               | Some i1, Some i2 -> Z.compare i1 i2 <= 0
               | _ ->
-                if contains_vla t || contains_vla (Addr.Mval.get_type_addr (x, o)) then
+                if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
                     (* TODO: Is this ok? *)
                     M.info ~category:Unsound "Casting involving a VLA is assumed to work";
@@ -1613,7 +1613,7 @@ struct
   let set_savetop ~ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
-    | Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
+    | Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
     | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
 
 
@@ -1835,7 +1835,7 @@ struct
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
-      let t = AD.get_type a in
+      let t = AD.type_of a in
       let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask ask) t v in
       (a, t, nv)
@@ -2007,7 +2007,7 @@ struct
     let addr_type_of_exp exp =
       let lval = mkMem ~addr:(Cil.stripCasts exp) ~off:NoOffset in
       let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
-      (addr, AD.get_type addr)
+      (addr, AD.type_of addr)
     in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple3.second forks);
@@ -2019,7 +2019,7 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dst in
       let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
       let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
+                    |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if typeSig dest_typ = typeSig src_typ then
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
@@ -2153,7 +2153,7 @@ struct
       begin
         let get_type lval =
           let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-          AD.get_type address
+          AD.type_of address
         in
         let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
         let dest_typ = get_type dst_lval in
@@ -2366,7 +2366,7 @@ struct
         if CPA.mem v fun_st.cpa then
           let lval = Mval.Exp.to_cil (v,o) in
           let address = eval_lv ask ctx.global st lval in
-          let lval_type = (AD.get_type address) in
+          let lval_type = (AD.type_of address) in
           if M.tracing then M.trace "taintPC" "updating %a; type: %a\n" Mval.Exp.pretty (v, o) d_type lval_type;
           match (CPA.find_opt v (fun_st.cpa)), lval_type with
           | None, _ -> st

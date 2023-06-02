@@ -13,7 +13,7 @@ sig
   val to_cil: t -> GoblintCil.lval
   val to_cil_exp: t -> GoblintCil.exp
 
-  val get_type_addr: t -> GoblintCil.typ
+  val type_of: t -> GoblintCil.typ
 end
 
 module type Lattice =

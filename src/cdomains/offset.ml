@@ -56,10 +56,6 @@ struct
 
   let name () = Format.sprintf "offset (%s)" (Idx.name ())
 
-  let is_first_field x = match x.fcomp.cfields with
-    | [] -> false
-    | f :: _ -> CilType.Fieldinfo.equal f x
-
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
     | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
@@ -68,9 +64,7 @@ struct
       | `MustZero, `Eq -> `MustZero
       | _, _ -> `MayZero)
     | `Field (x, o) ->
-      if is_first_field x then cmp_zero_offset o else `MustNonzero
-
-  let is_zero_offset x = cmp_zero_offset x = `MustZero
+      if Cilfacade.is_first_field x then cmp_zero_offset o else `MustNonzero
 
   let rec show: t -> string = function
     | `NoOffset -> ""
@@ -140,23 +134,21 @@ struct
 
   let top_indices = map_indices (fun _ -> Idx.top ())
 
-  (* exception if the offset can't be followed completely *)
-  exception Type_offset of typ * string
   (* tries to follow o in t *)
-  let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
+  let rec type_of ~base:t o = match unrollType t, o with (* resolves TNamed *)
     | t, `NoOffset -> t
     | TArray (t,_,_), `Index (i,o)
-    | TPtr (t,_), `Index (i,o) -> type_offset t o
+    | TPtr (t,_), `Index (i,o) -> type_of ~base:t o
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
         with Not_found ->
           let s = GobPretty.sprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
-          raise (Type_offset (t, s))
-      in type_offset fi.ftype o
-    | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
+          raise (Type_of_error (t, s))
+      in type_of ~base:fi.ftype o
+    | TComp _, `Index (_,o) -> type_of ~base:t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
       let s = GobPretty.sprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %a" d_plaintype t pretty o in
-      raise (Type_offset (t, s))
+      raise (Type_of_error (t, s))
 
   let rec prefix (x: t) (y: t): t option = match x,y with
     | `Index (x, xs), `Index (y, ys) when Idx.equal x y -> prefix xs ys
@@ -197,7 +189,7 @@ struct
     | `Index (_,o) -> `Index (Idx.top (), of_exp o)
     | `Field (f,o) -> `Field (f, of_exp o)
 
-  let offset_to_index_offset typ (offs: t): Idx.t =
+  let to_index ?typ (offs: t): Idx.t =
     let idx_of_int x =
       Idx.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
@@ -222,12 +214,12 @@ struct
         let remaining_offset = offset_to_index_offset ?typ:item_typ o in
         Idx.add bits_offset remaining_offset
     in
-    offset_to_index_offset ~typ offs
+    offset_to_index_offset ?typ offs
 
-  let semantic_equal ~xtyp ~xoffs ~ytyp ~yoffs =
-    let x_index = offset_to_index_offset xtyp xoffs in
-    let y_index = offset_to_index_offset ytyp yoffs in
-    if M.tracing then M.tracel "addr" "xoffs=%a xtyp=%a xindex=%a yoffs=%a ytyp=%a yindex=%a\n" pretty xoffs d_plaintype xtyp Idx.pretty x_index pretty yoffs d_plaintype ytyp Idx.pretty y_index;
+  let semantic_equal ~typ1 xoffs ~typ2 yoffs =
+    let x_index = to_index ~typ:typ1 xoffs in
+    let y_index = to_index ~typ:typ2 yoffs in
+    if M.tracing then M.tracel "addr" "xoffs=%a typ1=%a xindex=%a yoffs=%a typ2=%a yindex=%a\n" pretty xoffs d_plaintype typ1 Idx.pretty x_index pretty yoffs d_plaintype typ2 Idx.pretty y_index;
     Idx.to_bool (Idx.eq x_index y_index)
 
   include Lattice.NoBotTop

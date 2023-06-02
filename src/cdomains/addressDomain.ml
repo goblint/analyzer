@@ -98,8 +98,8 @@ struct
     | Addr (x, o) -> Some (x, o)
     | _      -> None
 
-  let get_type = function
-    | Addr (x, o) -> Mval.get_type_addr (x, o)
+  let type_of = function
+    | Addr (x, o) -> Mval.type_of (x, o)
     | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
@@ -291,8 +291,8 @@ struct
     else
       ID.top_of ik
 
-  let get_type xs =
-    try Addr.get_type (choose xs)
+  let type_of xs =
+    try Addr.type_of (choose xs)
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
     | _ -> voidType
 
