@@ -4,6 +4,7 @@ open GoblintCil
 open IntOps
 
 module M = Messages
+module Mval_outer = Mval
 
 
 module AddressBase (Mval: Printable.S) =
@@ -73,12 +74,7 @@ end
 
 module AddressPrintable (Mval: Mval.Printable) =
 struct
-  type field = fieldinfo
-  (* type idx = Mval.idx *)
-  (* module Offs = Offset.MakePrintable (Idx) *)
-  (* module Mval = Mval.MakePrintable (Offs) *)
   include AddressBase (Mval)
-  module Mval = Mval
 
   let name () = "Normal Lvals"
 
@@ -129,12 +125,9 @@ struct
     | _ -> false
 end
 
-module AddressLattice (Mval0: Mval.Lattice) =
+module AddressLattice (Mval: Mval.Lattice) =
 struct
-  (* open struct module Mval0 = Mval.MakeLattice (Offs) end *)
-  include AddressPrintable (Mval0)
-  module Mval = Mval0
-  (* module Offs = Offs *)
+  include AddressPrintable (Mval)
 
   let semantic_equal x y = match x, y with
     | Addr x, Addr y -> Mval.semantic_equal x y
@@ -197,12 +190,9 @@ struct
   let pretty_diff () (x,y) = Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module AddressLatticeRepr (Mval1: Mval.Lattice) =
+module AddressLatticeRepr (Mval: Mval.Lattice) =
 struct
-  open struct module Mval0 = Mval end
-
-  include AddressLattice (Mval1)
-  (* module Offs = Offs *)
+  include AddressLattice (Mval)
 
   module R0: DisjointDomain.Representative with type elt = t =
   struct
@@ -223,15 +213,14 @@ struct
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
-    open Offset.Unit
 
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
-    include AddressPrintable (Mval0.Unit)
+    include AddressPrintable (Mval_outer.Unit)
 
     let of_elt (x: elt): t = match x with
-      | Addr (v, o) -> Addr (v, of_offs o) (* addrs grouped by var and part of offset *)
+      | Addr (v, o) -> Addr (v, Offset.Unit.of_offs o) (* addrs grouped by var and part of offset *)
       | StrPtr _ when GobConfig.get_bool "ana.base.limit-string-addresses" -> StrPtr None (* all strings together if limited *)
       | StrPtr x -> StrPtr x (* everything else is kept separate, including strings if not limited *)
       | NullPtr -> NullPtr
@@ -241,17 +230,12 @@ end
 
 module AddressSet (Mval: Mval.Lattice) (ID: IntDomain.Z) =
 struct
-  (* module Offs = Offset.MakeLattice (Idx) *)
-  (* module Mval = Mval.MakeLattice (Offs) *)
-  module Addr =
+  module Addr = AddressLatticeRepr (Mval)
+  module J =
   struct
-    module Offs = Mval.Offs
-    include AddressLatticeRepr (Mval)
-  end
-  module J = (struct
     include SetDomain.Joined (Addr)
     let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
-  end)
+  end
   module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.R)
 
   (* module H = HoareDomain.SetEM (Addr) *)
@@ -279,9 +263,6 @@ struct
     let r = x == y || leq x y in (* short-circuit with physical equality, not benchmarked *)
     if M.tracing then M.traceu "ad" "-> %B\n" r;
     r
-
-  type field = Addr.field
-  (* type idx = Idx.t *)
 
   let null_ptr       = singleton Addr.NullPtr
   let unknown_ptr    = singleton Addr.UnknownPtr

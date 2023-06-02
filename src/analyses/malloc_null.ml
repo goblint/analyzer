@@ -77,7 +77,7 @@ struct
   (* Generate addresses to all points in an given varinfo. (Depends on type) *)
   let to_addrs (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
-    let rec add_fields (base: Addr.field list) fs acc =
+    let rec add_fields (base: fieldinfo list) fs acc =
       match fs with
       | [] -> acc
       | f :: fs ->

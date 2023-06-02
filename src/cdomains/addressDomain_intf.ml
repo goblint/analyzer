@@ -19,7 +19,6 @@ sig
 
   module AddressPrintable (Mval: Mval.Printable):
   sig
-    type field = GoblintCil.fieldinfo (* TODO: remove *)
     include module type of AddressBase (Mval)
     include MapDomain.Groupable with type t := t and type group = Basetype.Variables.group (** @closed *)
 
@@ -70,9 +69,9 @@ sig
   end
 
   (** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-  module AddressLatticeRepr (Mval1: Mval.Lattice):
+  module AddressLatticeRepr (Mval: Mval.Lattice):
   sig
-    include module type of AddressLattice (Mval1) (** @closed *)
+    include module type of AddressLattice (Mval) (** @closed *)
 
     module R0: DisjointDomain.Representative with type elt = t
 
@@ -83,8 +82,6 @@ sig
   module AddressSet (Mval: Mval.Lattice) (ID: IntDomain.Z):
   sig
     module Addr: module type of AddressLattice (Mval)
-    type field = Addr.field (* TODO: remove *)
-
     include SetDomain.S with type elt = Addr.t (** @closed *)
 
     val null_ptr: t
