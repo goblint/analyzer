@@ -3,7 +3,6 @@
 open Analyses
 open GoblintCil
 open TerminationPreprocessing
-open Printf
 
 exception PreProcessing of string
 
