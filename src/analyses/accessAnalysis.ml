@@ -109,10 +109,14 @@ struct
     (* TODO: Handle values that are read in modular functions *)
     let written = f_ask.f Queries.Written in
     (* Collect all addreses that were written to. *)
-    let addresses =
+    let written_addresses =
       let list = ref [] in
       Written.iter (fun a _ -> list := a :: !list) written;
       !list
+    in
+    let read_addresses = match f_ask.f Queries.Read with
+      | `Top -> failwith "Read yielded `Top!"
+      | `Lifted a -> a
     in
     let get_reachable e =
       match ctx.ask (Queries.ReachableAddressesFrom e) with
@@ -134,7 +138,8 @@ struct
         M.warn "map_back failed for %a" AD.pretty a;
         AD.bot ()
     in
-    let addresses = List.map map_back addresses in
+    let written_addresses = List.map map_back written_addresses in
+    let read_addresses = map_back read_addresses in
     (* Convert to lvals *)
     let address_to_lvals (ad: AD.t) =
       let addr_to_lval_and_exp (v, offs) =
@@ -150,13 +155,15 @@ struct
       let addrs = AD.to_var_offset ad in
       List.map addr_to_lval_and_exp addrs
     in
-    let lvs_exps = List.concat_map address_to_lvals addresses in
+    let written_lvals_with_exps = List.concat_map address_to_lvals written_addresses in
+    let read_lvals_with_exps = address_to_lvals read_addresses in
     (* Trigger access events *)
-    let add_lval_event ((v, offs), exp) =
+    let add_lval_event ~kind ((v, offs), exp) =
       let ls = LS.of_list [v, offs] in
-      access_one_top ~lval:ls ~deref:true ctx AccessKind.Write false exp
+      access_one_top ~lval:ls ~deref:true ctx kind false exp
     in
-    List.iter add_lval_event lvs_exps
+    List.iter (add_lval_event ~kind:AccessKind.Write) written_lvals_with_exps;
+    List.iter (add_lval_event ~kind:AccessKind.Read) read_lvals_with_exps
 
   let write_lval_option ctx lval =
     match lval with
