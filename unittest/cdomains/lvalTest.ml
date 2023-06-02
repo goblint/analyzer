@@ -3,7 +3,8 @@ open OUnit2
 open GoblintCil
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
-module LV = Lval.NormalLat (ID)
+module Offs = Offset.MakeLattice (ID)
+module LV = AddressDomain.NormalLat (Mval.MakeLattice (Offs))
 
 let ikind = IntDomain.PtrDiffIkind.ikind ()
 
@@ -33,7 +34,7 @@ let test_join_0 _ =
 let test_leq_not_0 _ =
   assert_leq a_lv_1 a_lv_not_0;
   OUnit.assert_equal ~printer:[%show: [`Eq | `Neq | `Top]] `Neq (ID.equal_to Z.zero i_not_0);
-  OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (LV.Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));
+  OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));
   assert_not_leq a_lv a_lv_not_0;
   assert_not_leq a_lv_0 a_lv_not_0
 

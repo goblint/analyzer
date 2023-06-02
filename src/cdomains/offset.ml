@@ -86,6 +86,8 @@ sig
   val top_indices: t -> t
   val contains_index: t -> bool
   val to_cil_offset: t -> offset
+  val is_first_field: fieldinfo -> bool
+  val cmp_zero_offset: t -> [`MustZero | `MustNonzero | `MayZero]
 end
 
 module type Lattice =
@@ -94,6 +96,7 @@ sig
   include Lattice.S with type t := t
   val semantic_equal: xtyp:typ -> xoffs:t -> ytyp:typ -> yoffs:t -> bool option
   val of_exp: exp offs -> t
+  val offset_to_index_offset: typ -> t -> idx
 end
 
 module MakePrintable (Idx: Index.Printable): Printable with type idx = Idx.t =
