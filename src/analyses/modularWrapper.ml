@@ -91,6 +91,8 @@ struct
   module D = struct
     include Lattice.Option (Either)
 
+    let name = S.D.name
+
     let merge x y = match x, y with
       | Some x, Some y -> Some (Either.merge x y)
       | Some x, None
@@ -129,9 +131,15 @@ struct
     let merge = S.G.join
   end
 
-  module C = Printable.Option (S.C) (struct let name = S.C.name () end)
+  module C =
+  struct
+    include Printable.Option (S.C) (struct let name = S.C.name () end)
+    let name = S.C.name
+  end
+
   module A = struct
     include Printable.Option (S.A) (struct let name = S.A.name () end)
+    let name = S.A.name
     let may_race x y = match x, y with
       | Some x, Some y -> A.may_race x y
       | _, _ -> true
