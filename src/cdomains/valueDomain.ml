@@ -1197,11 +1197,7 @@ struct
         match addr with
         | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
         | ptr -> ptr) a
-  and project_offs p offs =
-    match offs with
-    | `NoOffset -> `NoOffset
-    | `Field (field, offs') -> `Field (field, project_offs p offs')
-    | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
+  and project_offs p offs = Offs.map_indices (ID.project p) offs
   and project_arr ask p array_attr n =
     let n = match array_attr with
       | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n

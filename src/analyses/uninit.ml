@@ -114,17 +114,11 @@ struct
 
   (* Call to [get_pfx v cx] returns initialized prefixes ... *)
   let rec get_pfx (v:varinfo) (cx:lval_offs) (ofs:lval_offs) (target:typ) (other:typ) : var_offs list =
-    let rec cat o i =
-      match o with
-      | `NoOffset -> i
-      | `Field (f, o) -> `Field (f, cat o i)
-      | `Index (v, o) -> `Index (v, cat o i)
-    in
     let rec rev lo =
       match lo with
       | `NoOffset -> `NoOffset
-      | `Field (f, o) -> cat (rev o) (`Field (f, `NoOffset))
-      | `Index (v, o) -> cat (rev o) (`Index (v, `NoOffset))
+      | `Field (f, o) -> Addr.Offs.add_offset (rev o) (`Field (f, `NoOffset))
+      | `Index (v, o) -> Addr.Offs.add_offset (rev o) (`Index (v, `NoOffset))
     in
     let rec bothstruct (t:fieldinfo list) (tf:fieldinfo) (o:fieldinfo list) (no:lval_offs)  : var_offs list =
       match t, o with

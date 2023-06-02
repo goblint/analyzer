@@ -22,12 +22,6 @@ struct
   module V = VarinfoV
   module G = EscapeDomain.EscapedVars
 
-  let rec cut_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (_,o) -> `NoOffset
-    | `Field (f,o) -> `Field (f, cut_offset o)
-
   let reachable (ask: Queries.ask) e: D.t =
     match ask.f (Queries.ReachableFrom e) with
     | a when not (Queries.LS.is_top a) ->
