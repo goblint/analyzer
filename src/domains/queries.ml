@@ -123,6 +123,7 @@ type _ t =
   | AccessedGlobals: VS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | Written: WrittenDomain.Written.t t
+  | Read: AD.t t
   | IsModular: MustBool.t t (* Whether the function is to be analyzed modularly *)
 
 type 'a result = 'a
@@ -191,6 +192,7 @@ struct
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | AccessedGlobals -> (module VS)
     | Written -> (module WrittenDomain.Written)
+    | Read -> (module AD)
     | IsModular -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -257,6 +259,7 @@ struct
     | MayBeTainted -> LS.top ()
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | Written -> WrittenDomain.Written.top ()
+    | Read -> AD.top ()
     | AccessedGlobals -> VS.top ()
     | IsModular -> MustBool.top ()
 end
@@ -323,6 +326,7 @@ struct
     | Any AccessedGlobals -> 54
     | Any (ReachableAddressesFrom _) -> 55
     | Any (IsModular) -> 56
+    | Any Read -> 57
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -469,6 +473,7 @@ struct
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any AccessedGlobals -> Pretty.printf "AccessedGlobals"
     | Any Written -> Pretty.dprintf "Written"
+    | Any Read -> Pretty.dprintf "Read"
     | Any IsModular -> Pretty.dprintf "IsModular"
 end
 
