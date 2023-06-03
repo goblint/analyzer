@@ -1697,7 +1697,7 @@ module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
         and module G = S.G
         and module C = S.C
-        and module G = GMapG (S.G) (S.C)
+        and module G = S.G
 =
 
 struct
