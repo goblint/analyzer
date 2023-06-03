@@ -1692,6 +1692,71 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
+
+(** Add cycle detection in the function call graph to a analysis *)
+module RecursionTermLifter (S: Spec)
+  : Spec with module D = S.D
+        and module G = S.G
+        and module C = S.C
+        and module G = S.G
+=
+
+struct
+  module C = S.C
+  module P = S.P
+  module D = S.D
+
+  (*global invariant
+     - fundec -> Map (S.C) (Set (fundec * S.C)) 
+    So:   g   -> {c' -> f, c} 
+    in case f, c --> g, c'  *)
+
+  (*module CVal =
+    struct
+      include C
+      include Printable.Std (* To make it Groupable *)
+      let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    end
+  module M = MapDomain.MapBot (CVal) (CVal)
+*)
+  module V = S.V
+  module G = S.G(*GMapG (S.G) (S.C)*)
+  (*struct
+    include Lattice.Prod (S.G) (M)
+    let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
+  end*)
+  let name () = "RecursionTerm (" ^ S.name () ^ ")"
+
+  type marshal = S.marshal
+  let init = S.init
+  let finalize = S.finalize (*TODO*)
+
+  let startstate v = S.startstate v
+  let exitstate  v = S.exitstate  v
+  let morphstate = S.morphstate
+
+  let context = S.context
+
+  let query ctx = S.query (ctx)
+  let branch ctx = S.branch (ctx)
+  let assign ctx = S.assign (ctx)
+  let vdecl ctx = S.vdecl (ctx)
+  let enter ctx = S.enter (ctx) (*TODO*)
+  let paths_as_set ctx = S.paths_as_set (ctx)
+  let body ctx = S.body (ctx)
+  let return ctx = S.return (ctx)
+  let combine_env ctx = S.combine_env (ctx)
+  let combine_assign ctx = S.combine_assign (ctx)
+  let special ctx = S.special (ctx)
+  let threadenter ctx = S.threadenter (ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (ctx) lv f args (fctx)
+  let sync ctx = S.sync (ctx)
+  let skip ctx = S.skip (ctx)
+  let asm ctx = S.asm (ctx)
+  let event ctx e octx = S.event (ctx) e (octx)
+end
+
+
 module CompareGlobSys (SpecSys: SpecSys) =
 struct
   open SpecSys
