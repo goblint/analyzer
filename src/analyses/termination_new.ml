@@ -3,7 +3,6 @@
 open Analyses
 open GoblintCil
 open TerminationPreprocessing
-open Printf
 
 exception PreProcessing of string
 
@@ -57,7 +56,6 @@ struct
 
   (* provides information to Goblint*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    print_endline @@ ""^(!loopExit.vname);
     let open Queries in
     match q with
     | Queries.MustTermLoop v when check_bounded ctx v ->
