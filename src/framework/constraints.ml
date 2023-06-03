@@ -1343,7 +1343,7 @@ struct
   module EM =
   struct
     include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
-    let name () = "bmodule Vranches"
+    let name () = "branches"
   end
 
   module G =
