@@ -123,9 +123,12 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Free ptr ->
-      begin match ctx.ask HeapVar with
-        | `Lifted var ->
-          D.add var state
+      begin match ctx.ask (Queries.MayPointTo ptr) with
+        | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
+          let (v, _) = Queries.LS.choose a in
+          if ctx.ask (Queries.IsHeapVar v) then
+            D.add v state
+          else state
         | _ -> state
       end
     | _ -> state
