@@ -35,7 +35,6 @@ struct
     let (_, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
     match ctx.ask (Queries.MayPointTo (mkAddrOf lval)) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      ignore (Pretty.printf "WARN_LVAL %a\n" Queries.LS.pretty a);
       let v, o = Queries.LS.choose a in
       if ctx.ask (Queries.IsHeapVar v) && D.mem v state then
         M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
@@ -126,7 +125,6 @@ struct
     | Free ptr ->
       begin match ctx.ask HeapVar with
         | `Lifted var ->
-          ignore (Pretty.printf "FREE: %a\n" CilType.Varinfo.pretty var);
           D.add var state
         | _ -> state
       end
