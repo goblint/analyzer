@@ -22,19 +22,6 @@ struct
 
   (* HELPER FUNCTIONS *)
 
-  let get_concrete_lval (ask:Queries.ask) (lval:lval) =
-    match ask.f (Queries.MayPointTo (mkAddrOf lval)) with
-    | a when Queries.LS.cardinal a = 1 && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      let v, o = Queries.LS.choose a in
-      Some v
-    | _ -> None
-
-  let get_concrete_exp (exp:exp) =
-    match constFold true exp with
-    | CastE (_, Lval (Var v, _))
-    | Lval (Var v, _) -> Some v
-    | _ -> None
-
   let rec warn_lval_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (lval:lval) ctx =
     let state = ctx.local in
     let undefined_behavior = if is_double_free then Undefined DoubleFree else Undefined UseAfterFree in
@@ -45,34 +32,15 @@ struct
       | Field (f, o) -> offset_might_contain_freed o
       | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name e ctx; offset_might_contain_freed o
     in
-    match lval with
-    (* Case: lval is a variable *)
-    | (Var v, o) ->
-      offset_might_contain_freed o;
-      if D.mem v state then
-        M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" is a maybe freed pointer" v.vname transfer_fn_name
-      else ()
-    (* Case: lval is an object whose address is in a pointer *)
-    | (Mem e, o) ->
-      offset_might_contain_freed o;
-      begin match get_concrete_exp e with
-        | Some v ->
-          if D.mem v state then
-            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed pointer" v.vname transfer_fn_name
-          else ()
-        | None -> ()
-      end
-  (* TODO: Wasn't sure about the snippet below. Clean it up at some point *)
-  (* begin match ctx.ask (Queries.MayPointTo e) with
-      (* TODO: Do we need the second conjunct? *)
-      | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      (* TODO: Took inspiration from malloc_null. Double check if it makes sense. *)
+    let (_, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
+    match ctx.ask (Queries.MayPointTo (mkAddrOf lval)) with
+    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
+      ignore (Pretty.printf "WARN_LVAL %a\n" Queries.LS.pretty a);
       let v, o = Queries.LS.choose a in
-      if D.mem v state then
-        M.warn ~category:(Behavior (Undefined UseAfterFree)) "lval in \"%s\" points to a maybe freed pointer" transfer_fn_name
-      else ()
-      | _ -> ()
-      end *)
+      if ctx.ask (Queries.IsHeapVar v) && D.mem v state then
+        M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
+    | _ -> ()
+
   and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (exp:exp) ctx =
     match exp with
     (* Base recursion cases *)
@@ -104,85 +72,50 @@ struct
   (* TRANSFER FUNCTIONS *)
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let state = ctx.local in
     warn_lval_might_contain_freed "assign" lval ctx;
     warn_exp_might_contain_freed "assign" rval ctx;
-    match get_concrete_exp rval, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
-    | Some v_exp, Some v_lval ->
-      if D.mem v_exp state then
-        D.add v_lval state
-      else state
-    | _ -> state
+    ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    let state = ctx.local in
     warn_exp_might_contain_freed "branch" exp ctx;
-    state
+    ctx.local
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  (* Took inspiration from malloc_null. Does it make sense? *)
-  let freed_var_at_return_ = ref dummyFunDec.svar
-  let freed_var_at_return () = !freed_var_at_return_
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    let state = ctx.local in
     Option.iter (fun x -> warn_exp_might_contain_freed "return" x ctx) exp;
-    (* Intuition:
-     * Check if the return expression has a maybe freed var
-     * If yes, then add the dummyFunDec's varinfo to the state
-     * Else, don't change the state  
-    *)
-    match exp with
-    | Some ret ->
-      begin match get_concrete_exp ret with
-        | Some v ->
-          if D.mem v state then
-            D.add (freed_var_at_return ()) state
-          else state
-        | None -> state
-      end
-    | None -> state
+    ctx.local
 
   let enter ctx (lval:lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
     Option.iter (fun x -> warn_lval_might_contain_freed "enter" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "enter" arg ctx) args;
-    let glob_maybe_freed_vars = D.filter (fun x -> x.vglob) caller_state in
-    let zipped = List.combine f.sformals args in
-    let callee_state = List.fold_left (fun acc (f, a) ->
-        match get_concrete_exp a with
-        | Some v ->
-          if D.mem v caller_state then D.add f acc else acc
-        | None -> acc
-      ) glob_maybe_freed_vars zipped in
-    [caller_state, callee_state]
+    if D.is_empty caller_state then
+      [caller_state, caller_state]
+    else (
+      let reachable_from_args = List.fold_left (fun acc arg -> Queries.LS.join acc (ctx.ask (ReachableFrom arg))) (Queries.LS.empty ()) args in
+      if Queries.LS.is_top reachable_from_args || D.is_top caller_state then
+        [caller_state, caller_state]
+      else
+        let reachable_vars =
+          Queries.LS.elements reachable_from_args
+          |> List.map fst
+          |> List.filter (fun var -> ctx.ask (Queries.IsHeapVar var))
+          |> D.of_list
+        in
+        let callee_state = D.inter caller_state reachable_vars in
+        [caller_state, callee_state]
+    )
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
-    let glob_maybe_freed_vars = D.filter (fun x -> x.vglob) callee_local in
-    let zipped = List.combine f.sformals args in
-    let caller_state = List.fold_left (fun acc (f, a) ->
-        match get_concrete_exp a with
-        | Some v ->
-          if D.mem f callee_local then D.add v acc else acc
-        | None -> acc
-      ) glob_maybe_freed_vars zipped in
-    caller_state
+    let caller_state = ctx.local in
+    D.join caller_state callee_local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    let caller_state = ctx.local in
-
-    (* TODO: Should we actually warn here? It seems to clutter the output a bit. *)
     Option.iter (fun x -> warn_lval_might_contain_freed "combine_assign" x ctx) lval;
     List.iter (fun arg -> warn_exp_might_contain_freed "combine_assign" arg ctx) args;
-    match lval, D.mem (freed_var_at_return ()) callee_local with
-    | Some lv, true ->
-      begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-        | Some v -> D.add v caller_state
-        | None -> caller_state
-      end
-    | _ -> caller_state
+    ctx.local
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = ctx.local in
@@ -191,11 +124,11 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Free ptr ->
-      begin match get_concrete_exp ptr with
-        | Some v ->
-          if D.mem v state then state
-          else D.add v state
-        | None -> state
+      begin match ctx.ask HeapVar with
+        | `Lifted var ->
+          ignore (Pretty.printf "FREE: %a\n" CilType.Varinfo.pretty var);
+          D.add var state
+        | _ -> state
       end
     | _ -> state
 
@@ -208,4 +141,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["mallocFresh"] (module Spec : MCPSpec)
