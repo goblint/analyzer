@@ -47,12 +47,12 @@ sig
     (** Finds the type of the address location. *)
   end
 
-  (** Lvalue lattice.
+  (** Address lattice.
 
       Actually a disjoint union of lattices without top or bottom.
-      Lvalues are grouped as follows:
+      Addresses are grouped as follows:
 
-      - Each {!Addr}, modulo precise index expressions in offset, is a sublattice with ordering induced by {!Offset}.
+      - Each {!Addr}, modulo precise index expressions in the offset, is a sublattice with ordering induced by {!Mval}.
       - {!NullPtr} is a singleton sublattice.
       - {!UnknownPtr} is a singleton sublattice.
       - If [ana.base.limit-string-addresses] is enabled, then all {!StrPtr} are together in one sublattice with flat ordering. If [ana.base.limit-string-addresses] is disabled, then each {!StrPtr} is a singleton sublattice. *)
