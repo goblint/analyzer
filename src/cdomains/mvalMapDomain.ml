@@ -1,4 +1,4 @@
-(** Domains for lvalue maps. *)
+(** Domains for {{!Mval} mvalue} maps. *)
 
 open Batteries
 open GoblintCil
@@ -73,7 +73,7 @@ struct
   module R = struct
     include Printable.StdLeaf
     type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
-    let name () = "LValMapDomainValue"
+    let name () = "MValMapDomainValue"
 
     let pretty () {key; loc; state} =
       Pretty.dprintf "{key=%a; loc=%a; state=%s}" Mval.Exp.pretty key (Pretty.d_list ", " Node.pretty) loc (Impl.string_of_state state)
