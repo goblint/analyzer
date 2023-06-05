@@ -274,9 +274,9 @@ struct
 
   module A =
   struct
-    include D
+    include Lockset
     let name () = "lock"
-    let may_race (ls1,_) (ls2,_) =
+    let may_race ls1 ls2 =
       (* not mutually exclusive *)
       not @@ Lockset.exists (fun ((m1, w1) as l1) ->
           if w1 then
@@ -286,11 +286,11 @@ struct
             (* read lock is exclusive with just write lock *)
             Lockset.mem (m1, true) ls2
         ) ls1
-    let should_print ls = not (Lockset.is_empty (fst ls))
+    let should_print ls = not (Lockset.is_empty ls)
   end
 
   let access ctx (a: Queries.access) =
-    ctx.local
+    fst ctx.local
 
   let event ctx e octx =
     match e with
