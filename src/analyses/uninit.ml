@@ -29,7 +29,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
-  (* TODO: Lval *)
+  (* TODO: Use AddressDomain for queries *)
   let access_address (ask: Queries.ask) write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
     | a when not (Queries.LS.is_top a) ->

@@ -18,7 +18,7 @@ struct
   include UnitAnalysis.Spec
   let name () = "mutexEvents"
 
-  (* TODO: Lval *)
+  (* TODO: Use AddressDomain for queries *)
   let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.of_mval (v, Addr.Offs.of_exp o) :: b in
     match a.f (Queries.MayPointTo exp) with

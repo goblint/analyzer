@@ -404,7 +404,7 @@ struct
     | _, Bot -> Bot
     | _ -> VD.top ()
 
-  (* TODO: move to Lval *)
+  (* TODO: Use AddressDomain for queries *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
   let add_offset_varinfo add ad =
@@ -611,7 +611,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
 
-  (* TODO: Lval *)
+  (* TODO: Use AddressDomain for queries *)
   let convertToQueryLval = function
     | ValueDomain.AD.Addr.Addr (v,o) -> [v, Addr.Offs.to_exp o]
     | _ -> []

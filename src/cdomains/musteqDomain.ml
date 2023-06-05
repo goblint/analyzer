@@ -70,7 +70,7 @@ struct
     | `NoOffset -> false
 end
 
-(* TODO: Mval *)
+(* TODO: Use Mval.MakeLattice, but weakened with smaller offset signature. *)
 module VF =
 struct
   include Mval.MakePrintable (F)
