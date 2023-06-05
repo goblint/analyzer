@@ -192,15 +192,35 @@ module FlagHelper = FlagHelper
 
     Domains for {!Base} analysis. *)
 
-module BaseDomain = BaseDomain
-module ValueDomain = ValueDomain
+(** {5 Numeric} *)
+
 module IntDomain = IntDomain
 module FloatDomain = FloatDomain
+
+(** {5 Addresses}
+
+    Memory locations are identified by {{!Mval} mvalues}, which consist of a {{!GoblintCil.varinfo} variable} and an {{!Offset.t} offset}.
+    Mvalues are used throughout Goblint, not just the {!Base} analysis.
+
+    Addresses extend mvalues with [NULL], unknown pointers and string literals. *)
+
+module Mval = Mval
+module Offset = Offset
 module AddressDomain = AddressDomain
+
+(** {5 Complex} *)
+
 module StructDomain = StructDomain
 module UnionDomain = UnionDomain
 module ArrayDomain = ArrayDomain
 module JmpBufDomain = JmpBufDomain
+
+(** {5 Combined}
+
+    These combine the above domains together for {!Base} analysis. *)
+
+module BaseDomain = BaseDomain
+module ValueDomain = ValueDomain
 module ValueDomainQueries = ValueDomainQueries
 
 (** {4 Relational}
@@ -229,8 +249,6 @@ module PthreadDomain = PthreadDomain
 (** {3 Other} *)
 
 module Basetype = Basetype
-module Offset = Offset
-module Mval = Mval
 module Lval = Lval
 module Access = Access
 module AccessDomain = AccessDomain
