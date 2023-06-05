@@ -82,6 +82,7 @@ struct
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
       (* forget specific indices *)
+      (* TODO: If indices are topped, could they not be collected in the first place? *)
       Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region ctx e)
 
   (* transfer functions *)
