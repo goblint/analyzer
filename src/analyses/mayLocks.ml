@@ -29,8 +29,8 @@ struct
     else
       D.add l ctx.local
 
-  let remove ctx l =
-    if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
+  let remove ctx ?(warn=true) l =
+    if warn && not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_var_offset l with
     | Some (v,o) ->
       (let mtype = ctx.ask (Queries.MutexType (v, Lval.OffsetNoIdx.of_offs o)) in

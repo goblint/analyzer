@@ -30,7 +30,7 @@ sig
   module V: SpecSysVar
 
   val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
-  val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
+  val remove: (D.t, G.t, D.t, V.t) ctx -> ?warn:bool -> ValueDomain.Addr.t -> D.t
 end
 
 module MakeMay (Arg: MayArg) =
