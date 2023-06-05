@@ -18,7 +18,7 @@ struct
       let df_one = DF.diff (DF.union df1 df2) dnf_any in
       (DF.union df_both df_one, dnf_any)
 
-    let leq x y = equal (join x y) y
+    let leq x y = equal (join x y) y (* TODO: what should happen here? *)
 
     let meet _ _ = assert false
 
