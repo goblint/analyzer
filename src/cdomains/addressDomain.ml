@@ -146,7 +146,7 @@ struct
     | Addr x, Addr y -> Mval.leq x y
     | _                      -> x = y
 
-  let drop_ints = function
+  let top_indices = function
     | Addr x -> Addr (Mval.top_indices x)
     | x -> x
 

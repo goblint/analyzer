@@ -591,7 +591,7 @@ struct
         | Struct n    -> Struct (ValueDomain.Structs.map replace_val n)
         | Union (f,v) -> Union (f,replace_val v)
         | Blob (n,s,o)  -> Blob (replace_val n,s,o)
-        | Address x -> Address (ValueDomain.AD.map ValueDomain.Addr.drop_ints x)
+        | Address x -> Address (ValueDomain.AD.map ValueDomain.Addr.top_indices x)
         | x -> x
       in
       CPA.map replace_val st
