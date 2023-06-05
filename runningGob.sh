@@ -9,6 +9,7 @@ options_term="--set "ana.activated[+]" termination --enable warn.debug --set ana
 
 cfile_loops="tests/regression/55-loop-unrolling/01-simple-cases.c"      
 cfile_signs="tests/regression/99-tutorials/01-first.c"
+cfile_goto="tests/incremental/02-cfg-comparison/01-added-return-stmt.c"
 
 # run analysis, write cil output to file and enable visualization via html
 #./goblint $cfile_loops $options_apron --enable justcil > output.txt

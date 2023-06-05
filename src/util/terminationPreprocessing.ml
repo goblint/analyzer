@@ -6,6 +6,7 @@
    *)
 
 open GoblintCil
+include Printf
 
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
@@ -20,7 +21,7 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor lc le (fd : fundec) = object(self)
+class loopCounterVisitor lc lg le (fd : fundec) = object(self)
    inherit nopCilVisitor
    method! vfunc (f:fundec) =
       if !le.vname <> "term_exit-" then begin
@@ -46,6 +47,13 @@ class loopCounterVisitor lc le (fd : fundec) = object(self)
          let nb = mkBlock [init_stmt; mkStmt s.skind; exit_stmt] in
          s.skind <- Block nb;
          s
+         | Goto (sref, l) -> 
+            let goto_jmp_stmt = sref.contents.skind in 
+            let loc_stmt = get_stmtLoc goto_jmp_stmt in 
+            if CilType.Location.compare l loc_stmt >= 0 (*is pos if first loc is greater -> below the second loc*)
+               then 
+                  lg := List.append !lg ([l] : location list); (*problem: the program might not terminate!*)
+            s
          | _ -> s
       in ChangeDoChildrenPost (s, action);
    end
