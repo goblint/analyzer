@@ -82,25 +82,23 @@ struct
     let f vs (v,o,_) = (v,o) :: vs in
     List.fold_left f [] (access_one_byval a false rval)
 
-  let vars a (rval:exp) : Addr.t list =
-    List.map Addr.of_mval (varoffs a rval)
-
   let is_prefix_of m1 m2 = Option.is_some (Addr.Mval.prefix m1 m2)
 
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
-    let variables = vars a expr in
-    let raw_vars = List.filter_map Addr.to_mval variables in
-    let will_addr_init (t:bool) a =
+    let mvals = varoffs a expr in
+    let will_mval_init (t:bool) mval =
       let f addr =
-        GobOption.exists (is_prefix_of a) (Addr.to_mval addr)
+        GobOption.exists (is_prefix_of mval) (Addr.to_mval addr)
       in
-      if D.exists f st then begin
-        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.of_mval a);
+      if D.exists f st then (
+        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.Mval.pretty mval;
         false
-      end else
-        t in
-    List.fold_left will_addr_init true raw_vars
+      )
+      else
+        t
+    in
+    List.fold_left will_mval_init true mvals
 
   let remove_if_prefix (pr: Addr.Mval.t) (uis: D.t) : D.t =
     let f ad =
