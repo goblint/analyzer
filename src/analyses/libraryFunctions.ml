@@ -302,6 +302,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);
+    ("__goblint_bounded", special [__ "exp"[]] @@ fun exp -> Assert { exp; check = true; refine = false });
   ]
 
 (** zstd functions.

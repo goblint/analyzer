@@ -80,6 +80,10 @@ end
 
 let () =
   (** Register the preprocessing *)
+<<<<<<< HEAD
   Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters upjumpingGotos loopExit);
+=======
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters);
+>>>>>>> dfa9d6ef8 (changed loop exit indicator form global variable to a special function)
   (** Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)
