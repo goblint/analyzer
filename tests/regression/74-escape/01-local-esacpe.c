@@ -17,13 +17,13 @@ int let_escape(){
 }
 
 void *thread1(void *pp){
-	let_escape(); //RACE
+	let_escape();
 	return NULL;
 }
 
 void write_through_pointer(){
 	sleep(2);
-	*p = 1; //RACE
+	*p = 1;
 }
 
 void *thread2(void *p){
