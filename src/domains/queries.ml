@@ -113,6 +113,7 @@ type _ t =
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> LS.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -182,6 +183,7 @@ struct
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module LS)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
@@ -250,6 +252,7 @@ struct
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> LS.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
@@ -321,12 +324,13 @@ struct
     | Any (MutexType _) -> 49
     | Any (EvalMutexAttr _ ) -> 50
     | Any ThreadCreateIndexedNode -> 51
-    | Any Written -> 52
-    | Any (EvalLval _) -> 53
-    | Any AccessedGlobals -> 54
-    | Any (ReachableAddressesFrom _) -> 55
-    | Any (IsModular) -> 56
-    | Any Read -> 57
+    | Any ThreadsJoinedCleanly -> 52
+    | Any Written -> 53
+    | Any (EvalLval _) -> 54
+    | Any AccessedGlobals -> 55
+    | Any (ReachableAddressesFrom _) -> 56
+    | Any (IsModular) -> 57
+    | Any Read -> 58
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -460,6 +464,7 @@ struct
     | Any ValidLongJmp -> Pretty.dprintf "ValidLongJmp"
     | Any CreatedThreads -> Pretty.dprintf "CreatedThreads"
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
+    | Any ThreadsJoinedCleanly -> Pretty.dprintf "ThreadsJoinedCleanly"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
