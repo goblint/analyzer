@@ -685,7 +685,7 @@ let getGlobalInits (file: file) : edges  =
       lval
     in
     let rec any_index_offset = function
-      | Index (e,o) -> Index (Offset.any_index_exp, any_index_offset o)
+      | Index (e,o) -> Index (Offset.Index.Exp.any, any_index_offset o)
       | Field (f,o) -> Field (f, any_index_offset o)
       | NoOffset -> NoOffset
     in

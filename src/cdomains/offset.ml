@@ -4,10 +4,6 @@ open GoblintCil
 
 module M = Messages
 
-let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
-
-let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
-
 
 module Index =
 struct
@@ -21,14 +17,17 @@ struct
     let to_int _ = None
   end
 
-  module Exp: Printable with type t = exp =
+  module Exp =
   struct
     include CilType.Exp
     let name () = "exp index"
 
+    let any = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+    let all = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
+
     (* Override output *)
     let pretty () x =
-      if equal x any_index_exp then
+      if equal x any then
         Pretty.text "?"
       else
         dn_exp () x
@@ -42,7 +41,7 @@ struct
 
     let equal_to _ _ = `Top (* TODO: more precise for definite indices *)
     let to_int _ = None (* TODO: more precise for definite indices *)
-    let top () = any_index_exp
+    let top () = any
   end
 end
 
@@ -107,7 +106,7 @@ struct
     | `Index (i,o) ->
       let i_exp = match Idx.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> any_index_exp
+        | None -> Index.Exp.any
       in
       `Index (i_exp, to_exp o)
     | `Field (f,o) -> `Field (f, to_exp o)
@@ -117,7 +116,7 @@ struct
     | `Index (i,o) ->
       let i_exp = match Idx.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> any_index_exp
+        | None -> Index.Exp.any
       in
       Index (i_exp, to_cil o)
     | `Field (f,o) -> Field (f, to_cil o)

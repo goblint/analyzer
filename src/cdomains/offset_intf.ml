@@ -74,7 +74,20 @@ sig
     (** Unit index.
         Usually represents an arbitrary index. *)
 
-    module Exp: Printable with type t = GoblintCil.exp
+    module Exp:
+    sig
+      include Printable with type t = GoblintCil.exp
+
+      (** Special index expression for some unknown index.
+          Weakly updates array in assignment.
+          Used for exp.fast_global_inits. *)
+      val any: GoblintCil.exp
+
+      (** Special index expression for all indices.
+          Strongly updates array in assignment.
+          Used for Goblint-specific witness invariants. *)
+      val all: GoblintCil.exp
+    end
   end
 
   exception Type_of_error of GoblintCil.typ * string
@@ -100,14 +113,4 @@ sig
     val of_cil : GoblintCil.offset -> t
     val to_cil : t -> GoblintCil.offset
   end
-
-  (** Special index expression for some unknown index.
-      Weakly updates array in assignment.
-      Used for exp.fast_global_inits. *)
-  val any_index_exp: GoblintCil.exp
-
-  (** Special index expression for all indices.
-      Strongly updates array in assignment.
-      Used for Goblint-specific witness invariants. *)
-  val all_index_exp: GoblintCil.exp
 end

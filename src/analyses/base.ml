@@ -1025,7 +1025,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
-    | Index (exp, ofs) when CilType.Exp.equal exp Offset.any_index_exp -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when CilType.Exp.equal exp Offset.Index.Exp.any -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       match eval_rv a gs st exp with
