@@ -278,15 +278,15 @@ struct
     let name () = "lock"
     let may_race ls1 ls2 =
       (* not mutually exclusive *)
-      not @@ Lockset.exists (fun ((m1, w1) as l1) ->
+      not @@ exists (fun ((m1, w1) as l1) ->
           if w1 then
             (* write lock is exclusive with write lock or read lock *)
-            Lockset.mem l1 ls2 || Lockset.mem (m1, false) ls2
+            mem l1 ls2 || mem (m1, false) ls2
           else
             (* read lock is exclusive with just write lock *)
-            Lockset.mem (m1, true) ls2
+            mem (m1, true) ls2
         ) ls1
-    let should_print ls = not (Lockset.is_empty ls)
+    let should_print ls = not (is_empty ls)
   end
 
   let access ctx (a: Queries.access) =
