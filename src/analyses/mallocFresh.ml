@@ -20,6 +20,8 @@ struct
 
     let leq x y = equal (join x y) y
 
+    let meet _ _ = assert false
+
     let widen = join
     let narrow a b = a
   end
