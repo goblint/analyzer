@@ -6,13 +6,13 @@
 int g = 0;
 int *p = &g;
 
-void write(int** i){
-	// RACE when reading *i
-	**i = 23;
+void read(int** i){
+	// race when reading *i
+	int *x = *i;
 }
 
 void change_pointer(int* i){
-	p = i;
+	p = i; //RACE
 }
 
 void *thread1(void *pp){
