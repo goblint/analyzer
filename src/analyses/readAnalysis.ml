@@ -1,4 +1,4 @@
-(** An analysis of all writes execution of a function *)
+(** An analysis of all reads during the execution of a modularly analyzed function. Useful for race-detection *)
 open Analyses
 open GoblintCil
 open Batteries
@@ -12,7 +12,6 @@ struct
   include Analyses.DefaultSpec
 
   let name () = "read"
-  (* Value of entries not in mapping: bot, LiftTop such that there is a `Top map. *)
   module D = ValueDomain.AD
   module C = Lattice.Unit
 
@@ -33,7 +32,7 @@ struct
   let eval_lvals ctx lvals =
     LvalSet.fold (fun lval acc -> AD.join acc (eval_lval ctx lval)) lvals (AD.bot ())
 
-  let distribute_reads_exp ctx exp =
+  let reads_on_exp ctx exp =
     let reads = ref (AD.empty ()) in
     let collect_read exp =
       match exp with
@@ -51,26 +50,49 @@ struct
     Access.distribute_access_exp collect_read exp;
     !reads
 
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* let ask = Analyses.ask_of_ctx ctx in
-       match ask.f (Queries.EvalLval lval) with
-       | `Top ->
-       M.warn "Written lvalue is top. Write is not recorded!";
-       ctx.local
-       | `Lifted lv ->
-       add_entry lv ctx.local *)
-    let reads = distribute_reads_exp ctx rval in
+  let add_reads_on_exp ctx exp =
+    let reads = reads_on_exp ctx exp in
     AD.join reads ctx.local
 
+  let add_reads_on_optional_exp ctx exp =
+    BatOption.map_default (reads_on_exp ctx) ctx.local exp
+
+  let reads_on_exps ctx exps =
+    let add_exp_reads acc exp =
+      let exp_reads = reads_on_exp ctx exp in
+      AD.join acc exp_reads
+    in
+    let reads = List.fold add_exp_reads (AD.bot ()) exps in
+    reads
+
+  let add_reads_on_exps ctx exps =
+    let reads = reads_on_exps ctx exps in
+    AD.join ctx.local reads
+
+  let reads_on_lval ctx lval =
+    let lval_exp = AddrOf lval in
+    reads_on_exp ctx lval_exp
+
+  let add_reads_on_lval ctx lval =
+    let reads_on_lval = reads_on_lval ctx lval in
+    AD.join ctx.local reads_on_lval
+
+  (* transfer functions *)
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+    let reads_on_lval = reads_on_lval ctx lval in
+    let reads = D.join ctx.local reads_on_lval in
+    let reads_on_exp = reads_on_exp ctx rval in
+    let reads = D.join reads reads_on_exp in
+    reads
+
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+    add_reads_on_exp ctx exp
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+    add_reads_on_optional_exp ctx exp
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let callee_state = D.bot () in
@@ -92,32 +114,19 @@ struct
     List.fold AD.join (AD.bot ()) reachable
 
   let combine_env ctx lval fexp f args fc au f_ask =
-    let reachable = get_reachable ctx args f_ask in
-    let translate_and_insert (k: AD.t) (map: D.t) =
-      let k' = match ModularUtil.ValueDomainExtension.map_back (Address k) ~reachable with
-        | Address a -> a
-        | _ -> failwith "map_back yielded a non-address value for address input."
-      in
-      add_entry k' map
-    in
-    translate_and_insert au (ctx.local)
+    add_reads_on_exps ctx args
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    let assign_return_val lval =
-      (* let reachable = get_reachable ctx args f_ask in
-         let return_value = f_ask.f (Queries.EvalValue (Lval (Base0.return_lval ()))) in *)
-      let ask = Analyses.ask_of_ctx ctx in
-      match ask.f (Queries.EvalLval lval) with
-      | `Top ->
-        M.warn "Written lvalue is top. Write is not recorded!";
-        ctx.local
-      | `Lifted lv ->
-        add_entry lv ctx.local
-    in
-    Option.map_default assign_return_val ctx.local lval
+    match lval with
+    | Some lval ->
+      add_reads_on_lval ctx lval
+    | None ->
+      ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    ctx.local
+    let lval_reads = BatOption.map_default (add_reads_on_lval ctx) ctx.local lval in
+    let exp_reads = reads_on_exps ctx arglist in
+    D.join lval_reads exp_reads
 
   let startstate v = D.bot ()
   let threadenter ctx lval f args = [D.bot ()]
