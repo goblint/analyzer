@@ -4,8 +4,8 @@ type 'i t = [
   | `Index of 'i * 'i t (** Offset starting with an array index. *)
 ] [@@deriving eq, ord, hash]
 
-(* TODO: remove? *)
 type 'i offs = 'i t [@@deriving eq, ord, hash]
+(** Outer alias to allow referring to {!t} in inner signatures. *)
 
 module Index =
 struct
