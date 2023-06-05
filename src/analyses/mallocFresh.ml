@@ -65,7 +65,7 @@ struct
     | Events.Escape {escaped; escaped_to}, (df, dnf) when DF.is_top escaped ->
       (DF.empty (), DF.union df dnf)
     | Events.Escape {escaped; escaped_to}, (df, dnf) when not (DF.subset escaped_to df) ->
-      (DF.diff df escaped, DF.union dnf escaped)
+      (DF.diff df escaped, DF.union dnf (DF.inter df escaped))
     | _ ->
       local
 
