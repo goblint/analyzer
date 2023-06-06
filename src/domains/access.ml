@@ -25,22 +25,24 @@ let is_ignorable = function
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
 
-let typeVar  = Hashtbl.create 101
-let typeIncl = Hashtbl.create 101
+module TH = Hashtbl.Make (CilType.Typ)
+
+let typeVar  = TH.create 101
+let typeIncl = TH.create 101
 let unsound = ref false
 
 let init (f:file) =
   unsound := get_bool "ana.mutex.disjoint_types";
   let visited_vars = Hashtbl.create 100 in
   let visit_field fi =
-    Hashtbl.add typeIncl (typeSig fi.ftype) fi
+    TH.add typeIncl fi.ftype fi
   in
   let visit_glob = function
     | GCompTag (c,_) ->
       List.iter visit_field c.cfields
     | GVarDecl (v,_) | GVar (v,_,_) ->
       if not (Hashtbl.mem visited_vars v.vid) then begin
-        Hashtbl.add typeVar (typeSig v.vtype) v;
+        TH.add typeVar v.vtype v;
         (* ignore (printf "init adding %s : %a" v.vname d_typsig ((typeSig v.vtype))); *)
         Hashtbl.replace visited_vars v.vid true
       end
@@ -49,8 +51,8 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 let reset () =
-  Hashtbl.clear typeVar;
-  Hashtbl.clear typeIncl
+  TH.clear typeVar;
+  TH.clear typeIncl
 
 
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
@@ -208,8 +210,7 @@ let add_propagate side e kind conf ty ls a =
     | `Index _ -> false
   in
   let struct_inv (f:offs) (fi:fieldinfo) =
-    let ts = typeSig (TComp (fi.fcomp,[])) in
-    let vars = Hashtbl.find_all typeVar ts in
+    let vars = TH.find_all typeVar (TComp (fi.fcomp,[])) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
@@ -226,9 +227,9 @@ let add_propagate side e kind conf ty ls a =
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
-    let incl = Hashtbl.find_all typeIncl (typeSig t) in
+    let incl = TH.find_all typeIncl t in
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi) incl;
-    let vars = Hashtbl.find_all typeVar (typeSig t) in
+    let vars = TH.find_all typeVar t in
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f lv =
