@@ -30,7 +30,7 @@ struct
 
       let increment v x =
         let current = find v x in
-        if current = 4 then
+        if current = max_count () then
           x
         else
           add v (current + 1) x
