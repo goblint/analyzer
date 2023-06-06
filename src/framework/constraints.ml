@@ -1693,7 +1693,7 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
-(**
+(*
 module RecursionTermLifter (S: Spec): Spec =
 struct
   include S
@@ -1711,7 +1711,7 @@ struct
     let s x = `Left x
   end
 
-  module C = 
+  module C_ = 
   struct
     include S.C
     include Printable.Std (* To make it Groupable *)
@@ -1772,13 +1772,13 @@ struct
 
   module EM =
   struct
-    include MapDomain.MapBot (C) (T)
+    include MapDomain.MapBot (C_) (T)
     let name () = "recursions"
   end
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames) (*Todo: do we need lift2?*)
     let name () = "recursionTerm"
     let node = function
       | `Bot -> EM.bot ()
@@ -1792,6 +1792,8 @@ struct
       | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch\">%a</analysis>" EM.printXml x
       | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
   end
+
+
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
     { ctx with
@@ -1880,7 +1882,7 @@ struct
   let asm ctx = S.asm (conv ctx)
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
-
+*) 
 
 (** Add cycle detection in the function call graph to a analysis *)
 module RecursionTermLifter (S: Spec)
@@ -1911,13 +1913,14 @@ struct
     end
   module M = MapDomain.MapBot (CVal) (CVal)
 *)
-  module V = (*TODO: do I need to change V???*)
+  module V = S.V
+  (*(*TODO: do I need to change V???*)
   struct
     include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
     let name () = "RecursionTerm"
     let is_write_only t = true
     let s x = `Left x
-  end
+  end*)
   module G = S.G
   (*GMapG (S.G) (S.C)*)
   (*struct
@@ -1961,7 +1964,7 @@ struct
   let asm ctx = S.asm (ctx)
   let event ctx e octx = S.event (ctx) e (octx)
 end
-*)
+
 
 module CompareGlobSys (SpecSys: SpecSys) =
 struct
