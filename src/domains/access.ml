@@ -169,7 +169,7 @@ let type_from_type_offset : acc_typ -> typ = function
     unrollType (type_from_offs (TComp (s, []), o))
 
 let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
-  let rec dist_fields ty =
+  let rec dist_fields ty : offs list =
     match unrollType ty with
     | TComp (ci,_)   ->
       let one_field fld =
@@ -192,6 +192,7 @@ let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (va
     begin match type_from_type_offset ty with
       | t -> 
         let oss = dist_fields t in
+        (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
         List.iter (fun os -> add_one side e kind conf (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
       | exception Type_offset_error ->
         add_one side e kind conf ty lv a
@@ -202,7 +203,7 @@ let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (va
   | _ ->
     add_one side e kind conf ty lv a
 
-let add_propagate side e kind conf ty ls a =
+let add_propagate side e kind conf ty a =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -212,24 +213,28 @@ let add_propagate side e kind conf ty ls a =
   let struct_inv (f:offs) (fi:fieldinfo) =
     let vars = TH.find_all typeVar (TComp (fi.fcomp,[])) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
+    (* 1 test(s) failed: ["04/49 type-invariants"] *)
     let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
+    (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
     add_struct side e kind conf (`Struct (fi.fcomp, f)) None a;
   in
   let just_vars t v =
     add_struct side e kind conf (`Type t) (Some (v, `NoOffset)) a;
   in
-  add_struct side e kind conf ty None a;
   match ty with
   | `Struct (c, (`Field (fi, _) as os)) when only_fields os ->
     (* ignore (printf "  * type is a struct\n"); *)
-    struct_inv os fi
+    (* 1 test(s) failed: ["04/49 type-invariants"] *)
+    struct_inv os fi 
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
     let incl = TH.find_all typeIncl t in
+    (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi) incl;
     let vars = TH.find_all typeVar t in
+    (* TODO: not tested *)
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f lv =
@@ -315,10 +320,10 @@ let add side e kind conf vo oo a =
   match vo, oo with
   | Some v, Some o -> add_struct side e kind conf ty (Some (v, remove_idx o)) a
   | _ ->
-    if !unsound && isArithmeticType (type_from_type_offset ty) then
-      add_struct side e kind conf ty None a
-    else
-      add_propagate side e kind conf ty None a
+    (* 8 test(s) failed: ["02/69 ipmi-struct-blob-fixpoint", "04/33 kernel_rc", "04/34 kernel_nr", "04/39 rw_lock_nr", "04/40 rw_lock_rc", "04/44 malloc_sound", "04/45 escape_rc", "04/46 escape_nr"] *)
+    add_struct side e kind conf ty None a;
+    if not (!unsound && isArithmeticType (type_from_type_offset ty)) then
+      add_propagate side e kind conf ty a
 
 
 (* Access table as Lattice. *)
