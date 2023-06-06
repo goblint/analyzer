@@ -15,17 +15,22 @@ module Spec =
 struct
   module Arg =
   struct
-    module Count = Lattice.Reverse(
-        Lattice.Chain (struct
-          let n () = 5
-          let names x = if x = (n () - 1) then "top" else Format.asprintf "%d" x
-        end))
-
     module Multiplicity = struct
-      include MapDomain.MapBot_LiftTop (ValueDomain.Addr) (Count)
+      (* the maximum multiplicity which we keep track of precisely *)
+      let max_count () = 4
+
+      module Count = Lattice.Reverse(
+        Lattice.Chain (struct
+          let n () = max_count () + 1
+          let names x = if x = max_count () then Format.asprintf ">= %d" x else Format.asprintf "%d" x
+        end)
+      )
+
+      include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
+
       let increment v x =
         let current = find v x in
-        if current = (4) then
+        if current = 4 then
           x
         else
           add v (current + 1) x
@@ -35,8 +40,9 @@ struct
         if current = 0 then
           (x, true)
         else
-          (add v (current - 1) x, current-1 = 0)
+          (add v (current - 1) x, current - 1 = 0)
     end
+    
     module D = struct include Lattice.Prod(Lockset)(Multiplicity)
       let empty () = (Lockset.empty (), Multiplicity.empty ())
     end
