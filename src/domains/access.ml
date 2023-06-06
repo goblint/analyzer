@@ -204,15 +204,10 @@ let add_propagate side e kind conf ty ls a =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
-    | `Field (_,os) -> only_fields os
+    | `Field (_, os) -> only_fields os
     | `Index _ -> false
   in
-  let struct_inv (f:offs) =
-    let fi =
-      match f with
-      | `Field (fi,_) -> fi
-      | _ -> failwith "add_propagate: no field found"
-    in
+  let struct_inv (f:offs) (fi:fieldinfo) =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Hashtbl.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
@@ -225,14 +220,14 @@ let add_propagate side e kind conf ty ls a =
   in
   add_struct side e kind conf ty None a;
   match ty with
-  | `Struct (c,os) when only_fields os && os <> `NoOffset ->
+  | `Struct (c, (`Field (fi, _) as os)) when only_fields os ->
     (* ignore (printf "  * type is a struct\n"); *)
-    struct_inv  os
+    struct_inv os fi
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
     let incl = Hashtbl.find_all typeIncl (typeSig t) in
-    List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset))) incl;
+    List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi) incl;
     let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
