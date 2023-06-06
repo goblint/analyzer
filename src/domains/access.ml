@@ -147,6 +147,8 @@ let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:(varinf
     side ty lv (conf, kind, loc, e, a)
   end
 
+exception Type_offset_error
+
 let type_from_type_offset : acc_typ -> typ = function
   | `Type t -> t
   | `Struct (s,o) ->
@@ -154,7 +156,7 @@ let type_from_type_offset : acc_typ -> typ = function
       match unrollType t with
       | TPtr (t,_) -> t  (*?*)
       | TArray (t,_,_) -> t
-      | _ -> failwith "type_from_type_offset: indexing non-pointer type"
+      | _ -> raise Type_offset_error (* indexing non-pointer type *) 
     in
     let rec type_from_offs (t,o) =
       match o with
@@ -185,10 +187,11 @@ let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (va
       | Some (v, os1) -> Some (v, addOffs os1 os)
       | None -> None
     in
-    begin try
-        let oss = dist_fields (type_from_type_offset ty) in
+    begin match type_from_type_offset ty with
+      | t -> 
+        let oss = dist_fields t in
         List.iter (fun os -> add_one side e kind conf (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
-      with Failure _ ->
+      | exception Type_offset_error ->
         add_one side e kind conf ty lv a
     end
   | _ when lv = None && !unsound ->
