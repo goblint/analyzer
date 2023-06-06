@@ -85,15 +85,31 @@ struct
     else
       ctx.local
 
+  let escaped_via_create_param_or_global ctx ~create_param =
+    let reachable_via_param ctx escaped =
+      (* TODO: must transitively join escapes of every ctx.global v as well? *)
+      let escaped = reachable (Analyses.ask_of_ctx ctx) create_param in
+      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let one_step_reachable v acc =
+        D.join acc (ctx.global v)
+      in
+      let extra = D.fold one_step_reachable escaped (D.empty ()) in
+      D.join escaped extra
+    in
+    let escaped_via_global ctx =
+      ctx.global global_var
+    in
+    let escaped_via_global = escaped_via_global ctx in
+    let reachable = reachable_via_param ctx create_param in
+    D.join escaped_via_global reachable
+
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
     | _, "pthread_setspecific" , [key; pt_value] ->
-      let escaped = reachable (Analyses.ask_of_ctx ctx) pt_value in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let escaped = escaped_via_create_param_or_global ctx ~create_param:pt_value in
       emit_escaped ctx escaped;
-      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
-      D.join ctx.local (D.join escaped extra)
+      D.join ctx.local escaped
     | _ -> ctx.local
 
   let startstate v = D.bot ()
@@ -102,12 +118,9 @@ struct
   let threadenter ctx lval f args =
     match args with
     | [ptc_arg] ->
-      let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let escaped = escaped_via_create_param_or_global ctx ~create_param:ptc_arg in
       emit_escaped ctx escaped;
-      let escaped_to_global = ctx.global global_var in
-      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (escaped_to_global) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
-      [D.join ctx.local (D.join escaped extra)]
+      [D.join ctx.local escaped]
     | _ -> [ctx.local]
 
   let threadspawn ctx lval f args fctx =
