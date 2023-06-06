@@ -130,10 +130,8 @@ let get_type fb e =
 
 
 
-type var_o = varinfo option
-type off_o = offset  option
 
-let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
+let get_val_type e (vo: varinfo option) (oo: offset option) : acc_typ =
   match Cilfacade.typeOf e with
   | t ->
     begin match vo, oo with
