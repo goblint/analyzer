@@ -219,6 +219,7 @@ sig
   val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
+  val to_interval: t -> (int_t * int_t) option
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
@@ -349,6 +350,8 @@ struct
     with
       Failure _ -> top_of ik
 
+  let to_interval = failwith "Not implemented!" (* FIXME *)
+
   let starting ?(suppress_ovwarn=false) ik x =
     try Old.starting ~suppress_ovwarn ik (BI.to_int64 x) with Failure _ -> top_of ik
   let ending ?(suppress_ovwarn=false) ik x =
@@ -428,6 +431,7 @@ struct
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
   let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
+  let to_interval x = I.to_interval x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
   let starting ?(suppress_ovwarn=false) ikind i = {v = I.starting ~suppress_ovwarn  ikind i; ikind}
@@ -708,6 +712,7 @@ struct
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
+  let to_interval x = x
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
@@ -1264,6 +1269,8 @@ struct
     | x -> if leq zero x then None else Some true
 
   let of_bool _ = function true -> one | false -> zero
+
+  let to_interval = failwith "Not implemented!" (* FIXME *)
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
 
@@ -2137,6 +2144,7 @@ struct
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
+  let to_interval = failwith "Not implemented!" (* FIXME *)
 
   let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
   let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
@@ -2529,6 +2537,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
+  let to_interval = failwith "Not implemented!" (* FIXME *)
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -3263,6 +3272,8 @@ struct
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
+
+  let to_interval = failwith "Not implemented!" (* FIXME *)
 end
 
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
@@ -3494,6 +3505,8 @@ module IntDomTupleImpl = struct
     %% map2p {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.leq)}
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
+
+  let to_interval (_, i, _, _, _) = I2.to_interval i
 
   let to_excl_list x =
     let merge ps =

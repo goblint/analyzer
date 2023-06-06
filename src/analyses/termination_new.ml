@@ -18,11 +18,13 @@ let is_loop_exit_indicator (x : varinfo) =
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =
+  let open IntDomain.IntDomTuple in (* TODO: Remove *)
+  let open Cil in
   let exp = Lval (Var varinfo, NoOffset) in
   match ctx.ask (EvalInt exp) with
-    `Top -> false
-  | `Bot -> raise (PreProcessing "Loop variable is Bot")
-  |    _ -> true (* TODO: Is this sound? *)
+    `Top -> print_endline (varinfo.vname ^ " is TOP"); false
+  | `Bot -> print_endline (varinfo.vname ^ " is BOT"); raise (PreProcessing "Loop variable is Bot")
+  | `Lifted v -> print_endline (varinfo.vname ^ " is " ^ IntDomain.IntDomTuple.show v); not (is_top v) (* TODO: Is this sound? *)
 
 module Spec : Analyses.MCPSpec =
 struct
