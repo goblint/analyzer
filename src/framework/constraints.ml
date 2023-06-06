@@ -1889,7 +1889,6 @@ module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
         and module G = S.G
         and module C = S.C
-        and module G = S.G
 =
 
 struct
@@ -1912,7 +1911,8 @@ struct
     end
   module M = MapDomain.MapBot (CVal) (CVal)
 *)
-  module V = S.V
+
+  module V = GVarF(S.V)
   (*(*TODO: do I need to change V???*)
   struct
     include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
@@ -1929,7 +1929,7 @@ struct
     
   end 
   
-  module type FundecType = 
+  (*module type FundecType = 
   sig
     type t = fundec
 
@@ -1941,7 +1941,7 @@ struct
   struct
     let getFundec = F
     let fname = F.fname
-  end
+  end*)
   
   (* Tuple of fundec and S.C*)
   module T = (*Todo: is this Printable.S or S.C*)
@@ -1950,7 +1950,9 @@ struct
     type t = (fundec * S.C.t)
 
     let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
-    let show () = " "
+    let show (a, b) = a.fname ^ b.vname
+    let name () = "Tuple"
+    let to_yojson x = `String (show x)
   end
 
   (* Set of Tuples*)
@@ -1962,6 +1964,7 @@ struct
     include Lattice.Prod (S.G) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
   end*)
+
   let name () = "RecursionTerm (" ^ S.name () ^ ")"
 
   type marshal = S.marshal
@@ -1978,26 +1981,31 @@ struct
     if !AnalysisState.postsolving then
       sideg (f) (G.create_contexts (G.CSet.singleton c))*)
 
-  let query ctx = S.query (ctx)
-  let branch ctx = S.branch (ctx)
-  let assign ctx = S.assign (ctx)
-  let vdecl ctx = S.vdecl (ctx)
+  let conv (ctx: (_, _, _, V.t) ctx): (_, _, _, S.V.t) ctx = (*TODO Change the body*)
+    { ctx with
+      global = (fun v -> G.s (ctx.global (V.s v)));
+      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+    }
+  let query ctx = S.query (conv ctx)
+  let branch ctx = S.branch (conv ctx)
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
   let enter ctx = 
     if !AnalysisState.postsolving then
       printf "hallo hallo";
-    S.enter (ctx) (*TODO*)
-  let paths_as_set ctx = S.paths_as_set (ctx)
-  let body ctx = S.body (ctx)
-  let return ctx = S.return (ctx)
-  let combine_env ctx = S.combine_env (ctx)
-  let combine_assign ctx = S.combine_assign (ctx)
-  let special ctx = S.special (ctx)
-  let threadenter ctx = S.threadenter (ctx)
-  let threadspawn ctx lv f args fctx = S.threadspawn (ctx) lv f args (fctx)
-  let sync ctx = S.sync (ctx)
-  let skip ctx = S.skip (ctx)
-  let asm ctx = S.asm (ctx)
-  let event ctx e octx = S.event (ctx) e (octx)
+    S.enter (conv ctx) (*TODO*)
+  let paths_as_set ctx = S.paths_as_set (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+  let combine_env ctx = S.combine_env (conv ctx)
+  let combine_assign ctx = S.combine_assign (conv ctx)
+  let special ctx = S.special (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+  let sync ctx = S.sync (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
 
