@@ -369,7 +369,7 @@ struct
         | Lval rlval -> begin
             match ask (Queries.MayPointTo (mkAddrOf rlval)) with
               | rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 ->
-                  let rv = Lval.CilLval.to_exp (Queries.LS.choose rv) in
+                  let rv = Mval.Exp.to_cil_exp (Queries.LS.choose rv) in
                   if is_local lv && Exp.is_global_var rv = Some false
                   then D.add_eq (rv,Lval lv) st
                   else st
@@ -437,7 +437,7 @@ struct
       if Queries.LS.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
         D.top ()
       else
-        let taint_exp = Queries.ES.of_list (List.map (fun lv -> Lval (Lval.CilLval.to_lval lv)) (Queries.LS.elements tainted)) in
+        let taint_exp = Queries.ES.of_list (List.map Mval.Exp.to_cil_exp (Queries.LS.elements tainted)) in
         D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
     in
     let d = D.meet au d_local in
@@ -458,7 +458,7 @@ struct
          each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
          It is unknown, why that was necessary. *)
       Queries.LS.fold (fun lval st ->
-          remove ask (Lval.CilLval.to_lval lval) st
+          remove ask (Mval.Exp.to_cil lval) st
         ) rs st
 
   let unknown_fn ctx lval f args =

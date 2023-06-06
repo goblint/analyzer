@@ -62,7 +62,7 @@ type access =
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
 type invariant_context = Invariant.context = {
   path: int option;
-  lvals: CilLval.Set.t;
+  lvals: Lval.Set.t;
 }
 [@@deriving ord, hash]
 
@@ -100,7 +100,7 @@ type _ t =
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
-  | MutexType: varinfo * Lval.OffsetNoIdx.t -> MutexAttrDomain.t t
+  | MutexType: Mval.Unit.t -> MutexAttrDomain.t t
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | EvalMutexAttr: exp -> MutexAttrDomain.t t
   | EvalJumpBuf: exp -> JmpBufDomain.JmpBufSet.t t
@@ -345,7 +345,7 @@ struct
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
-      | Any (MutexType (v1,o1)), Any (MutexType (v2,o2)) -> [%ord: CilType.Varinfo.t * Lval.OffsetNoIdx.t] (v1,o1) (v2,o2)
+      | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
@@ -382,7 +382,7 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
-    | Any (MutexType (v,o)) -> 31*CilType.Varinfo.hash v + Lval.OffsetNoIdx.hash o
+    | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e

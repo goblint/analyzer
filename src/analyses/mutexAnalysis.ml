@@ -42,7 +42,7 @@ struct
         else
           (add v (current - 1) x, current - 1 = 0)
     end
-    
+
     module D = struct include Lattice.Prod(Lockset)(Multiplicity)
       let empty () = (Lockset.empty (), Multiplicity.empty ())
     end
@@ -71,7 +71,7 @@ struct
         include G0
         let name () = "readwrite"
       end
-      
+
       module Write =
       struct
         include G0
@@ -145,7 +145,7 @@ struct
     let add ctx (l:Mutexes.elt*bool) =
       let s,m = ctx.local in
       let s' = Lockset.add l s in
-      match Addr.to_var_offset (fst l) with
+      match Addr.to_mval (fst l) with
       | Some mval when MutexTypeAnalysis.must_be_recursive ctx mval ->
         (s', Multiplicity.increment (fst l) m)
       | _ -> (s', m)
@@ -154,7 +154,7 @@ struct
       let s, m = ctx.local in
       let rm s = Lockset.remove (l, true) (Lockset.remove (l, false) s) in
       if warn &&  (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex which may not be held";
-      match Addr.to_var_offset l with
+      match Addr.to_mval l with
       | Some mval when MutexTypeAnalysis.must_be_recursive ctx mval ->
         let m',rmed = Multiplicity.decrement l m in
         if rmed then
@@ -195,17 +195,6 @@ struct
     num_mutexes := 0;
     sum_protected := 0
 
-  let rec conv_offset_inv = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, conv_offset_inv o)
-    | `Index (i, o) ->
-      let i_exp =
-        match ValueDomain.IndexDomain.to_int i with
-        | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> Lval.any_index_exp
-      in
-      `Index (i_exp, conv_offset_inv o)
-
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let ls, m = ctx.local in
     (* get the set of mutexes protecting the variable v in the given mode *)
@@ -241,15 +230,15 @@ struct
     | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
       let ls = Mutexes.fold (fun addr ls ->
-          match Addr.to_var_offset addr with
-          | Some (var, offs) -> Queries.LS.add (var, conv_offset_inv offs) ls
+          match Addr.to_mval addr with
+          | Some (var, offs) -> Queries.LS.add (var, Addr.Offs.to_exp offs) ls
           | None -> ls
         ) held_locks (Queries.LS.empty ())
       in
       ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ls) in
-      Mutexes.mem (LockDomain.Addr.from_var LF.verifier_atomic_var) held_locks
+      Mutexes.mem (LockDomain.Addr.of_var LF.verifier_atomic_var) held_locks
     | Queries.MustProtectedVars {mutex = m; write} ->
       let protected = GProtected.get ~write Strong (G.protected (ctx.global (V.protected m))) in
       VarSet.fold (fun v acc ->
@@ -336,7 +325,7 @@ struct
       let on_lvals ls =
         let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
         let f (var, offs) =
-          let coffs = Lval.CilLval.to_ciloffs offs in
+          let coffs = Offset.Exp.to_cil offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
             old_access None (Some coffs)
           else

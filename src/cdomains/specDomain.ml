@@ -2,7 +2,7 @@
 
 open Batteries
 
-module D = LvalMapDomain
+module D = MvalMapDomain
 
 
 module Val =
