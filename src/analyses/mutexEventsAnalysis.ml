@@ -18,17 +18,9 @@ struct
   include UnitAnalysis.Spec
   let name () = "mutexEvents"
 
-
-  (* Currently we care only about concrete indexes. *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
+  (* TODO: Use AddressDomain for queries *)
   let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
+    let gather_addr (v,o) b = ValueDomain.Addr.of_mval (v, Addr.Offs.of_exp o) :: b in
     match a.f (Queries.MayPointTo exp) with
     | a when Queries.LS.is_top a ->
       [Addr.UnknownPtr]
@@ -65,12 +57,12 @@ struct
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Unlock (LockDomain.Addr.from_var LF.verifier_atomic_var))
+      ctx.emit (Events.Unlock (LockDomain.Addr.of_var LF.verifier_atomic_var))
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Lock (LockDomain.Addr.from_var LF.verifier_atomic_var, true))
+      ctx.emit (Events.Lock (LockDomain.Addr.of_var LF.verifier_atomic_var, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x = x in

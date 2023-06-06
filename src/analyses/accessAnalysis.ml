@@ -142,7 +142,7 @@ struct
           ctx.sideg ctx.node (G.singleton access)
         | ls ->
           let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Lval.CilLval.to_ciloffs offs in
+              let coffs = Offset.Exp.to_cil offs in
               let access: AccessDomain.Event.t =
                 if CilType.Varinfo.equal var dummyFunDec.svar then
                   {var_opt = None; offs_opt = (Some coffs); kind}
