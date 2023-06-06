@@ -12,7 +12,7 @@ For building Clang you need to install some dependencies:
  - [ ] There are two alternatives for getting the repository
 
 For creating all the checks by yourself clone the **Official Clang Repository**:
-`git clone https://github.com/llvm/llvm-project.git`
+`git clone https://github.com/llvm/llvm-project.git` (Tested with Version 17.0.0)
 Alternatively you can clone the **Fork** with all the additional checks ready:
 `git clone https://github.com/J2000A/llvm-project.git`
 
