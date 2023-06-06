@@ -239,13 +239,15 @@ let add side e voffs =
   let ty = get_val_type e voffs in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
-  match voffs with
-  | Some (v, o) -> add_struct side ty (Some (v, remove_idx o))
-  | None ->
-    (* 8 test(s) failed: ["02/69 ipmi-struct-blob-fixpoint", "04/33 kernel_rc", "04/34 kernel_nr", "04/39 rw_lock_nr", "04/40 rw_lock_rc", "04/44 malloc_sound", "04/45 escape_rc", "04/46 escape_nr"] *)
-    add_struct side ty None;
-    if not (!unsound && isArithmeticType (type_from_type_offset ty)) then
-      add_propagate side ty
+  let voffs' = 
+    match voffs with
+    | Some (v, o) -> Some (v, remove_idx o)
+    | None -> None
+  in
+  add_struct side ty voffs';
+  (* TODO: maybe this should not depend on whether voffs = None? *)
+  if voffs = None && not (!unsound && isArithmeticType (type_from_type_offset ty)) then
+    add_propagate side ty
 
 let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
