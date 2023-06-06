@@ -1904,7 +1904,6 @@ struct
 
   (*
   
-  
   module CVal =
     struct
       include C
@@ -1921,8 +1920,44 @@ struct
     let is_write_only t = true
     let s x = `Left x
   end*)
-  module G = S.G
-  (*GMapG (S.G) (S.C)*)
+
+  module C_ = 
+  struct
+    include S.C
+    include Printable.Std (* To make it Groupable *)
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    
+  end 
+  
+  module type FundecType = 
+  sig
+    type t = fundec
+
+    val getFundec: t -> fundec
+    (* Define any other values or types exposed by the module *)
+  end
+
+  module Fundec (F:fundec) : FundecType = 
+  struct
+    let getFundec = F
+    let fname = F.fname
+  end
+  
+  (* Tuple of fundec and S.C*)
+  module T = (*Todo: is this Printable.S or S.C*)
+  struct 
+    include Printable.Std
+    type t = (fundec * S.C.t)
+
+    let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
+    let show () = " "
+  end
+
+  (* Set of Tuples*)
+  module TSet = SetDomain.Make (T) 
+
+  module G = S.G(*Lattice.Lift2 (S.G) (MapDomain.MapBot (C_) (TSet)) (Printable.DefaultNames) (*TODO: does MapBot fit?*)*)
+    (*GMapG (S.G) (S.C)*)
   (*struct
     include Lattice.Prod (S.G) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
