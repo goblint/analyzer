@@ -2,7 +2,7 @@ open IntOps
 open GoblintCil
 module VDQ = ValueDomainQueries
 
-type domain = TrivialDomain | PartitionedDomain | UnrolledDomain | NullByteDomain
+type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
 val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
 (** gets the underlying domain: chosen by the attributes in AttributeConfiguredArrayDomain *)
@@ -10,8 +10,7 @@ val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
 val can_recover_from_top: domain -> bool
 (** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
 
-(** Abstract domains representing arrays. *)
-module type S =
+module type SMinusDomain =
 sig
   include Lattice.S
   type idx
@@ -19,9 +18,6 @@ sig
 
   type value
   (** The abstract domain of values stored in the array. *)
-
-  val domain_of_t: t -> domain
-  (* Returns the domain used for the array*)
 
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
@@ -58,17 +54,26 @@ sig
   val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> VDQ.t -> t -> t
 end
 
+(** Abstract domains representing arrays. *)
+module type S =
+sig
+  include SMinusDomain
+
+  val domain_of_t: t -> domain
+  (* Returns the domain used for the array*)
+end
+
 (** Abstract domains representing strings a.k.a. null-terminated char arrays. *)
 module type Str =
 sig
-  include S
+  include SMinusDomain
 
   val to_string: t -> t
   (** Returns an abstract value with at most one null byte marking the end of the string *)
 
   val to_n_string: t -> int -> t
-  (** [to_n_string index_set n no_null_warn] returns an abstract value with a potential null 
-    * byte marking the end of the string and if needed followed by further null bytes to obtain 
+  (** [to_n_string index_set n] returns an abstract value with a potential null byte
+    * marking the end of the string and if needed followed by further null bytes to obtain 
     * an n bytes string. *)
 
   val to_string_length: t -> idx
@@ -93,6 +98,14 @@ sig
     * only compares the first [n] bytes if present *)
 end
 
+module type StrWithDomain =
+sig
+  include Str
+
+  val domain_of_t: t -> domain
+  (* Returns the domain used for the array*)
+end
+
 module type LatticeWithSmartOps =
 sig
   include Lattice.S
@@ -103,7 +116,7 @@ end
 
 module type LatticeWithNull =
 sig
-  include Lattice.S
+  include LatticeWithSmartOps
   val null: unit -> t
   val not_null: unit -> t
   val is_null: t -> bool
@@ -129,7 +142,7 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type va
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module NullByte (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
+module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): SMinusDomain with type value = Val.t and type idx = Idx.t
 (** This functor creates an array representation by the indexes of all null bytes
   * the array must and may contain. This is useful to analyze strings, i.e. null-
   * terminated char arrays, and particularly to determine if operations on strings 
@@ -137,6 +150,8 @@ module NullByte (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t a
   * for this domain. It additionally tracks the array size.
 *)
 
-module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
-(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag.
-  * Always runs NullByte in parallel. *)
+module FlagHelperAttributeConfiguredArrayDomain (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t
+(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
+
+module AttributeConfiguredArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.Z): StrWithDomain with type value = Val.t and type idx = Idx.t
+(** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte in parallel. *)

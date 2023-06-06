@@ -35,6 +35,10 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
+  val null: unit -> t
+  val not_null: unit -> t
+  val is_null: t -> bool
+
   val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
 end
@@ -85,6 +89,8 @@ module rec Compound: S with type t = [
     | `Thread of Threads.t
     | `JmpBuf of JmpBufs.t
     | `Mutex
+    | `NullByte
+    | `NotNullByte
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
 struct
@@ -100,6 +106,8 @@ struct
     | `Thread of Threads.t
     | `JmpBuf of JmpBufs.t
     | `Mutex
+    | `NullByte
+    | `NotNullByte
     | `Bot
   ] [@@deriving eq, ord, hash]
 
@@ -153,6 +161,8 @@ struct
     | `Thread x -> Threads.is_bot x
     | `JmpBuf x -> JmpBufs.is_bot x
     | `Mutex -> true
+    | `NullByte -> true (* TODO: is this correct? *)
+    | `NotNullByte -> true (* TODO: is this correct? *)
     | `Bot -> true
     | `Top -> false
 
@@ -203,6 +213,8 @@ struct
     | `Thread x -> Threads.is_top x
     | `JmpBuf x -> JmpBufs.is_top x
     | `Mutex -> true
+    | `NullByte -> true
+    | `NotNullByte -> true
     | `Top -> true
     | `Bot -> false
 
@@ -233,7 +245,7 @@ struct
     | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `JmpBuf _ -> "JmpBuf" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Mutex -> "Mutex" | `NullByte -> "NullByte" | `NotNullByte -> "NotNullByte" | `JmpBuf _ -> "JmpBuf" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -248,6 +260,10 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
+  let null () = `NullByte
+  let not_null () = `NotNullByte
+  let is_null x = x = `NullByte
+
   let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
@@ -260,6 +276,8 @@ struct
     | `Thread n -> Threads.pretty () n
     | `JmpBuf n -> JmpBufs.pretty () n
     | `Mutex -> text "mutex"
+    | `NullByte -> text "null-byte"
+    | `NotNullByte -> text "not-null-byte"
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -275,6 +293,8 @@ struct
     | `Thread n -> Threads.show n
     | `JmpBuf n -> JmpBufs.show n
     | `Mutex -> "mutex"
+    | `NullByte -> "null-byte"
+    | `NotNullByte -> "not-null-byte"
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -1131,6 +1151,8 @@ struct
     | `Thread n -> Threads.printXml f n
     | `JmpBuf n -> JmpBufs.printXml f n
     | `Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
+    | `NullByte -> BatPrintf.fprintf f "<value>\n<data>\nnull-byte\n</data>\n</value>\n"
+    | `NotNullByte -> BatPrintf.fprintf f "<value>\n<data>\nnot-null-byte\n</data>\n</value>\n"
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 
@@ -1145,6 +1167,8 @@ struct
     | `Thread n -> Threads.to_yojson n
     | `JmpBuf n -> JmpBufs.to_yojson n
     | `Mutex -> `String "mutex"
+    | `NullByte -> `String "null-byte"
+    | `NotNullByte -> `String "not-null-byte"
     | `Bot -> `String "⊥"
     | `Top -> `String "⊤"
 
@@ -1198,6 +1222,8 @@ struct
     | `Thread n -> `Thread (Threads.relift n)
     | `JmpBuf n -> `JmpBuf (JmpBufs.relift n)
     | `Mutex -> `Mutex
+    | `NullByte -> `NullByte
+    | `NotNullByte -> `NotNullByte
     | `Bot -> `Bot
     | `Top -> `Top
 end
@@ -1208,7 +1234,7 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
+and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
 

@@ -540,6 +540,8 @@ struct
     | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
     | `JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | `Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
+    | `NullByte -> empty (* TODO: is this correct? *)
+    | `NotNullByte -> empty (* TODO: is this correct? *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
@@ -682,6 +684,8 @@ struct
         | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | `JmpBuf _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | `Mutex -> (empty, TS.bot (), false) (* TODO: is this right? *)
+        | `NullByte -> (empty, TS.bot (), false) (* TODO: is this right? *)
+        | `NotNullByte -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
     in
@@ -2059,19 +2063,6 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     let desc = LF.find f in
-    let memory_copying dst src =
-      let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
-                    |> AD.get_type in
-      (* when src and destination type coincide, take value from the source, otherwise use top *)
-      let value = if typeSig dest_typ = typeSig src_typ then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
-          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
-        else
-          VD.top_value (unrollType dest_typ)
-      in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value in
     (* for string functions *)
     let eval_n = function
       (* if only n characters of a given string are needed, evaluate expression n to an integer option *) 
@@ -2087,24 +2078,41 @@ struct
       (* do nothing if all characters are needed *)
       | _ -> None 
     in
-    let string_manipulation s1 s2 lv all op =
+    let string_manipulation s1 s2 lv all op_addr op_array =
       let s1_a, s1_typ = addr_type_of_exp s1 in 
       let s2_a, s2_typ = addr_type_of_exp s2 in
-      match lv, op with
-      | Some lv_val, Some f ->
-        (* when whished types coincide, compute result of operation op, otherwise use top *)
-        let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
-        let lv_typ = Cilfacade.typeOfLval lv_val in
-        if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-          lv_a, lv_typ, (f s1_a s2_a)
-        else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-          lv_a, lv_typ, (f s1_a s2_a)
-        else
-          lv_a, lv_typ, (VD.top_value (unrollType lv_typ))
-      | _ ->
-        (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
-        let _ = AD.string_writing_defined s1_a in
-        s1_a, s1_typ, VD.top_value (unrollType s1_typ)
+      (* compute value in string literals domain if s1 and s2 are both string literals *)
+      if AD.get_type s1_a = charPtrType && AD.get_type s2_a = charPtrType then
+        begin match lv, op_addr with
+          | Some lv_val, Some f ->
+          (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
+          let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+          let lv_typ = Cilfacade.typeOfLval lv_val in
+          if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
+            lv_a, lv_typ, (f s1_a s2_a)
+          else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
+            lv_a, lv_typ, (f s1_a s2_a)
+          else
+            lv_a, lv_typ, (VD.top_value (unrollType lv_typ))
+          | _ ->
+            (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
+            let _ = AD.string_writing_defined s1_a in
+            s1_a, s1_typ, VD.top_value (unrollType s1_typ)
+        end
+      (* else compute value in array domain *)
+      else 
+        let eval_dst = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
+        let eval_src = eval_rv (Analyses.ask_of_ctx ctx) gs st s2 in
+        match eval_dst, eval_src with
+        | `Array array_dst, `Array array_src -> 
+          begin match lv with
+            | Some lv_val -> 
+              let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
+              let lv_typ = Cilfacade.typeOfLval lv_val in
+              lv_a, lv_typ, op_array array_dst array_src
+            | None -> s1_a, s1_typ, op_array array_dst array_src
+          end
+        | _ -> s1_a, s1_typ, VD.top_value (unrollType s1_typ)
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
@@ -2126,26 +2134,23 @@ struct
       let value = VD.zero_init_value dest_typ in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Memcpy { dest = dst; src }, _ ->
-      memory_copying dst src
-    (* strcpy(dest, src); *)
-    | Strcpy { dest = dst; src; n = None }, _ ->
       let dest_a, dest_typ = addr_type_of_exp dst in
-      (* when dest surely isn't a string literal, try copying src to dest *)
-      if AD.string_writing_defined dest_a then
-        memory_copying dst src
-      else
-        (* else return top (after a warning was issued) *)
-        set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ (VD.top_value (unrollType dest_typ))
-    (* strncpy(dest, src, n); *)
+      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
+      let src_typ = eval_lv (Analyses.ask_of_ctx ctx) gs st src_lval
+                    |> AD.get_type in
+      (* when src and destination type coincide, take value from the source, otherwise use top *)
+      let value = if typeSig dest_typ = typeSig src_typ then
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          eval_rv (Analyses.ask_of_ctx ctx) gs st (Lval src_cast_lval)
+        else
+          VD.top_value (unrollType dest_typ)
+      in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strcpy { dest = dst; src; n }, _ ->
-      begin match eval_n n with
-        | Some num ->
-          let dest_a, dest_typ, value = string_manipulation dst src None false None in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | None -> failwith "already handled in case above"
-      end
+      let dest_a, dest_typ, value = string_manipulation dst src None false None (fun ar1 ar2 -> `Array(CArrays.string_copy ar1 ar2 (eval_n n))) in
+      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strcat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ, value = string_manipulation dst src None false None in 
+      let dest_a, dest_typ, value = string_manipulation dst src None false None (fun ar1 ar2 -> `Array(CArrays.string_concat ar1 ar2 (eval_n n))) in 
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strlen s, _ ->
       begin match lv with 
@@ -2154,7 +2159,16 @@ struct
           let dest_typ = Cilfacade.typeOfLval lv_val in
           let lval = mkMem ~addr:(Cil.stripCasts s) ~off:NoOffset in
           let address = eval_lv (Analyses.ask_of_ctx ctx) gs st lval in
-          let value = `Int(AD.to_string_length address) in
+          let value = 
+            (* if s string literal, compute strlen in string literals domain *)
+            if AD.get_type address = charPtrType then
+              `Int(AD.to_string_length address)
+            (* else compute strlen in array domain *)
+            else
+              begin match eval_rv (Analyses.ask_of_ctx ctx) gs st s with
+                | `Array array_s -> `Int(CArrays.to_string_length array_s)
+                | _ -> VD.top_value (unrollType dest_typ)
+              end in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
       end
@@ -2164,7 +2178,8 @@ struct
           (* when haystack, needle and dest type coincide, check if needle is a substring of haystack: 
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
-          let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> `Address(AD.substring_extraction h_a n_a))) in
+          let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> `Address(AD.substring_extraction h_a n_a)))
+            (fun h_ar n_ar -> `Array(CArrays.substring_extraction h_ar n_ar)) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
       end
@@ -2172,7 +2187,8 @@ struct
       begin match lv with
         | Some _ ->
           (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
-          let dest_a, dest_typ, value = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> `Int(AD.string_comparison s1_a s2_a (eval_n n)))) in
+          let dest_a, dest_typ, value = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> `Int(AD.string_comparison s1_a s2_a (eval_n n))))
+            (fun s1_ar s2_ar -> `Int(CArrays.string_comparison s1_ar s2_ar (eval_n n))) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
       end
