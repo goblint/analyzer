@@ -96,17 +96,17 @@ struct
       (* must use original (pre-assign, etc) ctx queries *)
       let conf = 110 in
       let module LS = Queries.LS in
-      let part_access (vo:varinfo option) (oo: offset option): MCPAccess.A.t =
+      let part_access (vo:varinfo option): MCPAccess.A.t =
         (*partitions & locks*)
         Obj.obj (octx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
       in
       let loc = Option.get !Node.current_node in
-      let add_access conf vo oo =
-        let a = part_access vo oo in
-        Access.add (side_access octx (conf, kind, loc, e, a)) e vo oo;
+      let add_access conf voffs =
+        let a = part_access (Option.map fst voffs) in
+        Access.add (side_access octx (conf, kind, loc, e, a)) e voffs;
       in
       let add_access_struct conf ci =
-        let a = part_access None None in
+        let a = part_access None in
         Access.add_struct (side_access octx (conf, kind, loc, e, a)) (`Struct (ci,`NoOffset)) None
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
@@ -119,9 +119,9 @@ struct
         let f (var, offs) =
           let coffs = Lval.CilLval.to_ciloffs offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
-            add_access conf None (Some coffs)
+            add_access conf None
           else
-            add_access conf (Some var) (Some coffs)
+            add_access conf (Some (var, coffs))
         in
         LS.iter f ls
       in
@@ -148,7 +148,7 @@ struct
           end;
           on_lvals ls !includes_uk
         | _ ->
-          add_access (conf - 60) None None
+          add_access (conf - 60) None
       end;
       ctx.local
     | _ ->

@@ -133,13 +133,12 @@ let get_type fb e =
 
 
 
-let get_val_type e (vo: varinfo option) (oo: offset option) : acc_typ =
+let get_val_type e (voffs: (varinfo * offset) option) : acc_typ =
   match Cilfacade.typeOf e with
   | t ->
-    begin match vo, oo with
-      | Some v, Some o -> get_type t (AddrOf (Var v, o))
-      | Some v, None -> get_type t (AddrOf (Var v, NoOffset))
-      | _ -> get_type t e
+    begin match voffs with
+      | Some (v, o) -> get_type t (AddrOf (Var v, o))
+      | None -> get_type t e
     end
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
@@ -236,6 +235,18 @@ let add_propagate side ty =
     (* TODO: not tested *)
     List.iter (just_vars t) vars
 
+let add side e voffs =
+  let ty = get_val_type e voffs in
+  (* let loc = !Tracing.current_loc in *)
+  (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
+  match voffs with
+  | Some (v, o) -> add_struct side ty (Some (v, remove_idx o))
+  | None ->
+    (* 8 test(s) failed: ["02/69 ipmi-struct-blob-fixpoint", "04/33 kernel_rc", "04/34 kernel_nr", "04/39 rw_lock_nr", "04/40 rw_lock_rc", "04/44 malloc_sound", "04/45 escape_rc", "04/46 escape_nr"] *)
+    add_struct side ty None;
+    if not (!unsound && isArithmeticType (type_from_type_offset ty)) then
+      add_propagate side ty
+
 let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
   (* f (mkAddrOf lv); *)
@@ -311,18 +322,6 @@ and distribute_access_type f = function
   | TEnum _
   | TBuiltin_va_list _ ->
     ()
-
-let add side e vo oo =
-  let ty = get_val_type e vo oo in
-  (* let loc = !Tracing.current_loc in *)
-  (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
-  match vo, oo with
-  | Some v, Some o -> add_struct side ty (Some (v, remove_idx o))
-  | _ ->
-    (* 8 test(s) failed: ["02/69 ipmi-struct-blob-fixpoint", "04/33 kernel_rc", "04/34 kernel_nr", "04/39 rw_lock_nr", "04/40 rw_lock_rc", "04/44 malloc_sound", "04/45 escape_rc", "04/46 escape_nr"] *)
-    add_struct side ty None;
-    if not (!unsound && isArithmeticType (type_from_type_offset ty)) then
-      add_propagate side ty
 
 
 (* Access table as Lattice. *)
