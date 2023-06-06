@@ -208,29 +208,30 @@ let add_propagate side ty =
     | `Field (_, os) -> only_fields os
     | `Index _ -> false
   in
-  let struct_inv (f:offs) (fi:fieldinfo) =
-    let vars = TH.find_all typeVar (TComp (fi.fcomp,[])) in
+  let struct_inv (f:offs) (c:compinfo) =
+    let vars = TH.find_all typeVar (TComp (c,[])) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    let add_vars v = add_struct side (`Struct (fi.fcomp, f)) (Some (v, f)) in
+    let add_vars v = add_struct side (`Struct (c, f)) (Some (v, f)) in
     List.iter add_vars vars;
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    add_struct side (`Struct (fi.fcomp, f)) None;
+    add_struct side (`Struct (c, f)) None;
   in
   let just_vars t v =
     add_struct side (`Type t) (Some (v, `NoOffset));
   in
   match ty with
   | `Struct (c, (`Field (fi, _) as os)) when only_fields os ->
+    assert (CilType.Compinfo.equal c fi.fcomp);
     (* ignore (printf "  * type is a struct\n"); *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    struct_inv os fi 
+    struct_inv os c 
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
     let incl = TH.find_all typeIncl t in
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi) incl;
+    List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
     let vars = TH.find_all typeVar t in
     (* TODO: not tested *)
     List.iter (just_vars t) vars
