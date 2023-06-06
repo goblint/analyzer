@@ -1,8 +1,20 @@
+(** Domains for offsets and lvalues. *)
+
 open GoblintCil
 open Pretty
 
-module GU = Goblintutil
 module M = Messages
+
+(** Special index expression for some unknown index.
+    Weakly updates array in assignment.
+    Used for exp.fast_global_inits. *)
+let any_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "any_index")
+
+(** Special index expression for all indices.
+    Strongly updates array in assignment.
+    Used for Goblint-specific witness invariants. *)
+let all_index_exp = CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index")
+
 
 type ('a, 'b) offs = [
   | `NoOffset
@@ -256,8 +268,17 @@ struct
   let to_string = function
     | StrPtr (Some x) -> Some x
     | _        -> None
-  let to_n_string n = function
-    | StrPtr (Some x) -> 
+  (* only keep part before first null byte *)
+  let to_c_string = function
+    | StrPtr (Some x) ->
+      begin match String.split_on_char '\x00' x with
+        | s::_ -> Some s
+        | [] -> None
+      end
+    | _ -> None
+  let to_n_c_string n x = 
+    match to_c_string x with
+    | Some x -> 
       if n > String.length x then
         Some x
       else if n < 0 then
@@ -265,8 +286,9 @@ struct
       else
         Some (String.sub x 0 n)
     | _ -> None
-  let to_string_length = function
-    | StrPtr (Some x) -> Some (String.length x)
+  let to_string_length x = 
+    match to_c_string x with
+    | Some x -> Some (String.length x)
     | _ -> None
 
   (* exception if the offset can't be followed completely *)
@@ -443,32 +465,38 @@ struct
   end
 end
 
-(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
-module NormalLatRepr (Idx: IntDomain.Z) =
-struct
-  include NormalLat (Idx)
-
+(* Helper for offsets without abstract values for index offsets, i.e. with unit index offsets.*)
+module NoIdxOffsetBase = struct
   module UnitIdxDomain =
   struct
     include Lattice.Unit
     let equal_to _ _ = `Top
     let to_int _ = None
   end
+
+  let rec of_offs = function
+    | `NoOffset -> `NoOffset
+    | `Field (f,o) -> `Field (f, of_offs o)
+    | `Index (i,o) -> `Index (UnitIdxDomain.top (), of_offs o)
+end
+
+(** Lvalue lattice with sublattice representatives for {!DisjointDomain}. *)
+module NormalLatRepr (Idx: IntDomain.Z) =
+struct
+  include NormalLat (Idx)
+
   (** Representatives for lvalue sublattices as defined by {!NormalLat}. *)
   module R: DisjointDomain.Representative with type elt = t =
   struct
     type elt = t
+    open NoIdxOffsetBase
 
     (* Offset module for representative without abstract values for index offsets, i.e. with unit index offsets.
        Reason: The offset in the representative (used for buckets) should not depend on the integer domains,
        since different integer domains may be active at different program points. *)
     include Normal (UnitIdxDomain)
 
-    let rec of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs =
-      function
-      | `NoOffset -> `NoOffset
-      | `Field (f,o) -> `Field (f, of_elt_offset o)
-      | `Index (_,o) -> `Index (UnitIdxDomain.top (), of_elt_offset o) (* all indices to same bucket *)
+    let of_elt_offset: (fieldinfo, Idx.t) offs -> (fieldinfo, UnitIdxDomain.t) offs = of_offs
 
     let of_elt (x: elt): t = match x with
       | Addr (v, o) -> Addr (v, of_elt_offset o) (* addrs grouped by var and part of offset *)
@@ -595,7 +623,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
+    | `Index (e,o) when CilType.Exp.equal e any_index_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
@@ -627,4 +655,12 @@ struct
       let show = show
     end
     )
+end
+
+module OffsetNoIdx =
+struct
+  include NoIdxOffsetBase
+  include Offset(UnitIdxDomain)
+
+  let name () = "offset without index"
 end

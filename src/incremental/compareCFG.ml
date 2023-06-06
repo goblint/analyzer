@@ -1,3 +1,5 @@
+(** Comparison of CFGs. *)
+
 open MyCFG
 open Queue
 open GoblintCil

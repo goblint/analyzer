@@ -1,3 +1,5 @@
+(** Analysis of unescaped (i.e. thread-local) heap locations ([mallocFresh]). *)
+
 open GoblintCil
 open Analyses
 
