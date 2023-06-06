@@ -1,4 +1,3 @@
-// SKIP
 #include<stdlib.h>
 #include<pthread.h>
 #include<goblint.h>
@@ -10,7 +9,7 @@ int *p = &g;
 
 void *thread1(void *pp){
 	int x = 23;
-	__goblint_check(x == 23);
+	__goblint_check(x == 23); //TODO
 	p = &x;
 	sleep(2);
 	__goblint_check(x == 23); //UNKNOWN!

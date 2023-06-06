@@ -61,6 +61,8 @@ struct
       D.mem v ctx.local
     | _ -> Queries.Result.top q
 
+  let global_var = Cil.dummyFunDec.svar
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
@@ -73,7 +75,10 @@ struct
       if ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
         emit_escaped ctx escaped;
       D.iter (fun v ->
-          ctx.sideg v escaped;
+          if v.vglob then
+            ctx.sideg global_var escaped
+          else
+            ctx.sideg v escaped
         ) vs;
       D.join ctx.local escaped
     )
@@ -100,7 +105,8 @@ struct
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
       emit_escaped ctx escaped;
-      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
+      let escaped_to_global = ctx.global global_var in
+      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (escaped_to_global) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
       [D.join ctx.local (D.join escaped extra)]
     | _ -> [ctx.local]
 
