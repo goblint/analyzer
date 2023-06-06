@@ -40,6 +40,12 @@ struct
 
   let name () = "threadid"
 
+  let context fd ((n,current,td) as d) =
+    if GobConfig.get_bool "ana.thread.context.create-edges" then
+      d
+    else
+      (n, current, TD.bot ())
+
   let startstate v = (N.bot (), ThreadLifted.bot (), TD.bot ())
   let exitstate  v = (N.bot (), `Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 

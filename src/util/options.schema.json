@@ -989,8 +989,21 @@
               "description": "Number of unique thread IDs allocated for each pthread_create node.",
               "type": "integer",
               "default": 0
+            },
+            "context": {
+              "title": "ana.thread.context",
+              "type": "object",
+              "properties": {
+                "create-edges": {
+                  "title": "ana.thread.context.create-edges",
+                  "description": "threadID analysis: Encountered create edges in context.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
-          },
+        },
           "additionalProperties": false
         },
         "race": {
