@@ -1542,6 +1542,9 @@ struct
   let update_length new_size (must_nulls_set, may_nulls_set, size) = (must_nulls_set, may_nulls_set, new_size)
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
+
+  (* TODO: what am I supposed to do here? *)
+  let invariant ~value_invariant ~offset ~lval x = failwith "TODO"
 end
 
 module FlagHelperAttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -1702,4 +1705,6 @@ struct
 
   let update_length newl (t_f, t_n) = (F.update_length newl t_f, N.update_length newl t_n)
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (F.project ask t_f, N.project ask t_n)
+  (* TODO: what should I do here? *)
+  let invariant ~value_invariant ~offset ~lval x = failwith "TODO"
 end

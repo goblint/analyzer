@@ -1,3 +1,5 @@
+(** Mutex attribute type domain. *)
+
 module MutexKind =
 struct
   include Printable.StdLeaf
