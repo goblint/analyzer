@@ -991,7 +991,7 @@ struct
       if Z.gt i max then
         true
       else if MustNulls.mem i must_nulls_set then
-        all_indexes_must_null (Z.add i Z.one) max
+        all_indexes_must_null (Z.succ i) max
       else
         false in
     let min interval = match Idx.minimal interval with
@@ -1044,7 +1044,7 @@ struct
       if Z.gt i max then
         may_nulls_set
       else
-        add_indexes (Z.add i Z.one) max (MayNulls.add i may_nulls_set) in
+        add_indexes (Z.succ i) max (MayNulls.add i may_nulls_set) in
     let min interval = match Idx.minimal interval with
       | Some min_num ->
         if Z.lt min_num Z.zero then
@@ -1114,7 +1114,7 @@ struct
           if Z.equal min_i Z.zero && Z.geq max_i max_size then
             MayNulls.top ()
           else if Z.geq max_i max_size then
-            add_indexes min_i (Z.sub max_size Z.one) may_nulls_set
+            add_indexes min_i (Z.pred max_size) may_nulls_set
           else
             add_indexes min_i max_i may_nulls_set in
 
@@ -1129,7 +1129,7 @@ struct
         (* ... and there is no maximal size, modify may_nulls_set to top *)
         | None -> (must_nulls_set, MayNulls.top (), size)
         (* ..., add all i from minimal index to maximal size to may_nulls_set *)
-        | Some max_size -> (must_nulls_set, add_indexes min_i (Z.sub max_size Z.one) may_nulls_set, size)
+        | Some max_size -> (must_nulls_set, add_indexes min_i (Z.pred max_size) may_nulls_set, size)
       (* ... and value <> null, only keep indexes < minimal index in must_nulls_set *)
       else
         (MustNulls.filter (Z.gt min_i) must_nulls_set, may_nulls_set, size)
@@ -1208,17 +1208,17 @@ struct
       let min_must_null = MustNulls.min_elt must_nulls_set in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
       if Z.equal min_must_null (MayNulls.min_elt may_nulls_set) then
-        (MustNulls.singleton min_must_null, MayNulls.singleton min_must_null, Idx.of_int !Cil.kindOfSizeOf (Z.add min_must_null Z.one))
+        (MustNulls.singleton min_must_null, MayNulls.singleton min_must_null, Idx.of_int !Cil.kindOfSizeOf (Z.succ min_must_null))
       (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
       else
-        (MustNulls.empty (), MayNulls.filter (Z.geq min_must_null) may_nulls_set, Idx.of_int !Cil.kindOfSizeOf (Z.add min_must_null Z.one))
+        (MustNulls.empty (), MayNulls.filter (Z.geq min_must_null) may_nulls_set, Idx.of_int !Cil.kindOfSizeOf (Z.succ min_must_null))
 
   let to_n_string (must_nulls_set, may_nulls_set, size) n =
     let rec add_indexes i max set =
       if Z.geq i max then
         set
       else
-        add_indexes (Z.add i Z.one) max (MayNulls.add i set) in
+        add_indexes (Z.succ i) max (MayNulls.add i set) in
     let update_must_indexes min_must_null must_nulls_set =
       if Z.equal min_must_null Z.zero then
         MustNulls.bot ()
