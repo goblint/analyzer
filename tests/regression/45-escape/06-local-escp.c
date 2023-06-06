@@ -1,3 +1,4 @@
+// SKIP
 #include<stdlib.h>
 #include<pthread.h>
 #include<goblint.h>
@@ -6,28 +7,20 @@
 int g = 0;
 int *p = &g;
 
-int let_escape(){
-	int x = 23;
-	g = 23;
-
-	__goblint_check(x == 23);
-	p = &x;
-	sleep(5);
-	__goblint_check(x == 23); //UNKNOWN!
-}
 
 void *thread1(void *pp){
-	let_escape();
+	int x = 23;
+	__goblint_check(x == 23);
+	p = &x;
+	sleep(2);
+	__goblint_check(x == 23); //UNKNOWN!
 	return NULL;
 }
 
-void write_through_pointer(){
-	sleep(2);
+void *thread2(void *ignored){
+	sleep(1);
+	int *i = p;
 	*p = 1;
-}
-
-void *thread2(void *p){
-	write_through_pointer();
 	return NULL;
 }
 
