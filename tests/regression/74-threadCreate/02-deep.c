@@ -1,4 +1,4 @@
-// PARAM: --disable ana.thread.context.create-edges --set ana.activated[+] threadCreateEdges
+// PARAM: --disable ana.thread.context.create-edges
 #include <goblint.h>
 #include <pthread.h>
 
@@ -49,7 +49,7 @@ void create5 () {
 }
 
 int main() {
-  
+
   pthread_t id;
   pthread_create(&id, NULL, t_INIT, NULL);
 
