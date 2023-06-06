@@ -143,10 +143,9 @@ let get_val_type e (vo: varinfo option) (oo: offset option) : acc_typ =
     end
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
-let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
+let add_one side (ty:acc_typ) (lv:(varinfo*offs) option): unit =
   if is_ignorable lv then () else begin
-    let loc = Option.get !Node.current_node in
-    side ty lv (conf, kind, loc, e, a)
+    side ty lv
   end
 
 exception Type_offset_error
@@ -168,7 +167,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
+let add_struct side (ty:acc_typ) (lv: (varinfo * offs) option): unit =
   let rec dist_fields ty : offs list =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -193,17 +192,17 @@ let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (va
       | t -> 
         let oss = dist_fields t in
         (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
-        List.iter (fun os -> add_one side e kind conf (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
+        List.iter (fun os -> add_one side (`Struct (s,addOffs os2 os)) (add_lv os)) oss
       | exception Type_offset_error ->
-        add_one side e kind conf ty lv a
+        add_one side ty lv
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one side e kind conf ty lv a
+    add_one side ty lv
 
-let add_propagate side e kind conf ty a =
+let add_propagate side ty =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -214,13 +213,13 @@ let add_propagate side e kind conf ty a =
     let vars = TH.find_all typeVar (TComp (fi.fcomp,[])) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
+    let add_vars v = add_struct side (`Struct (fi.fcomp, f)) (Some (v, f)) in
     List.iter add_vars vars;
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    add_struct side e kind conf (`Struct (fi.fcomp, f)) None a;
+    add_struct side (`Struct (fi.fcomp, f)) None;
   in
   let just_vars t v =
-    add_struct side e kind conf (`Type t) (Some (v, `NoOffset)) a;
+    add_struct side (`Type t) (Some (v, `NoOffset));
   in
   match ty with
   | `Struct (c, (`Field (fi, _) as os)) when only_fields os ->
@@ -313,17 +312,17 @@ and distribute_access_type f = function
   | TBuiltin_va_list _ ->
     ()
 
-let add side e kind conf vo oo a =
+let add side e vo oo =
   let ty = get_val_type e vo oo in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
   match vo, oo with
-  | Some v, Some o -> add_struct side e kind conf ty (Some (v, remove_idx o)) a
+  | Some v, Some o -> add_struct side ty (Some (v, remove_idx o))
   | _ ->
     (* 8 test(s) failed: ["02/69 ipmi-struct-blob-fixpoint", "04/33 kernel_rc", "04/34 kernel_nr", "04/39 rw_lock_nr", "04/40 rw_lock_rc", "04/44 malloc_sound", "04/45 escape_rc", "04/46 escape_nr"] *)
-    add_struct side e kind conf ty None a;
+    add_struct side ty None;
     if not (!unsound && isArithmeticType (type_from_type_offset ty)) then
-      add_propagate side e kind conf ty a
+      add_propagate side ty
 
 
 (* Access table as Lattice. *)

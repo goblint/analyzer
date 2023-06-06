@@ -59,7 +59,7 @@ struct
     | None ->
       ()
 
-  let side_access ctx ty lv_opt (conf, w, loc, e, a) =
+  let side_access ctx (conf, w, loc, e, a) ty lv_opt =
     let ty =
       if Option.is_some lv_opt then
         `Type Cil.voidType (* avoid unsound type split for alloc variables *)
@@ -100,13 +100,14 @@ struct
         (*partitions & locks*)
         Obj.obj (octx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
       in
+      let loc = Option.get !Node.current_node in
       let add_access conf vo oo =
         let a = part_access vo oo in
-        Access.add (side_access octx) e kind conf vo oo a;
+        Access.add (side_access octx (conf, kind, loc, e, a)) e vo oo;
       in
       let add_access_struct conf ci =
         let a = part_access None None in
-        Access.add_struct (side_access octx) e kind conf (`Struct (ci,`NoOffset)) None a
+        Access.add_struct (side_access octx (conf, kind, loc, e, a)) (`Struct (ci,`NoOffset)) None
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
