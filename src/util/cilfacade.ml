@@ -33,6 +33,10 @@ let rec isVLAType t =
     variable_len || isVLAType et
   | _ -> false
 
+let is_first_field x = match x.fcomp.cfields with
+  | [] -> false
+  | f :: _ -> CilType.Fieldinfo.equal f x
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
