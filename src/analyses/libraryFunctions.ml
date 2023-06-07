@@ -1053,6 +1053,10 @@ let invalidate_actions = [
     "__goblint_assume_join", readsAll;
   ]
 
+let () = List.iter (fun (x, _) ->
+    if Hashtbl.exists (fun _ b -> List.mem_assoc x b) libraries then 
+      failwith ("You have added a function to invalidate_actions that already exists in libraries. Please undo this for function: " ^ x);
+  ) invalidate_actions
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
