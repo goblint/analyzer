@@ -2,3 +2,4 @@ testGit/*
 testGitDif/*
 cJSON/*
 cil.c
+zlib/*
