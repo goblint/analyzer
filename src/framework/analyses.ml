@@ -120,6 +120,82 @@ struct
 end
 
 
+module C_ (C: Printable.S)= 
+  struct
+    include C
+    include Printable.Std (* To make it Groupable *)
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    
+  end 
+
+(* Tuple of fundec and S.C*)
+module T (Base1: Printable.S) (Base2: Printable.S) (C: Printable.S) = (*Todo: is this Printable.S or S.C*)
+struct 
+  include Printable.Std
+  type t = (CilType.Fundec.t * C.t)
+
+  let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
+  let show (a,b) = (Base1.show a) ^ (Base2.show b) 
+  let name () = "Tuple"
+  let to_yojson x = `String (show x)
+  let relift (a,b) = (a,b) (*Todo: is this correct?*)
+  let printXml f (a,b) = Base1.printXml f a (*Todo: what do we have to put here?*)
+  let compare (a1,b1) (a2,b2) = 3 (*Todo: what do we have to put here?*)
+  (*let a = Base1.compare a1 a2 in
+  let b = Base2.compare b1 b2 in
+  *)
+  let pretty () (a,b) = Base1.pretty () a(*Todo: what do we have to put here?*)
+
+  let hash (a,b) = 2 (*Todo: what do we have to put here?*)
+    
+end
+
+module GVarGG (G: Lattice.S) (C: Printable.S) =
+  struct
+    module CSet =
+    struct
+      include SetDomain.Make (
+        struct
+          include (T (CilType.Fundec) (C) (C)) (* Set of Tuples*)
+          end
+        )
+      let name () = "contexts"
+    end
+
+    module CMap = 
+    struct
+      include MapDomain.MapBot (C_ (C)) (CSet)
+      let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* TODO *)
+      let printXml_ f c = BatPrintf.fprintf f "<value>%a</value>" CSet.printXml c (* TODO *)
+    end
+
+    include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
+
+    let spec = function
+      | `Bot -> G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "GVarGG.spec"
+    let contexts = function
+      | `Bot -> CSet.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "GVarGG.contexts"
+    let create_spec spec = `Lifted1 spec
+    let create_contexts contexts = `Lifted2 contexts
+
+    let printXml f = function
+      | `Lifted1 x -> G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CMap.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+  
+    let s = function (*TODO: does this work? copied from DeadBranch*)
+      | `Bot -> G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "RecursionTerm.s"
+
+    let create_s s = `Lifted1 s (*TODO: does this work? copied from DeadBranch*)
+  end
+
+
 module GMapG (G: Lattice.S) (C: Printable.S) =
 struct
   module CVal =

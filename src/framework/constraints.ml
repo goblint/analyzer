@@ -1887,48 +1887,21 @@ end
 (** Add cycle detection in the function call graph to a analysis *)
 module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
-        and module G = S.G
         and module C = S.C
+        and module G = GVarGG (S.G) (S.C)
 =
 
 struct
   module C = S.C
   module P = S.P
   module D = S.D
-
-  (*global invariant
-     - fundec -> Map (S.C) (Set (fundec * S.C)) 
-    So:   g   -> {c' -> f, c} 
-    in case f, c --> g, c'  *)
-
-  (*
-  
-  module CVal =
-    struct
-      include C
-      include Printable.Std (* To make it Groupable *)
-      let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
-    end
-  module M = MapDomain.MapBot (CVal) (CVal)
-*)
-
-  module V = GVarF(S.V)
-  (*(*TODO: do I need to change V???*)
-  struct
-    include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
-    let name () = "RecursionTerm"
-    let is_write_only t = true
-    let s x = `Left x
+      (*GMapG (S.G) (S.C)*)
+  (*struct
+    include Lattice.Prod (S.G) (M)
+    let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
   end*)
 
-  module C_ = 
-  struct
-    include S.C
-    include Printable.Std (* To make it Groupable *)
-    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
     
-  end 
-  
   (*module type FundecType = 
   sig
     type t = fundec
@@ -1942,29 +1915,45 @@ struct
     let getFundec = F
     let fname = F.fname
   end*)
+  (*
   
-  (* Tuple of fundec and S.C*)
-  module T = (*Todo: is this Printable.S or S.C*)
-  struct 
-    include Printable.Std
-    type t = (fundec * S.C.t)
-
-    let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
-    let show (a, b) = a.fname ^ b.vname
-    let name () = "Tuple"
-    let to_yojson x = `String (show x)
-  end
-
-  (* Set of Tuples*)
-  module TSet = SetDomain.Make (T) 
-
-  module G = S.G(*Lattice.Lift2 (S.G) (MapDomain.MapBot (C_) (TSet)) (Printable.DefaultNames) (*TODO: does MapBot fit?*)*)
-    (*GMapG (S.G) (S.C)*)
-  (*struct
-    include Lattice.Prod (S.G) (M)
-    let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
+  module CVal =
+    struct
+      include C
+      include Printable.Std (* To make it Groupable *)
+      let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    end
+  module M = MapDomain.MapBot (CVal) (CVal)
+*) (*(*TODO: do I need to change V???*)
+  struct
+    include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
+    let name () = "RecursionTerm"
+    let is_write_only t = true
+    let s x = `Left x
+  end*)
+  (*include Lattice.Lift2 (S.G) (MapDomain.MapBot (C_) (TSet)) (Printable.DefaultNames) (*TODO: does MapBot fit?*)
+    let s = function
+    | `Bot -> S.G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "RecursionTerm.s"
   end*)
 
+
+  module V = 
+  struct
+    include GVarF(S.V)
+    let s x = `Left x
+  end
+
+
+  (*global invariant
+     - fundec -> Map (S.C) (Set (fundec * S.C)) 
+    So:   g   -> {c' -> f, c} 
+    in case f, c --> g, c'  *)
+
+  module G = GVarGG (S.G) (S.C)
+  
+  
   let name () = "RecursionTerm (" ^ S.name () ^ ")"
 
   type marshal = S.marshal
@@ -1981,7 +1970,8 @@ struct
     if !AnalysisState.postsolving then
       sideg (f) (G.create_contexts (G.CSet.singleton c))*)
 
-  let conv (ctx: (_, _, _, V.t) ctx): (_, _, _, S.V.t) ctx = (*TODO Change the body*)
+  (*TODO Change the body??*)
+  let conv (ctx: (_, _, _, V.t) ctx): (_, _, _, S.V.t) ctx = 
     { ctx with
       global = (fun v -> G.s (ctx.global (V.s v)));
       sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
