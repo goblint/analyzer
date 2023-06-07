@@ -257,6 +257,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strsep", unknown [drop "stringp" [r_deep; w]; drop "delim" [r]]);
     ("strcasestr", unknown [drop "haystack" [r]; drop "needle" [r]]);
     ("inet_aton", unknown [drop "cp" [r]; drop "inp" [w]]);
+    ("fopencookie", unknown [drop "cookie" []; drop "mode" [r]; drop "io_funcs" [s_deep]]); (* doesn't access cookie but passes it to io_funcs *)
   ]
 
 let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
