@@ -55,45 +55,29 @@ let reset () =
   TH.clear typeIncl
 
 
-type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
-
-let rec remove_idx : offset -> offs  = function
-  | NoOffset    -> `NoOffset
-  | Index (_,o) -> `Index (remove_idx o)
-  | Field (f,o) -> `Field (f, remove_idx o)
-
-let rec addOffs os1 os2 : offs =
-  match os1 with
-  | `NoOffset -> os2
-  | `Index os -> `Index (addOffs os os2)
-  | `Field (f,os) -> `Field (f, addOffs os os2)
-
-let rec d_offs () : offs -> doc = function
-  | `NoOffset -> nil
-  | `Index o -> dprintf "[?]%a" d_offs o
-  | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
+type offs = Offset.Unit.t [@@deriving eq, ord, hash]
 
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord, hash]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
-  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o
+  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname Offset.Unit.pretty o
 
 let d_memo () (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o CilType.Location.pretty v.vdecl
+  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
   | None       -> dprintf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) ->
     let rec f htyp =
       match htyp with
-      | TComp (ci,_) -> `Struct (ci,remove_idx o)
+      | TComp (ci,_) -> `Struct (ci, Offset.Unit.of_cil o)
       | TNamed (ti,_) -> f ti.ttype
       | _ -> `Type fb
     in
     begin match o with
-      | Field (f, on) -> `Struct (f.fcomp, remove_idx o)
+      | Field (f, on) -> `Struct (f.fcomp, Offset.Unit.of_cil o)
       | NoOffset | Index _ ->
         begin match h with
           | Var v -> f (v.vtype)
@@ -142,7 +126,7 @@ let get_val_type e (voffs: (varinfo * offset) option) : acc_typ =
     end
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
-let add_one side (ty:acc_typ) (lv:(varinfo*offs) option): unit =
+let add_one side (ty:acc_typ) (lv:Mval.Unit.t option): unit =
   if is_ignorable lv then () else begin
     side ty lv
   end
@@ -156,17 +140,17 @@ let type_from_type_offset : acc_typ -> typ = function
       match unrollType t with
       | TPtr (t,_) -> t  (*?*)
       | TArray (t,_,_) -> t
-      | _ -> raise Type_offset_error (* indexing non-pointer type *) 
+      | _ -> raise Type_offset_error (* indexing non-pointer type *)
     in
     let rec type_from_offs (t,o) =
       match o with
       | `NoOffset -> t
-      | `Index os -> type_from_offs (deref t, os)
+      | `Index ((), os) -> type_from_offs (deref t, os)
       | `Field (f,os) -> type_from_offs (f.ftype, os)
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (ty:acc_typ) (lv: (varinfo * offs) option): unit =
+let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
   let rec dist_fields ty : offs list =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -178,20 +162,20 @@ let add_struct side (ty:acc_typ) (lv: (varinfo * offs) option): unit =
       in
       List.concat_map one_field ci.cfields
     | TArray (t,_,_) ->
-      List.map (fun x -> `Index x) (dist_fields t)
+      List.map (fun x -> `Index ((), x)) (dist_fields t)
     | _ -> [`NoOffset]
   in
   match ty with
   | `Struct (s,os2) ->
     let add_lv os = match lv with
-      | Some (v, os1) -> Some (v, addOffs os1 os)
+      | Some (v, os1) -> Some (v, Offset.Unit.add_offset os1 os)
       | None -> None
     in
     begin match type_from_type_offset ty with
-      | t -> 
+      | t ->
         let oss = dist_fields t in
         (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
-        List.iter (fun os -> add_one side (`Struct (s,addOffs os2 os)) (add_lv os)) oss
+        List.iter (fun os -> add_one side (`Struct (s, Offset.Unit.add_offset os2 os)) (add_lv os)) oss
       | exception Type_offset_error ->
         add_one side ty lv
     end
@@ -203,11 +187,6 @@ let add_struct side (ty:acc_typ) (lv: (varinfo * offs) option): unit =
 
 let add_propagate side ty =
   (* ignore (printf "%a:\n" d_exp e); *)
-  let rec only_fields = function
-    | `NoOffset -> true
-    | `Field (_, os) -> only_fields os
-    | `Index _ -> false
-  in
   let struct_inv (f:offs) (c:compinfo) =
     let vars = TH.find_all typeVar (TComp (c,[])) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
@@ -221,11 +200,11 @@ let add_propagate side ty =
     add_struct side (`Type t) (Some (v, `NoOffset));
   in
   match ty with
-  | `Struct (c, (`Field (fi, _) as os)) when only_fields os ->
+  | `Struct (c, (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) ->
     assert (CilType.Compinfo.equal c fi.fcomp);
     (* ignore (printf "  * type is a struct\n"); *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    struct_inv os c 
+    struct_inv os c
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
@@ -240,9 +219,9 @@ let add side e voffs =
   let ty = get_val_type e voffs in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
-  let voffs' = 
+  let voffs' =
     match voffs with
-    | Some (v, o) -> Some (v, remove_idx o)
+    | Some (v, o) -> Some (v, Offset.Unit.of_cil o)
     | None -> None
   in
   add_struct side ty voffs';
@@ -373,21 +352,7 @@ struct
     end
     )
 end
-module O =
-struct
-  include Printable.StdLeaf
-  type t = offs [@@deriving eq, ord, hash]
-
-  let name () = "offs"
-
-  let pretty = d_offs
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
-end
+module O = Offset.Unit
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 

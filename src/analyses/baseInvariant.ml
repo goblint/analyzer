@@ -18,7 +18,7 @@ sig
   val eval_rv: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
   val eval_rv_address: Queries.ask -> (V.t -> G.t) -> D.t -> exp -> VD.t
   val eval_lv: Queries.ask -> (V.t -> G.t) -> D.t -> lval -> AD.t
-  val convert_offset: Queries.ask -> (V.t -> G.t) -> D.t -> offset -> (fieldinfo, ID.t) Lval.offs
+  val convert_offset: Queries.ask -> (V.t -> G.t) -> D.t -> offset -> ID.t Offset.t
 
   val get_var: Queries.ask -> (V.t -> G.t) -> D.t -> varinfo -> VD.t
   val get: Queries.ask -> (V.t -> G.t) -> D.t -> AD.t -> exp option -> VD.t
@@ -686,7 +686,7 @@ struct
         begin match c_typed with
           | Int c ->
             let c' = match t with
-              | TPtr _ -> VD.Address (AD.of_int (module ID) c)
+              | TPtr _ -> VD.Address (AD.of_int c)
               | TInt (ik, _)
               | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ik c)
               | TFloat (fk, _) -> Float (FD.of_int fk c)
