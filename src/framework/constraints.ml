@@ -1883,19 +1883,7 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 *) 
-
-(** Add cycle detection in the function call graph to a analysis *)
-module RecursionTermLifter (S: Spec)
-  : Spec with module D = S.D
-        and module C = S.C
-        and module G = GVarGG (S.G) (S.C)
-=
-
-struct
-  module C = S.C
-  module P = S.P
-  module D = S.D
-      (*GMapG (S.G) (S.C)*)
+   (*GMapG (S.G) (S.C)*)
   (*struct
     include Lattice.Prod (S.G) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
@@ -1938,7 +1926,18 @@ struct
     | _ -> failwith "RecursionTerm.s"
   end*)
 
+(** Add cycle detection in the function call graph to a analysis *)
+module RecursionTermLifter (S: Spec)
+  : Spec with module D = S.D
+        and module C = S.C
+        and module G = GVarGG (S.G) (S.C)
+=
 
+struct
+  module C = S.C
+  module P = S.P
+  module D = S.D
+   
   module V = 
   struct
     include GVarF(S.V)

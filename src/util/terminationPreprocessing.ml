@@ -35,6 +35,7 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          | Loop (b, loc, eloc, _, _) ->
          let name = "term"^show_location_id loc in
          let typ = Cil.intType in 
+         (* NOT tested for TODOOOOO*)
          let v = (Cil.makeLocalVar fd name typ) in
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
