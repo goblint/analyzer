@@ -25,24 +25,24 @@ let is_ignorable = function
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
 
-module TH = Hashtbl.Make (CilType.Typ)
+module TSH = Hashtbl.Make (CilType.Typsig)
 
-let typeVar  = TH.create 101
-let typeIncl = TH.create 101
+let typeVar  = TSH.create 101
+let typeIncl = TSH.create 101
 let unsound = ref false
 
 let init (f:file) =
   unsound := get_bool "ana.mutex.disjoint_types";
   let visited_vars = Hashtbl.create 100 in
   let visit_field fi =
-    TH.add typeIncl fi.ftype fi
+    TSH.add typeIncl (typeSig fi.ftype) fi
   in
   let visit_glob = function
     | GCompTag (c,_) ->
       List.iter visit_field c.cfields
     | GVarDecl (v,_) | GVar (v,_,_) ->
       if not (Hashtbl.mem visited_vars v.vid) then begin
-        TH.add typeVar v.vtype v;
+        TSH.add typeVar (typeSig v.vtype) v;
         (* ignore (printf "init adding %s : %a" v.vname d_typsig ((typeSig v.vtype))); *)
         Hashtbl.replace visited_vars v.vid true
       end
@@ -51,8 +51,8 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 let reset () =
-  TH.clear typeVar;
-  TH.clear typeIncl
+  TSH.clear typeVar;
+  TSH.clear typeIncl
 
 
 type offs = Offset.Unit.t [@@deriving eq, ord, hash]
@@ -74,6 +74,7 @@ module Memo =
 struct
   include Printable.StdLeaf
   type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] * Offset.Unit.t [@@deriving eq, ord, hash]
+  (* TODO: use typsig for `Type? *)
 
   let name () = "memo"
 
@@ -219,7 +220,7 @@ let add_struct side memo: unit =
 let add_propagate side (memo: Memo.t) =
   (* ignore (printf "%a:\n" d_exp e); *)
   let struct_inv (f:offs) (c:compinfo) =
-    let vars = TH.find_all typeVar (TComp (c,[])) in
+    let vars = TSH.find_all typeVar (typeSig (TComp (c,[]))) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
     let add_vars v = add_struct side (`Var v, f) in
@@ -239,10 +240,10 @@ let add_propagate side (memo: Memo.t) =
   | (`Type _, _) ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = Memo.type_of memo in
-    let incl = TH.find_all typeIncl t in
+    let incl = TSH.find_all typeIncl (typeSig t) in
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
-    let vars = TH.find_all typeVar t in
+    let vars = TSH.find_all typeVar (typeSig t) in
     (* TODO: not tested *)
     List.iter (just_vars t) vars
   | (`Var _, _) -> assert false
