@@ -216,7 +216,7 @@ let add_struct side memo: unit =
   | _ ->
     add_one side memo
 
-let add_propagate side ty =
+let add_propagate side (memo: Memo.t) =
   (* ignore (printf "%a:\n" d_exp e); *)
   let struct_inv (f:offs) (c:compinfo) =
     let vars = TH.find_all typeVar (TComp (c,[])) in
@@ -230,21 +230,22 @@ let add_propagate side ty =
   let just_vars t v =
     add_struct side (`Var v, `NoOffset);
   in
-  match ty with
-  | `Struct (c, (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) ->
+  match memo with
+  | (`Type (TComp (c, _)), (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
     assert (CilType.Compinfo.equal c fi.fcomp);
     (* ignore (printf "  * type is a struct\n"); *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
     struct_inv os c
-  | _ ->
+  | (`Type _, _) ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
-    let t = type_from_type_offset ty in
+    let t = Memo.type_of memo in
     let incl = TH.find_all typeIncl t in
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
     let vars = TH.find_all typeVar t in
     (* TODO: not tested *)
     List.iter (just_vars t) vars
+  | (`Var _, _) -> assert false
 
 let add side e voffs =
   let ty = get_val_type e voffs in
@@ -258,8 +259,8 @@ let add side e voffs =
   let memo = Memo.of_lv_ty voffs' ty in
   add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
-  if voffs = None && not (!unsound && isArithmeticType (type_from_type_offset ty)) then
-    add_propagate side ty
+  if voffs = None && not (!unsound && isArithmeticType (Memo.type_of memo)) then
+    add_propagate side memo
 
 let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
