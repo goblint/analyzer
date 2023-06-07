@@ -127,7 +127,10 @@ struct
   let threadenter ctx lval f args =
     match args with
     | [ptc_arg] ->
-      [ctx.local]
+      let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      emit_escape_event ctx escaped;
+      [D.join ctx.local escaped]
     | _ -> [ctx.local]
 
   let threadspawn ctx lval f args fctx =
