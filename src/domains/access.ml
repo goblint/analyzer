@@ -68,6 +68,28 @@ let d_memo () (t, lv) =
   | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
   | None       -> dprintf "%a" d_acct t
 
+module Memo =
+struct
+  include Printable.StdLeaf
+  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] * Offset.Unit.t [@@deriving eq, ord, hash]
+
+  let name () = "memo"
+
+  let pretty () (vt, o) =
+    (* Imitate old printing for now *)
+    match vt with
+    | `Var v -> Pretty.dprintf "%a%a@@%a" CilType.Varinfo.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
+    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)%a" c.cname Offset.Unit.pretty o
+    | `Type t -> Pretty.dprintf "(%a)%a" CilType.Typ.pretty t Offset.Unit.pretty o
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
 let rec get_type (fb: typ) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) ->
     let rec f htyp =
@@ -127,9 +149,14 @@ let get_val_type e (voffs: (varinfo * offset) option) : acc_typ =
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
 let add_one side (ty:acc_typ) (lv:Mval.Unit.t option): unit =
-  if is_ignorable lv then () else begin
-    side ty lv
-  end
+  if not (is_ignorable lv) then (
+    let memo: Memo.t = match lv, ty with
+      | Some (v, o), _ -> (`Var v, o)
+      | None, `Struct (c, o) -> (`Type (TComp (c, [])), o)
+      | None, `Type t -> (`Type t, `NoOffset)
+    in
+    side memo
+  )
 
 exception Type_offset_error
 
@@ -416,7 +443,7 @@ let race_conf accs =
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
+let incr_summary safe vulnerable unsafe _ grouped_accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
   let safety =
     grouped_accs
@@ -431,7 +458,7 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) grouped_accs =
+let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
@@ -455,15 +482,15 @@ let print_accesses (lv, ty) grouped_accs =
           else
             Info
         in
-        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" Memo.pretty memo conf (msgs accs);
         safe_accs
     ) (AS.empty ())
   |> (fun safe_accs ->
       if allglobs && not (AS.is_empty safe_accs) then
-        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
+        M.msg_group Success ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
-let warn_global safe vulnerable unsafe g accs =
+let warn_global safe vulnerable unsafe memo accs =
   let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
-  incr_summary safe vulnerable unsafe g grouped_accs;
-  print_accesses g grouped_accs
+  incr_summary safe vulnerable unsafe memo grouped_accs;
+  print_accesses memo grouped_accs

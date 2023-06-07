@@ -15,27 +15,26 @@ struct
      1. (lval, type) -> accesses  --  used for warnings
      2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
 
-  module V0 = Printable.Prod (Access.LVOpt) (Access.T)
   module V =
   struct
-    include Printable.Either (V0) (CilType.Varinfo)
+    include Printable.Either (Access.Memo) (CilType.Varinfo)
     let name () = "race"
     let access x = `Left x
     let vars x = `Right x
     let is_write_only _ = true
   end
 
-  module V0Set = SetDomain.Make (V0)
+  module MemoSet = SetDomain.Make (Access.Memo)
   module G =
   struct
-    include Lattice.Lift2 (Access.AS) (V0Set) (Printable.DefaultNames)
+    include Lattice.Lift2 (Access.AS) (MemoSet) (Printable.DefaultNames)
 
     let access = function
       | `Bot -> Access.AS.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "Race.access"
     let vars = function
-      | `Bot -> V0Set.bot ()
+      | `Bot -> MemoSet.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "Race.vars"
     let create_access access = `Lifted1 access
@@ -51,24 +50,18 @@ struct
     vulnerable := 0;
     unsafe := 0
 
-  let side_vars ctx lv_opt ty =
-    match lv_opt with
-    | Some (v, _) ->
+  let side_vars ctx memo =
+    match memo with
+    | (`Var v, _) ->
       if !AnalysisState.should_warn then
-        ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
-    | None ->
+        ctx.sideg (V.vars v) (G.create_vars (MemoSet.singleton memo))
+    | _ ->
       ()
 
-  let side_access ctx (conf, w, loc, e, a) ty lv_opt =
-    let ty =
-      if Option.is_some lv_opt then
-        `Type Cil.voidType (* avoid unsound type split for alloc variables *)
-      else
-        ty
-    in
+  let side_access ctx (conf, w, loc, e, a) memo =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
-    side_vars ctx lv_opt ty
+      ctx.sideg (V.access memo) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
+    side_vars ctx memo
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -78,14 +71,14 @@ struct
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let accs = G.access (ctx.global g) in
-          let (lv, ty) = g' in
-          let mem_loc_str = GobPretty.sprint Access.d_memo (ty, lv) in
-          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe g') accs
+          let memo = g' in
+          let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
         | `Right _ -> (* vars *)
           ()
       end
     | IterSysVars (Global g, vf) ->
-      V0Set.iter (fun v ->
+      MemoSet.iter (fun v ->
           vf (Obj.repr (V.access v))
         ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
