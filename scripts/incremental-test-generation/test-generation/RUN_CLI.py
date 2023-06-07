@@ -10,7 +10,7 @@ from util.generate_tests import generate_tests
 from util.run_tests import run_tests
 from generators.generate_mutations import add_mutation_options, get_mutations_from_args
 
-logo = '''Use -h to see the command line options
+logo = '''Use [-h] to see the command line options
 
          __  __       _        _   _                    
         |  \/  |     | |      | | (_)                   
@@ -157,7 +157,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
     else:
         key_path = None
 
-    if ml_count == None:
+    if enable_ml and ml_count == None:
         while True:
             ml_count = questionary.text('How many different programs should be generated with ML?', default=str(DEFAULT_ML_COUNT)).ask()
             if not ml_count.strip('\n').isdigit():
