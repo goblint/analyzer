@@ -25,22 +25,24 @@ let is_ignorable = function
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
 
-let typeVar  = Hashtbl.create 101
-let typeIncl = Hashtbl.create 101
+module TSH = Hashtbl.Make (CilType.Typsig)
+
+let typeVar  = TSH.create 101
+let typeIncl = TSH.create 101
 let unsound = ref false
 
 let init (f:file) =
   unsound := get_bool "ana.mutex.disjoint_types";
   let visited_vars = Hashtbl.create 100 in
   let visit_field fi =
-    Hashtbl.add typeIncl (typeSig fi.ftype) fi
+    TSH.add typeIncl (typeSig fi.ftype) fi
   in
   let visit_glob = function
     | GCompTag (c,_) ->
       List.iter visit_field c.cfields
     | GVarDecl (v,_) | GVar (v,_,_) ->
       if not (Hashtbl.mem visited_vars v.vid) then begin
-        Hashtbl.add typeVar (typeSig v.vtype) v;
+        TSH.add typeVar (typeSig v.vtype) v;
         (* ignore (printf "init adding %s : %a" v.vname d_typsig ((typeSig v.vtype))); *)
         Hashtbl.replace visited_vars v.vid true
       end
@@ -49,8 +51,8 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 let reset () =
-  Hashtbl.clear typeVar;
-  Hashtbl.clear typeIncl
+  TSH.clear typeVar;
+  TSH.clear typeIncl
 
 
 type offs = Offset.Unit.t [@@deriving eq, ord, hash]
@@ -218,7 +220,7 @@ let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
 let add_propagate side ty =
   (* ignore (printf "%a:\n" d_exp e); *)
   let struct_inv (f:offs) (c:compinfo) =
-    let vars = Hashtbl.find_all typeVar (typeSig (TComp (c,[]))) in
+    let vars = TSH.find_all typeVar (typeSig (TComp (c,[]))) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
     let add_vars v = add_struct side (`Struct (c, f)) (Some (v, f)) in
@@ -238,10 +240,10 @@ let add_propagate side ty =
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
-    let incl = Hashtbl.find_all typeIncl (typeSig t) in
+    let incl = TSH.find_all typeIncl (typeSig t) in
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
-    let vars = Hashtbl.find_all typeVar (typeSig t) in
+    let vars = TSH.find_all typeVar (typeSig t) in
     (* TODO: not tested *)
     List.iter (just_vars t) vars
 
