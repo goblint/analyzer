@@ -177,13 +177,6 @@ let add_one side memo: unit =
   if not (is_ignorable mv) then
     side memo
 
-
-let type_from_type_offset : acc_typ -> typ = function
-  | `Type t -> t
-  | `Struct (s,o) ->
-    try Offset.Unit.type_of ~base:(TComp (s, [])) o
-    with Offset.Type_of_error _ -> raise Type_offset_error
-
 let add_struct side memo: unit =
   let rec dist_fields ty : offs list =
     match unrollType ty with
