@@ -203,7 +203,7 @@ let add_propagate side e kind conf ty ls a =
   in
   add_struct side e kind conf ty None a;
   match ty with
-  | `Struct (c,os) when Offset.Unit.contains_index os && os <> `NoOffset ->
+  | `Struct (c,os) when not (Offset.Unit.contains_index os) && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
     struct_inv  os
   | _ ->
