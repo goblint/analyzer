@@ -68,6 +68,8 @@ let d_memo () (t, lv) =
   | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
   | None       -> dprintf "%a" d_acct t
 
+exception Type_offset_error
+
 module Memo =
 struct
   include Printable.StdLeaf
@@ -100,6 +102,14 @@ struct
     | (`Type _, _) -> None
 
   let add_offset ((vt, o): t) o2: t = (vt, Offset.Unit.add_offset o o2)
+
+  let type_of ((vt, o): t): typ =
+    let base = match vt with
+      | `Var v -> v.vtype
+      | `Type t -> t
+    in
+    try Offset.Unit.type_of ~base o
+    with Offset.Type_of_error _ -> raise Type_offset_error
 end
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
@@ -165,7 +175,6 @@ let add_one side memo: unit =
   if not (is_ignorable mv) then
     side memo
 
-exception Type_offset_error
 
 let type_from_type_offset : acc_typ -> typ = function
   | `Type t -> t
@@ -189,18 +198,15 @@ let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
     | _ -> [`NoOffset]
   in
   let memo = Memo.of_lv_ty lv ty in
-  match ty with
-  | `Struct _ ->
-    begin match type_from_type_offset ty with
-      | t ->
-        let oss = dist_fields t in
-        (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
-        List.iter (fun os ->
-            add_one side (Memo.add_offset memo os)
-          ) oss
-      | exception Type_offset_error ->
-        add_one side memo
-    end
+  match Memo.type_of memo with
+  | TComp _ as t -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
+    let oss = dist_fields t in
+    (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
+    List.iter (fun os ->
+        add_one side (Memo.add_offset memo os)
+      ) oss
+  | exception Type_offset_error -> (* TODO: previously was only in `Struct case, others fell back to unsound case too *)
+    add_one side memo
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
