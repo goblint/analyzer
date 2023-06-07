@@ -11,7 +11,7 @@ struct
 
   module Unit: Printable with type t = unit =
   struct
-    include Lattice.Unit
+    include Lattice.UnitConf (struct let name = "?" end)
     let name () = "unit index"
     let equal_to _ _ = `Top
     let to_int _ = None
