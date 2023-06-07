@@ -98,6 +98,8 @@ struct
   let to_mval: t -> Mval.Unit.t option = function
     | (`Var v, o) -> Some (v, o)
     | (`Type _, _) -> None
+
+  let add_offset ((vt, o): t) o2: t = (vt, Offset.Unit.add_offset o o2)
 end
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
@@ -168,19 +170,8 @@ exception Type_offset_error
 let type_from_type_offset : acc_typ -> typ = function
   | `Type t -> t
   | `Struct (s,o) ->
-    let deref t =
-      match unrollType t with
-      | TPtr (t,_) -> t  (*?*)
-      | TArray (t,_,_) -> t
-      | _ -> raise Type_offset_error (* indexing non-pointer type *)
-    in
-    let rec type_from_offs (t,o) =
-      match o with
-      | `NoOffset -> t
-      | `Index ((), os) -> type_from_offs (deref t, os)
-      | `Field (f,os) -> type_from_offs (f.ftype, os)
-    in
-    unrollType (type_from_offs (TComp (s, []), o))
+    try Offset.Unit.type_of ~base:(TComp (s, [])) o
+    with Offset.Type_of_error _ -> raise Type_offset_error
 
 let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
   let rec dist_fields ty : offs list =
@@ -197,29 +188,24 @@ let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
       List.map (fun x -> `Index ((), x)) (dist_fields t)
     | _ -> [`NoOffset]
   in
+  let memo = Memo.of_lv_ty lv ty in
   match ty with
-  | `Struct (s,os2) ->
-    let add_lv os = match lv with
-      | Some (v, os1) ->
-        assert (Offset.Unit.equal os1 os2);
-        Some (v, Offset.Unit.add_offset os1 os)
-      | None -> None
-    in
+  | `Struct _ ->
     begin match type_from_type_offset ty with
       | t ->
         let oss = dist_fields t in
         (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
         List.iter (fun os ->
-            add_one side (Memo.of_lv_ty (add_lv os) (`Struct (s, Offset.Unit.add_offset os2 os)) )
+            add_one side (Memo.add_offset memo os)
           ) oss
       | exception Type_offset_error ->
-        add_one side (Memo.of_lv_ty lv ty)
+        add_one side memo
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one side (Memo.of_lv_ty lv ty)
+    add_one side memo
 
 let add_propagate side ty =
   (* ignore (printf "%a:\n" d_exp e); *)
