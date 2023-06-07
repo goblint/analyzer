@@ -9,7 +9,7 @@ import yaml
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Lock
 
-sys.path.append("..")
+sys.path.insert(0, "..")
 from util.util import *
 
 SEPERATOR_EXPLANATION_START = 'EXPLANATION>'

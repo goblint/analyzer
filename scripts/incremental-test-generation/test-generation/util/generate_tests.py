@@ -6,8 +6,7 @@ import shutil
 import subprocess
 import yaml
 import sys
-import datetime
-sys.path.append("..")
+sys.path.insert(0, "..")
 from util.util import *
 
 def generate_tests(temp_dir, target_dir, precision_test):

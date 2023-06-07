@@ -1,7 +1,6 @@
 from enum import Enum
 import shutil
 
-
 class Mutations:
     def __init__(self, rfb=False, uoi=False, ror=False, cr=False, rt=False, lcr=False):
         self.rfb = rfb
