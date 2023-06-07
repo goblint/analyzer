@@ -671,10 +671,7 @@ let invalidate_actions = [
     "_spin_lock", readsAll;(*safe*)
     "_spin_unlock", readsAll;(*safe*)
     "_spin_lock_irqsave", readsAll;(*safe*)
-    "_spin_unlock_irqrestore", readsAll;(*safe*)
-    "pthread_mutex_init", readsAll;(*safe*)
     "pthread_mutex_destroy", readsAll;(*safe*)
-    "pthread_mutexattr_settype", readsAll;(*safe*)
     "pthread_mutexattr_init", readsAll;(*safe*)
     "pthread_spin_init", readsAll;(*safe*)
     "pthread_spin_destroy", readsAll;(*safe*)
@@ -718,7 +715,6 @@ let invalidate_actions = [
     "getc", writesAll;(*unsafe*)
     "_IO_getc", writesAll;(*unsafe*)
     "closedir", writesAll;(*unsafe*)
-    "setrlimit", readsAll;(*safe*)
     "chdir", readsAll;(*safe*)
     "pipe", writesAll;(*unsafe*)
     "close", writesAll;(*unsafe*)
@@ -732,9 +728,6 @@ let invalidate_actions = [
     "pthread_attr_getstacksize", readsAll;(*safe*)
     "pthread_attr_getscope", readsAll;(*safe*)
     "pthread_cond_init", readsAll; (*safe*)
-    "pthread_cond_wait", readsAll; (*safe*)
-    "pthread_cond_signal", readsAll;(*safe*)
-    "pthread_cond_broadcast", readsAll;(*safe*)
     "pthread_cond_destroy", readsAll;(*safe*)
     "__pthread_cond_init", readsAll; (*safe*)
     "__pthread_cond_wait", readsAll; (*safe*)
@@ -747,7 +740,6 @@ let invalidate_actions = [
     "pthread_sigmask", writesAllButFirst 2 readsAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
-    "__builtin_object_size", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
@@ -827,7 +819,6 @@ let invalidate_actions = [
     "usleep", readsAll;
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
-    "__builtin_expect", readsAll; (*safe*)
     "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
@@ -852,7 +843,6 @@ let invalidate_actions = [
     "fgets", writes [1;3]; (*keep [3]*)
     "__fgets_alias", writes [1;3]; (*keep [3]*)
     "__fgets_chk", writes [1;3]; (*keep [3]*)
-    "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
     "strsignal", readsAll;
@@ -882,12 +872,10 @@ let invalidate_actions = [
     "sem_wait", readsAll; (*safe*)
     "sem_post", readsAll; (*safe*)
     "PL_NewHashTable", readsAll; (*safe*)
-    "__assert_fail", readsAll; (*safe*)
     "assert_failed", readsAll; (*safe*)
     "htonl", readsAll; (*safe*)
     "htons", readsAll; (*safe*)
     "ntohl", readsAll; (*safe*)
-    "htons", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
     "clock", readsAll;
@@ -908,15 +896,12 @@ let invalidate_actions = [
     "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
-    "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
     "__VERIFIER_nondet_int", readsAll; (* no args, declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     (* no args, declare invalidate actions to prevent invalidating globals *)
-    "__VERIFIER_atomic_begin", readsAll;
-    "__VERIFIER_atomic_end", readsAll;
     "isatty", readsAll;
     "setpriority", readsAll;
     "getpriority", readsAll;
@@ -927,42 +912,24 @@ let invalidate_actions = [
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
-    "acos", readsAll;
-    "acosf", readsAll;
     "acosh", readsAll;
     "acoshf", readsAll;
     "acoshl", readsAll;
-    "acosl", readsAll;
-    "asin", readsAll;
-    "asinf", readsAll;
     "asinh", readsAll;
     "asinhf", readsAll;
     "asinhl", readsAll;
-    "asinl", readsAll;
-    "atan", readsAll;
-    "atan2", readsAll;
-    "atan2f", readsAll;
-    "atan2l", readsAll;
-    "atanf", readsAll;
     "atanh", readsAll;
     "atanhf", readsAll;
     "atanhl", readsAll;
-    "atanl", readsAll;
     "cbrt", readsAll;
     "cbrtf", readsAll;
     "cbrtl", readsAll;
-    "ceil", readsAll;
-    "ceilf", readsAll;
-    "ceill", readsAll;
     "copysign", readsAll;
     "copysignf", readsAll;
     "copysignl", readsAll;
-    "cos", readsAll;
-    "cosf", readsAll;
     "cosh", readsAll;
     "coshf", readsAll;
     "coshl", readsAll;
-    "cosl", readsAll;
     "erf", readsAll;
     "erfc", readsAll;
     "erfcf", readsAll;
@@ -984,12 +951,6 @@ let invalidate_actions = [
     "fma", readsAll;
     "fmaf", readsAll;
     "fmal", readsAll;
-    "fmax", readsAll;
-    "fmaxf", readsAll;
-    "fmaxl", readsAll;
-    "fmin", readsAll;
-    "fminf", readsAll;
-    "fminl", readsAll;
     "fmod", readsAll;
     "fmodf", readsAll;
     "fmodl", readsAll;
@@ -1041,9 +1002,6 @@ let invalidate_actions = [
     "modf", readsAll;
     "modff", readsAll;
     "modfl", readsAll;
-    "nan", readsAll;
-    "nanf", readsAll;
-    "nanl", readsAll;
     "nearbyint", readsAll;
     "nearbyintf", readsAll;
     "nearbyintl", readsAll;
@@ -1074,21 +1032,15 @@ let invalidate_actions = [
     "scalbn", readsAll;
     "scalbnf", readsAll;
     "scalbnl", readsAll;
-    "sin", readsAll;
-    "sinf", readsAll;
     "sinh", readsAll;
     "sinhf", readsAll;
     "sinhl", readsAll;
-    "sinl", readsAll;
     "sqrt", readsAll;
     "sqrtf", readsAll;
     "sqrtl", readsAll;
-    "tan", readsAll;
-    "tanf", readsAll;
     "tanh", readsAll;
     "tanhf", readsAll;
     "tanhl", readsAll;
-    "tanl", readsAll;
     "tgamma", readsAll;
     "tgammaf", readsAll;
     "tgammal", readsAll;
