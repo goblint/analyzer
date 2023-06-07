@@ -61,7 +61,7 @@ struct
   let side_effect_escape ctx escaped threadid =
     let threadid = G.singleton threadid in
     D.iter (fun v ->
-      ctx.sideg v threadid) escaped
+        ctx.sideg v threadid) escaped
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -88,7 +88,7 @@ struct
         | `Bot ->
           M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom.";
           false
-        end
+      end
     | _ -> Queries.Result.top q
 
   let escape_rval ctx (rval:exp) =
@@ -132,17 +132,17 @@ struct
 
   let threadspawn ctx lval f args fctx =
     D.join ctx.local @@
-      match args with
-      | [ptc_arg] ->
-        (* not reusing fctx.local to avoid unnecessarily early join of extra *)
-        let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
-        let escaped = D.filter (fun v -> not v.vglob) escaped in
-        if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
-        let thread_id = thread_id ctx in
-        emit_escape_event ctx escaped;
-        side_effect_escape ctx escaped thread_id;
-        escaped
-      | _ -> D.bot ()
+    match args with
+    | [ptc_arg] ->
+      (* not reusing fctx.local to avoid unnecessarily early join of extra *)
+      let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
+      let thread_id = thread_id ctx in
+      emit_escape_event ctx escaped;
+      side_effect_escape ctx escaped thread_id;
+      escaped
+    | _ -> D.bot ()
 
   let event ctx e octx =
     match e with
