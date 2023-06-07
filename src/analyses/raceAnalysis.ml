@@ -100,7 +100,7 @@ struct
       in
       let add_access_struct conf ci =
         let a = part_access None in
-        Access.add_struct (side_access octx (conf, kind, loc, e, a)) (`Struct (ci,`NoOffset)) None
+        Access.add_struct (side_access octx (conf, kind, loc, e, a)) (`Type (TComp (ci, [])), `NoOffset)
       in
       let has_escaped g = octx.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls

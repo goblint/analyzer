@@ -183,7 +183,7 @@ let type_from_type_offset : acc_typ -> typ = function
     try Offset.Unit.type_of ~base:(TComp (s, [])) o
     with Offset.Type_of_error _ -> raise Type_offset_error
 
-let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
+let add_struct side memo: unit =
   let rec dist_fields ty : offs list =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -198,9 +198,8 @@ let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
       List.map (fun x -> `Index ((), x)) (dist_fields t)
     | _ -> [`NoOffset]
   in
-  let memo = Memo.of_lv_ty lv ty in
-  match Memo.type_of_base memo with (* based on outermost type *)
-  | TComp _ -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
+  match Memo.type_of_base memo, memo with (* based on outermost type *)
+  | TComp _, _ -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
     begin match Memo.type_of memo with (* based on innermost type *)
       | t ->
         let oss = dist_fields t in
@@ -211,7 +210,7 @@ let add_struct side (ty:acc_typ) (lv: Mval.Unit.t option): unit =
       | exception Type_offset_error ->
         add_one side memo
     end
-  | _ when lv = None && !unsound ->
+  | _, (`Type _, _) when !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
@@ -223,13 +222,13 @@ let add_propagate side ty =
     let vars = TH.find_all typeVar (TComp (c,[])) in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    let add_vars v = add_struct side (`Struct (c, f)) (Some (v, f)) in
+    let add_vars v = add_struct side (`Var v, f) in
     List.iter add_vars vars;
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    add_struct side (`Struct (c, f)) None;
+    add_struct side (`Type (TComp (c, [])), f);
   in
   let just_vars t v =
-    add_struct side (`Type t) (Some (v, `NoOffset));
+    add_struct side (`Var v, `NoOffset);
   in
   match ty with
   | `Struct (c, (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) ->
@@ -256,7 +255,8 @@ let add side e voffs =
     | Some (v, o) -> Some (v, Offset.Unit.of_cil o)
     | None -> None
   in
-  add_struct side ty voffs';
+  let memo = Memo.of_lv_ty voffs' ty in
+  add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
   if voffs = None && not (!unsound && isArithmeticType (type_from_type_offset ty)) then
     add_propagate side ty
