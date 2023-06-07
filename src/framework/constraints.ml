@@ -1883,14 +1883,14 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 *) 
-   (*GMapG (S.G) (S.C)*)
-  (*struct
+(*GMapG (S.G) (S.C)*)
+(*struct
     include Lattice.Prod (S.G) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
-  end*)
+end*)
 
     
-  (*module type FundecType = 
+(*module type FundecType = 
   sig
     type t = fundec
 
@@ -1911,20 +1911,19 @@ end
       include Printable.Std (* To make it Groupable *)
       let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
     end
-  module M = MapDomain.MapBot (CVal) (CVal)
-*) (*(*TODO: do I need to change V???*)
+  module M = MapDomain.MapBot (CVal) (CVal)*) (*(*TODO: do I need to change V???*)
   struct
     include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
     let name () = "RecursionTerm"
     let is_write_only t = true
     let s x = `Left x
   end*)
-  (*include Lattice.Lift2 (S.G) (MapDomain.MapBot (C_) (TSet)) (Printable.DefaultNames) (*TODO: does MapBot fit?*)
+(*include Lattice.Lift2 (S.G) (MapDomain.MapBot (C_) (TSet)) (Printable.DefaultNames) (*TODO: does MapBot fit?*)
     let s = function
     | `Bot -> S.G.bot ()
     | `Lifted1 x -> x
     | _ -> failwith "RecursionTerm.s"
-  end*)
+end*)
 
 (** Add cycle detection in the function call graph to a analysis *)
 module RecursionTermLifter (S: Spec)
