@@ -44,17 +44,24 @@ struct
       if M.tracing then M.tracel "escape" "mpt %a: %a\n" d_exp e Queries.LS.pretty a;
       D.empty ()
 
-  let escape ctx escaped =
-    let threadid = ctx.ask Queries.CurrentThreadId in
-    let threadid = G.singleton threadid in
+  let thread_id ctx =
+    ctx.ask Queries.CurrentThreadId
 
+  (** Emit an escape event:
+      Only necessary when code has ever been multithreaded,
+      or when about to go multithreaded. *)
+  let emit_escape_event ctx escaped =
     (* avoid emitting unnecessary event *)
-    if not (D.is_empty escaped) then begin
-      ctx.emit (Events.Escape escaped);
-      M.tracel "escape" "escaping: %a\n" D.pretty escaped;
-      D.iter (fun v ->
-        ctx.sideg v threadid) escaped
-    end
+    if not (D.is_empty escaped) then
+      ctx.emit (Events.Escape escaped)
+
+  (** Side effect escapes: In contrast to the emitting the event, side-effecting is
+      necessary in single threaded mode, since we rely on escape status in Base
+      for passing locals reachable via globals *)
+  let side_effect_escape ctx escaped threadid =
+    let threadid = G.singleton threadid in
+    D.iter (fun v ->
+      ctx.sideg v threadid) escaped
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -63,14 +70,11 @@ struct
       let threads = ctx.global v in
       if ThreadIdSet.is_empty threads then
         false
-      else if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
-        false
       else begin
         let possibly_started current = function
           | `Lifted tid ->
             let not_started = MHP.definitely_not_started (current, ctx.ask Queries.CreatedThreads) tid in
             let possibly_started = not not_started in
-            M.tracel "escape" "possibly_started: %a %a -> %b\n" ThreadIdDomain.Thread.pretty tid  ThreadIdDomain.Thread.pretty current possibly_started;
             possibly_started
           | `Top
           | `Bot -> false
@@ -87,20 +91,25 @@ struct
         end
     | _ -> Queries.Result.top q
 
+  let escape_rval ctx (rval:exp) =
+    let ask = Analyses.ask_of_ctx ctx in
+    let escaped = reachable ask rval in
+    let escaped = D.filter (fun v -> not v.vglob) escaped in
+
+    let thread_id = thread_id ctx in
+    side_effect_escape ctx escaped thread_id;
+    if ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
+      emit_escape_event ctx escaped;
+    escaped
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     let vs = mpt ask (AddrOf lval) in
-    if M.tracing then M.tracel "escape" "assign vs: %a\n" D.pretty vs;
     if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
-      let escaped = reachable ask rval in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
-      if M.tracing then M.tracel "escape" "assign vs: %a | %a\n" D.pretty vs D.pretty escaped;
-      if ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
-        escape ctx escaped;
+      let escaped = escape_rval ctx rval in
       D.join ctx.local escaped
     ) else begin
-      M.tracel "escape" "nothing in rval: %a was escaped\n" D.pretty vs;
       ctx.local
     end
 
@@ -108,8 +117,8 @@ struct
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
     | _, "pthread_setspecific" , [key; pt_value] ->
-      (* TODO: handle *)
-      ctx.local
+      let escaped = escape_rval ctx pt_value in
+      D.join ctx.local escaped
     | _ -> ctx.local
 
   let startstate v = D.bot ()
@@ -129,7 +138,9 @@ struct
         let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
         let escaped = D.filter (fun v -> not v.vglob) escaped in
         if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
-        escape ctx escaped;
+        let thread_id = thread_id ctx in
+        emit_escape_event ctx escaped;
+        side_effect_escape ctx escaped thread_id;
         escaped
       | _ -> D.bot ()
 
@@ -137,7 +148,9 @@ struct
     match e with
     | Events.EnterMultiThreaded ->
       let escaped = ctx.local in
-      escape ctx escaped;
+      let thread_id = thread_id ctx in
+      emit_escape_event ctx escaped;
+      side_effect_escape ctx escaped thread_id;
       ctx.local
     | _ -> ctx.local
 end
