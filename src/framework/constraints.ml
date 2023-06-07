@@ -1887,7 +1887,7 @@ end
 (*struct
     include Lattice.Prod (S.G) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
-end*)
+  end*)
 
     
 (*module type FundecType = 
@@ -1923,7 +1923,7 @@ end*)
     | `Bot -> S.G.bot ()
     | `Lifted1 x -> x
     | _ -> failwith "RecursionTerm.s"
-end*)
+  end*)
 
 (** Add cycle detection in the function call graph to a analysis *)
 module RecursionTermLifter (S: Spec)
