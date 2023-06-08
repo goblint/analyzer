@@ -113,20 +113,20 @@ struct
     with Offset.Type_of_error _ -> raise Type_offset_error
 end
 
-let rec get_type (fb: typ) : exp -> acc_typ = function
+let rec get_type (fb: typ Lazy.t) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) ->
     let rec f htyp =
       match htyp with
       | TComp (ci,_) -> `Struct (ci, Offset.Unit.of_cil o)
       | TNamed (ti,_) -> f ti.ttype
-      | _ -> `Type fb
+      | _ -> `Type (Lazy.force fb)
     in
     begin match o with
       | Field (f, on) -> `Struct (f.fcomp, Offset.Unit.of_cil o)
       | NoOffset | Index _ ->
         begin match h with
           | Var v -> f (v.vtype)
-          | Mem e -> f fb
+          | Mem e -> f (Lazy.force fb)
         end
     end
   | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ | AddrOfLabel _  ->
@@ -149,7 +149,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | Lval _
   | Real _
   | Imag _ ->
-    `Type fb (* TODO: is this right? *)
+    `Type (Lazy.force fb) (* TODO: is this right? *)
 
 let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
@@ -163,9 +163,12 @@ let get_type fb e =
 
 
 let get_val_type e: acc_typ =
-  match Cilfacade.typeOf e with
-  | t -> get_type t e
-  | exception (Cilfacade.TypeOfError _) -> get_type voidType e
+  let fb = lazy (
+    try Cilfacade.typeOf e
+    with Cilfacade.TypeOfError _ -> voidType
+  )
+  in
+  get_type fb e
 
 let add_one side memo: unit =
   let mv = Memo.to_mval memo in
