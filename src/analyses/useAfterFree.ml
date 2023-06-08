@@ -11,7 +11,7 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "useafterfree"
+  let name () = "useAfterFree"
 
   module D = ToppedVarInfoSet
   module C = Lattice.Unit
