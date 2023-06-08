@@ -7,8 +7,8 @@
 git_url="https://github.com/madler/zlib.git"
 use_cmake=true
 use_make=false
-path_to_build="zlib/"
-path_to_execute_cil="zlib/"
+path_to_build="."
+path_to_execute_cil="."
 
 # Functions before and after build
 pre_build_commands() {

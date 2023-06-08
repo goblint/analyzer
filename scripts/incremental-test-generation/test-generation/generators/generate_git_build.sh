@@ -1,15 +1,22 @@
 #!/bin/bash
 
-# Get the user infor about building the git file
+# Source the input script from the provided path
 if [[ -n $1 ]]; then
-  # Source the input script from the provided path
   source $1
 else
-  echo "Please give the path to a build info sh file as an argument."
-  echo "The file should look like this:"
+  echo "Please give the following arguments: build_info_path output_path [--path]"
   echo ""
+  echo "The build_info sh file should look like this:"
   cat generate_git_build_USER_INFO_PRESET.sh
   echo ""
+  exit 1
+fi
+
+# Get the output path from the provided path
+if [[ -n $2 ]]; then
+  output_path="$(pwd)/$2"
+else
+  echo "Please provide the relative path to the output as the second argument."
   exit 1
 fi
 
@@ -17,8 +24,8 @@ fi
 set -e
 
 # Export path for Mutation Generator
-if [ "$2" == "--path" ]; then
-  echo "$(pwd)/$path_to_execute_cil"
+if [ "$3" == "--path" ]; then
+  echo "$output_path/$path_to_execute_cil"
   exit 0
 fi
 
@@ -30,11 +37,10 @@ fi
 
 # Main script
 repo_name=$(basename "$git_url" .git)
-rm -rf $repo_name
-git clone $git_url
+rm -rf "$output_path/$repo_name"
+git clone $git_url "$output_path/$repo_name"
 
-cd "$(dirname "$0")"
-cd $path_to_build
+cd "$output_path/$repo_name/$path_to_build"
 pre_build_commands
 
 if $use_cmake; then

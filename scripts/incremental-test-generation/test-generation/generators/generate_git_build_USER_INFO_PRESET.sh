@@ -4,11 +4,11 @@
 ####################### USER VARIABLES #######################
 ##############################################################
 # Variables
-git_url=""        #e.g.: https://github.com/madler/zlib.git
-use_cmake=true
-use_make=false
-path_to_build=""           #e.g.: "zlib/"
-path_to_execute_cil=""     #e.g.: "zlib/"
+git_url=""          #e.g.: https://github.com/madler/zlib.git
+use_cmake=true             # Choose either cmake or make
+use_make=false             # Choose either cmake or make
+path_to_build=""           #e.g.: "." (Relative path in repo)
+path_to_execute_cil=""     #e.g.: "." (Relative path in repo)
 
 # Functions before and after build
 pre_build_commands() {
