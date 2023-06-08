@@ -8,6 +8,8 @@
 open GoblintCil
 include Printf
 
+let f_bounded = Lval (var (emptyFunction "__goblint_bounded").svar)
+
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
    let ls = List.rev ls in
@@ -21,15 +23,8 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor lc lg le (fd : fundec) = object(self)
+class loopCounterVisitor lc (fd : fundec) = object(self)
    inherit nopCilVisitor
-   method! vfunc (f:fundec) =
-      if !le.vname <> "term_exit-" then begin
-         let exit_name = "term_exit-" in
-         let typ = Cil.intType in 
-         le := Cil.makeGlobalVar exit_name typ;
-      end;
-      DoChildren;     (* function definition *)
    method! vstmt s =
       let action s = match s.skind with
          | Loop (b, loc, eloc, _, _) ->
@@ -38,7 +33,7 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          let v = (Cil.makeLocalVar fd name typ) in   (* NOT tested for TODOOOOO*)
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
-         let exit_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
+         let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [(Lval(var v))], loc, eloc) in
          (match b.bstmts with
             | cont :: cond :: ss ->
             b.bstmts <- cont :: inc_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
