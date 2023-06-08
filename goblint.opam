@@ -49,7 +49,6 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
-  "bisect_ppx" {>= "2.5.0"}
 ]
 depopts: ["apron" "z3"]
 conflicts: [
