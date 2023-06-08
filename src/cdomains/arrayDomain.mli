@@ -12,7 +12,7 @@ val get_domain: varAttr:Cil.attributes -> typAttr:Cil.attributes -> domain
 val can_recover_from_top: domain -> bool
 (** Some domains such as Trivial cannot recover from their value ever being top. {!ValueDomain} handles intialization differently for these *)
 
-module type SMinusDomain =
+module type SMinusDomainAndRet =
 sig
   include Lattice.S
   type idx
@@ -20,9 +20,6 @@ sig
 
   type value
   (** The abstract domain of values stored in the array. *)
-
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
-  (** Returns the element residing at the given index. *)
 
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
@@ -60,24 +57,24 @@ end
 (** Abstract domains representing arrays. *)
 module type S =
 sig
-  include SMinusDomain
+  include SMinusDomainAndRet
 
   val domain_of_t: t -> domain
   (* Returns the domain used for the array*)
+
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+  (** Returns the element residing at the given index. *)
 end
 
 (** Abstract domains representing strings a.k.a. null-terminated char arrays. *)
 module type Str =
 sig
-  include SMinusDomain
+  include SMinusDomainAndRet
 
-  val to_string: t -> t
-  (** Returns an abstract value with at most one null byte marking the end of the string *)
+  type ret = Null | NotNull | Top
 
-  val to_n_string: t -> int -> t
-  (** [to_n_string index_set n] returns an abstract value with a potential null byte
-    * marking the end of the string and if needed followed by further null bytes to obtain 
-    * an n bytes string. *)
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
+  (* overwrites get of module S *)
 
   val to_string_length: t -> idx
   (** Returns length of string represented by input abstract value *)
@@ -91,9 +88,10 @@ sig
     * concatenation of the input abstract values [s1] and [s2], taking at most [n] bytes of
     * [s2] if present *)
 
-  val substring_extraction: t -> t -> t
-  (** [substring_extraction haystack needle] returns null if the string represented by the
-    * abstract value [needle] surely isn't a substring of [haystack], else top *)
+  val substring_extraction: t -> t -> t option
+  (** [substring_extraction haystack needle] returns None if the string represented by the
+    * abstract value [needle] surely isn't a substring of [haystack], Some [to_string haystack]
+    * if [needle] is empty the empty string, else Some top *)
 
   val string_comparison: t -> t -> int option -> idx
   (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string 
@@ -106,7 +104,8 @@ sig
   include Str
 
   val domain_of_t: t -> domain
-  (* Returns the domain used for the array*)
+  (* Returns the domain used for the array *)
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
 
 module type LatticeWithSmartOps =
@@ -120,9 +119,14 @@ end
 module type LatticeWithNull =
 sig
   include LatticeWithSmartOps
+
   val null: unit -> t
   val not_null: unit -> t
   val is_null: t -> bool
+
+  val is_int_ikind: t -> Cil.ikind option
+  val zero_of_ikind: Cil.ikind -> t
+  val not_zero_of_ikind: Cil.ikind -> t
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
@@ -145,7 +149,7 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type va
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): SMinusDomain with type value = Val.t and type idx = Idx.t
+module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): SMinusDomainAndRet with type value = Val.t and type idx = Idx.t
 (** This functor creates an array representation by the indexes of all null bytes
   * the array must and may contain. This is useful to analyze strings, i.e. null-
   * terminated char arrays, and particularly to determine if operations on strings 

@@ -42,6 +42,10 @@ sig
   val not_null: unit -> t
   val is_null: t -> bool
 
+  val is_int_ikind: t -> Cil.ikind option
+  val zero_of_ikind: Cil.ikind -> t
+  val not_zero_of_ikind: Cil.ikind -> t
+
   val project: VDQ.t -> int_precision option-> ( attributes * attributes ) option -> t -> t
   val mark_jmpbufs_as_copied: t -> t
 end
@@ -94,8 +98,6 @@ module rec Compound: sig
     | JmpBuf of JmpBufs.t
     | Mutex
     | MutexAttr of MutexAttrDomain.t
-    | NullByte
-    | NotNullByte
     | Bot
   include S with type t := t and type offs = IndexDomain.t Offset.t
 end =
@@ -113,8 +115,6 @@ struct
     | JmpBuf of JmpBufs.t
     | Mutex
     | MutexAttr of MutexAttrDomain.t
-    | NullByte
-    | NotNullByte
     | Bot
   [@@deriving eq, ord, hash]
 
@@ -173,8 +173,6 @@ struct
     | JmpBuf x -> JmpBufs.is_bot x
     | Mutex -> true
     | MutexAttr x -> MutexAttr.is_bot x
-    | NullByte -> true
-    | NotNullByte -> true
     | Bot -> true
     | Top -> false
 
@@ -228,8 +226,6 @@ struct
     | MutexAttr x -> MutexAttr.is_top x
     | JmpBuf x -> JmpBufs.is_top x
     | Mutex -> true
-    | NullByte -> true
-    | NotNullByte -> true
     | Top -> true
     | Bot -> false
 
@@ -261,7 +257,7 @@ struct
     | _ -> Top
 
   let tag_name : t -> string = function
-    | Top -> "Top" | Int _ -> "Int" | Float _ -> "Float" | Address _ -> "Address" | Struct _ -> "Struct" | Union _ -> "Union" | Array _ -> "Array" | Blob _ -> "Blob" | Thread _ -> "Thread" | Mutex -> "Mutex" |  MutexAttr _ -> "MutexAttr" | NullByte -> "NullByte" | NotNullByte -> "NotNullByte" | JmpBuf _ -> "JmpBuf" | Bot -> "Bot"
+    | Top -> "Top" | Int _ -> "Int" | Float _ -> "Float" | Address _ -> "Address" | Struct _ -> "Struct" | Union _ -> "Union" | Array _ -> "Array" | Blob _ -> "Blob" | Thread _ -> "Thread" | Mutex -> "Mutex" |  MutexAttr _ -> "MutexAttr" | JmpBuf _ -> "JmpBuf" | Bot -> "Bot"
   include Printable.Std
   let name () = "compound"
 
@@ -275,9 +271,17 @@ struct
   let is_top x = x = Top
   let top_name = "Unknown"
 
-  let null () = NullByte
-  let not_null () = NotNullByte
-  let is_null x = x = NullByte
+  let null () = Int(ID.of_int IChar Z.zero)
+  let not_null () = Top
+  let is_null = function
+    | Int n -> ID.to_int n = Some Z.zero
+    | _ -> false
+
+  let is_int_ikind = function
+    | Int n -> Some (ID.ikind n)
+    | _ -> None
+  let zero_of_ikind ik = Int(ID.of_int ik Z.zero)
+  let not_zero_of_ikind ik = Int(ID.of_excl_list ik [Z.zero])
 
   let pretty () state =
     match state with
@@ -292,8 +296,6 @@ struct
     | MutexAttr n -> MutexAttr.pretty () n
     | JmpBuf n -> JmpBufs.pretty () n
     | Mutex -> text "mutex"
-    | NullByte -> text "null-byte"
-    | NotNullByte -> text "not-null-byte"
     | Bot -> text bot_name
     | Top -> text top_name
 
@@ -310,8 +312,6 @@ struct
     | JmpBuf n -> JmpBufs.show n
     | Mutex -> "mutex"
     | MutexAttr x -> MutexAttr.show x
-    | NullByte -> "null-byte"
-    | NotNullByte -> "not-null-byte"
     | Bot -> bot_name
     | Top -> top_name
 
@@ -1175,8 +1175,6 @@ struct
     | MutexAttr n -> MutexAttr.printXml f n
     | JmpBuf n -> JmpBufs.printXml f n
     | Mutex -> BatPrintf.fprintf f "<value>\n<data>\nmutex\n</data>\n</value>\n"
-    | NullByte -> BatPrintf.fprintf f "<value>\n<data>\nnull-byte\n</data>\n</value>\n"
-    | NotNullByte -> BatPrintf.fprintf f "<value>\n<data>\nnot-null-byte\n</data>\n</value>\n"
     | Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 
@@ -1192,8 +1190,6 @@ struct
     | MutexAttr n -> MutexAttr.to_yojson n
     | JmpBuf n -> JmpBufs.to_yojson n
     | Mutex -> `String "mutex"
-    | NullByte -> `String "null-byte"
-    | NotNullByte -> `String "not-null-byte"
     | Bot -> `String "⊥"
     | Top -> `String "⊤"
 
@@ -1244,8 +1240,6 @@ struct
     | JmpBuf n -> JmpBuf (JmpBufs.relift n)
     | MutexAttr n -> MutexAttr (MutexAttr.relift n)
     | Mutex -> Mutex
-    | NullByte -> NullByte
-    | NotNullByte -> NotNullByte
     | Bot -> Bot
     | Top -> Top
 end

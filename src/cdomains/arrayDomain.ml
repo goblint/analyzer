@@ -39,13 +39,12 @@ let get_domain ~varAttr ~typAttr =
 
 let can_recover_from_top x = x <> TrivialDomain
 
-module type SMinusDomain =
+module type SMinusDomainAndRet =
 sig
   include Lattice.S
   type idx
   type value
 
-  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
@@ -65,21 +64,24 @@ end
 
 module type S =
 sig
-  include SMinusDomain
+  include SMinusDomainAndRet
 
   val domain_of_t: t -> domain
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
 
 module type Str =
 sig
-  include SMinusDomain
+  include SMinusDomainAndRet
 
-  val to_string: t -> t
-  val to_n_string: t -> int -> t
+  type ret = Null | NotNull | Top
+
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
+
   val to_string_length: t -> idx
   val string_copy: t -> t -> int option -> t
   val string_concat: t -> t -> int option -> t
-  val substring_extraction: t -> t -> t
+  val substring_extraction: t -> t -> t option
   val string_comparison: t -> t -> int option -> idx
 end
 
@@ -88,6 +90,7 @@ sig
   include Str
   
   val domain_of_t: t -> domain
+  val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 end
 
 module type LatticeWithSmartOps =
@@ -101,9 +104,14 @@ end
 module type LatticeWithNull =
 sig
   include LatticeWithSmartOps
+
   val null: unit -> t
   val not_null: unit -> t
   val is_null: t -> bool
+
+  val is_int_ikind: t -> Cil.ikind option
+  val zero_of_ikind: Cil.ikind -> t
+  val not_zero_of_ikind: Cil.ikind -> t
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
@@ -986,6 +994,8 @@ struct
   type idx = Idx.t
   type value = Val.t
 
+  type ret = Null | NotNull | Top
+
   let get ?(checkBounds=true) (ask: VDQ.t) (must_nulls_set, may_nulls_set, size) (e, i) =
     let rec all_indexes_must_null i max =
       if Z.gt i max then
@@ -1011,33 +1021,33 @@ struct
     match max_i, Idx.maximal size with
     (* if there is no maximum value in index interval *)
     | None, _ ->
-      (* ... return not_null if no i >= min_i in may_nulls_set *)
+      (* ... return NotNull if no i >= min_i in may_nulls_set *)
       if not (MayNulls.exists (Z.leq min_i) may_nulls_set) then
-        Val.not_null ()
-      (* ... else return top of value *)
+        NotNull
+      (* ... else return Top *)
       else
-        Val.top ()
+        Top
     (* if there is no maximum size *)
     | Some max_i, None when Z.geq max_i Z.zero ->
-      (* ... and maximum value in index interval < minimal size, return null if all numbers in index interval are in must_nulls_set *)
+      (* ... and maximum value in index interval < minimal size, return Null if all numbers in index interval are in must_nulls_set *)
       if Z.lt max_i min_size && all_indexes_must_null min_i max_i then
-        Val.null ()
-      (* ... return not_null if no number in index interval is in may_nulls_set *)
+        Null
+      (* ... return NotNull if no number in index interval is in may_nulls_set *)
       else if not (MayNulls.exists (fun x -> Z.geq x min_i && Z.leq x max_i) may_nulls_set) then
-        Val.not_null ()
+        NotNull
       else
-        Val.top ()
+        Top
     | Some max_i, Some max_size when Z.geq max_i Z.zero ->
-      (* if maximum value in index interval < minimal size, return null if all numbers in index interval are in must_nulls_set *)
+      (* if maximum value in index interval < minimal size, return Null if all numbers in index interval are in must_nulls_set *)
       if Z.lt max_i min_size && all_indexes_must_null min_i max_i then
-        Val.null ()
-      (* if maximum value in index interval < maximal size, return not_null if no number in index interval is in may_nulls_set *)
+        Null
+      (* if maximum value in index interval < maximal size, return NotNull if no number in index interval is in may_nulls_set *)
       else if Z.lt max_i max_size && not (MayNulls.exists (fun x -> Z.geq x min_i && Z.leq x max_i) may_nulls_set) then
-        Val.not_null ()
+        NotNull
       else
-        Val.top ()
-    (* if maximum number in interval is invalid, i.e. negative, return top of value *)
-    | _ -> Val.top ()
+        Top
+    (* if maximum number in interval is invalid, i.e. negative, return Top of value *)
+    | _ -> Top
 
   let set (ask: VDQ.t) (must_nulls_set, may_nulls_set, size) (e, i) v =
     let rec add_indexes i max may_nulls_set =
@@ -1195,6 +1205,8 @@ struct
   let smart_leq _ _ = leq
 
   (* string functions *)
+
+  (** Returns an abstract value with at most one null byte marking the end of the string *)
   let to_string (must_nulls_set, may_nulls_set, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => warn about certain buffer overflow and return tuple unchanged *)
     if MustNulls.is_empty must_nulls_set && MayNulls.is_empty may_nulls_set then
@@ -1213,6 +1225,9 @@ struct
       else
         (MustNulls.empty (), MayNulls.filter (Z.geq min_must_null) may_nulls_set, Idx.of_int !Cil.kindOfSizeOf (Z.succ min_must_null))
 
+  (** [to_n_string index_set n] returns an abstract value with a potential null byte
+    * marking the end of the string and if needed followed by further null bytes to obtain 
+    * an n bytes string. *)
   let to_n_string (must_nulls_set, may_nulls_set, size) n =
     let rec add_indexes i max set =
       if Z.geq i max then
@@ -1456,19 +1471,18 @@ struct
   let substring_extraction haystack (must_nulls_set_needle, may_nulls_set_needle, size_needle) =
     (* if needle is empty string, i.e. certain null byte at index 0, return haystack as string *)
     if MustNulls.mem Z.zero must_nulls_set_needle then
-      to_string haystack
+      Some (to_string haystack)
     else
       let haystack_len = to_string_length haystack in
       let needle_len = to_string_length (must_nulls_set_needle, may_nulls_set_needle, size_needle) in      
       match Idx.maximal haystack_len, Idx.minimal needle_len with
       | Some haystack_max, Some needle_min ->
-        (* if strlen(haystack) < strlen(needle), needle can never be substring of haystack => return null pointer *)
-        (* TODO: how to do that? Maybe pass on something I can identify as standing for null_ptr in base, where I plugin null_ptr *)
+        (* if strlen(haystack) < strlen(needle), needle can never be substring of haystack => return None *)
         if Z.lt haystack_max needle_min then
-          (MustNulls.top (), MayNulls.top (), Idx.of_int !Cil.kindOfSizeOf Z.zero)
+          None
         else
-          (MustNulls.top (), MayNulls.top (), Idx.top_of !Cil.kindOfSizeOf)
-      | _ -> (MustNulls.top (), MayNulls.top (), Idx.top_of !Cil.kindOfSizeOf)
+          Some (MustNulls.top (), MayNulls.top (), Idx.top_of !Cil.kindOfSizeOf)
+      | _ -> Some (MustNulls.top (), MayNulls.top (), Idx.top_of !Cil.kindOfSizeOf)
 
  let string_comparison (must_nulls_set1, may_nulls_set1, size1) (must_nulls_set2, may_nulls_set2, size2) n =
     let compare n n_exists =
@@ -1487,7 +1501,7 @@ struct
           (try if Z.equal (MustNulls.min_elt must_nulls_set1) (MayNulls.min_elt may_nulls_set1) && (not n_exists || Z.lt (MustNulls.min_elt must_nulls_set1) n)
               && Z.equal (MustNulls.min_elt must_nulls_set2) (MayNulls.min_elt may_nulls_set2) && (not n_exists || Z.lt (MustNulls.min_elt must_nulls_set2) n)
               && not (Z.equal (MustNulls.min_elt must_nulls_set1) (MustNulls.min_elt must_nulls_set2)) then
-            Idx.join (Idx.ending IInt Z.minus_one) (Idx.starting IInt Z.one)
+            Idx.of_excl_list IInt [Z.zero]
           else
             Idx.top_of IInt
           with Not_found -> Idx.top_of IInt) in
@@ -1543,8 +1557,7 @@ struct
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 
-  (* TODO: what am I supposed to do here? *)
-  let invariant ~value_invariant ~offset ~lval x = failwith "TODO"
+  let invariant ~value_invariant ~offset ~lval x = Invariant.none
 end
 
 module FlagHelperAttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -1680,9 +1693,17 @@ struct
   type idx = Idx.t
   type value = Val.t
 
+  type ret = Null | NotNull | Top
+
   let domain_of_t (t_f, _) = F.domain_of_t t_f
 
-  let get ?(checkBounds=true) (ask: VDQ.t) (t_f, t_n) i = Val.meet (F.get ask t_f i) (N.get ask t_n i)
+  let get ?(checkBounds=true) (ask: VDQ.t) (t_f, t_n) i = 
+    let f_get = F.get ask t_f i in
+    let n_get = N.get ask t_n i in
+    match Val.is_int_ikind f_get, n_get with
+    | Some ik, Null -> Val.meet f_get (Val.zero_of_ikind ik)
+    | Some ik, NotNull -> Val.meet f_get (Val.not_zero_of_ikind ik)
+    | _ -> f_get
   let set (ask:VDQ.t) (t_f, t_n) i v = (F.set ask t_f i v, N.set ask t_n i v)
   let make ?(varAttr=[]) ?(typAttr=[]) i v = (F.make i v, N.make i v)
   let length (_, t_n) = N.length t_n
@@ -1695,16 +1716,15 @@ struct
   let smart_widen x y (t_f1, t_n1) (t_f2, t_n2) = (F.smart_widen x y t_f1 t_f2, N.smart_widen x y t_n1 t_n2)
   let smart_leq x y (t_f1, t_n1) (t_f2, t_n2) = F.smart_leq x y t_f1 t_f2 && N.smart_leq x y t_n1 t_n2
 
-  let to_string (_, t_n) = (F.top (), N.to_string t_n)
-  let to_n_string (_, t_n) n = (F.top (), N.to_n_string t_n n)
   let to_string_length (_, t_n) = N.to_string_length t_n
   let string_copy (_, t_n1) (_, t_n2) n = (F.top (), N.string_copy t_n1 t_n2 n)
   let string_concat (_, t_n1) (_, t_n2) n = (F.top (), N.string_concat t_n1 t_n2 n)
-  let substring_extraction (_, t_n1) (_, t_n2) = (F.top (), N.substring_extraction t_n1 t_n2)
+  let substring_extraction (_, t_n1) (_, t_n2) = match N.substring_extraction t_n1 t_n2 with
+    | Some res -> Some (F.top (), res)
+    | None -> None
   let string_comparison (_, t_n1) (_, t_n2) n = N.string_comparison t_n1 t_n2 n
 
   let update_length newl (t_f, t_n) = (F.update_length newl t_f, N.update_length newl t_n)
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (F.project ask t_f, N.project ask t_n)
-  (* TODO: what should I do here? *)
-  let invariant ~value_invariant ~offset ~lval x = failwith "TODO"
+  let invariant ~value_invariant ~offset ~lval (t_f, _) = F.invariant ~value_invariant ~offset ~lval t_f
 end

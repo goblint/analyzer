@@ -532,8 +532,6 @@ struct
     | Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
     | JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
-    | NullByte -> empty (* TODO: is this correct? *)
-    | NotNullByte -> empty (* TODO: is this correct? *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
@@ -664,8 +662,6 @@ struct
         | Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | JmpBuf _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
         | Mutex -> (empty, TS.bot (), false) (* TODO: is this right? *)
-        | NullByte -> (empty, TS.bot (), false) (* TODO: is this right? *)
-        | NotNullByte -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
     in
@@ -2135,7 +2131,9 @@ struct
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
           let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
-            (fun h_ar n_ar -> Array(CArrays.substring_extraction h_ar n_ar)) in
+            (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
+              | Some ar -> Array(ar)
+              | None -> Address(AD.null_ptr)) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
       end
