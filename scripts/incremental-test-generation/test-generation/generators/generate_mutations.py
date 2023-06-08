@@ -5,11 +5,10 @@ import argparse
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import yaml
-sys.path.append("..")
+sys.path.insert(0, "..")
 from util.util import *
 
 def generate_mutations(program_path, clang_tidy_path, meta_path, mutations):
