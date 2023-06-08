@@ -52,6 +52,7 @@
     (conf-ruby :with-test)
     (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
+    (bisect_ppx (>= "2.5.0"))
   )
   (depopts
     apron
