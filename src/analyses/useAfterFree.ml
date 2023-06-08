@@ -4,8 +4,7 @@ open GoblintCil
 open Analyses
 open MessageCategory
 
-(* TODO: Maybe come up with a better name for top at some point? *)
-module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "Unknown" end)
+module ToppedVarInfoSet = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
 
 module Spec : Analyses.MCPSpec =
 struct
