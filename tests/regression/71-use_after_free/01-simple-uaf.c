@@ -1,3 +1,4 @@
+//PARAM: --set ana.activated[+] useAfterFree
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -7,8 +8,8 @@ int main() {
 
     free(ptr);
 
-    *ptr = 43; // Should report "Use After Free (CWE-416)"
-    free(ptr); // Should report "Double Free (CWE-415)"
+    *ptr = 43; //WARN
+    free(ptr); //WARN
 
     return 0;
 }
