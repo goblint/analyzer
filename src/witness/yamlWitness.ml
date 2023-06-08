@@ -359,7 +359,7 @@ struct
                   | None
                   | Some [] -> acc
                   | Some (x::xs) ->
-                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                    begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with
                       | `Lifted inv ->
                         let invs = WitnessUtil.InvariantExp.process_exp inv in
                         let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
