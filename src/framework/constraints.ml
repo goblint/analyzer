@@ -1930,58 +1930,55 @@ module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
         and module C = S.C
         and module G = GVarGG (S.G) (S.C)
+        and module V = GVarF(S.V)
 =
-
-struct
-  module C = S.C
-  module P = S.P
-  module D = S.D
-   
-  module V = 
-  struct
-    include GVarF(S.V)
-    let s x = `Left x
-  end
-
-
-  (*global invariant
+(*global invariant
      - fundec -> Map (S.C) (Set (fundec * S.C)) 
     So:   g   -> {c' -> f, c} 
     in case f, c --> g, c'  *)
 
+struct
+  include S
+  module V = GVarF(S.V)
+
   module G = GVarGG (S.G) (S.C)
-  
   
   let name () = "RecursionTerm (" ^ S.name () ^ ")"
 
-  type marshal = S.marshal
-  let init = S.init
   let finalize = S.finalize (*TODO*)
-
-  let startstate v = S.startstate v
-  let exitstate  v = S.exitstate  v
-  let morphstate = S.morphstate
-
-  let context = S.context
 
   (**let side_context sideg f c =
     if !AnalysisState.postsolving then
       sideg (f) (G.create_contexts (G.CSet.singleton c))*)
 
   (*TODO Change the body??*)
-  let conv (ctx: (_, _, _, V.t) ctx): (_, _, _, S.V.t) ctx = 
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx = 
     { ctx with
-      global = (fun v -> G.s (ctx.global (V.s v)));
-      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+      global = (fun v -> G.s (ctx.global (V.spec v)));
+      sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_s g));
     }
   let query ctx = S.query (conv ctx)
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
   let vdecl ctx = S.vdecl (conv ctx)
-  let enter ctx = 
+  
+  (* c = context
+     t = set of tuples (fundec * context)
+  *)
+  let side_context sideg f c t =
     if !AnalysisState.postsolving then
-      printf "hallo hallo";
-    S.enter (conv ctx) (*TODO*)
+      sideg (V.contexts f) (G.create_contexts (G.CMap.singleton (c) (t)))
+  
+  let enter ctx lval fundec exprList = (*TODO*)
+    S.enter (conv ctx) lval fundec exprList;
+    let c: unit -> S.C.t = snd var |> Obj.obj in (*Callee context*)
+    let fd = fundec in (*Callee fundec*)
+    let c' = ctx.context in (*Caller context*) (*TODO is this the caller or callee context???*)
+    let fd' =  in (*Caller fundec*)
+    let tup = (fundec * c') in (* TODO: is fundec the caller or callee fundec???*)
+    let t = G.CSet.singleton (tup) in  (*TODO do we fill the set correctly???*)
+    side_context sideg fd (c ()) t
+    
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)

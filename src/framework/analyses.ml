@@ -119,7 +119,7 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
-
+(* Make the given module Goupable*)
 module C_ (C: Printable.S)= 
 struct
   include C
@@ -139,12 +139,12 @@ struct
   let name () = "Tuple"
   let to_yojson x = `String (show x)
   let relift (a,b) = (a,b) (*Todo: is this correct?*)
-  let printXml f (a,b) = Base1.printXml f a (*Todo: what do we have to put here?*)
+  let printXml f (a,b) = Base1.printXml f a; Base2.printXml f b (*Todo: what do we have to put here?*)
   let compare (a1,b1) (a2,b2) = 3 (*Todo: what do we have to put here?*)
   (*let a = Base1.compare a1 a2 in
     let b = Base2.compare b1 b2 in
   *)
-  let pretty () (a,b) = Base1.pretty () a(*Todo: what do we have to put here?*)
+  let pretty () x = text (show x)
 
   let hash (a,b) = 2 (*Todo: what do we have to put here?*)
     
@@ -176,7 +176,7 @@ struct
     | `Lifted1 x -> x
     | _ -> failwith "GVarGG.spec"
   let contexts = function
-    | `Bot -> CSet.bot ()
+    | `Bot -> CMap.bot ()
     | `Lifted2 x -> x
     | _ -> failwith "GVarGG.contexts"
   let create_spec spec = `Lifted1 spec
