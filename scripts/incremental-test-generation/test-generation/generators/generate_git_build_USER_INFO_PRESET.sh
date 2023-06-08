@@ -4,15 +4,15 @@
 ####################### USER VARIABLES #######################
 ##############################################################
 # Variables
-git_url="https://github.com/madler/zlib.git"
+git_url=""        #e.g.: https://github.com/madler/zlib.git
 use_cmake=true
 use_make=false
-path_to_build="zlib/"
-path_to_execute_cil="zlib/"
+path_to_build=""           #e.g.: "zlib/"
+path_to_execute_cil=""     #e.g.: "zlib/"
 
 # Functions before and after build
 pre_build_commands() {
-  ./configure
+  :                        #e.g.: ./configure
 }
 
 post_build_commands() {
