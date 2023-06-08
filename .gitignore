@@ -96,5 +96,8 @@ transformed.c
 site/
 
 # coverage
-_coverage/*
+
+# bisect_ppx
 *.coverage
+# bisect-ppx-report
+_coverage/*
