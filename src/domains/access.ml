@@ -92,11 +92,10 @@ struct
     end
     )
 
-  let of_lv_ty (lv: Mval.Unit.t option) (ty: acc_typ): t =
-    match lv, ty with
-    | Some (v, o), _ -> (`Var v, o)
-    | None, `Struct (c, o) -> (`Type (TComp (c, [])), o)
-    | None, `Type t -> (`Type t, `NoOffset)
+  let of_ty (ty: acc_typ): t =
+    match ty with
+    | `Struct (c, o) -> (`Type (TComp (c, [])), o)
+    | `Type t -> (`Type t, `NoOffset)
 
   let to_mval: t -> Mval.Unit.t option = function
     | (`Var v, o) -> Some (v, o)
@@ -163,13 +162,9 @@ let get_type fb e =
 
 
 
-let get_val_type e (voffs: (varinfo * offset) option) : acc_typ =
+let get_val_type e: acc_typ =
   match Cilfacade.typeOf e with
-  | t ->
-    begin match voffs with
-      | Some (v, o) -> get_type t (AddrOf (Var v, o))
-      | None -> get_type t e
-    end
+  | t -> get_type t e
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
 let add_one side memo: unit =
@@ -242,15 +237,14 @@ let add_propagate side (memo: Memo.t) =
   | (`Var _, _) -> assert false
 
 let add side e voffs =
-  let ty = get_val_type e voffs in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
-  let voffs' =
-    match voffs with
-    | Some (v, o) -> Some (v, Offset.Unit.of_cil o)
-    | None -> None
+  let memo = match voffs with
+    | Some (v, o) -> (`Var v, Offset.Unit.of_cil o)
+    | None ->
+      let ty = get_val_type e in
+      Memo.of_ty ty
   in
-  let memo = Memo.of_lv_ty voffs' ty in
   add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
   if voffs = None && not (!unsound && isArithmeticType (Memo.type_of memo)) then
