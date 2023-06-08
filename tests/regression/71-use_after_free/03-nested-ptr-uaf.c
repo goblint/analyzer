@@ -13,4 +13,6 @@ int main() {
     if (a[*ptr] != 5) { // Should report "Use After Free (CWE-416)"
         free(ptr); // Should report "Double Free (CWE-415)"
     }
+
+    return 0;
 }
