@@ -2131,9 +2131,9 @@ struct
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
           let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
-            (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
-              | Some ar -> Array(ar)
-              | None -> Address(AD.null_ptr)) in
+              (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
+                 | Some ar -> Array(ar)
+                 | None -> Address(AD.null_ptr)) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
       end

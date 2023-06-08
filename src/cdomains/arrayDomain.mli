@@ -119,7 +119,7 @@ end
 module type LatticeWithNull =
 sig
   include LatticeWithSmartOps
-
+      
   val null: unit -> t
   val not_null: unit -> t
   val is_null: t -> bool
