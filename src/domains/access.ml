@@ -176,10 +176,13 @@ let get_val_type e: acc_typ =
 
 let add_one side memo: unit =
   let mv = Memo.to_mval memo in
-  if not (is_ignorable mv) then
+  let ignorable = is_ignorable mv in
+  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)\n" Memo.pretty memo ignorable;
+  if not ignorable then
     side memo
 
 let add_struct side memo: unit =
+  if M.tracing then M.tracei "access" "add_struct %a\n" Memo.pretty memo;
   let rec dist_fields ty : offs list =
     (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
     match unrollType ty with
@@ -195,29 +198,34 @@ let add_struct side memo: unit =
       List.map (fun x -> `Index ((), x)) (dist_fields t)
     | _ -> [`NoOffset]
   in
-  match Memo.type_of_base memo, memo with (* based on outermost type *)
-  | TComp _, _ -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
-    begin match Memo.type_of memo with (* based on innermost type *)
-      | t ->
-        let oss = dist_fields t in
-        (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
-        List.iter (fun os ->
-            add_one side (Memo.add_offset memo os)
-          ) oss
-      | exception Type_offset_error ->
-        add_one side memo
-    end
-  | _, (`Type _, _) when !unsound ->
-    (* don't recognize accesses to locations such as (long ) and (int ). *)
-    ()
-  | _ ->
-    add_one side memo
+  begin match Memo.type_of_base memo, memo with (* based on outermost type *)
+    | TComp _, _ -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
+      if M.tracing then M.trace "access" "struct case\n";
+      begin match Memo.type_of memo with (* based on innermost type *)
+        | t ->
+          let oss = dist_fields t in
+          (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
+          List.iter (fun os ->
+              add_one side (Memo.add_offset memo os)
+            ) oss
+        | exception Type_offset_error ->
+          if M.tracing then M.trace "access" "Type_offset_error\n";
+          add_one side memo
+      end
+    | _, (`Type _, _) when !unsound ->
+      (* don't recognize accesses to locations such as (long ) and (int ). *)
+      if M.tracing then M.trace "access" "unsound case\n";
+      ()
+    | _ ->
+      if M.tracing then M.trace "access" "general case\n";
+      add_one side memo
+  end;
+  if M.tracing then M.traceu "access" "add_struct\n"
 
 let add_propagate side (memo: Memo.t) =
-  (* ignore (printf "%a:\n" d_exp e); *)
+  if M.tracing then M.tracei "access" "add_propagate %a\n" Memo.pretty memo;
   let struct_inv (f:offs) (c:compinfo) =
     let vars = TSH.find_all typeVar (typeSig (TComp (c,[]))) in
-    (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
     let add_vars v = add_struct side (`Var v, f) in
     List.iter add_vars vars;
@@ -227,36 +235,41 @@ let add_propagate side (memo: Memo.t) =
   let just_vars t v =
     add_struct side (`Var v, `NoOffset);
   in
-  match memo with
-  | (`Type (TComp (c, _)), (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
-    assert (CilType.Compinfo.equal c fi.fcomp);
-    (* ignore (printf "  * type is a struct\n"); *)
-    (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    struct_inv os c
-  | (`Type _, _) ->
-    (* ignore (printf "  * type is NOT a struct\n"); *)
-    let t = Memo.type_of memo in
-    let incl = TSH.find_all typeIncl (typeSig t) in
-    (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
-    let vars = TSH.find_all typeVar (typeSig t) in
-    (* TODO: not tested *)
-    List.iter (just_vars t) vars
-  | (`Var _, _) -> assert false
+  begin match memo with
+    | (`Type (TComp (c, _)), (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
+      if M.tracing then M.trace "access" "struct case\n";
+      assert (CilType.Compinfo.equal c fi.fcomp);
+      (* 1 test(s) failed: ["04/49 type-invariants"] *)
+      struct_inv os c
+    | (`Type _, _) ->
+      if M.tracing then M.trace "access" "general case\n";
+      let t = Memo.type_of memo in
+      let incl = TSH.find_all typeIncl (typeSig t) in
+      (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
+      List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
+      let vars = TSH.find_all typeVar (typeSig t) in
+      (* TODO: not tested *)
+      List.iter (just_vars t) vars
+    | (`Var _, _) -> assert false
+  end;
+  if M.tracing then M.traceu "access" "add_propagate\n"
 
 let add side e voffs =
-  (* let loc = !Tracing.current_loc in *)
-  (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
   let memo = match voffs with
-    | Some (v, o) -> (`Var v, Offset.Unit.of_cil o)
+    | Some (v, o) ->
+      if M.tracing then M.traceli "access" "add %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
+      (`Var v, Offset.Unit.of_cil o)
     | None ->
+      if M.tracing then M.traceli "access" "add %a\n" CilType.Exp.pretty e;
       let ty = get_val_type e in
       Memo.of_ty ty
   in
+  if M.tracing then M.trace "access" "memo = %a\n" Memo.pretty memo;
   add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
   if voffs = None && not (!unsound && isArithmeticType (Memo.type_of memo)) then
-    add_propagate side memo
+    add_propagate side memo;
+  if M.tracing then M.traceu "access" "add\n"
 
 let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
