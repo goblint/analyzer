@@ -32,12 +32,20 @@ struct
       | Field (f, o) -> offset_might_contain_freed o
       | Index (e, o) -> warn_exp_might_contain_freed transfer_fn_name e ctx; offset_might_contain_freed o
     in
-    let (_, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
-    match ctx.ask (Queries.MayPointTo (mkAddrOf lval)) with
+    let (lval_host, o) = lval in offset_might_contain_freed o; (* Check the lval's offset *)
+    let lval_to_query =
+      match lval_host with
+      | Var _ -> Lval lval
+      | Mem _ -> mkAddrOf lval (* Take the lval's address if its lhost is of the form *p, where p is a ptr *)
+    in
+    match ctx.ask (Queries.MayPointTo lval_to_query) with
     | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) ->
-      let v, o = Queries.LS.choose a in
-      if ctx.ask (Queries.IsHeapVar v) && D.mem v state then
-        M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
+      begin try
+          let v, o = Queries.LS.choose a in
+          if ctx.ask (Queries.IsHeapVar v) && D.mem v state then
+            M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
+        with Not_found -> ()
+      end
     | _ -> ()
 
   and warn_exp_might_contain_freed ?(is_double_free = false) (transfer_fn_name:string) (exp:exp) ctx =
