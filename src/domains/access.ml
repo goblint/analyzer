@@ -113,24 +113,25 @@ struct
     with Offset.Type_of_error _ -> raise Type_offset_error
 end
 
+(* TODO: What is the logic for get_type? *)
 let rec get_type (fb: typ Lazy.t) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) ->
     let rec f htyp =
       match htyp with
       | TComp (ci,_) -> `Struct (ci, Offset.Unit.of_cil o)
       | TNamed (ti,_) -> f ti.ttype
-      | _ -> `Type (Lazy.force fb)
+      | _ -> `Type (Lazy.force fb) (* TODO: Why fb not htyp? *)
     in
     begin match o with
       | Field (f, on) -> `Struct (f.fcomp, Offset.Unit.of_cil o)
       | NoOffset | Index _ ->
         begin match h with
           | Var v -> f (v.vtype)
-          | Mem e -> f (Lazy.force fb)
+          | Mem e -> f (Lazy.force fb) (* TODO: type of Mem doesn't have to be the fallback type if offsets present? *)
         end
     end
   | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ | AddrOfLabel _  ->
-    `Type (uintType)
+    `Type (uintType) (* TODO: Correct types from typeOf? *)
   | UnOp (_,_,t) -> `Type t
   | BinOp (_,_,_,t) -> `Type t
   | CastE (t,e) ->
@@ -156,8 +157,8 @@ let get_type fb e =
   let r = get_type fb e in
   (* printf "result = %a\n" d_acct r; *)
   match r with
-  | `Type (TPtr (t,a)) -> `Type t
-  | x -> x
+  | `Type (TPtr (t,a)) -> `Type t (* Why this special case? Almost always taken if not `Struct. *)
+  | x -> x (* Mostly for `Struct, but also rare cases with non-pointer `Type. Should they happen at all? *)
 
 
 
@@ -165,7 +166,7 @@ let get_type fb e =
 let get_val_type e: acc_typ =
   let fb = lazy (
     try Cilfacade.typeOf e
-    with Cilfacade.TypeOfError _ -> voidType
+    with Cilfacade.TypeOfError _ -> voidType (* Why is this a suitable default? *)
   )
   in
   get_type fb e
