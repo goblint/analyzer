@@ -58,7 +58,7 @@ struct
     | _ -> failwith "Type mismatch!"
 
   (* TODO: use the type information to do this properly. Currently, this assumes
-  * there are no nested arrays, so all indexing is eliminated. *)
+     there are no nested arrays, so all indexing is eliminated. *)
   let real_region (fd:t) typ: bool = not (contains_index fd)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =

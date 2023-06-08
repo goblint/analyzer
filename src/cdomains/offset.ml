@@ -11,7 +11,7 @@ struct
 
   module Unit: Printable with type t = unit =
   struct
-    include Lattice.Unit
+    include Lattice.UnitConf (struct let name = "?" end)
     let name () = "unit index"
     let equal_to _ _ = `Top
     let to_int _ = None
@@ -57,11 +57,13 @@ struct
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
-    | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
-      | `MustNonzero, _
-      | _, `Neq -> `MustNonzero
-      | `MustZero, `Eq -> `MustZero
-      | _, _ -> `MayZero)
+    | `Index (x, o) ->
+      begin match cmp_zero_offset o, Idx.equal_to (IntOps.BigIntOps.zero) x with
+        | `MustNonzero, _
+        | _, `Neq -> `MustNonzero
+        | `MustZero, `Eq -> `MustZero
+        | _, _ -> `MayZero
+      end
     | `Field (x, o) ->
       if Cilfacade.is_first_field x then cmp_zero_offset o else `MustNonzero
 
