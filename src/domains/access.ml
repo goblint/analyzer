@@ -35,6 +35,8 @@ let init (f:file) =
   unsound := get_bool "ana.mutex.disjoint_types";
   let visited_vars = Hashtbl.create 100 in
   let visit_field fi =
+    (* TODO: is_ignorable_type? *)
+    (* TODO: Direct ignoring doesn't really work since it doesn't account for pthread inner structs/unions being only reachable via ignorable types. *)
     TSH.add typeIncl (typeSig fi.ftype) fi
   in
   let visit_glob = function
@@ -42,6 +44,7 @@ let init (f:file) =
       List.iter visit_field c.cfields
     | GVarDecl (v,_) | GVar (v,_,_) ->
       if not (Hashtbl.mem visited_vars v.vid) then begin
+        (* TODO: is_ignorable? *)
         TSH.add typeVar (typeSig v.vtype) v;
         (* ignore (printf "init adding %s : %a" v.vname d_typsig ((typeSig v.vtype))); *)
         Hashtbl.replace visited_vars v.vid true
@@ -178,6 +181,7 @@ let add_one side memo: unit =
 
 let add_struct side memo: unit =
   let rec dist_fields ty : offs list =
+    (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
     match unrollType ty with
     | TComp (ci,_)   ->
       let one_field fld =
