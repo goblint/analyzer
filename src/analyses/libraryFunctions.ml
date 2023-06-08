@@ -182,6 +182,14 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 (** GCC builtin functions.
     These are not builtin versions of functions from other lists. *)
 let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__builtin_bswap16", unknown [drop "x" []]);
+    ("__builtin_bswap32", unknown [drop "x" []]);
+    ("__builtin_bswap64", unknown [drop "x" []]);
+    ("__builtin_bswap128", unknown [drop "x" []]);
+    ("__builtin_ctz", unknown [drop "x" []]);
+    ("__builtin_ctzl", unknown [drop "x" []]);
+    ("__builtin_ctzll", unknown [drop "x" []]);
+    ("__builtin_clz", unknown [drop "x" []]);
     ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
     ("__builtin_prefetch", unknown (drop "addr" [] :: VarArgs (drop' [])));
     ("__builtin_expect", special [__ "exp" []; drop' []] @@ fun exp -> Identity exp); (* Identity, because just compiler optimization annotation. *)
@@ -765,10 +773,6 @@ open Invalidate
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = [
     "atoi", readsAll;             (*safe*)
-    "__builtin_ctz", readsAll;
-    "__builtin_ctzl", readsAll;
-    "__builtin_ctzll", readsAll;
-    "__builtin_clz", readsAll;
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
@@ -1026,10 +1030,6 @@ let invalidate_actions = [
     "pthread_rwlock_destroy", readsAll;
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
-    "__builtin_bswap16", readsAll;
-    "__builtin_bswap32", readsAll;
-    "__builtin_bswap64", readsAll;
-    "__builtin_bswap128", readsAll;
     "__builtin_va_arg_pack_len", readsAll;
     "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
