@@ -23,9 +23,12 @@ fi
 # Exit if any command fails
 set -e
 
+# Get the name of the repo
+repo_name=$(basename "$git_url" .git)
+
 # Export path for Mutation Generator
 if [ "$3" == "--path" ]; then
-  echo "$output_path/$path_to_execute_cil"
+  echo "$output_path/$repo_name/$path_to_build"
   exit 0
 fi
 
@@ -36,7 +39,6 @@ if { $use_cmake && $use_make ; } || { ! $use_cmake && ! $use_make ; }; then
 fi
 
 # Main script
-repo_name=$(basename "$git_url" .git)
 rm -rf "$output_path/$repo_name"
 git clone $git_url "$output_path/$repo_name"
 
