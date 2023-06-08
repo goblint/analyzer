@@ -44,8 +44,12 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
 
+      - name: Install coverage dependencies
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: opam install bisect_ppx
+
       - name: Build
-        run: ./make.sh nat
+        run: ./make.sh coverage
 
       - name: Test regression
         run: ./make.sh headers testci
@@ -78,6 +82,12 @@ jobs:
 
       - name: Test incremental regression with cfg comparison
         run: ruby scripts/update_suite.rb -c
+
+      - run: opam exec -- bisect-ppx-report send-to Coveralls --coverage-path=.
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          PULL_REQUEST_NUMBER: ${{ github.event.number }}
 
       - uses: actions/upload-artifact@v3
         if: always()
