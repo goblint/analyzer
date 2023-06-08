@@ -97,3 +97,4 @@ site/
 
 # coverage
 _coverage/*
+*.coverage
