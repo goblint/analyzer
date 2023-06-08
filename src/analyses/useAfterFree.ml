@@ -120,8 +120,6 @@ struct
     D.join caller_state callee_local
 
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    Option.iter (fun x -> warn_lval_might_contain_freed "combine_assign" x ctx) lval;
-    List.iter (fun arg -> warn_exp_might_contain_freed "combine_assign" arg ctx) args;
     ctx.local
 
   let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
