@@ -94,3 +94,6 @@ transformed.c
 
 # docs
 site/
+
+# coverage
+_coverage/*
