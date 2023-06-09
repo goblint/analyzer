@@ -1457,6 +1457,145 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
+
+module DeadBranchLifter2 (S: Spec): Spec =
+struct
+  include S
+
+  let name () = "DeadBranch2 (" ^ S.name () ^ ")"
+
+  (* Two global invariants:
+     1. S.V -> S.G  --  used for S
+     2. node -> (exp -> flat bool)  --  used for warnings *)
+
+  module V =
+  struct
+    include Printable.Either (S.V) (Node)
+    let name () = "DeadBranch2"
+    let s x = `Left x
+    let node x = `Right x
+    let is_write_only = function
+      | `Left x -> S.V.is_write_only x
+      | `Right _ -> true
+  end
+
+  module EM =
+  struct
+    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    let name () = "branches2"
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    let name () = "deadbranch2"
+
+    let s = function
+      | `Bot -> S.G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "DeadBranchLifter2.s"
+    let node = function
+      | `Bot -> EM.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "DeadBranchLifter2.node"
+    let create_s s = `Lifted1 s
+    let create_node node = `Lifted2 node
+
+    let printXml f = function
+      | `Lifted1 x -> S.G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch2\">%a</analysis>" EM.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter2\">%a</analysis>" printXml x
+  end
+
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
+    { ctx with
+      global = (fun v -> G.s (ctx.global (V.s v)));
+      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+    }
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g))
+        | `Right g ->
+          let em = G.node (ctx.global (V.node g)) in
+          EM.iter (fun exp tv ->
+              match tv with
+              | `Lifted tv ->
+                let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+                let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
+              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
+              | `Top -> (* may be both true and false *)
+                ()
+            ) em;
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | IterSysVars (vq, vf) ->
+      (* vars for S *)
+      let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
+      S.query (conv ctx) (IterSysVars (vq, vf'));
+
+      (* node vars for dead branches *)
+      begin match vq with
+        | Node {node; _} ->
+          vf (Obj.repr (V.node node))
+        | _ ->
+          ()
+      end
+    | _ ->
+      S.query (conv ctx) q
+
+
+  let branch ctx = S.branch (conv ctx)
+
+  let branch ctx exp tv =
+    if !AnalysisState.postsolving then (
+      try
+        let r = branch ctx exp tv in
+        (* branch is live *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp (`Lifted tv))); (* record expression with reached tv *)
+        r
+      with Deadcode ->
+        (* branch is dead *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp `Bot)); (* record expression without reached tv *)
+        raise Deadcode
+    )
+    else (
+      ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.bot ())); (* create global variable during solving, to allow postsolving leq hack to pass verify *)
+      branch ctx exp tv
+    )
+
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
+  let enter ctx = S.enter (conv ctx)
+  let paths_as_set ctx = S.paths_as_set (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+  let combine_env ctx = S.combine_env (conv ctx)
+  let combine_assign ctx = S.combine_assign (conv ctx)
+  let special ctx = S.special (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+  let sync ctx = S.sync (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let event ctx e octx = S.event (conv ctx) e (conv octx)
+end
+
+
 module LongjmpLifter (S: Spec): Spec =
 struct
   include S
@@ -1929,8 +2068,6 @@ end
 module RecursionTermLifter (S: Spec)
   : Spec with module D = S.D
         and module C = S.C
-        and module G = GVarGG (S.G) (S.C)
-        and module V = GVarF(S.V)
 =
 (*global invariant
      - fundec -> Map (S.C) (Set (fundec * S.C)) 
@@ -1939,7 +2076,11 @@ module RecursionTermLifter (S: Spec)
 
 struct
   include S
-  module V = GVarF(S.V)
+  module V = 
+  struct 
+    include GVarF(S.V)
+    let s = spec
+  end
 
   module G = GVarGG (S.G) (S.C)
   
@@ -1957,7 +2098,26 @@ struct
       global = (fun v -> G.s (ctx.global (V.spec v)));
       sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_s g));
     }
-  let query ctx = S.query (conv ctx)
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | _ -> S.query (conv ctx) q
+
   let branch ctx = S.branch (conv ctx)
   let assign ctx = S.assign (conv ctx)
   let vdecl ctx = S.vdecl (conv ctx)
@@ -1969,15 +2129,18 @@ struct
     if !AnalysisState.postsolving then
       sideg (V.contexts f) (G.create_contexts (G.CMap.singleton (c) (t)))
   
-  let enter ctx lval fundec exprList = (*TODO*)
-    S.enter (conv ctx) lval fundec exprList
-    (*let c: unit -> S.C.t = snd var |> Obj.obj in (*Callee context*)
-    let fd = fundec in (*Callee fundec*)
-    let c' = ctx.context in (*Caller context*) (*TODO is this the caller or callee context???*)
-    let fd' =  in (*Caller fundec*)
-    let tup = (fundec * c') in (* TODO: is fundec the caller or callee fundec???*)
-    let t = G.CSet.singleton (tup) in  (*TODO do we fill the set correctly???*)
-    side_context sideg fd (c ()) t*)
+  let enter ctx lval fu exprList = (*TODO*)
+    if !AnalysisState.postsolving then
+      let c_r: unit -> S.C.t = ctx.context in (*Caller context*) (*TODO is this the caller or callee context???*)
+      let fd_r : fundec = fu in (*Caller fundec*) (*TODO: Falsch??*)
+      let c_e : unit -> S.C.t = ctx.context in (*Callee context*) (*TODO: Falsch??*)
+      let fd_e : fundec = fu in (*Callee fundec*)
+      let tup: (fundec * S.C.t) = (fd_r, (c_r ())) in (* TODO: is fundec the caller or callee fundec???*)
+      let t = G.CSet.singleton (tup) in  (*TODO do we fill the set correctly???*)
+      side_context ctx.sideg fd_e (c_e ()) t;
+      S.enter (conv ctx) lval fu exprList
+    else 
+      S.enter (conv ctx) lval fu exprList
     
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
