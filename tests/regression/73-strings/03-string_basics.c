@@ -19,23 +19,23 @@ int main() {
     char s3[10] = "abcd";
     char s4[20] = "abcdf";
 
-    int i = strlen(s1);
-    __goblint_check(i == 6); // UNKNOWN
+    size_t len = strlen(s1);
+    __goblint_check(len == 6); // UNKNOWN
 
-    i = strlen(s2);
-    __goblint_check(i == 6); // UNKNOWN
+    len = strlen(s2);
+    __goblint_check(len == 6); // UNKNOWN
 
-    i = strlen(s3);
-    __goblint_check(i == 4); // UNKNOWN
+    len = strlen(s3);
+    __goblint_check(len == 4); // UNKNOWN
 
     strcat(s1, s2);
-    i = strcmp(s1, "hello world!");
+    int i = strcmp(s1, "hello world!");
     __goblint_check(i == 0); // UNKNOWN
 
     strcpy(s1, "hi ");
     strncpy(s1, s3, 3);
-    i = strlen(s1);
-    __goblint_check(i == 3); // UNKNOWN
+    len = strlen(s1);
+    __goblint_check(len == 3); // UNKNOWN
 
     strcat(s1, "ababcd");
     char* cmp = strstr(s1, "bab");
@@ -52,8 +52,8 @@ int main() {
 
     strncpy(s1, "", 20);
     concat_1(s1, 30);
-    i = strlen(s1);
-    __goblint_check(i == 30); // UNKNOWN
+    len = strlen(s1);
+    __goblint_check(len == 30); // UNKNOWN
 
     cmp = strstr(s1, "0");
     __goblint_check(cmp == NULL); // UNKNOWN

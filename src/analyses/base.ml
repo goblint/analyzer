@@ -2118,6 +2118,7 @@ struct
             (* else compute strlen in array domain *)
             else
               begin match eval_rv (Analyses.ask_of_ctx ctx) gs st s with
+                (* TODO: found out during debugging that case is not picked even when it should -- why?? *)
                 | Array array_s -> Int(CArrays.to_string_length array_s)
                 | _ -> VD.top_value (unrollType dest_typ)
               end in

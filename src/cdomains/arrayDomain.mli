@@ -121,7 +121,6 @@ sig
   include LatticeWithSmartOps
       
   val null: unit -> t
-  val not_null: unit -> t
   val is_null: t -> bool
 
   val is_int_ikind: t -> Cil.ikind option

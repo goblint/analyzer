@@ -39,7 +39,6 @@ sig
   val zero_init_value: ?varAttr:attributes -> typ -> t
 
   val null: unit -> t
-  val not_null: unit -> t
   val is_null: t -> bool
 
   val is_int_ikind: t -> Cil.ikind option
@@ -272,9 +271,12 @@ struct
   let top_name = "Unknown"
 
   let null () = Int(ID.of_int IChar Z.zero)
-  let not_null () = Top
   let is_null = function
-    | Int n -> ID.to_int n = Some Z.zero
+    | Int n ->
+      begin match ID.to_int n with
+        | Some n -> Z.equal n Z.zero
+        | None -> false
+      end
     | _ -> false
 
   let is_int_ikind = function

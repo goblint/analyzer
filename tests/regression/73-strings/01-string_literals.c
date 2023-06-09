@@ -22,16 +22,16 @@ int main() {
     char* s2 = "abcdfg";
     char* s3 = hello_world();
     
-    int i = strlen(s1);
-    __goblint_check(i == 5);
+    size_t len = strlen(s1);
+    __goblint_check(len == 5);
 
-    i = strlen(s2);
-    __goblint_check(i == 6);
+    len = strlen(s2);
+    __goblint_check(len == 6);
 
-    i = strlen(s3);
-    __goblint_check(i == 12);
+    len = strlen(s3);
+    __goblint_check(len == 12);
 
-    i = strcmp(s1, s2);
+    int i = strcmp(s1, s2);
     __goblint_check(i < 0);
 
     i = strcmp(s2, "abcdfg");

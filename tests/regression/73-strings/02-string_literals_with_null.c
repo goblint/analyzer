@@ -9,10 +9,10 @@ int main() {
     char* s3 = "hello world!";
     char* s4 = "\0 i am the empty string";
 
-    int i = strlen(s1);
-    __goblint_check(i == 5);
+    size_t len = strlen(s1);
+    __goblint_check(len == 5);
 
-    i = strcmp(s1, s2);
+    int i = strcmp(s1, s2);
     __goblint_check(i == 0);
 
     i = strcmp(s3, s1);
