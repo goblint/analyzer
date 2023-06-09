@@ -31,10 +31,9 @@ let check_bounded ctx varinfo =
   let open IntDomain.IntDomTuple in
   let exp = Lval (Var varinfo, NoOffset) in
   match ctx.ask (EvalInt exp) with
-  | `Top -> print_endline (varinfo.vname ^ " is TOP"); false
-  | `Bot -> print_endline (varinfo.vname ^ " is BOT"); raise (PreProcessing "Loop variable is Bot")
-  | `Lifted v -> print_endline (varinfo.vname ^ " is " ^ IntDomain.IntDomTuple.show v);
-    not (is_top_of (ikind v) v)
+  | `Top -> false
+  | `Lifted v -> not (is_top_of (ikind v) v)
+  | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
 module Spec : Analyses.MCPSpec =
 struct
