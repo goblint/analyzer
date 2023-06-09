@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import sys
 import questionary
 import yaml
 from pathlib import Path
@@ -38,7 +39,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     goblint_executable_path = os.path.join(goblint_path, 'goblint')
     clang_tidy_path = os.path.join(llvm_path, 'build', 'bin', 'clang-tidy')
     temp_path = os.path.abspath(os.path.join(os.path.curdir, 'temp'))
-    gernerate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, input_path, mutations, is_mutation, is_ml, is_git, ml_count)
+    gernerate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count)
 
     # Run tests
     if is_run_tests:
@@ -185,7 +186,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 input = questionary.text('Enter the path to the c program for the mutations: ', default=last_input_mutation).ask()
                 config.update({CONFIG_LAST_INPUT_MUTATION: input})
             else:
-                input = questionary.text('Enter the path to the git repository for the mutations: ', default=last_input_git).ask()
+                input = questionary.text('Enter the path to the sh script with informations about the git repository (Use [-s] to see the template script ): ', default=last_input_git).ask()
                 config.update({CONFIG_LAST_INPUT_GIT: input})
             if not os.path.exists(input):
                 print(f"{COLOR_RED}Please enter a valid path.{COLOR_RESET}")
@@ -217,7 +218,20 @@ if __name__ == "__main__":
     # Add ML options
     parser.add_argument('-c', '--ml-count', type=int, default=-1,  help='How many different programs should be generated with ML?')
 
+    # Add GIT options
+    parser.add_argument('-s', '--template-script', action='store_true', help='Print the template script for git repositories')
+
     args = parser.parse_args()
+
+    if args.template_script:
+        template_path = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'generators', 'generate_git_build_USER_INFO_TEMPLATE.sh'))
+        print(f'{COLOR_YELLOW}Template can be found at: {template_path}{COLOR_RESET}')
+        print('')
+        with open(template_path, 'r') as file:
+            content = file.read()
+        print(content)
+        print('')
+        sys.exit(0)
 
     if args.enable_mutations or args.enable_ml or args.enable_git:
         # If using git, only git can be used

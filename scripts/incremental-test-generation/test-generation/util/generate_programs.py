@@ -15,7 +15,7 @@ from generators.generate_git import *
 
 generate_type_source = "SOURCE"
 
-def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, git_url, mutations, enable_mutations, enable_ml, enable_git, ml_count):
+def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count):
     # Clean working directory
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -25,7 +25,7 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
     with open(meta_path, 'w') as outfile:
         yaml.dump({'n': 0, 'p_0': {META_TYPE: generate_type_source}}, outfile)
     # Copy the source program into the temp dir
-    program_path = os.path.join(temp_dir, 'p.c')
+    program_path = os.path.join(temp_dir, 'p.c' if not enable_git else 'p.sh')
     shutil.copy2(source_path, program_path)
     program_0_path = os.path.join(temp_dir, 'p_0.c')
     shutil.copy2(source_path, program_0_path)
@@ -42,17 +42,17 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
         index = generate_ml(program_path, apikey_path, meta_path, ml_count, NUM_SELECTED_LINES, INTRESTING_LINES)
 
     if enable_git:
-        #TODO Let user select start time
-        START_TIME_MS = 1315609200000
-        #TODO Let user select end time
-        END_TIME_MS = 1315695600000
-        index = generate_git(goblint_path, temp_dir, meta_path, program_path, START_TIME_MS, END_TIME_MS)
+        #TODO Let user select start
+        START_COMMIT = 'da6f1623c177c5ebfa2b1ee3b50eb297da5a77e1'
+        #TODO Let user select end
+        END_COMMIT = '04f42ceca40f73e2978b50e93806c2a18c1281fc'
+        index = generate_git(goblint_path, temp_dir, meta_path, program_path, START_COMMIT, END_COMMIT)
 
     # Add checks with comments
     print(SEPERATOR)
     for i in range(index + 1):
         if i % 9 == 0:
-            print(f"Generating goblint checks [{i+1}/{index}]")
+            print(f"[{i+1}/{index}] Generating goblint checks...")
         file_path = os.path.join(temp_dir, f"p_{i}.c")
         compiling = add_check(file_path, i, goblint_path, meta_path)
         if not compiling:
@@ -81,12 +81,11 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate programs in the working directory')
-    parser.add_argument('source_path', help='Path to the original program provided by the user')
+    parser.add_argument('source_path', help='Path to the original program or git sh file provided by the user')
     parser.add_argument('temp_dir', help='Path to the working directory')
     parser.add_argument('clang_tidy_path', help='Path to the modified clang-tidy executable')
     parser.add_argument('goblint_path', help='Path to the goblint executable')
     parser.add_argument('--apikey-path', help='Path to the API')
-    parser.add_argument('--git-url', help='Git URL')
     parser.add_argument('--enable-mutations', action='store_true', help='Enable Mutations. When no mutation is selected all are activated.')
     parser.add_argument('--enable-ml', action='store_true', help='Enable ML')
     parser.add_argument('--enable-git', action='store_true', help='Enable Git')
@@ -114,7 +113,4 @@ if __name__ == '__main__':
     if args.enable_ml and not args.apikey_path:
         parser.error("--enable-ml requires --apikey-path")
 
-    if args.enable_git and not args.git_url:
-        parser.error("--enable-git requires --git-url")
-
-    gernerate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, args.git_url, mutations, args.enable_mutations, args.enable_ml, args.enable_git)
+    gernerate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git)

@@ -29,10 +29,13 @@ def generate_tests(temp_dir, target_dir, precision_test):
     n = yaml_data[META_N]
 
     unchanged_count = 0
+    compiling_programs = []
     for i in range(n + 1):
         current_program_id = f'p_{i}'
         compilation_success = yaml_data[current_program_id][META_COMPILING]
-        if not compilation_success:
+        if compilation_success:
+            compiling_programs.append(i)
+        else:
             print(f"Generating test files [{i}/{n}] {COLOR_YELLOW}Skipped {i} (Not compiling){COLOR_RESET}")
             continue
         if META_EXCEPTION in yaml_data[current_program_id]:
@@ -56,7 +59,14 @@ def generate_tests(temp_dir, target_dir, precision_test):
             end_program = os.path.join(temp_dir, source_program_id + '_check_unknown.c')
             end_program_precison = os.path.join(temp_dir, source_program_id + '_check_success.c')   
         elif type ==Generate_Type.GIT.value:
-            previous_program_id = f'p_{i-1}'
+            # If it's the first compiling program skip it.
+            if i == compiling_programs[0]:
+                print(f"Generating test files [{i}/{n}] {COLOR_BLUE}Skipped {i} as the source file for the first test{COLOR_RESET}")
+                continue
+
+            # Find the index of the previous compiling program.
+            previous_program_index = compiling_programs.index(i) - 1
+            previous_program_id = f'p_{compiling_programs[previous_program_index]}'
 
             start_program = os.path.join(temp_dir, previous_program_id + '_check_success.c')
             end_program = os.path.join(temp_dir, current_program_id + '_check_unknown.c')
