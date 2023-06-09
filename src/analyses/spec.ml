@@ -182,7 +182,7 @@ struct
                 let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
                 let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in (* TODO what should be used to specify the key? *)
                 (* TODO this somehow also prints the expression!? why?? *)
-                let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
+                let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_cil_exp var))] in (* use Fl for Lval instead? *)
                 (* TODO encode key in exp somehow *)
                 (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
                 ctx.split new_m [Events.SplitBranch (c_exp, true)];
@@ -239,7 +239,7 @@ struct
     in
     let m = SpecCheck.check ctx get_key matches in
     let key_from_exp = function
-      | Lval (Var v,o) -> Some (v, Lval.CilLval.of_ciloffs o)
+      | Lval (Var v,o) -> Some (v, Offset.Exp.of_cil o)
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* TODO for now we just care about Lval assignments -> should use Queries.MayPointTo *)
@@ -253,7 +253,7 @@ struct
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
       M.debug ~category:Analyzer "assign (only k2 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       let m = D.alias k1 k2 m in (* point k1 to k2 *)
-      if Lval.CilLval.class_tag k2 = `Temp (* check if k2 is a temporary Lval introduced by CIL *)
+      if Basetype.Variables.to_group (fst k2) = Some Temp (* check if k2 is a temporary Lval introduced by CIL *)
       then D.remove' k2 m (* if yes we need to remove it from our map *)
       else m (* otherwise no change *)
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)

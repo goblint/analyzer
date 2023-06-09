@@ -11,20 +11,14 @@ struct
   include Analyses.IdentitySpec
 
   let name () = "taintPartialContexts"
-  module D = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+  module D = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
   module C = Lattice.Unit
-
-  let rec resolve (offs : offset) : (CilType.Fieldinfo.t, Basetype.CilExp.t) Lval.offs =
-    match offs with
-    | NoOffset -> `NoOffset
-    | Field (f_info, f_offs) -> `Field (f_info, (resolve f_offs))
-    | Index (i_exp, i_offs) -> `Index (i_exp, (resolve i_offs))
 
   (* Add Lval or any Lval which it may point to to the set *)
   let taint_lval ctx (lval:lval) : D.t =
     let d = ctx.local in
     (match lval with
-     | (Var v, offs) -> D.add (v, resolve offs) d
+     | (Var v, offs) -> D.add (v, Offset.Exp.of_cil offs) d
      | (Mem e, _) -> D.union (ctx.ask (Queries.MayPointTo e)) d
     )
 
