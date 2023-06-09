@@ -55,7 +55,7 @@ if [ "$3" == "--build" ]; then
   pre_build_commands
 
   if $use_cmake; then
-    cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    cmake "$output_path/$repo_name/$path_to_build" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   elif $use_make; then
     bear -- make
   fi

@@ -5,8 +5,8 @@
 ##############################################################
 # Variables
 git_url="https://github.com/madler/zlib.git"
-use_cmake=true
-use_make=false
+use_cmake=false
+use_make=true
 path_to_build="."
 
 # Functions before and after build

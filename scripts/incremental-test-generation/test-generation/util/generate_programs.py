@@ -8,13 +8,14 @@ from util.add_check import add_check
 from util.add_check_comments import add_check_comments
 from generators.generate_mutations import *
 from generators.generate_ml import *
+from generators.generate_git import *
 
 # Run for example with:
 # python3 generate_programs.py ../../sample-files/threads.c test ~/BA/Clang-Repo/llvm-project/build/bin/clang-tidy ~/BA/Goblint-Repo/analyzer/goblint --enable-mutations
 
 generate_type_source = "SOURCE"
 
-def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, git_url, mutations, enable_mutations, enable_ml,  enable_git, ml_count):
+def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, git_url, mutations, enable_mutations, enable_ml, enable_git, ml_count):
     # Clean working directory
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -41,23 +42,26 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
         index = generate_ml(program_path, apikey_path, meta_path, ml_count, NUM_SELECTED_LINES, INTRESTING_LINES)
 
     if enable_git:
-        pass
+        #TODO Let user select start time
+        START_TIME_MS = 1315609200000
+        #TODO Let user select end time
+        END_TIME_MS = 1315695600000
+        index = generate_git(goblint_path, temp_dir, meta_path, program_path, START_TIME_MS, END_TIME_MS)
 
     # Add checks with comments
     print(SEPERATOR)
-    index += 1
-    for i in range(index):
+    for i in range(index + 1):
         if i % 9 == 0:
             print(f"Generating goblint checks [{i+1}/{index}]")
         file_path = os.path.join(temp_dir, f"p_{i}.c")
         compiling = add_check(file_path, i, goblint_path, meta_path)
         if not compiling:
             continue
-        file_path = os.path.join(temp_dir, f"p_{i}_c.c")
-        if i == 0:
-            add_check_comments(file_path, True)
-        add_check_comments(file_path, False)
-    print(f"Generating goblint checks [DONE]")
+        file_path = os.path.join(temp_dir, f"p_{i}_check.c")
+        if i == 0 or enable_git:
+            add_check_comments(file_path, unknown_instead_of_success=True)
+        add_check_comments(file_path, unknown_instead_of_success=False)
+    print(f"{COLOR_GREEN}Generating goblint checks [DONE]{COLOR_RESET}")
 
     # Check how many and which files were not compiling
     print(SEPERATOR)
@@ -71,12 +75,9 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
             failed_count += 1
             failed_compilation_keys.append(key)
     if failed_count == 0:
-        print("All files compiled succesfully")
+        print(f"{COLOR_GREEN}All files compiled succesfully{COLOR_RESET}")
     else:
-        print(f"There where {failed_count} files not compiling: {failed_compilation_keys}")
-
-
-
+        print(f"{COLOR_RED}There where {failed_count} files not compiling:{COLOR_RESET} {failed_compilation_keys}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate programs in the working directory')

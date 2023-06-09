@@ -19,7 +19,7 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
     '["assert"]',
     "--set",
     "trans.output",
-    file_path.rsplit('.', 1)[0] + '_c.c',
+    file_path.rsplit('.', 1)[0] + '_check.c',
     file_path
     ]
 
@@ -34,9 +34,9 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
         yaml.safe_dump(yaml_data, file)
     
     if not compiling:
-        print(f"Error compiling program with index {index}.")
+        print(f"{COLOR_RED}Error compiling program with index {index}.{COLOR_RESET}")
         if index == 0:
-            print("The original program did not compile. Stopping program!")
+            print(f"{COLOR_RED}The original program did not compile. Stopping program!{COLOR_RESET}")
             sys.exit(-1)
         return False
     else:
