@@ -5,7 +5,7 @@ open Pretty
 open PrecisionUtil
 
 include PreValueDomain
-module Offs = Lval.OffsetLat (IndexDomain)
+module Offs = Offset.MakeLattice (IndexDomain)
 module M = Messages
 module BI = IntOps.BigIntOps
 module MutexAttr = MutexAttrDomain
@@ -91,7 +91,7 @@ module rec Compound: sig
     | Mutex
     | MutexAttr of MutexAttrDomain.t
     | Bot
-  include S with type t := t and type offs = (fieldinfo,IndexDomain.t) Lval.offs
+  include S with type t := t and type offs = IndexDomain.t Offset.t
 end =
 struct
   type t =
@@ -254,7 +254,7 @@ struct
   include Printable.Std
   let name () = "compound"
 
-  type offs = (fieldinfo,IndexDomain.t) Lval.offs
+  type offs = IndexDomain.t Offset.t
 
 
   let bot () = Bot
@@ -350,7 +350,7 @@ struct
       | t -> t
     in
     let rec adjust_offs v o d =
-      let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
+      let ta = try Addr.Offs.type_of ~base:v.vtype o with Offset.Type_of_error (t,s) -> raise (CastError s) in
       let info = GobPretty.sprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
@@ -363,7 +363,7 @@ struct
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
-        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o) (Some true)
+        else if Addr.Offs.cmp_zero_offset o = `MustZero then adjust_offs v (Addr.Offs.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
@@ -372,14 +372,14 @@ struct
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               M.tracel "casta" "cast struct to its first field\n";
-              adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
             | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
             (* array to its first element *)
             | TArray _, _ ->
               M.tracel "casta" "cast array to its first element\n";
-              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
-            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.is_zero_offset o)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset))) (Some false)
+            | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
     let one_addr = let open Addr in function
@@ -425,7 +425,7 @@ struct
         | TInt (ik,_) ->
           Int (ID.cast_to ?torg ik (match v with
               | Int x -> x
-              | Address x -> AD.to_int (module ID) x
+              | Address x -> AD.to_int x
               | Float x -> FD.to_int ik x
               (*| Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -641,7 +641,7 @@ struct
     | (Int x, Int y) -> Int (ID.meet x y)
     | (Float x, Float y) -> Float (FD.meet x y)
     | (Int _, Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
-    | (Address x, Int y) -> Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.meet x y)
     | (Struct x, Struct y) -> Struct (Structs.meet x y)
     | (Union x, Union y) -> Union (Unions.meet x y)
@@ -666,7 +666,7 @@ struct
     | (Int x, Int y) -> Int (ID.narrow x y)
     | (Float x, Float y) -> Float (FD.narrow x y)
     | (Int _, Address _) -> narrow x (cast IntDomain.Size.top_typ y)
-    | (Address x, Int y) -> Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
+    | (Address x, Int y) -> Address (AD.narrow x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.narrow x y)
     | (Struct x, Struct y) -> Struct (Structs.narrow x y)
     | (Union x, Union y) -> Union (Unions.narrow x y)
@@ -1197,11 +1197,7 @@ struct
         match addr with
         | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
         | ptr -> ptr) a
-  and project_offs p offs =
-    match offs with
-    | `NoOffset -> `NoOffset
-    | `Field (field, offs') -> `Field (field, project_offs p offs')
-    | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
+  and project_offs p offs = Offs.map_indices (ID.project p) offs
   and project_arr ask p array_attr n =
     let n = match array_attr with
       | Some (varAttr,typAttr) -> CArrays.project ~varAttr ~typAttr ask n
@@ -1263,16 +1259,8 @@ struct
         | Addr.UnknownPtr ->
           None
         | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-          let rec offs_to_offset = function
-            | `NoOffset -> NoOffset
-            | `Field (f, offs) -> Field (f, offs_to_offset offs)
-            | `Index (i, offs) ->
-              (* Addr.Offs.is_definite implies Idx.to_int returns Some *)
-              let i_definite = BatOption.get (IndexDomain.to_int i) in
-              let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
-              Index (i_exp, offs_to_offset offs)
-          in
-          let offset = offs_to_offset offs in
+          (* Addr.Offs.is_definite implies to_cil doesn't contain Offset.any_index_exp. *)
+          let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
             Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))

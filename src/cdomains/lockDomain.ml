@@ -2,7 +2,6 @@
 
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
-module Equ = MusteqDomain.Equ
 module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
 
@@ -45,28 +44,25 @@ struct
 
   include SetDomain.Reverse(SetDomain.ToppedSet (Lock) (struct let topname = "All mutexes" end))
 
-  let rec may_be_same_offset of1 of2 =
-    match of1, of2 with
-    | `NoOffset , `NoOffset -> true
-    | `Field (x1,y1) , `Field (x2,y2) -> CilType.Compinfo.equal x1.fcomp x2.fcomp && may_be_same_offset y1 y2 (* TODO: why not fieldinfo equal? *)
-    | `Index (x1,y1) , `Index (x2,y2)
-      -> ((IdxDom.to_int x1 = None) || (IdxDom.to_int x2 = None))
-         || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
-    | _ -> false
+  let may_be_same_offset of1 of2 =
+    (* Only reached with definite of2 and indefinite of1. *)
+    (* TODO: Currently useless, because MayPointTo query doesn't return index offset ranges, so not enough information to ever return false. *)
+    (* TODO: Use Addr.Offs.semantic_equal. *)
+    true
 
   let add (addr,rw) set =
-    match (Addr.to_var_offset addr) with
+    match (Addr.to_mval addr) with
     | Some (_,x) when Offs.is_definite x -> add (addr,rw) set
     | _ -> set
 
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
-      match (Addr.to_var_offset addr) with
+      match (Addr.to_mval addr) with
       | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
       | Some (v,o) -> true
       | None -> false
     in
-    match (Addr.to_var_offset addr) with
+    match (Addr.to_mval addr) with
     | Some (_,x) when Offs.is_definite x -> remove (addr,rw) set
     | Some x -> filter (collect_diff_varinfo_with x) set
     | _   -> top ()
