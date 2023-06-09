@@ -171,6 +171,7 @@ sig
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
+  val to_interval: t -> (int_t * int_t) option
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   val of_excl_list: Cil.ikind -> int_t list -> t
   val is_excl_list: t -> bool
@@ -219,7 +220,6 @@ sig
   val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
-  val to_interval: t -> (int_t * int_t) option
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
@@ -712,7 +712,7 @@ struct
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
-  let to_interval x = x
+  let to_interval = Fun.id
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
@@ -1646,6 +1646,7 @@ struct
   let to_bool x = Some (to_bool' x)
   let of_int  x = x
   let to_int  x = Some x
+  let to_interval = failwith "Not implemented!" (* FIXME *)
 
   let neg  = Ints_t.neg
   let add  = Ints_t.add (* TODO: signed overflow is undefined behavior! *)
@@ -1720,6 +1721,7 @@ struct
   let of_excl_list ik x = top_of ik
   let is_excl_list x = false
   let to_incl_list x = None
+  let to_interval x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
   let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
@@ -1802,6 +1804,10 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (f x y)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+
+  let to_interval = function
+    | `Lifted x -> Base.to_interval x
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -2408,6 +2414,7 @@ struct
   let to_bool x = Some x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
+  let to_interval = failwith "Not implemented!" (* FIXME *)
 
   let neg x = x
   let add x y = x || y
@@ -3506,7 +3513,7 @@ module IntDomTupleImpl = struct
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 
-  let to_interval (_, i, _, _, _) = I2.to_interval i
+  let to_interval (_, i, _, _, _) = Option.bind i I2.to_interval
 
   let to_excl_list x =
     let merge ps =
