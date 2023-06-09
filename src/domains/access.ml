@@ -217,7 +217,7 @@ let add_propagate side (memo: Memo.t) =
     let add_vars v = add_struct side (`Var v, f) in
     List.iter add_vars vars;
     (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    add_struct side (`Type (TComp (c, [])), f);
+    add_struct side (`Type (TComp (c, [])), f); (* same as unconditional add_struct call from add when in struct case *)
   in
   let just_vars t v =
     add_struct side (`Var v, `NoOffset);
