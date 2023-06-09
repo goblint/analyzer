@@ -2737,7 +2737,7 @@ module Enums : S with type int_t = BigInt.t = struct
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
         List.fold_left (fun a x ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-            Invariant.(a || i)
+            Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
           ) (Invariant.bot ()) (BISet.elements ps)
       else
         Invariant.top ()
