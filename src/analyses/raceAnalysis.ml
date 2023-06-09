@@ -153,6 +153,19 @@ struct
     | _ ->
       ctx.local
 
+  let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    (* perform shallow and deep invalidate according to Library descriptors *)
+    let desc = LibraryFunctions.find f in
+    if List.mem LibraryDesc.ThreadUnsafe desc.attrs then (
+      let e = Lval (Var f, NoOffset) in
+      let conf = 110 in
+      let loc = Option.get !Node.current_node in
+      let vo = Some f in
+      let a = Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind=Call}))) in
+      side_access ctx (`Type f.vtype) (Some (f, `NoOffset)) (conf, Call, loc, e, a);
+    );
+    ctx.local
+
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in
     if total > 0 then (
