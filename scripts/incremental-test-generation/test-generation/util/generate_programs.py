@@ -51,8 +51,8 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
     # Add checks with comments
     print(SEPERATOR)
     for i in range(index + 1):
-        if i % 9 == 0:
-            print(f"[{i+1}/{index}] Generating goblint checks...")
+        if i % 10 == 0:
+            print(f"[{i}/{index}] Generating goblint checks...")
         file_path = os.path.join(temp_dir, f"p_{i}.c")
         compiling = add_check(file_path, i, goblint_path, meta_path)
         if not compiling:
@@ -77,7 +77,7 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
     if failed_count == 0:
         print(f"{COLOR_GREEN}All files compiled succesfully{COLOR_RESET}")
     else:
-        print(f"{COLOR_RED}There where {failed_count} files not compiling:{COLOR_RESET} {failed_compilation_keys}")
+        print(f"{COLOR_RED}There where {failed_count} files not compiling (stderr written to temp/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate programs in the working directory')
