@@ -187,6 +187,9 @@ sig
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
 
+  val to_interval: t -> (int_t * int_t) option
+  (** Gives an interval interpretation if possible. *)
+
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
