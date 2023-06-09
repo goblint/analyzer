@@ -7,7 +7,7 @@ else
   echo "Please give the following arguments: build_info_path output_path [--clone][--build][--path]"
   echo ""
   echo "The build_info sh file should look like this:"
-  cat generate_git_build_USER_INFO_PRESET.sh
+  cat generate_git_build_USER_INFO_TEMPLATE.sh
   echo ""
   exit 1
 fi
