@@ -190,6 +190,83 @@ struct
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
 
+module TimedLifter (S: PostSpec) : PostSpec with module D = S.D
+and module G = S.G
+and module C = S.C
+=
+struct
+  include S
+
+
+  let name () = S.name () ^" context hashconsed"
+
+  let time s f x = Timing.wrap (name () ^ "."^ s) f x
+  let init x = time "init" S.init x
+  let finalize () = time "finalize" S.finalize ()
+
+  let startstate v = time "startstate" S.startstate v
+  let exitstate v = time "exitstate" S.exitstate v
+  let morphstate v d = time "morphstate" (S.morphstate v) d
+
+  let context fd d = time "context" (S.context fd) d
+
+  let sync ctx reason =
+    time "sync" (S.sync ctx) reason
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    time "query" (S.query ctx) q
+
+  let assign ctx lv e =
+    time "assign" (S.assign ctx lv) e
+
+  let vdecl ctx v =
+    time "vdecl" (S.vdecl ctx) v
+
+  let branch ctx e tv =
+    time "branch" (S.branch ctx e) tv
+
+  let body ctx f =
+    time "body" (S.body ctx) f
+
+  let return ctx r f =
+    time "return" (S.return ctx r) f
+
+  let asm ctx =
+    time "asm" S.asm ctx
+
+  let skip ctx =
+    time "skip" S.skip ctx
+
+  let enter ctx r f args =
+    time "enter" (S.enter ctx r f) args
+
+  let special ctx r f args =
+    time "special" (S.special ctx r f) args
+
+  let modular_combine_env ctx r f args =
+    time "modular_combine_env" (S.modular_combine_env ctx r f) args
+
+  let modular_combine_assign ctx r f args =
+    time "modular_combine_assign" (S.modular_combine_assign ctx r f) args
+
+  let combine_env ctx r fe f args fc es f_ask =
+    time "combine_env" (S.combine_env ctx r fe f args fc es) f_ask
+
+  let combine_assign ctx r fe f args fc es f_ask =
+    time "combine_assign" (S.combine_assign ctx r fe f args fc es) f_ask
+
+  let threadenter ctx lval f args =
+    time "threadenter" (S.threadenter ctx lval f) args
+
+  let threadspawn ctx lval f args fctx =
+    time "threadspwan" (S.threadspawn ctx lval f args) fctx
+
+  let paths_as_set ctx =
+    time "paths_as_set" S.paths_as_set ctx
+  let event ctx e octx =
+    time "event" (S.event ctx e) octx
+end
+
 (* Adds special handling for calls to functions that are to be analyzed modularly.
    Needs to be applied before PathSensitiveFunctors, so that the [S.D.join] operation does not result in multiple paths *)
 module ModularCallLifter (S:PostSpec)
