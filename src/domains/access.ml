@@ -241,6 +241,21 @@ let add_propagate side (memo: Memo.t) =
   end;
   if M.tracing then M.traceu "access" "add_propagate\n"
 
+let rec add_propagate2 side (memo: Memo.t) =
+  let o = snd memo in
+  add_struct side memo;
+
+  let base_type = Memo.type_of_base memo in
+  let base_type_vars = TSH.find_all typeVar (typeSig base_type) in
+  List.iter (fun v ->
+      add_struct side (`Var v, o)
+    ) base_type_vars;
+
+  let base_type_fields = TSH.find_all typeIncl (typeSig base_type) in
+  List.iter (fun f ->
+      add_propagate2 side (`Type (TComp (f.fcomp, [])), `Field (f, o))
+    ) base_type_fields
+
 let add side e voffs =
   let memo = match voffs with
     | Some (v, o) ->
@@ -255,7 +270,7 @@ let add side e voffs =
   add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
   if voffs = None && not (!unsound && isArithmeticType (Memo.type_of memo)) then
-    add_propagate side memo;
+    add_propagate2 side memo;
   if M.tracing then M.traceu "access" "add\n"
 
 let rec distribute_access_lval f lv =
