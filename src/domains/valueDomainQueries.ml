@@ -34,6 +34,7 @@ struct
 
   let to_int x = unlift_opt I.to_int x
   let to_bool x = unlift_opt I.to_bool x
+  let to_interval x = unlift_opt I.to_interval x
 
   let is_top_of ik = unlift_is (I.is_top_of ik)
 
