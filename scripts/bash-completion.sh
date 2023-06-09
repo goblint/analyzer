@@ -40,7 +40,9 @@ _update_suite ()
     case $COMP_CWORD in
         1)
             COMPREPLY=($(ls -1 tests/regression/*/*.c | sed -n -r 's|.*/([0-9][0-9])-(.*)\.c|\2|p' | grep "^${COMP_WORDS[1]}"))
-            COMPREPLY+=("group")
+            if [[ "group" =~ ^${COMP_WORDS[1]} ]]; then
+                COMPREPLY+=("group")
+            fi
             ;;
         2)
             if [[ ${COMP_WORDS[1]} == "group" ]] ; then
