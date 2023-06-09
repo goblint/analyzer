@@ -17,10 +17,15 @@ SEPERATOR_EXPLANATION_END = '<EXPLANATION_END'
 SEPERATOR_CODE_START = 'CODE>'
 SEPERATOR_CODE_END = '<CODE_END'
 
+error_counter = 0
+
 def generate_ml(program_path, apikey_path, meta_path, ml_count, num_selected_lines, interesting_lines):
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
         index: int = yaml_data[META_N]
+    yaml_data[META_N] = index + ml_count
+    with open(meta_path, 'w') as file:
+        yaml.safe_dump(yaml_data, file)
     
     # Read the api key and organisation
     with open(apikey_path, 'r') as file:
@@ -47,13 +52,21 @@ def generate_ml(program_path, apikey_path, meta_path, ml_count, num_selected_lin
         for i in range(ml_count):
             executor.submit(_iterative_mutation_generation, program_path, meta_path, interesting_lines, num_selected_lines, max_line, index + i + 1, file_lock)
 
+    print(SEPERATOR)
+    print('Check if all ML requests finsihed succesfully...')
+    print(f'{COLOR_GREEN}Finished all requests.{COLOR_RESET}' + (f'{COLOR_RED} {error_counter} failed with an exception.{COLOR_RESET}' if error_counter > 0 else ''))
+
     return index + ml_count
 
 def _iterative_mutation_generation(program_path, meta_path, interesting_lines, num_selected_lines, max_line, index, lock):
-    time.sleep((index * 50)/1000)
-    new_path = make_program_copy(program_path, index)
-    (explanation, selected_lines) = _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, index)
-    _write_meta_data(meta_path, new_path, selected_lines, explanation, index, lock)
+    try:
+        time.sleep((index * 50)/1000)
+        new_path = make_program_copy(program_path, index)
+        (explanation, selected_lines) = _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, index)
+        _write_meta_data(meta_path, selected_lines, explanation, index, lock)
+    except Exception as e:
+        print(f"{COLOR_RED}[{index}] Error for request {index}:{COLOR_RESET} {e}")
+        _write_meta_data(meta_path, [], '', index, lock, exception=e)
     return index
 
 def _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, index):
@@ -102,24 +115,35 @@ def _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, i
     with open(new_path, "w") as file:
         file.writelines(lines)
 
-    print(f'[{index}] Finsihed request: {explanation}')
+    explanation_lines = explanation.splitlines()
+    limited_explanation = "\n".join(explanation_lines[:4])
+    print(f'{COLOR_GREEN}[{index}] Finished request:{COLOR_RESET} {limited_explanation}')
 
     return (explanation, selected_lines)
     
 
-def _write_meta_data(meta_path, new_path, selected_lines, explanation, index, lock):
-    with lock:
-        name = os.path.basename(new_path)
+def _write_meta_data(meta_path, selected_lines, explanation, index, lock, exception=None):
+    global error_counter
+    lock.acquire()
+    try:
         with open(meta_path, 'r') as file:
             yaml_data = yaml.safe_load(file)
-        yaml_data[META_N] = index
-        yaml_data[f"p_{index}"] = {
-            META_TYPE: Generate_Type.ML.value,
-            META_SUB_TYPE: explanation,
-            META_LINES: f'[{selected_lines.start}, {selected_lines.stop}]'
-        }
+        if exception == None:
+            yaml_data[f"p_{index}"] = {
+                META_TYPE: Generate_Type.ML.value,
+                META_SUB_TYPE: explanation,
+                META_LINES: f'[{selected_lines.start}, {selected_lines.stop}]'
+            }
+        else:
+            error_counter += 1
+            yaml_data[f"p_{index}"] = {
+                META_TYPE: Generate_Type.ML.value,
+                META_EXCEPTION: str(exception)
+            }
         with open(meta_path, 'w') as file:
-            yaml.safe_dump(yaml_data, file, sort_keys=False)
+            yaml.safe_dump(yaml_data, file)
+    finally:
+        lock.release()
 
 def _make_gpt_request(snippet):
     prompt = f'''
@@ -172,18 +196,18 @@ def validate_interesting_lines(intersting_lines_string: str, program_path):
     try:
         intersting_lines = ast.literal_eval(intersting_lines_string)
     except SyntaxError:
-        print(f"The format \"{intersting_lines_string}\" is incorrect! Please use a format like this: \"[1, 42, 99]\"")
+        print(f"{COLOR_RED}The format \"{intersting_lines_string}\" is incorrect! Please use a format like this: \"[1, 42, 99]\"{COLOR_RESET}")
         return None
     except Exception as e:
-        print(f"An unexpected error occurred reading the input \"{intersting_lines_string}\": {e}")
+        print(f"{COLOR_RED}An unexpected error occurred reading the input \"{intersting_lines_string}\":{COLOR_RESET} {e}")
         return None
     
     for line in intersting_lines:
         if line <= 0:
-            print(f"All lines in \"{intersting_lines_string}\" should be greater zero!")
+            print(f"{COLOR_RED}All lines in \"{intersting_lines_string}\" should be greater zero!{COLOR_RESET}")
             return None
         if line > max_line:
-            print(f"All lines in \"{intersting_lines_string}\" should be below the maximum line {max_line}!")
+            print(f"{COLOR_RED}All lines in \"{intersting_lines_string}\" should be below the maximum line {max_line}!{COLOR_RESET}")
             return None
         
     return intersting_lines
@@ -201,7 +225,7 @@ if __name__ == "__main__":
 
     interesting_lines = validate_interesting_lines(args.interesting_lines, args.program)
     if interesting_lines == None:
-        print('Stopped program execution')
+        print(f'{COLOR_RED}Stopped program execution{COLOR_RESET}')
         sys.exit(-1)
 
     generate_ml(args.program, args.apikey, args.meta_path, int(args.ml_count), int(args.num_selected_lines), interesting_lines)

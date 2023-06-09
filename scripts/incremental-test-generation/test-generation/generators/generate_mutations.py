@@ -42,15 +42,14 @@ def _iterative_mutation_generation(program_path, clang_tidy_path, meta_path, mut
             # When Remove Thread create wrapper an then apply the mutations
             if len(lines) != 1:
                 # Needed to prevent conflicts on generating wrappers
-                print("ERROR When applying remove_thread there always should be exactly one line")
+                print(f"{COLOR_RED}ERROR When applying remove_thread there always should be exactly one line{COLOR_RESET}")
             function_name = _get_thread_function_name(clang_tidy_path, lines, new_path, index)
             _wrap_thread_function(clang_tidy_path, new_path, function_name, index)
         _apply_mutation(clang_tidy_path, mutation_name, lines, new_path, index)
-        _write_meta_data(meta_path, new_path, index, mutation_name, lines)
+        _write_meta_data(meta_path, index, mutation_name, lines)
     return index
 
 def _get_line_groups(clang_tidy_path, mutation_name, program_path, index):
-    #TODO Handle [MACRO] tags
     command = [
     clang_tidy_path,
     "-checks=-*,readability-" + mutation_name,
@@ -59,11 +58,11 @@ def _get_line_groups(clang_tidy_path, mutation_name, program_path, index):
     ]
 
     result = subprocess.run(command, text=True, capture_output=True)
-    print(f"[MUTATION][CHECK] Check mutation {mutation_name} with return code {result.returncode}")
+    print(f"[MUTATION][CHECK] Check mutation {mutation_name}")
     if result.returncode != 0:
         print(result.stdout)
         print(result.stderr)
-        print("ERROR Running Clang")
+        print(f"{COLOR_RED}ERROR Running Clang{COLOR_RESET}")
         sys.exit(-1)
 
     line_groups = []
@@ -109,11 +108,12 @@ def _apply_mutation(clang_tidy_path, mutation_name, lines, program_path, index):
     ]
 
     result = subprocess.run(command, text=True, capture_output=True)
-    print(f"[{index}] Run mutation {mutation_name} on lines {lines} with return code {result.returncode}")
-    if result.returncode != 0:
+    if result.returncode == 0:
+        print(f"{COLOR_GREEN}[{index}] Finished mutation:{COLOR_RESET} {mutation_name} on lines {lines}")
+    else:
         print(result.stdout)
         print(result.stderr)
-        print("ERROR Running Clang")
+        print(f"{COLOR_RED}ERROR Running Clang{COLOR_RESET}")
         sys.exit(-1)
 
 def _get_thread_function_name(clang_tidy_path, lines, program_path, index):
@@ -128,11 +128,11 @@ def _get_thread_function_name(clang_tidy_path, lines, program_path, index):
         "--"
     ]
     result = subprocess.run(command, text=True, capture_output=True)
-    print(f"[{index}][WRAP] Check function name for wrapping thread function with return code {result.returncode}")
+    print(f"[{index}][WRAP] Check function name for wrapping thread function")
     if result.returncode != 0:
         print(result.stdout)
         print(result.stderr)
-        print("ERROR Running Clang")
+        print(f"{COLOR_RED}ERROR Running Clang{COLOR_RESET}")
         sys.exit(-1)
 
     function_name_pattern = r"\[FUNCTION_NAME\]\[(.*?)\]"
@@ -149,7 +149,7 @@ def _get_thread_function_name(clang_tidy_path, lines, program_path, index):
 
 def _wrap_thread_function(clang_tidy_path, program_path, function_name, index):
     if function_name == None:
-        print(f"[{index}][WRAP FIX] No function name was provided. Hope the program will compile without wrapping")
+        print(f"{COLOR_YELLOW}[{index}][WRAP FIX] No function name was provided. Hope the program will compile without wrapping{COLOR_RESET}")
         return
 
     check_options = {"CheckOptions": {"readability-remove-thread-wrapper.WrapFunctionName": function_name}}
@@ -163,15 +163,14 @@ def _wrap_thread_function(clang_tidy_path, program_path, function_name, index):
         "--"
     ]
     result = subprocess.run(command, text=True, capture_output=True)
-    print(f"[{index}][WRAP FIX] Apply the wrapping of {function_name} with return code {result.returncode}")
+    print(f"[{index}][WRAP FIX] Apply the wrapping of {function_name}")
     if result.returncode != 0:
         print(result.stdout)
         print(result.stderr)
-        print("ERROR Running Clang")
+        print(f"{COLOR_RED}ERROR Running Clang{COLOR_RESET}")
         sys.exit(-1)
 
-def _write_meta_data(meta_path, new_path, index, mutation_name, lines):
-    name = os.path.basename(new_path)
+def _write_meta_data(meta_path, index, mutation_name, lines):
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
     yaml_data[META_N] = index
@@ -181,7 +180,7 @@ def _write_meta_data(meta_path, new_path, index, mutation_name, lines):
         META_LINES: lines
     }
     with open(meta_path, 'w') as file:
-        yaml.safe_dump(yaml_data, file, sort_keys=False)
+        yaml.safe_dump(yaml_data, file)
 
 def add_mutation_options(parser):
     parser.add_argument("-rfb", "--remove-function-body", action="store_true", help="Option for \"remove function body\" mutation")

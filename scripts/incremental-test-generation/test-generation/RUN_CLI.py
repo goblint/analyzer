@@ -10,8 +10,7 @@ from util.generate_tests import generate_tests
 from util.run_tests import run_tests
 from generators.generate_mutations import add_mutation_options, get_mutations_from_args
 
-logo = '''Use [-h] to see the command line options
-
+logo = '''
          __  __       _        _   _                    
         |  \/  |     | |      | | (_)                   
         | \  / |_   _| |_ __ _| |_ _  ___  _ __         
@@ -41,30 +40,35 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     temp_path = os.path.abspath(os.path.join(os.path.curdir, 'temp'))
     gernerate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, input_path, mutations, is_mutation, is_ml, is_git, ml_count)
 
-    #Write out custom test files
-    print(SEPERATOR)
-    print('Writing out custom test files:')
-    generate_tests(temp_path, os.path.join(os.path.curdir, '99-test'), precision_test=False) #TODO Custom name
-    if create_precision:
-        print(SEPERATOR)
-        print('Writing out custom precision files:')
-        generate_tests(temp_path, os.path.join(os.path.curdir, '98-precision'), precision_test=False) #TODO Custom name
-
+    # Run tests
     if is_run_tests:
         test_path = os.path.abspath(os.path.join(os.path.curdir, '99-temp'))
         if create_precision:
             print(SEPERATOR)
-            print('Writing out precision test files for running:')
+            print(f'Writing out {COLOR_BLUE}PRECISION TEST{COLOR_RESET} files for running:')
             generate_tests(temp_path, test_path, precision_test=True)
             run_tests(test_path, goblint_path, cfg=True) #TODO Add Option for cfg
         print(SEPERATOR)
-        print('Writing out test files for running:')
+        print(f'Writing out {COLOR_BLUE}CORRECTNESS TEST{COLOR_RESET} files for running:')
         generate_tests(temp_path, test_path, precision_test=False)
         run_tests(test_path, goblint_path, cfg=True) #TODO Add Option for cfg
         if os.path.exists(test_path):
             shutil.rmtree(test_path)
 
     #TODO Print link to html result and give summary
+
+    #Write out custom test files
+    print(SEPERATOR)
+    correctness_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '99-test')
+    print(f'Writing out {COLOR_BLUE}CUSTOM CORRECTNESS TEST{COLOR_RESET} files:')
+    generate_tests(temp_path, correctness_path, precision_test=False) #TODO Custom name
+    print(f'{COLOR_GREEN}Test stored in the directory: {correctness_path}{COLOR_RESET}') #TODO Multiple directories?!
+    if create_precision:
+        print(SEPERATOR)
+        precision_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "98-precision")
+        print(f'Writing out {COLOR_BLUE}CUSTOM PRECISION TEST{COLOR_RESET} files:')
+        generate_tests(temp_path, precision_path, precision_test=False) #TODO Custom name
+        print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
 
 def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, input, ml_count):
     # Check config file
@@ -102,7 +106,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
 
             # check if 'Git' is selected along with other options
             if 'Git' in generators and len(generators) > 1:
-                print("If 'Git' is selected, no other options should be selected. Please select again.")
+                print(f"{COLOR_RED}If 'Git' is selected, no other options should be selected. Please select again.{COLOR_RESET}")
                 continue
             else:
                 break
@@ -161,11 +165,11 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
         while True:
             ml_count = questionary.text('How many different programs should be generated with ML?', default=str(DEFAULT_ML_COUNT)).ask()
             if not ml_count.strip('\n').isdigit():
-                print("Please enter a valid number.")
+                print(f"{COLOR_RED}Please enter a valid number.{COLOR_RESET}")
                 continue
             ml_count = int(ml_count.strip('\n'))
             if ml_count <= 0:
-                print("Please enter a number greater zero.")
+                print(f"{COLOR_RED}Please enter a number greater zero.{COLOR_RESET}")
                 continue
             break
 
@@ -184,7 +188,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 input = questionary.text('Enter the path to the git repository for the mutations: ', default=last_input_git).ask()
                 config.update({CONFIG_LAST_INPUT_GIT: input})
             if not os.path.exists(input):
-                print("Please enter a valid path.")
+                print(f"{COLOR_RED}Please enter a valid path.{COLOR_RESET}")
                 continue
             with open(config_path, 'w') as outfile:
                 yaml.dump(config, outfile)
@@ -194,6 +198,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
 
 
 if __name__ == "__main__":
+    print(f'{COLOR_YELLOW}Use [-h] to see the command line options{COLOR_RESET}')
     print(logo)
 
     parser = argparse.ArgumentParser(description='Generates mutations for creating incremental tests')

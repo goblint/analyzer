@@ -22,15 +22,25 @@ class Generate_Type(Enum):
     ML = 'ML'
     GIT = 'GIT'
 
-SEPERATOR = "--------------------"
+COLOR_RED = '\033[31m'
+COLOR_BLUE = '\033[34m'
+COLOR_GREEN = '\033[32m'
+COLOR_YELLOW = '\033[33m'
+COLOR_RESET = '\033[0m'
+
+SEPERATOR = f"{COLOR_BLUE}------------------------------------------------------------------------------------------------------------------{COLOR_RESET}"
 
 META_FILENAME = 'meta.yaml'
 META_N = 'n'
 META_COMPILING = 'compilation'
+META_EXCEPTION = 'exception'
 META_DIFF = 'diff'
 META_TYPE = 'type'
 META_SUB_TYPE = 'sub_type'
 META_LINES = 'lines'
+META_FAILURES = 'failures'
+META_FAILURES_STD_OUT = 'stdout'
+META_FAILURES_STD_ERR = 'stderr'
 
 CONFIG_FILENAME = 'config.yaml'
 CONFIG_GOBLINT = "goblint-path"
@@ -43,7 +53,7 @@ APIKEY_APIKEY = 'api-key'
 APIKEY_ORGANISATION = 'organisation'
 
 DEFAULT_ML_COUNT = 5
-ML_WORKERS = 10
+ML_WORKERS = 5
 
 def make_program_copy(program_path, index):
     new_path = program_path.rsplit('.', 1)[0] + '_' + str(index) + '.c'
