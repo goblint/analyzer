@@ -220,40 +220,8 @@ let add_struct side memo: unit =
   end;
   if M.tracing then M.traceu "access" "add_struct\n"
 
-let add_propagate side (memo: Memo.t) =
+let rec add_propagate side (memo: Memo.t) =
   if M.tracing then M.tracei "access" "add_propagate %a\n" Memo.pretty memo;
-  let struct_inv (f:Offset.Unit.t) (c:compinfo) =
-    let vars = TSH.find_all typeVar (typeSig (TComp (c,[]))) in
-    (* 1 test(s) failed: ["04/49 type-invariants"] *)
-    let add_vars v = add_struct side (`Var v, f) in
-    List.iter add_vars vars;
-    (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-    add_struct side (`Type (TComp (c, [])), f); (* same as unconditional add_struct call from add when in struct case *)
-  in
-  let just_vars t v =
-    add_struct side (`Var v, `NoOffset);
-  in
-  begin match memo with
-    | (`Type (TComp (c, _)), (`Field (fi, _) as os)) when not (Offset.Unit.contains_index os) -> (* TODO: previously just `Struct, do some `Type TComp-s also fall in here now? *)
-      if M.tracing then M.trace "access" "struct case\n";
-      assert (CilType.Compinfo.equal c fi.fcomp);
-      (* 1 test(s) failed: ["04/49 type-invariants"] *)
-      struct_inv os c
-    | (`Type _, _) ->
-      if M.tracing then M.trace "access" "general case\n";
-      let t = Memo.type_of memo in
-      let incl = TSH.find_all typeIncl (typeSig t) in
-      (* 2 test(s) failed: ["06/16 type_rc", "06/21 mult_accs_rc"] *)
-      List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset)) fi.fcomp) incl;
-      let vars = TSH.find_all typeVar (typeSig t) in
-      (* TODO: not tested *)
-      List.iter (just_vars t) vars
-    | (`Var _, _) -> assert false
-  end;
-  if M.tracing then M.traceu "access" "add_propagate\n"
-
-let rec add_propagate2 side (memo: Memo.t) =
-  if M.tracing then M.tracei "access" "add_propagate2 %a\n" Memo.pretty memo;
   let o = snd memo in
   add_struct side memo;
 
@@ -265,10 +233,10 @@ let rec add_propagate2 side (memo: Memo.t) =
 
   let base_type_fields = TSH.find_all typeIncl (typeSig base_type) in
   List.iter (fun f ->
-      add_propagate2 side (`Type (TComp (f.fcomp, [])), `Field (f, o))
+      add_propagate side (`Type (TComp (f.fcomp, [])), `Field (f, o))
     ) base_type_fields;
 
-  if M.tracing then M.traceu "access" "add_propagate2\n"
+  if M.tracing then M.traceu "access" "add_propagate\n"
 
 let add side e voffs =
   let memo = match voffs with
@@ -284,7 +252,7 @@ let add side e voffs =
   add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
   if voffs = None && not (!unsound && isArithmeticType (Memo.type_of memo)) then
-    add_propagate2 side memo;
+    add_propagate side memo;
   if M.tracing then M.traceu "access" "add\n"
 
 let rec distribute_access_lval f lv =
