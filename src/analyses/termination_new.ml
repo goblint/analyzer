@@ -20,21 +20,21 @@ let is_loop_exit_indicator (x : varinfo) =
 
 (* checks if at the current location (=loc) of the analysis an upjumping goto was already reached
    true: no upjumping goto was reached till now*)
-let currrently_no_upjumping_gotos (loc : location) = 
+let currrently_no_upjumping_gotos (loc : location) =
   List.for_all (function (l) -> (l >= loc)) upjumpingGotos.contents
 
-let no_upjumping_gotos () = 
+let no_upjumping_gotos () =
   (List.length upjumpingGotos.contents) <= 0
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =
-  let open IntDomain.IntDomTuple in (* TODO: Remove *)
-  let open Cil in
+  let open IntDomain.IntDomTuple in
   let exp = Lval (Var varinfo, NoOffset) in
   match ctx.ask (EvalInt exp) with
-    `Top -> print_endline (varinfo.vname ^ " is TOP"); false
+  | `Top -> print_endline (varinfo.vname ^ " is TOP"); false
   | `Bot -> print_endline (varinfo.vname ^ " is BOT"); raise (PreProcessing "Loop variable is Bot")
-  | `Lifted v -> print_endline (varinfo.vname ^ " is " ^ IntDomain.IntDomTuple.show v); not (is_top v) (* TODO: Is this sound? *)
+  | `Lifted v -> print_endline (varinfo.vname ^ " is " ^ IntDomain.IntDomTuple.show v);
+    not (is_top_of (ikind v) v)
 
 module Spec : Analyses.MCPSpec =
 struct
