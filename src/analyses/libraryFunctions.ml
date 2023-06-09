@@ -39,7 +39,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fgets", unknown [drop "str" [r; w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
-    ("fprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]]);
+    ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
     ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep];]);
     ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep];]);
     ("fread", unknown [drop "buffer" [w_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
