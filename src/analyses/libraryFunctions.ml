@@ -29,6 +29,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
     ("free", unknown [drop "ptr" [f]]);
     ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
@@ -49,10 +50,13 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r_deep; w_deep]; drop "mode" []; drop "size" []]); 
     (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
     (* as any future write (or flush) of the stream could result in a write to the buffer *)
-    ("localtime", unknown [drop "time" [r]]);
+    ("gmtime", unknown ~attrs:[ThreadUnsafe] [drop "timer" [r_deep]]);
+    ("localeconv", unknown ~attrs:[ThreadUnsafe] []);
+    ("localtime", unknown ~attrs:[ThreadUnsafe] [drop "time" [r]]);
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
+    ("strtok", unknown ~attrs:[ThreadUnsafe] [drop "str" [r]; drop "delim" [r]]);
     ("__builtin_strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
     ("strncmp", special [__ "s1" [r]; __ "s2" [r]; __ "n" []] @@ fun s1 s2 n -> Strcmp { s1; s2; n = Some n; });
     ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
@@ -69,6 +73,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iswprint", unknown [drop "wc" []]);
     ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
     ("puts", unknown [drop "s" [r]]);
+    ("rand", unknown ~attrs:[ThreadUnsafe] []);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w]]);
@@ -77,15 +82,17 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("tmpnam", unknown ~attrs:[ThreadUnsafe] [drop "filename" [r]]);
     ("mktime", unknown [drop "tm" [r;w]]);
-    ("ctime", unknown [drop "rm" [r]]);
+    ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
     ("setbuf", unknown [drop "stream" [w]; drop "buf" [w]]);
     ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [])));
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
-    ("system", unknown [drop "command" [r]]);
+    ("system", unknown ~attrs:[ThreadUnsafe] [drop "command" [r]]);
     ("wcscat", unknown [drop "dest" [r; w]; drop "src" [r]]);
+    ("wcrtomb", unknown ~attrs:[ThreadUnsafe] [drop "s" [r]; drop "wc" []; drop "ps" [w_deep]]);
     ("abs", unknown [drop "j" []]);
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
@@ -101,17 +108,74 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
     ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
-    ("nl_langinfo", unknown [drop "item" []]);
+    ("catgets", unknown ~attrs:[ThreadUnsafe] [drop "catalog" [r_deep]; drop "set_number" []; drop "message_number" []; drop "message" [r_deep]]);
+    ("crypt", unknown ~attrs:[ThreadUnsafe] [drop "key" [r]; drop "salt" [r]]);
+    ("ctermid", unknown ~attrs:[ThreadUnsafe] [drop "s" [r]]);
+    ("dbm_clearerr", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]]);
+    ("dbm_close", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep; f_deep]]);
+    ("dbm_delete", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []]);
+    ("dbm_error", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
+    ("dbm_fetch", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]; drop "key" []]);
+    ("dbm_firstkey", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
+    ("dbm_nextkey", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep]]);
+    ("dbm_open", unknown ~attrs:[ThreadUnsafe] [drop "file" [r_deep; w_deep]; drop "open_flags" []; drop "file_mode" []]);
+    ("dbm_store", unknown ~attrs:[ThreadUnsafe] [drop "db" [r_deep; w_deep]; drop "key" []; drop "content" []; drop "store_mode" []]);
+    ("dlerror", unknown ~attrs:[ThreadUnsafe] []);
+    ("drand48", unknown ~attrs:[ThreadUnsafe] []);
+    ("encrypt", unknown ~attrs:[ThreadUnsafe] [drop "block" []; drop "edflag" []]);
+    ("endgrent", unknown ~attrs:[ThreadUnsafe] []);
+    ("endpwent", unknown ~attrs:[ThreadUnsafe] []);
+    ("fcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigits" []; drop "decpt" [w]; drop "sign" [w]]);
+    ("gcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigit" []; drop "buf" [w]]);
+    ("getdate", unknown ~attrs:[ThreadUnsafe] [drop "string" [r]]);
+    ("getenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("getgrent", unknown ~attrs:[ThreadUnsafe] []);
+    ("getgrgid", unknown ~attrs:[ThreadUnsafe] [drop "gid" []]);
+    ("getgrnam", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("getlogin", unknown ~attrs:[ThreadUnsafe] []);
+    ("getnetbyaddr", unknown ~attrs:[ThreadUnsafe] [drop "net" []; drop "type" []]);
+    ("getnetbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("getnetent", unknown ~attrs:[ThreadUnsafe] []);
+    ("getprotobyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("getprotobynumber", unknown ~attrs:[ThreadUnsafe] [drop "proto" []]);
+    ("getprotoent", unknown ~attrs:[ThreadUnsafe] []);
+    ("getpwent", unknown ~attrs:[ThreadUnsafe] []);
+    ("getpwnam", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("getpwuid", unknown ~attrs:[ThreadUnsafe] [drop "uid" []]);
+    ("getservbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]; drop "proto" [r]]);
+    ("getservbyport", unknown ~attrs:[ThreadUnsafe] [drop "port" []; drop "proto" [r]]);
+    ("getservent", unknown ~attrs:[ThreadUnsafe] []);
+    ("getutxent", unknown ~attrs:[ThreadUnsafe] []);
+    ("getutxid", unknown ~attrs:[ThreadUnsafe] [drop "utmpx" [r_deep]]);
+    ("getutxline", unknown ~attrs:[ThreadUnsafe] [drop "utmpx" [r_deep]]);
+    ("pututxline", unknown ~attrs:[ThreadUnsafe] [drop "utmpx" [r_deep]]);
+    ("hcreate", unknown ~attrs:[ThreadUnsafe] [drop "nel" []]);
+    ("hdestroy", unknown ~attrs:[ThreadUnsafe] []);
+    ("hsearch", unknown ~attrs:[ThreadUnsafe] [drop "item" [r_deep]; drop "action" [r_deep]]);
+    ("l64a", unknown ~attrs:[ThreadUnsafe] [drop "value" []]);
+    ("lrand48", unknown ~attrs:[ThreadUnsafe] []);
+    ("mrand48", unknown ~attrs:[ThreadUnsafe] []);
+    ("nl_langinfo", unknown ~attrs:[ThreadUnsafe] [drop "item" []]);
     ("nl_langinfo_l", unknown [drop "item" []; drop "locale" [r_deep]]);
-    ("getc_unlocked", unknown [drop "stream" [w]]);
-    ("getchar_unlocked", unknown []);
-    ("putc_unlocked", unknown [drop "c" []; drop "stream" [w]]);
-    ("putchar_unlocked", unknown [drop "c" []]);
+    ("getc_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "stream" [r_deep; w_deep]]);
+    ("getchar_unlocked", unknown ~attrs:[ThreadUnsafe] []);
+    ("ptsname", unknown ~attrs:[ThreadUnsafe] [drop "fd" []]);
+    ("putc_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "c" []; drop "stream" [w]]);
+    ("putchar_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "c" []]);
+    ("putenv", unknown ~attrs:[ThreadUnsafe] [drop "string" [r; w]]);
+    ("readdir", unknown ~attrs:[ThreadUnsafe] [drop "dirp" [r_deep]]);
+    ("setenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]; drop "name" [r]; drop "overwrite" []]);
+    ("setgrent", unknown ~attrs:[ThreadUnsafe] []);
+    ("setpwent", unknown ~attrs:[ThreadUnsafe] []);
+    ("setutxent", unknown ~attrs:[ThreadUnsafe] []);
+    ("strerror", unknown ~attrs:[ThreadUnsafe] [drop "errnum" []]);
+    ("strsignal", unknown ~attrs:[ThreadUnsafe] [drop "sig" []]);
+    ("unsetenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
     ("lseek", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
     ("fcntl", unknown (drop "fd" [] :: drop "cmd" [] :: VarArgs (drop' [r; w])));
     ("fseeko", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "whence" []]);
     ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
-    ("getopt", unknown [drop "argc" []; drop "argv" [r]; drop "optstring" [r]]);
+    ("getopt", unknown ~attrs:[ThreadUnsafe] [drop "argc" []; drop "argv" [r]; drop "optstring" [r]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
     ("iconv_close", unknown [drop "cd" [f]]);
@@ -136,15 +200,16 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("alarm", unknown [drop "seconds" []]);
     ("pwrite", unknown [drop "fd" []; drop "buf" [r]; drop "count" []; drop "offset" []]);
     ("hstrerror", unknown [drop "err" []]);
-    ("inet_ntoa", unknown [drop "in" []]);
+    ("inet_ntoa", unknown ~attrs:[ThreadUnsafe] [drop "in" []]);
     ("getsockopt", unknown [drop "sockfd" []; drop "level" []; drop "optname" []; drop "optval" [w]; drop "optlen" [w]]);
-    ("gethostbyaddr", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
+    ("gethostbyaddr", unknown ~attrs:[ThreadUnsafe] [drop "addr" [r_deep]; drop "len" []; drop "type" []]);
     ("gethostbyaddr_r", unknown [drop "addr" [r_deep]; drop "len" []; drop "type" []; drop "ret" [w_deep]; drop "buf" [w]; drop "buflen" []; drop "result" [w]; drop "h_errnop" [w]]);
+    ("gethostbyname", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
     ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
     ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
     ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [r_deep]]);
     ("access", unknown [drop "pathname" [r]; drop "mode" []]);
-    ("ttyname", unknown [drop "fd" []]);
+    ("ttyname", unknown ~attrs:[ThreadUnsafe] [drop "fd" []]);
     ("shm_open", unknown [drop "name" [r]; drop "oflag" []; drop "mode" []]);
     ("sched_get_priority_max", unknown [drop "policy" []]);
     ("mprotect", unknown [drop "addr" []; drop "len" []; drop "prot" []]);
@@ -164,14 +229,15 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strtok_r", unknown [drop "str" [r; w]; drop "delim" [r]; drop "saveptr" [r_deep; w_deep]]); (* deep accesses through saveptr if str is NULL: https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/string/strtok_r.c#L31-L40 *)
     ("kill", unknown [drop "pid" []; drop "sig" []]);
     ("closelog", unknown []);
-    ("dirname", unknown [drop "path" [r]]);
+    ("dirname", unknown ~attrs:[ThreadUnsafe] [drop "path" [r]]);
+    ("basename", unknown ~attrs:[ThreadUnsafe] [drop "path" [r]]);
     ("setpgid", unknown [drop "pid" []; drop "pgid" []]);
     ("dup2", unknown [drop "oldfd" []; drop "newfd" []]);
     ("pclose", unknown [drop "stream" [w; f]]);
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
-    ("gethostent", unknown []);
+    ("gethostent", unknown ~attrs:[ThreadUnsafe] []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
     ("semctl", unknown (drop "semid" [] :: drop "semnum" [] :: drop "cmd" [] :: VarArgs (drop "semun" [r_deep])));
@@ -304,6 +370,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("prctl", unknown (drop "option" [] :: VarArgs (drop' []))); (* man page has 5 arguments, but header has varargs and real-world programs may call with <5 *)
     ("__ctype_tolower_loc", unknown []);
     ("__ctype_toupper_loc", unknown []);
+    ("endutxent", unknown ~attrs:[ThreadUnsafe] []);
     ("epoll_create", unknown [drop "size" []]);
     ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
     ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
@@ -498,9 +565,9 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ldexp", unknown [drop "arg" []; drop "exp" []]);
     ("ldexpf", unknown [drop "arg" []; drop "exp" []]);
     ("ldexpl", unknown [drop "arg" []; drop "exp" []]);
-    ("lgamma", unknown [drop "x" []]);
-    ("lgammaf", unknown [drop "x" []]);
-    ("lgammal", unknown [drop "x" []]);
+    ("lgamma", unknown ~attrs:[ThreadUnsafe] [drop "x" []]);
+    ("lgammaf", unknown ~attrs:[ThreadUnsafe] [drop "x" []]);
+    ("lgammal", unknown ~attrs:[ThreadUnsafe] [drop "x" []]);
     ("log", unknown [drop "x" []]);
     ("logf", unknown [drop "x" []]);
     ("logl", unknown [drop "x" []]);
@@ -898,11 +965,9 @@ let invalidate_actions = [
     "dlopen", readsAll;(*safe*)
     "dlsym", readsAll;(*safe*)
     "dlclose", readsAll;(*safe*)
-    "dlerror", readsAll;(*safe*)
     "stat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
-    "strtok", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
@@ -944,8 +1009,6 @@ let invalidate_actions = [
     "__h_errno_location", readsAll;(*safe*)
     "__fxstat", readsAll;(*safe*)
     "getuid", readsAll;(*safe*)
-    "strerror", readsAll;(*safe*)
-    "readdir", readsAll;(*safe*)
     "openlog", readsAll;(*safe*)
     "getdtablesize", readsAll;(*safe*)
     "umask", readsAll;(*safe*)
@@ -971,15 +1034,12 @@ let invalidate_actions = [
     "syslog", readsAll; (*safe*)
     "strcasecmp", readsAll; (*safe*)
     "strchr", readsAll; (*safe*)
-    "getservbyname", readsAll; (*safe*)
     "__error", readsAll; (*safe*)
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
-    "gethostbyname", readsAll; (*safe*)
     "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
     "getsockname", writes [1;3]; (*keep [1;3]*)
-    "getenv", readsAll; (*safe*)
     "execl", readsAll; (*safe*)
     "select", writes [1;5]; (*keep [1;5]*)
     "accept", writesAll; (*keep [1]*)
@@ -988,7 +1048,6 @@ let invalidate_actions = [
     "timespec_get", writes [1];
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
-    "strsignal", readsAll;
     "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
@@ -1005,7 +1064,6 @@ let invalidate_actions = [
     "sendto", writes [2;4]; (*keep [2;4]*)
     "recvfrom", writes [4;5]; (*keep [4;5]*)
     "srand", readsAll; (*safe*)
-    "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
     "setrlimit", readsAll; (*safe*)
