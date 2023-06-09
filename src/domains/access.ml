@@ -34,10 +34,21 @@ let unsound = ref false
 let init (f:file) =
   unsound := get_bool "ana.mutex.disjoint_types";
   let visited_vars = Hashtbl.create 100 in
+  let add tsh t v =
+    let rec add' ts =
+      TSH.add tsh ts v;
+      (* Account for aliasing to any level of array.
+         See 06-symbeq/50-type_array_via_ptr_rc.c. *)
+      match ts with
+      | TSArray (ts', _, _) -> add' ts'
+      | _ -> ()
+    in
+    add' (typeSig t)
+  in
   let visit_field fi =
     (* TODO: is_ignorable_type? *)
     (* TODO: Direct ignoring doesn't really work since it doesn't account for pthread inner structs/unions being only reachable via ignorable types. *)
-    TSH.add typeIncl (typeSig fi.ftype) fi
+    add typeIncl fi.ftype fi
   in
   let visit_glob = function
     | GCompTag (c,_) ->
@@ -45,7 +56,7 @@ let init (f:file) =
     | GVarDecl (v,_) | GVar (v,_,_) ->
       if not (Hashtbl.mem visited_vars v.vid) then begin
         (* TODO: is_ignorable? *)
-        TSH.add typeVar (typeSig v.vtype) v;
+        add typeVar v.vtype v;
         (* ignore (printf "init adding %s : %a" v.vname d_typsig ((typeSig v.vtype))); *)
         Hashtbl.replace visited_vars v.vid true
       end
@@ -242,6 +253,7 @@ let add_propagate side (memo: Memo.t) =
   if M.tracing then M.traceu "access" "add_propagate\n"
 
 let rec add_propagate2 side (memo: Memo.t) =
+  if M.tracing then M.tracei "access" "add_propagate2 %a\n" Memo.pretty memo;
   let o = snd memo in
   add_struct side memo;
 
@@ -254,7 +266,9 @@ let rec add_propagate2 side (memo: Memo.t) =
   let base_type_fields = TSH.find_all typeIncl (typeSig base_type) in
   List.iter (fun f ->
       add_propagate2 side (`Type (TComp (f.fcomp, [])), `Field (f, o))
-    ) base_type_fields
+    ) base_type_fields;
+
+  if M.tracing then M.traceu "access" "add_propagate2\n"
 
 let add side e voffs =
   let memo = match voffs with
