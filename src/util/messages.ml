@@ -75,7 +75,11 @@ end
 
 module MultiPiece =
 struct
-  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, ord, hash, yojson]
+  type group = {
+    group_text: string;
+    group_loc: Location.t option;
+    pieces: Piece.t list;
+  } [@@deriving eq, ord, hash, yojson]
   type t =
     | Single of Piece.t
     | Group of group
@@ -228,7 +232,8 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
       pp_piece ppf piece
-    | Group {group_text; pieces} ->
+    | Group {group_text; group_loc; pieces} ->
+      (* TODO: print and quote group_loc *)
       let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
       Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
   in
@@ -276,7 +281,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   else
     GobPretty.igprintf () fmt
 
-let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg_group severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
       let group_text = GobPretty.show doc in
@@ -284,7 +289,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
         let text = GobPretty.show doc in
         Piece.{loc; text; context = None}
       in
-      add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
+      add {tags = Category category :: tags; severity; multipiece = Group {group_text; group_loc = loc; pieces = List.map piece_of_msg msgs}}
     in
     Pretty.gprintf finish fmt
   )
