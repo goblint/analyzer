@@ -15,6 +15,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin_memcpy", special [__ "dest" [w]; __ "src" [r]; drop "n" []] @@ fun dest src -> Memcpy { dest; src });
     ("__builtin___memcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "n" []; drop "os" []] @@ fun dest src -> Memcpy { dest; src });
+    ("mempcpy", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []]);
+    ("__builtin___mempcpy_chk", unknown [drop "dest" [w]; drop "src" [r]; drop "n" []; drop "os" []]);
     ("strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin_strcpy", special [__ "dest" [w]; __ "src" [r]] @@ fun dest src -> Strcpy { dest; src; n = None; });
     ("__builtin___strcpy_chk", special [__ "dest" [w]; __ "src" [r]; drop "os" []] @@ fun dest src -> Strcpy { dest; src; n = None; });
@@ -27,6 +29,27 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin_strncat", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
     ("__builtin___strncat_chk", special [__ "dest" [r; w]; __ "src" [r]; __ "n" []; drop "os" []] @@ fun dest src n -> Strcat { dest; src; n = Some n; });
+    ("free", unknown [drop "ptr" [f]]);
+    ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
+    ("feof", unknown [drop "stream" [r_deep; w_deep]]);
+    ("ferror", unknown [drop "stream" [r_deep; w_deep]]);
+    ("fflush", unknown [drop "stream" [r_deep; w_deep]]);
+    ("fgetc", unknown [drop "stream" [r_deep; w_deep]]);
+    ("getc", unknown [drop "stream" [r_deep; w_deep]]);
+    ("fgets", unknown [drop "str" [r; w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
+    ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
+    ("fprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]]);
+    ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep];]);
+    ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep];]);
+    ("fread", unknown [drop "buffer" [w_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("fseek", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "origin" []]);
+    ("ftell", unknown [drop "stream" [r_deep]]);
+    ("fwrite", unknown [drop "buffer" [r_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r_deep; w_deep]; drop "mode" []; drop "size" []]); 
+    (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
+    (* as any future write (or flush) of the stream could result in a write to the buffer *)
+    ("localtime", unknown [drop "time" [r]]);
     ("strlen", special [__ "s" [r]] @@ fun s -> Strlen s);
     ("strstr", special [__ "haystack" [r]; __ "needle" [r]] @@ fun haystack needle -> Strstr { haystack; needle; });
     ("strcmp", special [__ "s1" [r]; __ "s2" [r]] @@ fun s1 s2 -> Strcmp { s1; s2; n = None; });
@@ -85,7 +108,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("putc_unlocked", unknown [drop "c" []; drop "stream" [w]]);
     ("putchar_unlocked", unknown [drop "c" []]);
     ("lseek", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
-    ("fseeko", unknown [drop "stream" [w]; drop "offset" []; drop "whence" []]);
+    ("fcntl", unknown (drop "fd" [] :: drop "cmd" [] :: VarArgs (drop' [r; w])));
+    ("fseeko", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "whence" []]);
+    ("fileno", unknown [drop "stream" [r_deep; w_deep]]);
+    ("getopt", unknown [drop "argc" []; drop "argv" [r]; drop "optstring" [r]]);
     ("iconv_open", unknown [drop "tocode" [r]; drop "fromcode" [r]]);
     ("iconv", unknown [drop "cd" [r]; drop "inbuf" [r]; drop "inbytesleft" [r;w]; drop "outbuf" [w]; drop "outbytesleft" [r;w]]);
     ("iconv_close", unknown [drop "cd" [f]]);
@@ -98,6 +124,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gettimeofday", unknown [drop "tv" [w]; drop "tz" [w]]);
     ("futimens", unknown [drop "fd" []; drop "times" [r]]);
     ("utimes", unknown [drop "filename" [r]; drop "times" [r]]);
+    ("utimensat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]; drop "flags" []]);
     ("linkat", unknown [drop "olddirfd" []; drop "oldpath" [r]; drop "newdirfd" []; drop "newpath" [r]; drop "flags" []]);
     ("dirfd", unknown [drop "dirp" [r]]);
     ("fdopendir", unknown [drop "fd" []]);
@@ -234,12 +261,16 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fputs_unlocked", unknown [drop "s" [r]; drop "stream" [w]]);
-    ("futimesat", unknown [drop "dirfd" [w]; drop "pathname" [r]; drop "times" [r]]);
+    ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []):: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("gettext", unknown [drop "msgid" [r]]);
     ("euidaccess", unknown [drop "pathname" [r]; drop "mode" []]);
     ("rpmatch", unknown [drop "response" [r]]);
     ("getpagesize", unknown []);
+    ("__fgets_alias", unknown [drop "__s" [r; w]; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fgets_chk", unknown [drop "__s" [r; w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_alias", unknown [drop "__ptr" [w_deep]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
+    ("__fread_chk", unknown [drop "__ptr" [w_deep]; drop "__ptrlen" []; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
     ("__read_chk", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []; drop "__buflen" []]);
     ("__read_alias", unknown [drop "__fd" []; drop "__buf" [w]; drop "__nbytes" []]);
     ("__readlink_chk", unknown [drop "path" [r]; drop "buf" [w]; drop "len" []; drop "buflen" []]);
@@ -276,6 +307,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("epoll_create", unknown [drop "size" []]);
     ("epoll_ctl", unknown [drop "epfd" []; drop "op" []; drop "fd" []; drop "event" [w]]);
     ("epoll_wait", unknown [drop "epfd" []; drop "events" [w]; drop "maxevents" []; drop "timeout" []]);
+    ("__fprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);
     ("__xpg_basename", unknown [drop "path" [r]]);
     ("ptrace", unknown (drop "request" [] :: VarArgs (drop' [r_deep; w_deep]))); (* man page has 4 arguments, but header has varargs and real-world programs may call with <4 *)
@@ -774,24 +806,6 @@ open Invalidate
 let invalidate_actions = [
     "atoi", readsAll;             (*safe*)
     "connect", readsAll;          (*safe*)
-    "fclose", readsAll;           (*safe*)
-    "fflush", writesAll;          (*unsafe*)
-    "fopen", readsAll;            (*safe*)
-    "fdopen", readsAll;           (*safe*)
-    "setvbuf", writes[1;2];       (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
-                                  (* as any future write (or flush) of the stream could result in a write to the buffer *)
-    "fprintf", writes [1];          (*keep [1]*)
-    "__fprintf_chk", writes [1];    (*keep [1]*)
-    "fread", writes [1;4];
-    "__fread_alias", writes [1;4];
-    "__fread_chk", writes [1;4];
-    "utimensat", readsAll;
-    "free", frees [1]; (*unsafe*)
-    "fwrite", readsAll;(*safe*)
-    "getopt", writes [2];(*keep [2]*)
-    "localtime", readsAll;(*safe*)
-    "mempcpy", writes [1];(*keep [1]*)
-    "__builtin___mempcpy_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
@@ -853,8 +867,6 @@ let invalidate_actions = [
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
     "getpid", readsAll;(*safe*)
-    "fgetc", writesAll;(*unsafe*)
-    "getc", writesAll;(*unsafe*)
     "_IO_getc", writesAll;(*unsafe*)
     "closedir", writesAll;(*unsafe*)
     "chdir", readsAll;(*safe*)
@@ -904,7 +916,6 @@ let invalidate_actions = [
     "open", readsAll;(*safe*)
     "__open_alias", readsAll;(*safe*)
     "__open_2", readsAll;(*safe*)
-    "fcntl", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
     "umount", readsAll;(*safe*)
@@ -922,18 +933,11 @@ let invalidate_actions = [
     "dcgettext", readsAll;(*safe*)
     "syscall", writesAllButFirst 1 readsAll;(*drop 1*)
     "sysconf", readsAll;
-    "fputs", readsAll;(*safe*)
-    "fputc", readsAll;(*safe*)
-    "fseek", writes[1];
     "rewind", writesAll;
-    "fileno", readsAll;
-    "ferror", readsAll;
-    "ftell", readsAll;
     "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "putchar", readsAll;(*safe*)
     "getchar", readsAll;(*safe*)
-    "feof", readsAll;(*safe*)
     "__getdelim", writes [3];(*keep [3]*)
     "vsyslog", readsAll;(*safe*)
     "gethostbyname_r", readsAll;(*safe*)
@@ -982,9 +986,6 @@ let invalidate_actions = [
     "getpeername", writes [1]; (*keep [1]*)
     "times", writesAll; (*unsafe*)
     "timespec_get", writes [1];
-    "fgets", writes [1;3]; (*keep [3]*)
-    "__fgets_alias", writes [1;3]; (*keep [3]*)
-    "__fgets_chk", writes [1;3]; (*keep [3]*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
     "strsignal", readsAll;
