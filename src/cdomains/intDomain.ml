@@ -350,7 +350,7 @@ struct
     with
       Failure _ -> top_of ik
 
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval x = failwith "Not implemented!" (* FIXME *)
 
   let starting ?(suppress_ovwarn=false) ik x =
     try Old.starting ~suppress_ovwarn ik (BI.to_int64 x) with Failure _ -> top_of ik
@@ -1648,7 +1648,7 @@ struct
   let to_bool x = Some (to_bool' x)
   let of_int  x = x
   let to_int  x = Some x
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval x = Some (x, x)
 
   let neg  = Ints_t.neg
   let add  = Ints_t.add (* TODO: signed overflow is undefined behavior! *)
@@ -2152,7 +2152,9 @@ struct
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval l = match minimal l, maximal l with
+    | Some x, Some y -> Some (x, y)
+    | _ -> None
 
   let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
   let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
@@ -2416,7 +2418,7 @@ struct
   let to_bool x = Some x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval x = if x then None else Some (Int64.zero, Int64.zero)
 
   let neg x = x
   let add x y = x || y
@@ -2546,7 +2548,9 @@ module Enums : S with type int_t = BigInt.t = struct
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval l = match minimal l, maximal l with
+    | Some x, Some y -> Some (x, y)
+    | _ -> None
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -3282,7 +3286,7 @@ struct
 
   let project ik p t = t
 
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval x = failwith "Not implemented!" (* FIXME *)
 end
 
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
