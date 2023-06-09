@@ -220,21 +220,21 @@ let add_struct side memo: unit =
   end;
   if M.tracing then M.traceu "access" "add_struct\n"
 
-let rec add_propagate side (memo: Memo.t) =
+let rec add_propagate side (t: typ) (o: Offset.Unit.t) =
+  let memo = (`Type t, o) in
   if M.tracing then M.tracei "access" "add_propagate %a\n" Memo.pretty memo;
-  let o = snd memo in
   add_struct side memo;
 
-  let base_type = Memo.type_of_base memo in
-  let base_type_vars = TSH.find_all typeVar (typeSig base_type) in
+  let ts = typeSig t in
+  let vars = TSH.find_all typeVar ts in
   List.iter (fun v ->
       add_struct side (`Var v, o)
-    ) base_type_vars;
+    ) vars;
 
-  let base_type_fields = TSH.find_all typeIncl (typeSig base_type) in
+  let fields = TSH.find_all typeIncl ts in
   List.iter (fun f ->
-      add_propagate side (`Type (TComp (f.fcomp, [])), `Field (f, o))
-    ) base_type_fields;
+      add_propagate side (TComp (f.fcomp, [])) (`Field (f, o))
+    ) fields;
 
   if M.tracing then M.traceu "access" "add_propagate\n"
 
@@ -251,8 +251,11 @@ let add side e voffs =
   if M.tracing then M.trace "access" "memo = %a\n" Memo.pretty memo;
   add_struct side memo;
   (* TODO: maybe this should not depend on whether voffs = None? *)
-  if voffs = None && not (!unsound && isArithmeticType (Memo.type_of memo)) then
-    add_propagate side memo;
+  begin match memo with
+    | (`Type t, o) when not (!unsound && isArithmeticType t) ->
+      add_propagate side t o
+    | _ -> ()
+  end;
   if M.tracing then M.traceu "access" "add\n"
 
 let rec distribute_access_lval f lv =
