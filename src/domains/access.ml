@@ -58,18 +58,7 @@ let reset () =
   TSH.clear typeIncl
 
 
-type offs = Offset.Unit.t [@@deriving eq, ord, hash]
-
-type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord, hash]
-
-let d_acct () = function
-  | `Type t -> dprintf "(%a)" d_type t
-  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname Offset.Unit.pretty o
-
-let d_memo () (t, lv) =
-  match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
-  | None       -> dprintf "%a" d_acct t
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset.Unit.t ] [@@deriving eq, ord, hash]
 
 exception Type_offset_error
 
@@ -145,7 +134,7 @@ let rec get_type (fb: typ Lazy.t) : exp -> acc_typ = function
   | Question (_,b,c,t) ->
     begin match get_type fb b, get_type fb c with
       | `Struct (s1,o1), `Struct (s2,o2)
-        when CilType.Compinfo.equal s1 s2 && equal_offs o1 o2 ->
+        when CilType.Compinfo.equal s1 s2 && Offset.Unit.equal o1 o2 ->
         `Struct (s1, o1)
       | _ -> `Type t
     end
@@ -163,9 +152,6 @@ let get_type fb e =
   | `Type (TPtr (t,a)) -> `Type t (* Why this special case? Almost always taken if not `Struct. *)
   | x -> x (* Mostly for `Struct, but also rare cases with non-pointer `Type. Should they happen at all? *)
 
-
-
-
 let get_val_type e: acc_typ =
   let fb = lazy (
     try Cilfacade.typeOf e
@@ -173,6 +159,7 @@ let get_val_type e: acc_typ =
   )
   in
   get_type fb e
+
 
 let add_one side memo: unit =
   let mv = Memo.to_mval memo in
@@ -183,7 +170,7 @@ let add_one side memo: unit =
 
 let add_struct side memo: unit =
   if M.tracing then M.tracei "access" "add_struct %a\n" Memo.pretty memo;
-  let rec dist_fields ty : offs list =
+  let rec dist_fields ty : Offset.Unit.t list =
     (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -224,7 +211,7 @@ let add_struct side memo: unit =
 
 let add_propagate side (memo: Memo.t) =
   if M.tracing then M.tracei "access" "add_propagate %a\n" Memo.pretty memo;
-  let struct_inv (f:offs) (c:compinfo) =
+  let struct_inv (f:Offset.Unit.t) (c:compinfo) =
     let vars = TSH.find_all typeVar (typeSig (TComp (c,[]))) in
     (* 1 test(s) failed: ["04/49 type-invariants"] *)
     let add_vars v = add_struct side (`Var v, f) in
@@ -372,6 +359,7 @@ struct
   let relift (conf, kind, node, e, a) =
     (conf, kind, node, e, MCPAccess.A.relift a)
 end
+
 module AS =
 struct
   include SetDomain.Make (A)
@@ -379,24 +367,6 @@ struct
   let max_conf accs =
     accs |> elements |> List.map A.conf |> (List.max ~cmp:Int.compare)
 end
-module T =
-struct
-  include Printable.StdLeaf
-  type t = acc_typ [@@deriving eq, ord, hash]
-
-  let name () = "acc_typ"
-
-  let pretty = d_acct
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
-end
-module O = Offset.Unit
-module LV = Printable.Prod (CilType.Varinfo) (O)
-module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
 (* Check if two accesses may race and if yes with which confidence *)
