@@ -239,22 +239,22 @@ let rec add_propagate side (t: typ) (o: Offset.Unit.t) =
   if M.tracing then M.traceu "access" "add_propagate\n"
 
 let add side e voffs =
-  let memo = match voffs with
+  begin match voffs with
     | Some (v, o) ->
-      if M.tracing then M.traceli "access" "add %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
-      (`Var v, Offset.Unit.of_cil o)
+      if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
+      let memo = (`Var v, Offset.Unit.of_cil o) in
+      add_struct side memo
     | None ->
-      if M.tracing then M.traceli "access" "add %a\n" CilType.Exp.pretty e;
+      if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
       let ty = get_val_type e in
-      Memo.of_ty ty
-  in
-  if M.tracing then M.trace "access" "memo = %a\n" Memo.pretty memo;
-  add_struct side memo;
-  (* TODO: maybe this should not depend on whether voffs = None? *)
-  begin match memo with
-    | (`Type t, o) when not (!unsound && isArithmeticType t) ->
-      add_propagate side t o
-    | _ -> ()
+      let (t, o) = match ty with
+        | `Struct (c, o) -> (TComp (c, []), o)
+        | `Type t -> (t, `NoOffset)
+      in
+      add_struct side (`Type t, o); (* TODO: this is also part of add_propagate, duplicated when called *)
+      (* TODO: maybe this should not depend on whether voffs = None? *)
+      if not (!unsound && isArithmeticType t) then
+        add_propagate side t o
   end;
   if M.tracing then M.traceu "access" "add\n"
 
