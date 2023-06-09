@@ -23,7 +23,7 @@ let extract_file_name s =                    (*There still may be a need to filt
 let show_location_id l =
    string_of_int l.line ^ "_" ^ string_of_int l.column ^ "-file" ^ "_" ^  extract_file_name l.file
 
-class loopCounterVisitor lc (fd : fundec) = object(self)
+class loopCounterVisitor lc lg le (fd : fundec) = object(self)
    inherit nopCilVisitor
    method! vstmt s =
       let action s = match s.skind with

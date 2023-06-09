@@ -1970,14 +1970,14 @@ struct
       sideg (V.contexts f) (G.create_contexts (G.CMap.singleton (c) (t)))
   
   let enter ctx lval fundec exprList = (*TODO*)
-    S.enter (conv ctx) lval fundec exprList;
-    let c: unit -> S.C.t = snd var |> Obj.obj in (*Callee context*)
+    S.enter (conv ctx) lval fundec exprList
+    (*let c: unit -> S.C.t = snd var |> Obj.obj in (*Callee context*)
     let fd = fundec in (*Callee fundec*)
     let c' = ctx.context in (*Caller context*) (*TODO is this the caller or callee context???*)
     let fd' =  in (*Caller fundec*)
     let tup = (fundec * c') in (* TODO: is fundec the caller or callee fundec???*)
     let t = G.CSet.singleton (tup) in  (*TODO do we fill the set correctly???*)
-    side_context sideg fd (c ()) t
+    side_context sideg fd (c ()) t*)
     
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
