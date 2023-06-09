@@ -63,7 +63,7 @@ let d_acct () = function
 
 let d_memo () (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v Offset.Unit.pretty o CilType.Location.pretty v.vdecl
+  | Some (v,o) -> dprintf "%a%a" Basetype.Variables.pretty v Offset.Unit.pretty o
   | None       -> dprintf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
@@ -440,6 +440,10 @@ let print_accesses (lv, ty) grouped_accs =
     AS.elements race_accs
     |> List.map h
   in
+  let group_loc = match lv with
+    | Some (v, _) -> Some (M.Location.CilLocation v.vdecl) (* TODO: offset location *)
+    | None -> None (* TODO: type location *)
+  in
   grouped_accs
   |> List.fold_left (fun safe_accs accs ->
       match race_conf accs with
@@ -452,12 +456,12 @@ let print_accesses (lv, ty) grouped_accs =
           else
             Info
         in
-        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+        M.msg_group severity ?loc:group_loc ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
         safe_accs
     ) (AS.empty ())
   |> (fun safe_accs ->
       if allglobs && not (AS.is_empty safe_accs) then
-        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
+        M.msg_group Success ?loc:group_loc ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
     )
 
 let warn_global safe vulnerable unsafe g accs =

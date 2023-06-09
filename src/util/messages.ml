@@ -194,8 +194,8 @@ let print ?(ppf= !formatter) (m: Message.t) =
     | Success -> "green"
   in
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
+  let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
   let pp_piece ppf piece =
-    let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
     Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.loc)
   in
   let pp_quote ppf (loc: GoblintCil.location) =
@@ -235,7 +235,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
     | Group {group_text; group_loc; pieces} ->
       (* TODO: print and quote group_loc *)
       let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
-      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
+      Format.fprintf ppf "@{<%s>%s:@}%a@,@[<v>%a@]" severity_stag group_text (Format.pp_print_option pp_loc) (Option.map Location.to_cil group_loc) (Format.pp_print_list pp_piece2) pieces
   in
   Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
 
