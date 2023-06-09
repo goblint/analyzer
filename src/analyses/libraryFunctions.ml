@@ -797,70 +797,70 @@ struct
 
   let writesAllButFirst n f a x =
     match a with
-    | Write | Spawn -> f a x @ drop n x
+    | Write | Call | Spawn -> f a x @ drop n x
     | Read  -> f a x
     | Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
-    | Write | Spawn -> f a x
+    | Write | Call | Spawn -> f a x
     | Read  -> f a x @ drop n x
     | Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
-    | Write | Spawn -> o
+    | Write | Call | Spawn -> o
     | Read  -> i
     | Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
-    | Write | Spawn -> i
+    | Write | Call | Spawn -> i
     | Read  -> o
     | Free  -> []
 
   let frees ns a x =
     let i, o = partition ns x in
     match a with
-    | Write | Spawn -> []
+    | Write | Call | Spawn -> []
     | Read  -> o
     | Free  -> i
 
   let readsFrees rs fs a x =
     match a with
-    | Write | Spawn -> []
+    | Write | Call | Spawn -> []
     | Read  -> keep rs x
     | Free  -> keep fs x
 
   let onlyReads ns a x =
     match a with
-    | Write | Spawn -> []
+    | Write | Call | Spawn -> []
     | Read  -> keep ns x
     | Free  -> []
 
   let onlyWrites ns a x =
     match a with
-    | Write | Spawn -> keep ns x
+    | Write | Call | Spawn -> keep ns x
     | Read  -> []
     | Free  -> []
 
   let readsWrites rs ws a x =
     match a with
-    | Write | Spawn -> keep ws x
+    | Write | Call | Spawn -> keep ws x
     | Read  -> keep rs x
     | Free  -> []
 
   let readsAll a x =
     match a with
-    | Write | Spawn -> []
+    | Write | Call | Spawn -> []
     | Read  -> x
     | Free  -> []
 
   let writesAll a x =
     match a with
-    | Write | Spawn -> x
+    | Write | Call | Spawn -> x
     | Read  -> []
     | Free  -> []
 end
@@ -1158,6 +1158,7 @@ let unknown_desc ~f name = (* TODO: remove name argument, unknown function shoul
     | Read when GobConfig.get_bool "sem.unknown_function.read.args" -> args
     | Read -> []
     | Free -> []
+    | Call -> [] (* TODO: option *)
     | Spawn when get_bool "sem.unknown_function.spawn" -> args
     | Spawn -> []
   in
