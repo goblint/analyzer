@@ -1270,7 +1270,9 @@ struct
 
   let of_bool _ = function true -> one | false -> zero
 
-  let to_interval = failwith "Not implemented!" (* FIXME *)
+  let to_interval l = match minimal l, maximal l with
+    | Some x, Some y -> Some (x, y)
+    | _ -> None
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
 
