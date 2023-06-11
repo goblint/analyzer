@@ -166,7 +166,6 @@ struct
   struct
     include MapDomain.MapBot (C_ (C)) (CSet)
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* TODO *)
-    let printXml_ f c = BatPrintf.fprintf f "<value>%a</value>" CSet.printXml c (* TODO *)
   end
 
   include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
@@ -184,8 +183,8 @@ struct
 
   let printXml f = function
     | `Lifted1 x -> G.printXml f x
-    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CMap.printXml x
-    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
+    | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
 
   let s = function (*TODO: does this work? copied from DeadBranch*)
     | `Bot -> G.bot ()

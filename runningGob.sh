@@ -17,7 +17,7 @@ cfile_goto="tests/incremental/02-cfg-comparison/01-added-return-stmt.c"
 
 # run analysis, write cil output to file and enable visualization via html
 #./goblint -v $cfile_loops $options_term --enable justcil > output.txt
-./goblint -v $cfile_loops $options_term --html 
+./goblint $cfile_loops $options_term --html 
 
 # set up server to see visualizatino
 python3 -m http.server --directory result 8081
