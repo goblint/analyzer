@@ -2053,18 +2053,18 @@ struct
         end
       (* else compute value in array domain *)
       else 
-        let eval_dst = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
-        let eval_src = eval_rv (Analyses.ask_of_ctx ctx) gs st s2 in
-        match eval_dst, eval_src with
-        | Array array_dst, Array array_src -> 
-          begin match lv with
-            | Some lv_val -> 
-              let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
-              let lv_typ = Cilfacade.typeOfLval lv_val in
-              lv_a, lv_typ, op_array array_dst array_src
-            | None -> s1_a, s1_typ, op_array array_dst array_src
+        let lv_a, lv_typ = match lv with
+          | Some lv_val -> eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val, Cilfacade.typeOfLval lv_val
+          | None -> s1_a, s1_typ in
+        let s1_lval = mkMem ~addr:(Cil.stripCasts s1) ~off:NoOffset in
+        let s2_lval = mkMem ~addr:(Cil.stripCasts s2) ~off:NoOffset in
+        match s1_lval, s2_lval with
+        | (Var v_s1, _), (Var v_s2, _) ->
+          begin match CPA.find_opt v_s1 st.cpa, CPA.find_opt v_s2 st.cpa with
+            | Some (Array array_s1), Some (Array array_s2) -> lv_a, lv_typ, op_array array_s1 array_s2
+            | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ)
           end
-        | _ -> s1_a, s1_typ, VD.top_value (unrollType s1_typ)
+        | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ)
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
@@ -2099,6 +2099,7 @@ struct
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strcpy { dest = dst; src; n }, _ ->
+      (* TODO: This doesn't work, need to convert to Address? If yes, how? *)
       let dest_a, dest_typ, value = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_copy ar1 ar2 (eval_n n))) in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strcat { dest = dst; src; n }, _ ->
@@ -2115,11 +2116,18 @@ struct
             (* if s string literal, compute strlen in string literals domain *)
             if AD.type_of address = charPtrType then
               Int(AD.to_string_length address)
-            (* else compute strlen in array domain *)
+              (* else compute strlen in array domain; TODO: is there any more elegant way than this? The following didn't work :( *)
+              (* let eval_dst = eval_rv (Analyses.ask_of_ctx ctx) gs st s1 in
+                 let eval_src = eval_rv (Analyses.ask_of_ctx ctx) gs st s2 in
+                 match eval_dst, eval_src with
+                 | Array array_dst, Array array_src -> ... *)
             else
-              begin match eval_rv (Analyses.ask_of_ctx ctx) gs st s with
-                (* TODO: found out during debugging that case is not picked even when it should -- why?? *)
-                | Array array_s -> Int(CArrays.to_string_length array_s)
+              begin match lval with
+                | (Var v, _) -> 
+                  begin match CPA.find_opt v st.cpa with
+                    | Some (Array array_s) -> Int(CArrays.to_string_length array_s)
+                    | _ -> VD.top_value (unrollType dest_typ)
+                  end
                 | _ -> VD.top_value (unrollType dest_typ)
               end in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value

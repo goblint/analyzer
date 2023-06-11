@@ -13,29 +13,36 @@ void concat_1(char* s, int i) {
 }
 
 int main() {
-    char* s1 = malloc(40);
-    strcpy(s1, "hello ");
+    char s1[40] = "hello ";
     char s2[] = "world!";
     char s3[10] = "abcd";
     char s4[20] = "abcdf";
+    char* s5 = malloc(40);
+    strcpy(s5, "hello");
 
     size_t len = strlen(s1);
-    __goblint_check(len == 6); // UNKNOWN
+    __goblint_check(len == 6);
 
     len = strlen(s2);
-    __goblint_check(len == 6); // UNKNOWN
+    __goblint_check(len == 6);
 
     len = strlen(s3);
-    __goblint_check(len == 4); // UNKNOWN
+    __goblint_check(len == 4);
+
+    len = strlen(s5);
+    __goblint_check(len == 5); // UNKNOWN
 
     strcat(s1, s2);
+    len = strlen(s1);
     int i = strcmp(s1, "hello world!");
+    __goblint_check(len == 12);
     __goblint_check(i == 0); // UNKNOWN
 
-    strcpy(s1, "hi ");
-    strncpy(s1, s3, 3);
+    char tmp[] = "hi ";
+    strcpy(s1, tmp);
+    /* strncpy(s1, s3, 3); */
     len = strlen(s1);
-    __goblint_check(len == 3); // UNKNOWN
+    __goblint_check(len == 3); // UNKNOWN <----- wrong result: calculates 6 instead of 3 probably caused by wrong integration in base
 
     strcat(s1, "ababcd");
     char* cmp = strstr(s1, "bab");
