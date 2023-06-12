@@ -3,7 +3,7 @@
 open GoblintCil
 open BoolDomain
 
-module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+module LS = SetDomain.ToppedSet (Mval.Exp) (struct let topname = "All" end)
 
 module ID =
 struct
@@ -34,6 +34,7 @@ struct
 
   let to_int x = unlift_opt I.to_int x
   let to_bool x = unlift_opt I.to_bool x
+  let to_interval x = unlift_opt I.to_interval x
 
   let is_top_of ik = unlift_is (I.is_top_of ik)
 

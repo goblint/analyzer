@@ -119,3 +119,17 @@ To test a domain, you need to do the following:
 
 1. Implement `arbitrary` (reasonably).
 2. Add the domain to `Maindomaintest`.
+
+## Coverage
+
+The [bisect_ppx](https://github.com/aantron/bisect_ppx) tool is used to produce code coverage reports for Goblint.
+The code coverage reports are available on [Coveralls](https://coveralls.io/github/goblint/analyzer).
+
+To run `bisect_ppx` locally:
+
+1. Install bisect_ppx with `opam install bisect_ppx`.
+2. Run `make coverage` to build Goblint with bisect_ppx instrumentation.
+3. Run tests (this will now generate `.coverage` files in various directories).
+4. Generate coverage report with `bisect-ppx-report html --coverage-path=.`.
+5. After that the generated `.coverage` files can be removed with `find . -type f -name '*.coverage' -delete`.
+6. The HTML report can be found in the `_coverage` folder.

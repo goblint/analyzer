@@ -6,6 +6,7 @@ open GoblintCil
 open MyCFG
 open Analyses
 open GobConfig
+include Printf
 
 module M = Messages
 
@@ -562,7 +563,7 @@ struct
   let side_context sideg f c =
     if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
-
+      
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
@@ -1691,6 +1692,276 @@ struct
   let asm ctx = S.asm (conv ctx)
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
+
+(**
+module RecursionTermLifter (S: Spec): Spec =
+struct
+  include S
+
+  let name () = "RecursionTerm (" ^ S.name () ^ ")"
+
+  (* global invariant:
+     - fundec -> (S.C -> Set (fundec * S.C)) -- used to detect loops in the call graph *)
+
+  module V =
+  struct
+    include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
+    let name () = "RecursionTerm"
+    let is_write_only t = true
+    let s x = `Left x
+  end
+
+  module C = 
+  struct
+    include S.C
+    include Printable.Std (* To make it Groupable *)
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    
+  end
+
+  (*module Tuple = struct
+    type t = (fundec, S.C) [@@deriving eq, ord, hash]
+    let equal t1 t2 = false
+    let compare t1 t3 = 0
+    let show t = "t"
+    let pretty () (x: t) = match x with _ -> .
+    
+    let printXml f (d,m) = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    
+    let name u = "recursion"
+    let to_yojson (x: t) = match x with _ -> .
+  
+    let tag t = 1 
+    let arbitrary () = failwith "Printable.Empty.arbitrary"
+  
+    let relift t = t
+  end
+*)
+  module Tupel (S:Spec) =
+  struct
+    include Printable.Std
+    type t = fundec * S.C.t [@@deriving eq, ord, hash]
+
+    let equal_fundec = false
+    let hash_fundec = false
+
+    let name () = "recursion"
+
+    let pretty () (x: t) = match x with _ -> .
+
+    let relift (f, c) =
+      (f, c)
+
+    let equal t1 t2 = false
+    let compare t1 t3 = 0
+    let show t = "t"
+    
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" c (* wrap in <value> for HTML printing *)
+    
+    let name u = "recursion"
+    let to_yojson (x: t) = match x with _ -> .
+  
+    let tag t = 1 
+    let arbitrary () = failwith "Printable.Empty.arbitrary"
+  end
+
+  module T = 
+  struct
+    include SetDomain.Make (Tupel (S)) 
+  end
+
+  module EM =
+  struct
+    include MapDomain.MapBot (C) (T)
+    let name () = "recursions"
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+    let name () = "recursionTerm"
+    let node = function
+      | `Bot -> EM.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "DeadBranchLifter.node"
+    let create_s s = `Lifted1 s
+    let create_node node = `Lifted2 node
+
+    let printXml f = function
+      | `Lifted1 x -> S.G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch\">%a</analysis>" EM.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
+  end
+
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
+    { ctx with
+      global = (fun v -> G.s (ctx.global (V.s v)));
+      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+    }
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g))
+        | `Right g ->
+          let em = G.node (ctx.global (V.node g)) in
+          EM.iter (fun exp tv ->
+              match tv with
+              | `Lifted tv ->
+                let loc = Node.location g in (* TODO: looking up location now doesn't work nicely with incremental *)
+                let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
+                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
+              | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
+              | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
+              | `Top -> (* may be both true and false *)
+                ()
+            ) em;
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | IterSysVars (vq, vf) ->
+      (* vars for S *)
+      let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
+      S.query (conv ctx) (IterSysVars (vq, vf'));
+
+      (* node vars for dead branches *)
+      begin match vq with
+        | Node {node; _} ->
+          vf (Obj.repr (V.node node))
+        | _ ->
+          ()
+      end
+    | _ ->
+      S.query (conv ctx) q
+
+
+  let branch ctx = S.branch (conv ctx)
+
+  let branch ctx exp tv =
+    if !AnalysisState.postsolving then (
+      try
+        let r = branch ctx exp tv in
+        (* branch is live *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp (`Lifted tv))); (* record expression with reached tv *)
+        r
+      with Deadcode ->
+        (* branch is dead *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp `Bot)); (* record expression without reached tv *)
+        raise Deadcode
+    )
+    else (
+      ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.bot ())); (* create global variable during solving, to allow postsolving leq hack to pass verify *)
+      branch ctx exp tv
+    )
+
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
+  let enter ctx = S.enter (conv ctx)
+  let paths_as_set ctx = S.paths_as_set (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+  let combine_env ctx = S.combine_env (conv ctx)
+  let combine_assign ctx = S.combine_assign (conv ctx)
+  let special ctx = S.special (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+  let sync ctx = S.sync (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let event ctx e octx = S.event (conv ctx) e (conv octx)
+end
+
+
+(** Add cycle detection in the function call graph to a analysis *)
+module RecursionTermLifter (S: Spec)
+  : Spec with module D = S.D
+        and module G = S.G
+        and module C = S.C
+        and module G = S.G
+=
+
+struct
+  module C = S.C
+  module P = S.P
+  module D = S.D
+
+  (*global invariant
+     - fundec -> Map (S.C) (Set (fundec * S.C)) 
+    So:   g   -> {c' -> f, c} 
+    in case f, c --> g, c'  *)
+
+  (*
+  
+  
+  module CVal =
+    struct
+      include C
+      include Printable.Std (* To make it Groupable *)
+      let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+    end
+  module M = MapDomain.MapBot (CVal) (CVal)
+*)
+  module V = (*TODO: do I need to change V???*)
+  struct
+    include Printable.Option (S.V) (struct let name = "RecursionTerm" end)
+    let name () = "RecursionTerm"
+    let is_write_only t = true
+    let s x = `Left x
+  end
+  module G = S.G
+  (*GMapG (S.G) (S.C)*)
+  (*struct
+    include Lattice.Prod (S.G) (M)
+    let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.G.printXml d M.printXml m
+  end*)
+  let name () = "RecursionTerm (" ^ S.name () ^ ")"
+
+  type marshal = S.marshal
+  let init = S.init
+  let finalize = S.finalize (*TODO*)
+
+  let startstate v = S.startstate v
+  let exitstate  v = S.exitstate  v
+  let morphstate = S.morphstate
+
+  let context = S.context
+
+  (**let side_context sideg f c =
+    if !AnalysisState.postsolving then
+      sideg (f) (G.create_contexts (G.CSet.singleton c))*)
+
+  let query ctx = S.query (ctx)
+  let branch ctx = S.branch (ctx)
+  let assign ctx = S.assign (ctx)
+  let vdecl ctx = S.vdecl (ctx)
+  let enter ctx = 
+    if !AnalysisState.postsolving then
+      printf "hallo hallo";
+    S.enter (ctx) (*TODO*)
+  let paths_as_set ctx = S.paths_as_set (ctx)
+  let body ctx = S.body (ctx)
+  let return ctx = S.return (ctx)
+  let combine_env ctx = S.combine_env (ctx)
+  let combine_assign ctx = S.combine_assign (ctx)
+  let special ctx = S.special (ctx)
+  let threadenter ctx = S.threadenter (ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (ctx) lv f args (fctx)
+  let sync ctx = S.sync (ctx)
+  let skip ctx = S.skip (ctx)
+  let asm ctx = S.asm (ctx)
+  let event ctx e octx = S.event (ctx) e (octx)
+end
+*)
 
 module CompareGlobSys (SpecSys: SpecSys) =
 struct

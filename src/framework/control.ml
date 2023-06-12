@@ -36,7 +36,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
                Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
             |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
             |> lift true (module LongjmpLifter)
-            ) in
+            (*|> lift true (module RecursionTermLifter)*)(*TODO: should we really always evaluate it???*)
+          ) in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
   (module S1)

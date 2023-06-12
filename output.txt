@@ -1096,30 +1096,34 @@ void example1(void)
 { 
   int a[5] ;
   int i ;
-  int term27_5  = 0;
+  int term27_5-file_01-simple-cases ;
 
   {
 #line 25
   i = 0;
   {
+#line 27
+  term27_5-file_01-simple-cases = 0;
   {
 #line 27
   while (1) {
-#line 27
-    term27_5 ++;
     while_continue: /* CIL Label */ ;
 #line 27
     if (! (i < 5)) {
 #line 27
       goto while_break;
     }
+#line 27
+    term27_5-file_01-simple-cases ++;
 #line 28
     a[i] = i;
 #line 29
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 27
+  term_exit- = term27_5-file_01-simple-cases;
   }
 #line 32
   __goblint_check(a[0] == 0);
@@ -1134,30 +1138,34 @@ void example2(void)
 { 
   int a[5] ;
   int i ;
-  int term42_5  = 0;
+  int term42_5-file_01-simple-cases ;
 
   {
 #line 40
   i = 0;
   {
+#line 42
+  term42_5-file_01-simple-cases = 0;
   {
 #line 42
   while (1) {
-#line 42
-    term42_5 ++;
     while_continue: /* CIL Label */ ;
 #line 43
     a[i] = i;
 #line 44
     i ++;
 #line 42
+    term42_5-file_01-simple-cases ++;
+#line 42
     if (! (i <= 5)) {
 #line 42
       goto while_break;
     }
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 42
+  term_exit- = term42_5-file_01-simple-cases;
   }
 #line 47
   __goblint_check(a[0] == 0);
@@ -1172,30 +1180,34 @@ void example3(void)
 { 
   int a[10] ;
   int i ;
-  int term57_5  = 0;
+  int term57_5-file_01-simple-cases ;
 
   {
 #line 55
   i = 0;
   {
+#line 57
+  term57_5-file_01-simple-cases = 0;
   {
 #line 57
   while (1) {
-#line 57
-    term57_5 ++;
     while_continue: /* CIL Label */ ;
 #line 57
     if (! (i < 5)) {
 #line 57
       goto while_break;
     }
+#line 57
+    term57_5-file_01-simple-cases ++;
 #line 58
     a[i] = i;
 #line 59
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 57
+  term_exit- = term57_5-file_01-simple-cases;
   }
 #line 62
   __goblint_check(a[0] == 0);
@@ -1213,7 +1225,7 @@ void example4(void)
   int a[10] ;
   int i ;
   int first_iteration ;
-  int term74_5  = 0;
+  int term74_5-file_01-simple-cases ;
 
   {
 #line 71
@@ -1221,17 +1233,19 @@ void example4(void)
 #line 72
   first_iteration = 1;
   {
+#line 74
+  term74_5-file_01-simple-cases = 0;
   {
 #line 74
   while (1) {
-#line 74
-    term74_5 ++;
     while_continue: /* CIL Label */ ;
 #line 74
     if (! (i < 10)) {
 #line 74
       goto while_break;
     }
+#line 74
+    term74_5-file_01-simple-cases ++;
 #line 75
     if (first_iteration == 1) {
 #line 75
@@ -1249,8 +1263,10 @@ void example4(void)
 #line 79
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 74
+  term_exit- = term74_5-file_01-simple-cases;
   }
 #line 82
   __goblint_check(a[0] == 0);
@@ -1266,7 +1282,7 @@ void example5(void)
   int a[4] ;
   int i ;
   int top ;
-  int term95_5  = 0;
+  int term95_5-file_01-simple-cases ;
 
   {
 #line 92
@@ -1274,17 +1290,19 @@ void example5(void)
 #line 93
   top = 0;
   {
+#line 95
+  term95_5-file_01-simple-cases = 0;
   {
 #line 95
   while (1) {
-#line 95
-    term95_5 ++;
     while_continue: /* CIL Label */ ;
 #line 95
     if (! (i < 4)) {
 #line 95
       goto while_break;
     }
+#line 95
+    term95_5-file_01-simple-cases ++;
 #line 96
     a[i] = 0;
 #line 97
@@ -1300,8 +1318,10 @@ void example5(void)
 #line 104
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 95
+  term_exit- = term95_5-file_01-simple-cases;
   }
 #line 107
   __goblint_check(a[0] == 0);
@@ -1319,7 +1339,7 @@ void example6(void)
   int a[5] ;
   int i ;
   int top ;
-  int term119_5  = 0;
+  int term119_5-file_01-simple-cases ;
 
   {
 #line 116
@@ -1327,17 +1347,19 @@ void example6(void)
 #line 117
   top = 0;
   {
+#line 119
+  term119_5-file_01-simple-cases = 0;
   {
 #line 119
   while (1) {
-#line 119
-    term119_5 ++;
     while_continue: /* CIL Label */ ;
 #line 119
     if (! (i < 3)) {
 #line 119
       goto while_break;
     }
+#line 119
+    term119_5-file_01-simple-cases ++;
 #line 120
     a[i] = 0;
 #line 121
@@ -1345,8 +1367,10 @@ void example6(void)
 #line 122
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 119
+  term_exit- = term119_5-file_01-simple-cases;
   }
 #line 125
   __goblint_check(a[0] == 0);
@@ -1380,20 +1404,22 @@ void example7(void)
   int a[10] ;
   int i ;
   int tmp ;
-  int term143_2  = 0;
+  int term143_2-file_01-simple-cases ;
 
   {
 #line 142
   i = 0;
   {
+#line 143
+  term143_2-file_01-simple-cases = 0;
   {
 #line 143
   while (1) {
-#line 143
-    term143_2 ++;
     while_continue: /* CIL Label */ ;
 #line 143
     tmp = update(i);
+#line 143
+    term143_2-file_01-simple-cases ++;
 #line 143
     if (! tmp) {
 #line 143
@@ -1404,8 +1430,10 @@ void example7(void)
 #line 145
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 143
+  term_exit- = term143_2-file_01-simple-cases;
   }
 #line 147
   __goblint_check(a[0] == 0);
@@ -1422,8 +1450,8 @@ void example8(void)
   int b[5] ;
   int i ;
   int j ;
-  int term160_9  = 0;
-  int term157_2  = 0;
+  int term160_9-file_01-simple-cases ;
+  int term157_2-file_01-simple-cases ;
 
   {
 #line 155
@@ -1439,46 +1467,54 @@ void example8(void)
 #line 156
   i = 0;
   {
+#line 157
+  term157_2-file_01-simple-cases = 0;
   {
 #line 157
   while (1) {
-#line 157
-    term157_2 ++;
     while_continue: /* CIL Label */ ;
 #line 157
     if (! (i < 5)) {
 #line 157
       goto while_break;
     }
+#line 157
+    term157_2-file_01-simple-cases ++;
 #line 158
     a[i] = i;
 #line 159
     j = 0;
     {
+#line 160
+    term160_9-file_01-simple-cases = 0;
     {
 #line 160
     while (1) {
-#line 160
-      term160_9 ++;
       while_continue___0: /* CIL Label */ ;
 #line 160
       if (! (j < 5)) {
 #line 160
         goto while_break___0;
       }
+#line 160
+      term160_9-file_01-simple-cases ++;
 #line 161
       b[j] += a[i];
 #line 162
       j ++;
     }
-    }
     while_break___0: /* CIL Label */ ;
+    }
+#line 160
+    term_exit- = term160_9-file_01-simple-cases;
     }
 #line 164
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 157
+  term_exit- = term157_2-file_01-simple-cases;
   }
 #line 166
   return;
@@ -1489,23 +1525,25 @@ void example9(void)
 { 
   int a[5] ;
   int i ;
-  int term174_2  = 0;
+  int term174_2-file_01-simple-cases ;
 
   {
 #line 173
   i = 0;
   {
+#line 174
+  term174_2-file_01-simple-cases = 0;
   {
 #line 174
   while (1) {
-#line 174
-    term174_2 ++;
     while_continue: /* CIL Label */ ;
 #line 174
     if (! 1) {
 #line 174
       goto while_break;
     }
+#line 174
+    term174_2-file_01-simple-cases ++;
 #line 175
     a[i] = i;
 #line 176
@@ -1516,8 +1554,10 @@ void example9(void)
       goto while_break;
     }
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 174
+  term_exit- = term174_2-file_01-simple-cases;
   }
 #line 179
   return;
@@ -1528,23 +1568,25 @@ void example10(void)
 { 
   int a[5] ;
   int i ;
-  int term187_2  = 0;
+  int term187_2-file_01-simple-cases ;
 
   {
 #line 186
   i = 0;
   {
+#line 187
+  term187_2-file_01-simple-cases = 0;
   {
 #line 187
   while (1) {
-#line 187
-    term187_2 ++;
     while_continue: /* CIL Label */ ;
 #line 187
     if (! (i < 5)) {
 #line 187
       goto while_break;
     }
+#line 187
+    term187_2-file_01-simple-cases ++;
 #line 188
     if (i == 3) {
 #line 189
@@ -1557,8 +1599,10 @@ void example10(void)
 #line 193
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 187
+  term_exit- = term187_2-file_01-simple-cases;
   }
 #line 195
   return;
@@ -1990,99 +2034,113 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
   char *a ;
   char *b ;
   char c ;
-  int term10_5  = 0;
-  int term9_3  = 0;
-  int term21_9  = 0;
-  int term17_5  = 0;
-  int term16_3  = 0;
+  int term10_5-file_stdlib ;
+  int term9_3-file_stdlib ;
+  int term21_9-file_stdlib ;
+  int term17_5-file_stdlib ;
+  int term16_3-file_stdlib ;
 
   {
 #line 9
   i = (size_t )0;
   {
+#line 9
+  term9_3-file_stdlib = 0;
   {
 #line 9
   while (1) {
-#line 9
-    term9_3 ++;
     while_continue: /* CIL Label */ ;
 #line 9
     if (! (i < count)) {
 #line 9
       goto while_break;
     }
+#line 9
+    term9_3-file_stdlib ++;
 #line 10
     j = (size_t )0;
     {
+#line 10
+    term10_5-file_stdlib = 0;
     {
 #line 10
     while (1) {
-#line 10
-      term10_5 ++;
       while_continue___0: /* CIL Label */ ;
 #line 10
       if (! (j < count)) {
 #line 10
         goto while_break___0;
       }
+#line 10
+      term10_5-file_stdlib ++;
 #line 11
       (*comp)((void const   *)(ptr + i * size), (void const   *)(ptr + j * size));
 #line 10
       j ++;
     }
-    }
     while_break___0: /* CIL Label */ ;
+    }
+#line 10
+    term_exit- = term10_5-file_stdlib;
     }
 #line 9
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 9
+  term_exit- = term9_3-file_stdlib;
   }
 #line 16
   i___0 = (size_t )0;
   {
+#line 16
+  term16_3-file_stdlib = 0;
   {
 #line 16
   while (1) {
-#line 16
-    term16_3 ++;
     while_continue___1: /* CIL Label */ ;
 #line 16
     if (! (i___0 < count)) {
 #line 16
       goto while_break___1;
     }
+#line 16
+    term16_3-file_stdlib ++;
 #line 17
     j___0 = (size_t )0;
     {
+#line 17
+    term17_5-file_stdlib = 0;
     {
 #line 17
     while (1) {
-#line 17
-      term17_5 ++;
       while_continue___2: /* CIL Label */ ;
 #line 17
       if (! (j___0 < count)) {
 #line 17
         goto while_break___2;
       }
+#line 17
+      term17_5-file_stdlib ++;
 #line 19
       if (r) {
 #line 21
         k = (size_t )0;
         {
+#line 21
+        term21_9-file_stdlib = 0;
         {
 #line 21
         while (1) {
-#line 21
-          term21_9 ++;
           while_continue___3: /* CIL Label */ ;
 #line 21
           if (! (k < size)) {
 #line 21
             goto while_break___3;
           }
+#line 21
+          term21_9-file_stdlib ++;
 #line 22
           a = (char *)((ptr + i___0 * size) + k);
 #line 23
@@ -2096,21 +2154,27 @@ void qsort(void *ptr , size_t count , size_t size , int (*comp)(void const   * ,
 #line 21
           k ++;
         }
-        }
         while_break___3: /* CIL Label */ ;
+        }
+#line 21
+        term_exit- = term21_9-file_stdlib;
         }
       }
 #line 17
       j___0 ++;
     }
-    }
     while_break___2: /* CIL Label */ ;
+    }
+#line 17
+    term_exit- = term17_5-file_stdlib;
     }
 #line 16
     i___0 ++;
   }
-  }
   while_break___1: /* CIL Label */ ;
+  }
+#line 16
+  term_exit- = term16_3-file_stdlib;
   }
 #line 33
   return;
@@ -2129,23 +2193,25 @@ void *bsearch(void const   *key , void const   *ptr , size_t count , size_t size
   size_t i ;
   void const   *a ;
   int tmp ;
-  int term40_3  = 0;
+  int term40_3-file_stdlib ;
 
   {
 #line 40
   i = (size_t )0;
   {
+#line 40
+  term40_3-file_stdlib = 0;
   {
 #line 40
   while (1) {
-#line 40
-    term40_3 ++;
     while_continue: /* CIL Label */ ;
 #line 40
     if (! (i < count)) {
 #line 40
       goto while_break;
     }
+#line 40
+    term40_3-file_stdlib ++;
 #line 41
     a = ptr + i * size;
 #line 42
@@ -2158,8 +2224,10 @@ void *bsearch(void const   *key , void const   *ptr , size_t count , size_t size
 #line 40
     i ++;
   }
-  }
   while_break: /* CIL Label */ ;
+  }
+#line 40
+  term_exit- = term40_3-file_stdlib;
   }
 #line 47
   return ((void *)0);
