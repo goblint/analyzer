@@ -150,7 +150,7 @@ struct
         (s', Multiplicity.increment (fst l) m)
       | _ -> (s', m)
 
-    let remove ctx ?(warn=true) l =
+    let remove' ctx ~warn l =
       let s, m = ctx.local in
       let rm s = Lockset.remove (l, true) (Lockset.remove (l, false) s) in
       if warn &&  (not (Lockset.mem (l,true) s || Lockset.mem (l,false) s)) then M.warn "unlocking mutex which may not be held";
@@ -162,6 +162,8 @@ struct
         else
           (s, m')
       | _ -> (rm s, m)
+
+    let remove = remove' ~warn:true
 
     let remove_all ctx =
       (* Mutexes.iter (fun m ->
@@ -212,7 +214,7 @@ struct
       non_overlapping held_locks protecting
     | Queries.MayBePublicWithout _ when Lockset.is_bot ls -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex; protection} ->
-      let held_locks = Lockset.export_locks @@ fst @@ Arg.remove ctx ~warn:false without_mutex in
+      let held_locks = Lockset.export_locks @@ fst @@ Arg.remove' ctx ~warn:false without_mutex in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
