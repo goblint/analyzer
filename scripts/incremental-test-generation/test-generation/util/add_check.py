@@ -1,6 +1,6 @@
 # Takes a file and generates the goblint checks
 # Stores the file with an additional "_c"
-# When there is a compilation error the process writes [COMPILE_FAIL] into the meta data file for the given index
+# When there is a compilation error the process writes [META_EXCEPTION] into the meta data file for the given index
 
 import argparse
 import subprocess

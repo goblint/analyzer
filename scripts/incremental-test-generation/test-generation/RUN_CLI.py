@@ -6,7 +6,7 @@ import questionary
 import yaml
 from pathlib import Path
 from util.util import *
-from util.generate_programs import gernerate_programs
+from util.generate_programs import generate_programs
 from util.generate_tests import generate_tests
 from util.run_tests import run_tests
 from generators.generate_mutations import add_mutation_options, get_mutations_from_args
@@ -39,7 +39,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     goblint_executable_path = os.path.join(goblint_path, 'goblint')
     clang_tidy_path = os.path.join(llvm_path, 'build', 'bin', 'clang-tidy')
     temp_path = os.path.abspath(os.path.join(os.path.curdir, 'temp'))
-    gernerate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count)
+    generate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count)
 
     # Run tests
     if is_run_tests:

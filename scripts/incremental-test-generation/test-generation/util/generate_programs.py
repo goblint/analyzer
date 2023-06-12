@@ -15,7 +15,7 @@ from generators.generate_git import *
 
 generate_type_source = "SOURCE"
 
-def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count):
+def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count):
     # Clean working directory
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -77,7 +77,7 @@ def gernerate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, api
     if failed_count == 0:
         print(f"{COLOR_GREEN}All files compiled succesfully{COLOR_RESET}")
     else:
-        print(f"{COLOR_RED}There where {failed_count} files not compiling (stderr written to temp/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
+        print(f"{COLOR_RED}There were {failed_count} files not compiling (stderr written to temp/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate programs in the working directory')
@@ -113,4 +113,4 @@ if __name__ == '__main__':
     if args.enable_ml and not args.apikey_path:
         parser.error("--enable-ml requires --apikey-path")
 
-    gernerate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git)
+    generate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git)

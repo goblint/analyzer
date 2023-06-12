@@ -18,6 +18,7 @@ def run_tests(test_dir, goblint_repo_dir, cfg):
     shutil.copytree(test_dir, incremental_tests_dir_abs)
 
     ruby_path_abs = os.path.abspath(os.path.join(goblint_repo_dir, "scripts", "update_suite.rb"))
+    original_dir = os.getcwd()
     os.chdir(goblint_repo_dir)
     command = f"{ruby_path_abs} group temp -i"
     if cfg:
@@ -28,6 +29,7 @@ def run_tests(test_dir, goblint_repo_dir, cfg):
     process.wait()
 
     shutil.rmtree(incremental_tests_dir_abs)
+    os.chdir(original_dir)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the tests in the specified test directory with the ruby script from Goblint')

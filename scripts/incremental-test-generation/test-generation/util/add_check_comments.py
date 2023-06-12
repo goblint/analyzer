@@ -1,6 +1,6 @@
 # Adds "//UNDEFINED" or "//SUCCESS" to the Goblint checks "__goblint_check(exp);".
 # Stores the file with the same name when adding "//SUCCESS".
-# Stores the file with the appendix _u when adding "//UNDEFINED".
+# Stores the file with the appendix _u when adding "//UNKNOWN".
 # Run with ´python3 script.py example.txt -u´ or ´python3 script.py example.txt -s´.
 
 import argparse
