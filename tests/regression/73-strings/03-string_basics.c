@@ -38,11 +38,18 @@ int main() {
     __goblint_check(len == 12);
     __goblint_check(i == 0); // UNKNOWN
 
+    strcpy(s1, "hi ");
+    strncpy(s1, s3, 3);
+    len = strlen(s1); // TODO: produces a false warning -- any possibility to fix?
+    __goblint_check(len == 3); // UNKNOWN
+
     char tmp[] = "hi ";
+    len = strlen(tmp);
+    __goblint_check(len == 3);
     strcpy(s1, tmp);
-    /* strncpy(s1, s3, 3); */
+    strncpy(s1, s3, 3);
     len = strlen(s1);
-    __goblint_check(len == 3); // UNKNOWN <----- wrong result: calculates 6 instead of 3 probably caused by wrong integration in base
+    __goblint_check(len == 3);
 
     strcat(s1, "ababcd");
     char* cmp = strstr(s1, "bab");
@@ -58,6 +65,18 @@ int main() {
     __goblint_check(i > 0); // UNKNOWN
 
     strncpy(s1, "", 20);
+    strcpy(tmp, "\0hi");
+    i = strcmp(s1, tmp);
+    __goblint_check(i == 0); // UNKNOWN
+
+    char tmp2[] = "";
+    strcpy(s1, tmp2);
+    i = strcmp(s1, tmp2);
+    __goblint_check(i == 0);
+
+    i = strcmp(s1, tmp);
+    __goblint_check(i == 0); // UNKNOWN
+
     concat_1(s1, 30);
     len = strlen(s1);
     __goblint_check(len == 30); // UNKNOWN

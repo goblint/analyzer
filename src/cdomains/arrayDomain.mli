@@ -46,6 +46,9 @@ sig
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   (** Left fold (like List.fold_left) over the arrays elements *)
 
+  val content_to_top: t -> t
+  (** Maps the array's content to top of value, but keeps the type and the size if known *)
+
   val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> t
   val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
   val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool

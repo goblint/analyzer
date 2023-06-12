@@ -2041,15 +2041,15 @@ struct
           let lv_a = eval_lv (Analyses.ask_of_ctx ctx) gs st lv_val in
           let lv_typ = Cilfacade.typeOfLval lv_val in
           if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-            lv_a, lv_typ, (f s1_a s2_a)
+            lv_a, lv_typ, (f s1_a s2_a), None
           else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-            lv_a, lv_typ, (f s1_a s2_a)
+            lv_a, lv_typ, (f s1_a s2_a), None
           else
-            lv_a, lv_typ, (VD.top_value (unrollType lv_typ))
+            lv_a, lv_typ, (VD.top_value (unrollType lv_typ)), None
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
-            s1_a, s1_typ, VD.top_value (unrollType s1_typ)
+            s1_a, s1_typ, VD.top_value (unrollType s1_typ), None
         end
       (* else compute value in array domain *)
       else 
@@ -2061,10 +2061,15 @@ struct
         match s1_lval, s2_lval with
         | (Var v_s1, _), (Var v_s2, _) ->
           begin match CPA.find_opt v_s1 st.cpa, CPA.find_opt v_s2 st.cpa with
-            | Some (Array array_s1), Some (Array array_s2) -> lv_a, lv_typ, op_array array_s1 array_s2
-            | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ)
+            | Some (Array array_s1), Some (Array array_s2) -> lv_a, lv_typ, op_array array_s1 array_s2, Some v_s1
+            | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ), None
           end
-        | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ)
+        | (Var v_s1, _), _ -> 
+          begin match CPA.find_opt v_s1 st.cpa with
+            | Some (Array array_s1) -> lv_a, lv_typ, Array(CArrays.content_to_top array_s1), Some v_s1
+            | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ), Some v_s1
+          end
+        | _ -> lv_a, lv_typ, VD.top_value (unrollType lv_typ), None
     in
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
@@ -2099,12 +2104,17 @@ struct
       in
       set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Strcpy { dest = dst; src; n }, _ ->
-      (* TODO: This doesn't work, need to convert to Address? If yes, how? *)
-      let dest_a, dest_typ, value = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_copy ar1 ar2 (eval_n n))) in
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      let dest_a, dest_typ, value, var = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_copy ar1 ar2 (eval_n n))) in
+      begin match var with
+        | Some v -> {st with cpa = CPA.add v value st.cpa}
+        | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      end
     | Strcat { dest = dst; src; n }, _ ->
-      let dest_a, dest_typ, value = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_concat ar1 ar2 (eval_n n))) in 
-      set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      let dest_a, dest_typ, value, var = string_manipulation dst src None false None (fun ar1 ar2 -> Array(CArrays.string_concat ar1 ar2 (eval_n n))) in 
+      begin match var with
+        | Some v -> {st with cpa = CPA.add v value st.cpa}
+        | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+      end
     | Strlen s, _ ->
       begin match lv with
         | Some lv_val ->
@@ -2139,18 +2149,25 @@ struct
           (* when haystack, needle and dest type coincide, check if needle is a substring of haystack:
              if that is the case, assign the substring of haystack starting at the first occurrence of needle to dest,
              else use top *)
-          let dest_a, dest_typ, value = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
+          let dest_a, dest_typ, value, var = string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address(AD.substring_extraction h_a n_a)))
               (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
                  | Some ar -> Array(ar)
                  | None -> Address(AD.null_ptr)) in
-          set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          begin match var with
+            | Some v -> 
+              begin match value with
+                | Address _ -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+                | _ -> {st with cpa = CPA.add v value st.cpa}
+              end
+            | None -> set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+          end
         | None -> st
       end
     | Strcmp { s1; s2; n }, _ ->
       begin match lv with
         | Some _ ->
           (* when s1 and s2 type coincide, compare both both strings completely or their first n characters, otherwise use top *)
-          let dest_a, dest_typ, value = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int(AD.string_comparison s1_a s2_a (eval_n n))))
+          let dest_a, dest_typ, value, _ = string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int(AD.string_comparison s1_a s2_a (eval_n n))))
             (fun s1_ar s2_ar -> Int(CArrays.string_comparison s1_ar s2_ar (eval_n n))) in
           set ~ctx (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | None -> st
