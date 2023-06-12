@@ -13,6 +13,8 @@ module M = Messages
 let is_ignorable_type (t: typ): bool =
   match t with
   | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
+  | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
+  | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anonunion_pthread_mutexattr_t" cname || String.starts_with_stdlib ~prefix:"__anonunion_pthread_condattr_t" cname || String.starts_with_stdlib ~prefix:"__anonstruct___once_flag" cname || String.starts_with_stdlib ~prefix:"__anonunion_pthread_barrierattr_t" cname || String.starts_with_stdlib ~prefix:"__anonstruct___pthread_unwind_buf_t" cname || String.starts_with_stdlib ~prefix:"__anonstruct___cancel_jmp_buf" cname -> true
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
@@ -43,7 +45,8 @@ let init (f:file) =
       | TSArray (ts', _, _) -> add' ts'
       | _ -> ()
     in
-    add' (typeSig t)
+    if not (is_ignorable_type t) then
+      add' (typeSig t)
   in
   let visit_field fi =
     (* TODO: is_ignorable_type? *)
@@ -52,7 +55,8 @@ let init (f:file) =
   in
   let visit_glob = function
     | GCompTag (c,_) ->
-      List.iter visit_field c.cfields
+      if not (is_ignorable_type (TComp (c, []))) then
+        List.iter visit_field c.cfields
     | GVarDecl (v,_) | GVar (v,_,_) ->
       if not (Hashtbl.mem visited_vars v.vid) then begin
         (* TODO: is_ignorable? *)
