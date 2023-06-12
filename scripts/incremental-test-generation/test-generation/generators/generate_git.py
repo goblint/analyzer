@@ -64,7 +64,6 @@ def generate_git(goblint_path, temp_dir, meta_path, git_info_sh_path, start_comm
             print(f"[GIT][{t}/{num_of_commits}] {COLOR_YELLOW}Skipping merge commit {commit.hash}{COLOR_RESET}, continuing with the next commit...")
             last_failed = True
             continue
-        #TODO Skip small commits and summarize them in one big commit
         try:
             _checkout(build_path, meta_path, commit.hash)
             _build_repo(git_info_sh_path, temp_repo_dir, meta_path, commit.hash)
@@ -186,9 +185,9 @@ if __name__ == "__main__":
     parser.add_argument("temp_dir", help="Path to the temporary directory")
     parser.add_argument("meta_path", help="Path to the meta directory")
     parser.add_argument("git_info_sh_path", help="Path to the Git information shell script")
-    parser.add_argument("start_window_ms", help="Start of the time window in milliseconds", type=int)
-    parser.add_argument("end_window_ms", help="End of the time window in milliseconds", type=int)
+    parser.add_argument("--start_commit", help="Hash id of the first commit to consider", default=None)
+    parser.add_argument("--end_commit", help="Hash id of the last commit to consider", default=None)
 
     args = parser.parse_args()
 
-    generate_git(args.goblint_path, args.temp_dir, args.meta_path, args.git_info_sh_path, args.start_window_ms, args.end_window_ms)
+    generate_git(args.goblint_path, args.temp_dir, args.meta_path, args.git_info_sh_path, args.start_commit, args.end_commit)

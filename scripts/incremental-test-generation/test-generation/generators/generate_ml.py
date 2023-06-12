@@ -60,7 +60,7 @@ def generate_ml(program_path, apikey_path, meta_path, ml_count, num_selected_lin
 
 def _iterative_mutation_generation(program_path, meta_path, interesting_lines, num_selected_lines, max_line, index, lock):
     try:
-        time.sleep((index * 50)/1000)
+        time.sleep((index * 50)/1000) # Sleep depending on index to print the start messages in the right order
         new_path = make_program_copy(program_path, index)
         (explanation, selected_lines) = _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, index)
         _write_meta_data(meta_path, selected_lines, explanation, index, lock)
@@ -123,8 +123,8 @@ def _apply_mutation(new_path, interesting_lines, num_selected_lines, max_line, i
     
 
 def _write_meta_data(meta_path, selected_lines, explanation, index, lock, exception=None):
-    global error_counter
     lock.acquire()
+    global error_counter
     try:
         with open(meta_path, 'r') as file:
             yaml_data = yaml.safe_load(file)

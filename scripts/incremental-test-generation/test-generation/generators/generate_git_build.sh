@@ -20,11 +20,6 @@ else
   exit 1
 fi
 
-if [ "$3" == "" ]; then
-  echo "Please provide one of the options [--clone][--build][--path]"
-  exit 1
-fi
-
 # Exit if any command fails
 set -e
 
@@ -37,28 +32,32 @@ fi
 # Get the name of the repo
 repo_name=$(basename "$git_url" .git)
 
-# Export path for Mutation Generator
-if [ "$3" == "--path" ]; then
-  echo "$output_path/$repo_name/$path_to_build"
-  exit 0
-fi
+case "$3" in
+  "--path")
+    # Export path for Mutation Generator
+    echo "$output_path/$repo_name/$path_to_build"
+    exit 0
+    ;;
+  "--clone")
+    # Clone repo
+    rm -rf "$output_path/$repo_name"
+    git clone $git_url "$output_path/$repo_name"
+    ;;
+  "--build")
+    # Build repo
+    cd "$output_path/$repo_name/$path_to_build"
+    pre_build_commands
 
-# Clone repo
-if [ "$3" == "--clone" ]; then
-  rm -rf "$output_path/$repo_name"
-  git clone $git_url "$output_path/$repo_name"
-fi
+    if $use_cmake; then
+      cmake "$output_path/$repo_name/$path_to_build" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    elif $use_make; then
+      bear -- make
+    fi
 
-# Build repo
-if [ "$3" == "--build" ]; then
-  cd "$output_path/$repo_name/$path_to_build"
-  pre_build_commands
-
-  if $use_cmake; then
-    cmake "$output_path/$repo_name/$path_to_build" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-  elif $use_make; then
-    bear -- make
-  fi
-
-  post_build_commands
-fi
+    post_build_commands
+    ;;
+  *)
+    echo "Please provide one of the options [--clone][--build][--path]"
+    exit 1
+    ;;
+esac
