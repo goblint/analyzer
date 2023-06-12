@@ -41,7 +41,7 @@ int main(int argc, char const *argv[])
 
 
     pthread_mutex_lock(&mut);
-    g = 9;
+    g = 9; // RACE!
     pthread_mutex_unlock(&mut);
 
     pthread_join(t1, NULL);
