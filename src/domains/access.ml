@@ -257,7 +257,7 @@ let add side e voffs =
       in
       add_struct side (`Type t, o); (* TODO: this is also part of add_propagate, duplicated when called *)
       (* TODO: maybe this should not depend on whether voffs = None? *)
-      if not (!unsound && isArithmeticType t) then
+      if not (!unsound && isArithmeticType t) then (* TODO: used to check (t, o) not just t *)
         add_propagate side t o
   end;
   if M.tracing then M.traceu "access" "add\n"
