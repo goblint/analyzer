@@ -167,7 +167,7 @@ let getFuns fileAST : startfuns =
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
-    | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
+    | GFun ({svar={vstorage=NoStorage; vattr; _}; _} as def, _) when get_bool "nonstatic" && not (Cil.hasAttribute "goblint_stub" vattr) -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | _ -> acc
   in
