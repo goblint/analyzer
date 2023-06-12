@@ -29,11 +29,11 @@ logo = '''
 
         '''
 
-def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, create_precision, is_run_tests, api_key_path, ml_count):
+def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, create_precision, is_run_tests, api_key_path, ml_count, cfg):
     # Make paths absolute
     goblint_path = os.path.abspath(os.path.expanduser(goblint_path))
     llvm_path = os.path.abspath(os.path.expanduser(llvm_path))
-    input_path = os.path.abspath(os.path.expanduser(input_path)) #TODO Handle git url
+    input_path = os.path.abspath(os.path.expanduser(input_path))
 
     # Generate the programs
     goblint_executable_path = os.path.join(goblint_path, 'goblint')
@@ -48,15 +48,15 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
             print(SEPERATOR)
             print(f'Writing out {COLOR_BLUE}PRECISION TEST{COLOR_RESET} files for running:')
             generate_tests(temp_path, test_path, precision_test=True)
-            run_tests(test_path, goblint_path, cfg=True) #TODO Add Option for cfg
+            run_tests(test_path, goblint_path, cfg)
         print(SEPERATOR)
         print(f'Writing out {COLOR_BLUE}CORRECTNESS TEST{COLOR_RESET} files for running:')
         generate_tests(temp_path, test_path, precision_test=False)
-        run_tests(test_path, goblint_path, cfg=True) #TODO Add Option for cfg
+        run_tests(test_path, goblint_path, cfg)
         if os.path.exists(test_path):
             shutil.rmtree(test_path)
 
-    #TODO Print link to html result and give summary
+    #TODO Copy html result and print the link
 
     #Write out custom test files
     print(SEPERATOR)
@@ -71,7 +71,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
         generate_tests(temp_path, precision_path, precision_test=False) #TODO Custom name
         print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
 
-def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, input, ml_count):
+def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, input, ml_count, cfg):
     # Check config file
     config_path = Path(CONFIG_FILENAME)
     config = {}
@@ -180,6 +180,9 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
     if running == None:
         running = questionary.confirm('Run the tests?').ask()
 
+    if cfg == None:
+        cfg = questionary.confirm('Run the fine grained cfg tests?').ask()
+
     if input == None:
         while True:
             if enable_mutations or enable_ml:
@@ -195,7 +198,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 yaml.dump(config, outfile)
             break
 
-    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, precision, running, key_path, ml_count)
+    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, precision, running, key_path, ml_count, cfg)
 
 
 if __name__ == "__main__":
@@ -208,8 +211,10 @@ if __name__ == "__main__":
     parser.add_argument('-g', '--enable-git', action='store_true', help='Enable Git')
     parser.add_argument('-ep', '--enable-precision', action='store_true', help='Enable Precision Tests')
     parser.add_argument('-dp', '--disable-precision', action='store_true', help='Disable Precision Tests')
-    parser.add_argument('-er', '--enable-running', action='store_true', help='Enable Running Tests')
-    parser.add_argument('-dr', '--disable-running', action='store_true', help='Disable Running Tests')
+    parser.add_argument('-er', '--enable-running', action='store_true', help='Enable running tests')
+    parser.add_argument('-dr', '--disable-running', action='store_true', help='Disable running tests')
+    parser.add_argument('-ec', '--enable-cfg', action='store_true', help='Enable fine grained cfg tests')
+    parser.add_argument('-dc', '--disable-cfg', action='store_true', help='Disable fine grained cfg tests')
     parser.add_argument('-i', '--input', help='Input File')
     
     # Add mutation options
@@ -265,10 +270,18 @@ if __name__ == "__main__":
     else:
         running = None
 
+    if args.enable_cfg or args.disable_cfg:
+        # Only one can be selected
+        if args.enable_cfg and args.disable_cfg:
+            parser.error('Cfg can not be enabled AND diabled')
+        cfg = args.enable_cfg
+    else:
+        cfg = None
+
     if args.ml_count > 0:
         ml_count = args.ml_count
     else:
         ml_count = None
     
 
-    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, precision, running, args.input, ml_count)
+    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, precision, running, args.input, ml_count, cfg)
