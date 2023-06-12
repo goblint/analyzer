@@ -72,11 +72,12 @@ let reset () =
   TSH.clear typeVar;
   TSH.clear typeIncl
 
-
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset.Unit.t ] [@@deriving eq, ord, hash]
+(** Old access type inferred from an expression. *)
 
 exception Type_offset_error
 
+(** Memory location of an access. *)
 module Memo =
 struct
   include Printable.StdLeaf
@@ -176,6 +177,7 @@ let get_val_type e: acc_typ =
   get_type fb e
 
 
+(** Add access to {!Memo} after distributing. *)
 let add_one side memo: unit =
   let mv = Memo.to_mval memo in
   let ignorable = is_ignorable mv in
@@ -183,9 +185,10 @@ let add_one side memo: unit =
   if not ignorable then
     side memo
 
-let add_struct side memo: unit =
-  if M.tracing then M.tracei "access" "add_struct %a\n" Memo.pretty memo;
-  let rec dist_fields ty : Offset.Unit.t list =
+(** Distribute access to contained fields. *)
+let add_distribute_inner side memo: unit =
+  if M.tracing then M.tracei "access" "add_distribute_inner %a\n" Memo.pretty memo;
+  let rec dist_fields ty : Offset.Unit.t list = (* Find all nested offsets in type. *)
     (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -208,7 +211,7 @@ let add_struct side memo: unit =
           let oss = dist_fields t in
           (* 32 test(s) failed: ["02/26 malloc_struct", "04/49 type-invariants", "04/65 free_indirect_rc", "05/07 glob_fld_rc", "05/08 glob_fld_2_rc", "05/11 fldsense_rc", "05/15 fldunknown_access", "06/10 equ_rc", "06/16 type_rc", "06/21 mult_accs_rc", "06/28 symb_lockset_unsound", "06/29 symb_lockfun_unsound", "09/01 list_rc", "09/03 list2_rc", "09/05 ptra_rc", "09/07 kernel_list_rc", "09/10 arraylist_rc", "09/12 arraycollapse_rc", "09/14 kernel_foreach_rc", "09/16 arrayloop_rc", "09/18 nested_rc", "09/20 arrayloop2_rc", "09/23 evilcollapse_rc", "09/26 alloc_region_rc", "09/28 list2alloc", "09/30 list2alloc-offsets", "09/31 equ_rc", "09/35 list2_rc-offsets-thread", "09/36 global_init_rc", "29/01 race-2_3b-container_of", "29/02 race-2_4b-container_of", "29/03 race-2_5b-container_of"] *)
           List.iter (fun os ->
-              add_one side (Memo.add_offset memo os)
+              add_one side (Memo.add_offset memo os) (* distribute to all nested offsets *)
             ) oss
         | exception Type_offset_error ->
           if M.tracing then M.trace "access" "Type_offset_error\n";
@@ -222,45 +225,54 @@ let add_struct side memo: unit =
       if M.tracing then M.trace "access" "general case\n";
       add_one side memo
   end;
-  if M.tracing then M.traceu "access" "add_struct\n"
+  if M.tracing then M.traceu "access" "add_distribute_inner\n"
 
-let rec add_propagate side (t: typ) (o: Offset.Unit.t) =
+(** Distribute type-based access to variables and containing fields. *)
+let rec add_distribute_outer side (t: typ) (o: Offset.Unit.t) =
   let memo = (`Type t, o) in
-  if M.tracing then M.tracei "access" "add_propagate %a\n" Memo.pretty memo;
-  add_struct side memo;
+  if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
+  add_distribute_inner side memo; (* distribute to inner offsets of type *)
 
+  (* distribute to inner offsets of variables of the type *)
   let ts = typeSig t in
   let vars = TSH.find_all typeVar ts in
   List.iter (fun v ->
-      add_struct side (`Var v, o)
+      add_distribute_inner side (`Var v, o) (* same offset, but on variable *)
     ) vars;
 
+  (* recursively distribute to fields containing the type *)
   let fields = TSH.find_all typeIncl ts in
   List.iter (fun f ->
-      add_propagate side (TComp (f.fcomp, [])) (`Field (f, o))
+      (* prepend field and distribute to outer struct *)
+      add_distribute_outer side (TComp (f.fcomp, [])) (`Field (f, o))
     ) fields;
 
-  if M.tracing then M.traceu "access" "add_propagate\n"
+  if M.tracing then M.traceu "access" "add_distribute_outer\n"
 
+(** Add access to known variable with offsets or unknown variable from expression. *)
 let add side e voffs =
   begin match voffs with
-    | Some (v, o) ->
+    | Some (v, o) -> (* known variable *)
       if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
-      add_struct side memo
-    | None ->
+      add_distribute_inner side memo (* distribute to inner offsets *)
+    | None -> (* unknown variable *)
       if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
-      let ty = get_val_type e in
-      let (t, o) = match ty with
+      let ty = get_val_type e in (* extract old acc_typ from expression *)
+      let (t, o) = match ty with (* convert acc_typ to type-based Memo (components) *)
         | `Struct (c, o) -> (TComp (c, []), o)
         | `Type t -> (t, `NoOffset)
       in
-      add_struct side (`Type t, o); (* TODO: this is also part of add_propagate, duplicated when called *)
+      (* distribute to inner offsets directly *)
+      add_distribute_inner side (`Type t, o); (* TODO: this is also part of add_propagate, duplicated when called *)
       (* TODO: maybe this should not depend on whether voffs = None? *)
       if not (!unsound && isArithmeticType t) then (* TODO: used to check (t, o) not just t *)
-        add_propagate side t o
+        add_distribute_outer side t o (* distribute to variables and outer offsets *)
   end;
   if M.tracing then M.traceu "access" "add\n"
+
+
+(** Distribute to {!AddrOf} of all read lvals in subexpressions. *)
 
 let rec distribute_access_lval f lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
