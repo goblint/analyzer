@@ -183,27 +183,28 @@ let add_one side memo: unit =
   if not ignorable then
     side memo
 
+(** Find all nested offsets in type. *)
+let rec nested_offsets ty: Offset.Unit.t list =
+  (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
+  match unrollType ty with
+  | TComp (ci,_)   ->
+    let one_field fld =
+      if is_ignorable_type fld.ftype then
+        []
+      else
+        List.map (fun x -> `Field (fld,x)) (nested_offsets fld.ftype)
+    in
+    List.concat_map one_field ci.cfields
+  | TArray (t,_,_) ->
+    List.map (fun x -> `Index ((), x)) (nested_offsets t)
+  | _ -> [`NoOffset]
+
 (** Distribute access to contained fields. *)
 let add_distribute_inner side memo: unit =
   if M.tracing then M.tracei "access" "add_distribute_inner %a\n" Memo.pretty memo;
-  let rec dist_fields ty : Offset.Unit.t list = (* Find all nested offsets in type. *)
-    (* TODO: is_ignorable_type outside of TComp if ty itself is ignorable? *)
-    match unrollType ty with
-    | TComp (ci,_)   ->
-      let one_field fld =
-        if is_ignorable_type fld.ftype then
-          []
-        else
-          List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
-      in
-      List.concat_map one_field ci.cfields
-    | TArray (t,_,_) ->
-      List.map (fun x -> `Index ((), x)) (dist_fields t)
-    | _ -> [`NoOffset]
-  in
   begin match Memo.type_of memo with
     | t ->
-      let oss = dist_fields t in
+      let oss = nested_offsets t in
       List.iter (fun os ->
           add_one side (Memo.add_offset memo os) (* distribute to all nested offsets *)
         ) oss
