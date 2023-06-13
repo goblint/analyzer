@@ -14,7 +14,12 @@ let is_ignorable_type (t: typ): bool =
   match t with
   | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
   | TComp ({ cname = "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag"; _}, _) -> true
-  | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anonunion_pthread_mutexattr_t" cname || String.starts_with_stdlib ~prefix:"__anonunion_pthread_condattr_t" cname || String.starts_with_stdlib ~prefix:"__anonstruct___once_flag" cname || String.starts_with_stdlib ~prefix:"__anonunion_pthread_barrierattr_t" cname || String.starts_with_stdlib ~prefix:"__anonstruct___pthread_unwind_buf_t" cname || String.starts_with_stdlib ~prefix:"__anonstruct___cancel_jmp_buf" cname -> true
+  | TComp ({ cname; _}, _) when String.starts_with_stdlib ~prefix:"__anon" cname ->
+    begin match Cilfacade.split_anoncomp_name cname with
+      | (true, ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
+      | (false, ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
+      | _ -> false
+    end
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
