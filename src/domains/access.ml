@@ -75,14 +75,12 @@ let reset () =
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset.Unit.t ] [@@deriving eq, ord, hash]
 (** Old access type inferred from an expression. *)
 
-exception Type_offset_error
-
 (** Memory location of an access. *)
 module Memo =
 struct
   include Printable.StdLeaf
   type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] * Offset.Unit.t [@@deriving eq, ord, hash]
-  (* TODO: use typsig for `Type? *)
+  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
 
   let name () = "memo"
 
@@ -116,9 +114,9 @@ struct
     | `Var v -> v.vtype
     | `Type t -> t
 
+  (** @raise Offset.Type_of_error *)
   let type_of ((vt, o) as memo: t): typ =
-    try Offset.Unit.type_of ~base:(type_of_base memo) o
-    with Offset.Type_of_error _ -> raise Type_offset_error
+    Offset.Unit.type_of ~base:(type_of_base memo) o
 end
 
 (* TODO: What is the logic for get_type? *)
@@ -209,8 +207,8 @@ let add_distribute_inner side memo: unit =
       List.iter (fun os ->
           add_one side (Memo.add_offset memo os) (* distribute to all nested offsets *)
         ) oss
-    | exception Type_offset_error -> (* `Var has alloc variable with void type *)
-      if M.tracing then M.trace "access" "Type_offset_error\n";
+    | exception Offset.Type_of_error _ -> (* `Var has alloc variable with void type *)
+      if M.tracing then M.trace "access" "Offset.Type_of_error\n";
       add_one side memo
   end;
   if M.tracing then M.traceu "access" "add_distribute_inner\n"
