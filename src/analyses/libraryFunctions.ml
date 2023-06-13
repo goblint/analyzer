@@ -251,15 +251,47 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+    ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [w]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
     ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
     ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
+    ("pthread_cond_destroy", unknown [drop "cond" [f]]);
     ("pthread_mutexattr_settype", special [__ "attr" []; __ "type" []] @@ fun attr typ -> MutexAttrSetType {attr; typ});
     ("pthread_mutex_init", special [__ "mutex" []; __ "attr" []] @@ fun mutex attr -> MutexInit {mutex; attr});
+    ("pthread_mutex_destroy", unknown [drop "mutex" [f]]);
+    ("pthread_mutex_lock", special [__ "mutex" []] @@ fun mutex -> Lock {lock = mutex; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = false});
+    ("pthread_mutex_trylock", special [__ "mutex" []] @@ fun mutex -> Lock {lock = mutex; try_ = true; write = true; return_on_success = false});
+    ("pthread_mutex_unlock", special [__ "mutex" []] @@ fun mutex -> Unlock mutex);
+    ("pthread_mutexattr_init", unknown [drop "attr" [w]]);
+    ("pthread_mutexattr_destroy", unknown [drop "attr" [f]]);
+    ("pthread_rwlock_init", unknown [drop "rwlock" [w]; drop "attr" [w]]);
+    ("pthread_rwlock_destroy", unknown [drop "rwlock" [f]]);
+    ("pthread_rwlock_rdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true});
+    ("pthread_rwlock_tryrdlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true});
+    ("pthread_rwlock_wrlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true});
+    ("pthread_rwlock_trywrlock", special [__ "rwlock" []] @@ fun rwlock -> Lock {lock = rwlock; try_ = true; write = true; return_on_success = false});
+    ("pthread_rwlock_unlock", special [__ "rwlock" []] @@ fun rwlock -> Unlock rwlock);
+    ("pthread_rwlockattr_init", unknown [drop "attr" [w]]);
+    ("pthread_rwlockattr_destroy", unknown [drop "attr" [f]]);
+    ("pthread_spin_init", unknown [drop "lock" []; drop "pshared" []]);
+    ("pthread_spin_destroy", unknown [drop "lock" [f]]);
+    ("pthread_spin_lock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true});
+    ("pthread_spin_trylock", special [__ "lock" []] @@ fun lock -> Lock {lock = lock; try_ = true; write = true; return_on_success = false});
+    ("pthread_spin_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
+    ("pthread_attr_init", unknown [drop "attr" [w]]);
     ("pthread_attr_destroy", unknown [drop "attr" [f]]);
+    ("pthread_attr_getdetachstate", unknown [drop "attr" [r]; drop "detachstate" [r]]);
+    ("pthread_attr_setdetachstate", unknown [drop "attr" [w]; drop "detachstate" []]);
+    ("pthread_attr_getstacksize", unknown [drop "attr" [r]; drop "stacksize" [r]]);
+    ("pthread_attr_setstacksize", unknown [drop "attr" [w]; drop "stacksize" []]);
+    ("pthread_attr_getscope", unknown [drop "attr" [r]; drop "scope" [r]]);
+    ("pthread_attr_setscope", unknown [drop "attr" [w]; drop "scope" []]);
+    ("pthread_self", unknown []);
+    ("pthread_sigmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
+    ("pthread_key_create", unknown [drop "key" [w]; drop "destructor" [s]]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
     ("pthread_cancel", unknown [drop "thread" []]);
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);
@@ -753,24 +785,21 @@ let classify fn exps: categories =
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
   | "down_trylock"
     -> `Lock(true, true, true)
-  | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock" | "pthread_spin_trylock"
-    -> `Lock (true, true, false)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
-  | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
+  | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
-  | "spin_lock" | "pthread_spin_lock"
+  | "spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
-  | "pthread_mutex_lock" | "__pthread_mutex_lock"
+  | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
-  | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
-  | "down_read"
+  | "_read_lock"  | "_raw_read_lock" | "down_read"
     -> `Lock (get_bool "sem.lock.fail", false, true)
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
   | "mutex_unlock" | "_write_unlock" | "_read_unlock"
-  | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "up_read" | "up_write"
-  | "up" | "pthread_spin_unlock"
+  | "__pthread_mutex_unlock" | "up_read" | "up_write"
+  | "up"
     -> `Unlock
   | x -> `Unknown x
 
@@ -877,12 +906,6 @@ let invalidate_actions = [
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "perror", readsAll;(*safe*)
-    "pthread_mutex_lock", readsAll;(*safe*)
-    "pthread_mutex_trylock", readsAll;
-    "pthread_mutex_unlock", readsAll;(*safe*)
-    "pthread_spin_lock", readsAll;(*safe*)
-    "pthread_spin_trylock", readsAll;
-    "pthread_spin_unlock", readsAll;(*safe*)
     "__pthread_mutex_lock", readsAll;(*safe*)
     "__pthread_mutex_trylock", readsAll;
     "__pthread_mutex_unlock", readsAll;(*safe*)
@@ -894,11 +917,6 @@ let invalidate_actions = [
     "_spin_lock", readsAll;(*safe*)
     "_spin_unlock", readsAll;(*safe*)
     "_spin_lock_irqsave", readsAll;(*safe*)
-    "pthread_mutex_destroy", readsAll;(*safe*)
-    "pthread_mutexattr_init", readsAll;(*safe*)
-    "pthread_spin_init", readsAll;(*safe*)
-    "pthread_spin_destroy", readsAll;(*safe*)
-    "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
     "scanf",  writesAllButFirst 1 readsAll;(*drop 1*)
@@ -941,24 +959,13 @@ let invalidate_actions = [
     "close", writesAll;(*unsafe*)
     "setsid", readsAll;(*safe*)
     "strerror_r", writesAll;(*unsafe*)
-    "pthread_attr_init", writesAll; (*unsafe*)
-    "pthread_attr_setdetachstate", writesAll;(*unsafe*)
-    "pthread_attr_setstacksize", writesAll;(*unsafe*)
-    "pthread_attr_setscope", writesAll;(*unsafe*)
-    "pthread_attr_getdetachstate", readsAll;(*safe*)
-    "pthread_attr_getstacksize", readsAll;(*safe*)
-    "pthread_attr_getscope", readsAll;(*safe*)
-    "pthread_cond_init", readsAll; (*safe*)
-    "pthread_cond_destroy", readsAll;(*safe*)
     "__pthread_cond_init", readsAll; (*safe*)
     "__pthread_cond_wait", readsAll; (*safe*)
     "__pthread_cond_signal", readsAll;(*safe*)
     "__pthread_cond_broadcast", readsAll;(*safe*)
     "__pthread_cond_destroy", readsAll;(*safe*)
-    "pthread_key_create", writesAll;(*unsafe*)
     "sigemptyset", writesAll;(*unsafe*)
     "sigaddset", writesAll;(*unsafe*)
-    "pthread_sigmask", writesAllButFirst 2 readsAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
     "_strlen", readsAll;(*safe*)
     "__builtin_alloca", readsAll;(*safe*)
@@ -1080,15 +1087,6 @@ let invalidate_actions = [
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
     "clock", readsAll;
-    "pthread_rwlock_wrlock", readsAll;
-    "pthread_rwlock_trywrlock", readsAll;
-    "pthread_rwlock_rdlock", readsAll;
-    "pthread_rwlock_tryrdlock", readsAll;
-    "pthread_rwlockattr_destroy", writesAll;
-    "pthread_rwlockattr_init", writesAll;
-    "pthread_rwlock_destroy", readsAll;
-    "pthread_rwlock_init", readsAll;
-    "pthread_rwlock_unlock", readsAll;
     "__builtin_va_arg_pack_len", readsAll;
     "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
