@@ -801,7 +801,7 @@ let classify fn exps: categories =
   | "_spin_trylock" | "_spin_trylock_irqsave"
     -> `Lock(true, true, true)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
-  | "_write_lock" | "_raw_write_lock" | "GetResource" | "_raw_spin_lock"
+  | "_write_lock" | "_raw_write_lock" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "__pthread_mutex_lock"
