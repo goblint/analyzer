@@ -417,8 +417,24 @@ let console_sem = AddrOf (Cil.var (Cilfacade.create_var (makeGlobalVar "[console
 
 (** Linux kernel functions. *)
 let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("down_trylock", special [__ "sem" []] @@ fun sem -> Lock { lock = sem; try_ = true; write = true; return_on_success = true });
+    ("down_read", special [__ "sem" []] @@ fun sem -> Lock { lock = sem; try_ = get_bool "sem.lock.fail"; write = false; return_on_success = true });
+    ("down_write", special [__ "sem" []] @@ fun sem -> Lock { lock = sem; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("up", special [__ "sem" []] @@ fun sem -> Unlock sem);
+    ("up_read", special [__ "sem" []] @@ fun sem -> Unlock sem);
+    ("up_write", special [__ "sem" []] @@ fun sem -> Unlock sem);
+    ("mutex_init", unknown [drop "mutex" []]);
+    ("mutex_lock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("mutex_trylock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = true; write = true; return_on_success = true });
+    ("mutex_lock_interruptible", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("mutex_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
+    ("spin_lock_init", unknown [drop "lock" []]);
+    ("spin_lock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
+    ("spin_trylock", special [__ "lock" []] @@ fun lock -> Lock { lock = lock; try_ = true; write = true; return_on_success = true });
+    ("spin_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
     ("spin_lock_irqsave", special [__ "lock" []; drop "flags" []] @@ fun lock -> Lock { lock; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = true });
     ("spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
+    ("raw_spin_unlock", special [__ "lock" []] @@ fun lock -> Unlock lock);
     ("_raw_spin_unlock_irqrestore", special [__ "lock" []; drop "flags" []] @@ fun lock -> Unlock lock);
     ("spinlock_check", special [__ "lock" []] @@ fun lock -> Identity lock);  (* Identity, because we don't want lock internals. *)
     ("_lock_kernel", special [drop "func" [r]; drop "file" [r]; drop "line" []] @@ Lock { lock = big_kernel_lock; try_ = false; write = true; return_on_success = true });
@@ -782,24 +798,19 @@ let classify fn exps: categories =
       | n::size::_ -> `Calloc (n, size)
       | _ -> strange_arguments ()
     end
-  | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
-  | "down_trylock"
+  | "_spin_trylock" | "_spin_trylock_irqsave"
     -> `Lock(true, true, true)
-  | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
-  | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
-  | "GetResource" | "_raw_spin_lock"
+  | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
+  | "_write_lock" | "_raw_write_lock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
-  | "spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
-  | "_read_lock"  | "_raw_read_lock" | "down_read"
+  | "_read_lock"  | "_raw_read_lock"
     -> `Lock (get_bool "sem.lock.fail", false, true)
-  | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
-  | "mutex_unlock" | "_write_unlock" | "_read_unlock"
-  | "__pthread_mutex_unlock" | "up_read" | "up_write"
-  | "up"
+  | "__raw_read_unlock" | "__raw_write_unlock" 
+  | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
+  | "_write_unlock" | "_read_unlock" | "__pthread_mutex_unlock"
     -> `Unlock
   | x -> `Unknown x
 
@@ -910,10 +921,6 @@ let invalidate_actions = [
     "__pthread_mutex_trylock", readsAll;
     "__pthread_mutex_unlock", readsAll;(*safe*)
     "__mutex_init", readsAll;(*safe*)
-    "mutex_init", readsAll;(*safe*)
-    "mutex_lock", readsAll;(*safe*)
-    "mutex_lock_interruptible", readsAll;(*safe*)
-    "mutex_unlock", readsAll;(*safe*)
     "_spin_lock", readsAll;(*safe*)
     "_spin_unlock", readsAll;(*safe*)
     "_spin_lock_irqsave", readsAll;(*safe*)
@@ -1101,12 +1108,7 @@ let invalidate_actions = [
     "setpriority", readsAll;
     "getpriority", readsAll;
     (* ddverify *)
-    "spin_lock_init", readsAll;
-    "spin_lock", readsAll;
-    "spin_unlock", readsAll;
     "sema_init", readsAll;
-    "down_trylock", readsAll;
-    "up", readsAll;
     "__goblint_assume_join", readsAll;
   ]
 
