@@ -1,4 +1,4 @@
-  $ goblint --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs 21-mult_accs_rc.c
+  $ goblint --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs 21-mult_accs_rc.c
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:27:3-27:14)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (21-mult_accs_rc.c:27:3-27:14)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (21-mult_accs_rc.c:27:3-27:14)
@@ -87,7 +87,7 @@
     unsafe: 1
     total memory locations: 26
 
-  $ goblint --enable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs 21-mult_accs_rc.c
+  $ goblint --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs 21-mult_accs_rc.c
   [Error][Imprecise][Unsound] Function definition missing for get_s (21-mult_accs_rc.c:27:3-27:14)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (21-mult_accs_rc.c:27:3-27:14)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (21-mult_accs_rc.c:27:3-27:14)

@@ -31,10 +31,10 @@ module TSH = Hashtbl.Make (CilType.Typsig)
 
 let typeVar  = TSH.create 101
 let typeIncl = TSH.create 101
-let unsound = ref false
+let collect_direct_arithmetic = ref false
 
 let init (f:file) =
-  unsound := get_bool "ana.mutex.disjoint_types";
+  collect_direct_arithmetic := get_bool "ana.race.direct-arithmetic";
   let visited_vars = Hashtbl.create 100 in
   let add tsh t v =
     let rec add' ts =
@@ -250,7 +250,7 @@ let add side e voffs =
         | `Type t -> (t, `NoOffset)
       in
       match o with
-      | `NoOffset when !unsound && isArithmeticType t -> ()
+      | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
       | _ -> add_distribute_outer side t o (* distribute to variables and outer offsets *)
   end;
   if M.tracing then M.traceu "access" "add\n"

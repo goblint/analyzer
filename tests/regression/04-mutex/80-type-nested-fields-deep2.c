@@ -1,4 +1,4 @@
-//PARAM: --disable ana.mutex.disjoint_types
+//PARAM: --enable ana.race.direct-arithmetic
 #include <pthread.h>
 #include <stdio.h>
 

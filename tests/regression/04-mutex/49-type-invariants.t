@@ -1,4 +1,4 @@
-  $ goblint --disable ana.mutex.disjoint_types --enable allglobs 49-type-invariants.c
+  $ goblint --enable ana.race.direct-arithmetic --enable allglobs 49-type-invariants.c
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:22:3-22:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:22:3-22:21)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:22:3-22:21)
@@ -22,7 +22,7 @@
     unsafe: 1
     total memory locations: 2
 
-  $ goblint --enable ana.mutex.disjoint_types --enable allglobs 49-type-invariants.c
+  $ goblint --disable ana.race.direct-arithmetic --enable allglobs 49-type-invariants.c
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:22:3-22:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:22:3-22:21)
   [Info][Imprecise] Invalidating expressions: AddrOf(Var(s, NoOffset)) (49-type-invariants.c:22:3-22:21)
