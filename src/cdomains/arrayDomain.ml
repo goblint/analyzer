@@ -1326,7 +1326,7 @@ struct
     let warn_no_null min_must_null exists_min_must_null min_may_null =
       if Z.geq min_may_null (Z.of_int n) then
         M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
-      else if (exists_min_must_null && Z.geq min_must_null (Z.of_int n)) || not exists_min_must_null then
+      else if (exists_min_must_null && (Z.geq min_must_null (Z.of_int n)) || (Z.gt min_must_null min_may_null)) || not exists_min_must_null then
         M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes" in
 
     if n < 0 then
@@ -1365,8 +1365,11 @@ struct
         let min_may_null = may_nulls_min_elt may_nulls_set in
         (* warn if resulting array may not contain null byte *)
         warn_no_null min_must_null true min_may_null;
-        (* remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
-        (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n)))
+        (* if min_must_null = min_may_null, remove indexes >= n and add all indexes from minimal must/may null to n - 1 in the sets *)
+        if Z.equal min_must_null min_may_null then
+          (update_must_indexes min_must_null must_nulls_set, update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n))
+        else
+          (MustNulls.top (), update_may_indexes min_may_null may_nulls_set, Idx.of_int ILong (Z.of_int n)))
 
   let to_string_length (must_nulls_set, may_nulls_set, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
@@ -1458,6 +1461,7 @@ struct
       (* any other case shouldn't happen as minimal index is always >= 0 *)
       | _ -> (MustNulls.top (), MayNulls.top (), size1) in
     
+    (* TODO: would it be useful to warn if size of ar2 is (potentially bigger) than size of ar1? *)
     match n with
     (* strcpy *)
     | None ->

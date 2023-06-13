@@ -2,6 +2,7 @@
 
 #include <goblint.h>
 #include <string.h>
+#include <stdlib.h>
 
 char* hello_world() {
     return "Hello world!";
