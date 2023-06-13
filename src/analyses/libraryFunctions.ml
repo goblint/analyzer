@@ -252,17 +252,23 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [w]]);
+    ("__pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [w]]);
     ("pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
+    ("__pthread_cond_signal", special [__ "cond" []] @@ fun cond -> Signal cond);
     ("pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
+    ("__pthread_cond_broadcast", special [__ "cond" []] @@ fun cond -> Broadcast cond);
     ("pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
+    ("__pthread_cond_wait", special [__ "cond" []; __ "mutex" []] @@ fun cond mutex -> Wait {cond; mutex});
     ("pthread_cond_timedwait", special [__ "cond" []; __ "mutex" []; __ "abstime" [r]] @@ fun cond mutex abstime -> TimedWait {cond; mutex; abstime});
     ("pthread_cond_destroy", unknown [drop "cond" [f]]);
+    ("__pthread_cond_destroy", unknown [drop "cond" [f]]);
     ("pthread_mutexattr_settype", special [__ "attr" []; __ "type" []] @@ fun attr typ -> MutexAttrSetType {attr; typ});
     ("pthread_mutex_init", special [__ "mutex" []; __ "attr" []] @@ fun mutex attr -> MutexInit {mutex; attr});
     ("pthread_mutex_destroy", unknown [drop "mutex" [f]]);
     ("pthread_mutex_lock", special [__ "mutex" []] @@ fun mutex -> Lock {lock = mutex; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = false});
     ("__pthread_mutex_lock", special [__ "mutex" []] @@ fun mutex -> Lock {lock = mutex; try_ = get_bool "sem.lock.fail"; write = true; return_on_success = false});
     ("pthread_mutex_trylock", special [__ "mutex" []] @@ fun mutex -> Lock {lock = mutex; try_ = true; write = true; return_on_success = false});
+    ("__pthread_mutex_trylock", special [__ "mutex" []] @@ fun mutex -> Lock {lock = mutex; try_ = true; write = true; return_on_success = false});
     ("pthread_mutex_unlock", special [__ "mutex" []] @@ fun mutex -> Unlock mutex);
     ("__pthread_mutex_unlock", special [__ "mutex" []] @@ fun mutex -> Unlock mutex);
     ("pthread_mutexattr_init", unknown [drop "attr" [w]]);
@@ -927,7 +933,6 @@ let invalidate_actions = [
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "perror", readsAll;(*safe*)
-    "__pthread_mutex_trylock", readsAll;
     "__mutex_init", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
@@ -971,11 +976,6 @@ let invalidate_actions = [
     "close", writesAll;(*unsafe*)
     "setsid", readsAll;(*safe*)
     "strerror_r", writesAll;(*unsafe*)
-    "__pthread_cond_init", readsAll; (*safe*)
-    "__pthread_cond_wait", readsAll; (*safe*)
-    "__pthread_cond_signal", readsAll;(*safe*)
-    "__pthread_cond_broadcast", readsAll;(*safe*)
-    "__pthread_cond_destroy", readsAll;(*safe*)
     "sigemptyset", writesAll;(*unsafe*)
     "sigaddset", writesAll;(*unsafe*)
     "raise", writesAll;(*unsafe*)
