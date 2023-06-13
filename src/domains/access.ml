@@ -263,11 +263,9 @@ let add side e voffs =
         | `Struct (c, o) -> (TComp (c, []), o)
         | `Type t -> (t, `NoOffset)
       in
-      (* distribute to inner offsets directly *)
-      add_distribute_inner side (`Type t, o); (* TODO: this is also part of add_propagate, duplicated when called *)
-      (* TODO: maybe this should not depend on whether voffs = None? *)
-      if not (!unsound && isArithmeticType t) then (* TODO: used to check (t, o) not just t *)
-        add_distribute_outer side t o (* distribute to variables and outer offsets *)
+      match o with
+      | `NoOffset when !unsound && isArithmeticType t -> ()
+      | _ -> add_distribute_outer side t o (* distribute to variables and outer offsets *)
   end;
   if M.tracing then M.traceu "access" "add\n"
 
