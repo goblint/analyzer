@@ -922,9 +922,6 @@ struct
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
-  let tf_modular_combine_env ctx lv f args = S.modular_combine_env ctx lv f args
-  let tf_modular_combine_assign ctx lv f args = S.modular_combine_assign ctx lv f args
-
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let functions =

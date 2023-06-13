@@ -616,7 +616,7 @@ struct
       warn_type "join" x y;
       Top
 
-  let rec widen x y =
+  let widen x y =
     match (x,y) with
     | (Top, _) -> Top
     | (_, Top) -> Top

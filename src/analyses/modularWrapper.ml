@@ -19,11 +19,6 @@ struct
     type domain = Left | Right
     let chosen_domain = Right
 
-    let merge x y = match x, y with
-      | `Left x, `Left y -> `Left (Base1.join x y)
-      | `Right x, `Right y -> `Right (Base2.join x y)
-      | _ -> failwith "Either.merge: incompatible arguments"
-
     let unop_to_t unop_left unop_right u =
       match chosen_domain with
       | Left -> `Left (unop_left u)
@@ -35,11 +30,6 @@ struct
       match u with
       | `Left x -> (unop_left x)
       | `Right x -> (unop_right x)
-
-    let unop_on_t unop_left unop_right u =
-      match u with
-      | `Left x -> `Left (unop_left x)
-      | `Right x -> `Right (unop_right x)
 
     let binop_to_t binop_left binop_right x y  =
       match x, y with
@@ -93,12 +83,6 @@ struct
 
     let name = S.D.name
 
-    let merge x y = match x, y with
-      | Some x, Some y -> Some (Either.merge x y)
-      | Some x, None
-      | None, Some x -> Some x
-      | _ -> None
-
     let right_to_left = function
       | Some (`Right x) -> Some (`Left x)
       | x -> x
@@ -128,7 +112,6 @@ struct
     let remove_non_modular x = x
     let to_modular x = x
     let to_non_modular x = x
-    let merge = S.G.join
   end
 
   module C =

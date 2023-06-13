@@ -118,11 +118,6 @@ struct
     let to_modular (d, s) = Dom.to_modular d, s
     let to_non_modular (d, s) = Dom.to_non_modular d, s
 
-    let merge (d1, s1) (d2, s2) =
-      let d = Dom.merge d1 d2 in
-      let s = Sync.join s1 s2 in
-      (d, s)
-
     let printXml f (d, _) = Dom.printXml f d
   end
 
@@ -130,8 +125,6 @@ struct
   module C = Spec.C
   module V = Spec.V
   module P = UnitP
-
-  let merge = D.join
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 

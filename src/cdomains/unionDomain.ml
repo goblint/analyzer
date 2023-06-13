@@ -241,7 +241,6 @@ struct
   module S = Simple(Val)
   module MS = Map(Val)
 
-  type field = fieldinfo
   type value = Val.t
 
   include Printable.Either (S) (MS)
@@ -278,11 +277,6 @@ struct
     match u with
     | `Left x -> `Left (unop_left x)
     | `Right x -> `Right (unop_right x)
-
-  let unop unop_left unop_right u =
-    match chosen_domain () with
-    | Simple -> unop_left u
-    | Map -> unop_right u
 
   let binop_to_t binop_left binop_right x y  =
     match x, y with
