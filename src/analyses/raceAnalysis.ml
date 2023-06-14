@@ -30,13 +30,43 @@ struct
     include Printable.StdLeaf
     include Offset.Unit
   end
-  module OffsetMap = MapDomain.MapBot (GroupableOffset) (Access.AS)
+
+  module rec OffsetTrie :
+  sig
+    type key = GroupableOffset.t
+    type value = Access.AS.t
+    include Lattice.S with type t = value * OffsetTrieMap.t
+
+    val iter: (key -> value -> unit) -> t -> unit
+    val singleton: key -> value -> t
+  end  =
+  struct
+    type key = GroupableOffset.t
+    type value = Access.AS.t
+    include Lattice.Prod (Access.AS) (OffsetTrieMap)
+
+    let rec iter (f : key -> value -> unit) ((accs, children) : t) : unit =
+      f `NoOffset accs;
+      OffsetTrieMap.iter (fun key child ->
+          iter (fun child_key child_accs ->
+              f (GroupableOffset.add_offset key child_key) child_accs
+            ) child
+        ) children
+
+    let rec singleton (key : key) (value : value) : t =
+      match key with
+      | `NoOffset -> (value, OffsetTrieMap.empty ())
+      | `Field (f, key') -> (Access.AS.empty (), OffsetTrieMap.singleton (`Field (f, `NoOffset)) (singleton key' value))
+      | `Index ((), key') -> (Access.AS.empty (), OffsetTrieMap.singleton (`Index ((), `NoOffset)) (singleton key' value))
+  end
+  and OffsetTrieMap : MapDomain.S with type key = GroupableOffset.t and type value = OffsetTrie.t = MapDomain.MapBot (GroupableOffset) (OffsetTrie)
+
   module G =
   struct
-    include Lattice.Lift2 (OffsetMap) (MemoSet) (Printable.DefaultNames)
+    include Lattice.Lift2 (OffsetTrie) (MemoSet) (Printable.DefaultNames)
 
     let access = function
-      | `Bot -> OffsetMap.bot ()
+      | `Bot -> OffsetTrie.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "Race.access"
     let vars = function
@@ -66,7 +96,7 @@ struct
 
   let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetMap.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
     side_vars ctx memo
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -77,7 +107,7 @@ struct
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let offset_accs = G.access (ctx.global g) in
-          OffsetMap.iter (fun offset accs -> 
+          OffsetTrie.iter (fun offset accs -> 
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
               Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
