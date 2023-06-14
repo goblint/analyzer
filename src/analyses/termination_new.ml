@@ -59,18 +59,26 @@ struct
       D.add x false ctx.local
     | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
+      (* TODO: Move *)
       let is_bounded = check_bounded ctx x in
       D.add x is_bounded ctx.local
     | _ -> ctx.local
 
+  let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
+    (* TODO: Implement check for our special loop exit indicator function *)
+    ctx.local
+
   (** Provides information to Goblint *)
+  (* TODO: Consider gotos and recursion *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
-    | Queries.MustTermLoop v when check_bounded ctx v ->
-      true (* TODO should we use the check_bounded function? *)
+    | Queries.MustTermLoop v ->
+      (match D.find_opt v ctx.local with
+         Some b -> b
+       | None -> Result.top q)
     | Queries.MustTermProg ->
-      true (*TODO check if all values in the domain are true -> true *)
+      D.for_all (fun loop term_info -> term_info) ctx.local
     | _ -> Result.top q
 
 end
