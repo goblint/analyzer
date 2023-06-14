@@ -3,7 +3,6 @@
 open Analyses
 open GoblintCil
 open TerminationPreprocessing
-include Printf
 
 exception PreProcessing of string
 
@@ -62,10 +61,6 @@ struct
       if not (no_upjumping_gotos ()) then printf "\n5 problem\n";
       D.add x is_bounded ctx.local
     | _ -> ctx.local
-
-  let branch ctx (exp : exp) (tv : bool) =
-    ctx.local (* TODO: Do we actually need a branch transfer function? *)
-
 
   (* provides information to Goblint*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
