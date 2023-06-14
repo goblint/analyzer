@@ -6,27 +6,27 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
-let loopCounters : varinfo list ref = ref []
+let loop_counters : varinfo list ref = ref []
 
 (* Contains the locations of the upjumping gotos *)
-let upjumpingGotos : location list ref = ref []
+let upjumping_gotos : location list ref = ref []
 
-let loopExit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
+let loop_exit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
 
 let is_loop_counter_var (x : varinfo) =
-  List.mem x !loopCounters
+  List.mem x !loop_counters
 
 let is_loop_exit_indicator (x : varinfo) =
-  x = !loopExit
+  x = !loop_exit
 
 (** Checks whether at the current location (=loc) of the analysis an
  * upjumping goto was already reached. Returns true if no upjumping goto was
  * reached until now *)
 let currrently_no_upjumping_gotos (loc : location) =
-  List.for_all (function (l) -> (l >= loc)) upjumpingGotos.contents
+  List.for_all (function (l) -> (l >= loc)) upjumping_gotos.contents
 
 let no_upjumping_gotos () =
-  (List.length upjumpingGotos.contents) <= 0
+  (List.length upjumping_gotos.contents) <= 0
 
 (** Checks whether a variable can be bounded *)
 let check_bounded ctx varinfo =
@@ -79,6 +79,6 @@ end
 
 let () =
   (* Register the preprocessing *)
-  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loopCounters upjumpingGotos loopExit);
+  Cilfacade.register_preprocess_cil (Spec.name ()) (new loopCounterVisitor loop_counters upjumping_gotos loop_exit);
   (* Register this analysis within the master control program *)
   MCP.register_analysis (module Spec : MCPSpec)
