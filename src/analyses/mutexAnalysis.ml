@@ -19,12 +19,14 @@ struct
       (* the maximum multiplicity which we keep track of precisely *)
       let max_count () = 4
 
-      module Count = Lattice.Reverse(
-        Lattice.Chain (struct
-          let n () = max_count () + 1
-          let names x = if x = max_count () then Format.asprintf ">= %d" x else Format.asprintf "%d" x
-        end)
-      )
+      module Count = Lattice.Reverse (
+          Lattice.Chain (
+          struct
+            let n () = max_count () + 1
+            let names x = if x = max_count () then Format.asprintf ">= %d" x else Format.asprintf "%d" x
+          end
+          )
+        )
 
       include MapDomain.MapTop_LiftBot (ValueDomain.Addr) (Count)
 
