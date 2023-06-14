@@ -280,7 +280,7 @@ struct
     | None -> true
     | Some v -> any_local_reachable
 
-  let make_callee_rel ctx f args =
+  let enter ctx r f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
     if M.tracing then M.tracel "combine" "relation enter f: %a\n" CilType.Varinfo.pretty f.svar;
@@ -311,12 +311,7 @@ struct
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
-    new_rel
-
-  let enter ctx r f args =
-    let callee_rel = make_callee_rel ctx f args in
-    let callee_st = {ctx.local with rel = callee_rel} in
-    [ctx.local, callee_st]
+    [st, {st with rel = new_rel}]
 
   let body ctx f =
     let st = ctx.local in
@@ -632,7 +627,12 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
-      let new_rel = make_callee_rel ctx fd args in
+      let arg_vars =
+        fd.sformals
+        |> List.filter RD.Tracked.varinfo_tracked
+        |> List.map RV.arg
+      in
+      let new_rel = RD.add_vars st'.rel arg_vars in
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)
