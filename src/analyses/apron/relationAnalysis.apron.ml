@@ -280,7 +280,7 @@ struct
     | None -> true
     | Some v -> any_local_reachable
 
-  let enter ctx r f args =
+  let make_callee_rel ~thread ctx f args =
     let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
     if M.tracing then M.tracel "combine" "relation enter f: %a\n" CilType.Varinfo.pretty f.svar;
@@ -311,7 +311,11 @@ struct
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "relation enter newd: %a\n" RD.pretty new_rel;
-    [st, {st with rel = new_rel}]
+    new_rel
+
+  let enter ctx r f args =
+    let calle_rel = make_callee_rel ~thread:false ctx f args in
+    [ctx.local, {ctx.local with rel = calle_rel}]
 
   let body ctx f =
     let st = ctx.local in
@@ -627,12 +631,22 @@ struct
       if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
-      let arg_vars =
-        fd.sformals
-        |> List.filter RD.Tracked.varinfo_tracked
-        |> List.map RV.arg
+      (* TODO: Deduplicate with enter *)
+      let arg_assigns =
+        GobList.combine_short fd.sformals args (* TODO: is it right to ignore missing formals/args? *)
+        |> List.filter (fun (x, _) -> RD.Tracked.varinfo_tracked x)
+        |> List.map (Tuple2.map1 RV.arg)
       in
-      let new_rel = RD.add_vars st'.rel arg_vars in
+      let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+      let arg_vars = List.map fst arg_assigns in
+      let new_rel = RD.add_vars st.rel arg_vars in
+      let any_local_reachable = any_local_reachable fd reachable_from_args in
+      RD.remove_filter_with new_rel (fun var ->
+          match RV.find_metadata var with
+          | Some (Local _) when not (pass_to_callee fd any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
+          | Some (Arg _) when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+          | _ -> false (* keep everything else (just added args, globals, global privs) *)
+        );
       [{st' with rel = new_rel}]
     | exception Not_found ->
       (* Unknown functions *)
