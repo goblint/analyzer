@@ -73,16 +73,31 @@ struct
       else begin
         let possibly_started current = function
           | `Lifted tid ->
-            let not_started = MHP.definitely_not_started (current, ctx.ask Queries.CreatedThreads) tid in
+            let threads = ctx.ask Queries.CreatedThreads in
+            let not_started = MHP.definitely_not_started (current, threads) tid in
+            M.tracel "threadescape" "tid: %a, not_started: %b\n" ThreadIdDomain.FlagConfiguredTID.pretty tid not_started;
             let possibly_started = not not_started in
             possibly_started
-          | `Top
+          | `Top -> true
+          | `Bot -> false
+        in
+        let equal_current_not_unique current = function
+          | `Lifted tid ->
+            ThreadId.Thread.equal current tid && not (ThreadId.Thread.is_unique current)
+          | `Top -> true
           | `Bot -> false
         in
         match ctx.ask Queries.CurrentThreadId with
         | `Lifted current ->
           let possibly_started = ThreadIdSet.exists (possibly_started current) threads in
-          possibly_started || D.mem v ctx.local
+          if possibly_started then
+            true
+          else if ThreadIdSet.exists (equal_current_not_unique current) threads then
+            (* Another instance of the non-unqiue current thread may have escaped the variable *)
+            true
+          else
+            (* Check whether current unique thread has escaped the variable *)
+            D.mem v ctx.local
         | `Top ->
           true
         | `Bot ->
