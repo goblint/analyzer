@@ -12,12 +12,12 @@ struct
   let name () = "race"
 
   (* Two global invariants:
-     1. (lval, type) -> accesses  --  used for warnings
-     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
+     1. memoroot -> (offset -> accesses)  --  used for warnings
+     2. varinfo -> set of memo  --  used for IterSysVars Global *)
 
   module V =
   struct
-    include Printable.Either (Access.Memo) (CilType.Varinfo)
+    include Printable.Either (Access.MemoRoot) (CilType.Varinfo)
     let name () = "race"
     let access x = `Left x
     let vars x = `Right x
@@ -25,12 +25,18 @@ struct
   end
 
   module MemoSet = SetDomain.Make (Access.Memo)
+  module GroupableOffset = 
+  struct
+    include Printable.StdLeaf
+    include Offset.Unit
+  end
+  module OffsetMap = MapDomain.MapBot (GroupableOffset) (Access.AS)
   module G =
   struct
-    include Lattice.Lift2 (Access.AS) (MemoSet) (Printable.DefaultNames)
+    include Lattice.Lift2 (OffsetMap) (MemoSet) (Printable.DefaultNames)
 
     let access = function
-      | `Bot -> Access.AS.bot ()
+      | `Bot -> OffsetMap.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "Race.access"
     let vars = function
@@ -58,9 +64,9 @@ struct
     | _ ->
       ()
 
-  let side_access ctx (conf, w, loc, e, a) memo =
+  let side_access ctx (conf, w, loc, e, a) ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memo) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
+      ctx.sideg (V.access memoroot) (G.create_access (OffsetMap.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
     side_vars ctx memo
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -70,10 +76,12 @@ struct
       begin match g with
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let accs = G.access (ctx.global g) in
-          let memo = g' in
-          let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-          Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
+          let offset_accs = G.access (ctx.global g) in
+          OffsetMap.iter (fun offset accs -> 
+              let memo = (g', offset) in
+              let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
+            ) offset_accs
         | `Right _ -> (* vars *)
           ()
       end

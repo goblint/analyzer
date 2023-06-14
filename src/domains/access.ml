@@ -80,11 +80,34 @@ let reset () =
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset.Unit.t ] [@@deriving eq, ord, hash]
 (** Old access type inferred from an expression. *)
 
+module MemoRoot =
+struct
+  include Printable.StdLeaf
+  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] [@@deriving eq, ord, hash]
+  (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
+
+  let name () = "memoroot"
+
+  let pretty () vt =
+    (* Imitate old printing for now *)
+    match vt with
+    | `Var v -> Pretty.dprintf "%a@@%a" CilType.Varinfo.pretty v CilType.Location.pretty v.vdecl
+    | `Type (TComp (c, _)) -> Pretty.dprintf "(struct %s)" c.cname
+    | `Type t -> Pretty.dprintf "(%a)" CilType.Typ.pretty t
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
 (** Memory location of an access. *)
 module Memo =
 struct
   include Printable.StdLeaf
-  type t = [`Var of CilType.Varinfo.t | `Type of CilType.Typ.t] * Offset.Unit.t [@@deriving eq, ord, hash]
+  type t = MemoRoot.t * Offset.Unit.t [@@deriving eq, ord, hash]
   (* Can't use typsig for `Type because there's no function to follow offsets on typsig. *)
 
   let name () = "memo"
