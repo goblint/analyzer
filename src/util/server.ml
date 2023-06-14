@@ -289,7 +289,8 @@ let analyze ?(reset=false) (s: t) =
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      Maingoblint.do_analyze increment_data (Option.get s.file)
+      Maingoblint.do_analyze increment_data (Option.get s.file);
+      Maingoblint.do_gobview (Option.get s.file);
     )
 
 let () =
