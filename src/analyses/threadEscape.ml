@@ -75,7 +75,6 @@ struct
           | `Lifted tid ->
             let threads = ctx.ask Queries.CreatedThreads in
             let not_started = MHP.definitely_not_started (current, threads) tid in
-            M.tracel "threadescape" "tid: %a, not_started: %b\n" ThreadIdDomain.FlagConfiguredTID.pretty tid not_started;
             let possibly_started = not not_started in
             possibly_started
           | `Top -> true
