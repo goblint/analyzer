@@ -48,6 +48,8 @@ struct
   let startstate _ = D.bot ()
   let exitstate = startstate (* TODO *)
 
+  let finalize () = () (* TODO *)
+
   (** Provides some default implementations *)
   include Analyses.IdentitySpec
 
