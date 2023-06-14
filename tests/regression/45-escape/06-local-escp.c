@@ -1,4 +1,4 @@
-// SKIP
+// PARAM:  --enable ana.int.interval
 #include<stdlib.h>
 #include<pthread.h>
 #include<goblint.h>
