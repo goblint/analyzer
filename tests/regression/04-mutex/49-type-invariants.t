@@ -37,10 +37,11 @@
     total lines: 7
   [Success][Race] Memory location (struct S).field (safe):
     write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:21:3-21:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:22:3-22:21)
-  [Success][Race] Memory location s.field@49-type-invariants.c:9:10-9:11 (safe):
+  [Warning][Race] Memory location s.field@49-type-invariants.c:9:10-9:11 (race with conf. 110):
+    write with [mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:21:3-21:40#top]}}, thread:[main]] (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:22:3-22:21)
     read with [mhp:{tid=[main, t_fun@49-type-invariants.c:21:3-21:40#top]}, thread:[main, t_fun@49-type-invariants.c:21:3-21:40#top]] (conf. 110)  (exp: & s.field) (49-type-invariants.c:12:3-12:23)
   [Info][Race] Memory locations race summary:
-    safe: 2
+    safe: 1
     vulnerable: 0
-    unsafe: 0
+    unsafe: 1
     total memory locations: 2
