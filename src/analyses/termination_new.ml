@@ -37,21 +37,30 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
+module FunContextV : Analyses.SpecSysVar =
+struct
+  include Printable.Prod (CilType.Fundec) (CilType.Fundec) (* TODO *)
+  include Analyses.StdV
+end
+
+
 module Spec : Analyses.MCPSpec =
 struct
+
+  (** Provides some default implementations *)
+  include Analyses.IdentitySpec
 
   let name () = "termination"
 
   module D = MapDomain.MapBot (Basetype.Variables) (BoolDomain.MustBool)
   module C = D
+  module V = FunContextV
+  (* TODO *)
 
   let startstate _ = D.bot ()
   let exitstate = startstate (* TODO *)
 
   let finalize () = () (* TODO *)
-
-  (** Provides some default implementations *)
-  include Analyses.IdentitySpec
 
   let assign ctx (lval : lval) (rval : exp) =
     (* Detect assignment to loop counter variable *)
