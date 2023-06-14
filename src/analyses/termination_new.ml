@@ -56,12 +56,10 @@ struct
     match lval, rval with
       (Var x, NoOffset), _ when is_loop_counter_var x ->
       (* Assume that the following loop does not terminate *)
-      if not (no_upjumping_gotos ()) then printf "\n4 problem\n";
       D.add x false ctx.local
     | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
       let is_bounded = check_bounded ctx x in
-      if not (no_upjumping_gotos ()) then printf "\n5 problem\n";
       D.add x is_bounded ctx.local
     | _ -> ctx.local
 
