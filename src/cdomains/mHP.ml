@@ -1,3 +1,5 @@
+(** May-happen-in-parallel (MHP) domain. *)
+
 include Printable.Std
 
 let name () = "mhp"

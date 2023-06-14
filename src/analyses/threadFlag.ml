@@ -1,17 +1,16 @@
-(** Multi-threadedness analysis. *)
+(** Multi-threadedness analysis ([threadflag]). *)
 
-module GU = Goblintutil
 module LF = LibraryFunctions
 
 open GoblintCil
 open Analyses
 
 let is_currently_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization then false else
+  if !AnalysisState.global_initialization then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = false}))
 
 let has_ever_been_multi (ask: Queries.ask): bool =
-  if !GU.global_initialization then false else
+  if !AnalysisState.global_initialization then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = true}))
 
 module Spec =
@@ -21,6 +20,7 @@ struct
   module Flag = ThreadFlagDomain.Simple
   module D = Flag
   module C = Flag
+  module P = IdentityP (D)
 
   let name () = "threadflag"
 
@@ -31,8 +31,6 @@ struct
 
   let create_tid v =
     Flag.get_multi ()
-
-  let should_join = D.equal
 
   let return ctx exp fundec  =
     match fundec.svar.vname with

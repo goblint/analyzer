@@ -1,4 +1,4 @@
-(** Access analysis. *)
+(** Analysis of memory accesses ([access]). *)
 
 module LF = LibraryFunctions
 open GoblintCil
@@ -65,7 +65,7 @@ struct
 
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else begin
+    if !AnalysisState.global_initialization then ctx.local else begin
       access_one_top ~deref:true ctx Write false (AddrOf lval);
       access_one_top ctx Read false rval;
       ctx.local
@@ -135,14 +135,14 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Access {lvals; kind; _} when !collect_local && !Goblintutil.postsolving ->
+    | Events.Access {lvals; kind; _} when !collect_local && !AnalysisState.postsolving ->
       begin match lvals with
         | ls when Queries.LS.is_top ls ->
           let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
           ctx.sideg ctx.node (G.singleton access)
         | ls ->
           let events = Queries.LS.fold (fun (var, offs) acc ->
-              let coffs = Lval.CilLval.to_ciloffs offs in
+              let coffs = Offset.Exp.to_cil offs in
               let access: AccessDomain.Event.t =
                 if CilType.Varinfo.equal var dummyFunDec.svar then
                   {var_opt = None; offs_opt = (Some coffs); kind}

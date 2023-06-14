@@ -1,4 +1,4 @@
-(** Data race analysis. *)
+(** Data race analysis ([race]). *)
 
 open GoblintCil
 open Analyses
@@ -54,7 +54,7 @@ struct
   let side_vars ctx lv_opt ty =
     match lv_opt with
     | Some (v, _) ->
-      if !GU.should_warn then
+      if !AnalysisState.should_warn then
         ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
     | None ->
       ()
@@ -66,7 +66,7 @@ struct
       else
         ty
     in
-    if !GU.should_warn then
+    if !AnalysisState.should_warn then
       ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
 
@@ -116,7 +116,7 @@ struct
         let conf = if reach then conf - 20 else conf in
         let conf = if includes_uk then conf - 10 else conf in
         let f (var, offs) =
-          let coffs = Lval.CilLval.to_ciloffs offs in
+          let coffs = Offset.Exp.to_cil offs in
           if CilType.Varinfo.equal var dummyFunDec.svar then
             add_access conf None (Some coffs)
           else

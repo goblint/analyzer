@@ -1,6 +1,6 @@
 open GoblintCil
 
-let create_var name = Goblintutil.create_var @@ makeGlobalVar name voidType
+let create_var name = Cilfacade.create_var @@ makeGlobalVar name voidType
 
 let single ~name =
   let vi = lazy (create_var name) in

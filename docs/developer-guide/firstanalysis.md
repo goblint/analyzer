@@ -35,7 +35,7 @@ This program is in the Goblint repository: `tests/regression/99-tutorials/01-fir
 But if you run Goblint out of the box on this example, it will not work:
 
 ```console
-./goblint --enable dbg.debug tests/regression/99-tutorials/01-first.c
+./goblint --enable warn.debug tests/regression/99-tutorials/01-first.c
 ```
 
 This will claim that the assertion in unknown.
@@ -69,6 +69,7 @@ There is no need to implement the transfer functions for branching for this exam
 The assignment relies on the function `eval`, which is almost there. It just needs you to fix the evaluation of constants! Unless you jumped straight to this line, it should not be too complicated to fix this.
 With this in place, we should have sufficient information to tell Goblint that the assertion does hold.
 
+For more information on the signature of the individual transfer functions, please check out `module type Spec` documentation in [`src/framework/analyses.ml`](https://github.com/goblint/analyzer/blob/master/src/framework/analyses.ml).
 
 ## Extending the domain
 

@@ -1,4 +1,5 @@
-(** Top down solver using box/warrow. This is superseded by td3 but kept as a simple version without term & space (& incremental). *)
+(** Warrowing top-down solver ([topdown]).
+    Simpler version of {!Td3} without terminating, space-efficiency and incremental. *)
 
 open Batteries
 open Analyses

@@ -1,4 +1,4 @@
-(** domain of the base analysis *)
+(** Full domain of {!Base} analysis. *)
 
 open GoblintCil
 module VD = ValueDomain.Compound
@@ -160,7 +160,7 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
     | Lval (Var v, NoOffset) ->
       begin
         match CPA.find v r.cpa with
-        | `Int i -> ValueDomain.ID.to_int i
+        | Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
     | _ -> None
