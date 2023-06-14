@@ -10,6 +10,7 @@ type array_oob =
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
+  | UninitializedMemoryAccess
   | UseAfterFree
   | Uninitialized
   | Other
@@ -61,6 +62,7 @@ struct
     let create (e: t): category = undefined e
     let array_out_of_bounds e: category = create @@ ArrayOutOfBounds e
     let nullpointer_dereference: category = create @@ NullPointerDereference
+    let uninitialized_memory_access: category = create @@ UninitializedMemoryAccess
     let use_after_free: category = create @@ UseAfterFree
     let uninitialized: category = create @@ Uninitialized
     let other: category = create @@ Other
@@ -96,6 +98,7 @@ struct
       | h :: t -> match h with
         | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
         | "nullpointer_dereference" -> nullpointer_dereference
+        | "uninitialized_memory_access" -> uninitialized_memory_access
         | "use_after_free" -> use_after_free
         | "uninitialized" -> uninitialized
         | "other" -> other
@@ -105,6 +108,7 @@ struct
       match e with
       | ArrayOutOfBounds e -> "ArrayOutOfBounds" :: ArrayOutOfBounds.path_show e
       | NullPointerDereference -> ["NullPointerDereference"]
+      | UninitializedMemoryAccess -> ["UninitializedMemoryAccess"]
       | UseAfterFree -> ["UseAfterFree"]
       | Uninitialized -> ["Uninitialized"]
       | Other -> ["Other"]
@@ -213,6 +217,7 @@ let behaviorName = function
   |Implementation -> "Implementation"
   |Undefined u -> match u with
     |NullPointerDereference -> "NullPointerDereference"
+    |UninitializedMemoryAccess -> "UninitializedMemoryAccess"
     |UseAfterFree -> "UseAfterFree"
     |Uninitialized -> "Uninitialized"
     |Other -> "Other"
