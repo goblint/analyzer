@@ -12,10 +12,8 @@ from util.util import *
 def generate_tests(temp_dir, target_dir, precision_test):
     # Check the name of the target_dir
     directoryName = os.path.basename(target_dir)
-    pattern = r"\d{2}-\w+"
-    if not re.match(pattern, directoryName):
-        print(f"{COLOR_RED}[ERROR] Target Directory name is not of the format 01-Name (\d{{2}}-\w+){COLOR_RESET}")
-        return
+    if not check_test_name(directoryName):
+        sys.exit(-1)
 
     # Clear and create target_dir
     if os.path.exists(target_dir):

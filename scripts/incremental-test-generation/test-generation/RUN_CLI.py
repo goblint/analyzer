@@ -29,7 +29,7 @@ logo = '''
 
         '''
 
-def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, create_precision, is_run_tests, api_key_path, ml_count, cfg):
+def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, test_name, create_tests, enable_precision, precision_name, is_run_tests, api_key_path, ml_count, cfg):
     # Make paths absolute
     goblint_path = os.path.abspath(os.path.expanduser(goblint_path))
     llvm_path = os.path.abspath(os.path.expanduser(llvm_path))
@@ -44,7 +44,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     # Run tests
     if is_run_tests:
         test_path = os.path.abspath(os.path.join(os.path.curdir, '99-temp'))
-        if create_precision:
+        if enable_precision:
             print(SEPERATOR)
             print(f'Writing out {COLOR_BLUE}PRECISION TEST{COLOR_RESET} files for running:')
             generate_tests(temp_path, test_path, precision_test=True)
@@ -59,19 +59,20 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     #TODO Copy html result and print the link
 
     #Write out custom test files
-    print(SEPERATOR)
-    correctness_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '99-test')
-    print(f'Writing out {COLOR_BLUE}CUSTOM CORRECTNESS TEST{COLOR_RESET} files:')
-    generate_tests(temp_path, correctness_path, precision_test=False) #TODO Custom name
-    print(f'{COLOR_GREEN}Test stored in the directory: {correctness_path}{COLOR_RESET}') #TODO Multiple directories?!
-    if create_precision:
+    if create_tests:
         print(SEPERATOR)
-        precision_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "98-precision")
-        print(f'Writing out {COLOR_BLUE}CUSTOM PRECISION TEST{COLOR_RESET} files:')
-        generate_tests(temp_path, precision_path, precision_test=False) #TODO Custom name
-        print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
+        correctness_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), test_name)
+        print(f'Writing out {COLOR_BLUE}CUSTOM CORRECTNESS TEST {test_name}{COLOR_RESET} files:')
+        generate_tests(temp_path, correctness_path, precision_test=False) #TODO Custom name
+        print(f'{COLOR_GREEN}Test stored in the directory: {correctness_path}{COLOR_RESET}') #TODO Multiple directories?!
+        if enable_precision:
+            print(SEPERATOR)
+            precision_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), precision_name)
+            print(f'Writing out {COLOR_BLUE}CUSTOM PRECISION TEST {precision_name}{COLOR_RESET} files:')
+            generate_tests(temp_path, precision_path, precision_test=False) #TODO Custom name
+            print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
 
-def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, input, ml_count, cfg):
+def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, input, ml_count, cfg):
     # Check config file
     config_path = Path(CONFIG_FILENAME)
     config = {}
@@ -174,13 +175,28 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 continue
             break
 
-    if precision == None:
-        precision = questionary.confirm('Create precision test files?', default=False).ask()
+    if create_tests == None:
+        create_tests = questionary.confirm('Create test files?', default=False).ask()
+
+    if create_tests and test_name == None:
+        while True:
+            test_name = questionary.text('Enter the test name: ', default="99-test").ask()
+            if check_test_name(test_name):
+                break
+
+    if enable_precision == None:
+        enable_precision = questionary.confirm('Create precision test files?', default=False).ask()
+
+    if create_tests and enable_precision and precision_name == None:
+        while True:
+            precision_name = questionary.text('Enter the precision test name: ', default="98-precision").ask()
+            if check_test_name(precision_name):
+                break
 
     if running == None:
         running = questionary.confirm('Run the tests?').ask()
 
-    if cfg == None:
+    if create_tests and cfg == None:
         cfg = questionary.confirm('Run the fine grained cfg tests?').ask()
 
     if input == None:
@@ -198,7 +214,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, precision, running, 
                 yaml.dump(config, outfile)
             break
 
-    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, precision, running, key_path, ml_count, cfg)
+    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, key_path, ml_count, cfg)
 
 
 if __name__ == "__main__":
@@ -213,8 +229,12 @@ if __name__ == "__main__":
     parser.add_argument('-dp', '--disable-precision', action='store_true', help='Disable Precision Tests')
     parser.add_argument('-er', '--enable-running', action='store_true', help='Enable running tests')
     parser.add_argument('-dr', '--disable-running', action='store_true', help='Disable running tests')
+    parser.add_argument('-et', '--enable-create-tests', action='store_true', help='Enable creating test files')
+    parser.add_argument('-dt', '--disable-create-tests', action='store_true', help='Disable creating test files')
     parser.add_argument('-ec', '--enable-cfg', action='store_true', help='Enable fine grained cfg tests')
     parser.add_argument('-dc', '--disable-cfg', action='store_true', help='Disable fine grained cfg tests')
+    parser.add_argument('-p', '--test-name', help='Test name')
+    parser.add_argument('-t', '--precision-name', help='Precision test name')
     parser.add_argument('-i', '--input', help='Input File')
     
     # Add mutation options
@@ -270,6 +290,14 @@ if __name__ == "__main__":
     else:
         running = None
 
+    if args.enable_create_tests or args.disable_create_tests:
+        # Only one can be selected
+        if args.enable_create_tests and args.disable_create_tests:
+            parser.error('Create tests can not be enabled AND diabled')
+        create_tests = args.enable_create_tests
+    else:
+        create_tests = None
+
     if args.enable_cfg or args.disable_cfg:
         # Only one can be selected
         if args.enable_cfg and args.disable_cfg:
@@ -282,6 +310,14 @@ if __name__ == "__main__":
         ml_count = args.ml_count
     else:
         ml_count = None
+
+    test_name = args.test_name
+    if test_name != None and not check_test_name(test_name):
+        sys.exit(-1)
+
+    precision_name = args.precision_name
+    if precision_name != None and not check_test_name(precision_name):
+        sys.exit(-1)
     
 
-    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, precision, running, args.input, ml_count, cfg)
+    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, test_name, create_tests, precision, precision_name, running, args.input, ml_count, cfg)

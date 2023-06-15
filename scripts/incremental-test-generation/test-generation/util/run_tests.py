@@ -8,9 +8,6 @@ from util.util import *
 
 def run_tests(test_dir, goblint_repo_dir, cfg):
     # Check the name of the test_dir
-    if os.path.exists(test_dir_name):
-        print(f'{COLOR_RED}The test directory 99-temp already exists. Please remove it manually to run the tests.{COLOR_RESET}')
-        sys.exit(-1)
     test_dir_name = os.path.basename(test_dir)
     if test_dir_name != "99-temp":
         print(f"{COLOR_RED}[ERROR] The test directory name has to be \'99-temp\'{COLOR_RESET}")
@@ -18,7 +15,8 @@ def run_tests(test_dir, goblint_repo_dir, cfg):
 
     incremental_tests_dir_abs = os.path.abspath(os.path.join(goblint_repo_dir, "tests", "incremental", test_dir_name))
     if os.path.exists(incremental_tests_dir_abs):
-        shutil.rmtree(incremental_tests_dir_abs)
+        print(f'{COLOR_RED}The test directory {incremental_tests_dir_abs} already exists. Please remove it manually to run the tests.{COLOR_RESET}')
+        sys.exit(-1)
     shutil.copytree(test_dir, incremental_tests_dir_abs)
 
     ruby_path_abs = os.path.abspath(os.path.join(goblint_repo_dir, "scripts", "update_suite.rb"))
