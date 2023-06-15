@@ -97,18 +97,19 @@ struct
       begin match g with
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let (accs, children) = G.access (ctx.global g) in
-          let rec traverse_offset_trie key (accs, children) parent_accs =
+          let trie = G.access (ctx.global g) in
+          let rec traverse_offset_trie key (accs, children) ancestor_accs =
+            let ancestor_accs' = Access.AS.union ancestor_accs accs in
             OffsetTrieMap.iter (fun child_key child_trie ->
-                traverse_offset_trie (GroupableOffset.add_offset key child_key) child_trie (Access.AS.union accs parent_accs)
+                traverse_offset_trie (GroupableOffset.add_offset key child_key) child_trie ancestor_accs'
               ) children;
             if not (Access.AS.is_empty accs) then (
               let memo = (g', key) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs parent_accs
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs 
             )
           in
-          traverse_offset_trie `NoOffset (accs, children) (Access.AS.empty ())
+          traverse_offset_trie `NoOffset trie (Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
