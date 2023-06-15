@@ -11,7 +11,7 @@ int main()
     if (rand())
     {
         // Loop inside the if part
-        for (int i = 1; i <= 0; i++) // NOTERM
+        for (int i = 1; i >= 0; i++) // NOTERM
         {
             printf("Loop inside if part: %d\n", i);
         }
@@ -20,10 +20,9 @@ int main()
     {
         // Loop inside the else part
         int j = 1;
-        while (j < 5) // NOTERM
+        while (j > 0) // NOTERM
         {
             printf("Loop inside else part: %d\n", j);
-            j++;
         }
     }
 
