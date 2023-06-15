@@ -211,23 +211,17 @@ let add_one side memo: unit =
   if not ignorable then
     side memo
 
-(** Distribute access to contained fields. *)
-let add_distribute_inner side memo: unit =
-  if M.tracing then M.tracei "access" "add_distribute_inner %a\n" Memo.pretty memo;
-  add_one side memo;
-  if M.tracing then M.traceu "access" "add_distribute_inner\n"
-
 (** Distribute type-based access to variables and containing fields. *)
 let rec add_distribute_outer side (t: typ) (o: Offset.Unit.t) =
   let memo = (`Type t, o) in
   if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
-  add_distribute_inner side memo; (* distribute to inner offsets of type *)
+  add_one side memo;
 
-  (* distribute to inner offsets of variables of the type *)
+  (* distribute to variables of the type *)
   let ts = typeSig t in
   let vars = TSH.find_all typeVar ts in
   List.iter (fun v ->
-      add_distribute_inner side (`Var v, o) (* same offset, but on variable *)
+      add_one side (`Var v, o) (* same offset, but on variable *)
     ) vars;
 
   (* recursively distribute to fields containing the type *)
@@ -245,7 +239,7 @@ let add side e voffs =
     | Some (v, o) -> (* known variable *)
       if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
-      add_distribute_inner side memo (* distribute to inner offsets *)
+      add_one side memo
     | None -> (* unknown variable *)
       if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)

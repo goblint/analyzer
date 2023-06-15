@@ -88,10 +88,11 @@ struct
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let trie = G.access (ctx.global g) in
-          let rec traverse_offset_trie key (accs, children) ancestor_accs =
+          (** Distribute access to contained fields. *)
+          let rec distribute_inner key (accs, children) ancestor_accs =
             let ancestor_accs' = Access.AS.union ancestor_accs accs in
             OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                traverse_offset_trie (GroupableOffset.add_offset key child_key) child_trie ancestor_accs'
+                distribute_inner (GroupableOffset.add_offset key child_key) child_trie ancestor_accs'
               ) children;
             if not (Access.AS.is_empty accs) then (
               let memo = (g', key) in
@@ -99,7 +100,7 @@ struct
               Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs 
             )
           in
-          traverse_offset_trie `NoOffset trie (Access.AS.empty ())
+          distribute_inner `NoOffset trie (Access.AS.empty ())
         | `Right _ -> (* vars *)
           ()
       end
