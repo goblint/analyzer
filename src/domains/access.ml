@@ -384,26 +384,30 @@ let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),lo
   else
     true
 
-let group_may_race accs =
+let group_may_race accs parent_accs =
   (* BFS to traverse one component with may_race edges *)
-  let rec bfs' accs visited todo =
-    let accs' = AS.diff accs todo in
-    let todo' = AS.fold (fun acc todo' ->
-        AS.fold (fun acc' todo' ->
-            if may_race acc acc' then
-              AS.add acc' todo'
-            else
-              todo'
-          ) accs' todo'
-      ) todo (AS.empty ())
+  let rec bfs' accs visited todo parent_accs =
+    let check_pairwise accs todo start = 
+      AS.fold (fun acc todo' ->
+          AS.fold (fun acc' todo' ->
+              if may_race acc acc' then
+                AS.add acc' todo'
+              else
+                todo'
+            ) accs todo'
+        ) todo start
     in
+    let accs' = AS.diff accs todo in
+    let parent_accs' = AS.diff parent_accs todo in
+    let todo' = check_pairwise accs' todo (AS.empty ()) in
+    let todo'' = check_pairwise parent_accs (AS.diff todo parent_accs) todo' in
     let visited' = AS.union visited todo in
-    if AS.is_empty todo' then
+    if AS.is_empty todo'' then
       (accs', visited')
     else
-      (bfs' [@tailcall]) accs' visited' todo'
+      (bfs' [@tailcall]) accs' visited' todo'' parent_accs'
   in
-  let bfs accs acc = bfs' accs (AS.empty ()) (AS.singleton acc) in
+  let bfs accs acc = bfs' accs (AS.empty ()) (AS.singleton acc) parent_accs in
   (* repeat BFS to find all components *)
   let rec components comps accs =
     if AS.is_empty accs then
@@ -479,7 +483,7 @@ let print_accesses memo grouped_accs =
         M.msg_group Success ~category:Race "Memory location %a (safe)" Memo.pretty memo (msgs safe_accs)
     )
 
-let warn_global safe vulnerable unsafe memo accs =
-  let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
+let warn_global safe vulnerable unsafe memo accs parent_accs =
+  let grouped_accs = group_may_race accs parent_accs in (* do expensive component finding only once *)
   incr_summary safe vulnerable unsafe memo grouped_accs;
   print_accesses memo grouped_accs
