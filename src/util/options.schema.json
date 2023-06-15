@@ -2117,6 +2117,12 @@
           "description": "Races with confidence at least threshold are warnings, lower are infos.",
           "type": "integer",
           "default": 0
+        },
+        "deterministic": {
+          "title": "warn.deterministic",
+          "description": "Output messages in deterministic order. Useful for cram testing.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
