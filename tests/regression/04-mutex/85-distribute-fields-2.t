@@ -9,9 +9,7 @@
   [Success][Race] Memory location t.s@85-distribute-fields-2.c:15:10-15:11 (safe):
     write with [mhp:{tid=[main]; created={[main, t_fun@85-distribute-fields-2.c:24:3-24:40#top]}}, thread:[main]] (conf. 110)  (exp: & t.s) (85-distribute-fields-2.c:26:3-26:11)
   [Info][Race] Memory locations race summary:
-    safe: 2
+    safe: 1
     vulnerable: 0
     unsafe: 1
-    total memory locations: 3
-
-TODO: fix memory location counts
+    total memory locations: 2

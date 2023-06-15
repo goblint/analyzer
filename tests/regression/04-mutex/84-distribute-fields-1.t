@@ -13,5 +13,3 @@
     vulnerable: 0
     unsafe: 1
     total memory locations: 2
-
-TODO: fix memory location counts

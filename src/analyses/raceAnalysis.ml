@@ -102,9 +102,11 @@ struct
             OffsetTrieMap.iter (fun child_key child_trie ->
                 traverse_offset_trie (GroupableOffset.add_offset key child_key) child_trie (Access.AS.union accs parent_accs)
               ) children;
-            let memo = (g', key) in
-            let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-            Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs parent_accs
+            if not (Access.AS.is_empty accs) then (
+              let memo = (g', key) in
+              let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs parent_accs
+            )
           in
           traverse_offset_trie `NoOffset (accs, children) (Access.AS.empty ())
         | `Right _ -> (* vars *)
