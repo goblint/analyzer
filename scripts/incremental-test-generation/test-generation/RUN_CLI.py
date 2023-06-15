@@ -29,7 +29,7 @@ logo = '''
 
         '''
 
-def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, test_name, create_tests, enable_precision, precision_name, is_run_tests, api_key_path, ml_count, cfg):
+def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, test_name, create_tests, enable_precision, precision_name, is_run_tests, api_key_path, ml_count, cfg, git_start, git_end):
     # Make paths absolute
     goblint_path = os.path.abspath(os.path.expanduser(goblint_path))
     llvm_path = os.path.abspath(os.path.expanduser(llvm_path))
@@ -39,7 +39,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     goblint_executable_path = os.path.join(goblint_path, 'goblint')
     clang_tidy_path = os.path.join(llvm_path, 'build', 'bin', 'clang-tidy')
     temp_path = os.path.abspath(os.path.join(os.path.curdir, 'temp'))
-    generate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count)
+    generate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count, git_start, git_end)
 
     # Run tests
     if is_run_tests:
@@ -72,7 +72,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
             generate_tests(temp_path, precision_path, precision_test=False) #TODO Custom name
             print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
 
-def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, input, ml_count, cfg):
+def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, input, ml_count, cfg, git_start, git_end, git_no_commit):
     # Check config file
     config_path = Path(CONFIG_FILENAME)
     config = {}
@@ -175,6 +175,11 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_te
                 continue
             break
 
+    if enable_git and not (git_start != None and git_end != None) and not git_no_commit:
+        if questionary.confirm('Do you want to give a start and end commit hash?', default=False).ask():
+            git_start = questionary.text('Enter start commit hash:').ask()
+            git_end = questionary.text('Enter end commit hash:').ask()
+
     if create_tests == None:
         create_tests = questionary.confirm('Create test files?', default=False).ask()
 
@@ -214,7 +219,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_te
                 yaml.dump(config, outfile)
             break
 
-    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, key_path, ml_count, cfg)
+    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, key_path, ml_count, cfg, git_start, git_end)
 
 
 if __name__ == "__main__":
@@ -245,6 +250,9 @@ if __name__ == "__main__":
 
     # Add GIT options
     parser.add_argument('-s', '--template-script', action='store_true', help='Print the template script for git repositories')
+    parser.add_argument('-gs', '--git-start-commit', help='The hash of the first commit to consider')
+    parser.add_argument('-ge', '--git-end-commit', help='The hash of the last commit to consider')
+    parser.add_argument('-gn', '--git-no-commit', action='store_true', help='Suppress asking for commit hashes in CLI')
 
     args = parser.parse_args()
 
@@ -273,6 +281,11 @@ if __name__ == "__main__":
         args.enable_ml = None
         args.enable_git = None
         mutations = None
+
+    git_start_commit = args.git_start_commit
+    git_end_commit = args.git_end_commit
+    if (git_start_commit == None and git_end_commit != None) or (git_start_commit != None and git_end_commit == None):
+        parser.error('[ERROR] Give a git start commit hash AND a end commit hash')
 
     if args.enable_precision or args.disable_precision:
         # Only one can be selected
@@ -320,4 +333,4 @@ if __name__ == "__main__":
         sys.exit(-1)
     
 
-    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, test_name, create_tests, precision, precision_name, running, args.input, ml_count, cfg)
+    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, test_name, create_tests, precision, precision_name, running, args.input, ml_count, cfg, git_start_commit, git_end_commit, args.git_no_commit)

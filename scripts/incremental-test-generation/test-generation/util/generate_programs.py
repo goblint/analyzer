@@ -15,7 +15,7 @@ from generators.generate_git import *
 
 generate_type_source = "SOURCE"
 
-def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count):
+def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count, git_start, git_end):
     # Clean working directory
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -42,16 +42,14 @@ def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apik
         index = generate_ml(program_path, apikey_path, meta_path, ml_count, NUM_SELECTED_LINES, INTRESTING_LINES)
 
     if enable_git:
-        #TODO Let user select start
-        START_COMMIT = 'da6f1623c177c5ebfa2b1ee3b50eb297da5a77e1'
-        #TODO Let user select end
-        END_COMMIT = '04f42ceca40f73e2978b50e93806c2a18c1281fc'
-        index = generate_git(goblint_path, temp_dir, meta_path, program_path, START_COMMIT, END_COMMIT)
+        index = generate_git(goblint_path, temp_dir, meta_path, program_path, git_start, git_end)
 
     # Add checks with comments
     print(SEPERATOR)
+    if generate_git:
+        print('Generating goblint checks. This may take a while...')
     for i in range(index + 1):
-        if i % 10 == 0:
+        if i % 10 == 0 or generate_git:
             print(f"[{i}/{index}] Generating goblint checks...")
         file_path = os.path.join(temp_dir, f"p_{i}.c")
         compiling = add_check(file_path, i, goblint_path, meta_path)

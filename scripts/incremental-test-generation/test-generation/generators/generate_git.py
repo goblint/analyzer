@@ -25,6 +25,7 @@ def generate_git(goblint_path, temp_dir, meta_path, git_info_sh_path, start_comm
     print('[GIT] Cloning into temp/repo')
     _clone_repo(git_info_sh_path, temp_repo_dir)
     build_path = _get_build_path(git_info_sh_path, temp_repo_dir)
+    print(f'{COLOR_GREEN}[GIT] Cloning finished{COLOR_RESET}')
 
     if not os.path.exists(temp_repo_dir):
         os.mkdir(temp_repo_dir)
@@ -51,11 +52,11 @@ def generate_git(goblint_path, temp_dir, meta_path, git_info_sh_path, start_comm
         index: int = yaml_data[META_N]
 
     num_of_commits = sum(1 for _ in get_commit_traverser())
+    print(SEPERATOR)
     print(f'[GIT] Start traversing {num_of_commits} commits. Including checkout, build and cil generation. This may take a while...')
     if num_of_commits <= 2:
         print(f'{COLOR_RED}You must traverse at least two commits to generate a test!')
         sys.exit(-1)
-    print(SEPERATOR)
     t = 0
     #last_failed = False
     for commit in get_commit_traverser():
@@ -79,7 +80,6 @@ def generate_git(goblint_path, temp_dir, meta_path, git_info_sh_path, start_comm
         except Exception as e:
             #last_failed = True
             print(f"{COLOR_RED}[{t}/{num_of_commits}][FAIL] Generating cil for commit {commit.hash} failed ({e}){COLOR_RESET}, continuing with the next commit...")
-    print(SEPERATOR)
     print(f"{COLOR_GREEN}[FINISHED] Finished creating cil files for the commits.{COLOR_RESET}")
     if build_errors > 0 or checkout_errors > 0 or cil_errors > 0:
         print(f"{COLOR_RED}There were the following errors: {build_errors} build errors, {checkout_errors} checkout errors and {cil_errors} cil errors.{COLOR_RESET}")
