@@ -42,6 +42,7 @@ def generate_ml(program_path, apikey_path, meta_path, ml_count, num_selected_lin
         max_line = len(file.readlines())
     if max_line < num_selected_lines:
         num_selected_lines = max_line
+    interesting_lines = validate_interesting_lines(interesting_lines, program_path)
     interesting_lines = _reformat_interesting_lines(num_selected_lines, interesting_lines, max_line)
     
     print(SEPERATOR)
@@ -174,6 +175,7 @@ def _make_gpt_request(snippet):
 
 def _reformat_interesting_lines(num_selected_lines, interesting_lines, max_line):
     for i in range(len(interesting_lines)):
+        interesting_lines[i] = int(interesting_lines[i])
         # Adjust for line array starting with 0 but in input first line is 1
         interesting_lines[i] -= 1
         # When line + num_selected_lines is greater then max_line correct the line downwards
@@ -190,8 +192,11 @@ def _select_lines(interesting_lines, num_selected_lines, max_line):
 
 #TODO Call when giving interesting lines
 def validate_interesting_lines(intersting_lines_string: str, program_path):
-    with open(program_path, "r") as file:
-        max_line = len(file.readlines())
+    if program_path != None:
+        with open(program_path, "r") as file:
+            max_line = len(file.readlines())
+    else:
+        max_line = None
 
     try:
         intersting_lines = ast.literal_eval(intersting_lines_string)
@@ -202,13 +207,14 @@ def validate_interesting_lines(intersting_lines_string: str, program_path):
         print(f"{COLOR_RED}An unexpected error occurred reading the input \"{intersting_lines_string}\":{COLOR_RESET} {e}")
         return None
     
-    for line in intersting_lines:
-        if line <= 0:
-            print(f"{COLOR_RED}All lines in \"{intersting_lines_string}\" should be greater zero!{COLOR_RESET}")
-            return None
-        if line > max_line:
-            print(f"{COLOR_RED}All lines in \"{intersting_lines_string}\" should be below the maximum line {max_line}!{COLOR_RESET}")
-            return None
+    if max_line != None:
+        for line in intersting_lines:
+            if line <= 0:
+                print(f"{COLOR_RED}All lines in \"{intersting_lines_string}\" should be greater zero!{COLOR_RESET}")
+                return None
+            if line > max_line:
+                print(f"{COLOR_RED}All lines in \"{intersting_lines_string}\" should be below the maximum line {max_line}!{COLOR_RESET}")
+                return None
         
     return intersting_lines
 

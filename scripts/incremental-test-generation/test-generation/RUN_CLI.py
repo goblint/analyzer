@@ -10,6 +10,7 @@ from util.generate_programs import generate_programs
 from util.generate_tests import generate_tests
 from util.run_tests import run_tests
 from generators.generate_mutations import add_mutation_options, get_mutations_from_args
+from generators.generate_ml import validate_interesting_lines
 
 logo = '''
          __  __       _        _   _                    
@@ -29,7 +30,7 @@ logo = '''
 
         '''
 
-def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, test_name, create_tests, enable_precision, precision_name, is_run_tests, api_key_path, ml_count, cfg, git_start, git_end):
+def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutations, test_name, create_tests, enable_precision, precision_name, is_run_tests, api_key_path, ml_count, ml_select, ml_interesting, cfg, git_start, git_end):
     # Make paths absolute
     goblint_path = os.path.abspath(os.path.expanduser(goblint_path))
     llvm_path = os.path.abspath(os.path.expanduser(llvm_path))
@@ -39,7 +40,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     goblint_executable_path = os.path.join(goblint_path, 'goblint')
     clang_tidy_path = os.path.join(llvm_path, 'build', 'bin', 'clang-tidy')
     temp_path = os.path.abspath(os.path.join(os.path.curdir, 'temp'))
-    generate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count, git_start, git_end)
+    generate_programs(input_path, temp_path, clang_tidy_path, goblint_executable_path, api_key_path, mutations, is_mutation, is_ml, is_git, ml_count, ml_select, ml_interesting, git_start, git_end)
 
     # Run tests
     if is_run_tests:
@@ -56,8 +57,6 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
         if os.path.exists(test_path):
             shutil.rmtree(test_path)
 
-    #TODO Copy html result and print the link
-
     #Write out custom test files
     if create_tests:
         print(SEPERATOR)
@@ -72,7 +71,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
             generate_tests(temp_path, precision_path, precision_test=False) #TODO Custom name
             print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
 
-def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, input, ml_count, cfg, git_start, git_end, git_no_commit):
+def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, input, ml_count, ml_select, ml_interesting, cfg, git_start, git_end, git_no_commit):
     # Check config file
     config_path = Path(CONFIG_FILENAME)
     config = {}
@@ -175,6 +174,26 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_te
                 continue
             break
 
+    if enable_ml and ml_select == None:
+        while True:
+            ml_select = questionary.text('How many lines should be selected for the snippet from the input file?', default=str(DEFAULT_ML_SELECT)).ask()
+            if not ml_select.strip('\n').isdigit():
+                print(f"{COLOR_RED}Please enter a valid number.{COLOR_RESET}")
+                continue
+            ml_select = int(ml_select.strip('\n'))
+            if ml_select <= 0:
+                print(f"{COLOR_RED}Please enter a number greater zero.{COLOR_RESET}")
+                continue
+            break
+
+    if enable_ml and ml_interesting == None:
+        while True:
+            ml_interesting = questionary.text('From which start lines should the snippet start be choosen randomly ([] stands for all)?', default='[]').ask()
+            if validate_interesting_lines(ml_interesting, None) == None:
+                print(f'{COLOR_RED}Please enter a valid string like [1, 42], [99], ....{COLOR_RESET}')
+                continue
+            break
+
     if enable_git and not (git_start != None and git_end != None) and not git_no_commit:
         if questionary.confirm('Do you want to give a start and end commit hash?', default=False).ask():
             git_start = questionary.text('Enter start commit hash:').ask()
@@ -219,7 +238,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, test_name, create_te
                 yaml.dump(config, outfile)
             break
 
-    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, key_path, ml_count, cfg, git_start, git_end)
+    run(goblint_path, llvm_path, input, enable_mutations, enable_ml, enable_git, mutations, test_name, create_tests, enable_precision, precision_name, running, key_path, ml_count, ml_select, ml_interesting, cfg, git_start, git_end)
 
 
 if __name__ == "__main__":
@@ -246,7 +265,9 @@ if __name__ == "__main__":
     add_mutation_options(parser)
 
     # Add ML options
-    parser.add_argument('-c', '--ml-count', type=int, default=-1,  help='How many different programs should be generated with ML?')
+    parser.add_argument('-mc', '--ml-count', type=int, default=-1,  help='How many different programs should be generated with ML?')
+    parser.add_argument('-ms', '--ml-select', type=int, default=-1,  help='How many lines should be selected for the snippet from the input file?')
+    parser.add_argument('-mi', '--ml-interesting', help='From which start lines should the snippet start be choosen randomly? Exp. :[] = From all lines, [1, 42], ...')
 
     # Add GIT options
     parser.add_argument('-s', '--template-script', action='store_true', help='Print the template script for git repositories')
@@ -324,6 +345,14 @@ if __name__ == "__main__":
     else:
         ml_count = None
 
+    if args.ml_select > 0:
+        ml_select = args.ml_select
+    else:
+        ml_select = None
+
+    if args.ml_interesting != None and validate_interesting_lines(args.ml_interesting, None) == None:
+        sys.exit(-1)
+
     test_name = args.test_name
     if test_name != None and not check_test_name(test_name):
         sys.exit(-1)
@@ -333,4 +362,4 @@ if __name__ == "__main__":
         sys.exit(-1)
     
 
-    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, test_name, create_tests, precision, precision_name, running, args.input, ml_count, cfg, git_start_commit, git_end_commit, args.git_no_commit)
+    cli(args.enable_mutations, args.enable_ml, args.enable_git, mutations, test_name, create_tests, precision, precision_name, running, args.input, ml_count, ml_select, args.ml_interesting, cfg, git_start_commit, git_end_commit, args.git_no_commit)

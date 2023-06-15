@@ -54,6 +54,7 @@ APIKEY_APIKEY = 'api-key'
 APIKEY_ORGANISATION = 'organisation'
 
 DEFAULT_ML_COUNT = 5
+DEFAULT_ML_SELECT = 50
 ML_WORKERS = 5
 
 def make_program_copy(program_path, index):

@@ -42,7 +42,8 @@ def add_check(file_path: str, index: int, goblint_path: str, meta_path: str):
             yaml_data = yaml.safe_load(file)
         yaml_data[f"p_{index}"] = {
                 META_TYPE: Generate_Type.ML.value,
-                META_EXCEPTION: result.stderr
+                META_EXCEPTION: result.stderr,
+                META_COMPILING: False
             }
         with open(meta_path, 'w') as file:
             yaml.safe_dump(yaml_data, file)
