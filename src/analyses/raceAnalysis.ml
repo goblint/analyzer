@@ -25,21 +25,40 @@ struct
   end
 
   module MemoSet = SetDomain.Make (Access.Memo)
-  module GroupableOffset = 
+
+  module OneOffset =
   struct
     include Printable.StdLeaf
-    include Offset.Unit
+    type t =
+      | Field of CilType.Fieldinfo.t
+      | Index
+    [@@deriving eq, ord, hash, to_yojson]
+
+    let name () = "oneoffset"
+
+    let show = function
+      | Field f -> CilType.Fieldinfo.show f
+      | Index -> "?"
+
+    include Printable.SimpleShow (struct
+        type nonrec t = t
+        let show = show
+      end)
+
+    let to_offset : t -> Offset.Unit.t = function
+      | Field f -> `Field (f, `NoOffset)
+      | Index -> `Index ((), `NoOffset)
   end
 
   module OffsetTrie =
   struct
-    include TrieDomain.Make (GroupableOffset) (Access.AS)
+    include TrieDomain.Make (OneOffset) (Access.AS)
 
-    let rec singleton (key : key) (value : value) : t =
-      match key with
+    let rec singleton (offset : Offset.Unit.t) (value : value) : t =
+      match offset with
       | `NoOffset -> (value, ChildMap.empty ())
-      | `Field (f, key') -> (Access.AS.empty (), ChildMap.singleton (`Field (f, `NoOffset)) (singleton key' value))
-      | `Index ((), key') -> (Access.AS.empty (), ChildMap.singleton (`Index ((), `NoOffset)) (singleton key' value))
+      | `Field (f, offset') -> (Access.AS.empty (), ChildMap.singleton (Field f) (singleton offset' value))
+      | `Index ((), offset') -> (Access.AS.empty (), ChildMap.singleton Index (singleton offset' value))
   end
 
   module G =
@@ -89,13 +108,13 @@ struct
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
-          let rec distribute_inner key (accs, children) ancestor_accs =
+          let rec distribute_inner offset (accs, children) ancestor_accs =
             let ancestor_accs' = Access.AS.union ancestor_accs accs in
             OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                distribute_inner (GroupableOffset.add_offset key child_key) child_trie ancestor_accs'
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs'
               ) children;
             if not (Access.AS.is_empty accs) then (
-              let memo = (g', key) in
+              let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
               Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs 
             )
