@@ -550,191 +550,192 @@ struct
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
     let rec inv_exp c_typed exp (st:D.t): D.t =
       (* trying to improve variables in an expression so it is bottom means dead code *)
-      if VD.is_bot_value c_typed then contra st else
-      match exp, c_typed with
-      | UnOp (LNot, e, _), Int c ->
-        let ikind = Cilfacade.get_ikind_exp e in
-        let c' =
-          match ID.to_bool (unop_ID LNot c) with
-          | Some true ->
-            (* i.e. e should evaluate to [1,1] *)
-            (* LNot x is 0 for any x != 0 *)
-            ID.of_excl_list ikind [BI.zero]
-          | Some false -> ID.of_bool ikind false
-          | _ -> ID.top_of ikind
-        in
-        inv_exp (Int c') e st
-      | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
-      | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
+      if VD.is_bot_value c_typed then contra st
+      else
+        match exp, c_typed with
+        | UnOp (LNot, e, _), Int c ->
+          let ikind = Cilfacade.get_ikind_exp e in
+          let c' =
+            match ID.to_bool (unop_ID LNot c) with
+            | Some true ->
+              (* i.e. e should evaluate to [1,1] *)
+              (* LNot x is 0 for any x != 0 *)
+              ID.of_excl_list ikind [BI.zero]
+            | Some false -> ID.of_bool ikind false
+            | _ -> ID.top_of ikind
+          in
+          inv_exp (Int c') e st
+        | UnOp (Neg, e, _), Float c -> inv_exp (Float (unop_FD Neg c)) e st
+        | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_safe_cast fails for all float types anyways *)
-      | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
-        inv_exp (Int c) (BinOp (op, e1, e2, t)) st
-      | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
-        (* copied & modified from eval_rv_base... *)
-        let (let*) = Option.bind in
-        (* split nested LOr Eqs to equality pairs, if possible *)
-        let rec split = function
-          (* copied from above to support pointer equalities with implicit casts inserted *)
-          | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
-            Some [(e1, e2)]
-          | BinOp (Eq, arg1, arg2, _) ->
-            Some [(arg1, arg2)]
-          | BinOp (LOr, arg1, arg2, _) ->
-            let* s1 = split arg1 in
-            let* s2 = split arg2 in
-            Some (s1 @ s2)
-          | _ ->
-            None
-        in
-        (* find common exp from all equality pairs and list of other sides, if possible *)
-        let find_common = function
-          | [] -> assert false
-          | (e1, e2) :: eqs ->
-            let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
-            let eqs_map_remove e = List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in
-            if eqs_for_all_mem e1 then
-              Some (e1, e2 :: eqs_map_remove e1)
-            else if eqs_for_all_mem e2 then
-              Some (e2, e1 :: eqs_map_remove e2)
-            else
+        | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) ->
+          inv_exp (Int c) (BinOp (op, e1, e2, t)) st
+        | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
+          (* copied & modified from eval_rv_base... *)
+          let (let*) = Option.bind in
+          (* split nested LOr Eqs to equality pairs, if possible *)
+          let rec split = function
+            (* copied from above to support pointer equalities with implicit casts inserted *)
+            | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
+              Some [(e1, e2)]
+            | BinOp (Eq, arg1, arg2, _) ->
+              Some [(arg1, arg2)]
+            | BinOp (LOr, arg1, arg2, _) ->
+              let* s1 = split arg1 in
+              let* s2 = split arg2 in
+              Some (s1 @ s2)
+            | _ ->
               None
-        in
-        let eqs_st =
-          let* eqs = split exp in
-          let* (e, es) = find_common eqs in
-          let v = eval e st in (* value of common exp *)
-          let vs = List.map (fun e -> eval e st) es in (* values of other sides *)
-          match v with
-          | Address _ ->
-            (* get definite addrs from vs *)
-            let rec to_definite_ad = function
-              | [] -> AD.empty ()
-              | VD.Address a :: vs when AD.is_definite a ->
-                AD.union a (to_definite_ad vs)
-              | _ :: vs ->
-                AD.top ()
-            in
-            let definite_ad = to_definite_ad vs in
-            let c' = VD.Address definite_ad in
-            Some (inv_exp c' e st)
-          | Int i ->
-            let ik = ID.ikind i in
-            let module BISet = IntDomain.BISet in
-            (* get definite ints from vs *)
-            let rec to_int_id = function
-              | [] -> ID.bot_of ik
-              | VD.Int i :: vs ->
-                begin match ID.to_int i with
-                  | Some i' -> ID.join i (to_int_id vs)
-                  | None -> ID.top_of ik
-                end
-              | _ :: vs ->
-                ID.top_of ik
-            in
-            let int_id = to_int_id vs in
-            let c' = VD.Int int_id in
-            Some (inv_exp c' e st)
-          | _ ->
-            None
-        in
-        begin match eqs_st with
-          | Some st -> st
-          | None when ID.to_bool c = Some true ->
-            begin match inv_exp (Int c) arg1 st with
-              | st1 ->
-                begin match inv_exp (Int c) arg2 st with
-                  | st2 -> D.join st1 st2
-                  | exception Analyses.Deadcode -> st1
-                end
-              | exception Analyses.Deadcode -> inv_exp (Int c) arg2 st (* Deadcode falls through *)
-            end
-          | None ->
-            st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
-        end
-      | (BinOp (op, e1, e2, _) as e, Float _)
-      | (BinOp (op, e1, e2, _) as e, Int _) ->
-        let invert_binary_op c pretty c_int c_float =
-          if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
-          (match eval e1 st, eval e2 st with
-           | Int a, Int b ->
-             let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
-             let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
-             let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
-             if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
-             let st' = inv_exp (Int a') e1 st in
-             let st'' = inv_exp (Int b') e2 st' in
-             st''
-           | Float a, Float b ->
-             let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
-             let a', b' = inv_bin_float (a, b) (c_float fkind) op in
-             if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
-             let st' = inv_exp (Float a') e1 st in
-             let st'' = inv_exp (Float b') e2 st' in
-             st''
-           (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
-           | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
+          in
+          (* find common exp from all equality pairs and list of other sides, if possible *)
+          let find_common = function
+            | [] -> assert false
+            | (e1, e2) :: eqs ->
+              let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
+              let eqs_map_remove e = List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in
+              if eqs_for_all_mem e1 then
+                Some (e1, e2 :: eqs_map_remove e1)
+              else if eqs_for_all_mem e2 then
+                Some (e2, e1 :: eqs_map_remove e2)
+              else
+                None
+          in
+          let eqs_st =
+            let* eqs = split exp in
+            let* (e, es) = find_common eqs in
+            let v = eval e st in (* value of common exp *)
+            let vs = List.map (fun e -> eval e st) es in (* values of other sides *)
+            match v with
+            | Address _ ->
+              (* get definite addrs from vs *)
+              let rec to_definite_ad = function
+                | [] -> AD.empty ()
+                | VD.Address a :: vs when AD.is_definite a ->
+                  AD.union a (to_definite_ad vs)
+                | _ :: vs ->
+                  AD.top ()
+              in
+              let definite_ad = to_definite_ad vs in
+              let c' = VD.Address definite_ad in
+              Some (inv_exp c' e st)
+            | Int i ->
+              let ik = ID.ikind i in
+              let module BISet = IntDomain.BISet in
+              (* get definite ints from vs *)
+              let rec to_int_id = function
+                | [] -> ID.bot_of ik
+                | VD.Int i :: vs ->
+                  begin match ID.to_int i with
+                    | Some i' -> ID.join i (to_int_id vs)
+                    | None -> ID.top_of ik
+                  end
+                | _ :: vs ->
+                  ID.top_of ik
+              in
+              let int_id = to_int_id vs in
+              let c' = VD.Int int_id in
+              Some (inv_exp c' e st)
+            | _ ->
+              None
+          in
+          begin match eqs_st with
+            | Some st -> st
+            | None when ID.to_bool c = Some true ->
+              begin match inv_exp (Int c) arg1 st with
+                | st1 ->
+                  begin match inv_exp (Int c) arg2 st with
+                    | st2 -> D.join st1 st2
+                    | exception Analyses.Deadcode -> st1
+                  end
+                | exception Analyses.Deadcode -> inv_exp (Int c) arg2 st (* Deadcode falls through *)
+              end
+            | None ->
+              st (* TODO: not bothering to fall back, no other case can refine LOr anyway *)
+          end
+        | (BinOp (op, e1, e2, _) as e, Float _)
+        | (BinOp (op, e1, e2, _) as e, Int _) ->
+          let invert_binary_op c pretty c_int c_float =
+            if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) pretty c;
+            (match eval e1 st, eval e2 st with
+             | Int a, Int b ->
+               let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+               let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
+               let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
+               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
+               let st' = inv_exp (Int a') e1 st in
+               let st'' = inv_exp (Int b') e2 st' in
+               st''
+             | Float a, Float b ->
+               let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
+               let a', b' = inv_bin_float (a, b) (c_float fkind) op in
+               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e FD.pretty (c_float fkind) FD.pretty a' FD.pretty b';
+               let st' = inv_exp (Float a') e1 st in
+               let st'' = inv_exp (Float b') e2 st' in
+               st''
+             (* Mixed Float and Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
+             | Int _, Float _ | Float _, Int _ -> failwith "ill-typed program";
              (* | Address a, Address b -> ... *)
-           | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
-          (* use closures to avoid unused casts *)
-        in (match c_typed with
-            | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
-            | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
-            | _ -> failwith "unreachable")
-      | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
-        let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
-        let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
-        begin match c_typed with
-          | Int c ->
-            let c' = match t with
-              | TPtr _ -> VD.Address (AD.of_int c)
-              | TInt (ik, _)
-              | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ik c)
-              | TFloat (fk, _) -> Float (FD.of_int fk c)
-              | _ -> Int c
-            in
-            update_lval c x c' ID.pretty
-          | Float c ->
-            let c' = match t with
-              (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
-              | TInt (ik, _) -> VD.Int (FD.to_int ik c)
-              (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
-              | TEnum ({ekind = ik; _}, _) -> Int (FD.to_int ik c)
-              | TFloat (fk, _) -> Float (FD.cast_to fk c)
-              | _ -> Float c
-            in
-            update_lval c x c' FD.pretty
-          | Address c ->
-            let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
-            update_lval c x c' AD.pretty
-          | _ -> assert false
-        end
-      | Const _ , _ -> st (* nothing to do *)
-      | CastE ((TFloat (_, _)), e), Float c ->
-        (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
-         | TFloat (FLongDouble as fk, _), FFloat
-         | TFloat (FDouble as fk, _), FFloat
-         | TFloat (FLongDouble as fk, _), FDouble
-         | TFloat (fk, _), FLongDouble
-         | TFloat (FDouble as fk, _), FDouble
-         | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
-         | _ -> fallback ("CastE: incompatible types") st)
-      | CastE ((TInt (ik, _)) as t, e), Int c
-      | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
-        (match eval e st with
-         | Int i ->
-           if ID.leq i (ID.cast_to ik i) then
-             match unrollType (Cilfacade.typeOf e) with
-             | TInt(ik_e, _)
-             | TEnum ({ekind = ik_e; _ }, _) ->
-               (* let c' = ID.cast_to ik_e c in *)
-               let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
-               if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-               inv_exp (Int c') e st
-             | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
-           else
-             fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
-         | v -> fallback (GobPretty.sprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
-      | e, _ -> fallback (GobPretty.sprintf "%a not implemented" d_plainexp e) st
+             | a1, a2 -> fallback (GobPretty.sprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
+            (* use closures to avoid unused casts *)
+          in (match c_typed with
+              | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
+              | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
+              | _ -> failwith "unreachable")
+        | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
+          let update_lval c x c' pretty = refine_lv ctx a gs st c x c' pretty exp in
+          let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
+          begin match c_typed with
+            | Int c ->
+              let c' = match t with
+                | TPtr _ -> VD.Address (AD.of_int c)
+                | TInt (ik, _)
+                | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ik c)
+                | TFloat (fk, _) -> Float (FD.of_int fk c)
+                | _ -> Int c
+              in
+              update_lval c x c' ID.pretty
+            | Float c ->
+              let c' = match t with
+                (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
+                | TInt (ik, _) -> VD.Int (FD.to_int ik c)
+                (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
+                | TEnum ({ekind = ik; _}, _) -> Int (FD.to_int ik c)
+                | TFloat (fk, _) -> Float (FD.cast_to fk c)
+                | _ -> Float c
+              in
+              update_lval c x c' FD.pretty
+            | Address c ->
+              let c' = c_typed in (* TODO: need any of the type-matching nonsense? *)
+              update_lval c x c' AD.pretty
+            | _ -> assert false
+          end
+        | Const _ , _ -> st (* nothing to do *)
+        | CastE ((TFloat (_, _)), e), Float c ->
+          (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
+           | TFloat (FLongDouble as fk, _), FFloat
+           | TFloat (FDouble as fk, _), FFloat
+           | TFloat (FLongDouble as fk, _), FDouble
+           | TFloat (fk, _), FLongDouble
+           | TFloat (FDouble as fk, _), FDouble
+           | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
+           | _ -> fallback ("CastE: incompatible types") st)
+        | CastE ((TInt (ik, _)) as t, e), Int c
+        | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
+          (match eval e st with
+           | Int i ->
+             if ID.leq i (ID.cast_to ik i) then
+               match unrollType (Cilfacade.typeOf e) with
+               | TInt(ik_e, _)
+               | TEnum ({ekind = ik_e; _ }, _) ->
+                 (* let c' = ID.cast_to ik_e c in *)
+                 let c' = ID.cast_to ik_e (ID.meet c (ID.cast_to ik (ID.top_of ik_e))) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                 if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                 inv_exp (Int c') e st
+               | x -> fallback (GobPretty.sprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st
+             else
+               fallback (GobPretty.sprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+           | v -> fallback (GobPretty.sprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
+        | e, _ -> fallback (GobPretty.sprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else
