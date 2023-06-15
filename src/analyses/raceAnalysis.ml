@@ -37,21 +37,12 @@ struct
     type value = Access.AS.t
     include Lattice.S with type t = value * OffsetTrieMap.t
 
-    val iter: (key -> value -> unit) -> t -> unit
     val singleton: key -> value -> t
   end  =
   struct
     type key = GroupableOffset.t
     type value = Access.AS.t
     include Lattice.Prod (Access.AS) (OffsetTrieMap)
-
-    let rec iter (f : key -> value -> unit) ((accs, children) : t) : unit =
-      f `NoOffset accs;
-      OffsetTrieMap.iter (fun key child ->
-          iter (fun child_key child_accs ->
-              f (GroupableOffset.add_offset key child_key) child_accs
-            ) child
-        ) children
 
     let rec singleton (key : key) (value : value) : t =
       match key with
@@ -106,12 +97,16 @@ struct
       begin match g with
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let offset_accs = G.access (ctx.global g) in
-          OffsetTrie.iter (fun offset accs -> 
-              let memo = (g', offset) in
-              let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
-            ) offset_accs
+          let (accs, children) = G.access (ctx.global g) in
+          let rec traverse_offset_trie key (accs, children) =
+            OffsetTrieMap.iter (fun child_key (child_accs, child_children) ->
+                traverse_offset_trie (GroupableOffset.add_offset key child_key) ((Access.AS.union accs child_accs), child_children)
+              ) children;
+            let memo = (g', key) in
+            let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
+            Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global safe vulnerable unsafe memo) accs
+          in
+          traverse_offset_trie `NoOffset (accs, children)
         | `Right _ -> (* vars *)
           ()
       end
