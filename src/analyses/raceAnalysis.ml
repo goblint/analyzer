@@ -31,26 +31,16 @@ struct
     include Offset.Unit
   end
 
-  module rec OffsetTrie :
-  sig
-    type key = GroupableOffset.t
-    type value = Access.AS.t
-    include Lattice.S with type t = value * OffsetTrieMap.t
-
-    val singleton: key -> value -> t
-  end  =
+  module OffsetTrie =
   struct
-    type key = GroupableOffset.t
-    type value = Access.AS.t
-    include Lattice.Prod (Access.AS) (OffsetTrieMap)
+    include TrieDomain.Make (GroupableOffset) (Access.AS)
 
     let rec singleton (key : key) (value : value) : t =
       match key with
-      | `NoOffset -> (value, OffsetTrieMap.empty ())
-      | `Field (f, key') -> (Access.AS.empty (), OffsetTrieMap.singleton (`Field (f, `NoOffset)) (singleton key' value))
-      | `Index ((), key') -> (Access.AS.empty (), OffsetTrieMap.singleton (`Index ((), `NoOffset)) (singleton key' value))
+      | `NoOffset -> (value, ChildMap.empty ())
+      | `Field (f, key') -> (Access.AS.empty (), ChildMap.singleton (`Field (f, `NoOffset)) (singleton key' value))
+      | `Index ((), key') -> (Access.AS.empty (), ChildMap.singleton (`Index ((), `NoOffset)) (singleton key' value))
   end
-  and OffsetTrieMap : MapDomain.S with type key = GroupableOffset.t and type value = OffsetTrie.t = MapDomain.MapBot (GroupableOffset) (OffsetTrie)
 
   module G =
   struct
@@ -100,7 +90,7 @@ struct
           let trie = G.access (ctx.global g) in
           let rec traverse_offset_trie key (accs, children) ancestor_accs =
             let ancestor_accs' = Access.AS.union ancestor_accs accs in
-            OffsetTrieMap.iter (fun child_key child_trie ->
+            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
                 traverse_offset_trie (GroupableOffset.add_offset key child_key) child_trie ancestor_accs'
               ) children;
             if not (Access.AS.is_empty accs) then (
