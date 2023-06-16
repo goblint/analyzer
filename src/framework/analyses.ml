@@ -129,11 +129,13 @@ struct
 end 
 
 (* Tuple of fundec and S.C*)
-module T (Base1: Printable.S) (Base2: Printable.S) (C: Printable.S) = (*Todo: is this Printable.S or S.C*)
+module T (Base1: Printable.S) (Base2: Printable.S) = (*Todo: is this Printable.S or S.C*)
 struct 
   include Printable.Std
-  type t = (CilType.Fundec.t * C.t)
+  type t = (CilType.Fundec.t * Base2.t)
 
+  let fundec (a,_) = a
+  let context (_,b) = b
   let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
   let show (a,b) = (Base1.show a) ^ (Base2.show b) 
   let name () = "Tuple"
@@ -202,6 +204,11 @@ struct
     | _ -> failwith "RecursionTerm.s"
 
   let create_s s = `Lifted1 s (*TODO: does this work? copied from DeadBranch*)
+
+  let base2 instance =
+    match instance with
+    | `Lifted2 n -> Some n
+    | _ -> None
 end
 
 
