@@ -84,7 +84,7 @@ struct
 
   let show x = "Array: " ^ Val.show x
   let pretty () x = text "Array: " ++ pretty () x
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a because %a" (name ()) pretty x pretty y Val.pretty_diff (x, y)
   let get ?(checkBounds=true) (ask: VDQ.t) a i = a
   let set (ask: VDQ.t) a (ie, i) v =
     match ie with
