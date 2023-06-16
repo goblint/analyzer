@@ -10,9 +10,6 @@ from generators.generate_mutations import *
 from generators.generate_ml import *
 from generators.generate_git import *
 
-# Run for example with:
-# python3 generate_programs.py ../../sample-files/threads.c test ~/BA/Clang-Repo/llvm-project/build/bin/clang-tidy ~/BA/Goblint-Repo/analyzer/goblint --enable-mutations
-
 generate_type_source = "SOURCE"
 
 def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count, ml_select, ml_interesting, ml_16k, git_start, git_end):
@@ -83,6 +80,12 @@ if __name__ == '__main__':
     parser.add_argument('--enable-mutations', action='store_true', help='Enable Mutations. When no mutation is selected all are activated.')
     parser.add_argument('--enable-ml', action='store_true', help='Enable ML')
     parser.add_argument('--enable-git', action='store_true', help='Enable Git')
+    parser.add_argument('--ml-count', type=int, default=DEFAULT_ML_COUNT, help='Number of ML programs to generate')
+    parser.add_argument('--ml-select', type=int, default=DEFAULT_ML_SELECT, help='Number of selected lines for ML')
+    parser.add_argument('--ml-interesting', default="[]", help='Lines to randomly choose the start line for selection (Defaul are all lines)')
+    parser.add_argument('--ml-16k', action='store_true', help='Use the 16k mode for ml')
+    parser.add_argument('--git-start', help='The starting commit hash for git generation')
+    parser.add_argument('--git-end', help='The ending commit hash for git generation')
 
     # Add mutation options
     add_mutation_options(parser)
@@ -107,4 +110,15 @@ if __name__ == '__main__':
     if args.enable_ml and not args.apikey_path:
         parser.error("--enable-ml requires --apikey-path")
 
-    generate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git)
+    # Check ml intersting string
+    if args.ml_interesting != "[]" and validate_interesting_lines(args.ml_interesting, None) == None:
+        sys.exit(-1)
+
+    # Check git commit hashes
+    git_start_commit = args.git_start
+    git_end_commit = args.git_end
+    if (git_start_commit == None and git_end_commit != None) or (git_start_commit != None and git_end_commit == None):
+        parser.error('[ERROR] Give a git start commit hash AND a end commit hash')
+
+generate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git, args.ml_count, args.ml_select, args.ml_interesting, args.ml_16k, args.git_start, args.git_end)
+

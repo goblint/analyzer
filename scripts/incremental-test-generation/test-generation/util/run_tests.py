@@ -56,10 +56,11 @@ def get_params_from_file(filename):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the tests in the specified test directory with the ruby script from Goblint')
+    parser.add_argument('program_path', help='Path to the input file of the user')
     parser.add_argument('test_dir', help='Path to the directory with the tests')
     parser.add_argument('goblint_repo_dir', help='Path to the Goblint repository')
     parser.add_argument('-c', '--cfg', action='store_true', help='Run with fine-grained cfg-based change detection')
 
     args = parser.parse_args()
 
-    run_tests(args.test_dir, args.goblint_repo_dir, args.cfg)
+    run_tests(args.program_path, args.test_dir, args.goblint_repo_dir, args.cfg)

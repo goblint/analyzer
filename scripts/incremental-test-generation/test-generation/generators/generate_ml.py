@@ -230,6 +230,7 @@ if __name__ == "__main__":
     parser.add_argument("ml_count", help="How many different programs should be generated with ML")
     parser.add_argument("num_selected_lines", help="How many lines to consider")
     parser.add_argument("interesting_lines", help="Which parts are interesting (All: [], Specify: \"[1, 42, 99]\")")
+    parser.add_argument('-m16', '--model-16k', action='store_true', help='Run with the 16k model instead of the 4k')
 
     args = parser.parse_args()
 
@@ -238,4 +239,4 @@ if __name__ == "__main__":
         print(f'{COLOR_RED}Stopped program execution{COLOR_RESET}')
         sys.exit(-1)
 
-    generate_ml(args.program, args.apikey, args.meta_path, int(args.ml_count), int(args.num_selected_lines), interesting_lines)
+    generate_ml(args.program, args.apikey, args.meta_path, int(args.ml_count), int(args.num_selected_lines), interesting_lines, args.model_16k)
