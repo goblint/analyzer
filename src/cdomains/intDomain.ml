@@ -171,6 +171,7 @@ sig
   val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
 
   val to_bool: t -> bool option
+  val to_interval: t -> (int_t * int_t) option
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   val of_excl_list: Cil.ikind -> int_t list -> t
   val is_excl_list: t -> bool
@@ -349,6 +350,8 @@ struct
     with
       Failure _ -> top_of ik
 
+  let to_interval x = failwith "Not implemented!" (* FIXME *)
+
   let starting ?(suppress_ovwarn=false) ik x =
     try Old.starting ~suppress_ovwarn ik (BI.to_int64 x) with Failure _ -> top_of ik
   let ending ?(suppress_ovwarn=false) ik x =
@@ -428,6 +431,7 @@ struct
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
   let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
+  let to_interval x = I.to_interval x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
   let starting ?(suppress_ovwarn=false) ikind i = {v = I.starting ~suppress_ovwarn  ikind i; ikind}
@@ -708,6 +712,7 @@ struct
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
+  let to_interval = Fun.id
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
@@ -1265,6 +1270,10 @@ struct
 
   let of_bool _ = function true -> one | false -> zero
 
+  let to_interval l = match minimal l, maximal l with
+    | Some x, Some y -> Some (x, y)
+    | _ -> None
+
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
@@ -1639,6 +1648,7 @@ struct
   let to_bool x = Some (to_bool' x)
   let of_int  x = x
   let to_int  x = Some x
+  let to_interval x = Some (x, x)
 
   let neg  = Ints_t.neg
   let add  = Ints_t.add (* TODO: signed overflow is undefined behavior! *)
@@ -1713,6 +1723,7 @@ struct
   let of_excl_list ik x = top_of ik
   let is_excl_list x = false
   let to_incl_list x = None
+  let to_interval x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
   let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
@@ -1795,6 +1806,10 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (f x y)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+
+  let to_interval = function
+    | `Lifted x -> Base.to_interval x
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -2137,6 +2152,9 @@ struct
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if BigInt.compare x y = 0 then of_int ik x else top_of ik
+  let to_interval l = match minimal l, maximal l with
+    | Some x, Some y -> Some (x, y)
+    | _ -> None
 
   let starting ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero > 0 then not_zero ikind else top_of ikind
   let ending ?(suppress_ovwarn=false) ikind x = if BigInt.compare x BigInt.zero < 0 then not_zero ikind else top_of ikind
@@ -2400,6 +2418,7 @@ struct
   let to_bool x = Some x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
+  let to_interval x = if x then None else Some (Int64.zero, Int64.zero)
 
   let neg x = x
   let add x y = x || y
@@ -2529,6 +2548,9 @@ module Enums : S with type int_t = BigInt.t = struct
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = if x = y then of_int ik x else top_of ik
+  let to_interval l = match minimal l, maximal l with
+    | Some x, Some y -> Some (x, y)
+    | _ -> None
 
   let join ik = curry @@ function
     | Inc x, Inc y -> Inc (BISet.union x y)
@@ -2737,7 +2759,7 @@ module Enums : S with type int_t = BigInt.t = struct
       if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
         List.fold_left (fun a x ->
             let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-            Invariant.(a || i)
+            Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
           ) (Invariant.bot ()) (BISet.elements ps)
       else
         Invariant.top ()
@@ -3263,6 +3285,8 @@ struct
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
+
+  let to_interval x = failwith "Not implemented!" (* FIXME *)
 end
 
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
@@ -3494,6 +3518,8 @@ module IntDomTupleImpl = struct
     %% map2p {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.leq)}
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
+
+  let to_interval (_, i, _, _, _) = Option.bind i I2.to_interval
 
   let to_excl_list x =
     let merge ps =

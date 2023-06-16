@@ -2,31 +2,9 @@
 
 open GoblintCil
 open GobConfig
+open MusteqDomain
 
-module V = Basetype.Variables
 module B = Printable.UnitConf (struct let name = "•" end)
-module F = Lval.Fields
-
-module VF =
-struct
-  include Printable.ProdSimple (V) (F)
-  let show (v,fd) =
-    let v_str = V.show v in
-    let fd_str = F.show fd in
-    v_str ^ fd_str
-  let pretty () x = Pretty.text (show x)
-
-  let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi
-
-  (* Indicates if the two var * offset pairs should collapse or not. *)
-  let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
-  let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
-  (* Joins the fields, assuming the vars are equal. *)
-  let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let kill x (v,f) = v, F.kill x f
-  let replace x exp (v,fd) = v, F.replace x exp fd
-end
 
 module VFB =
 struct
@@ -119,7 +97,7 @@ struct
 
   let is_global (v,fd) = v.vglob
 
-  let remove v (p,m) = p, RegMap.remove (v,[]) m
+  let remove v (p,m) = p, RegMap.remove (v, `NoOffset) m
   let remove_vars (vs: varinfo list) (cp:t): t =
     List.fold_right remove vs cp
 
@@ -142,7 +120,7 @@ struct
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t =
-    let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
+    let offsornot offs = if (get_bool "exp.region-offsets") then F.of_cil offs else `NoOffset in
     (* The intuition for the offset computations is that we keep the static _suffix_ of an
      * access path. These can be used to partition accesses when fields do not overlap.
      * This means that for pointer dereferences and when obtaining the value from an lval
@@ -150,7 +128,7 @@ struct
      * unknown in the region. *)
     let rec eval_rval deref rval =
       match rval with
-      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, [])) (eval_lval deref lval)
+      | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
       | CastE (typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)
@@ -159,7 +137,7 @@ struct
       | _ -> None
     and eval_lval deref lval =
       match lval with
-      | (Var x, offs) -> Some (deref, (x, offsornot offs), [])
+      | (Var x, offs) -> Some (deref, (x, offsornot offs), `NoOffset)
       | (Mem exp,offs) ->
         match eval_rval true exp with
         | Some (deref, v, _) -> Some (deref, v, offsornot offs)
@@ -193,7 +171,7 @@ struct
         if VF.equal x y then st else
           let (p,m) = st in begin
             let append_offs_y = RS.map (function
-                | `Left (v, offs) -> `Left (v, offs @ offs_y)
+                | `Left (v, offs) -> `Left (v, F.add_offset offs offs_y)
                 | `Right () -> `Right ()
               )
             in
@@ -228,7 +206,7 @@ struct
     | _ -> p,m
 
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
-    let add_o o2 (v,o) = (v,o@o2) in
+    let add_o o2 (v,o) = (v, F.add_offset o o2) in
     match deref_vfd with
     | Some (true, vfd, os) ->
       let vfd_class =
