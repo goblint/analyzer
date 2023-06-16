@@ -15,7 +15,7 @@ from generators.generate_git import *
 
 generate_type_source = "SOURCE"
 
-def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count, ml_select, ml_interesting, git_start, git_end):
+def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apikey_path, mutations, enable_mutations, enable_ml, enable_git, ml_count, ml_select, ml_interesting, ml_16k, git_start, git_end):
     # Clean working directory
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -35,7 +35,7 @@ def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apik
         index = generate_mutations(program_path, clang_tidy_path, meta_path, mutations)
 
     if enable_ml:
-        index = generate_ml(program_path, apikey_path, meta_path, ml_count, ml_select, ml_interesting)
+        index = generate_ml(program_path, apikey_path, meta_path, ml_count, ml_select, ml_interesting, ml_16k)
 
     if enable_git:
         index = generate_git(goblint_path, temp_dir, meta_path, program_path, git_start, git_end)
