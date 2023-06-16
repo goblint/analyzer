@@ -30,6 +30,7 @@ COLOR_YELLOW = '\033[33m'
 COLOR_RESET = '\033[0m'
 
 SEPERATOR = f"{COLOR_BLUE}------------------------------------------------------------------------------------------------------------------{COLOR_RESET}"
+SPACE = ' ' * 20
 
 META_FILENAME = 'meta.yaml'
 META_N = 'n'

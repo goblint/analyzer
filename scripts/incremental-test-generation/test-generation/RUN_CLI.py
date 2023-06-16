@@ -44,32 +44,42 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
 
     # Run tests
     if is_run_tests:
-        test_path = os.path.abspath(os.path.join(os.path.curdir, '99-temp'))
+        test_path = os.path.abspath(os.path.join(os.path.curdir, 'temp/100-temp'))
         if enable_precision:
             print(SEPERATOR)
-            print(f'Writing out {COLOR_BLUE}PRECISION TEST{COLOR_RESET} files for running:')
-            generate_tests(temp_path, test_path, goblint_config, precision_test=True)
-            run_tests(input_path, test_path, goblint_path, cfg)
+            print(f'Running {COLOR_BLUE}PRECISION TEST{COLOR_RESET}:')
+            paths = generate_tests(temp_path, test_path, goblint_config, precision_test=True, temp_name=True)
+            if len(paths) > 1:
+                print(f"{COLOR_YELLOW}[INFO] There were more than 99 programs generated, so the tests had to be spitted into multiple directories{COLOR_RESET}")
+            for path in paths:
+                run_tests(input_path, path, goblint_path, cfg)
         print(SEPERATOR)
-        print(f'Writing out {COLOR_BLUE}CORRECTNESS TEST{COLOR_RESET} files for running:')
-        generate_tests(temp_path, test_path, goblint_config, precision_test=False)
-        run_tests(input_path, test_path, goblint_path, cfg)
-        if os.path.exists(test_path):
-            shutil.rmtree(test_path)
+        print(f'Running {COLOR_BLUE}CORRECTNESS TEST{COLOR_RESET}:')
+        paths = generate_tests(temp_path, test_path, goblint_config, precision_test=False, temp_name=True)
+        if len(paths) > 1:
+                print(f"{COLOR_YELLOW}[INFO] There were more than 99 programs generated, so the tests had to be spitted into multiple directories{COLOR_RESET}")
+        for path in paths:
+            run_tests(input_path, path, goblint_path, cfg)
 
-    #Write out custom test files
+    # Write out custom test files
     if create_tests:
         print(SEPERATOR)
         correctness_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), test_name)
         print(f'Writing out {COLOR_BLUE}CUSTOM CORRECTNESS TEST {test_name}{COLOR_RESET} files:')
-        generate_tests(temp_path, correctness_path, goblint_config, precision_test=False)
-        print(f'{COLOR_GREEN}Test stored in the directory: {correctness_path}{COLOR_RESET}') #TODO Multiple directories?!
+        paths = generate_tests(temp_path, correctness_path, goblint_config, precision_test=False, temp_name=False)
+        if len(paths) > 1:
+                print(f"{COLOR_YELLOW}[INFO] There were more than 99 programs generated, so the tests had to be spitted into multiple directories{COLOR_RESET}")
+        for path in paths:
+            print(f'{COLOR_GREEN}Test stored in the file: {path}{COLOR_RESET}')
         if enable_precision:
             print(SEPERATOR)
             precision_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), precision_name)
             print(f'Writing out {COLOR_BLUE}CUSTOM PRECISION TEST {precision_name}{COLOR_RESET} files:')
-            generate_tests(temp_path, precision_path, goblint_config, precision_test=False)
-            print(f'{COLOR_GREEN}Test stored in the directory: {precision_path}{COLOR_RESET}') #TODO Multiple directories?!
+            paths = generate_tests(temp_path, precision_path, goblint_config, precision_test=False, temp_name=False)
+            if len(paths) > 1:
+                print(f"{COLOR_YELLOW}[INFO] There were more than 99 programs generated, so the tests had to be spitted into multiple directories{COLOR_RESET}")
+            for path in paths:
+                print(f'{COLOR_GREEN}Test stored in the file: {path}{COLOR_RESET}')
 
 def cli(enable_mutations, enable_ml, enable_git, mutations, goblint_config, test_name, create_tests, enable_precision, precision_name, running, input, ml_count, ml_select, ml_interesting, ml_16k, cfg, git_start, git_end, git_no_commit):
     # Check config file
@@ -271,8 +281,8 @@ if __name__ == "__main__":
     parser.add_argument('-dt', '--disable-create-tests', action='store_true', help='Disable creating test files')
     parser.add_argument('-ec', '--enable-cfg', action='store_true', help='Enable fine grained cfg tests')
     parser.add_argument('-dc', '--disable-cfg', action='store_true', help='Disable fine grained cfg tests')
-    parser.add_argument('-p', '--test-name', help='Test name')
-    parser.add_argument('-t', '--precision-name', help='Precision test name')
+    parser.add_argument('-t', '--test-name', help='Test name')
+    parser.add_argument('-p', '--precision-name', help='Precision test name')
     parser.add_argument('-i', '--input', help='Input File')
     
     # Add mutation options

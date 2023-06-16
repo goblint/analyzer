@@ -39,11 +39,11 @@ def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apik
 
     # Add checks with comments
     print(SEPERATOR)
-    if generate_git:
+    if enable_git:
         print('Generating goblint checks. This may take a while...')
     for i in range(index + 1):
-        if i % 10 == 0 or generate_git:
-            print(f"[{i}/{index}] Generating goblint checks...")
+        print(f"\r[{i}/{index}] Generating goblint checks...", end='')
+        sys.stdout.flush()
         file_path = os.path.join(temp_dir, f"p_{i}.c")
         compiling = add_check(file_path, i, goblint_path, meta_path)
         if not compiling:
@@ -52,11 +52,11 @@ def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apik
         if i == 0 or enable_git:
             add_check_comments(file_path, unknown_instead_of_success=True)
         add_check_comments(file_path, unknown_instead_of_success=False)
-    print(f"{COLOR_GREEN}Generating goblint checks [DONE]{COLOR_RESET}")
+    print(f"\r{COLOR_GREEN}Generating goblint checks [DONE]{SPACE}{COLOR_RESET}")
 
     # Check how many and which files were not compiling
     print(SEPERATOR)
-    print("Check if the files compiled...")
+    print("Check if the files compiled...", end='')
     with open(meta_path, 'r') as file:
         yaml_data = yaml.safe_load(file)
     failed_count = 0
@@ -66,9 +66,9 @@ def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apik
             failed_count += 1
             failed_compilation_keys.append(key)
     if failed_count == 0:
-        print(f"{COLOR_GREEN}All files compiled succesfully{COLOR_RESET}")
+        print(f"\r{COLOR_GREEN}All files compiled succesfully{COLOR_RESET}")
     else:
-        print(f"{COLOR_RED}There were {failed_count} files not compiling (stderr written to temp/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
+        print(f"\r{COLOR_RED}There were {failed_count} files not compiling (stderr written to temp/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate programs in the working directory')

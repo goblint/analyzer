@@ -91,7 +91,7 @@ def _get_line_groups(clang_tidy_path, mutation_name, program_path, index):
     line_groups = [list(x) for x in set(tuple(x) for x in line_groups)]
 
     print(f"[MUTATION][CHECK RESULT] Mutation {mutation_name} can be applied to lines {line_groups}")
-    return line_groups
+    return sorted(line_groups, key=lambda x: x[0])
 
 def _apply_mutation(clang_tidy_path, mutation_name, lines, program_path, index):
     lines_mapped = [[x,x] for x in lines]
