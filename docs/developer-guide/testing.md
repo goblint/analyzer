@@ -34,8 +34,6 @@ A comment on the first line can contain the following:
 | `PARAM: ` <br> (NB! space) | The following command line parameters are added to Goblint for this test. |
 | `SKIP` | The test is skipped (except when run with `./scripts/update_suite.rb group`). |
 | `NOMARSHAL` | Marshaling and unmarshaling of results is not tested on this program. |
-| `TERM` | The expected Goblint result is that the program terminates. |
-| `NONTERM` <br> or `NOTERM` | The expected Goblint result is that the program does not terminate. |
 
 #### End of line
 Comments at the end of other lines indicate the behavior on that line:
