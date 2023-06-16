@@ -40,13 +40,18 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fgets", unknown [drop "str" [r; w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
     ("fdopen", unknown [drop "fd" []; drop "mode" [r]]);
+    ("printf", unknown (drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
     ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
-    ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep];]);
-    ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep];]);
+    ("sprintf", unknown (drop "buffer" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
+    ("snprintf", unknown (drop "buffer" [r_deep; w_deep] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' []))); (* TODO: why not r for VarArgs?*)
+    ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
+    ("putc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
+    ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep]]);
     ("fread", unknown [drop "buffer" [w_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fseek", unknown [drop "stream" [r_deep; w_deep]; drop "offset" []; drop "origin" []]);
     ("ftell", unknown [drop "stream" [r_deep]]);
     ("fwrite", unknown [drop "buffer" [r_deep]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
+    ("rewind", unknown [drop "stream" [r_deep; w_deep]]);
     ("setvbuf", unknown [drop "stream" [r_deep; w_deep]; drop "buffer" [r_deep; w_deep]; drop "mode" []; drop "size" []]); 
     (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
     (* as any future write (or flush) of the stream could result in a write to the buffer *)
@@ -64,7 +69,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
     ("ungetc", unknown [drop "c" []; drop "stream" [r; w]]);
-    ("fscanf", unknown ((drop "stream" [r; w]) :: (drop "format" [r]) :: (VarArgs (drop' [w]))));
+    ("scanf", unknown ((drop "format" [r]) :: (VarArgs (drop' [w]))));
+    ("fscanf", unknown ((drop "stream" [r; w]) :: (drop "format" [r]) :: (VarArgs (drop' [w])))); (* TODO: why stream not r_deep; w_deep? *) 
+    ("sscanf", unknown ((drop "buffer" [r]) :: (drop "format" [r]) :: (VarArgs (drop' [w]))));
     ("__freading", unknown [drop "stream" [r]]);
     ("mbsinit", unknown [drop "ps" [r]]);
     ("mbrtowc", unknown [drop "pwc" [w]; drop "s" [r]; drop "n" []; drop "ps" [r; w]]);
@@ -72,17 +79,27 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("iswalnum", unknown [drop "wc" []]);
     ("iswprint", unknown [drop "wc" []]);
     ("rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
+    ("perror", unknown [drop "s" [r]]);
+    ("getchar", unknown []);
+    ("putchar", unknown [drop "ch" []]);
     ("puts", unknown [drop "s" [r]]);
     ("rand", unknown ~attrs:[ThreadUnsafe] []);
     ("strspn", unknown [drop "s" [r]; drop "accept" [r]]);
     ("strcspn", unknown [drop "s" [r]; drop "accept" [r]]);
+    ("strftime", unknown [drop "str" [w]; drop "count" []; drop "format" [r]; drop "tp" [r]]);
     ("strtod", unknown [drop "nptr" [r]; drop "endptr" [w]]);
     ("strtol", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("__strtol_internal", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []; drop "group" []]);
     ("strtoll", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoul", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
     ("strtoull", unknown [drop "nptr" [r]; drop "endptr" [w]; drop "base" []]);
+    ("tolower", unknown [drop "ch" []]);
+    ("toupper", unknown [drop "ch" []]);
+    ("time", unknown [drop "arg" [w]]);
     ("tmpnam", unknown ~attrs:[ThreadUnsafe] [drop "filename" [r]]);
+    ("vprintf", unknown [drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("vfprintf", unknown [drop "stream" [r_deep; w_deep]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
+    ("vsprintf", unknown [drop "buffer" [w]; drop "format" [r]; drop "vlist" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mktime", unknown [drop "tm" [r;w]]);
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]);
@@ -220,7 +237,22 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("timer_getoverrun", unknown [drop "timerid" []]);
     ("lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
     ("getpwnam", unknown [drop "name" [r]]);
+    ("chdir", unknown [drop "path" [r]]);
+    ("closedir", unknown [drop "dirp" [w]]);
+    ("mkdir", unknown [drop "pathname" [r]; drop "mode" []]);
+    ("opendir", unknown [drop "name" [r]]);
+    ("rmdir", unknown [drop "path" [r]]);
+    ("open", unknown (drop "pathname" [r] :: drop "flags" [] :: VarArgs (drop "mode" [])));
+    ("read", unknown [drop "fd" []; drop "buf" [w]; drop "count" []]);
+    ("write", unknown [drop "fd" []; drop "buf" [r]; drop "count" []]);
+    ("recv", unknown [drop "sockfd" []; drop "buf" [w]; drop "len" []; drop "flags" []]);
+    ("send", unknown [drop "sockfd" []; drop "buf" [r]; drop "len" []; drop "flags" []]);
+    ("strdup", unknown [drop "s" [r]]);
     ("strndup", unknown [drop "s" [r]; drop "n" []]);
+    ("syscall", unknown (drop "number" [] :: VarArgs (drop' [r; w])));
+    ("sysconf", unknown [drop "name" []]);
+    ("syslog", unknown (drop "priority" [] :: drop "format" [r] :: VarArgs (drop' [r]))); (* TODO: is the VarArgs correct here? *)
+    ("vsyslog", unknown [drop "priority" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("freeaddrinfo", unknown [drop "res" [f_deep]]);
     ("getgid", unknown []);
     ("pselect", unknown [drop "nfds" []; drop "readdfs" [r]; drop "writedfs" [r]; drop "exceptfds" [r]; drop "timeout" [r]; drop "sigmask" [r]]);
@@ -929,29 +961,11 @@ open Invalidate
 let invalidate_actions = [
     "atoi", readsAll;             (*safe*)
     "connect", readsAll;          (*safe*)
-    "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
-    "perror", readsAll;(*safe*)
     "__mutex_init", readsAll;(*safe*)
-    "read", writes [2];(*keep [2]*)
-    "recv", writes [2];(*keep [2]*)
-    "scanf",  writesAllButFirst 1 readsAll;(*drop 1*)
-    "send", readsAll;(*safe*)
-    "snprintf", writes [1];(*keep [1]*)
     "__builtin___snprintf_chk", writes [1];(*keep [1]*)
-    "sprintf", writes [1];(*keep [1]*)
-    "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
-    "strftime", writes [1];(*keep [1]*)
-    "strdup", readsAll;(*safe*)
-    "toupper", readsAll;(*safe*)
-    "tolower", readsAll;(*safe*)
-    "time", writesAll;(*unsafe*)
-    "vfprintf", writes [1];(*keep [1]*)
     "__vfprintf_chk", writes [1];(*keep [1]*)
-    "vprintf", readsAll;(*safe*)
-    "vsprintf", writes [1];(*keep [1]*)
-    "write", readsAll;(*safe*)
     "__builtin_va_arg", readsAll;(*safe*)
     "__builtin_va_end", readsAll;(*safe*)
     "__builtin_va_start", readsAll;(*safe*)
@@ -965,13 +979,10 @@ let invalidate_actions = [
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
     "geteuid", readsAll;(*safe*)
-    "opendir", readsAll;  (*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
     "getpid", readsAll;(*safe*)
     "_IO_getc", writesAll;(*unsafe*)
-    "closedir", writesAll;(*unsafe*)
-    "chdir", readsAll;(*safe*)
     "pipe", writesAll;(*unsafe*)
     "close", writesAll;(*unsafe*)
     "setsid", readsAll;(*safe*)
@@ -995,15 +1006,12 @@ let invalidate_actions = [
     "__builtin___memmove_chk", writes [2;3];(*keep [2;3]*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
-    "mkdir", readsAll;(*safe*)
     "mount", readsAll;(*safe*)
-    "open", readsAll;(*safe*)
     "__open_alias", readsAll;(*safe*)
     "__open_2", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
     "umount", readsAll;(*safe*)
-    "rmdir", readsAll;(*safe*)
     "strrchr", readsAll;(*safe*)
     "scandir", writes [1;3;4];(*keep [1;3;4]*)
     "unlink", readsAll;(*safe*)
@@ -1015,15 +1023,8 @@ let invalidate_actions = [
     "bindtextdomain", readsAll;(*safe*)
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
-    "syscall", writesAllButFirst 1 readsAll;(*drop 1*)
-    "sysconf", readsAll;
-    "rewind", writesAll;
-    "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
-    "putchar", readsAll;(*safe*)
-    "getchar", readsAll;(*safe*)
     "__getdelim", writes [3];(*keep [3]*)
-    "vsyslog", readsAll;(*safe*)
     "gethostbyname_r", readsAll;(*safe*)
     "__h_errno_location", readsAll;(*safe*)
     "__fxstat", readsAll;(*safe*)
@@ -1050,7 +1051,6 @@ let invalidate_actions = [
     "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
     "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
-    "syslog", readsAll; (*safe*)
     "strcasecmp", readsAll; (*safe*)
     "strchr", readsAll; (*safe*)
     "__error", readsAll; (*safe*)
