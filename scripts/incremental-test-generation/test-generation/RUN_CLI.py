@@ -49,11 +49,11 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
             print(SEPERATOR)
             print(f'Writing out {COLOR_BLUE}PRECISION TEST{COLOR_RESET} files for running:')
             generate_tests(temp_path, test_path, goblint_config, precision_test=True)
-            run_tests(test_path, goblint_path, cfg)
+            run_tests(input_path, test_path, goblint_path, cfg)
         print(SEPERATOR)
         print(f'Writing out {COLOR_BLUE}CORRECTNESS TEST{COLOR_RESET} files for running:')
         generate_tests(temp_path, test_path, goblint_config, precision_test=False)
-        run_tests(test_path, goblint_path, cfg)
+        run_tests(input_path, test_path, goblint_path, cfg)
         if os.path.exists(test_path):
             shutil.rmtree(test_path)
 

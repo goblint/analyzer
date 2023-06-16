@@ -66,6 +66,10 @@ witness = ARGV.last == "-w" && ARGV.pop
 cfg = ARGV.last == "-c" && ARGV.pop
 incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
+p_index = ARGV.index("-p") # Comand line parameters for Goblint (pass before other otions)
+user_params = p_index.nil? || p_index == ARGV.length - 1 ? "" : ARGV[p_index + 1]
+ARGV.delete_at(p_index) unless p_index.nil?
+ARGV.delete_at(p_index) unless p_index.nil? || p_index >= ARGV.length
 only = ARGV[0] unless ARGV[0].nil?
 if marshal || witness || incremental then
   sequential = true
@@ -134,7 +138,7 @@ class Tests
   def report
     filename = File.basename(p.path)
     system($highlighter.call(filename, orgfile))
-    `#{$goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
+    `#{$goblint} #{filename} --set justcil true #{p.params} #{p.user_params} >#{cilfile} 2> /dev/null`
     p.size = `wc -l #{cilfile}`.split[0]
   end
 
@@ -262,7 +266,7 @@ end
 
 class Project
   attr_reader :id, :name, :group, :path, :params, :testset, :html_heading
-  attr_accessor :size, :testset
+  attr_accessor :size, :testset, :user_params
   def initialize(id, name, group, path, params)
     @id       = id
     @name     = name
@@ -370,7 +374,7 @@ class Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set goblint-dir .goblint-#{@id.sub('/','-')} 2>#{@testset.statsfile}"
+    cmd = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set goblint-dir .goblint-#{@id.sub('/','-')} 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd, starttime)
   end
@@ -436,8 +440,8 @@ class ProjectIncr < Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
-    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --enable dbg.timing.enabled --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
+    cmd = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
+    cmd_incr = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --enable dbg.timing.enabled --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
     starttime = Time.now
     run_testset(@testset_incr, cmd, starttime)
     # apply patch
@@ -480,8 +484,8 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
@@ -496,8 +500,8 @@ class ProjectWitness < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable dbg.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable dbg.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable dbg.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{user_params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable dbg.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     starttime = Time.now
@@ -558,6 +562,7 @@ regs.sort.each do |d|
         else
           Project.new(id, testname, groupname, path, params)
         end
+    p.user_params = user_params
     p.create_test_set(lines)
 
     projects << p
