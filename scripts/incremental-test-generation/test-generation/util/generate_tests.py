@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, "..")
 from util.util import *
 
-def generate_tests(temp_dir, target_dir, precision_test):
+def generate_tests(temp_dir, target_dir, goblint_config, precision_test):
     # Check the name of the target_dir
     directoryName = os.path.basename(target_dir)
     if not check_test_name(directoryName):
@@ -93,11 +93,14 @@ def generate_tests(temp_dir, target_dir, precision_test):
                 yaml_data[current_program_id][META_DIFF] = True
         else:
             raise Exception("Command failed with return code: {}".format(result.returncode))
-        # Create a empty config file
-        #TODO Support other config files
-        data = {}
-        with open(os.path.join(target_dir, test_name + '.json'), 'w') as f:
-            json.dump(data, f)
+        if goblint_config == None:
+            # Create a empty config file
+            data = {}
+            with open(os.path.join(target_dir, test_name + '.json'), 'w') as f:
+                json.dump(data, f)
+        else:
+            # Copy config file
+            shutil.copy2(os.path.abspath(os.path.expanduser(goblint_config)), os.path.join(target_dir, test_name + '.json'))
     print(f"{COLOR_GREEN}Generating test files [DONE].{COLOR_RESET}")
     if unchanged_count > 0:
         print(f'{COLOR_YELLOW}There were {unchanged_count} patch files with no changes.{COLOR_RESET}')
@@ -124,7 +127,8 @@ if __name__ == '__main__':
     parser.add_argument('temp_dir', help='Path to the working directory')
     parser.add_argument('target_dir', help='Path to the target directory')
     parser.add_argument('-p', '--precision-test', action='store_true', help='Generate tests for precision')
+    parser.add_argument('-c', '--goblint-config', help='Optional path to the goblint config file used for the tests (using no option creates an empty one)')
 
     args = parser.parse_args()
 
-    generate_tests(args.temp_dir, args.target_dir, args.precision_test)
+    generate_tests(args.temp_dir, args.target_dir, args.goblint_config, args.precision_test)
