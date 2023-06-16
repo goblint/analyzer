@@ -124,15 +124,18 @@ module C_ (C: Printable.S)=
 struct
   include C
   include Printable.Std (* To make it Groupable *)
-  let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+  let printXml f c = BatPrintf.fprintf f (*Todo: Make this print pretty*)
+  "<value>
+  callee_context:\n<value>%a</value>\n\n
+  </value>" printXml c (* wrap in <value> for HTML printing *)
   
 end 
 
 (* Tuple of fundec and S.C*)
-module T (Base1: Printable.S) (Base2: Printable.S) (C: Printable.S) = (*Todo: is this Printable.S or S.C*)
+module T (Base1: Printable.S) (Base2: Printable.S) = (*Todo: is this Printable.S or S.C*)
 struct 
   include Printable.Std
-  type t = (CilType.Fundec.t * C.t)
+  type t = (CilType.Fundec.t * Base2.t)
 
   let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
   let show (a,b) = (Base1.show a) ^ (Base2.show b) 
@@ -143,16 +146,30 @@ struct
     BatPrintf.fprintf f "<value>\n
     Tuple:\n
     <map>\n
-    <key>fundec</key>\n%a\n\n
-    <key>context</key>\n%a\n\n
-    </map></value>\n" Base1.printXml a Base2.printXml b (*Todo: what do we have to put here?*)
-  let compare (a1,b1) (a2,b2) = 3 (*Todo: what do we have to put here?*)
-  (*let a = Base1.compare a1 a2 in
-    let b = Base2.compare b1 b2 in
-  *)
+    <key>caller_fundec</key>\n%a\n\n
+    <key>caller_context</key>\n<value>%a</value>\n\n
+    </map></value>\n" Base1.printXml a Base2.printXml b
+
+  (*Result of compare: 
+  start with inital value of 0
+     - a1 > a2: +1 
+     - a1 < a2: -1
+     - b1 > b2: +3
+     - b1 < b2: -3
+     *)
+  let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
+    let res = ref 0 in
+    let comp_a = Base1.compare a1 a2 in
+    let comp_b = Base2.compare b1 b2 in
+    if (comp_a > 0) then res := !(res) + 1 
+    else if (comp_a < 0) then res := !(res) - 1;
+    if (comp_b > 0) then res := !(res) + 3 
+    else if (comp_b < 0) then res := !(res) - 3;
+    !res
+  
   let pretty () x = text (show x)
 
-  let hash (a,b) = 2 (*Todo: what do we have to put here?*)
+  let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
     
 end
 
