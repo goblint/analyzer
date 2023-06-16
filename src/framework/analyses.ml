@@ -124,7 +124,10 @@ module C_ (C: Printable.S)=
 struct
   include C
   include Printable.Std (* To make it Groupable *)
-  let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+  let printXml f c = BatPrintf.fprintf f (*Todo: Make this print pretty*)
+  "<value>
+  callee_context:\n<value>%a</value>\n\n
+  </value>" printXml c (* wrap in <value> for HTML printing *)
   
 end 
 
@@ -145,16 +148,30 @@ struct
     BatPrintf.fprintf f "<value>\n
     Tuple:\n
     <map>\n
-    <key>fundec</key>\n%a\n\n
-    <key>context</key>\n%a\n\n
-    </map></value>\n" Base1.printXml a Base2.printXml b (*Todo: what do we have to put here?*)
-  let compare (a1,b1) (a2,b2) = 3 (*Todo: what do we have to put here?*)
-  (*let a = Base1.compare a1 a2 in
-    let b = Base2.compare b1 b2 in
-  *)
+    <key>caller_fundec</key>\n%a\n\n
+    <key>caller_context</key>\n<value>%a</value>\n\n
+    </map></value>\n" Base1.printXml a Base2.printXml b
+
+  (*Result of compare: 
+  start with inital value of 0
+     - a1 > a2: +1 
+     - a1 < a2: -1
+     - b1 > b2: +3
+     - b1 < b2: -3
+     *)
+  let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
+    let res = ref 0 in
+    let comp_a = Base1.compare a1 a2 in
+    let comp_b = Base2.compare b1 b2 in
+    if (comp_a > 0) then res := !(res) + 1 
+    else if (comp_a < 0) then res := !(res) - 1;
+    if (comp_b > 0) then res := !(res) + 3 
+    else if (comp_b < 0) then res := !(res) - 3;
+    !res
+  
   let pretty () x = text (show x)
 
-  let hash (a,b) = 2 (*Todo: what do we have to put here?*)
+  let hash (a,b) = Hashtbl.hash (Base1.hash a * Base2.hash b) (*Todo: is this ok?*)
     
 end
 
