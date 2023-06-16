@@ -139,7 +139,13 @@ struct
   let name () = "Tuple"
   let to_yojson x = `String (show x)
   let relift (a,b) = (a,b) (*Todo: is this correct?*)
-  let printXml f (a,b) = Base1.printXml f a; Base2.printXml f b (*Todo: what do we have to put here?*)
+  let printXml f (a,b) = 
+    BatPrintf.fprintf f "<value>\n
+    Tuple:\n
+    <map>\n
+    <key>fundec</key>\n%a\n\n
+    <key>context</key>\n%a\n\n
+    </map></value>\n" Base1.printXml a Base2.printXml b (*Todo: what do we have to put here?*)
   let compare (a1,b1) (a2,b2) = 3 (*Todo: what do we have to put here?*)
   (*let a = Base1.compare a1 a2 in
     let b = Base2.compare b1 b2 in
@@ -150,22 +156,26 @@ struct
     
 end
 
-module GVarGG (G: Lattice.S) (C: Printable.S) =
+module GVarGG (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
 struct
   module CSet =
   struct
     include SetDomain.Make (
       struct
-        include (T (CilType.Fundec) (C) (C)) (* Set of Tuples*)
+        include (Base) (* Set of Tuples*)
         end
         )
     let name () = "contexts"
+    let printXml f a = 
+      BatPrintf.fprintf f "<value>\n<set>\n";
+      iter (Base.printXml f) a;
+      BatPrintf.fprintf f "</set>\n</value>\n"
   end
 
   module CMap = 
   struct
     include MapDomain.MapBot (C_ (C)) (CSet)
-    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* TODO *)
+    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (*TODO*)
   end
 
   include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
