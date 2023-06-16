@@ -120,5 +120,5 @@ if __name__ == '__main__':
     if (git_start_commit == None and git_end_commit != None) or (git_start_commit != None and git_end_commit == None):
         parser.error('[ERROR] Give a git start commit hash AND a end commit hash')
 
-generate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git, args.ml_count, args.ml_select, args.ml_interesting, args.ml_16k, args.git_start, args.git_end)
+    generate_programs(args.source_path, args.temp_dir, args.clang_tidy_path, args.goblint_path, args.apikey_path, mutations, args.enable_mutations, args.enable_ml, args.enable_git, args.ml_count, args.ml_select, args.ml_interesting, args.ml_16k, args.git_start, args.git_end)
 
