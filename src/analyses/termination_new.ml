@@ -6,7 +6,9 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
-let loop_counters : varinfo list ref = ref []
+
+(* contains all loop counter variables (varinfo) and maps them to their corresponding loop statement*)
+let loop_counters: stmt VarToStmt.t ref = ref VarToStmt.empty
 
 (** Contains the locations of the upjumping gotos *)
 let upjumping_gotos : location list ref = ref []
@@ -14,7 +16,7 @@ let upjumping_gotos : location list ref = ref []
 let loop_exit : varinfo ref = ref (makeVarinfo false "-error" Cil.intType)
 
 let is_loop_counter_var (x : varinfo) =
-  List.mem x !loop_counters
+  VarToStmt.mem x !loop_counters
 
 let is_loop_exit_indicator (x : varinfo) =
   x = !loop_exit
