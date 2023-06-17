@@ -1734,7 +1734,7 @@ struct
           S.query (conv ctx) (WarnGlobal (Obj.repr g))
         | `Right g ->
           (*TODO: Implement cycle detection algorithm here*)
-          
+
           Queries.Result.top q
       end
     | InvariantGlobal g ->
@@ -1762,16 +1762,16 @@ struct
   let paths_as_set ctx = S.paths_as_set (conv ctx)
   let body ctx = S.body (conv ctx)
   let return ctx = S.return (conv ctx)
-  let combine_env ctx r fe f args fc es f_ask = (*Todo*)
+  let combine_env ctx r fe f args fc es f_ask = 
     if !AnalysisState.postsolving then
-      let c_r: S.C.t = ctx.context () in (*Caller context*) (*TODO is this the caller or callee context???*)
+      let c_r: S.C.t = ctx.context () in (*Caller context*)
       let nodeF = ctx.node in
       let fd_r : fundec = Node.find_fundec nodeF in (*Caller fundec*)
       let c_e: S.C.t = Option.get (fc) in (*Callee context*) 
       let fd_e : fundec = f in (*Callee fundec*)
 
       let tup: (fundec * S.C.t) = (fd_r, c_r) in 
-      let t = G.CSet.singleton (tup) in (*TODO do we fill the set correctly???*)
+      let t = G.CSet.singleton (tup) in
       side_context ctx.sideg fd_e (c_e) t;
       S.combine_env (conv ctx) r fe f args fc es f_ask
     else 
