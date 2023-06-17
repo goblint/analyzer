@@ -1,8 +1,8 @@
 (** Simple interprocedural taint analysis template ([taint]). *)
 
 (** An analysis specification for didactic purposes. *)
-(* Helpful link on CIL: https://goblint.in.tum.de/assets/goblint-cil/ *)
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
+(* Helpful link on CIL: https://goblint.github.io/cil/ *)
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
 
