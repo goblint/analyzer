@@ -30,7 +30,7 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          | Loop (b, loc, eloc, _, _) ->
          let name = "term"^show_location_id loc in
          let typ = Cil.intType in 
-         let v = (Cil.makeLocalVar fd name typ) in (* Not tested for incremental mode*)
+         let v = (Cil.makeLocalVar fd name typ) in (*Not tested for incremental mode*)
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let exit_stmt = mkStmtOneInstr @@ Set ((var !le), (Lval (var v)), loc, eloc) in
@@ -39,7 +39,6 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
             b.bstmts <- cont :: inc_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
             | _ -> ());
          lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
-         (*lc := List.append !lc ([v] : varinfo list);*)
          let nb = mkBlock [init_stmt; mkStmt s.skind; exit_stmt] in
          s.skind <- Block nb;
          s
