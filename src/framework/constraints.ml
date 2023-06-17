@@ -1710,7 +1710,6 @@ struct
   module V = 
   struct 
     include GVarF(S.V)
-    let s = spec
   end
 
   module G = GVarGG (S.G) (S.C) (T (CilType.Fundec) (C))
@@ -1730,21 +1729,35 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
-        | `Left g ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr g))
-        | `Right g ->
-          (*TODO: Implement cycle detection algorithm here*)
+        | `Left g' ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g'))
+        | `Right g' ->
+          let module LH = Hashtbl.Make (T (CilType.Fundec) (C)) in
+          let module LS = Set.Make (T (CilType.Fundec) (C)) in
+          (* TODO: find all cycles/SCCs *)
+          let global_visited_calls = LH.create 100 in
 
-          Queries.Result.top q
-      end
-    | InvariantGlobal g ->
-      let g: V.t = Obj.obj g in
-      begin match g with
-        | `Left g ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr g))
-        | `Right g ->
-          Queries.Result.top q
-      end
+          (* DFS *)
+          let rec iter_call (path_visited_calls: LS.t) (call: T (CilType.Fundec) (C).t) =
+            if LS.mem call path_visited_calls then
+              let msgs = 
+              [
+                (Pretty.dprintf "lock before:", Some (M.Location.CilLocation locUnknown));
+                (Pretty.dprintf "lock after: with", Some (M.Location.CilLocation locUnknown));
+              ] in
+              M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs;
+              S.query (conv ctx) q
+            else if not (LH.mem global_visited_calls call) then begin
+              LH.replace global_visited_calls call ();
+              let callers = G.CMap.find (ctx.context()) (Option.get (G.base2 (ctx.global (g)))) in   (*TODO: how do we get our Map out of g*)
+              let new_path_visited_calls = LS.add call path_visited_calls in
+              G.CSet.iter (fun to_call ->
+                  iter_call new_path_visited_calls to_call
+                ) callers
+            end
+          in
+          S.query (conv ctx) q
+        end
     | _ -> S.query (conv ctx) q
 
   let branch ctx = S.branch (conv ctx)
