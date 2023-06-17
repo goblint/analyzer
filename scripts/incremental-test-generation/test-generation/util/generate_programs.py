@@ -68,7 +68,7 @@ def generate_programs(source_path, temp_dir, clang_tidy_path, goblint_path, apik
     if failed_count == 0:
         print(f"\r{COLOR_GREEN}All files compiled succesfully{COLOR_RESET}")
     else:
-        print(f"\r{COLOR_RED}There were {failed_count} files not compiling (stderr written to temp/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
+        print(f"\r{COLOR_RED}There were {failed_count} files not compiling (stderr written to {temp_dir}/meta.yaml):{COLOR_RESET} {failed_compilation_keys}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate programs in the working directory')

@@ -44,7 +44,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
 
     # Run tests
     if is_run_tests:
-        test_path = os.path.abspath(os.path.join(os.path.curdir, 'temp/100-temp'))
+        test_path = os.path.abspath(os.path.join(temp_path, '/100-temp'))
         if enable_precision:
             print(SEPERATOR)
             print(f'Running {COLOR_BLUE}PRECISION TEST{COLOR_RESET}:')

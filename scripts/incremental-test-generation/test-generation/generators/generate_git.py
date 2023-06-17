@@ -22,7 +22,7 @@ def generate_git(goblint_path, temp_dir, meta_path, git_info_sh_path, start_comm
     git_info_sh_path = os.path.expanduser(os.path.abspath(git_info_sh_path))
 
     print(SEPERATOR)
-    print('[GIT] Cloning into temp/repo')
+    print(f'[GIT] Cloning into {temp_repo_dir}')
     _clone_repo(git_info_sh_path, temp_repo_dir)
     build_path = _get_build_path(git_info_sh_path, temp_repo_dir)
     print(f'{COLOR_GREEN}[GIT] Cloning finished{COLOR_RESET}')
