@@ -22,7 +22,7 @@ def generate_tests(temp_dir, target_dir, goblint_config, precision_test, temp_na
             shutil.rmtree(target_dir)
         else:
             sys.exit(-1)
-    os.mkdir(target_dir)
+    os.makedirs(target_dir)
 
     # Read the meta.yaml
     meta_path = os.path.join(temp_dir,META_FILENAME)

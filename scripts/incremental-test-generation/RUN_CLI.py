@@ -1,6 +1,5 @@
 import argparse
 import os
-import shutil
 import sys
 import questionary
 import yaml
@@ -44,7 +43,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
 
     # Run tests
     if is_run_tests:
-        test_path = os.path.abspath(os.path.join(temp_path, '/100-temp'))
+        test_path = os.path.abspath(os.path.join(temp_path, '100-temp'))
         if enable_precision:
             print(SEPERATOR)
             print(f'Running {COLOR_BLUE}PRECISION TEST{COLOR_RESET}:')
@@ -64,7 +63,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
     # Write out custom test files
     if create_tests:
         print(SEPERATOR)
-        correctness_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), test_name)
+        correctness_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out', test_name)
         print(f'Writing out {COLOR_BLUE}CUSTOM CORRECTNESS TEST {test_name}{COLOR_RESET} files:')
         paths = generate_tests(temp_path, correctness_path, goblint_config, precision_test=False, temp_name=False)
         if len(paths) > 1:
@@ -73,7 +72,7 @@ def run(goblint_path, llvm_path, input_path, is_mutation, is_ml, is_git, mutatio
             print(f'{COLOR_GREEN}Test stored in the file: {path}{COLOR_RESET}')
         if enable_precision:
             print(SEPERATOR)
-            precision_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), precision_name)
+            precision_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out', precision_name)
             print(f'Writing out {COLOR_BLUE}CUSTOM PRECISION TEST {precision_name}{COLOR_RESET} files:')
             paths = generate_tests(temp_path, precision_path, goblint_config, precision_test=False, temp_name=False)
             if len(paths) > 1:
@@ -226,7 +225,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, goblint_config, test
 
     if create_tests and test_name == None:
         while True:
-            test_name = questionary.text('Enter the test name: ', default="99-test").ask()
+            test_name = questionary.text('Enter the test name: ', default="90-test").ask()
             if check_test_name(test_name):
                 break
 
@@ -235,7 +234,7 @@ def cli(enable_mutations, enable_ml, enable_git, mutations, goblint_config, test
 
     if create_tests and enable_precision and precision_name == None:
         while True:
-            precision_name = questionary.text('Enter the precision test name: ', default="98-precision").ask()
+            precision_name = questionary.text('Enter the precision test name: ', default="80-precision").ask()
             if check_test_name(precision_name):
                 break
 
