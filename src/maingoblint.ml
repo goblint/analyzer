@@ -418,7 +418,7 @@ let parse_preprocessed preprocessed =
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
     let transform_file (path_str, system_header) = match path_str with
-      | "<built-in>" | "<command-line>" ->
+      | "<built-in>" | "<command-line>" | "<command line>"  ->
         (path_str, system_header) (* ignore special "paths" *)
       | _ ->
         let path = Fpath.v path_str in
