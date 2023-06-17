@@ -417,10 +417,9 @@ let parse_preprocessed preprocessed =
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
-    let transform_file (path_str, system_header) = match path_str with
-      | "<built-in>" | "<command-line>" | "<command line>"  ->
+    let transform_file (path_str, system_header) = if Str.string_match (Str.regexp "<.+>") path_str 0 then
         (path_str, system_header) (* ignore special "paths" *)
-      | _ ->
+      else
         let path = Fpath.v path_str in
         let path' = if get_bool "pre.transform-paths" then (
             let cwd_opt =
