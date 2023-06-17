@@ -146,8 +146,7 @@ struct
   let relift (a,b) = (a,b) (*Todo: is this correct?*)
   let printXml f (a,b) = 
     BatPrintf.fprintf f "<value>\n
-    Tuple:\n
-    <map>\n
+    Tuple:\n<map>
     <key>caller_fundec</key>\n%a\n\n
     <key>caller_context</key>\n<value>%a</value>\n\n
     </map></value>\n" Base1.printXml a Base2.printXml b

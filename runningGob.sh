@@ -1,6 +1,7 @@
 #!/bin/bash
 make
 make install
+clear
 
 # set options and file for apron execution
 options_apron="--set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable warn.debug" #note: preprocessing first needs to be added to apron

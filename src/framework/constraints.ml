@@ -1740,6 +1740,7 @@ struct
           (* DFS *)
           let rec iter_call (path_visited_calls: LS.t) (call: T (CilType.Fundec) (C).t) =
             if LS.mem call path_visited_calls then
+              (*Cycle found*)
               let msgs = 
               [
                 (Pretty.dprintf "lock before:", Some (M.Location.CilLocation locUnknown));
@@ -1748,6 +1749,7 @@ struct
               M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs;
               S.query (conv ctx) q
             else if not (LH.mem global_visited_calls call) then begin
+              printf "test\n";
               LH.replace global_visited_calls call ();
               let callers = G.CMap.find (ctx.context()) (Option.get (G.base2 (ctx.global (g)))) in   (*TODO: how do we get our Map out of g*)
               let new_path_visited_calls = LS.add call path_visited_calls in
@@ -1785,6 +1787,7 @@ struct
 
       let tup: (fundec * S.C.t) = (fd_r, c_r) in 
       let t = G.CSet.singleton (tup) in
+
       side_context ctx.sideg fd_e (c_e) t;
       S.combine_env (conv ctx) r fe f args fc es f_ask
     else 

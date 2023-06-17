@@ -31,6 +31,8 @@ void example1(void)
 
     __goblint_check(a[0] == 0); // UNKNOWN
     __goblint_check(a[3] == 3); // UNKNOWN
+    
+    example2();
 }
 
 // Do-while loop simple example
@@ -46,6 +48,7 @@ void example2(void)
 
     __goblint_check(a[0] == 0); // UNKNOWN
     __goblint_check(a[3] == 3); // UNKNOWN
+    example1();
 }
 
 // Initialization not completed, yet the array representation is not precise
