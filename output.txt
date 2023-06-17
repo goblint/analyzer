@@ -131,7 +131,7 @@ typedef long __intptr_t;
 typedef unsigned int __socklen_t;
 #line 215 "/usr/include/x86_64-linux-gnu/bits/types.h"
 typedef int __sig_atomic_t;
-#line 209 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
+#line 209 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
 typedef unsigned long size_t;
 #line 10 "/usr/include/x86_64-linux-gnu/bits/types/time_t.h"
 typedef __time_t time_t;
@@ -201,12 +201,12 @@ struct __anonstruct___value32_817613185 {
    unsigned int __high ;
 };
 #line 25 "/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h"
-union __anonunion___atomic_wide_counter_643133811 {
+union __anonunion___atomic_wide_counter_1044835921 {
    unsigned long long __value64 ;
    struct __anonstruct___value32_817613185 __value32 ;
 };
 #line 25 "/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h"
-typedef union __anonunion___atomic_wide_counter_643133811 __atomic_wide_counter;
+typedef union __anonunion___atomic_wide_counter_1044835921 __atomic_wide_counter;
 #line 51 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
 struct __pthread_internal_list {
    struct __pthread_internal_list *__prev ;
@@ -261,11 +261,11 @@ typedef unsigned int __tss_t;
 #line 106 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
 typedef unsigned long __thrd_t;
 #line 108 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
-struct __anonstruct___once_flag_826868709 {
+struct __anonstruct___once_flag_1044835922 {
    int __data ;
 };
 #line 108 "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h"
-typedef struct __anonstruct___once_flag_826868709 __once_flag;
+typedef struct __anonstruct___once_flag_1044835922 __once_flag;
 #line 27 "/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h"
 typedef unsigned long pthread_t;
 #line 32 "/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h"
@@ -441,16 +441,16 @@ struct __pthread_cleanup_frame {
    int __do_it ;
    int __cancel_type ;
 };
-#line 143 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
+#line 143 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
 typedef long ptrdiff_t;
-#line 321 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
+#line 321 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
 typedef int wchar_t;
-#line 415 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
+#line 415 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
 struct __anonstruct_max_align_t_896270833 {
    long long __max_align_ll  __attribute__((__aligned__(__alignof__(long long )))) ;
    long double __max_align_ld  __attribute__((__aligned__(__alignof__(long double )))) ;
 };
-#line 415 "/usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h"
+#line 415 "/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h"
 typedef struct __anonstruct_max_align_t_896270833 max_align_t;
 /* compiler builtin: 
    void __builtin_va_copy(__builtin_va_list  , __builtin_va_list  ) ;  */
@@ -1683,40 +1683,42 @@ extern void ( __attribute__((__leaf__)) tzset)(void)  __attribute__((__nothrow__
 extern int daylight ;
 #line 233
 extern long timezone ;
-#line 249
+#line 246
 extern time_t ( __attribute__((__leaf__)) timegm)(struct tm *__tp )  __attribute__((__nothrow__)) ;
-#line 251
+#line 263
 extern time_t ( __attribute__((__leaf__)) timelocal)(struct tm *__tp )  __attribute__((__nothrow__)) ;
-#line 262
+#line 271
 extern int ( __attribute__((__leaf__)) dysize)(int __year )  __attribute__((__nothrow__,
 __const__)) ;
-#line 272
+#line 281
 extern int nanosleep(struct timespec  const  *__requested_time , struct timespec *__remaining ) ;
-#line 276
+#line 285
 extern int ( __attribute__((__leaf__)) clock_getres)(clockid_t __clock_id , struct timespec *__res )  __attribute__((__nothrow__)) ;
-#line 279
-extern int ( __attribute__((__leaf__)) clock_gettime)(clockid_t __clock_id , struct timespec *__tp )  __attribute__((__nothrow__)) ;
-#line 282
-extern int ( __attribute__((__leaf__)) clock_settime)(clockid_t __clock_id , struct timespec  const  *__tp )  __attribute__((__nothrow__)) ;
-#line 311
+#line 288
+extern int ( __attribute__((__nonnull__(2), __leaf__)) clock_gettime)(clockid_t __clock_id ,
+                                                                      struct timespec *__tp )  __attribute__((__nothrow__)) ;
+#line 292
+extern int ( __attribute__((__nonnull__(2), __leaf__)) clock_settime)(clockid_t __clock_id ,
+                                                                      struct timespec  const  *__tp )  __attribute__((__nothrow__)) ;
+#line 323
 extern int clock_nanosleep(clockid_t __clock_id , int __flags , struct timespec  const  *__req ,
                            struct timespec *__rem ) ;
-#line 326
+#line 338
 extern int ( __attribute__((__leaf__)) clock_getcpuclockid)(pid_t __pid , clockid_t *__clock_id )  __attribute__((__nothrow__)) ;
-#line 331
+#line 343
 extern int ( __attribute__((__leaf__)) timer_create)(clockid_t __clock_id , struct sigevent * __restrict  __evp ,
                                                      timer_t * __restrict  __timerid )  __attribute__((__nothrow__)) ;
-#line 336
+#line 348
 extern int ( __attribute__((__leaf__)) timer_delete)(timer_t __timerid )  __attribute__((__nothrow__)) ;
-#line 340
+#line 352
 extern int ( __attribute__((__leaf__)) timer_settime)(timer_t __timerid , int __flags ,
                                                       struct itimerspec  const  * __restrict  __value ,
                                                       struct itimerspec * __restrict  __ovalue )  __attribute__((__nothrow__)) ;
-#line 345
+#line 357
 extern int ( __attribute__((__leaf__)) timer_gettime)(timer_t __timerid , struct itimerspec *__value )  __attribute__((__nothrow__)) ;
-#line 364
+#line 376
 extern int ( __attribute__((__leaf__)) timer_getoverrun)(timer_t __timerid )  __attribute__((__nothrow__)) ;
-#line 371
+#line 383
 extern int ( __attribute__((__nonnull__(1), __leaf__)) timespec_get)(struct timespec *__ts ,
                                                                      int __base )  __attribute__((__nothrow__)) ;
 #line 202 "/usr/include/pthread.h"
@@ -1827,9 +1829,8 @@ extern void __pthread_unregister_cancel(__pthread_unwind_buf_t *__buf ) ;
 #line 750
 extern void __pthread_unwind_next(__pthread_unwind_buf_t *__buf )  __attribute__((__weak__,
 __noreturn__)) ;
-#line 766
-extern int __sigsetjmp_cancel(struct __cancel_jmp_buf_tag *__env , int __savemask )  __asm__("__sigsetjmp") __attribute__((__returns_twice__,
-__nothrow__)) ;
+#line 773
+extern int __sigsetjmp(struct __jmp_buf_tag *__env , int __savemask )  __attribute__((__nothrow__)) ;
 #line 781
 extern int ( __attribute__((__nonnull__(1), __leaf__)) pthread_mutex_init)(pthread_mutex_t *__mutex ,
                                                                            pthread_mutexattr_t const   *__mutexattr )  __attribute__((__nothrow__)) ;
@@ -1994,8 +1995,7 @@ extern int ( __attribute__((__leaf__)) pthread_key_delete)(pthread_key_t __key )
 extern void *( __attribute__((__leaf__)) pthread_getspecific)(pthread_key_t __key )  __attribute__((__nothrow__)) ;
 #line 1308
 extern int ( __attribute__((__leaf__)) pthread_setspecific)(pthread_key_t __key ,
-                                                            void const   *__pointer )  __attribute__((__nothrow__,
-__access__(__none__,2))) ;
+                                                            void const   *__pointer )  __attribute__((__nothrow__)) ;
 #line 1315
 extern int ( __attribute__((__nonnull__(2), __leaf__)) pthread_getcpuclockid)(pthread_t __thread_id ,
                                                                               __clockid_t *__clock_id )  __attribute__((__nothrow__)) ;
