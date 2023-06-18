@@ -1,14 +1,7 @@
-(* - code in src/analysis/termination.ml contains loopCounterVisitor which might be interesting
-   - check if overflow happend with new variable
-   - how do we deal with nested loops?
-   - make sure only the analyzed files are appended with the code
-   - return variables that are newly created   
-   *)
-
 open GoblintCil
 include Printf
 
-let f_bounded = Lval (var (emptyFunction "__goblint_bounded").svar)
+module VarToStmt = Map.Make(CilType.Varinfo);; (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
 
 let extract_file_name s =                    (*There still may be a need to filter more chars*)
    let ls = String.split_on_char '/' s in    (*Assuming '/' as path seperator*)
@@ -30,7 +23,7 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          | Loop (b, loc, eloc, _, _) ->
          let name = "term"^show_location_id loc in
          let typ = Cil.intType in 
-         let v = (Cil.makeLocalVar fd name typ) in   (* NOT tested for TODOOOOO*)
+         let v = (Cil.makeLocalVar fd name typ) in (*Not tested for incremental mode*)
          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
          let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [(Lval(var v))], loc, eloc) in
@@ -38,7 +31,7 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
             | cont :: cond :: ss ->
             b.bstmts <- cont :: inc_stmt :: cond :: ss; (*cont :: cond :: inc_stmt :: ss = it is also possible, but for loops with cond at the end, inc is also at the end*)
             | _ -> ());
-         lc := List.append !lc ([v] : varinfo list);
+         lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
          let nb = mkBlock [init_stmt; mkStmt s.skind; exit_stmt] in
          s.skind <- Block nb;
          s
@@ -52,41 +45,3 @@ class loopCounterVisitor lc lg le (fd : fundec) = object(self)
          | _ -> s
       in ChangeDoChildrenPost (s, action);
    end
-
-(* just a test
-class loopCounterVisitor (fd : fundec) = object(self)
-inherit nopCilVisitor
-method! vstmt s =
-   match s.skind with
-      | Loop (b, loc, eloc, _, _) ->
-      let name = "term"^show_location_id loc in
-      let typ = intType in 
-      let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
-      let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
-      let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
-      b.bstmts <- inc_stmt :: b.bstmts;
-      let nb = mkBlock [init_stmt; mkStmt s.skind] in (* init_stmt; *)
-      ChangeDoChildrenPost (s, (fun _ -> s.skind <- Block(nb); s))
-      | _ -> DoChildren
-end 
-
-let add_var_loopTerm fd f =
-   let thisVisitor = new loopCounterVisitor in
-   visitCilFileSameGlobals (thisVisitor fd ) f*)
-(*
-let action (fd : fundec) s =
-   let a s = match s.skind with
-   | Loop (b, loc, eloc, _, _) ->
-      let name = "term"^show_location_id loc in
-      let typ = intType in 
-      let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
-      let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
-      let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
-      b.bstmts <- inc_stmt :: b.bstmts;
-      let nb = mkBlock [init_stmt; mkStmt s.skind] in (* *)
-      s.skind <- Block nb;
-      s
-      | _ -> s
-in ChangeDoChildrenPost (s, a)
-*)
-

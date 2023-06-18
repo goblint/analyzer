@@ -117,7 +117,7 @@ type _ t =
   | MayAccessed: AccessDomain.EventSet.t t
   | MayBeTainted: LS.t t
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
-  | MustTermLoop: varinfo -> MustBool.t t (** TODO: not sure if it is the MayBool*)
+  | MustTermLoop: stmt -> MustBool.t t
   | MustTermProg: MustBool.t t
 
 type 'a result = 'a
@@ -347,7 +347,7 @@ struct
           compare (Any q1) (Any q2)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
-      | Any (MustTermLoop v1), Any (MustTermLoop v2) -> CilType.Varinfo.compare v1 v2
+      | Any (MustTermLoop s1), Any (MustTermLoop s2) -> CilType.Stmt.compare s1 s2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
@@ -386,7 +386,7 @@ struct
     | Any (IterVars i) -> 0
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
-    | Any (MustTermLoop v) -> CilType.Varinfo.hash v
+    | Any (MustTermLoop s) -> CilType.Stmt.hash s
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
@@ -454,7 +454,7 @@ struct
     | Any MayBeTainted -> Pretty.dprintf "MayBeTainted"
     | Any DYojson -> Pretty.dprintf "DYojson"
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
-    | Any (MustTermLoop v) -> Pretty.dprintf "MustTermLoop %a" CilType.Varinfo.pretty v
+    | Any (MustTermLoop s) -> Pretty.dprintf "MustTermLoop %a" CilType.Stmt.pretty s
     | Any MustTermProg -> Pretty.dprintf "MustTermProg"
 end
 

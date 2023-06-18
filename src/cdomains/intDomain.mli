@@ -187,9 +187,6 @@ sig
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
 
-  val to_interval: t -> (int_t * int_t) option
-  (** Gives an interval interpretation if possible. *)
-
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
@@ -235,7 +232,7 @@ sig
   val invariant: Cil.exp -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
-   TODO: Should be ported to S in the future. *)
+    TODO: Should be ported to S in the future. *)
 
 module type S =
 sig
@@ -415,10 +412,10 @@ module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = I
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
 module BigInt:
-  sig
-    include Printable.S with type t = Z.t (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
-    val cast_to: Cil.ikind -> Z.t -> Z.t
-  end
+sig
+  include Printable.S with type t = Z.t (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+  val cast_to: Cil.ikind -> Z.t -> Z.t
+end
 
 module Interval : SOverflow with type int_t = IntOps.BigIntOps.t
 
