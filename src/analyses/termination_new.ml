@@ -6,6 +6,17 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
+(*
+ * TODO: Make this work
+module FileCfg =
+struct
+  let file = !Cilfacade.current_file
+  module Cfg = (val !MyCFG.current_cfg)
+end
+
+let loop_heads = WitnessUtil.find_loop_heads FileCfg
+   *)
+
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
@@ -67,6 +78,10 @@ struct
       (Var x, NoOffset), _ when is_loop_counter_var x ->
       (* Assume that the following loop does not terminate *)
       let loop_statement = VarToStmt.find x !loop_counters in
+      (*
+       * TODO: Make the below line work
+      let () = ctx.sideg (() : V.t) (G.add (`Lifted loop_statement) false ctx.local) in
+      *)
       D.add (`Lifted loop_statement) false ctx.local
     | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
