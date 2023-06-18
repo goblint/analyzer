@@ -135,11 +135,11 @@ end
 module T (Base1: Printable.S) (Base2: Printable.S) = (*Todo: is this Printable.S or S.C*)
 struct 
   include Printable.Std
-  type t = (CilType.Fundec.t * Base2.t)
+  type t = (Base1.t * Base2.t)
 
   let fundec (a,_) = a
   let context (_,b) = b
-  let equal (a1, b1) (a2, b2) = if (a1 = a2) && (b1 = b2) then true else false
+  let equal (a1, b1) (a2, b2) = if (Base1.equal a1 a2 && Base2.equal b1 b2) then true else false
   let show (a,b) = (Base1.show a) ^ (Base2.show b) 
   let name () = "Tuple"
   let to_yojson x = `String (show x)
@@ -159,6 +159,7 @@ struct
      - b1 < b2: -3
      *)
   let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
+    if equal (a1, b1) (a2, b2) then 0 else(
     let res = ref 0 in
     let comp_a = Base1.compare a1 a2 in
     let comp_b = Base2.compare b1 b2 in
@@ -166,7 +167,7 @@ struct
     else if (comp_a < 0) then res := !(res) - 1;
     if (comp_b > 0) then res := !(res) + 3 
     else if (comp_b < 0) then res := !(res) - 3;
-    !res
+    !res)
   
   let pretty () x = text (show x)
 
@@ -194,6 +195,7 @@ struct
   struct
     include MapDomain.MapBot (C_ (C)) (CSet)
     let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (*TODO*)
+
   end
 
   include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
