@@ -21,12 +21,6 @@ let is_loop_counter_var (x : varinfo) =
 let is_loop_exit_indicator (x : varinfo) =
   x = !loop_exit
 
-(** Checks whether at the current location (=loc) of the analysis an
- * upjumping goto was already reached. Returns true if no upjumping goto was
- * reached until now *)
-let currrently_no_upjumping_gotos (loc : location) =
-  List.for_all (function l -> l >= loc) upjumping_gotos.contents
-
 let no_upjumping_gotos () =
   List.length upjumping_gotos.contents = 0
 
@@ -39,14 +33,18 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
-module FunContextV : Analyses.SpecSysVar =
+module UnitV : SpecSysVar =
 struct
-  include Printable.Prod (CilType.Fundec) (CilType.Fundec) (* TODO *)
-  include Analyses.StdV
+  include Printable.Unit
+  include StdV
 end
 
+(** We want to record termination information of loops and use the loop
+ * statements for that. We use this lifting because we need to have a
+ * lattice. *)
 module Statements = Lattice.Flat (CilType.Stmt) (Printable.DefaultNames) (* TODO: Use Basetype.CilStmt instead? *)
 
+(** The termination analysis considering loops and gotos *)
 module Spec : Analyses.MCPSpec =
 struct
 
@@ -55,15 +53,13 @@ struct
 
   let name () = "termination"
 
-  module D = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
+  module D = MapDomain.MapBot (Statements) (BoolDomain.MustBool) (* TODO *)
   module C = D
-  module V = FunContextV
-  (* TODO *)
+  module V = UnitV
+  module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
 
   let startstate _ = D.bot ()
-  let exitstate = startstate (* TODO *)
-
-  let finalize () = () (* TODO *)
+  let exitstate = startstate
 
   let assign ctx (lval : lval) (rval : exp) =
     (* Detect assignment to loop counter variable *)
@@ -85,7 +81,6 @@ struct
     ctx.local
 
   (** Provides information to Goblint *)
-  (* TODO: Consider gotos *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
@@ -95,6 +90,7 @@ struct
        | None -> Result.top q)
     | Queries.MustTermProg ->
       D.for_all (fun _ term_info -> term_info) ctx.local
+      && no_upjumping_gotos ()
     | _ -> Result.top q
 
 end
