@@ -119,6 +119,7 @@ type _ t =
   | MayBeModifiedSinceSetjmp: JmpBufDomain.BufferEntry.t -> VS.t t
   | MustTermLoop: stmt -> MustBool.t t
   | MustTermProg: MustBool.t t
+  | MustTermProgWithRec: MustBool.t t
 
 type 'a result = 'a
 
@@ -185,6 +186,7 @@ struct
     | MayBeModifiedSinceSetjmp _ -> (module VS)
     | MustTermLoop _ -> (module MustBool)
     | MustTermProg -> (module MustBool)
+    | MustTermProgWithRec -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -250,6 +252,7 @@ struct
     | MayBeModifiedSinceSetjmp _ -> VS.top ()
     | MustTermLoop _ -> MustBool.top ()
     | MustTermProg -> MustBool.top ()
+    | MustTermProgWithRec -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -312,6 +315,7 @@ struct
     | Any ThreadsJoinedCleanly -> 52
     | Any (MustTermLoop _) -> 53
     | Any MustTermProg -> 54
+    | Any MustTermProgWithRec -> 55
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -456,6 +460,7 @@ struct
     | Any MayBeModifiedSinceSetjmp buf -> Pretty.dprintf "MayBeModifiedSinceSetjmp %a" JmpBufDomain.BufferEntry.pretty buf
     | Any (MustTermLoop s) -> Pretty.dprintf "MustTermLoop %a" CilType.Stmt.pretty s
     | Any MustTermProg -> Pretty.dprintf "MustTermProg"
+    | Any MustTermProgWithRec -> Pretty.dprintf "MustTermProgWithRec"
 end
 
 let to_value_domain_ask (ask: ask) =
