@@ -90,11 +90,15 @@ struct
     let open Queries in
     match q with
     | Queries.MustTermLoop loop_statement ->
-      (match D.find_opt (`Lifted loop_statement) ctx.local with
+      if no_upjumping_gotos () 
+        then ((match D.find_opt (`Lifted loop_statement) ctx.local with
          Some b -> b
-       | None -> Result.top q)
+       | None -> Result.top q))
+      else(Result.top q)
     | Queries.MustTermProg ->
-      D.for_all (fun _ term_info -> term_info) ctx.local
+      if no_upjumping_gotos () 
+        then (D.for_all (fun _ term_info -> term_info) ctx.local) 
+        else (Result.top q)
     | _ -> Result.top q
 
 end

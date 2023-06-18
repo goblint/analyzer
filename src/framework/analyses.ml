@@ -119,17 +119,6 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
-(* Make the given module Goupable*)
-module C_ (C: Printable.S)= 
-struct
-  include C
-  include Printable.Std (* To make it Groupable *)
-  let printXml f c = BatPrintf.fprintf f (*Todo: Make this print pretty*)
-  "<value>
-  callee_context:\n<value>%a</value>\n\n
-  </value>" printXml c (* wrap in <value> for HTML printing *)
-  
-end 
 
 (* Tuple of fundec and S.C*)
 module T (Base1: Printable.S) (Base2: Printable.S) = (*Todo: is this Printable.S or S.C*)
@@ -146,7 +135,7 @@ struct
   let relift (a,b) = (a,b) (*Todo: is this correct?*)
   let printXml f (a,b) = 
     BatPrintf.fprintf f "<value>\n
-    Tuple:\n<map>
+    Tuple:\n\n<map>
     <key>caller_fundec</key>\n%a\n\n
     <key>caller_context</key>\n<value>%a</value>\n\n
     </map></value>\n" Base1.printXml a Base2.printXml b
@@ -176,6 +165,7 @@ struct
 end
 
 module GVarGG (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
+
 struct
   module CSet =
   struct
@@ -186,16 +176,29 @@ struct
         )
     let name () = "contexts"
     let printXml f a = 
-      BatPrintf.fprintf f "<value>\n<set>\n";
+      BatPrintf.fprintf f "<value>\n<set>";
       iter (Base.printXml f) a;
       BatPrintf.fprintf f "</set>\n</value>\n"
   end
 
+  (* Make the given module Goupable*)
+  module C_Printable (C: Printable.S)= 
+    struct
+      include C
+      include Printable.Std (* To make it Groupable *)
+      let printXml f c = BatPrintf.fprintf f (*Todo: Make this print pretty*)
+      "<value>\n
+      callee_context\n<value>%a</value>\n\n
+      </value>" printXml c (* wrap in <value> for HTML printing *)
+    end
+
   module CMap = 
   struct
-    include MapDomain.MapBot (C_ (C)) (CSet)
-    let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (*TODO*)
-
+    include MapDomain.MapBot (C_Printable (C)) (CSet)
+    let printXml f c = BatPrintf.fprintf f "<value><map>
+    <key>ContextTupleMap</key>\n
+    <value>%a</value>\n\n
+    </map></value>" printXml c (*TODO*)
   end
 
   include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)

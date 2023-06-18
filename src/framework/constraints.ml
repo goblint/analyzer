@@ -1753,6 +1753,7 @@ struct
               iter_call new_path_visited_calls to_call
             ) callers;
         with Invalid_argument _ -> () (* path ended: no cycle*)
+        
         end
     in
       let gmap_opt = G.base2 (ctx.global (v)) in
@@ -1760,8 +1761,18 @@ struct
       (*let c = Option.get(G.CMap.PMap.keys gmap) in *)(*Todo: the context should be the domain of the map*)
       G.CMap.iter(fun key value ->
         let call = (v', key) in
-        iter_call LS.empty call
+         iter_call LS.empty call
       ) gmap (* try all fundec + context pairs that are in the map *)
+
+  let checkTerminating ctx v v' = 
+    (*Check if the loops terminated*)
+      if ctx.ask Queries.MustTermProg
+        then (cycleDetection ctx v v')
+        else(let msgs = 
+          [
+            (Pretty.dprintf "The program might not terminate! (Loops)\n", Some (M.Location.CilLocation locUnknown));
+          ] in
+        M.msg_group Warning "Possibly non terminating loops" msgs)
 
   (*TODO: We may need to add new queries here*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -1771,17 +1782,8 @@ struct
       begin match v with
         | `Left v' ->
           S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right v' ->
-          (*Check if the loops terminated*)
-          match ctx.ask (MustTermProg) with
-            | false -> (*does not terminate*)
-              let msgs = 
-                [
-                  (Pretty.dprintf "The program might not terminate! (Loops)\n", Some (M.Location.CilLocation locUnknown));
-                ] in
-              M.msg_group Warning "Non terminating loops" msgs
-            | true -> cycleDetection ctx v v'
-          end
+        | `Right v' -> checkTerminating ctx v v'       
+        end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
       begin match v with
@@ -1790,6 +1792,7 @@ struct
         | `Right v ->
           Queries.Result.top q
       end
+    | MustTermProgWithRec -> false (*TODO*) 
     | _ -> S.query (conv ctx) q
 
   let branch ctx = S.branch (conv ctx)
