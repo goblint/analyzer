@@ -211,27 +211,6 @@ let add_one side memo: unit =
   if not ignorable then
     side memo
 
-(** Distribute type-based access to variables and containing fields. *)
-let rec add_distribute_outer side (t: typ) (o: Offset.Unit.t) =
-  let memo = (`Type t, o) in
-  if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
-  add_one side memo;
-
-  (* distribute to variables of the type *)
-  let ts = typeSig t in
-  let vars = TSH.find_all typeVar ts in
-  List.iter (fun v ->
-      add_one side (`Var v, o) (* same offset, but on variable *)
-    ) vars;
-
-  (* recursively distribute to fields containing the type *)
-  let fields = TSH.find_all typeIncl ts in
-  List.iter (fun f ->
-      (* prepend field and distribute to outer struct *)
-      add_distribute_outer side (TComp (f.fcomp, [])) (`Field (f, o))
-    ) fields;
-
-  if M.tracing then M.traceu "access" "add_distribute_outer\n"
 
 (** Add access to known variable with offsets or unknown variable from expression. *)
 let add side e voffs =
@@ -249,7 +228,7 @@ let add side e voffs =
       in
       match o with
       | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
-      | _ -> add_distribute_outer side t o (* distribute to variables and outer offsets *)
+      | _ -> add_one side (`Type t, o) (* add_distribute_outer side t o (* distribute to variables and outer offsets *)*)
   end;
   if M.tracing then M.traceu "access" "add\n"
 

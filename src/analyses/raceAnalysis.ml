@@ -54,6 +54,12 @@ struct
   struct
     include TrieDomain.Make (OneOffset) (Access.AS)
 
+    let rec find (offset : Offset.Unit.t) ((accs, children) : t) : value =
+      match offset with
+      | `NoOffset -> accs
+      | `Field (f, offset') -> find offset' (ChildMap.find (Field f) children)
+      | `Index ((), offset') -> find offset' (ChildMap.find Index children)
+
     let rec singleton (offset : Offset.Unit.t) (value : value) : t =
       match offset with
       | `NoOffset -> (value, ChildMap.empty ())
@@ -99,6 +105,22 @@ struct
       ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (Access.AS.singleton (conf, w, loc, e, a))));
     side_vars ctx memo
 
+  let outer_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
+    match offset with
+    | `NoOffset -> None
+    | `Field (f, offset') -> Some (`Type f.ftype, offset')
+    | `Index ((), offset') -> None (* TODO *)
+
+  let rec distribute_outer ctx ((root, offset) : Access.Memo.t) : Access.AS.t =
+    let trie = G.access (ctx.global (V.access root)) in
+    let accs = OffsetTrie.find offset trie in
+    let outer_accs =
+      match outer_memo (root, offset) with
+      | Some outer_memo -> distribute_outer ctx outer_memo
+      | None -> Access.AS.empty ()
+    in
+    Access.AS.union accs outer_accs
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
@@ -109,15 +131,22 @@ struct
           let trie = G.access (ctx.global g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ancestor_accs =
-            let ancestor_accs' = Access.AS.union ancestor_accs accs in
-            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
-                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs'
-              ) children;
+            let outer_accs =
+              match outer_memo (g', offset) with
+              | Some outer_memo -> distribute_outer ctx outer_memo
+              | None -> Access.AS.empty ()
+            in
+            M.trace "access" "outer accs = %a" Access.AS.pretty outer_accs;
+            let ancestor_accs' = Access.AS.union ancestor_accs outer_accs in
             if not (Access.AS.is_empty accs) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
-              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs memo) accs 
-            )
+              Timing.wrap ~args:[("memory location", `String mem_loc_str)] "race" (Access.warn_global ~safe ~vulnerable ~unsafe ~ancestor_accs:ancestor_accs' memo) accs 
+            );
+            let ancestor_accs'' = Access.AS.union ancestor_accs' accs in
+            OffsetTrie.ChildMap.iter (fun child_key child_trie ->
+                distribute_inner (Offset.Unit.add_offset offset (OneOffset.to_offset child_key)) child_trie ancestor_accs''
+              ) children;
           in
           distribute_inner `NoOffset trie (Access.AS.empty ())
         | `Right _ -> (* vars *)
