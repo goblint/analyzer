@@ -1712,11 +1712,10 @@ struct
     include GVarF(S.V)
   end
 
-  module G = GVarGG (S.G) (S.C) (T (CilType.Fundec) (S.C))
+  module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
   
   let name () = "RecursionTerm (" ^ S.name () ^ ")"
 
-  (*TODO Change the body??*)
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx = 
     { ctx with
       global = (fun v -> G.s (ctx.global (V.spec v)));
@@ -1726,7 +1725,7 @@ struct
   let cycleDetection ctx v v' = 
     let module LH = Hashtbl.Make (T (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (T (CilType.Fundec) (S.C)) in
-    (* TODO: find all cycles/SCCs *)
+    (* find all cycles/SCCs *)
     let global_visited_calls = LH.create 100 in
 
     (* DFS *)
@@ -1748,7 +1747,7 @@ struct
           let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
           let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in
           let gmap = Option.get (gmap_opt) in (*might be empty*)
-          let callers: G.CSet.t = G.CMap.find (context_e) gmap in (*TODO: how do we get our Map out of g*) (*Todo: the context should be the domain of the map*)
+          let callers: G.CSet.t = G.CMap.find (context_e) gmap in
           G.CSet.iter (fun to_call ->
               iter_call new_path_visited_calls to_call
             ) callers;
@@ -1756,14 +1755,13 @@ struct
         end
     in
       try 
-        let gmap_opt = G.base2 (ctx.global (v)) in
-        let gmap = Option.get (gmap_opt) in
-        (*let c = Option.get(G.CMap.PMap.keys gmap) in *)(*Todo: the context should be the domain of the map*)
-        G.CMap.iter(fun key value ->
-          let call = (v', key) in
-          iter_call LS.empty call
-        ) gmap (* try all fundec + context pairs that are in the map *)
-      with Invalid_argument _ -> ()
+      let gmap_opt = G.base2 (ctx.global (v)) in
+      let gmap = Option.get (gmap_opt) in
+      G.CMap.iter(fun key value ->
+        let call = (v', key) in
+        iter_call LS.empty call
+      ) gmap (* try all fundec + context pairs that are in the map *)
+    with Invalid_argument _ -> ()
 
   let checkTerminating ctx v v' = 
     (*Check if the loops terminated*)
@@ -1773,11 +1771,8 @@ struct
           [
             (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
           ] in
-        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
-        printf "true"
+          M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs)
 
-
-  (*TODO: We may need to add new queries here*)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal v ->
@@ -1795,7 +1790,6 @@ struct
         | `Right v ->
           Queries.Result.top q
       end
-    | MustTermProgWithRec -> false (*TODO*) 
     | _ -> S.query (conv ctx) q
 
   let branch ctx = S.branch (conv ctx)

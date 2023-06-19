@@ -121,7 +121,7 @@ end
 
 
 (* Tuple of fundec and S.C*)
-module T (Base1: Printable.S) (Base2: Printable.S) = (*Todo: is this Printable.S or S.C*)
+module T (Base1: Printable.S) (Base2: Printable.S) = 
 struct 
   include Printable.Std
   type t = (Base1.t * Base2.t)
@@ -140,13 +140,6 @@ struct
     <key>caller_context</key>\n<value>%a</value>\n\n
     </map></value>\n" Base1.printXml a Base2.printXml b
 
-  (*Result of compare: 
-  start with inital value of 0
-     - a1 > a2: +1 
-     - a1 < a2: -1
-     - b1 > b2: +3
-     - b1 < b2: -3
-     *)
   let compare (a1,b1) (a2,b2) = (*Todo: is this ok?*)
     if equal (a1, b1) (a2, b2) then 0 else(
     let res = ref 0 in
@@ -157,6 +150,7 @@ struct
     if (comp_b > 0) then res := !(res) + 3 
     else if (comp_b < 0) then res := !(res) - 3;
     !res)
+    
   
   let pretty () x = text (show x)
 
@@ -164,7 +158,7 @@ struct
     
 end
 
-module GVarGG (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
+module GVarGSet (G: Lattice.S) (C: Printable.S) (Base: Printable.S) =
 
 struct
   module CSet =
@@ -186,10 +180,10 @@ struct
     struct
       include C
       include Printable.Std (* To make it Groupable *)
-      let printXml f c = BatPrintf.fprintf f (*Todo: Make this print pretty*)
+      let printXml f c = BatPrintf.fprintf f
       "<value>\n
       callee_context\n<value>%a</value>\n\n
-      </value>" printXml c (* wrap in <value> for HTML printing *)
+      </value>" printXml c
     end
 
   module CMap = 
@@ -198,7 +192,7 @@ struct
     let printXml f c = BatPrintf.fprintf f "<value><map>
     <key>ContextTupleMap</key>\n
     <value>%a</value>\n\n
-    </map></value>" printXml c (*TODO*)
+    </map></value>" printXml c
   end
 
   include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
@@ -219,71 +213,17 @@ struct
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"recTerm-context\">%a</analysis>" CMap.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"recTerm\">%a</analysis>" printXml x
 
-  let s = function (*TODO: does this work? copied from DeadBranch*)
+  let s = function
     | `Bot -> G.bot ()
     | `Lifted1 x -> x
     | _ -> failwith "RecursionTerm.s"
 
-  let create_s s = `Lifted1 s (*TODO: does this work? copied from DeadBranch*)
+  let create_s s = `Lifted1 s
 
   let base2 instance =
     match instance with
     | `Lifted2 n -> Some n
     | _ -> None
-end
-
-
-module GMapG (G: Lattice.S) (C: Printable.S) =
-struct
-  module CVal =
-  struct
-    include Printable.Std (* To make it Groupable *)
-    include SetDomain.Make (
-      struct
-        include C
-        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
-      end
-      )
-    let name () = "contextsMap"
-  end
-
-  module RangeVal =
-  struct
-    include SetDomain.Make (
-      struct
-        include C (*TODO: sollte hier iwi ein tupel sein*)
-        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
-      end
-      )
-    let name () = "contextsMap"
-  end
-
-  module CMap =
-  struct
-    include MapDomain.MapBot (CVal) (RangeVal)
-    let name () = "contextsMap"
-  end
-  include Lattice.Lift2 (G) (CMap) (Printable.DefaultNames)
-
-  let is_bot () = false
-  let is_top () = false
-
-  (*let spec = function
-    | `Bot -> G.bot ()
-    | `Lifted1 x -> x
-    | _ -> failwith "GVarG.spec"
-  let contexts = function
-    | `Bot -> CSet.bot ()
-    | `Lifted2 x -> x
-    | _ -> failwith "GVarG.contexts"
-  let create_spec spec = `Lifted1 spec
-  let create_contexts contexts = `Lifted2 contexts
-
-  let printXml f = function
-    | `Lifted1 x -> G.printXml f x
-    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
-    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
-*)
 end
 
 exception Deadcode
