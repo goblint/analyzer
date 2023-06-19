@@ -6,16 +6,14 @@ open TerminationPreprocessing
 
 exception PreProcessing of string
 
-(*
- * TODO: Make this work
-module FileCfg =
-struct
-  let file = !Cilfacade.current_file
-  module Cfg = (val !MyCFG.current_cfg)
-end
-
-let loop_heads = WitnessUtil.find_loop_heads FileCfg
-   *)
+let loop_heads =
+  let module FileCfg =
+  struct
+    let file = !Cilfacade.current_file
+    module Cfg = (val !MyCFG.current_cfg)
+  end in
+  let module WitnessInvariant = WitnessUtil.Invariant (FileCfg) in
+  WitnessInvariant.loop_heads (* TODO: Use this *)
 
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
@@ -44,7 +42,7 @@ let check_bounded ctx varinfo =
   | `Lifted v -> not (is_top_of (ikind v) v)
   | `Bot -> raise (PreProcessing "Loop variable is Bot")
 
-module UnitV : SpecSysVar =
+module UnitV =
 struct
   include Printable.Unit
   include StdV
@@ -64,7 +62,7 @@ struct
 
   let name () = "termination"
 
-  module D = MapDomain.MapBot (Statements) (BoolDomain.MustBool) (* TODO *)
+  module D = Lattice.Unit
   module C = D
   module V = UnitV
   module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
@@ -75,20 +73,21 @@ struct
   let assign ctx (lval : lval) (rval : exp) =
     (* Detect assignment to loop counter variable *)
     match lval, rval with
+    (*
       (Var x, NoOffset), _ when is_loop_counter_var x ->
       (* Assume that the following loop does not terminate *)
       let loop_statement = VarToStmt.find x !loop_counters in
-      (*
-       * TODO: Make the below line work
-      let () = ctx.sideg (() : V.t) (G.add (`Lifted loop_statement) false ctx.local) in
-      *)
+      let () = ctx.sideg () (G.add (`Lifted loop_statement) false ctx.local) in
+      let () = print_endline ("Added FALSE for " ^ x.vname) in
       D.add (`Lifted loop_statement) false ctx.local
-    | (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
+       *)
+      (Var y, NoOffset), Lval (Var x, NoOffset) when is_loop_exit_indicator y ->
       (* Loop exit: Check whether loop counter variable is bounded *)
       (* TODO: Move *)
       let is_bounded = check_bounded ctx x in
       let loop_statement = VarToStmt.find x !loop_counters in
-      D.add (`Lifted loop_statement) is_bounded ctx.local
+      let () = ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ())) in
+      ctx.local
     | _ -> ctx.local
 
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
@@ -97,16 +96,15 @@ struct
 
   (** Provides information to Goblint *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let open Queries in
     match q with
     | Queries.MustTermLoop loop_statement ->
-      (match D.find_opt (`Lifted loop_statement) ctx.local with
+      (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
          Some b -> b
-       | None -> Result.top q)
+       | None -> false)
     | Queries.MustTermProg ->
-      D.for_all (fun _ term_info -> term_info) ctx.local
+      G.for_all (fun _ term_info -> term_info) (ctx.global ())
       && no_upjumping_gotos ()
-    | _ -> Result.top q
+    | _ -> Queries.Result.top q
 
 end
 
