@@ -2078,6 +2078,12 @@
           "type": "boolean",
           "default": true
         },
+        "nonTerminating": {
+          "title": "warn.nonTerminating",
+          "description": "nonTerminating warning",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",

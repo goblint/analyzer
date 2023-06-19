@@ -1739,7 +1739,7 @@ struct
           [
             (Pretty.dprintf "The program might not terminate! (Fundec %a is contained in a call graph cycle)\n" CilType.Fundec.pretty fundec_e, Some (M.Location.CilLocation locUnknown));
           ] in
-        M.msg_group Warning "Recursion cycle" msgs)
+        M.msg_group Warning ~category:NonTerminating "Recursion cycle" msgs)
       else if not (LH.mem global_visited_calls call) then begin
         try
           LH.replace global_visited_calls call ();
@@ -1773,7 +1773,7 @@ struct
           [
             (Pretty.dprintf "The program might not terminate! (Loop analysis)\n", Some (M.Location.CilLocation locUnknown));
           ] in
-        M.msg_group Warning "Possibly non terminating loops" msgs);
+        M.msg_group Warning ~category:NonTerminating "Possibly non terminating loops" msgs);
         printf "true"
 
 
