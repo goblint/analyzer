@@ -1711,9 +1711,8 @@ struct
   struct 
     include GVarF(S.V)
   end
-
   module G = GVarGSet (S.G) (S.C) (T (CilType.Fundec) (S.C))
-  
+
   let name () = "RecursionTerm (" ^ S.name () ^ ")"
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx = 
@@ -1727,11 +1726,9 @@ struct
     let module LS = Set.Make (T (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
     let global_visited_calls = LH.create 100 in
-
     (* DFS *)
     let rec iter_call (path_visited_calls: LS.t) (call:T (CilType.Fundec) (S.C).t) =
       let ((fundec_e:fundec), (context_e: C.t)) = call in (*unpack tuple for later use*)
-      
       if LS.mem call path_visited_calls then (
         (*Cycle found*) 
         let msgs = 
@@ -1743,7 +1740,6 @@ struct
         try
           LH.replace global_visited_calls call ();
           let new_path_visited_calls = LS.add call path_visited_calls in
-          
           let fundec_e_typeV: V.t = V.relift (`Right fundec_e) in
           let gmap_opt = G.base2 (ctx.global (fundec_e_typeV)) in
           let gmap = Option.get (gmap_opt) in (*might be empty*)
@@ -1755,13 +1751,13 @@ struct
         end
     in
       try 
-      let gmap_opt = G.base2 (ctx.global (v)) in
-      let gmap = Option.get (gmap_opt) in
-      G.CMap.iter(fun key value ->
-        let call = (v', key) in
-        iter_call LS.empty call
-      ) gmap (* try all fundec + context pairs that are in the map *)
-    with Invalid_argument _ -> ()
+        let gmap_opt = G.base2 (ctx.global (v)) in
+        let gmap = Option.get (gmap_opt) in
+        G.CMap.iter(fun key value ->
+          let call = (v', key) in
+          iter_call LS.empty call
+        ) gmap (* try all fundec + context pairs that are in the map *)
+      with Invalid_argument _ -> ()
 
   let checkTerminating ctx v v' = 
     (*Check if the loops terminated*)
@@ -1814,10 +1810,8 @@ struct
       let fd_r : fundec = Node.find_fundec nodeF in (*Caller fundec*)
       let c_e: S.C.t = Option.get (fc) in (*Callee context*) 
       let fd_e : fundec = f in (*Callee fundec*)
-
       let tup: (fundec * S.C.t) = (fd_r, c_r) in 
       let t = G.CSet.singleton (tup) in
-
       side_context ctx.sideg fd_e (c_e) t;
       S.combine_env (conv ctx) r fe f args fc es f_ask
     else 
@@ -1831,7 +1825,6 @@ struct
   let asm ctx = S.asm (conv ctx)
   let event ctx e octx = S.event (conv ctx) e (conv octx)
 end
-
 
 module CompareGlobSys (SpecSys: SpecSys) =
 struct
