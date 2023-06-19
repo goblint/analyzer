@@ -1,0 +1,2 @@
+# Do not consider temporary files for the running of mutation generator
+99-temp
